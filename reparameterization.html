@@ -1,0 +1,403 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>apex.reparameterization &mdash; PyTorch 0.0.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="apex.RNN" href="RNN.html" />
+    <link rel="prev" title="apex.parallel" href="parallel.html" /> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html">
+          
+
+          
+            
+            <img src="_static/pychu.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">apex</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">apex.reparameterization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="RNN.html">apex.RNN</a></li>
+<li class="toctree-l1"><a class="reference internal" href="utils.html">apex.utils</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">PyTorch</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>apex.reparameterization</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/reparameterization.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="module-apex.reparameterization">
+<span id="apex-reparameterization"></span><h1>apex.reparameterization<a class="headerlink" href="#module-apex.reparameterization" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="apex.reparameterization.Reparameterization">
+<em class="property">class </em><code class="descclassname">apex.reparameterization.</code><code class="descname">Reparameterization</code><span class="sig-paren">(</span><em>name</em>, <em>dim</em>, <em>module</em>, <em>retain_forward=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/reparameterization/reparameterization.html#Reparameterization"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.reparameterization.Reparameterization" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class interface for performing weight reparameterizations
+:param name: name of weight parameter
+:type name: str
+:param dim: dimension over which to compute the norm
+:type dim: int
+:param module: parent module to which param <cite>name</cite> is registered to
+:type module: nn.Module
+:param retain_forward: if False deletes weight on call to</p>
+<blockquote>
+<div>module.backward. Used to avoid memory leaks with DataParallel Default: True</div></blockquote>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Variables:</th><td class="field-body"><ul class="first last simple">
+<li><strong>reparameterization_names</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.6)"><em>list</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><em>str</em></a>) – contains names of all parameters
+needed to compute reparameterization.</li>
+<li><strong>backward_hook_key</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><em>int</em></a>) – torch.utils.hooks.RemovableHandle.id for hook used in module backward pass.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="staticmethod">
+<dt id="apex.reparameterization.Reparameterization.apply">
+<em class="property">static </em><code class="descname">apply</code><span class="sig-paren">(</span><em>name</em>, <em>dim</em>, <em>reparameterization=None</em>, <em>hook_child=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/reparameterization/reparameterization.html#Reparameterization.apply"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.reparameterization.Reparameterization.apply" title="Permalink to this definition">¶</a></dt>
+<dd><p>Applies reparametrization to module’s <cite>name</cite> parameter and modifies instance attributes as appropriate.
+<cite>hook_child</cite> adds reparameterization hook to direct parent of the parameters. If False, it’s added to <cite>module</cite> instead.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.reparameterization.Reparameterization.backward_hook">
+<code class="descname">backward_hook</code><span class="sig-paren">(</span><em>module</em>, <em>grad_input</em>, <em>grad_output</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/reparameterization/reparameterization.html#Reparameterization.backward_hook"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.reparameterization.Reparameterization.backward_hook" title="Permalink to this definition">¶</a></dt>
+<dd><p>callable hook for backward pass</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.reparameterization.Reparameterization.compute_weight">
+<code class="descname">compute_weight</code><span class="sig-paren">(</span><em>module=None</em>, <em>name=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/reparameterization/reparameterization.html#Reparameterization.compute_weight"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.reparameterization.Reparameterization.compute_weight" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes reparameterized weight value to assign value to module attribute
+with name <cite>name</cite>.
+See WeightNorm class for example.
+:param module: module with weight we’d like to reparameterize
+:type module: nn.Module</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Tensor object containing value of reparameterized weight</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">w (Tensor)</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="apex.reparameterization.Reparameterization.get_module_and_name">
+<em class="property">static </em><code class="descname">get_module_and_name</code><span class="sig-paren">(</span><em>name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/reparameterization/reparameterization.html#Reparameterization.get_module_and_name"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.reparameterization.Reparameterization.get_module_and_name" title="Permalink to this definition">¶</a></dt>
+<dd><p>recursively fetches (possible) child module and name of weight to be reparameterized</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.reparameterization.Reparameterization.get_params">
+<code class="descname">get_params</code><span class="sig-paren">(</span><em>module</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/reparameterization/reparameterization.html#Reparameterization.get_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.reparameterization.Reparameterization.get_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>gets params of reparameterization based on known attribute names</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.reparameterization.Reparameterization.remove">
+<code class="descname">remove</code><span class="sig-paren">(</span><em>module</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/reparameterization/reparameterization.html#Reparameterization.remove"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.reparameterization.Reparameterization.remove" title="Permalink to this definition">¶</a></dt>
+<dd><p>removes reparameterization and backward hook (does not remove forward hook)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.reparameterization.Reparameterization.reparameterize">
+<code class="descname">reparameterize</code><span class="sig-paren">(</span><em>name</em>, <em>weight</em>, <em>dim</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/reparameterization/reparameterization.html#Reparameterization.reparameterize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.reparameterization.Reparameterization.reparameterize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates Parameters to be used for reparameterization and creates names that
+for attributes for the module these Parameters will correspond to.
+The parameters will be registered according to the names provided.
+See WeightNorm class for example.
+:param module: module with weight we’d like to reparameterize
+:type module: nn.Module
+:param name: name of weight parameter
+:type name: str, optional
+:param dim: dimension over which to compute parameterization
+:type dim: int, optional</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">names of Parameters to be used for reparameterization
+params (list, Parameter): Parameters to be used for reparameterization</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">names (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.6)">list</a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)">str</a>)</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="apex.reparameterization.WeightNorm">
+<em class="property">class </em><code class="descclassname">apex.reparameterization.</code><code class="descname">WeightNorm</code><span class="sig-paren">(</span><em>name</em>, <em>dim</em>, <em>module</em>, <em>retain_forward=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/reparameterization/weight_norm.html#WeightNorm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.reparameterization.WeightNorm" title="Permalink to this definition">¶</a></dt>
+<dd><p>Weight normalization is a reparameterization that decouples the magnitude
+of a weight tensor from its direction. This replaces the parameter specified
+by <cite>name</cite> (e.g. “weight”) with two parameters: one specifying the magnitude
+(e.g. “weight_g”) and one specifying the direction (e.g. “weight_v”).
+Weight normalization is implemented via a hook that recomputes the weight
+tensor from the magnitude and direction before every <code class="xref py py-meth docutils literal notranslate"><span class="pre">forward()</span></code>
+call.</p>
+<div class="math notranslate">
+\[\mathbf{w} = g \dfrac{\mathbf{v}}{\|\mathbf{v}\|}\]</div>
+<p>By default, with <cite>dim=0</cite>, the norm is computed independently per output
+channel/plane. To compute a norm over the entire weight tensor, use
+<cite>dim=None</cite>.</p>
+<dl class="method">
+<dt id="apex.reparameterization.WeightNorm.compute_weight">
+<code class="descname">compute_weight</code><span class="sig-paren">(</span><em>module=None</em>, <em>name=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/reparameterization/weight_norm.html#WeightNorm.compute_weight"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.reparameterization.WeightNorm.compute_weight" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes weight normalized weight value to assign value to module attribute
+with name <cite>name</cite>.
+:param module: module with weight we’d like to reparameterize
+:type module: nn.Module</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Tensor object containing value of reparameterized weight</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">w (Tensor)</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.reparameterization.WeightNorm.reparameterize">
+<code class="descname">reparameterize</code><span class="sig-paren">(</span><em>name</em>, <em>weight</em>, <em>dim</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/reparameterization/weight_norm.html#WeightNorm.reparameterize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.reparameterization.WeightNorm.reparameterize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates Parameters v and gto be used for weight normalization
+and creates names that for attributes for the module these Parameters
+will correspond to. The parameters will be registered according to the names
+provided.
+:param module: module with weight we’d like to reparameterize
+:type module: nn.Module
+:param name: name of weight parameter
+:type name: str, optional
+:param dim: dimension over which to compute parameterization
+:type dim: int, optional</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">names of Parameters to be used for reparameterization
+params (list, Parameter): Parameters to be used for reparameterization</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">names (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.6)">list</a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)">str</a>)</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="RNN.html" class="btn btn-neutral float-right" title="apex.RNN" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="parallel.html" class="btn btn-neutral" title="apex.parallel" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Torch Contributors.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'0.0.0',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          
+          SphinxRtdTheme.Navigation.enableSticky();
+          
+      });
+  </script> 
+
+</body>
+</html>

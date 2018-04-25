@@ -1,0 +1,317 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>apex.reparameterization.weight_norm &mdash; PyTorch 0.0.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html">
+          
+
+          
+            
+            <img src="../../../_static/pychu.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">apex</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../reparameterization.html">apex.reparameterization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../RNN.html">apex.RNN</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../utils.html">apex.utils</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyTorch</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>apex.reparameterization.weight_norm</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for apex.reparameterization.weight_norm</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch.nn.parameter</span> <span class="k">import</span> <span class="n">Parameter</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">Fused_Weight_Norm</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">from</span> <span class="nn">.reparameterization</span> <span class="k">import</span> <span class="n">Reparameterization</span>
+
+<span class="k">def</span> <span class="nf">_norm</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Computes the norm over all dimensions except dim&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">dim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">norm</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">output_size</span> <span class="o">=</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),)</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span> <span class="o">*</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">*</span><span class="n">output_size</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">dim</span> <span class="o">==</span> <span class="n">p</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">output_size</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span> <span class="o">*</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),)</span>
+        <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">*</span><span class="n">output_size</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_norm</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dim</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+
+<span class="n">HALF_TYPES</span> <span class="o">=</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">HalfTensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">HalfTensor</span><span class="p">)</span>
+
+<div class="viewcode-block" id="WeightNorm"><a class="viewcode-back" href="../../../reparameterization.html#apex.reparameterization.WeightNorm">[docs]</a><span class="k">class</span> <span class="nc">WeightNorm</span><span class="p">(</span><span class="n">Reparameterization</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Weight normalization is a reparameterization that decouples the magnitude</span>
+<span class="sd">    of a weight tensor from its direction. This replaces the parameter specified</span>
+<span class="sd">    by `name` (e.g. &quot;weight&quot;) with two parameters: one specifying the magnitude</span>
+<span class="sd">    (e.g. &quot;weight_g&quot;) and one specifying the direction (e.g. &quot;weight_v&quot;).</span>
+<span class="sd">    Weight normalization is implemented via a hook that recomputes the weight</span>
+<span class="sd">    tensor from the magnitude and direction before every :meth:`~Module.forward`</span>
+<span class="sd">    call.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">         \mathbf{w} = g \dfrac{\mathbf{v}}{\|\mathbf{v}\|}</span>
+
+<span class="sd">    By default, with `dim=0`, the norm is computed independently per output</span>
+<span class="sd">    channel/plane. To compute a norm over the entire weight tensor, use</span>
+<span class="sd">    `dim=None`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="WeightNorm.compute_weight"><a class="viewcode-back" href="../../../reparameterization.html#apex.reparameterization.WeightNorm.compute_weight">[docs]</a>    <span class="k">def</span> <span class="nf">compute_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Computes weight normalized weight value to assign value to module attribute</span>
+<span class="sd">        with name `name`.</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            module (nn.Module): module with weight we&#39;d like to reparameterize</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            w (Tensor): Tensor object containing value of reparameterized weight</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">module</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">module</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">module</span><span class="p">,</span> <span class="n">name</span> <span class="o">=</span> <span class="n">Reparameterization</span><span class="o">.</span><span class="n">get_module_and_name</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;_g&#39;</span><span class="p">)</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;_v&#39;</span><span class="p">)</span>
+
+        <span class="c1"># torch.cuda.nvtx.range_push(&quot;compute_weight, v.size() = {}&quot;.format(v.size()))</span>
+        <span class="c1"># torch.cuda.synchronize()</span>
+        <span class="c1"># start = time.time()</span>
+
+        <span class="c1"># if isinstance(g.data, HALF_TYPES) or isinstance(v.data, HALF_TYPES):</span>
+        <span class="c1">#     self.fp16 = True</span>
+        <span class="c1">#     g.data = g.data.float()</span>
+        <span class="c1">#     v.data = v.data.float()</span>
+        <span class="c1"># w = (v * (g / _norm(v, self.dim)))</span>
+        <span class="c1"># if hasattr(self, &#39;fp16&#39;) and self.fp16:</span>
+        <span class="c1">#     w = w.half()</span>
+
+        <span class="c1"># print( &quot;Using mine&quot; )</span>
+        <span class="n">fused_weight_norm</span> <span class="o">=</span> <span class="n">Fused_Weight_Norm</span><span class="o">.</span><span class="n">apply</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">fused_weight_norm</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">)</span>
+
+        <span class="c1"># torch.cuda.synchronize()</span>
+        <span class="c1"># end=time.time()</span>
+        <span class="c1"># print(&quot;Time for weightnorm fwd {} = {}&quot;.format(v.size(), end-start))</span>
+        <span class="c1"># torch.cuda.nvtx.range_pop()</span>
+
+        <span class="k">return</span> <span class="n">w</span></div>
+
+<div class="viewcode-block" id="WeightNorm.reparameterize"><a class="viewcode-back" href="../../../reparameterization.html#apex.reparameterization.WeightNorm.reparameterize">[docs]</a>    <span class="k">def</span> <span class="nf">reparameterize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">weight</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Creates Parameters v and gto be used for weight normalization</span>
+<span class="sd">        and creates names that for attributes for the module these Parameters</span>
+<span class="sd">        will correspond to. The parameters will be registered according to the names</span>
+<span class="sd">        provided.</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            module (nn.Module): module with weight we&#39;d like to reparameterize</span>
+<span class="sd">            name (str, optional): name of weight parameter</span>
+<span class="sd">            dim (int, optional): dimension over which to compute parameterization</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            names (list, str): names of Parameters to be used for reparameterization</span>
+<span class="sd">            params (list, Parameter): Parameters to be used for reparameterization</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;_g&#39;</span><span class="p">,</span> <span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;_v&#39;</span><span class="p">]</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">[</span><span class="n">Parameter</span><span class="p">(</span><span class="n">_norm</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span><span class="o">.</span><span class="n">data</span><span class="p">),</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">data</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="n">names</span><span class="p">,</span> <span class="n">params</span></div></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Torch Contributors.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.0.0',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          
+          SphinxRtdTheme.Navigation.enableSticky();
+          
+      });
+  </script> 
+
+</body>
+</html>

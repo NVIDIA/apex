@@ -1,0 +1,387 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>apex.utils.loss_scaler &mdash; PyTorch 0.0.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html">
+          
+
+          
+            
+            <img src="../../../_static/pychu.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">apex</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../reparameterization.html">apex.reparameterization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../RNN.html">apex.RNN</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../utils.html">apex.utils</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyTorch</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>apex.utils.loss_scaler</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for apex.utils.loss_scaler</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Top of loss_scaler.py stub.  Can&#39;t figure out a way to get the module file</span>
+<span class="sd">highlighted in a pretty way, or link back to source.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+
+<span class="c1"># item() is a recent addition, so this helps with backward compatibility.</span>
+<span class="k">def</span> <span class="nf">to_python_float</span><span class="p">(</span><span class="n">t</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="s1">&#39;item&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">t</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+<div class="viewcode-block" id="LossScaler"><a class="viewcode-back" href="../../../utils.html#apex.utils.LossScaler">[docs]</a><span class="k">class</span> <span class="nc">LossScaler</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    LossScaler stub</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cur_scale</span> <span class="o">=</span> <span class="n">scale</span>
+
+    <span class="c1"># `params` is a list / generator of torch.Variable</span>
+<div class="viewcode-block" id="LossScaler.has_overflow"><a class="viewcode-back" href="../../../utils.html#apex.utils.LossScaler.has_overflow">[docs]</a>    <span class="k">def</span> <span class="nf">has_overflow</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        has_overflow() stub</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+    <span class="c1"># `x` is a torch.Tensor</span>
+    <span class="k">def</span> <span class="nf">_has_inf_or_nan</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="c1"># `overflow` is boolean indicating whether we overflowed in gradient</span>
+<div class="viewcode-block" id="LossScaler.update_scale"><a class="viewcode-back" href="../../../utils.html#apex.utils.LossScaler.update_scale">[docs]</a>    <span class="k">def</span> <span class="nf">update_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">overflow</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        update_scale() stub</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">loss_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">cur_scale</span>
+
+    <span class="k">def</span> <span class="nf">scale_gradient</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">grad_in</span><span class="p">,</span> <span class="n">grad_out</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span> <span class="o">*</span> <span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">grad_in</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss</span><span class="p">):</span>
+        <span class="n">scaled_loss</span> <span class="o">=</span> <span class="n">loss</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span>
+        <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="DynamicLossScaler"><a class="viewcode-back" href="../../../utils.html#apex.utils.DynamicLossScaler">[docs]</a><span class="k">class</span> <span class="nc">DynamicLossScaler</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    DynamicLossScaler stub</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">init_scale</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">32</span><span class="p">,</span>
+                 <span class="n">scale_factor</span><span class="o">=</span><span class="mf">2.</span><span class="p">,</span>
+                 <span class="n">scale_window</span><span class="o">=</span><span class="mi">1000</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cur_scale</span> <span class="o">=</span> <span class="n">init_scale</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cur_iter</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_overflow_iter</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span> <span class="o">=</span> <span class="n">scale_factor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale_window</span> <span class="o">=</span> <span class="n">scale_window</span>
+
+    <span class="c1"># `params` is a list / generator of torch.Variable</span>
+    <span class="k">def</span> <span class="nf">has_overflow</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+<span class="c1">#        return False</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">params</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">DynamicLossScaler</span><span class="o">.</span><span class="n">_has_inf_or_nan</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="c1"># `x` is a torch.Tensor</span>
+    <span class="k">def</span> <span class="nf">_has_inf_or_nan</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># Stopgap until upstream fixes sum() on HalfTensors</span>
+            <span class="n">cpu_sum</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+            <span class="c1"># cpu_sum = float(x.sum())</span>
+            <span class="c1"># print(cpu_sum)</span>
+        <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">instance</span><span class="p">:</span>
+            <span class="c1"># We want to check if inst is actually an overflow exception.</span>
+            <span class="c1"># RuntimeError could come from a different error.</span>
+            <span class="c1"># If so, we still want the exception to propagate.</span>
+            <span class="k">if</span> <span class="s2">&quot;value cannot be converted&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">instance</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">raise</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cpu_sum</span> <span class="o">==</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">cpu_sum</span> <span class="o">==</span> <span class="o">-</span><span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">cpu_sum</span> <span class="o">!=</span> <span class="n">cpu_sum</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="c1"># `overflow` is boolean indicating whether we overflowed in gradient</span>
+    <span class="k">def</span> <span class="nf">update_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">overflow</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">overflow</span><span class="p">:</span>
+            <span class="c1">#self.cur_scale /= self.scale_factor</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cur_scale</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cur_scale</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">last_overflow_iter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cur_iter</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cur_iter</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_overflow_iter</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_window</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cur_scale</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span>
+<span class="c1">#        self.cur_scale = 1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cur_iter</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">loss_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">cur_scale</span>
+
+    <span class="k">def</span> <span class="nf">scale_gradient</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">grad_in</span><span class="p">,</span> <span class="n">grad_out</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span> <span class="o">*</span> <span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">grad_in</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss</span><span class="p">):</span>
+        <span class="n">scaled_loss</span> <span class="o">=</span> <span class="n">loss</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span>
+        <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span></div>
+        
+<span class="c1">##############################################################        </span>
+<span class="c1"># Example usage below here -- assuming it&#39;s in a separate file</span>
+<span class="c1">##############################################################</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">torch</span>
+    <span class="kn">from</span> <span class="nn">torch.autograd</span> <span class="k">import</span> <span class="n">Variable</span>
+    <span class="kn">from</span> <span class="nn">dynamic_loss_scaler</span> <span class="k">import</span> <span class="n">DynamicLossScaler</span>
+
+    <span class="c1"># N is batch size; D_in is input dimension;</span>
+    <span class="c1"># H is hidden dimension; D_out is output dimension.</span>
+    <span class="n">N</span><span class="p">,</span> <span class="n">D_in</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">D_out</span> <span class="o">=</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">10</span>
+
+    <span class="c1"># Create random Tensors to hold inputs and outputs, and wrap them in Variables.</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">Variable</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">D_in</span><span class="p">),</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">Variable</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">D_out</span><span class="p">),</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">w1</span> <span class="o">=</span> <span class="n">Variable</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">D_in</span><span class="p">,</span> <span class="n">H</span><span class="p">),</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">w2</span> <span class="o">=</span> <span class="n">Variable</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">H</span><span class="p">,</span> <span class="n">D_out</span><span class="p">),</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">[</span><span class="n">w1</span><span class="p">,</span> <span class="n">w2</span><span class="p">]</span>
+
+    <span class="n">learning_rate</span> <span class="o">=</span> <span class="mf">1e-6</span>
+    <span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">SGD</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">lr</span><span class="o">=</span><span class="n">learning_rate</span><span class="p">)</span>
+    <span class="n">loss_scaler</span> <span class="o">=</span> <span class="n">DynamicLossScaler</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">500</span><span class="p">):</span>
+        <span class="n">y_pred</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">w1</span><span class="p">)</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">w2</span><span class="p">)</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">y_pred</span> <span class="o">-</span> <span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">*</span> <span class="n">loss_scaler</span><span class="o">.</span><span class="n">loss_scale</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Iter </span><span class="si">{}</span><span class="s1"> loss scale: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">loss_scaler</span><span class="o">.</span><span class="n">loss_scale</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Iter </span><span class="si">{}</span><span class="s1"> scaled loss: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">loss</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Iter </span><span class="si">{}</span><span class="s1"> unscaled loss: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">loss</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">loss_scaler</span><span class="o">.</span><span class="n">loss_scale</span><span class="p">))</span>
+
+        <span class="c1"># Run backprop</span>
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+        <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+        
+        <span class="c1"># Check for overflow</span>
+        <span class="n">has_overflow</span> <span class="o">=</span> <span class="n">DynamicLossScaler</span><span class="o">.</span><span class="n">has_overflow</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+        
+        <span class="c1"># If no overflow, unscale grad and update as usual</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_overflow</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">:</span>
+                <span class="n">param</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">mul_</span><span class="p">(</span><span class="mf">1.</span> <span class="o">/</span> <span class="n">loss_scaler</span><span class="o">.</span><span class="n">loss_scale</span><span class="p">)</span>
+            <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="c1"># Otherwise, don&#39;t do anything -- ie, skip iteration</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;OVERFLOW!&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Update loss scale for next iteration</span>
+        <span class="n">loss_scaler</span><span class="o">.</span><span class="n">update_scale</span><span class="p">(</span><span class="n">has_overflow</span><span class="p">)</span>
+
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Torch Contributors.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.0.0',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          
+          SphinxRtdTheme.Navigation.enableSticky();
+          
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,547 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>apex.utils &mdash; PyTorch 0.0.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="apex.RNN" href="RNN.html" /> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html">
+          
+
+          
+            
+            <img src="_static/pychu.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">apex</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reparameterization.html">apex.reparameterization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="RNN.html">apex.RNN</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">apex.utils</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">PyTorch</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>apex.utils</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/utils.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="module-apex.utils">
+<span id="apex-utils"></span><h1>apex.utils<a class="headerlink" href="#module-apex.utils" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="apex.utils.FP16_Optimizer">
+<em class="property">class </em><code class="descclassname">apex.utils.</code><code class="descname">FP16_Optimizer</code><span class="sig-paren">(</span><em>optimizer</em>, <em>static_loss_scale=1.0</em>, <em>dynamic_loss_scale=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/fp16_optimizer.html#FP16_Optimizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.FP16_Optimizer" title="Permalink to this definition">¶</a></dt>
+<dd><p><a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a> is designed to wrap an existing PyTorch optimizer,
+and enable an fp16 model to be trained using a master copy of fp32 weights.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>init_optimizer</strong> (<em>torch.optim.optimizer</em>) – Existing optimizer containing initialized fp16 parameters.  Internally, <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a> replaces the passed optimizer’s fp16 parameters with new fp32 parameters copied from the original ones.  <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a> also stores references to the original fp16 parameters, and updates these fp16 parameters from the master fp32 copy after each step.</li>
+<li><strong>static_loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a><em>, </em><em>optional</em><em>, </em><em>default=1.0</em>) – Loss scale used internally to scale fp16 gradients computed by the model.  Scaled gradients will be copied to fp32, then downscaled before being applied to the fp32 master params, so static_loss_scale should not affect learning rate.</li>
+<li><strong>dynamic_loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=False</em>) – Use dynamic loss scaling.  If True, this will override any static_loss_scale option.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">init_optimizer</span></code> is expected to have been constructed in the ordinary way.
+It is recommended (although not required) that the newly constructed <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a> instance be
+named to replace <code class="docutils literal notranslate"><span class="pre">init_optimizer</span></code>, for two reasons:
+First, it means that references to the name <code class="docutils literal notranslate"><span class="pre">init_optimizer</span></code>
+later in the file will not have to change.
+Second, <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a> reserves the right (as an implementation detail) to
+modify <code class="docutils literal notranslate"><span class="pre">init_optimizer</span></code>.  If you do choose a unique name for the new
+<a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a> instance, you should only work with this new instance,
+because the preexisting optimizer might no longer behave as expected.</p>
+<p><code class="docutils literal notranslate"><span class="pre">init_optimizer</span></code> may be any Pytorch optimizer.
+It may contain a mixture of FP16 and FP32 parameters organized into any number of
+<code class="docutils literal notranslate"><span class="pre">param_groups</span></code> with different hyperparameters.  The <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a> constructor will ingest these
+<code class="docutils literal notranslate"><span class="pre">param_groups</span></code> and remember them.</p>
+<p>For basic use, aside from constructing <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a>, there is only one other
+operation that must be changed.  Any instances of</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>must be replaced with</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">optimizer</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This is because <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a> requires ownership of the backward pass to implement
+loss scaling and copies to master gradients.</p>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">D_in</span><span class="p">,</span> <span class="n">D_out</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span><span class="o">.</span><span class="n">half</span><span class="p">()</span>
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">SGD</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">)</span>
+<span class="c1"># Name the FP16_Optimizer instance to replace the existing optimizer:</span>
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">FP16_Optimizer</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="n">static_loss_scale</span> <span class="o">=</span> <span class="mf">128.0</span><span class="p">)</span>
+<span class="o">...</span>
+<span class="c1"># loss.backward() becomes:</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span>
+<span class="o">...</span>
+</pre></div>
+</div>
+<p>More advanced options:</p>
+<p>If gradient clipping is required, use <a class="reference internal" href="#apex.utils.FP16_Optimizer.clip_master_grads" title="apex.utils.FP16_Optimizer.clip_master_grads"><code class="xref py py-attr docutils literal notranslate"><span class="pre">clip_master_grads</span></code></a>.</p>
+<p>If your model has multiple losses, with all of them used to accumulate gradients before
+optimizer.step(), this can be accommodated by calling
+<code class="docutils literal notranslate"><span class="pre">optimizer.backward(loss1,</span> <span class="pre">update_master_grads=False)</span></code>.  See docstring for <a class="reference internal" href="#apex.utils.FP16_Optimizer.backward" title="apex.utils.FP16_Optimizer.backward"><code class="xref py py-attr docutils literal notranslate"><span class="pre">backward</span></code></a>.</p>
+<dl class="method">
+<dt id="apex.utils.FP16_Optimizer.backward">
+<code class="descname">backward</code><span class="sig-paren">(</span><em>loss</em>, <em>update_master_grads=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/fp16_optimizer.html#FP16_Optimizer.backward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.FP16_Optimizer.backward" title="Permalink to this definition">¶</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">fp16_optimizer_obj.backward</span></code> performs the following conceptual operations:</p>
+<p>fp32_loss = loss.float() (see first Note below)</p>
+<p>scaled_loss = fp32_loss*loss_scale</p>
+<p>scaled_loss.backward(), which accumulates scaled gradients into the .grad attributes of the
+model’s leaves (which may be fp16, fp32, or a mixture, depending how your model was defined).</p>
+<p>fp16 grads are then copied to the master params’ .grad attributes (see second Note), which
+are guaranteed to be fp32.</p>
+<p>Finally, master grads are divided by loss_scale.</p>
+<p>In this way, after fp16_optimizer_obj.backward, the master params have fresh gradients,
+and fp16_optimizer_obj.step may be called.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Converting the loss to fp32 before applying the loss scale provides some
+additional safety against overflow if the user has supplied an fp16 value.
+However, for maximum overflow safety, the user should
+compute the loss criterion (MSE, cross entropy, etc) in fp32 before supplying it to
+<code class="docutils literal notranslate"><span class="pre">fp16_optimizer_obj.backward</span></code>.</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The gradients found in an fp16 model’s leaves after a call to
+<code class="docutils literal notranslate"><span class="pre">fp16_optimizer_obj.backward</span></code> should not be regarded as valid in general,
+because it’s possible
+they have been scaled (and in the case of dynamic loss scaling,
+the scale factor may change over time).
+If the user wants to inspect gradients after a call to fp16_optimizer_obj.backward,
+only the master gradients should be regarded as valid, and can be retrieved via
+<a class="reference internal" href="#apex.utils.FP16_Optimizer.inspect_master_grad_data" title="apex.utils.FP16_Optimizer.inspect_master_grad_data"><code class="xref py py-attr docutils literal notranslate"><span class="pre">inspect_master_grad_data()</span></code></a>.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>loss</strong> – The loss output by the user’s model.  loss may be either float or half (but see first Note above).</li>
+<li><strong>update_master_grads</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=True</em>) – Option to copy fp16 grads to fp32 grads on this call.  By setting this to False, the user can delay the copy, which is useful to eliminate redundant fp16-&gt;fp32 grad copies if fp16_optimizer_obj.backward is being called on multiple losses in one iteration.  If set to False, the user becomes responsible for calling <a class="reference internal" href="#apex.utils.FP16_Optimizer.update_master_grads" title="apex.utils.FP16_Optimizer.update_master_grads"><code class="xref py py-attr docutils literal notranslate"><span class="pre">update_master_grads</span></code></a> before calling <a class="reference internal" href="#apex.utils.FP16_Optimizer.step" title="apex.utils.FP16_Optimizer.step"><code class="xref py py-attr docutils literal notranslate"><span class="pre">step</span></code></a>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Ordinary operation:</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span>
+
+<span class="c1"># Naive operation with multiple losses (technically valid, but less efficient):</span>
+<span class="c1"># fp32 grads will be correct after the second call,  but</span>
+<span class="c1"># the first call incurs an unnecessary fp16-&gt;fp32 grad copy.</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss1</span><span class="p">)</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss2</span><span class="p">)</span>
+
+<span class="c1"># More efficient way to handle multiple losses:</span>
+<span class="c1"># The fp16-&gt;fp32 grad copy is delayed until fp16 grads from all</span>
+<span class="c1"># losses have been accumulated.</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss1</span><span class="p">,</span> <span class="n">update_master_grads</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss2</span><span class="p">,</span> <span class="n">update_master_grads</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">update_master_grads</span><span class="p">()</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.utils.FP16_Optimizer.clip_master_grads">
+<code class="descname">clip_master_grads</code><span class="sig-paren">(</span><em>max_norm</em>, <em>norm_type=2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/fp16_optimizer.html#FP16_Optimizer.clip_master_grads"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.FP16_Optimizer.clip_master_grads" title="Permalink to this definition">¶</a></dt>
+<dd><p>Clips fp32 master gradients via torch.nn.utils.clip_grad_norm.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>max_norm</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><em>int</em></a>) – max norm of the gradients</li>
+<li><strong>norm_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><em>int</em></a>) – type of the used p-norm. Can be <code class="docutils literal notranslate"><span class="pre">'inf'</span></code> for
+infinity norm.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">Total norm of the current fp32 gradients (viewed as a single vector).</p>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">Returns -1 if the most recently computed fp16 gradients overflowed (that is, if self.overflow is True).</p>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.utils.FP16_Optimizer.inspect_master_grad_data">
+<code class="descname">inspect_master_grad_data</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/fp16_optimizer.html#FP16_Optimizer.inspect_master_grad_data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.FP16_Optimizer.inspect_master_grad_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>When running with <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a>,
+<code class="docutils literal notranslate"><span class="pre">.grad</span></code> attributes of a model’s fp16 leaves should not be
+regarded as truthful, because they might be scaled.
+After a call to <code class="xref py py-attr docutils literal notranslate"><span class="pre">fp16_optimizer_obj.backward(loss)</span></code>, if no overflow was encountered,
+the fp32 master params’ <code class="docutils literal notranslate"><span class="pre">.grad</span></code>
+attributes will contain valid gradients properly divided by the loss scale.  However,
+because <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a> flattens some parameters, accessing them may be
+nonintuitive.  <a class="reference internal" href="#apex.utils.FP16_Optimizer.inspect_master_grad_data" title="apex.utils.FP16_Optimizer.inspect_master_grad_data"><code class="xref py py-attr docutils literal notranslate"><span class="pre">inspect_master_grad_data</span></code></a>
+allows those gradients to be viewed with shapes corresponding to their associated model leaves.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">List of lists (one list for each parameter group).  The list for each parameter group
+is a list of the <code class="docutils literal notranslate"><span class="pre">.grad.data</span></code> attributes of the fp32 master params belonging to that group.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.utils.FP16_Optimizer.load_state_dict">
+<code class="descname">load_state_dict</code><span class="sig-paren">(</span><em>state_dict</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/fp16_optimizer.html#FP16_Optimizer.load_state_dict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.FP16_Optimizer.load_state_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Loads a state_dict created by an earlier call to state_dict().
+If <code class="docutils literal notranslate"><span class="pre">fp16_optimizer_instance</span></code> was constructed from some <code class="docutils literal notranslate"><span class="pre">init_optimizer</span></code>,
+whose parameters in turn came from <code class="docutils literal notranslate"><span class="pre">model</span></code>, it is expected that the user
+will call <code class="docutils literal notranslate"><span class="pre">model.load_state_dict()</span></code> before
+<code class="docutils literal notranslate"><span class="pre">fp16_optimizer_instance.load_state_dict()</span></code> is called.</p>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">D_in</span><span class="p">,</span> <span class="n">D_out</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span><span class="o">.</span><span class="n">half</span><span class="p">()</span>
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">SGD</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">)</span>
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">FP16_Optimizer</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="n">static_loss_scale</span> <span class="o">=</span> <span class="mf">128.0</span><span class="p">)</span>
+<span class="o">...</span>
+<span class="n">checkpoint</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;saved.pth&quot;</span><span class="p">)</span>
+<span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">checkpoint</span><span class="p">[</span><span class="s1">&#39;model&#39;</span><span class="p">])</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">checkpoint</span><span class="p">[</span><span class="s1">&#39;optimizer&#39;</span><span class="p">])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.utils.FP16_Optimizer.state_dict">
+<code class="descname">state_dict</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/fp16_optimizer.html#FP16_Optimizer.state_dict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.FP16_Optimizer.state_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a dict containing the current state of this <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a> instance.
+This dict contains attributes of <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a>, as well as the state_dict
+of the contained Pytorch optimizer.</p>
+<p>Untested.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.utils.FP16_Optimizer.step">
+<code class="descname">step</code><span class="sig-paren">(</span><em>closure=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/fp16_optimizer.html#FP16_Optimizer.step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.FP16_Optimizer.step" title="Permalink to this definition">¶</a></dt>
+<dd><p>If no closure is supplied, step should be called after <code class="docutils literal notranslate"><span class="pre">fp16_optimizer_obj.backward(loss)</span></code>.
+step updates the fp32 master copy of parameters using the optimizer supplied to
+<a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a>’s constructor, then copies the updated fp32 params into the fp16 params
+originally referenced by Fp16_Optimizer’s constructor, so the user may immediately run
+another forward pass using their model.</p>
+<p>If a closure is supplied, step may be called without a prior call to <code class="xref py py-attr docutils literal notranslate"><span class="pre">backward(loss)</span></code>.
+However, the user should take care that any <code class="docutils literal notranslate"><span class="pre">loss.backward()</span></code> call within the closure
+has been replaced by <code class="docutils literal notranslate"><span class="pre">fp16_optimizer_obj.backward(loss)</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>closure</strong> (<em>optional</em>) – Closure that will be supplied to the underlying optimizer originally passed to <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a>’s constructor.  closure should call <a class="reference internal" href="#apex.utils.FP16_Optimizer.zero_grad" title="apex.utils.FP16_Optimizer.zero_grad"><code class="xref py py-attr docutils literal notranslate"><span class="pre">zero_grad()</span></code></a> on the <a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a> object, compute the loss, call <code class="xref py py-attr docutils literal notranslate"><span class="pre">backward(loss)</span></code>, and return the loss.</td>
+</tr>
+</tbody>
+</table>
+<p>Closure example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># optimizer is assumed to be an FP16_Optimizer object, previously constructed from an</span>
+<span class="c1"># existing pytorch optimizer.</span>
+<span class="k">for</span> <span class="nb">input</span><span class="p">,</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">dataset</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">closure</span><span class="p">():</span>
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="n">loss_fn</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">loss</span>
+    <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">closure</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The only changes that need to be made compared to
+<a class="reference external" href="http://pytorch.org/docs/master/optim.html#optimizer-step-closure">ordinary optimizer closures</a> are that “optimizer” itself should be an instance of
+<a class="reference internal" href="#apex.utils.FP16_Optimizer" title="apex.utils.FP16_Optimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code></a>, and that the call to <code class="docutils literal notranslate"><span class="pre">loss.backward()</span></code> should be replaced by
+<code class="docutils literal notranslate"><span class="pre">optimizer.backward(loss)</span></code>.</p>
+</div>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">Currently, calling step with a closure is not compatible with dynamic loss scaling.</p>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.utils.FP16_Optimizer.update_master_grads">
+<code class="descname">update_master_grads</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/fp16_optimizer.html#FP16_Optimizer.update_master_grads"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.FP16_Optimizer.update_master_grads" title="Permalink to this definition">¶</a></dt>
+<dd><p>Copy the <code class="docutils literal notranslate"><span class="pre">.grad</span></code> attribute from stored references to fp16 parameters to
+the <code class="docutils literal notranslate"><span class="pre">.grad</span></code> attribute of the fp32 master parameters that are directly
+updated by the optimizer.  <a class="reference internal" href="#apex.utils.FP16_Optimizer.update_master_grads" title="apex.utils.FP16_Optimizer.update_master_grads"><code class="xref py py-attr docutils literal notranslate"><span class="pre">update_master_grads</span></code></a> only needs to be called if
+<code class="docutils literal notranslate"><span class="pre">fp16_optimizer_obj.backward</span></code> was called with <code class="docutils literal notranslate"><span class="pre">update_master_grads=False</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.utils.FP16_Optimizer.zero_grad">
+<code class="descname">zero_grad</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/fp16_optimizer.html#FP16_Optimizer.zero_grad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.FP16_Optimizer.zero_grad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Zero fp32 and fp16 parameter grads.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="apex.utils.Fused_Weight_Norm">
+<em class="property">class </em><code class="descclassname">apex.utils.</code><code class="descname">Fused_Weight_Norm</code><a class="reference internal" href="_modules/apex/utils/fused_weight_norm.html#Fused_Weight_Norm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.Fused_Weight_Norm" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implements weight norm along a tensor’s slowest dimension using fused kernel launches for
+the forward and backward pass.
+Accepts fp32 or fp16 input; the output type will match the input type.
+Within the kernels, all calculations are performed in fp32 for numerical stability, regardless
+of input/output precision.</p>
+<dl class="staticmethod">
+<dt id="apex.utils.Fused_Weight_Norm.backward">
+<em class="property">static </em><code class="descname">backward</code><span class="sig-paren">(</span><em>grad_output</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/fused_weight_norm.html#Fused_Weight_Norm.backward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.Fused_Weight_Norm.backward" title="Permalink to this definition">¶</a></dt>
+<dd><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">grad_output</span></code> is assumed to be contiguous.
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">grad_output</span></code> may be either float or half precision.
+The precision of <code class="xref py py-attr docutils literal notranslate"><span class="pre">grad_input</span></code> will match the precision of <code class="xref py py-attr docutils literal notranslate"><span class="pre">grad_output</span></code>.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="apex.utils.Fused_Weight_Norm.forward">
+<em class="property">static </em><code class="descname">forward</code><span class="sig-paren">(</span><em>input</em>, <em>g</em>, <em>dim=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/fused_weight_norm.html#Fused_Weight_Norm.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.Fused_Weight_Norm.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">input</span></code> is assumed to be contiguous.
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">input</span></code> may be either float or half precision.
+The precision of <code class="xref py py-attr docutils literal notranslate"><span class="pre">output</span></code> will match the precision of <code class="xref py py-attr docutils literal notranslate"><span class="pre">input</span></code>.
+A float copy of the L2 norm across each slow dimension
+is also created and saved for the backward pass.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="apex.utils.LossScaler">
+<em class="property">class </em><code class="descclassname">apex.utils.</code><code class="descname">LossScaler</code><span class="sig-paren">(</span><em>scale=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/loss_scaler.html#LossScaler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.LossScaler" title="Permalink to this definition">¶</a></dt>
+<dd><p>LossScaler stub</p>
+<dl class="method">
+<dt id="apex.utils.LossScaler.has_overflow">
+<code class="descname">has_overflow</code><span class="sig-paren">(</span><em>params</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/loss_scaler.html#LossScaler.has_overflow"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.LossScaler.has_overflow" title="Permalink to this definition">¶</a></dt>
+<dd><p>has_overflow() stub</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.utils.LossScaler.update_scale">
+<code class="descname">update_scale</code><span class="sig-paren">(</span><em>overflow</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/loss_scaler.html#LossScaler.update_scale"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.LossScaler.update_scale" title="Permalink to this definition">¶</a></dt>
+<dd><p>update_scale() stub</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="apex.utils.DynamicLossScaler">
+<em class="property">class </em><code class="descclassname">apex.utils.</code><code class="descname">DynamicLossScaler</code><span class="sig-paren">(</span><em>init_scale=4294967296</em>, <em>scale_factor=2.0</em>, <em>scale_window=1000</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/utils/loss_scaler.html#DynamicLossScaler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.utils.DynamicLossScaler" title="Permalink to this definition">¶</a></dt>
+<dd><p>DynamicLossScaler stub</p>
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+      
+        <a href="RNN.html" class="btn btn-neutral" title="apex.RNN" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Torch Contributors.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'0.0.0',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          
+          SphinxRtdTheme.Navigation.enableSticky();
+          
+      });
+  </script> 
+
+</body>
+</html>

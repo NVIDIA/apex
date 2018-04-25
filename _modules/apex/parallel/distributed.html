@@ -1,0 +1,404 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>apex.parallel.distributed &mdash; PyTorch 0.0.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html">
+          
+
+          
+            
+            <img src="../../../_static/pychu.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">apex</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../reparameterization.html">apex.reparameterization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../RNN.html">apex.RNN</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../utils.html">apex.utils</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyTorch</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>apex.parallel.distributed</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for apex.parallel.distributed</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch._utils</span> <span class="k">import</span> <span class="n">_flatten_dense_tensors</span><span class="p">,</span> <span class="n">_unflatten_dense_tensors</span>
+<span class="kn">import</span> <span class="nn">torch.distributed</span> <span class="k">as</span> <span class="nn">dist</span>
+<span class="kn">from</span> <span class="nn">torch.nn.modules</span> <span class="k">import</span> <span class="n">Module</span>
+<span class="kn">from</span> <span class="nn">torch.autograd</span> <span class="k">import</span> <span class="n">Variable</span>
+
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">This version of DistributedDataParallel is designed to be used in conjunction with the multiproc.py</span>
+<span class="sd">launcher included with this example. It assumes that your run is using multiprocess with 1</span>
+<span class="sd">GPU/process, that the model is on the correct device, and that torch.set_device has been</span>
+<span class="sd">used to set the device.</span>
+
+<span class="sd">Parameters are broadcasted to the other processes on initialization of DistributedDataParallel,</span>
+<span class="sd">and will be allreduced at the finish of the backward pass.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="k">def</span> <span class="nf">flat_dist_call</span><span class="p">(</span><span class="n">tensors</span><span class="p">,</span> <span class="n">call</span><span class="p">,</span> <span class="n">extra_args</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">flat_dist_call</span><span class="o">.</span><span class="n">warn_on_half</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">buckets</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">tensors</span><span class="p">:</span>
+        <span class="n">tp</span> <span class="o">=</span> <span class="n">tensor</span><span class="o">.</span><span class="n">type</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">tp</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">buckets</span><span class="p">:</span>
+            <span class="n">buckets</span><span class="p">[</span><span class="n">tp</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">buckets</span><span class="p">[</span><span class="n">tp</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tensor</span><span class="p">)</span>
+                    
+    <span class="k">if</span> <span class="n">flat_dist_call</span><span class="o">.</span><span class="n">warn_on_half</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">HalfTensor</span> <span class="ow">in</span> <span class="n">buckets</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;WARNING: gloo dist backend for half parameters may be extremely slow.&quot;</span> <span class="o">+</span>
+                  <span class="s2">&quot; It is recommended to use the NCCL backend in this case.&quot;</span><span class="p">)</span>
+            <span class="n">flat_dist_call</span><span class="o">.</span><span class="n">warn_on_half</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">for</span> <span class="n">tp</span> <span class="ow">in</span> <span class="n">buckets</span><span class="p">:</span>
+        <span class="n">bucket</span> <span class="o">=</span> <span class="n">buckets</span><span class="p">[</span><span class="n">tp</span><span class="p">]</span>
+        <span class="n">coalesced</span> <span class="o">=</span> <span class="n">_flatten_dense_tensors</span><span class="p">(</span><span class="n">bucket</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">extra_args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">call</span><span class="p">(</span><span class="n">coalesced</span><span class="p">,</span> <span class="o">*</span><span class="n">extra_args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">call</span><span class="p">(</span><span class="n">coalesced</span><span class="p">)</span>
+        <span class="n">coalesced</span> <span class="o">/=</span> <span class="n">dist</span><span class="o">.</span><span class="n">get_world_size</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">buf</span><span class="p">,</span> <span class="n">synced</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="n">_unflatten_dense_tensors</span><span class="p">(</span><span class="n">coalesced</span><span class="p">,</span> <span class="n">bucket</span><span class="p">)):</span>
+            <span class="n">buf</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">synced</span><span class="p">)</span>
+            
+<div class="viewcode-block" id="DistributedDataParallel"><a class="viewcode-back" href="../../../parallel.html#apex.parallel.DistributedDataParallel">[docs]</a><span class="k">class</span> <span class="nc">DistributedDataParallel</span><span class="p">(</span><span class="n">Module</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">message_size</span><span class="o">=</span><span class="mi">10000000</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">DistributedDataParallel</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">warn_on_half</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">dist</span><span class="o">.</span><span class="n">_backend</span> <span class="o">==</span> <span class="n">dist</span><span class="o">.</span><span class="n">dist_backend</span><span class="o">.</span><span class="n">GLOO</span> <span class="k">else</span> <span class="kc">False</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">message_size</span> <span class="o">=</span> <span class="n">message_size</span>
+        
+        <span class="c1">#reference to last iterations parameters to see if anything has changed</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_refs</span> <span class="o">=</span> <span class="p">[]</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">reduction_stream</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">Stream</span><span class="p">()</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="n">module</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">parameters</span><span class="p">())</span>
+        
+        <span class="k">if</span> <span class="n">dist</span><span class="o">.</span><span class="n">_backend</span> <span class="o">==</span> <span class="n">dist</span><span class="o">.</span><span class="n">dist_backend</span><span class="o">.</span><span class="n">NCCL</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_list</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">param</span><span class="o">.</span><span class="n">is_cuda</span><span class="p">,</span> <span class="s2">&quot;NCCL backend only supports model parameters to be on GPU.&quot;</span>
+                
+        <span class="bp">self</span><span class="o">.</span><span class="n">record</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">create_hooks</span><span class="p">()</span>
+
+        <span class="n">flat_dist_call</span><span class="p">([</span><span class="n">param</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">parameters</span><span class="p">()],</span> <span class="n">dist</span><span class="o">.</span><span class="n">broadcast</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,)</span> <span class="p">)</span>
+        
+    <span class="k">def</span> <span class="nf">create_hooks</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1">#all reduce gradient hook</span>
+        <span class="k">def</span> <span class="nf">allreduce_params</span><span class="p">():</span>
+            <span class="k">if</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">needs_reduction</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">needs_reduction</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">needs_refresh</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="n">grads</span> <span class="o">=</span> <span class="p">[</span><span class="n">param</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">parameters</span><span class="p">()</span> <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+            <span class="n">flat_dist_call</span><span class="p">(</span><span class="n">grads</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">all_reduce</span><span class="p">)</span>
+            <span class="n">t_record</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">IntTensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="p">)</span>
+            <span class="n">dist</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span><span class="n">t_record</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">record</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">t_record</span><span class="p">]</span>
+
+
+        <span class="k">def</span> <span class="nf">flush_buckets</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">needs_reduction</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">needs_reduction</span> <span class="o">=</span> <span class="kc">False</span>
+            
+            <span class="n">ready</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">param</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_list</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+                    <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">ready</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">param</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+            <span class="k">if</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ready</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">):</span>
+                <span class="n">orig_stream</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">current_stream</span><span class="p">()</span>
+                <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reduction_stream</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">reduction_stream</span><span class="o">.</span><span class="n">wait_stream</span><span class="p">(</span><span class="n">orig_stream</span><span class="p">)</span>
+                    <span class="n">flat_dist_call</span><span class="p">(</span><span class="n">ready</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">all_reduce</span><span class="p">)</span>
+                    
+            <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">current_stream</span><span class="p">()</span><span class="o">.</span><span class="n">wait_stream</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reduction_stream</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">param_i</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">parameters</span><span class="p">())):</span>
+            <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="n">param_i</span><span class="p">):</span>
+                
+                <span class="k">def</span> <span class="nf">allreduce_hook</span><span class="p">(</span><span class="o">*</span><span class="n">unused</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">needs_refresh</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">param_i</span><span class="p">)</span>
+                        <span class="n">Variable</span><span class="o">.</span><span class="n">_execution_engine</span><span class="o">.</span><span class="n">queue_callback</span><span class="p">(</span><span class="n">allreduce_params</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">Variable</span><span class="o">.</span><span class="n">_execution_engine</span><span class="o">.</span><span class="n">queue_callback</span><span class="p">(</span><span class="n">flush_buckets</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">param_i</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">1</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">comm_ready_buckets</span><span class="p">()</span>
+                    
+                    
+                <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">:</span>
+                    <span class="n">param</span><span class="o">.</span><span class="n">register_hook</span><span class="p">(</span><span class="n">allreduce_hook</span><span class="p">)</span>
+            <span class="n">wrapper</span><span class="p">(</span><span class="n">param_i</span><span class="p">)</span>
+
+
+    <span class="k">def</span> <span class="nf">comm_ready_buckets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="n">ready</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">counter</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">while</span> <span class="n">counter</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">[</span><span class="n">counter</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">counter</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="k">while</span> <span class="n">counter</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">[</span><span class="n">counter</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">ready</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">counter</span><span class="p">)</span>
+            <span class="n">counter</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">ready</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">grads</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="n">ready</span><span class="p">:</span>
+            <span class="n">param_ind</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_list</span><span class="p">[</span><span class="n">param_ind</span><span class="p">]</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">grads</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">param_list</span><span class="p">[</span><span class="n">param_ind</span><span class="p">]</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="n">bucket</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">bucket_inds</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">while</span> <span class="n">grads</span><span class="p">:</span>
+            <span class="n">bucket</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">grads</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+            <span class="n">bucket_inds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ready</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+            
+            <span class="n">cumm_size</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">ten</span> <span class="ow">in</span> <span class="n">bucket</span><span class="p">:</span>
+                <span class="n">cumm_size</span> <span class="o">+=</span> <span class="n">ten</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">cumm_size</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">message_size</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="n">evt</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span>
+            <span class="n">evt</span><span class="o">.</span><span class="n">record</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">current_stream</span><span class="p">())</span>
+            <span class="n">evt</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">stream</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reduction_stream</span><span class="p">)</span>
+        
+            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reduction_stream</span><span class="p">):</span>
+                <span class="n">flat_dist_call</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">all_reduce</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="n">bucket_inds</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>
+        
+<div class="viewcode-block" id="DistributedDataParallel.forward"><a class="viewcode-back" href="../../../parallel.html#apex.parallel.DistributedDataParallel.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="n">param_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">param</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">parameters</span><span class="p">())</span> <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">]</span>
+
+        
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">needs_refresh</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_refs</span> <span class="k">else</span> <span class="nb">any</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">param1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">param2</span> <span class="k">for</span> <span class="n">param1</span><span class="p">,</span> <span class="n">param2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">param_list</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_refs</span><span class="p">)]</span>
+        <span class="p">)</span>
+                
+        <span class="k">if</span>  <span class="bp">self</span><span class="o">.</span><span class="n">needs_refresh</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">record</span> <span class="o">=</span> <span class="p">[]</span>
+
+            
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">param_list</span><span class="p">))]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_refs</span> <span class="o">=</span> <span class="n">param_list</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">needs_reduction</span> <span class="o">=</span> <span class="kc">True</span>
+        
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="p">(</span><span class="o">*</span><span class="n">inputs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Torch Contributors.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.0.0',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          
+          SphinxRtdTheme.Navigation.enableSticky();
+          
+      });
+  </script> 
+
+</body>
+</html>
