@@ -12,7 +12,7 @@ class LossScaler:
     Class that manages a static loss scale.  This class is intended to interact with
     :class:`FP16_Optimizer`, and should not be directly manipulated by the user.
 
-    Use of LossScaler is enabled via the ``static_loss_scale`` argument to 
+    Use of :class:`LossScaler` is enabled via the ``static_loss_scale`` argument to 
     :class:`FP16_Optimizer`'s constructor.
 
     Args:
@@ -55,7 +55,8 @@ class DynamicLossScaler:
     Loss scaling is designed to combat the problem of underflowing gradients encountered at long
     times when training FP16 networks.  Dynamic loss scaling begins by attempting a very high loss
     scale.  Ironically, this may result in OVERflowing gradients.  If overflowing gradients are
-    encountered, DynamicLossScaler informs :class:`FP16_Optimizer` that an overflow has occurred.
+    encountered, :class:`DynamicLossScaler` informs :class:`FP16_Optimizer` that an overflow has 
+    occurred.
     :class:`FP16_Optimizer` then skips the update step for this particular iteration/minibatch,
     and :class:`DynamicLossScaler` adjusts the loss scale to a lower value.  
     If a certain number of iterations occur without overflowing gradients detected,

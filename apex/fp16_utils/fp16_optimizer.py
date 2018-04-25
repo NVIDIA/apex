@@ -71,9 +71,10 @@ class FP16_Optimizer(object):
     Example with dynamic loss scaling::
 
         ...
-        optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True, 
-                                   dynamic_loss_args={'scale_window' : 500})
-                                   # dynamic_loss_args is optional.
+        optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
+                                   # optional arg to control dynamic loss scaling behavior
+                                   # dynamic_loss_args={'scale_window' : 500})
+                                   # Usually, dynamic_loss_args is not necessary. 
 
     Args:
         init_optimizer (torch.optim.optimizer):  Existing optimizer containing initialized fp16 parameters.  Internally, :class:`FP16_Optimizer` replaces the passed optimizer's fp16 parameters with new fp32 parameters copied from the original ones.  :class:`FP16_Optimizer` also stores references to the original fp16 parameters, and updates these fp16 parameters from the master fp32 copy after each step.  
@@ -263,7 +264,7 @@ class FP16_Optimizer(object):
 
     def clip_master_grads(self, max_norm, norm_type=2):
         """
-        Clips fp32 master gradients via torch.nn.utils.clip_grad_norm.
+        Clips fp32 master gradients via ``torch.nn.utils.clip_grad_norm``.
 
         Args:
             max_norm (float or int): max norm of the gradients
@@ -354,10 +355,11 @@ class FP16_Optimizer(object):
 
     def step(self, closure=None): # could add clip option.
         """
-        If no closure is supplied, step should be called after ``fp16_optimizer_obj.backward(loss)``.
-        step updates the fp32 master copy of parameters using the optimizer supplied to
+        If no closure is supplied, :attr:`step` should be called after 
+        ``fp16_optimizer_obj.backward(loss)``.
+        :attr:`step` updates the fp32 master copy of parameters using the optimizer supplied to
         :class:`FP16_Optimizer`'s constructor, then copies the updated fp32 params into the fp16 params
-        originally referenced by Fp16_Optimizer's constructor, so the user may immediately run
+        originally referenced by :class:`FP16_Optimizer`'s constructor, so the user may immediately run
         another forward pass using their model.
 
         If a closure is supplied, :attr:`step` may be called without a prior call to 
@@ -401,13 +403,13 @@ class FP16_Optimizer(object):
             return
         
         if closure is not None:
-            self._step_with_closure(closure)
+            retval = self._step_with_closure(closure)
         else:
-            self.optimizer.step()
+            retval = self.optimizer.step()
 
         self._master_params_to_model_params()
 
-        return
+        return retval
 
     def _step_with_closure(self, closure):
         def wrapped_closure():
@@ -433,9 +435,11 @@ class FP16_Optimizer(object):
             temp_loss = closure() 
             return temp_loss
 
-        self.optimizer.step(wrapped_closure)
+        retval = self.optimizer.step(wrapped_closure)
 
         self.first_closure_call_this_step = True
+
+        return retval
 
     def backward(self, loss, update_master_grads=True):
         """ 
@@ -466,18 +470,18 @@ class FP16_Optimizer(object):
 
         .. note::
             The gradients found in a model's leaves after the call to 
-            `backward` should not be regarded as valid in general, 
+            :attr:`backward` should not be regarded as valid in general, 
             because it's possible 
             they have been scaled (and in the case of dynamic loss scaling, 
             the scale factor may change over time).  
-            If the user wants to inspect gradients after a call to `backward`,  
+            If the user wants to inspect gradients after a call to :attr:`backward`,  
             only the master gradients should be regarded as valid.  These can be retrieved via
             :attr:`inspect_master_grad_data()`.
 
 
         Args:
             loss:  The loss output by the user's model.  loss may be either float or half (but see first Note above).
-            update_master_grads (bool, optional, default=True):  Option to copy fp16 grads to fp32 grads on this call.  By setting this to False, the user can delay the copy, which is useful to eliminate redundant fp16->fp32 grad copies if fp16_optimizer_obj.backward is being called on multiple losses in one iteration.  If set to False, the user becomes responsible for calling :attr:`update_master_grads` before calling :attr:`step`.
+            update_master_grads (bool, optional, default=True):  Option to copy fp16 grads to fp32 grads on this call.  By setting this to False, the user can delay the copy, which is useful to eliminate redundant fp16->fp32 grad copies if :attr:`backward` is being called on multiple losses in one iteration.  If set to False, the user becomes responsible for calling :attr:`update_master_grads` before calling :attr:`step`.
 
         Example::
 
