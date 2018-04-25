@@ -62,8 +62,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'PyTorch'
-copyright = '2018, Torch Contributors'
+project = 'APEx'
+copyright = '2018'
 author = 'Christian Sarofeen, Natalia Gimelshein, Michael Carilli, Raul Puri'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -115,7 +115,7 @@ html_theme_options = {
     'logo_only': True,
 }
 
-html_logo = '_static/img/pychu.png'
+html_logo = '_static/img/nv-pytorch2.png'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -161,7 +161,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'pytorch.tex', 'PyTorch Documentation',
+    (master_doc, 'apex.tex', 'APEx Documentation',
      'Torch Contributors', 'manual'),
 ]
 
@@ -171,7 +171,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'PyTorch', 'PyTorch Documentation',
+    (master_doc, 'APEx', 'APEx Documentation',
      [author], 1)
 ]
 
@@ -182,8 +182,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'PyTorch', 'PyTorch Documentation',
-     author, 'PyTorch', 'One line description of project.',
+    (master_doc, 'APEx', 'APEx Documentation',
+     author, 'APEx', 'One line description of project.',
      'Miscellaneous'),
 ]
 

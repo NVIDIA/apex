@@ -13,7 +13,7 @@ help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
 docset: html
-	doc2dash --name $(SPHINXPROJ) --icon $(SOURCEDIR)/_static/img/pytorch-logo-flame.png --enable-js --online-redirect-url http://pytorch.org/docs/ --force $(BUILDDIR)/html/
+	doc2dash --name $(SPHINXPROJ) --icon $(SOURCEDIR)/_static/img/nv-pytorch2.png --enable-js --online-redirect-url http://pytorch.org/docs/ --force $(BUILDDIR)/html/
 
         # Manually fix because Zeal doesn't deal well with `icon.png`-only at 2x resolution.
 	cp $(SPHINXPROJ).docset/icon.png $(SPHINXPROJ).docset/icon@2x.png
@@ -22,7 +22,8 @@ docset: html
 gh-pages:
 	git checkout gh-pages
 	rm -rf build
-	git checkout master .
+	rm -rf source
+	git checkout master -- .
 	make html
 	rm -rf ../_modules ../_sources ../_static
 	mv -fv build/html/* ../

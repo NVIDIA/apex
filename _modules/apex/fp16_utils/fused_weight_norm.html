@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>apex.utils.fused_weight_norm &mdash; PyTorch 0.0.0 documentation</title>
+  <title>apex.fp16_utils.fused_weight_norm &mdash; APEx 0.0.0 documentation</title>
   
 
   
@@ -54,7 +54,7 @@
 
           
             
-            <img src="../../../_static/pychu.png" class="logo" alt="Logo"/>
+            <img src="../../../_static/nv-pytorch2.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -91,7 +91,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../reparameterization.html">apex.reparameterization</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../RNN.html">apex.RNN</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../utils.html">apex.utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../fp16_utils.html">apex.fp16_utils</a></li>
 </ul>
 
             
@@ -106,7 +106,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../../index.html">PyTorch</a>
+          <a href="../../../index.html">APEx</a>
         
       </nav>
 
@@ -139,7 +139,7 @@
         
           <li><a href="../../index.html">Module code</a> &raquo;</li>
         
-      <li>apex.utils.fused_weight_norm</li>
+      <li>apex.fp16_utils.fused_weight_norm</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -154,7 +154,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <h1>Source code for apex.utils.fused_weight_norm</h1><div class="highlight"><pre>
+  <h1>Source code for apex.fp16_utils.fused_weight_norm</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">torch.autograd</span> <span class="k">import</span> <span class="n">Variable</span>
 <span class="kn">from</span> <span class="nn">torch.autograd.function</span> <span class="k">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">once_differentiable</span>
@@ -169,7 +169,7 @@
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">name</span><span class="o">+</span><span class="s2">&quot;.is_cuda = False.&quot;</span>
                                <span class="s2">&quot;Currently, only cuda tensors are supported.&quot;</span><span class="p">)</span>
 
-<div class="viewcode-block" id="Fused_Weight_Norm"><a class="viewcode-back" href="../../../utils.html#apex.utils.Fused_Weight_Norm">[docs]</a><span class="k">class</span> <span class="nc">Fused_Weight_Norm</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
+<div class="viewcode-block" id="Fused_Weight_Norm"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.Fused_Weight_Norm">[docs]</a><span class="k">class</span> <span class="nc">Fused_Weight_Norm</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implements weight norm along a tensor&#39;s slowest dimension using fused kernel launches for</span>
 <span class="sd">    the forward and backward pass.</span>
@@ -178,7 +178,7 @@
 <span class="sd">    of input/output precision.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="Fused_Weight_Norm.forward"><a class="viewcode-back" href="../../../utils.html#apex.utils.Fused_Weight_Norm.forward">[docs]</a>    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="Fused_Weight_Norm.forward"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.Fused_Weight_Norm.forward">[docs]</a>    <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="nb">input</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        :attr:`input` is assumed to be contiguous.</span>
@@ -222,36 +222,17 @@
 <span class="sd">        [output_size(0),1,1,...].</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="c1"># torch.cuda.synchronize()</span>
-
-        <span class="c1"># print(&quot;norms = &quot;, norms)</span>
-        <span class="c1"># print(&quot;norms.size  () = &quot;, norms.size())</span>
-        <span class="c1"># print(&quot;norms.stride() = &quot;, norms.stride())</span>
-
-        <span class="c1"># print(&quot;type(input)  = &quot;, type(input))</span>
-        <span class="c1"># print(&quot;type(output) = &quot;, type(output))</span>
-        <span class="c1"># print(&quot;type(norms)  = &quot;, type(norms))</span>
-        <span class="c1"># print( &quot;input.data_ptr = {:x}&quot;.format(input.data_ptr()))</span>
-        
         <span class="n">apex</span><span class="o">.</span><span class="n">_C</span><span class="o">.</span><span class="n">weight_norm_fwd</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">norms</span><span class="p">,</span> <span class="nb">input</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
-        <span class="c1"># apex._C.weight_norm_fwd(input.data, output.data, norms)</span>
-
-        <span class="c1"># torch.cuda.synchronize()</span>
-
-        <span class="c1"># print(&quot;norms in forward():  &quot;, norms)</span>
-
         <span class="n">ctx</span><span class="o">.</span><span class="n">save_for_backward</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="n">g</span><span class="p">)</span>
 
         <span class="c1"># save_for_backward can only save input or output tensors,</span>
-        <span class="c1"># so here&#39;s a hacky workaround to save the norms and dimension:</span>
+        <span class="c1"># use ctx state to save the norms and dimension:</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">norms</span> <span class="o">=</span> <span class="n">norms</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">dim</span>
 
-        <span class="c1"># torch.cuda.nvtx.range_pop()</span>
-
         <span class="k">return</span> <span class="n">output</span></div>
 
-<div class="viewcode-block" id="Fused_Weight_Norm.backward"><a class="viewcode-back" href="../../../utils.html#apex.utils.Fused_Weight_Norm.backward">[docs]</a>    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="Fused_Weight_Norm.backward"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.Fused_Weight_Norm.backward">[docs]</a>    <span class="nd">@staticmethod</span>
     <span class="nd">@once_differentiable</span>
     <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">grad_output</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -259,9 +240,6 @@
 <span class="sd">        :attr:`grad_output` may be either float or half precision.</span>
 <span class="sd">        The precision of :attr:`grad_input` will match the precision of :attr:`grad_output`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># torch.cuda.nvtx.range_push(&quot;FusedNorm.backward, grad_output.size() = {}&quot;</span>
-        <span class="c1">#                            .format(grad_output.size()))</span>
-
         <span class="n">check_contig_cuda</span><span class="p">((</span><span class="n">grad_output</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;grad_output&quot;</span><span class="p">))</span>
 
         <span class="n">savedInput</span><span class="p">,</span> <span class="n">savedg</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">saved_tensors</span>
@@ -280,25 +258,6 @@
                                 <span class="n">savedg</span><span class="p">,</span>
                                 <span class="n">savedNorms</span><span class="p">,</span>
                                 <span class="n">ctx</span><span class="o">.</span><span class="n">dim</span><span class="p">)</span>
-        <span class="c1"># apex._C.weight_norm_bwd(grad_output_contig.data, grad_input.data, savedInput.data, norms)</span>
-
-        <span class="c1"># torch.cuda.nvtx.range_pop()</span>
-
-        <span class="c1"># print(&quot;\n\n&quot;)</span>
-        <span class="c1"># print(&quot;grad_output.is_contiguous() = {:x}&quot;.format(grad_output.is_contiguous()))</span>
-        <span class="c1"># print(&quot; grad_input.is_contiguous() = {:x}&quot;.format( grad_input.is_contiguous()))</span>
-        <span class="c1"># print(&quot; savedInput.is_contiguous() = {:x}&quot;.format( savedInput.is_contiguous()))</span>
-        <span class="c1"># print(&quot;      norms.is_contiguous() = {:x}&quot;.format(      norms.is_contiguous()))</span>
-        <span class="c1"># print(&quot;\n\n&quot;)</span>
-        <span class="c1"># print(&quot;grad_output.data_ptr = {:x}&quot;.format(grad_output.data_ptr()))</span>
-        <span class="c1"># print(&quot; grad_input.data_ptr = {:x}&quot;.format( grad_input.data_ptr()))</span>
-        <span class="c1"># print(&quot; savedInput.data_ptr = {:x}&quot;.format( savedInput.data_ptr()))</span>
-        <span class="c1"># print(&quot;      norms.data_ptr = {:x}&quot;.format(      norms.data_ptr()))</span>
-        <span class="c1"># print(&quot;\n\n&quot;)</span>
-        <span class="c1"># print(&quot;grad_output in backward():  &quot;, grad_output)</span>
-        <span class="c1"># print(&quot; grad_input in backward():  &quot;, grad_input)</span>
-        <span class="c1"># print(&quot; savedInput in backward():  &quot;, savedInput)</span>
-        <span class="c1"># print(&quot;      norms in backward():  &quot;, norms)</span>
 
         <span class="k">return</span> <span class="n">grad_input</span><span class="p">,</span> <span class="n">grad_g</span><span class="p">,</span> <span class="kc">None</span></div></div>
 </pre></div>
@@ -313,7 +272,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018, Torch Contributors.
+        &copy; Copyright 2018.
 
     </p>
   </div>

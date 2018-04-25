@@ -4,23 +4,23 @@
 apex.RNN
 ===================================
 
+This sumbodule is an in development API aimed to supply parity to torch.nn.RNN,
+but be easier to extend. This module is not ready for use and still lacks important
+features and validation.
+
 .. automodule:: apex.RNN
 .. currentmodule:: apex.RNN
 
 .. RNN
    ----------
 
-.. autoclass:: GRU
-    :members:
+.. autofunction:: LSTM
 
-.. autoclass:: LSTM
-    :members:
+.. autofunction:: mLSTM
 
-.. autoclass:: mLSTM
-    :members:
+.. autofunction:: GRU
 
-.. autoclass:: RNNReLU
-    :members:
+.. autofunction:: ReLU
 
-.. autoclass:: RNNTanh
-    :members:
+.. autofunction:: Tanh		  
+		 

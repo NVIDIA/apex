@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>apex.reparameterization.weight_norm &mdash; PyTorch 0.0.0 documentation</title>
+  <title>apex.reparameterization.weight_norm &mdash; APEx 0.0.0 documentation</title>
   
 
   
@@ -54,7 +54,7 @@
 
           
             
-            <img src="../../../_static/pychu.png" class="logo" alt="Logo"/>
+            <img src="../../../_static/nv-pytorch2.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -91,7 +91,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../reparameterization.html">apex.reparameterization</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../RNN.html">apex.RNN</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../utils.html">apex.utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../fp16_utils.html">apex.fp16_utils</a></li>
 </ul>
 
             
@@ -106,7 +106,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../../index.html">PyTorch</a>
+          <a href="../../../index.html">APEx</a>
         
       </nav>
 
@@ -157,7 +157,7 @@
   <h1>Source code for apex.reparameterization.weight_norm</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">torch.nn.parameter</span> <span class="k">import</span> <span class="n">Parameter</span>
-<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">Fused_Weight_Norm</span>
+<span class="kn">from</span> <span class="nn">..fp16_utils</span> <span class="k">import</span> <span class="n">Fused_Weight_Norm</span>
 <span class="kn">import</span> <span class="nn">time</span>
 
 <span class="kn">from</span> <span class="nn">.reparameterization</span> <span class="k">import</span> <span class="n">Reparameterization</span>
@@ -210,27 +210,9 @@
         <span class="n">g</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;_g&#39;</span><span class="p">)</span>
         <span class="n">v</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;_v&#39;</span><span class="p">)</span>
 
-        <span class="c1"># torch.cuda.nvtx.range_push(&quot;compute_weight, v.size() = {}&quot;.format(v.size()))</span>
-        <span class="c1"># torch.cuda.synchronize()</span>
-        <span class="c1"># start = time.time()</span>
-
-        <span class="c1"># if isinstance(g.data, HALF_TYPES) or isinstance(v.data, HALF_TYPES):</span>
-        <span class="c1">#     self.fp16 = True</span>
-        <span class="c1">#     g.data = g.data.float()</span>
-        <span class="c1">#     v.data = v.data.float()</span>
-        <span class="c1"># w = (v * (g / _norm(v, self.dim)))</span>
-        <span class="c1"># if hasattr(self, &#39;fp16&#39;) and self.fp16:</span>
-        <span class="c1">#     w = w.half()</span>
-
-        <span class="c1"># print( &quot;Using mine&quot; )</span>
         <span class="n">fused_weight_norm</span> <span class="o">=</span> <span class="n">Fused_Weight_Norm</span><span class="o">.</span><span class="n">apply</span>
         <span class="n">v</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
         <span class="n">w</span> <span class="o">=</span> <span class="n">fused_weight_norm</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">)</span>
-
-        <span class="c1"># torch.cuda.synchronize()</span>
-        <span class="c1"># end=time.time()</span>
-        <span class="c1"># print(&quot;Time for weightnorm fwd {} = {}&quot;.format(v.size(), end-start))</span>
-        <span class="c1"># torch.cuda.nvtx.range_pop()</span>
 
         <span class="k">return</span> <span class="n">w</span></div>
 
@@ -263,7 +245,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018, Torch Contributors.
+        &copy; Copyright 2018.
 
     </p>
   </div>

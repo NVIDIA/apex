@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>apex.RNN &mdash; PyTorch 0.0.0 documentation</title>
+  <title>apex.RNN &mdash; APEx 0.0.0 documentation</title>
   
 
   
@@ -31,7 +31,7 @@
   <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="apex.utils" href="utils.html" />
+    <link rel="next" title="apex.fp16_utils" href="fp16_utils.html" />
     <link rel="prev" title="apex.reparameterization" href="reparameterization.html" /> 
 
   
@@ -56,7 +56,7 @@
 
           
             
-            <img src="_static/pychu.png" class="logo" alt="Logo"/>
+            <img src="_static/nv-pytorch2.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -93,7 +93,7 @@
 <li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reparameterization.html">apex.reparameterization</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">apex.RNN</a></li>
-<li class="toctree-l1"><a class="reference internal" href="utils.html">apex.utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fp16_utils.html">apex.fp16_utils</a></li>
 </ul>
 
             
@@ -108,7 +108,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">PyTorch</a>
+          <a href="index.html">APEx</a>
         
       </nav>
 
@@ -158,24 +158,39 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="module-apex.RNN">
-<span id="apex-rnn"></span><h1>apex.RNN<a class="headerlink" href="#module-apex.RNN" title="Permalink to this headline">¶</a></h1>
-<dl class="class">
-<dt id="apex.RNN.GRU">
-<em class="property">class </em><code class="descclassname">apex.RNN.</code><code class="descname">GRU</code><a class="reference internal" href="_modules/apex/RNN/models.html#GRU"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.GRU" title="Permalink to this definition">¶</a></dt>
-<dd><p>GRU stub</p>
-</dd></dl>
-
-<dl class="class">
+  <div class="section" id="apex-rnn">
+<h1>apex.RNN<a class="headerlink" href="#apex-rnn" title="Permalink to this headline">¶</a></h1>
+<p>This sumbodule is an in development API aimed to supply parity to torch.nn.RNN,
+but be easier to extend. This module is not ready for use and still lacks important
+features and validation.</p>
+<span class="target" id="module-apex.RNN"></span><dl class="function">
 <dt id="apex.RNN.LSTM">
-<em class="property">class </em><code class="descclassname">apex.RNN.</code><code class="descname">LSTM</code><a class="reference internal" href="_modules/apex/RNN/models.html#LSTM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.LSTM" title="Permalink to this definition">¶</a></dt>
-<dd><p>LSTM stub</p>
+<code class="descclassname">apex.RNN.</code><code class="descname">LSTM</code><span class="sig-paren">(</span><em>input_size</em>, <em>hidden_size</em>, <em>num_layers</em>, <em>bias=True</em>, <em>batch_first=False</em>, <em>dropout=0</em>, <em>bidirectional=False</em>, <em>output_size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/RNN/models.html#LSTM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.LSTM" title="Permalink to this definition">¶</a></dt>
+<dd><p><a class="reference internal" href="#apex.RNN.LSTM" title="apex.RNN.LSTM"><code class="xref py py-class docutils literal notranslate"><span class="pre">LSTM</span></code></a></p>
 </dd></dl>
 
-<dl class="class">
+<dl class="function">
 <dt id="apex.RNN.mLSTM">
-<em class="property">class </em><code class="descclassname">apex.RNN.</code><code class="descname">mLSTM</code><a class="reference internal" href="_modules/apex/RNN/models.html#mLSTM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.mLSTM" title="Permalink to this definition">¶</a></dt>
-<dd><p>mLSTM stub</p>
+<code class="descclassname">apex.RNN.</code><code class="descname">mLSTM</code><span class="sig-paren">(</span><em>input_size</em>, <em>hidden_size</em>, <em>num_layers</em>, <em>bias=True</em>, <em>batch_first=False</em>, <em>dropout=0</em>, <em>bidirectional=False</em>, <em>output_size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/RNN/models.html#mLSTM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.mLSTM" title="Permalink to this definition">¶</a></dt>
+<dd><p><a class="reference internal" href="#apex.RNN.mLSTM" title="apex.RNN.mLSTM"><code class="xref py py-class docutils literal notranslate"><span class="pre">mLSTM</span></code></a></p>
+</dd></dl>
+
+<dl class="function">
+<dt id="apex.RNN.GRU">
+<code class="descclassname">apex.RNN.</code><code class="descname">GRU</code><span class="sig-paren">(</span><em>input_size</em>, <em>hidden_size</em>, <em>num_layers</em>, <em>bias=True</em>, <em>batch_first=False</em>, <em>dropout=0</em>, <em>bidirectional=False</em>, <em>output_size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/RNN/models.html#GRU"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.GRU" title="Permalink to this definition">¶</a></dt>
+<dd><p><a class="reference internal" href="#apex.RNN.GRU" title="apex.RNN.GRU"><code class="xref py py-class docutils literal notranslate"><span class="pre">GRU</span></code></a></p>
+</dd></dl>
+
+<dl class="function">
+<dt id="apex.RNN.ReLU">
+<code class="descclassname">apex.RNN.</code><code class="descname">ReLU</code><span class="sig-paren">(</span><em>input_size</em>, <em>hidden_size</em>, <em>num_layers</em>, <em>bias=True</em>, <em>batch_first=False</em>, <em>dropout=0</em>, <em>bidirectional=False</em>, <em>output_size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/RNN/models.html#ReLU"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.ReLU" title="Permalink to this definition">¶</a></dt>
+<dd><p><a class="reference internal" href="#apex.RNN.ReLU" title="apex.RNN.ReLU"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReLU</span></code></a></p>
+</dd></dl>
+
+<dl class="function">
+<dt id="apex.RNN.Tanh">
+<code class="descclassname">apex.RNN.</code><code class="descname">Tanh</code><span class="sig-paren">(</span><em>input_size</em>, <em>hidden_size</em>, <em>num_layers</em>, <em>bias=True</em>, <em>batch_first=False</em>, <em>dropout=0</em>, <em>bidirectional=False</em>, <em>output_size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/RNN/models.html#Tanh"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.Tanh" title="Permalink to this definition">¶</a></dt>
+<dd><p><a class="reference internal" href="#apex.RNN.Tanh" title="apex.RNN.Tanh"><code class="xref py py-class docutils literal notranslate"><span class="pre">Tanh</span></code></a></p>
 </dd></dl>
 
 </div>
@@ -188,7 +203,7 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="utils.html" class="btn btn-neutral float-right" title="apex.utils" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="fp16_utils.html" class="btn btn-neutral float-right" title="apex.fp16_utils" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="reparameterization.html" class="btn btn-neutral" title="apex.reparameterization" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
@@ -200,7 +215,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018, Torch Contributors.
+        &copy; Copyright 2018.
 
     </p>
   </div>

@@ -9,7 +9,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Index &mdash; PyTorch 0.0.0 documentation</title>
+  <title>Index &mdash; APEx 0.0.0 documentation</title>
   
 
   
@@ -55,7 +55,7 @@
 
           
             
-            <img src="_static/pychu.png" class="logo" alt="Logo"/>
+            <img src="_static/nv-pytorch2.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -92,7 +92,7 @@
 <li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reparameterization.html">apex.reparameterization</a></li>
 <li class="toctree-l1"><a class="reference internal" href="RNN.html">apex.RNN</a></li>
-<li class="toctree-l1"><a class="reference internal" href="utils.html">apex.utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fp16_utils.html">apex.fp16_utils</a></li>
 </ul>
 
             
@@ -107,7 +107,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">PyTorch</a>
+          <a href="index.html">APEx</a>
         
       </nav>
 
@@ -165,12 +165,13 @@
  | <a href="#D"><strong>D</strong></a>
  | <a href="#F"><strong>F</strong></a>
  | <a href="#G"><strong>G</strong></a>
- | <a href="#H"><strong>H</strong></a>
  | <a href="#I"><strong>I</strong></a>
  | <a href="#L"><strong>L</strong></a>
  | <a href="#M"><strong>M</strong></a>
+ | <a href="#P"><strong>P</strong></a>
  | <a href="#R"><strong>R</strong></a>
  | <a href="#S"><strong>S</strong></a>
+ | <a href="#T"><strong>T</strong></a>
  | <a href="#U"><strong>U</strong></a>
  | <a href="#W"><strong>W</strong></a>
  | <a href="#Z"><strong>Z</strong></a>
@@ -179,15 +180,15 @@
 <h2 id="A">A</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="parallel.html#module-apex.parallel">apex.parallel (module)</a>
+      <li><a href="fp16_utils.html#module-apex.fp16_utils">apex.fp16_utils (module)</a>
 </li>
-      <li><a href="reparameterization.html#module-apex.reparameterization">apex.reparameterization (module)</a>
+      <li><a href="parallel.html#module-apex.parallel">apex.parallel (module)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="RNN.html#module-apex.RNN">apex.RNN (module)</a>
+      <li><a href="reparameterization.html#module-apex.reparameterization">apex.reparameterization (module)</a>
 </li>
-      <li><a href="utils.html#module-apex.utils">apex.utils (module)</a>
+      <li><a href="RNN.html#module-apex.RNN">apex.RNN (module)</a>
 </li>
       <li><a href="reparameterization.html#apex.reparameterization.Reparameterization.apply">apply() (apex.reparameterization.Reparameterization static method)</a>
 </li>
@@ -197,10 +198,10 @@
 <h2 id="B">B</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.FP16_Optimizer.backward">backward() (apex.utils.FP16_Optimizer method)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.backward">backward() (apex.fp16_utils.FP16_Optimizer method)</a>
 
       <ul>
-        <li><a href="utils.html#apex.utils.Fused_Weight_Norm.backward">(apex.utils.Fused_Weight_Norm static method)</a>
+        <li><a href="fp16_utils.html#apex.fp16_utils.Fused_Weight_Norm.backward">(apex.fp16_utils.Fused_Weight_Norm static method)</a>
 </li>
       </ul></li>
   </ul></td>
@@ -213,7 +214,7 @@
 <h2 id="C">C</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.FP16_Optimizer.clip_master_grads">clip_master_grads() (apex.utils.FP16_Optimizer method)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.clip_master_grads">clip_master_grads() (apex.fp16_utils.FP16_Optimizer method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
@@ -233,7 +234,7 @@
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.DynamicLossScaler">DynamicLossScaler (class in apex.utils)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.DynamicLossScaler">DynamicLossScaler (class in apex.fp16_utils)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -241,17 +242,17 @@
 <h2 id="F">F</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="parallel.html#apex.parallel.DistributedDataParallel.forward">forward() (apex.parallel.DistributedDataParallel method)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.Fused_Weight_Norm.forward">forward() (apex.fp16_utils.Fused_Weight_Norm static method)</a>
 
       <ul>
-        <li><a href="utils.html#apex.utils.Fused_Weight_Norm.forward">(apex.utils.Fused_Weight_Norm static method)</a>
+        <li><a href="parallel.html#apex.parallel.DistributedDataParallel.forward">(apex.parallel.DistributedDataParallel method)</a>
 </li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.FP16_Optimizer">FP16_Optimizer (class in apex.utils)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer">FP16_Optimizer (class in apex.fp16_utils)</a>
 </li>
-      <li><a href="utils.html#apex.utils.Fused_Weight_Norm">Fused_Weight_Norm (class in apex.utils)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.Fused_Weight_Norm">Fused_Weight_Norm (class in apex.fp16_utils)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -265,15 +266,7 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="reparameterization.html#apex.reparameterization.Reparameterization.get_params">get_params() (apex.reparameterization.Reparameterization method)</a>
 </li>
-      <li><a href="RNN.html#apex.RNN.GRU">GRU (class in apex.RNN)</a>
-</li>
-  </ul></td>
-</tr></table>
-
-<h2 id="H">H</h2>
-<table style="width: 100%" class="indextable genindextable"><tr>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.LossScaler.has_overflow">has_overflow() (apex.utils.LossScaler method)</a>
+      <li><a href="RNN.html#apex.RNN.GRU">GRU() (in module apex.RNN)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -281,7 +274,7 @@
 <h2 id="I">I</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.FP16_Optimizer.inspect_master_grad_data">inspect_master_grad_data() (apex.utils.FP16_Optimizer method)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.inspect_master_grad_data">inspect_master_grad_data() (apex.fp16_utils.FP16_Optimizer method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -289,13 +282,13 @@
 <h2 id="L">L</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.FP16_Optimizer.load_state_dict">load_state_dict() (apex.utils.FP16_Optimizer method)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.load_state_dict">load_state_dict() (apex.fp16_utils.FP16_Optimizer method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.LossScaler">LossScaler (class in apex.utils)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.LossScaler">LossScaler (class in apex.fp16_utils)</a>
 </li>
-      <li><a href="RNN.html#apex.RNN.LSTM">LSTM (class in apex.RNN)</a>
+      <li><a href="RNN.html#apex.RNN.LSTM">LSTM() (in module apex.RNN)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -303,7 +296,21 @@
 <h2 id="M">M</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="RNN.html#apex.RNN.mLSTM">mLSTM (class in apex.RNN)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.master_params_to_model_params">master_params_to_model_params() (in module apex.fp16_utils)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="RNN.html#apex.RNN.mLSTM">mLSTM() (in module apex.RNN)</a>
+</li>
+      <li><a href="fp16_utils.html#apex.fp16_utils.model_grads_to_master_grads">model_grads_to_master_grads() (in module apex.fp16_utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="P">P</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="fp16_utils.html#apex.fp16_utils.prep_param_lists">prep_param_lists() (in module apex.fp16_utils)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -311,12 +318,14 @@
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="reparameterization.html#apex.reparameterization.Reparameterization.remove">remove() (apex.reparameterization.Reparameterization method)</a>
+      <li><a href="RNN.html#apex.RNN.ReLU">ReLU() (in module apex.RNN)</a>
 </li>
-      <li><a href="reparameterization.html#apex.reparameterization.Reparameterization">Reparameterization (class in apex.reparameterization)</a>
+      <li><a href="reparameterization.html#apex.reparameterization.Reparameterization.remove">remove() (apex.reparameterization.Reparameterization method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="reparameterization.html#apex.reparameterization.Reparameterization">Reparameterization (class in apex.reparameterization)</a>
+</li>
       <li><a href="reparameterization.html#apex.reparameterization.Reparameterization.reparameterize">reparameterize() (apex.reparameterization.Reparameterization method)</a>
 
       <ul>
@@ -329,11 +338,19 @@
 <h2 id="S">S</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.FP16_Optimizer.state_dict">state_dict() (apex.utils.FP16_Optimizer method)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.state_dict">state_dict() (apex.fp16_utils.FP16_Optimizer method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.FP16_Optimizer.step">step() (apex.utils.FP16_Optimizer method)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.step">step() (apex.fp16_utils.FP16_Optimizer method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="T">T</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="RNN.html#apex.RNN.Tanh">Tanh() (in module apex.RNN)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -341,11 +358,7 @@
 <h2 id="U">U</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.FP16_Optimizer.update_master_grads">update_master_grads() (apex.utils.FP16_Optimizer method)</a>
-</li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.LossScaler.update_scale">update_scale() (apex.utils.LossScaler method)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.update_master_grads">update_master_grads() (apex.fp16_utils.FP16_Optimizer method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -361,7 +374,7 @@
 <h2 id="Z">Z</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="utils.html#apex.utils.FP16_Optimizer.zero_grad">zero_grad() (apex.utils.FP16_Optimizer method)</a>
+      <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.zero_grad">zero_grad() (apex.fp16_utils.FP16_Optimizer method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -378,7 +391,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018, Torch Contributors.
+        &copy; Copyright 2018.
 
     </p>
   </div>

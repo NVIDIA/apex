@@ -5,24 +5,22 @@
 
 :github_url: https://gitlab-master.nvidia.com/csarofeen/apex
 
-Pychu (Pytorch Cuda Half Utilities)
+APEx (A PyTorch Extension)
 ===================================
 
-Training neural networks using 16-bit half precision floating point
-(as opposed to traditional 32-bit floating point)
-offers significant performance benefits
-on the latest NVIDIA Volta GPUs.  
-However, the reduced dynamic range of half precision is more
-vulnerable to numerical overflow/underflow.
+This is a repo is designed to hold PyTorch modules and utilities that are under active development and experimental. This repo is not designed as a long term solution or a production solution. Things placed in here are intended to be eventually moved to upstream PyTorch.
 
-Pychu is an NVIDIA-maintained repository of utilities that improve the
-accuracy and stability of half precision networks, while maintaining high performance.
-The utilities are designed to be minimally invasive and easy to use.
+A major focus of this extension is the training of neural networks using 16-bit precision floating point math, which offers significant performance benefits on latest NVIDIA GPU architectures. The reduced dynamic range of half precision, however, is more vulnerable to numerical overflow/underflow.
 
-If you've got a working Pytorch implementation of your network 
-that uses 32-bit floating point, 
-you should be able to realize immediate performance gains of 2X or more 
-after changing only a few lines of code.
+APEX is an NVIDIA-maintained repository of utilities, including some that are targeted to improve the accuracy and stability of half precision networks, while maintaining high performance. The utilities are designed to be minimally invasive and easy to use.
+
+Installation requires CUDA9, PyTorch 0.3 or later, and Python 3. Installation can be done by running
+::
+  git clone https://www.github.com/nvidia/apex
+  cd apex
+  python setup.py install
+
+	       
 
 .. toctree::
    :maxdepth: 1
@@ -31,7 +29,7 @@ after changing only a few lines of code.
    parallel
    reparameterization
    RNN
-   utils
+   fp16_utils
    
 Indices and tables
 ==================

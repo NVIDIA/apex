@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>apex.RNN.models &mdash; PyTorch 0.0.0 documentation</title>
+  <title>apex.RNN.models &mdash; APEx 0.0.0 documentation</title>
   
 
   
@@ -54,7 +54,7 @@
 
           
             
-            <img src="../../../_static/pychu.png" class="logo" alt="Logo"/>
+            <img src="../../../_static/nv-pytorch2.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -91,7 +91,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../reparameterization.html">apex.reparameterization</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../RNN.html">apex.RNN</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../utils.html">apex.utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../fp16_utils.html">apex.fp16_utils</a></li>
 </ul>
 
             
@@ -106,7 +106,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../../index.html">PyTorch</a>
+          <a href="../../../index.html">APEx</a>
         
       </nav>
 
@@ -164,7 +164,7 @@
 
 <span class="k">def</span> <span class="nf">toRNNBackend</span><span class="p">(</span><span class="n">inputRNN</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bidirectional</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dropout</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    toRNNBackend stub</span>
+<span class="sd">    :class:`toRNNBackend`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">if</span> <span class="n">bidirectional</span><span class="p">:</span>
@@ -175,37 +175,36 @@
 
 <div class="viewcode-block" id="LSTM"><a class="viewcode-back" href="../../../RNN.html#apex.RNN.LSTM">[docs]</a><span class="k">def</span> <span class="nf">LSTM</span><span class="p">(</span><span class="n">input_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_first</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">bidirectional</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">output_size</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    LSTM stub</span>
+<span class="sd">    :class:`LSTM`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">inputRNN</span> <span class="o">=</span> <span class="n">RNNCell</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="n">input_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">LSTMCell</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">bias</span><span class="p">,</span> <span class="n">output_size</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">toRNNBackend</span><span class="p">(</span><span class="n">inputRNN</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bidirectional</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="n">dropout</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="GRU"><a class="viewcode-back" href="../../../RNN.html#apex.RNN.GRU">[docs]</a><span class="k">def</span> <span class="nf">GRU</span><span class="p">(</span><span class="n">input_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_first</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">bidirectional</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">output_size</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    GRU stub</span>
+<span class="sd">    :class:`GRU`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">inputRNN</span> <span class="o">=</span> <span class="n">RNNCell</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">input_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">GRUCell</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">bias</span><span class="p">,</span> <span class="n">output_size</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">toRNNBackend</span><span class="p">(</span><span class="n">inputRNN</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bidirectional</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="n">dropout</span><span class="p">)</span></div>
 
-<span class="k">def</span> <span class="nf">ReLU</span><span class="p">(</span><span class="n">input_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_first</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">bidirectional</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">output_size</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="ReLU"><a class="viewcode-back" href="../../../RNN.html#apex.RNN.ReLU">[docs]</a><span class="k">def</span> <span class="nf">ReLU</span><span class="p">(</span><span class="n">input_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_first</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">bidirectional</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">output_size</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    ReLU stub</span>
+<span class="sd">    :class:`ReLU`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">inputRNN</span> <span class="o">=</span> <span class="n">RNNCell</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">input_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">RNNReLUCell</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">bias</span><span class="p">,</span> <span class="n">output_size</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">toRNNBackend</span><span class="p">(</span><span class="n">inputRNN</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bidirectional</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="n">dropout</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">toRNNBackend</span><span class="p">(</span><span class="n">inputRNN</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bidirectional</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="n">dropout</span><span class="p">)</span></div>
 
-<span class="k">def</span> <span class="nf">Tanh</span><span class="p">(</span><span class="n">input_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_first</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">bidirectional</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">output_size</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="Tanh"><a class="viewcode-back" href="../../../RNN.html#apex.RNN.Tanh">[docs]</a><span class="k">def</span> <span class="nf">Tanh</span><span class="p">(</span><span class="n">input_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_first</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">bidirectional</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">output_size</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Tanh stub</span>
+<span class="sd">    :class:`Tanh`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">inputRNN</span> <span class="o">=</span> <span class="n">RNNCell</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">input_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">RNNTanhCell</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">bias</span><span class="p">,</span> <span class="n">output_size</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">toRNNBackend</span><span class="p">(</span><span class="n">inputRNN</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bidirectional</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="n">dropout</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">toRNNBackend</span><span class="p">(</span><span class="n">inputRNN</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bidirectional</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="n">dropout</span><span class="p">)</span></div>
         
 <div class="viewcode-block" id="mLSTM"><a class="viewcode-back" href="../../../RNN.html#apex.RNN.mLSTM">[docs]</a><span class="k">def</span> <span class="nf">mLSTM</span><span class="p">(</span><span class="n">input_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_first</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">bidirectional</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">output_size</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    mLSTM stub</span>
+<span class="sd">    :class:`mLSTM`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Creating mlstm&quot;</span><span class="p">)</span>
     <span class="n">inputRNN</span> <span class="o">=</span> <span class="n">mLSTMRNNCell</span><span class="p">(</span><span class="n">input_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">,</span> <span class="n">output_size</span><span class="o">=</span><span class="n">output_size</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">toRNNBackend</span><span class="p">(</span><span class="n">inputRNN</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">,</span> <span class="n">bidirectional</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="n">dropout</span><span class="p">)</span></div>
 
@@ -222,7 +221,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018, Torch Contributors.
+        &copy; Copyright 2018.
 
     </p>
   </div>

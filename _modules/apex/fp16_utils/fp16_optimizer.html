@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>apex.utils.fp16_optimizer &mdash; PyTorch 0.0.0 documentation</title>
+  <title>apex.fp16_utils.fp16_optimizer &mdash; APEx 0.0.0 documentation</title>
   
 
   
@@ -54,7 +54,7 @@
 
           
             
-            <img src="../../../_static/pychu.png" class="logo" alt="Logo"/>
+            <img src="../../../_static/nv-pytorch2.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -91,7 +91,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../reparameterization.html">apex.reparameterization</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../RNN.html">apex.RNN</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../utils.html">apex.utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../fp16_utils.html">apex.fp16_utils</a></li>
 </ul>
 
             
@@ -106,7 +106,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../../index.html">PyTorch</a>
+          <a href="../../../index.html">APEx</a>
         
       </nav>
 
@@ -139,7 +139,7 @@
         
           <li><a href="../../index.html">Module code</a> &raquo;</li>
         
-      <li>apex.utils.fp16_optimizer</li>
+      <li>apex.fp16_utils.fp16_optimizer</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -154,7 +154,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <h1>Source code for apex.utils.fp16_optimizer</h1><div class="highlight"><pre>
+  <h1>Source code for apex.fp16_utils.fp16_optimizer</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">torch</span> <span class="k">import</span> <span class="n">nn</span>
 <span class="kn">from</span> <span class="nn">torch.autograd</span> <span class="k">import</span> <span class="n">Variable</span>
@@ -162,6 +162,7 @@
 <span class="kn">from</span> <span class="nn">torch._utils</span> <span class="k">import</span> <span class="n">_flatten_dense_tensors</span><span class="p">,</span> <span class="n">_unflatten_dense_tensors</span>
 
 <span class="kn">from</span> <span class="nn">.loss_scaler</span> <span class="k">import</span> <span class="n">DynamicLossScaler</span><span class="p">,</span> <span class="n">LossScaler</span>
+<span class="kn">from</span> <span class="nn">.fp16util</span> <span class="k">import</span> <span class="n">model_grads_to_master_grads</span><span class="p">,</span> <span class="n">master_params_to_model_params</span>
 
 <span class="n">FLOAT_TYPES</span> <span class="o">=</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">FloatTensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">FloatTensor</span><span class="p">)</span>
 <span class="n">HALF_TYPES</span> <span class="o">=</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">HalfTensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">HalfTensor</span><span class="p">)</span>
@@ -205,20 +206,42 @@
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">fp16_to_fp32</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">fp32_to_fp16</span><span class="p">(</span><span class="n">inputs</span><span class="p">)),</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
 
-<div class="viewcode-block" id="FP16_Optimizer"><a class="viewcode-back" href="../../../utils.html#apex.utils.FP16_Optimizer">[docs]</a><span class="k">class</span> <span class="nc">FP16_Optimizer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<div class="viewcode-block" id="FP16_Optimizer"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer">[docs]</a><span class="k">class</span> <span class="nc">FP16_Optimizer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    :class:`FP16_Optimizer` is designed to wrap an existing PyTorch optimizer, </span>
-<span class="sd">    and enable an fp16 model to be trained using a master copy of fp32 weights.</span>
+<span class="sd">    and manage (dynamic) loss scaling and master weights in a manner transparent to the user.</span>
+<span class="sd">    For standard use, only two lines must be changed:  creating the :class:`FP16_Optimizer` instance,</span>
+<span class="sd">    and changing the call to ``backward``.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        model = torch.nn.Linear(D_in, D_out).cuda().half()</span>
+<span class="sd">        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)</span>
+<span class="sd">        # Name the FP16_Optimizer instance to replace the existing optimizer</span>
+<span class="sd">        # (recommended but not required):</span>
+<span class="sd">        optimizer = FP16_Optimizer(optimizer, static_loss_scale = 128.0)</span>
+<span class="sd">        ...</span>
+<span class="sd">        # loss.backward() becomes:</span>
+<span class="sd">        optimizer.backward(loss)</span>
+<span class="sd">        ...</span>
+
+<span class="sd">    Example with dynamic loss scaling::</span>
+
+<span class="sd">        ...</span>
+<span class="sd">        optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True, </span>
+<span class="sd">                                   dynamic_loss_args={&#39;scale_window&#39; : 500})</span>
+<span class="sd">                                   # dynamic_loss_args is optional.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        init_optimizer (torch.optim.optimizer):  Existing optimizer containing initialized fp16 parameters.  Internally, :class:`FP16_Optimizer` replaces the passed optimizer&#39;s fp16 parameters with new fp32 parameters copied from the original ones.  :class:`FP16_Optimizer` also stores references to the original fp16 parameters, and updates these fp16 parameters from the master fp32 copy after each step.  </span>
-<span class="sd">        static_loss_scale (float, optional, default=1.0):  Loss scale used internally to scale fp16 gradients computed by the model.  Scaled gradients will be copied to fp32, then downscaled before being applied to the fp32 master params, so static_loss_scale should not affect learning rate.</span>
-<span class="sd">        dynamic_loss_scale (bool, optional, default=False):  Use dynamic loss scaling.  If True, this will override any static_loss_scale option.</span>
+<span class="sd">        static_loss_scale (float, optional, default=1.0):  Loss scale used internally to scale fp16 gradients computed by the model.  Scaled gradients will be copied to fp32, then downscaled before being applied to the fp32 master params, so ``static_loss_scale`` should not affect learning rate.</span>
+<span class="sd">        dynamic_loss_scale (bool, optional, default=False):  Use dynamic loss scaling.  If True, this will override any ``static_loss_scale`` option.</span>
+<span class="sd">        dynamic_loss_args (dict, optional, default=None):  Dict of kwargs that will be forwarded to the internal :class:`DynamicLossScaler` instance&#39;s constructor.  Keys of this dict must match kwargs accepted by :class:`DynamicLossScaler`&#39;s constructor.  If ``dynamic_loss_args`` is unspecified, :class:`DynamicLossScaler`&#39;s defaults will be used.</span>
 
 <span class="sd">    ``init_optimizer`` is expected to have been constructed in the ordinary way.  </span>
 <span class="sd">    It is recommended (although not required) that the newly constructed :class:`FP16_Optimizer` instance be </span>
 <span class="sd">    named to replace ``init_optimizer``, for two reasons:  </span>
-<span class="sd">    First, it means that references to the name ``init_optimizer`` </span>
+<span class="sd">    First, it means that references to the same name</span>
 <span class="sd">    later in the file will not have to change.  </span>
 <span class="sd">    Second, :class:`FP16_Optimizer` reserves the right (as an implementation detail) to </span>
 <span class="sd">    modify ``init_optimizer``.  If you do choose a unique name for the new</span>
@@ -226,12 +249,11 @@
 <span class="sd">    because the preexisting optimizer might no longer behave as expected.</span>
 
 <span class="sd">    ``init_optimizer`` may be any Pytorch optimizer. </span>
-<span class="sd">    It may contain a mixture of FP16 and FP32 parameters organized into any number of </span>
-<span class="sd">    ``param_groups`` with different hyperparameters.  The :class:`FP16_Optimizer` constructor will ingest these</span>
-<span class="sd">    ``param_groups`` and remember them.</span>
+<span class="sd">    It may contain a mixture of fp16 and fp32 parameters organized into any number of </span>
+<span class="sd">    ``param_groups`` with different hyperparameters.  The :class:`FP16_Optimizer` constructor will </span>
+<span class="sd">    ingest these ``param_groups`` and remember them. </span>
 
-<span class="sd">    For basic use, aside from constructing :class:`FP16_Optimizer`, there is only one other</span>
-<span class="sd">    operation that must be changed.  Any instances of ::</span>
+<span class="sd">    Calls to ::</span>
 
 <span class="sd">        loss.backward() </span>
 
@@ -239,37 +261,55 @@
 
 <span class="sd">        optimizer.backward(loss)  </span>
 
-<span class="sd">    This is because :class:`FP16_Optimizer` requires ownership of the backward pass to implement </span>
+<span class="sd">    because :class:`FP16_Optimizer` requires ownership of the backward pass to implement </span>
 <span class="sd">    loss scaling and copies to master gradients.</span>
 
-<span class="sd">    Example::</span>
+<span class="sd">    .. note::</span>
+<span class="sd">        Loss scaling, either static or dynamic, is orthogonal to learning rate, because gradients</span>
+<span class="sd">        are downscaled before being applied.  This means that adjusting the loss scale, or using</span>
+<span class="sd">        dynamic loss scaling, should not require retuning the learning rate or any other </span>
+<span class="sd">        hyperparameters.</span>
 
-<span class="sd">        model = torch.nn.Linear(D_in, D_out).cuda().half()</span>
-<span class="sd">        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)</span>
-<span class="sd">        # Name the FP16_Optimizer instance to replace the existing optimizer:</span>
-<span class="sd">        optimizer = FP16_Optimizer(optimizer, static_loss_scale = 128.0)</span>
-<span class="sd">        ...</span>
-<span class="sd">        # loss.backward() becomes:</span>
-<span class="sd">        optimizer.backward(loss)</span>
-<span class="sd">        ...</span>
 
-<span class="sd">    More advanced options:</span>
+<span class="sd">    **Advanced options**</span>
 
-<span class="sd">    If gradient clipping is required, use :attr:`clip_master_grads`.</span>
+<span class="sd">    **Closures**:  :class:`FP16_Optimizer` can wrap a Pytorch optimizer that receives a closure.</span>
+<span class="sd">    See docstring for :attr:`step`.</span>
+
+<span class="sd">    **Gradient clipping**:  Use :attr:`clip_master_grads`.</span>
 <span class="sd">    </span>
-<span class="sd">    If your model has multiple losses, with all of them used to accumulate gradients before</span>
-<span class="sd">    optimizer.step(), this can be accommodated by calling </span>
-<span class="sd">    ``optimizer.backward(loss1, update_master_grads=False)``.  See docstring for :attr:`backward`.</span>
+<span class="sd">    **Multiple losses**:  If your model accumulates gradients from multiple losses,</span>
+<span class="sd">    this can be made more efficient by supplying ``update_master_grads=False``</span>
+<span class="sd">    to :attr:`backward`.  See docstring for :attr:`backward`.</span>
+
+<span class="sd">    **Manually adjusting loss scale**:  The current loss scale can be retrieved or set via ::</span>
+
+<span class="sd">        print(optimizer.loss_scale)</span>
+<span class="sd">        optimizer.loss_scale = new_loss_scale</span>
+
+<span class="sd">    For static loss scaling, manually adjusting the loss scale over time is a reasonable</span>
+<span class="sd">    thing to do.  During later epochs, gradients may become smaller, and a </span>
+<span class="sd">    higher loss scale may be required, analogous to scheduling the learning rate.  Dynamic loss</span>
+<span class="sd">    scaling is more subtle (see :class:`DynamicLossScaler`) and in this case, manually adjusting </span>
+<span class="sd">    the loss scale is not recommended.</span>
+
+<span class="sd">    **Multi_GPU training**:  If the wrapped ``init_optimizer`` was created from a model wrapped in</span>
+<span class="sd">    Pytorch DataParallel or DistributedDataParallel, :class:`FP16_Optimizer` should still work as </span>
+<span class="sd">    intended.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">static_loss_scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">dynamic_loss_scale</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> 
+                 <span class="n">init_optimizer</span><span class="p">,</span> 
+                 <span class="n">static_loss_scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> 
+                 <span class="n">dynamic_loss_scale</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">dynamic_loss_args</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">SystemError</span><span class="p">(</span><span class="s2">&quot;Cannot use fp16 without CUDA.&quot;</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">fp16_groups</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">fp32_from_fp16_groups</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">fp32_from_fp32_groups</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">param_group</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">optimizer</span><span class="o">.</span><span class="n">param_groups</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">param_group</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">init_optimizer</span><span class="o">.</span><span class="n">param_groups</span><span class="p">):</span>
             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;FP16_Optimizer processing param group </span><span class="si">{}</span><span class="s2">:&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
             <span class="n">fp16_params_this_group</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="n">fp32_params_this_group</span> <span class="o">=</span> <span class="p">[]</span>
@@ -299,11 +339,14 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">fp32_from_fp16_groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fp32_from_fp16_params_this_group</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">fp32_from_fp32_groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fp32_params_this_group</span><span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span> <span class="o">=</span> <span class="n">optimizer</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="n">optimizer</span><span class="o">.</span><span class="n">param_groups</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span> <span class="o">=</span> <span class="n">init_optimizer</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="n">init_optimizer</span><span class="o">.</span><span class="n">param_groups</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">dynamic_loss_scale</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">dynamic_loss_scale</span> <span class="o">=</span> <span class="kc">True</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span> <span class="o">=</span> <span class="n">DynamicLossScaler</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">dynamic_loss_args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span> <span class="o">=</span> <span class="n">DynamicLossScaler</span><span class="p">(</span><span class="o">**</span><span class="n">dynamic_loss_args</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span> <span class="o">=</span> <span class="n">DynamicLossScaler</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">dynamic_loss_scale</span> <span class="o">=</span> <span class="kc">False</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span> <span class="o">=</span> <span class="n">LossScaler</span><span class="p">(</span><span class="n">static_loss_scale</span><span class="p">)</span>
@@ -318,6 +361,8 @@
         <span class="c1"># if name in [&#39;state&#39;, &#39;param_groups&#39;]:</span>
         <span class="c1">#     return self.optimizer.__dict__[name],</span>
         <span class="c1"># but this would bypass self.optimizer&#39;s custom getters and setters, if it chose to define any.</span>
+        <span class="c1"># I could also use properties, as for loss_scale, but I have no idea if properties bypass </span>
+        <span class="c1"># self.optimizer&#39;s custom getters and setters.</span>
         <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;state&#39;</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">state</span>
         <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;param_groups&#39;</span><span class="p">:</span>
@@ -333,7 +378,7 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
 
-<div class="viewcode-block" id="FP16_Optimizer.zero_grad"><a class="viewcode-back" href="../../../utils.html#apex.utils.FP16_Optimizer.zero_grad">[docs]</a>    <span class="k">def</span> <span class="nf">zero_grad</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="FP16_Optimizer.zero_grad"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer.zero_grad">[docs]</a>    <span class="k">def</span> <span class="nf">zero_grad</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Zero fp32 and fp16 parameter grads.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -358,17 +403,11 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">update_scale</span><span class="p">(</span><span class="n">has_overflow</span><span class="p">)</span>
 
     <span class="c1"># TODO:  Register a hook on each variable to do the overflow check, gradient copy + downscale,</span>
-    <span class="c1"># FP32 allreduce for distributed in a different stream.  Debatable which ops should be </span>
+    <span class="c1"># fp32 allreduce for distributed in a different stream.  Debatable which ops should be </span>
     <span class="c1"># treated that way, but it&#39;ll be fun to play with.</span>
     <span class="k">def</span> <span class="nf">_model_grads_to_master_grads</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">fp16_group</span><span class="p">,</span> <span class="n">fp32_from_fp16_group</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fp16_groups</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fp32_from_fp16_groups</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">model</span><span class="p">,</span> <span class="n">master</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">fp16_group</span><span class="p">,</span> <span class="n">fp32_from_fp16_group</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="n">master</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                        <span class="n">master</span><span class="o">.</span><span class="n">grad</span> <span class="o">=</span> <span class="n">Variable</span><span class="p">(</span><span class="n">master</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="o">*</span><span class="n">master</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">size</span><span class="p">()))</span>
-                    <span class="n">master</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">master</span><span class="o">.</span><span class="n">grad</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">model_grads_to_master_grads</span><span class="p">(</span><span class="n">fp16_group</span><span class="p">,</span> <span class="n">fp32_from_fp16_group</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_downscale_master</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span> <span class="o">!=</span> <span class="mf">1.0</span><span class="p">:</span> 
@@ -377,7 +416,7 @@
                 <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">group</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]:</span>
                     <span class="n">param</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">mul_</span><span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span><span class="p">)</span>
 
-<div class="viewcode-block" id="FP16_Optimizer.clip_master_grads"><a class="viewcode-back" href="../../../utils.html#apex.utils.FP16_Optimizer.clip_master_grads">[docs]</a>    <span class="k">def</span> <span class="nf">clip_master_grads</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_norm</span><span class="p">,</span> <span class="n">norm_type</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+<div class="viewcode-block" id="FP16_Optimizer.clip_master_grads"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer.clip_master_grads">[docs]</a>    <span class="k">def</span> <span class="nf">clip_master_grads</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_norm</span><span class="p">,</span> <span class="n">norm_type</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Clips fp32 master gradients via torch.nn.utils.clip_grad_norm.</span>
 
@@ -403,16 +442,19 @@
 
     <span class="k">def</span> <span class="nf">_master_params_to_model_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">fp16_group</span><span class="p">,</span> <span class="n">fp32_from_fp16_group</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fp16_groups</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fp32_from_fp16_groups</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">model</span><span class="p">,</span> <span class="n">master</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">fp16_group</span><span class="p">,</span> <span class="n">fp32_from_fp16_group</span><span class="p">):</span>
-                <span class="n">model</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">master</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">master_params_to_model_params</span><span class="p">(</span><span class="n">fp16_group</span><span class="p">,</span> <span class="n">fp32_from_fp16_group</span><span class="p">)</span>
 
-<div class="viewcode-block" id="FP16_Optimizer.state_dict"><a class="viewcode-back" href="../../../utils.html#apex.utils.FP16_Optimizer.state_dict">[docs]</a>    <span class="k">def</span> <span class="nf">state_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="FP16_Optimizer.state_dict"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer.state_dict">[docs]</a>    <span class="k">def</span> <span class="nf">state_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns a dict containing the current state of this :class:`FP16_Optimizer` instance.</span>
 <span class="sd">        This dict contains attributes of :class:`FP16_Optimizer`, as well as the state_dict</span>
 <span class="sd">        of the contained Pytorch optimizer.</span>
+<span class="sd">        Example::</span>
 
-<span class="sd">        Untested.</span>
+<span class="sd">            checkpoint = {}</span>
+<span class="sd">            checkpoint[&#39;model&#39;] = model.state_dict()</span>
+<span class="sd">            checkpoint[&#39;optimizer&#39;] = optimizer.state_dict()</span>
+<span class="sd">            torch.save(checkpoint, &quot;saved.pth&quot;)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">state_dict</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="n">state_dict</span><span class="p">[</span><span class="s1">&#39;loss_scaler&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span>
@@ -423,7 +465,7 @@
         <span class="n">state_dict</span><span class="p">[</span><span class="s1">&#39;fp32_from_fp16&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fp32_from_fp16_groups</span>
         <span class="k">return</span> <span class="n">state_dict</span></div>
 
-<div class="viewcode-block" id="FP16_Optimizer.load_state_dict"><a class="viewcode-back" href="../../../utils.html#apex.utils.FP16_Optimizer.load_state_dict">[docs]</a>    <span class="k">def</span> <span class="nf">load_state_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state_dict</span><span class="p">):</span>
+<div class="viewcode-block" id="FP16_Optimizer.load_state_dict"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer.load_state_dict">[docs]</a>    <span class="k">def</span> <span class="nf">load_state_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state_dict</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Loads a state_dict created by an earlier call to state_dict(). </span>
 <span class="sd">        If ``fp16_optimizer_instance`` was constructed from some ``init_optimizer``, </span>
@@ -441,26 +483,31 @@
 <span class="sd">            model.load_state_dict(checkpoint[&#39;model&#39;])</span>
 <span class="sd">            optimizer.load_state_dict(checkpoint[&#39;optimizer&#39;])</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># I think it&#39;s actually ok to reload the optimizer before the model.</span>
+        <span class="c1"># I think it should actually be ok to reload the optimizer before the model.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span> <span class="o">=</span> <span class="n">state_dict</span><span class="p">[</span><span class="s1">&#39;loss_scaler&#39;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dynamic_loss_scale</span> <span class="o">=</span> <span class="n">state_dict</span><span class="p">[</span><span class="s1">&#39;dynamic_loss_scale&#39;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">overflow</span> <span class="o">=</span> <span class="n">state_dict</span><span class="p">[</span><span class="s1">&#39;overflow&#39;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">first_closure_call_this_step</span> <span class="o">=</span> <span class="n">state_dict</span><span class="p">[</span><span class="s1">&#39;first_closure_call_this_step&#39;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">state_dict</span><span class="p">[</span><span class="s1">&#39;optimizer_state_dict&#39;</span><span class="p">])</span>
-        <span class="c1"># At this point, the optimizer&#39;s references to the model&#39;s FP32 parameters are up to date.</span>
+        <span class="c1"># At this point, the optimizer&#39;s references to the model&#39;s fp32 parameters are up to date.</span>
         <span class="c1"># The optimizer&#39;s hyperparameters and internal buffers are also up to date.  </span>
-        <span class="c1"># However, if the model loaded any</span>
-        <span class="c1"># FP16 params as well, the FP32 master copies of these params stored by the optimizer are now</span>
+        <span class="c1"># However, the fp32 master copies of the model&#39;s fp16 params stored by the optimizer are now</span>
         <span class="c1"># out of date.  There are two options.  </span>
         <span class="c1"># 1:  Refresh the master params from the model&#39;s fp16 params.  </span>
         <span class="c1"># This requires less storage but incurs precision loss.</span>
-        <span class="c1"># 2:  Save and restore the FP32 master copies separately.</span>
+        <span class="c1"># 2:  Save and restore the fp32 master copies separately.</span>
         <span class="c1"># We choose option 2.</span>
+        <span class="c1"># </span>
+        <span class="c1"># Pytorch Optimizer.load_state_dict casts saved buffers (e.g. momentum) to the type and device </span>
+        <span class="c1"># of # their associated parameters, because it&#39;s possible those buffers might not exist yet in </span>
+        <span class="c1"># the current optimizer instance.  In our case, as long as the current FP16_Optimizer has been </span>
+        <span class="c1"># constructed in the same way as the one whose state_dict we are loading, the same master params</span>
+        <span class="c1"># are guaranteed to exist, so we can just copy_() from the saved master params.</span>
         <span class="k">for</span> <span class="n">current_group</span><span class="p">,</span> <span class="n">saved_group</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fp32_from_fp16_groups</span><span class="p">,</span> <span class="n">state_dict</span><span class="p">[</span><span class="s1">&#39;fp32_from_fp16&#39;</span><span class="p">]):</span>
             <span class="k">for</span> <span class="n">current</span><span class="p">,</span> <span class="n">saved</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">current_group</span><span class="p">,</span> <span class="n">saved_group</span><span class="p">):</span>
                 <span class="n">current</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">saved</span><span class="o">.</span><span class="n">data</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="FP16_Optimizer.step"><a class="viewcode-back" href="../../../utils.html#apex.utils.FP16_Optimizer.step">[docs]</a>    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">closure</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="c1"># could add clip option.</span>
+<div class="viewcode-block" id="FP16_Optimizer.step"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer.step">[docs]</a>    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">closure</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="c1"># could add clip option.</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        If no closure is supplied, step should be called after ``fp16_optimizer_obj.backward(loss)``.</span>
 <span class="sd">        step updates the fp32 master copy of parameters using the optimizer supplied to</span>
@@ -468,14 +515,16 @@
 <span class="sd">        originally referenced by Fp16_Optimizer&#39;s constructor, so the user may immediately run</span>
 <span class="sd">        another forward pass using their model.</span>
 
-<span class="sd">        If a closure is supplied, step may be called without a prior call to :attr:`backward(loss)`.</span>
+<span class="sd">        If a closure is supplied, :attr:`step` may be called without a prior call to </span>
+<span class="sd">        :attr:`backward(loss)`.</span>
+<span class="sd">        This control flow is identical to `ordinary Pytorch optimizer use`_ with closures.</span>
 <span class="sd">        However, the user should take care that any ``loss.backward()`` call within the closure</span>
 <span class="sd">        has been replaced by ``fp16_optimizer_obj.backward(loss)``.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">           closure (optional):  Closure that will be supplied to the underlying optimizer originally passed to :class:`FP16_Optimizer`&#39;s constructor.  closure should call :attr:`zero_grad()` on the :class:`FP16_Optimizer` object, compute the loss, call :attr:`backward(loss)`, and return the loss.</span>
 
-<span class="sd">        Closure example::</span>
+<span class="sd">        Example with closure::</span>
 
 <span class="sd">            # optimizer is assumed to be an FP16_Optimizer object, previously constructed from an </span>
 <span class="sd">            # existing pytorch optimizer.</span>
@@ -488,16 +537,10 @@
 <span class="sd">                    return loss</span>
 <span class="sd">                optimizer.step(closure)</span>
 
-<span class="sd">        .. note::</span>
-<span class="sd">            The only changes that need to be made compared to </span>
-<span class="sd">            `ordinary optimizer closures`_ are that &quot;optimizer&quot; itself should be an instance of </span>
-<span class="sd">            :class:`FP16_Optimizer`, and that the call to ``loss.backward()`` should be replaced by </span>
-<span class="sd">            ``optimizer.backward(loss)``. </span>
-
 <span class="sd">        .. warning::</span>
 <span class="sd">            Currently, calling step with a closure is not compatible with dynamic loss scaling.</span>
 
-<span class="sd">        .. _`ordinary optimizer closures`:</span>
+<span class="sd">        .. _`ordinary Pytorch optimizer use`:</span>
 <span class="sd">            http://pytorch.org/docs/master/optim.html#optimizer-step-closure</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">closure</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span><span class="p">,</span> <span class="n">DynamicLossScaler</span><span class="p">):</span>
@@ -508,7 +551,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_update_scale</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">overflow</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">overflow</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;OVERFLOW! Skipping step. Attempted loss scale: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">scale</span><span class="p">))</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;OVERFLOW! Skipping step. Attempted loss scale: </span><span class="si">{}</span><span class="s2">, reducing to </span><span class="si">{}</span><span class="s2">&quot;</span>
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">scale</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span><span class="p">))</span>
             <span class="k">return</span>
         
         <span class="k">if</span> <span class="n">closure</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -549,9 +593,9 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">first_closure_call_this_step</span> <span class="o">=</span> <span class="kc">True</span>
 
-<div class="viewcode-block" id="FP16_Optimizer.backward"><a class="viewcode-back" href="../../../utils.html#apex.utils.FP16_Optimizer.backward">[docs]</a>    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss</span><span class="p">,</span> <span class="n">update_master_grads</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<div class="viewcode-block" id="FP16_Optimizer.backward"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer.backward">[docs]</a>    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss</span><span class="p">,</span> <span class="n">update_master_grads</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; </span>
-<span class="sd">        ``fp16_optimizer_obj.backward`` performs the following conceptual operations:</span>
+<span class="sd">        :attr:`backward` performs the following conceptual operations:</span>
 
 <span class="sd">        fp32_loss = loss.float() (see first Note below)</span>
 
@@ -565,24 +609,25 @@
 
 <span class="sd">        Finally, master grads are divided by loss_scale.</span>
 
-<span class="sd">        In this way, after fp16_optimizer_obj.backward, the master params have fresh gradients,</span>
-<span class="sd">        and fp16_optimizer_obj.step may be called.</span>
+<span class="sd">        In this way, after :attr:`backward`, the master params have fresh gradients,</span>
+<span class="sd">        and :attr:`step` may be called.</span>
 
 <span class="sd">        .. note::</span>
-<span class="sd">            Converting the loss to fp32 before applying the loss scale provides some</span>
-<span class="sd">            additional safety against overflow if the user has supplied an fp16 value.  </span>
+<span class="sd">            :attr:`backward` internally converts the loss to fp32 before applying the loss scale.</span>
+<span class="sd">            This provides some additional safety against overflow if the user has supplied an </span>
+<span class="sd">            fp16 loss value.  </span>
 <span class="sd">            However, for maximum overflow safety, the user should</span>
 <span class="sd">            compute the loss criterion (MSE, cross entropy, etc) in fp32 before supplying it to </span>
-<span class="sd">            ``fp16_optimizer_obj.backward``.</span>
+<span class="sd">            :attr:`backward`.</span>
 
 <span class="sd">        .. note::</span>
-<span class="sd">            The gradients found in an fp16 model&#39;s leaves after a call to </span>
-<span class="sd">            ``fp16_optimizer_obj.backward`` should not be regarded as valid in general, </span>
+<span class="sd">            The gradients found in a model&#39;s leaves after the call to </span>
+<span class="sd">            `backward` should not be regarded as valid in general, </span>
 <span class="sd">            because it&#39;s possible </span>
 <span class="sd">            they have been scaled (and in the case of dynamic loss scaling, </span>
 <span class="sd">            the scale factor may change over time).  </span>
-<span class="sd">            If the user wants to inspect gradients after a call to fp16_optimizer_obj.backward,  </span>
-<span class="sd">            only the master gradients should be regarded as valid, and can be retrieved via</span>
+<span class="sd">            If the user wants to inspect gradients after a call to `backward`,  </span>
+<span class="sd">            only the master gradients should be regarded as valid.  These can be retrieved via</span>
 <span class="sd">            :attr:`inspect_master_grad_data()`.</span>
 
 
@@ -617,7 +662,7 @@
         <span class="k">if</span> <span class="n">update_master_grads</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">update_master_grads</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="FP16_Optimizer.update_master_grads"><a class="viewcode-back" href="../../../utils.html#apex.utils.FP16_Optimizer.update_master_grads">[docs]</a>    <span class="k">def</span> <span class="nf">update_master_grads</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="FP16_Optimizer.update_master_grads"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer.update_master_grads">[docs]</a>    <span class="k">def</span> <span class="nf">update_master_grads</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Copy the ``.grad`` attribute from stored references to fp16 parameters to </span>
 <span class="sd">        the ``.grad`` attribute of the fp32 master parameters that are directly </span>
@@ -630,7 +675,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_model_grads_to_master_grads</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_downscale_master</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="FP16_Optimizer.inspect_master_grad_data"><a class="viewcode-back" href="../../../utils.html#apex.utils.FP16_Optimizer.inspect_master_grad_data">[docs]</a>    <span class="k">def</span> <span class="nf">inspect_master_grad_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="FP16_Optimizer.inspect_master_grad_data"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer.inspect_master_grad_data">[docs]</a>    <span class="k">def</span> <span class="nf">inspect_master_grad_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        When running with :class:`FP16_Optimizer`, </span>
 <span class="sd">        ``.grad`` attributes of a model&#39;s fp16 leaves should not be</span>
@@ -654,11 +699,14 @@
             <span class="k">return</span> <span class="kc">None</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">None</span></div>
-            
+        
+    <span class="k">def</span> <span class="nf">_get_loss_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">loss_scale</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">loss_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">loss_scale</span></div>
+    <span class="k">def</span> <span class="nf">_set_loss_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">cur_scale</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="n">loss_scale</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span><span class="n">_get_loss_scale</span><span class="p">,</span> <span class="n">_set_loss_scale</span><span class="p">)</span></div>
 </pre></div>
 
            </div>
@@ -671,7 +719,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018, Torch Contributors.
+        &copy; Copyright 2018.
 
     </p>
   </div>
