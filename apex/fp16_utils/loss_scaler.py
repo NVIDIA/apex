@@ -1,7 +1,3 @@
-"""
-Top of loss_scaler.py stub.  Can't figure out a way to get the module file
-highlighted in a pretty way, or link back to source.
-"""
 import torch
 
 # item() is a recent addition, so this helps with backward compatibility.
@@ -18,6 +14,9 @@ class LossScaler:
 
     Use of LossScaler is enabled via the ``static_loss_scale`` argument to 
     :class:`FP16_Optimizer`'s constructor.
+
+    Args:
+        scale (float, optional, default=1.0):  The loss scale.
     """
 
     def __init__(self, scale=1):
@@ -31,7 +30,6 @@ class LossScaler:
     def _has_inf_or_nan(x):
         return False
 
-    # `overflow` is boolean indicating whether we overflowed in gradient
     def update_scale(self, overflow):
         pass
 
@@ -92,10 +90,12 @@ class DynamicLossScaler:
     # `x` is a torch.Tensor
     def _has_inf_or_nan(x):
         try:
-            # Stopgap until upstream fixes sum() on HalfTensors
+            # if x is half, the .float() incurs an additional deep copy, but it's necessary if 
+            # Pytorch's .sum() creates a one-element tensor of the same type as x 
+            # (which is true for some recent version of pytorch).
             cpu_sum = float(x.float().sum())
+            # More efficient version that can be used if .sum() returns a Python scalar
             # cpu_sum = float(x.sum())
-            # print(cpu_sum)
         except RuntimeError as instance:
             # We want to check if inst is actually an overflow exception.
             # RuntimeError could come from a different error.
@@ -108,7 +108,7 @@ class DynamicLossScaler:
                 return True
             return False
 
-    # `overflow` is boolean indicating whether we overflowed in gradient
+    # `overflow` is boolean indicating whether the gradient overflowed
     def update_scale(self, overflow):
         if overflow:
             # self.cur_scale /= self.scale_factor

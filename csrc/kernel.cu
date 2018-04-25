@@ -22,7 +22,7 @@ template<> struct TtoInt<double> { static const int test = 0; };
 // Dialing up the block size to, say 1024, can improve performance by
 // increase the amount of cache available per block, which can improve cache hit rate.
 // However, this is less efficient for short rows.  256 is pretty versatile. 
-// Implement some heuristics later?
+// May be worth implementing heuristics later.
 #define BLOCK 256
 
 // Block size for weight_norm_*_last_dim_kernel.
@@ -160,15 +160,13 @@ __global__ void weight_norm_fwd_last_dim_kernel
 
   reduce_block_into_lanes(s, thread_sum, blockDim.x); 
 
-  // Better to pass an EpilogueOp to reduce_block_into_lanes, can try later
+  // Better to pass an EpilogueOp to reduce_block_into_lanes, implement later
   if(threadIdx.y == 0)
   {
     float result = s[threadIdx.x];
     float norm_this_col = sqrtf(result);
     DEVICE_LINEAR_GET_F(norms, fast_dim_location) = norm_this_col;
     rnorms_this_block[threadIdx.x] = 1.f/norm_this_col;
-    // printf("blockIdx.x = %d, threadIdx.x = %d, norm_this_col  = %f\n", 
-    //         blockIdx.x,      threadIdx.x,      norm_this_col);
   }
    
   __syncthreads(); 
@@ -373,7 +371,6 @@ void send_to_fwd_wrapper::call
 #endif
 }
 
-// template <typename T, typename IndexType>
 template<typename DataType,
          typename AccumType,
          typename IndexType>
@@ -387,7 +384,6 @@ void send_to_bwd_wrapper::call
   cout << "Hello from send_to_bwd with pLpw.type = " << pLpw.type << endl;
 #endif
 
-  // this feels sinful
   auto pLpv      (*((TensorInfo<DataType , idxType>*)&tensors[0]));
   auto pLpg      (*((TensorInfo<DataType , idxType>*)&tensors[1]));
   auto pLpw      (*((TensorInfo<DataType , idxType>*)&tensors[2]));

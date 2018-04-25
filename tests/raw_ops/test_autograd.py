@@ -32,8 +32,8 @@ RAND      = True # If false, input gradients (the result of the backward pass)
 # where gradients are computed by calling backward() on a scalar Loss.
 
 if RAND:
-    # With std=6.0, I observe the pytorch fp16 ops going unstable
-    # while the fused kernel remains stable (sometimes).
+    # With std=6.0, I observe the pytorch fp16 ops going unstable (sometimes)
+    # while the fused kernel remains stable.
     pt_in_fp32       = torch.cuda.FloatTensor(*dims      ).normal_(std=1.0)
     norm_shape = get_norm_shape(pt_in_fp32, dim)
     pt_g_fp32        = torch.cuda.FloatTensor(*norm_shape).normal_(std=1.0)

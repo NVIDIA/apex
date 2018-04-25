@@ -45,7 +45,7 @@ def backwards_debug_hook(grad):
     raise RuntimeError("master_params recieved a gradient in the backward pass!")
 
 def prep_param_lists(model, flat_master=False):
-    r"""
+    """
     Creates a list of FP32 master parameters for a given model, as in 
     `Training Neural Networks with Mixed Precision:  Real Examples`_.
 

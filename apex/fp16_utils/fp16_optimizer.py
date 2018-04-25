@@ -204,7 +204,7 @@ class FP16_Optimizer(object):
         # if name in ['state', 'param_groups']:
         #     return self.optimizer.__dict__[name],
         # but this would bypass self.optimizer's custom getters and setters, if it chose to define any.
-        # I could also use properties, as for loss_scale, but I have no idea if properties bypass 
+        # I could also use properties, as for loss_scale, but I don't know if properties bypass 
         # self.optimizer's custom getters and setters.
         if name == 'state':
             return self.optimizer.state
@@ -225,7 +225,11 @@ class FP16_Optimizer(object):
         """
         Zero fp32 and fp16 parameter grads.
         """
+        # In principle, only the .grad attributes of the model params need to be zeroed,
+        # because gradients are copied into the FP32 master params.  However, we zero
+        # all gradients owned by the optimizer, just to be safe:
         self.optimizer.zero_grad()
+        # Zero fp16 gradients owned by the model:
         for fp16_group in self.fp16_groups:
             for param in fp16_group:
                 if param.grad is not None:
@@ -245,16 +249,14 @@ class FP16_Optimizer(object):
     def _update_scale(self, has_overflow=False):
         self.loss_scaler.update_scale(has_overflow)
 
-    # TODO:  Register a hook on each variable to do the overflow check, gradient copy + downscale,
-    # fp32 allreduce for distributed in a different stream.  Debatable which ops should be 
-    # treated that way, but it'll be fun to play with.
+    # To consider:  Integrate distributed with this wrapper by registering a hook on each variable 
+    # that does the overflow check, gradient copy + downscale, and fp32 allreduce in a different stream.
     def _model_grads_to_master_grads(self):
         for fp16_group, fp32_from_fp16_group in zip(self.fp16_groups, self.fp32_from_fp16_groups):
             model_grads_to_master_grads(fp16_group, fp32_from_fp16_group)
 
     def _downscale_master(self):
         if self.loss_scale != 1.0: 
-            # print("downscaling fp32 gradients")
             for group in self.optimizer.param_groups:
                 for param in group['params']:
                     param.grad.data.mul_(1./self.loss_scale)
@@ -334,7 +336,7 @@ class FP16_Optimizer(object):
         self.optimizer.load_state_dict(state_dict['optimizer_state_dict'])
         # At this point, the optimizer's references to the model's fp32 parameters are up to date.
         # The optimizer's hyperparameters and internal buffers are also up to date.  
-        # However, the fp32 master copies of the model's fp16 params stored by the optimizer are now
+        # However, the fp32 master copies of the model's fp16 params stored by the optimizer are still
         # out of date.  There are two options.  
         # 1:  Refresh the master params from the model's fp16 params.  
         # This requires less storage but incurs precision loss.
@@ -342,7 +344,7 @@ class FP16_Optimizer(object):
         # We choose option 2.
         # 
         # Pytorch Optimizer.load_state_dict casts saved buffers (e.g. momentum) to the type and device 
-        # of # their associated parameters, because it's possible those buffers might not exist yet in 
+        # of their associated parameters, because it's possible those buffers might not exist yet in 
         # the current optimizer instance.  In our case, as long as the current FP16_Optimizer has been 
         # constructed in the same way as the one whose state_dict we are loading, the same master params
         # are guaranteed to exist, so we can just copy_() from the saved master params.
@@ -423,12 +425,11 @@ class FP16_Optimizer(object):
                 self._master_params_to_model_params()
             # Our API expects the user to give us ownership of the backward() call by
             # replacing all calls to loss.backward() with optimizer.backward(loss).
-            # This requirement holds whether or not the call to backward() is made within
-            # a closure.
+            # This requirement holds whether or not the call to backward() is made within a closure.
             # If the user is properly calling optimizer.backward(loss) within "closure," 
             # calling closure() here will give the fp32 master params fresh gradients
-            # for the optimizer to play with, 
-            # so all wrapped_closure needs to do is call closure() and return the loss.
+            # for the optimizer to play with, so all wrapped_closure needs to do is call 
+            # closure() and return the loss.
             temp_loss = closure() 
             return temp_loss
 
@@ -496,11 +497,10 @@ class FP16_Optimizer(object):
             optimizer.backward(loss2, update_master_grads=False)
             optimizer.update_master_grads()
         """ 
-        # To think about:  try multiple backward passes using retain_grad=True to find 
+        # To consider:  try multiple backward passes using retain_grad=True to find 
         # a loss scale that works.  After you find a loss scale that works, do a final dummy
-        # backward pass with retain_graph=False to tear down the graph.
-        # Doing this would avoid discarding the iteration,  but probably wouldn't 
-        # improve overall efficiency.  
+        # backward pass with retain_graph=False to tear down the graph.  Doing this would avoid 
+        # discarding the iteration,  but probably wouldn't improve overall efficiency.  
         self.loss_scaler.backward(loss.float())
         if update_master_grads:
             self.update_master_grads()

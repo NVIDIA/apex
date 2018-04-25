@@ -19,9 +19,9 @@ sizes = [
     # (3, 1024, 2048),
     # (1, 1024, 4096),
     # (1, 2048, 8192),
-    # (1, 4096, 4096), # this is not one of natalia's sizes, just a reference benchmark.
-    (4096, 4096, 1), # this is not one of natalia's sizes, just a reference benchmark.
-    # (353, 55, 353), # this is not one of natalia's sizes, just a reference benchmark.
+    # (1, 4096, 4096), # this is not one of the fairseq sizes, just a reference benchmark.
+    (4096, 4096, 1), # this is not one the fairseq sizes, just a reference benchmark.
+    # (353, 55, 353), # this is not one of the fairseq sizes, just a reference benchmark.
     ]
 
 # rows = 3

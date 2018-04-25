@@ -53,7 +53,7 @@ TensorInfo<void, idxType> PyOb_2_tinfo(PyObject* tensor, float_types data_type)
   void* data_ptr = (void*) PyLong_AsLong(PyDataPtr);
   Py_ssize_t ndims = PyList_GET_SIZE(PySizes);
 
-  //TODO put proper checking on ndims < MAX_CUTORCH_DIMS
+  // TODO put proper checking on ndims < MAX_CUTORCH_DIMS
   idxType strides[MAX_CUTORCH_DIMS], sizes[MAX_CUTORCH_DIMS];
 
   for(int i = 0; i < ndims; i++)
@@ -62,8 +62,6 @@ TensorInfo<void, idxType> PyOb_2_tinfo(PyObject* tensor, float_types data_type)
     sizes[i] = PyLong_AsLong(PyTuple_GetItem(PySizes, i));
   }
 
-  // Reference counts still behave strangely, but at least these appear to cap 
-  // the process' memory usage.
   Py_DECREF(PyStrides);
   Py_DECREF(PySizes);
   Py_DECREF(PyDataPtr);
@@ -95,10 +93,6 @@ vector<TensorInfo<void, idxType> > get_TInfos(PyObject* args)
 	cout << "For args item " << i << ", pyObjTypeCall = NULL" << endl;
       }
 
-      // This gives a segfault:
-      // cout << "pyObjTypeCall direct conversion attempt = " << 
-      //          PyBytes_AsString(pyObjTypeCall) << endl;
-
       PyObject* pyObjASCII = PyUnicode_AsASCIIString(pyObjTypeCall);
       if(pyObjASCII == NULL)
       {
@@ -106,12 +100,10 @@ vector<TensorInfo<void, idxType> > get_TInfos(PyObject* args)
 	cout << "For args item " << i << ", pyObjASCII = NULL " << endl;
       }
 
-      // cout << "Py_REFCNT(pyObjTypeCall) = " << Py_REFCNT(pyObjTypeCall) << endl;
       Py_DECREF(pyObjTypeCall);
 
       string objTypeCall(PyBytes_AsString(pyObjASCII));
 
-      // cout << "Py_REFCNT(pyObjASCII) = " << Py_REFCNT(pyObjASCII) << endl;
       Py_DECREF(pyObjASCII);
 
 #ifdef DEBUG_ANY
@@ -131,7 +123,7 @@ vector<TensorInfo<void, idxType> > get_TInfos(PyObject* args)
 #endif
       else if(objTypeCall == "torch.cuda.HalfTensor")
 	info_vec.push_back(PyOb_2_tinfo(pyTensor, HALF));
-      // Could add double
+      // TODO add double
       else
       {
 	ERROR_MSG;
@@ -147,8 +139,6 @@ vector<TensorInfo<void, idxType> > get_TInfos(PyObject* args)
 	     << endl;
       }
     }
-
-  // PyErr_SetString(PyExc_RuntimeError, "Exception set in  ");
 
   return info_vec;
 }
@@ -185,8 +175,8 @@ void dispatch
   }
 }
 
-//Will extract all tensors in order. Assumes flat structure, tensors can not be wrapped in lists
-//tuples or any other iterator structure.
+// Will extract all tensors in order. Assumes flat structure, tensors can not be wrapped in lists
+// tuples or any other iterator structure.
 static PyObject* weight_norm_fwd(PyObject* self, PyObject* args)
 {
 #ifdef USE_NVTX

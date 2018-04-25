@@ -8,8 +8,7 @@
 // Maximum number of dimensions allowed for cutorch
 #define MAX_CUTORCH_DIMS 10
 
-// Warning string for tensor arguments that are too large or have too
-// many dimensions
+// Warning string for tensor arguments that are too large or have too many dimensions
 #define CUTORCH_STR(X) #X
 #define CUTORCH_DIM_WARNING "tensor too large or too many (>" \
   CUTORCH_STR(MAX_CUTORCH_DIMS) ") dimensions"

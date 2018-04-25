@@ -42,7 +42,7 @@ class Fused_Weight_Norm(Function):
         output = input.new(input.size()).contiguous()
 
         """
-        For output with size (slow, faster, faster, ...fastest), we may want
+        For output with size (slow, faster, faster, ...fastest), we want
         norms with size (slow, 1, 1, ...1), so that if you want retrieve norms 
         and apply the same normalizing factors to another Tensor "t" with the 
         same size as output, "t/norms" will broadcast each element of norms 
@@ -88,7 +88,7 @@ class Fused_Weight_Norm(Function):
         savedInput, savedg = ctx.saved_tensors
         savedNorms = ctx.norms
 
-        # better safe than sorry
+        # We expect that these .contiguous() calls will be no-ops.  They're present for safety.
         grad_output_contig = grad_output.contiguous()
 
         grad_input = grad_output_contig.new(grad_output.size()).contiguous()

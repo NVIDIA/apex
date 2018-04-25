@@ -3,19 +3,11 @@
 #include <cstdio>
 #include <cassert>
 #include <cuda.h>
-// this is suboptimal, try forward declarations later
 #include <vector>
 
 #define Dims -2
 #define DEVICE_LINEAR_GET(D_TENSOR, INDEX) D_TENSOR.data[IndexToOffset<T, IndexType, Dims>::get(INDEX, D_TENSOR)]
 #define DEVICE_LINEAR_GET_F(D_TENSOR, INDEX) D_TENSOR.data[IndexToOffset<float, IndexType, Dims>::get(INDEX, D_TENSOR)]
-
-// template <typename T, typename IndexType>
-// void send_to_kernel(
-//                     TensorInfo<T, IndexType> Input_1,
-//                     TensorInfo<T, IndexType> Input_2,
-//                     IndexType totalElems
-//                     );
 
 typedef int idxType;
 
