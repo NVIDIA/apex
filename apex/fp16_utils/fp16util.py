@@ -78,7 +78,7 @@ def prep_param_lists(model, flat_master=False):
             master_params.grad = master_params.new(*master_params.size())
         return model_params, [master_params]
     else:
-        master_params = [param.detach().clone().float() for param in model_params]
+        master_params = [param.clone().float().detach() for param in model_params]
         for param in master_params:
             param.requires_grad = True
         return model_params, master_params
