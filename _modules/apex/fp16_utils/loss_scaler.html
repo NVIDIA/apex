@@ -25,19 +25,29 @@
   
 
   
+  
     <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
-    <link rel="index" title="Index" href="../../../genindex.html" />
-    <link rel="search" title="Search" href="../../../search.html" /> 
+  
+
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  
+    <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="APEx 0.0.0 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
 
   
   <script src="../../../_static/js/modernizr.min.js"></script>
 
 </head>
 
-<body class="wy-body-for-nav">
+<body class="wy-body-for-nav" role="document">
 
    
   <div class="wy-grid-for-nav">
@@ -54,7 +64,7 @@
 
           
             
-            <img src="../../../_static/nv-pytorch2.png" class="logo" alt="Logo"/>
+            <img src="../../../_static/nv-pytorch2.png" class="logo" />
           
           </a>
 
@@ -91,7 +101,12 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../reparameterization.html">apex.reparameterization</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../RNN.html">apex.RNN</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../fp16_utils.html">apex.fp16_utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../fp16_utils.html">apex.fp16_utils</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../fp16_utils.html#automatic-management-of-master-params-loss-scaling">Automatic management of master params + loss scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../fp16_utils.html#custom-operations">Custom Operations</a></li>
+</ul>
+</li>
 </ul>
 
             
@@ -103,7 +118,7 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" aria-label="top navigation">
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="../../../index.html">APEx</a>
@@ -111,10 +126,9 @@
       </nav>
 
 
+      
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
           
 
 
@@ -144,6 +158,8 @@
     
       <li class="wy-breadcrumbs-aside">
         
+            
+        
       </li>
     
   </ul>
@@ -155,11 +171,7 @@
            <div itemprop="articleBody">
             
   <h1>Source code for apex.fp16_utils.loss_scaler</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Top of loss_scaler.py stub.  Can&#39;t figure out a way to get the module file</span>
-<span class="sd">highlighted in a pretty way, or link back to source.</span>
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="kn">import</span> <span class="nn">torch</span>
+<span></span><span class="kn">import</span> <span class="nn">torch</span>
 
 <span class="c1"># item() is a recent addition, so this helps with backward compatibility.</span>
 <span class="k">def</span> <span class="nf">to_python_float</span><span class="p">(</span><span class="n">t</span><span class="p">):</span>
@@ -175,6 +187,9 @@
 
 <span class="sd">    Use of LossScaler is enabled via the ``static_loss_scale`` argument to </span>
 <span class="sd">    :class:`FP16_Optimizer`&#39;s constructor.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        scale (float, optional, default=1.0):  The loss scale.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
@@ -188,7 +203,6 @@
     <span class="k">def</span> <span class="nf">_has_inf_or_nan</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
         <span class="k">return</span> <span class="kc">False</span>
 
-    <span class="c1"># `overflow` is boolean indicating whether we overflowed in gradient</span>
     <span class="k">def</span> <span class="nf">update_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">overflow</span><span class="p">):</span>
         <span class="k">pass</span>
 
@@ -249,10 +263,12 @@
     <span class="c1"># `x` is a torch.Tensor</span>
     <span class="k">def</span> <span class="nf">_has_inf_or_nan</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="c1"># Stopgap until upstream fixes sum() on HalfTensors</span>
+            <span class="c1"># if x is half, the .float() incurs an additional deep copy, but it&#39;s necessary if </span>
+            <span class="c1"># Pytorch&#39;s .sum() creates a one-element tensor of the same type as x </span>
+            <span class="c1"># (which is true for some recent version of pytorch).</span>
             <span class="n">cpu_sum</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+            <span class="c1"># More efficient version that can be used if .sum() returns a Python scalar</span>
             <span class="c1"># cpu_sum = float(x.sum())</span>
-            <span class="c1"># print(cpu_sum)</span>
         <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">instance</span><span class="p">:</span>
             <span class="c1"># We want to check if inst is actually an overflow exception.</span>
             <span class="c1"># RuntimeError could come from a different error.</span>
@@ -265,7 +281,7 @@
                 <span class="k">return</span> <span class="kc">True</span>
             <span class="k">return</span> <span class="kc">False</span>
 
-    <span class="c1"># `overflow` is boolean indicating whether we overflowed in gradient</span>
+    <span class="c1"># `overflow` is boolean indicating whether the gradient overflowed</span>
     <span class="k">def</span> <span class="nf">update_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">overflow</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">overflow</span><span class="p">:</span>
             <span class="c1"># self.cur_scale /= self.scale_factor</span>
@@ -343,7 +359,9 @@
 </pre></div>
 
            </div>
-           
+           <div class="articleComments">
+            
+           </div>
           </div>
           <footer>
   
@@ -356,7 +374,7 @@
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -375,7 +393,6 @@
         var DOCUMENTATION_OPTIONS = {
             URL_ROOT:'../../../',
             VERSION:'0.0.0',
-            LANGUAGE:'None',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
             HAS_SOURCE:  true,
@@ -394,13 +411,14 @@
     <script type="text/javascript" src="../../../_static/js/theme.js"></script>
   
 
+  
+  
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.StickyNav.enable();
       });
-  </script> 
+  </script>
+   
 
 </body>
 </html>

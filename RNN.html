@@ -25,21 +25,30 @@
   
 
   
+  
     <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
-    <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="apex.fp16_utils" href="fp16_utils.html" />
-    <link rel="prev" title="apex.reparameterization" href="reparameterization.html" /> 
+  
+
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  
+    <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="APEx 0.0.0 documentation" href="index.html"/>
+        <link rel="next" title="apex.fp16_utils" href="fp16_utils.html"/>
+        <link rel="prev" title="apex.reparameterization" href="reparameterization.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
 
 </head>
 
-<body class="wy-body-for-nav">
+<body class="wy-body-for-nav" role="document">
 
    
   <div class="wy-grid-for-nav">
@@ -56,7 +65,7 @@
 
           
             
-            <img src="_static/nv-pytorch2.png" class="logo" alt="Logo"/>
+            <img src="_static/nv-pytorch2.png" class="logo" />
           
           </a>
 
@@ -93,7 +102,12 @@
 <li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reparameterization.html">apex.reparameterization</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">apex.RNN</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fp16_utils.html">apex.fp16_utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fp16_utils.html">apex.fp16_utils</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#automatic-management-of-master-params-loss-scaling">Automatic management of master params + loss scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#custom-operations">Custom Operations</a></li>
+</ul>
+</li>
 </ul>
 
             
@@ -105,7 +119,7 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" aria-label="top navigation">
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="index.html">APEx</a>
@@ -113,10 +127,9 @@
       </nav>
 
 
+      
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
           
 
 
@@ -166,38 +179,40 @@ features and validation.</p>
 <span class="target" id="module-apex.RNN"></span><dl class="function">
 <dt id="apex.RNN.LSTM">
 <code class="descclassname">apex.RNN.</code><code class="descname">LSTM</code><span class="sig-paren">(</span><em>input_size</em>, <em>hidden_size</em>, <em>num_layers</em>, <em>bias=True</em>, <em>batch_first=False</em>, <em>dropout=0</em>, <em>bidirectional=False</em>, <em>output_size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/RNN/models.html#LSTM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.LSTM" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#apex.RNN.LSTM" title="apex.RNN.LSTM"><code class="xref py py-class docutils literal notranslate"><span class="pre">LSTM</span></code></a></p>
+<dd><p><a class="reference internal" href="#apex.RNN.LSTM" title="apex.RNN.LSTM"><code class="xref py py-class docutils literal"><span class="pre">LSTM</span></code></a></p>
 </dd></dl>
 
 <dl class="function">
 <dt id="apex.RNN.mLSTM">
 <code class="descclassname">apex.RNN.</code><code class="descname">mLSTM</code><span class="sig-paren">(</span><em>input_size</em>, <em>hidden_size</em>, <em>num_layers</em>, <em>bias=True</em>, <em>batch_first=False</em>, <em>dropout=0</em>, <em>bidirectional=False</em>, <em>output_size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/RNN/models.html#mLSTM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.mLSTM" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#apex.RNN.mLSTM" title="apex.RNN.mLSTM"><code class="xref py py-class docutils literal notranslate"><span class="pre">mLSTM</span></code></a></p>
+<dd><p><a class="reference internal" href="#apex.RNN.mLSTM" title="apex.RNN.mLSTM"><code class="xref py py-class docutils literal"><span class="pre">mLSTM</span></code></a></p>
 </dd></dl>
 
 <dl class="function">
 <dt id="apex.RNN.GRU">
 <code class="descclassname">apex.RNN.</code><code class="descname">GRU</code><span class="sig-paren">(</span><em>input_size</em>, <em>hidden_size</em>, <em>num_layers</em>, <em>bias=True</em>, <em>batch_first=False</em>, <em>dropout=0</em>, <em>bidirectional=False</em>, <em>output_size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/RNN/models.html#GRU"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.GRU" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#apex.RNN.GRU" title="apex.RNN.GRU"><code class="xref py py-class docutils literal notranslate"><span class="pre">GRU</span></code></a></p>
+<dd><p><a class="reference internal" href="#apex.RNN.GRU" title="apex.RNN.GRU"><code class="xref py py-class docutils literal"><span class="pre">GRU</span></code></a></p>
 </dd></dl>
 
 <dl class="function">
 <dt id="apex.RNN.ReLU">
 <code class="descclassname">apex.RNN.</code><code class="descname">ReLU</code><span class="sig-paren">(</span><em>input_size</em>, <em>hidden_size</em>, <em>num_layers</em>, <em>bias=True</em>, <em>batch_first=False</em>, <em>dropout=0</em>, <em>bidirectional=False</em>, <em>output_size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/RNN/models.html#ReLU"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.ReLU" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#apex.RNN.ReLU" title="apex.RNN.ReLU"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReLU</span></code></a></p>
+<dd><p><a class="reference internal" href="#apex.RNN.ReLU" title="apex.RNN.ReLU"><code class="xref py py-class docutils literal"><span class="pre">ReLU</span></code></a></p>
 </dd></dl>
 
 <dl class="function">
 <dt id="apex.RNN.Tanh">
 <code class="descclassname">apex.RNN.</code><code class="descname">Tanh</code><span class="sig-paren">(</span><em>input_size</em>, <em>hidden_size</em>, <em>num_layers</em>, <em>bias=True</em>, <em>batch_first=False</em>, <em>dropout=0</em>, <em>bidirectional=False</em>, <em>output_size=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/RNN/models.html#Tanh"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.RNN.Tanh" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#apex.RNN.Tanh" title="apex.RNN.Tanh"><code class="xref py py-class docutils literal notranslate"><span class="pre">Tanh</span></code></a></p>
+<dd><p><a class="reference internal" href="#apex.RNN.Tanh" title="apex.RNN.Tanh"><code class="xref py py-class docutils literal"><span class="pre">Tanh</span></code></a></p>
 </dd></dl>
 
 </div>
 
 
            </div>
-           
+           <div class="articleComments">
+            
+           </div>
           </div>
           <footer>
   
@@ -219,7 +234,7 @@ features and validation.</p>
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -238,7 +253,6 @@ features and validation.</p>
         var DOCUMENTATION_OPTIONS = {
             URL_ROOT:'./',
             VERSION:'0.0.0',
-            LANGUAGE:'None',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
             HAS_SOURCE:  true,
@@ -257,13 +271,14 @@ features and validation.</p>
     <script type="text/javascript" src="_static/js/theme.js"></script>
   
 
+  
+  
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.StickyNav.enable();
       });
-  </script> 
+  </script>
+   
 
 </body>
 </html>

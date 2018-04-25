@@ -20,8 +20,8 @@ For Pytorch users, Real Examples in particular is recommended.
 .. automodule:: apex.fp16_utils
 .. currentmodule:: apex.fp16_utils
 
-.. FusedNorm
-   ----------
+Manual master parameter management
+----------------------------------
 
 .. autofunction:: prep_param_lists
 
@@ -29,13 +29,11 @@ For Pytorch users, Real Examples in particular is recommended.
 
 .. autofunction:: model_grads_to_master_grads
 
+Automatic management of master params + loss scaling
+----------------------------------------------------
+
 .. autoclass:: FP16_Optimizer
     :members:
-
-.. autoclass:: Fused_Weight_Norm
-    :members:
-
-.. .. automodule:: apex.fp16_utils.loss_scaler
 
 .. autoclass:: LossScaler
     :members:
@@ -43,8 +41,9 @@ For Pytorch users, Real Examples in particular is recommended.
 .. autoclass:: DynamicLossScaler
     :members:
 
-.. .. automodule:: apex.fp16_utils.fp16util
+
+Custom Operations
+-----------------
+
+.. autoclass:: Fused_Weight_Norm
     :members:
-
-
-

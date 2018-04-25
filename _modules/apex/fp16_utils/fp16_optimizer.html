@@ -25,19 +25,29 @@
   
 
   
+  
     <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
-    <link rel="index" title="Index" href="../../../genindex.html" />
-    <link rel="search" title="Search" href="../../../search.html" /> 
+  
+
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  
+    <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="APEx 0.0.0 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
 
   
   <script src="../../../_static/js/modernizr.min.js"></script>
 
 </head>
 
-<body class="wy-body-for-nav">
+<body class="wy-body-for-nav" role="document">
 
    
   <div class="wy-grid-for-nav">
@@ -54,7 +64,7 @@
 
           
             
-            <img src="../../../_static/nv-pytorch2.png" class="logo" alt="Logo"/>
+            <img src="../../../_static/nv-pytorch2.png" class="logo" />
           
           </a>
 
@@ -91,7 +101,12 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../reparameterization.html">apex.reparameterization</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../RNN.html">apex.RNN</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../fp16_utils.html">apex.fp16_utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../fp16_utils.html">apex.fp16_utils</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../fp16_utils.html#automatic-management-of-master-params-loss-scaling">Automatic management of master params + loss scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../fp16_utils.html#custom-operations">Custom Operations</a></li>
+</ul>
+</li>
 </ul>
 
             
@@ -103,7 +118,7 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" aria-label="top navigation">
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="../../../index.html">APEx</a>
@@ -111,10 +126,9 @@
       </nav>
 
 
+      
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
           
 
 
@@ -143,6 +157,8 @@
     
     
       <li class="wy-breadcrumbs-aside">
+        
+            
         
       </li>
     
@@ -361,7 +377,7 @@
         <span class="c1"># if name in [&#39;state&#39;, &#39;param_groups&#39;]:</span>
         <span class="c1">#     return self.optimizer.__dict__[name],</span>
         <span class="c1"># but this would bypass self.optimizer&#39;s custom getters and setters, if it chose to define any.</span>
-        <span class="c1"># I could also use properties, as for loss_scale, but I have no idea if properties bypass </span>
+        <span class="c1"># I could also use properties, as for loss_scale, but I don&#39;t know if properties bypass </span>
         <span class="c1"># self.optimizer&#39;s custom getters and setters.</span>
         <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;state&#39;</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">state</span>
@@ -382,7 +398,11 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Zero fp32 and fp16 parameter grads.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># In principle, only the .grad attributes of the model params need to be zeroed,</span>
+        <span class="c1"># because gradients are copied into the FP32 master params.  However, we zero</span>
+        <span class="c1"># all gradients owned by the optimizer, just to be safe:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+        <span class="c1"># Zero fp16 gradients owned by the model:</span>
         <span class="k">for</span> <span class="n">fp16_group</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">fp16_groups</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">fp16_group</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -402,16 +422,14 @@
     <span class="k">def</span> <span class="nf">_update_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">has_overflow</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">update_scale</span><span class="p">(</span><span class="n">has_overflow</span><span class="p">)</span>
 
-    <span class="c1"># TODO:  Register a hook on each variable to do the overflow check, gradient copy + downscale,</span>
-    <span class="c1"># fp32 allreduce for distributed in a different stream.  Debatable which ops should be </span>
-    <span class="c1"># treated that way, but it&#39;ll be fun to play with.</span>
+    <span class="c1"># To consider:  Integrate distributed with this wrapper by registering a hook on each variable </span>
+    <span class="c1"># that does the overflow check, gradient copy + downscale, and fp32 allreduce in a different stream.</span>
     <span class="k">def</span> <span class="nf">_model_grads_to_master_grads</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">fp16_group</span><span class="p">,</span> <span class="n">fp32_from_fp16_group</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fp16_groups</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fp32_from_fp16_groups</span><span class="p">):</span>
             <span class="n">model_grads_to_master_grads</span><span class="p">(</span><span class="n">fp16_group</span><span class="p">,</span> <span class="n">fp32_from_fp16_group</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_downscale_master</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span> <span class="o">!=</span> <span class="mf">1.0</span><span class="p">:</span> 
-            <span class="c1"># print(&quot;downscaling fp32 gradients&quot;)</span>
             <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">param_groups</span><span class="p">:</span>
                 <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">group</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]:</span>
                     <span class="n">param</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">mul_</span><span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span><span class="p">)</span>
@@ -491,7 +509,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">state_dict</span><span class="p">[</span><span class="s1">&#39;optimizer_state_dict&#39;</span><span class="p">])</span>
         <span class="c1"># At this point, the optimizer&#39;s references to the model&#39;s fp32 parameters are up to date.</span>
         <span class="c1"># The optimizer&#39;s hyperparameters and internal buffers are also up to date.  </span>
-        <span class="c1"># However, the fp32 master copies of the model&#39;s fp16 params stored by the optimizer are now</span>
+        <span class="c1"># However, the fp32 master copies of the model&#39;s fp16 params stored by the optimizer are still</span>
         <span class="c1"># out of date.  There are two options.  </span>
         <span class="c1"># 1:  Refresh the master params from the model&#39;s fp16 params.  </span>
         <span class="c1"># This requires less storage but incurs precision loss.</span>
@@ -499,7 +517,7 @@
         <span class="c1"># We choose option 2.</span>
         <span class="c1"># </span>
         <span class="c1"># Pytorch Optimizer.load_state_dict casts saved buffers (e.g. momentum) to the type and device </span>
-        <span class="c1"># of # their associated parameters, because it&#39;s possible those buffers might not exist yet in </span>
+        <span class="c1"># of their associated parameters, because it&#39;s possible those buffers might not exist yet in </span>
         <span class="c1"># the current optimizer instance.  In our case, as long as the current FP16_Optimizer has been </span>
         <span class="c1"># constructed in the same way as the one whose state_dict we are loading, the same master params</span>
         <span class="c1"># are guaranteed to exist, so we can just copy_() from the saved master params.</span>
@@ -580,12 +598,11 @@
                 <span class="bp">self</span><span class="o">.</span><span class="n">_master_params_to_model_params</span><span class="p">()</span>
             <span class="c1"># Our API expects the user to give us ownership of the backward() call by</span>
             <span class="c1"># replacing all calls to loss.backward() with optimizer.backward(loss).</span>
-            <span class="c1"># This requirement holds whether or not the call to backward() is made within</span>
-            <span class="c1"># a closure.</span>
+            <span class="c1"># This requirement holds whether or not the call to backward() is made within a closure.</span>
             <span class="c1"># If the user is properly calling optimizer.backward(loss) within &quot;closure,&quot; </span>
             <span class="c1"># calling closure() here will give the fp32 master params fresh gradients</span>
-            <span class="c1"># for the optimizer to play with, </span>
-            <span class="c1"># so all wrapped_closure needs to do is call closure() and return the loss.</span>
+            <span class="c1"># for the optimizer to play with, so all wrapped_closure needs to do is call </span>
+            <span class="c1"># closure() and return the loss.</span>
             <span class="n">temp_loss</span> <span class="o">=</span> <span class="n">closure</span><span class="p">()</span> 
             <span class="k">return</span> <span class="n">temp_loss</span>
 
@@ -653,11 +670,10 @@
 <span class="sd">            optimizer.backward(loss2, update_master_grads=False)</span>
 <span class="sd">            optimizer.update_master_grads()</span>
 <span class="sd">        &quot;&quot;&quot;</span> 
-        <span class="c1"># To think about:  try multiple backward passes using retain_grad=True to find </span>
+        <span class="c1"># To consider:  try multiple backward passes using retain_grad=True to find </span>
         <span class="c1"># a loss scale that works.  After you find a loss scale that works, do a final dummy</span>
-        <span class="c1"># backward pass with retain_graph=False to tear down the graph.</span>
-        <span class="c1"># Doing this would avoid discarding the iteration,  but probably wouldn&#39;t </span>
-        <span class="c1"># improve overall efficiency.  </span>
+        <span class="c1"># backward pass with retain_graph=False to tear down the graph.  Doing this would avoid </span>
+        <span class="c1"># discarding the iteration,  but probably wouldn&#39;t improve overall efficiency.  </span>
         <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss</span><span class="o">.</span><span class="n">float</span><span class="p">())</span>
         <span class="k">if</span> <span class="n">update_master_grads</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">update_master_grads</span><span class="p">()</span></div>
@@ -710,7 +726,9 @@
 </pre></div>
 
            </div>
-           
+           <div class="articleComments">
+            
+           </div>
           </div>
           <footer>
   
@@ -723,7 +741,7 @@
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -742,7 +760,6 @@
         var DOCUMENTATION_OPTIONS = {
             URL_ROOT:'../../../',
             VERSION:'0.0.0',
-            LANGUAGE:'None',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
             HAS_SOURCE:  true,
@@ -761,13 +778,14 @@
     <script type="text/javascript" src="../../../_static/js/theme.js"></script>
   
 
+  
+  
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.StickyNav.enable();
       });
-  </script> 
+  </script>
+   
 
 </body>
 </html>
