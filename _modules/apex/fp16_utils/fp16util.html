@@ -241,9 +241,23 @@
     <span class="n">model_params</span> <span class="o">=</span> <span class="p">[</span><span class="n">param</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">()</span> <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">flat_master</span><span class="p">:</span>
-        <span class="c1"># flatten_dense_tensors returns a contiguous flat array.</span>
-        <span class="c1"># http://pytorch.org/docs/master/_modules/torch/_utils.html</span>
-        <span class="n">master_params</span> <span class="o">=</span> <span class="n">_flatten_dense_tensors</span><span class="p">([</span><span class="n">param</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">model_params</span><span class="p">])</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
+        <span class="c1"># Give the user some more useful error messages</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># flatten_dense_tensors returns a contiguous flat array.</span>
+            <span class="c1"># http://pytorch.org/docs/master/_modules/torch/_utils.html</span>
+            <span class="n">master_params</span> <span class="o">=</span> <span class="n">_flatten_dense_tensors</span><span class="p">([</span><span class="n">param</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">model_params</span><span class="p">])</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">TypeError</span> <span class="k">as</span> <span class="n">instance</span><span class="p">:</span>
+            <span class="c1"># This is brittle, and depends on how cat chooses to word its error message.</span>
+            <span class="k">if</span> <span class="s2">&quot;cat received an invalid combination of arguments&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">instance</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">raise</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># If you append a message to the exception instance, via</span>
+                <span class="c1"># instance.args = instance.args + (&quot;Error...&quot;,)</span>
+                <span class="c1"># this messes up the terminal-formatted printing of the instance&#39;s original message.</span>
+                <span class="c1"># Basic solution for now:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Error in prep_param_lists:  model likely contains a mixture of parameters &quot;</span>
+                      <span class="s2">&quot;of different types.  Use flat_master=False, or use F16_Optimizer.&quot;</span><span class="p">)</span>
+                <span class="k">raise</span>
         <span class="n">master_params</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">master_params</span><span class="p">)</span>
         <span class="n">master_params</span><span class="o">.</span><span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="c1"># master_params.register_hook(backwards_debug_hook)</span>

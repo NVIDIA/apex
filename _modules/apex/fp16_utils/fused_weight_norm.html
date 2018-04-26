@@ -187,8 +187,10 @@
 
 <div class="viewcode-block" id="Fused_Weight_Norm"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.Fused_Weight_Norm">[docs]</a><span class="k">class</span> <span class="nc">Fused_Weight_Norm</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Implements weight norm along a tensor&#39;s slowest dimension using fused kernel launches for</span>
-<span class="sd">    the forward and backward pass.</span>
+<span class="sd">    Custom autograd function that implements weight norm, as presented in </span>
+<span class="sd">    `&lt;https://arxiv.org/abs/1602.07868&gt;`_,</span>
+<span class="sd">    along a tensor&#39;s slowest or </span>
+<span class="sd">    fastest dimension using fused kernel launches for the forward and backward passes.</span>
 <span class="sd">    Accepts fp32 or fp16 input; the output type will match the input type.</span>
 <span class="sd">    Within the kernels, all calculations are performed in fp32 for numerical stability, regardless</span>
 <span class="sd">    of input/output precision.</span>
@@ -197,11 +199,15 @@
 <div class="viewcode-block" id="Fused_Weight_Norm.forward"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.Fused_Weight_Norm.forward">[docs]</a>    <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="nb">input</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        :attr:`input` is assumed to be contiguous.</span>
-<span class="sd">        :attr:`input` may be either float or half precision. </span>
-<span class="sd">        The precision of :attr:`output` will match the precision of :attr:`input`.</span>
-<span class="sd">        A float copy of the L2 norm across each slow dimension</span>
-<span class="sd">        is also created and saved for the backward pass.</span>
+<span class="sd">        Args:</span>
+<span class="sd">            input(torch.cuda.FloatTensor or torch.cuda.HalfTensor):  input tensor corresponding to **v** in the paper.  ``input`` should be contiguous.</span>
+<span class="sd">            g(torch.cuda.FloatTensor or torch.cuda.HalfTensor):  input tensor corresponding to **g** in the paper.  ``g`` should be the same type as ``input``.</span>
+<span class="sd">            dim(int, optional, default=0):  Dimension across which to perform weightnorm.  Currently, only the first or last dimension of the input tensor is supported.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Output tensor corresponding to **w** in the paper.  Output type and precision will match</span>
+<span class="sd">            type and precision of ``input``.</span>
+<span class="sd">        </span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># torch.cuda.nvtx.range_push(&quot;FusedNorm.forward, input.size() = {}&quot;</span>
         <span class="c1">#                            .format(input.size()))</span>
@@ -252,9 +258,11 @@
     <span class="nd">@once_differentiable</span>
     <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">grad_output</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        :attr:`grad_output` is assumed to be contiguous.</span>
-<span class="sd">        :attr:`grad_output` may be either float or half precision.</span>
-<span class="sd">        The precision of :attr:`grad_input` will match the precision of :attr:`grad_output`.</span>
+<span class="sd">        Args:</span>
+<span class="sd">            grad_output(torch.cuda.FloatTensor or torch.cuda.HalfTensor):  Gradient of loss with respect to output **w**. ``grad_output`` should be contiguous for performance.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Gradient of loss with respect to ``input`` and ``g``.  The precision of these gradients will match the precision of ``grad_input``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">check_contig_cuda</span><span class="p">((</span><span class="n">grad_output</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;grad_output&quot;</span><span class="p">))</span>
 
