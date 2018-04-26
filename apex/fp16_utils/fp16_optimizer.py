@@ -77,8 +77,8 @@ class FP16_Optimizer(object):
                                    # Usually, dynamic_loss_args is not necessary. 
 
     Args:
-        init_optimizer (torch.optim.optimizer):  Existing optimizer containing initialized fp16 parameters.  Internally, :class:`FP16_Optimizer` replaces the passed optimizer's fp16 parameters with new fp32 parameters copied from the original ones.  :class:`FP16_Optimizer` also stores references to the original fp16 parameters, and updates these fp16 parameters from the master fp32 copy after each step.  
-        static_loss_scale (float, optional, default=1.0):  Loss scale used internally to scale fp16 gradients computed by the model.  Scaled gradients will be copied to fp32, then downscaled before being applied to the fp32 master params, so ``static_loss_scale`` should not affect learning rate.
+        init_optimizer (torch.optim.optimizer):  Existing optimizer created with the parameters to optimize.  Internally, :class:`FP16_Optimizer` replaces the passed optimizer's fp16 parameters, if any, with fp32 master parameters copied from the original ones.  :class:`FP16_Optimizer` also stores references to the original fp16 parameters, and updates these fp16 parameters from the master fp32 copy at the end of each :attr:`step`.  
+        static_loss_scale (float, optional, default=1.0):  Loss scale used internally to scale gradients computed by the model.  Any fp16 gradients will be copied to fp32, then downscaled before being applied to the fp32 master params, so ``static_loss_scale`` should not affect learning rate.
         dynamic_loss_scale (bool, optional, default=False):  Use dynamic loss scaling.  If True, this will override any ``static_loss_scale`` option.
         dynamic_loss_args (dict, optional, default=None):  Dict of kwargs that will be forwarded to the internal :class:`DynamicLossScaler` instance's constructor.  Keys of this dict must match kwargs accepted by :class:`DynamicLossScaler`'s constructor.  If ``dynamic_loss_args`` is unspecified, :class:`DynamicLossScaler`'s defaults will be used.
 
@@ -275,7 +275,7 @@ class FP16_Optimizer(object):
             Total norm of the current fp32 gradients (viewed as a single vector).
 
         .. warning::
-            Returns -1 if the most recently computed fp16 gradients overflowed (that is, if self.overflow is True).
+            Returns -1 if the most recently computed fp16 gradients overflowed (that is, if ``self.overflow`` is ``True``).
         """
         if not self.overflow:
             fp32_params = []
@@ -380,12 +380,13 @@ class FP16_Optimizer(object):
                     optimizer.zero_grad()
                     output = model(input)
                     loss = loss_fn(output, target)
+                    # loss.backward() becomes:
                     optimizer.backward(loss)
                     return loss
                 optimizer.step(closure)
 
         .. warning::
-            Currently, calling step with a closure is not compatible with dynamic loss scaling.
+            Currently, calling :attr:`step` with a closure is not compatible with dynamic loss scaling.
 
         .. _`ordinary Pytorch optimizer use`:
             http://pytorch.org/docs/master/optim.html#optimizer-step-closure
@@ -443,19 +444,13 @@ class FP16_Optimizer(object):
 
     def backward(self, loss, update_master_grads=True):
         """ 
-        :attr:`backward` performs the following conceptual operations:
+        :attr:`backward` performs the following conceptual steps:
 
-        fp32_loss = loss.float() (see first Note below)
-
-        scaled_loss = fp32_loss*loss_scale
-
-        scaled_loss.backward(), which accumulates scaled gradients into the .grad attributes of the
-        model's leaves (which may be fp16, fp32, or a mixture, depending how your model was defined).
-
-        fp16 grads are then copied to the master params' .grad attributes (see second Note), which
-        are guaranteed to be fp32.
-
-        Finally, master grads are divided by loss_scale.
+        1. fp32_loss = loss.float() (see first Note below)
+        2. scaled_loss = fp32_loss*loss_scale
+        3. scaled_loss.backward(), which accumulates scaled gradients into the ``.grad`` attributes of the model's leaves (which may be fp16, fp32, or a mixture, depending how your model was defined).
+        4. fp16 grads are then copied to the master params' ``.grad`` attributes (see second Note), which are guaranteed to be fp32.
+        5. Finally, master grads are divided by loss_scale.
 
         In this way, after :attr:`backward`, the master params have fresh gradients,
         and :attr:`step` may be called.
@@ -468,7 +463,7 @@ class FP16_Optimizer(object):
             compute the loss criterion (MSE, cross entropy, etc) in fp32 before supplying it to 
             :attr:`backward`.
 
-        .. note::
+        .. warning::
             The gradients found in a model's leaves after the call to 
             :attr:`backward` should not be regarded as valid in general, 
             because it's possible 
@@ -477,7 +472,6 @@ class FP16_Optimizer(object):
             If the user wants to inspect gradients after a call to :attr:`backward`,  
             only the master gradients should be regarded as valid.  These can be retrieved via
             :attr:`inspect_master_grad_data()`.
-
 
         Args:
             loss:  The loss output by the user's model.  loss may be either float or half (but see first Note above).

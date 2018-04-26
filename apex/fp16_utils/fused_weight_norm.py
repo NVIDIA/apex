@@ -14,8 +14,10 @@ def check_contig_cuda(tensors, names):
 
 class Fused_Weight_Norm(Function):
     """
-    Implements weight norm along a tensor's slowest dimension using fused kernel launches for
-    the forward and backward pass.
+    Custom autograd function that implements weight norm, as presented in 
+    `<https://arxiv.org/abs/1602.07868>`_,
+    along a tensor's slowest or 
+    fastest dimension using fused kernel launches for the forward and backward passes.
     Accepts fp32 or fp16 input; the output type will match the input type.
     Within the kernels, all calculations are performed in fp32 for numerical stability, regardless
     of input/output precision.
@@ -24,11 +26,15 @@ class Fused_Weight_Norm(Function):
     @staticmethod
     def forward(ctx, input, g, dim=0):
         """
-        :attr:`input` is assumed to be contiguous.
-        :attr:`input` may be either float or half precision. 
-        The precision of :attr:`output` will match the precision of :attr:`input`.
-        A float copy of the L2 norm across each slow dimension
-        is also created and saved for the backward pass.
+        Args:
+            input(torch.cuda.FloatTensor or torch.cuda.HalfTensor):  input tensor corresponding to **v** in the paper.  ``input`` should be contiguous.
+            g(torch.cuda.FloatTensor or torch.cuda.HalfTensor):  input tensor corresponding to **g** in the paper.  ``g`` should be the same type as ``input``.
+            dim(int, optional, default=0):  Dimension across which to perform weightnorm.  Currently, only the first or last dimension of the input tensor is supported.
+
+        Returns:
+            Output tensor corresponding to **w** in the paper.  Output type and precision will match
+            type and precision of ``input``.
+        
         """
         # torch.cuda.nvtx.range_push("FusedNorm.forward, input.size() = {}"
         #                            .format(input.size()))
@@ -79,9 +85,11 @@ class Fused_Weight_Norm(Function):
     @once_differentiable
     def backward(ctx, grad_output):
         """
-        :attr:`grad_output` is assumed to be contiguous.
-        :attr:`grad_output` may be either float or half precision.
-        The precision of :attr:`grad_input` will match the precision of :attr:`grad_output`.
+        Args:
+            grad_output(torch.cuda.FloatTensor or torch.cuda.HalfTensor):  Gradient of loss with respect to output **w**. ``grad_output`` should be contiguous for performance.
+
+        Returns:
+            Gradient of loss with respect to ``input`` and ``g``.  The precision of these gradients will match the precision of ``grad_input``.
         """
         check_contig_cuda((grad_output), ("grad_output"))
 

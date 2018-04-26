@@ -53,7 +53,7 @@ class DynamicLossScaler:
     the ``dynamic_loss_args`` argument to :class:`FP16_Optimizer`'s constructor.
 
     Loss scaling is designed to combat the problem of underflowing gradients encountered at long
-    times when training FP16 networks.  Dynamic loss scaling begins by attempting a very high loss
+    times when training fp16 networks.  Dynamic loss scaling begins by attempting a very high loss
     scale.  Ironically, this may result in OVERflowing gradients.  If overflowing gradients are
     encountered, :class:`DynamicLossScaler` informs :class:`FP16_Optimizer` that an overflow has 
     occurred.
