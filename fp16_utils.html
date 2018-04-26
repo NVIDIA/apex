@@ -280,8 +280,8 @@ and changing the call to <code class="docutils literal"><span class="pre">backwa
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>init_optimizer</strong> (<em>torch.optim.optimizer</em>) – Existing optimizer containing initialized fp16 parameters.  Internally, <a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer" title="apex.fp16_utils.FP16_Optimizer"><code class="xref py py-class docutils literal"><span class="pre">FP16_Optimizer</span></code></a> replaces the passed optimizer’s fp16 parameters with new fp32 parameters copied from the original ones.  <a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer" title="apex.fp16_utils.FP16_Optimizer"><code class="xref py py-class docutils literal"><span class="pre">FP16_Optimizer</span></code></a> also stores references to the original fp16 parameters, and updates these fp16 parameters from the master fp32 copy after each step.</li>
-<li><strong>static_loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a><em>, </em><em>optional</em><em>, </em><em>default=1.0</em>) – Loss scale used internally to scale fp16 gradients computed by the model.  Scaled gradients will be copied to fp32, then downscaled before being applied to the fp32 master params, so <code class="docutils literal"><span class="pre">static_loss_scale</span></code> should not affect learning rate.</li>
+<li><strong>init_optimizer</strong> (<em>torch.optim.optimizer</em>) – Existing optimizer created with the parameters to optimize.  Internally, <a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer" title="apex.fp16_utils.FP16_Optimizer"><code class="xref py py-class docutils literal"><span class="pre">FP16_Optimizer</span></code></a> replaces the passed optimizer’s fp16 parameters, if any, with fp32 master parameters copied from the original ones.  <a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer" title="apex.fp16_utils.FP16_Optimizer"><code class="xref py py-class docutils literal"><span class="pre">FP16_Optimizer</span></code></a> also stores references to the original fp16 parameters, and updates these fp16 parameters from the master fp32 copy at the end of each <a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer.step" title="apex.fp16_utils.FP16_Optimizer.step"><code class="xref py py-attr docutils literal"><span class="pre">step</span></code></a>.</li>
+<li><strong>static_loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.6)"><em>float</em></a><em>, </em><em>optional</em><em>, </em><em>default=1.0</em>) – Loss scale used internally to scale gradients computed by the model.  Any fp16 gradients will be copied to fp32, then downscaled before being applied to the fp32 master params, so <code class="docutils literal"><span class="pre">static_loss_scale</span></code> should not affect learning rate.</li>
 <li><strong>dynamic_loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=False</em>) – Use dynamic loss scaling.  If True, this will override any <code class="docutils literal"><span class="pre">static_loss_scale</span></code> option.</li>
 <li><strong>dynamic_loss_args</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.6)"><em>dict</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Dict of kwargs that will be forwarded to the internal <a class="reference internal" href="#apex.fp16_utils.DynamicLossScaler" title="apex.fp16_utils.DynamicLossScaler"><code class="xref py py-class docutils literal"><span class="pre">DynamicLossScaler</span></code></a> instance’s constructor.  Keys of this dict must match kwargs accepted by <a class="reference internal" href="#apex.fp16_utils.DynamicLossScaler" title="apex.fp16_utils.DynamicLossScaler"><code class="xref py py-class docutils literal"><span class="pre">DynamicLossScaler</span></code></a>’s constructor.  If <code class="docutils literal"><span class="pre">dynamic_loss_args</span></code> is unspecified, <a class="reference internal" href="#apex.fp16_utils.DynamicLossScaler" title="apex.fp16_utils.DynamicLossScaler"><code class="xref py py-class docutils literal"><span class="pre">DynamicLossScaler</span></code></a>’s defaults will be used.</li>
 </ul>
@@ -342,14 +342,14 @@ intended.</p>
 <dl class="method">
 <dt id="apex.fp16_utils.FP16_Optimizer.backward">
 <code class="descname">backward</code><span class="sig-paren">(</span><em>loss</em>, <em>update_master_grads=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/fp16_utils/fp16_optimizer.html#FP16_Optimizer.backward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.fp16_utils.FP16_Optimizer.backward" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer.backward" title="apex.fp16_utils.FP16_Optimizer.backward"><code class="xref py py-attr docutils literal"><span class="pre">backward</span></code></a> performs the following conceptual operations:</p>
-<p>fp32_loss = loss.float() (see first Note below)</p>
-<p>scaled_loss = fp32_loss*loss_scale</p>
-<p>scaled_loss.backward(), which accumulates scaled gradients into the .grad attributes of the
-model’s leaves (which may be fp16, fp32, or a mixture, depending how your model was defined).</p>
-<p>fp16 grads are then copied to the master params’ .grad attributes (see second Note), which
-are guaranteed to be fp32.</p>
-<p>Finally, master grads are divided by loss_scale.</p>
+<dd><p><a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer.backward" title="apex.fp16_utils.FP16_Optimizer.backward"><code class="xref py py-attr docutils literal"><span class="pre">backward</span></code></a> performs the following conceptual steps:</p>
+<ol class="arabic simple">
+<li>fp32_loss = loss.float() (see first Note below)</li>
+<li>scaled_loss = fp32_loss*loss_scale</li>
+<li>scaled_loss.backward(), which accumulates scaled gradients into the <code class="docutils literal"><span class="pre">.grad</span></code> attributes of the model’s leaves (which may be fp16, fp32, or a mixture, depending how your model was defined).</li>
+<li>fp16 grads are then copied to the master params’ <code class="docutils literal"><span class="pre">.grad</span></code> attributes (see second Note), which are guaranteed to be fp32.</li>
+<li>Finally, master grads are divided by loss_scale.</li>
+</ol>
 <p>In this way, after <a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer.backward" title="apex.fp16_utils.FP16_Optimizer.backward"><code class="xref py py-attr docutils literal"><span class="pre">backward</span></code></a>, the master params have fresh gradients,
 and <a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer.step" title="apex.fp16_utils.FP16_Optimizer.step"><code class="xref py py-attr docutils literal"><span class="pre">step</span></code></a> may be called.</p>
 <div class="admonition note">
@@ -361,8 +361,8 @@ However, for maximum overflow safety, the user should
 compute the loss criterion (MSE, cross entropy, etc) in fp32 before supplying it to
 <a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer.backward" title="apex.fp16_utils.FP16_Optimizer.backward"><code class="xref py py-attr docutils literal"><span class="pre">backward</span></code></a>.</p>
 </div>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
 <p class="last">The gradients found in a model’s leaves after the call to
 <a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer.backward" title="apex.fp16_utils.FP16_Optimizer.backward"><code class="xref py py-attr docutils literal"><span class="pre">backward</span></code></a> should not be regarded as valid in general,
 because it’s possible
@@ -518,6 +518,7 @@ has been replaced by <code class="docutils literal"><span class="pre">fp16_optim
         <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
         <span class="n">output</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span>
         <span class="n">loss</span> <span class="o">=</span> <span class="n">loss_fn</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+        <span class="c1"># loss.backward() becomes:</span>
         <span class="n">optimizer</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">loss</span>
     <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">closure</span><span class="p">)</span>
@@ -525,7 +526,7 @@ has been replaced by <code class="docutils literal"><span class="pre">fp16_optim
 </div>
 <div class="admonition warning">
 <p class="first admonition-title">Warning</p>
-<p class="last">Currently, calling step with a closure is not compatible with dynamic loss scaling.</p>
+<p class="last">Currently, calling <a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer.step" title="apex.fp16_utils.FP16_Optimizer.step"><code class="xref py py-attr docutils literal"><span class="pre">step</span></code></a> with a closure is not compatible with dynamic loss scaling.</p>
 </div>
 </dd></dl>
 
