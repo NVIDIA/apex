@@ -138,8 +138,8 @@ class FP16_Optimizer(object):
     the loss scale is not recommended.
 
     **Multi_GPU training**:  If the wrapped ``init_optimizer`` was created from a model wrapped in
-    Pytorch DistributedDataParallel, :class:`FP16_Optimizer` should still work as 
-    intended.
+    Pytorch DistributedDataParallel or Apex DistributedDataParallel, :class:`FP16_Optimizer` 
+    should still work as intended.
     """
 
     def __init__(self, 
@@ -198,10 +198,10 @@ class FP16_Optimizer(object):
         self.overflow = False
         self.first_closure_call_this_step = True
 
-    def __getstate__
+    def __getstate__(self):
         raise RuntimeError("FP16_Optimizer should be serialized using state_dict().")
 
-    def __setstate__
+    def __setstate__(self, state):
         raise RuntimeError("FP16_Optimizer should be deserialized using load_state_dict().")
 
     def zero_grad(self):
