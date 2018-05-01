@@ -1,5 +1,6 @@
 import re
 
+import sys
 import os
 import shutil
 import inspect
@@ -141,18 +142,20 @@ def CompileCudaFiles():
             
         for object_file in object_files:
             extra_link_args.append(object_file)
+if 'clean' not in sys.argv:
 
-print()
-print("Arguments used to build CUDA extension:")
-print("extra_compile_args :", extra_compile_args)
-print("include_dirs: ", include_dirs)
-print("extra_link_args: ", extra_link_args)
-print("library_dirs: ", library_dirs)
-print("libraries: ", main_libraries)
-print()
-CompileCudaFiles()
+    print()
+    print("Arguments used to build CUDA extension:")
+    print("extra_compile_args :", extra_compile_args)
+    print("include_dirs: ", include_dirs)
+    print("extra_link_args: ", extra_link_args)
+    print("library_dirs: ", library_dirs)
+    print("libraries: ", main_libraries)
+    print()
+    CompileCudaFiles()
 
-print("Building CUDA extension.")
+    print("Building CUDA extension.")
+    
 cuda_ext = Extension('apex._C',
                  [os.path.join('csrc', 'Module.cpp')],
                  extra_compile_args = extra_compile_args,
@@ -161,9 +164,11 @@ cuda_ext = Extension('apex._C',
                  library_dirs=library_dirs,
                  runtime_library_dirs = library_dirs,
                  libraries=main_libraries
-      )
+    )
 
-print("Building module.")
+if 'clean' not in sys.argv:
+    print("Building module.")
+    
 setup(
     name='apex', version='0.1',
     cmdclass={
