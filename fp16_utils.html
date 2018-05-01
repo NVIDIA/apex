@@ -337,8 +337,8 @@ higher loss scale may be required, analogous to scheduling the learning rate.  D
 scaling is more subtle (see <a class="reference internal" href="#apex.fp16_utils.DynamicLossScaler" title="apex.fp16_utils.DynamicLossScaler"><code class="xref py py-class docutils literal"><span class="pre">DynamicLossScaler</span></code></a>) and in this case, manually adjusting
 the loss scale is not recommended.</p>
 <p><strong>Multi_GPU training</strong>:  If the wrapped <code class="docutils literal"><span class="pre">init_optimizer</span></code> was created from a model wrapped in
-Pytorch DataParallel or DistributedDataParallel, <a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer" title="apex.fp16_utils.FP16_Optimizer"><code class="xref py py-class docutils literal"><span class="pre">FP16_Optimizer</span></code></a> should still work as
-intended.</p>
+Pytorch DistributedDataParallel or Apex DistributedDataParallel, <a class="reference internal" href="#apex.fp16_utils.FP16_Optimizer" title="apex.fp16_utils.FP16_Optimizer"><code class="xref py py-class docutils literal"><span class="pre">FP16_Optimizer</span></code></a>
+should still work as intended.</p>
 <dl class="method">
 <dt id="apex.fp16_utils.FP16_Optimizer.backward">
 <code class="descname">backward</code><span class="sig-paren">(</span><em>loss</em>, <em>update_master_grads=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/fp16_utils/fp16_optimizer.html#FP16_Optimizer.backward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.fp16_utils.FP16_Optimizer.backward" title="Permalink to this definition">¶</a></dt>
@@ -426,7 +426,7 @@ infinity norm.</li>
 </table>
 <div class="admonition warning">
 <p class="first admonition-title">Warning</p>
-<p class="last">Returns -1 if the most recently computed fp16 gradients overflowed (that is, if self.overflow is True).</p>
+<p class="last">Returns -1 if the most recently computed fp16 gradients overflowed (that is, if <code class="docutils literal"><span class="pre">self.overflow</span></code> is <code class="docutils literal"><span class="pre">True</span></code>).</p>
 </div>
 </dd></dl>
 

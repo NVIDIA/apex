@@ -311,8 +311,8 @@
 <span class="sd">    the loss scale is not recommended.</span>
 
 <span class="sd">    **Multi_GPU training**:  If the wrapped ``init_optimizer`` was created from a model wrapped in</span>
-<span class="sd">    Pytorch DataParallel or DistributedDataParallel, :class:`FP16_Optimizer` should still work as </span>
-<span class="sd">    intended.</span>
+<span class="sd">    Pytorch DistributedDataParallel or Apex DistributedDataParallel, :class:`FP16_Optimizer` </span>
+<span class="sd">    should still work as intended.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> 
@@ -371,29 +371,11 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">overflow</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">first_closure_call_this_step</span> <span class="o">=</span> <span class="kc">True</span>
 
-    <span class="c1"># Promote optimizer.state, and optimizer.param_groups, to accommodate user code that </span>
-    <span class="c1"># directly manipulates &quot;optimizer.param_groups&quot; (for example, to adjust the learning rate).</span>
-    <span class="k">def</span> <span class="nf">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
-        <span class="c1"># I could condense the two cases by saying</span>
-        <span class="c1"># if name in [&#39;state&#39;, &#39;param_groups&#39;]:</span>
-        <span class="c1">#     return self.optimizer.__dict__[name],</span>
-        <span class="c1"># but this would bypass self.optimizer&#39;s custom getters and setters, if it chose to define any.</span>
-        <span class="c1"># I could also use properties, as for loss_scale, but I don&#39;t know if properties bypass </span>
-        <span class="c1"># self.optimizer&#39;s custom getters and setters.</span>
-        <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;state&#39;</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">state</span>
-        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;param_groups&#39;</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">param_groups</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="nb">object</span><span class="o">.</span><span class="fm">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;FP16_Optimizer should be serialized using state_dict().&quot;</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;state&#39;</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="n">value</span>
-        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;param_groups&#39;</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">param_groups</span> <span class="o">=</span> <span class="n">value</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;FP16_Optimizer should be deserialized using load_state_dict().&quot;</span><span class="p">)</span>
 
 <div class="viewcode-block" id="FP16_Optimizer.zero_grad"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer.zero_grad">[docs]</a>    <span class="k">def</span> <span class="nf">zero_grad</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -423,6 +405,10 @@
     <span class="k">def</span> <span class="nf">_update_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">has_overflow</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">update_scale</span><span class="p">(</span><span class="n">has_overflow</span><span class="p">)</span>
 
+    <span class="k">def</span> <span class="nf">_master_params_to_model_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">fp16_group</span><span class="p">,</span> <span class="n">fp32_from_fp16_group</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fp16_groups</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fp32_from_fp16_groups</span><span class="p">):</span>
+            <span class="n">master_params_to_model_params</span><span class="p">(</span><span class="n">fp16_group</span><span class="p">,</span> <span class="n">fp32_from_fp16_group</span><span class="p">)</span>
+
     <span class="c1"># To consider:  Integrate distributed with this wrapper by registering a hook on each variable </span>
     <span class="c1"># that does the overflow check, gradient copy + downscale, and fp32 allreduce in a different stream.</span>
     <span class="k">def</span> <span class="nf">_model_grads_to_master_grads</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -448,7 +434,7 @@
 <span class="sd">            Total norm of the current fp32 gradients (viewed as a single vector).</span>
 
 <span class="sd">        .. warning::</span>
-<span class="sd">            Returns -1 if the most recently computed fp16 gradients overflowed (that is, if self.overflow is True).</span>
+<span class="sd">            Returns -1 if the most recently computed fp16 gradients overflowed (that is, if ``self.overflow`` is ``True``).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">overflow</span><span class="p">:</span>
             <span class="n">fp32_params</span> <span class="o">=</span> <span class="p">[]</span>
@@ -458,10 +444,6 @@
             <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">clip_grad_norm</span><span class="p">(</span><span class="n">fp32_params</span><span class="p">,</span> <span class="n">max_norm</span><span class="p">,</span> <span class="n">norm_type</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="o">-</span><span class="mi">1</span></div>
-
-    <span class="k">def</span> <span class="nf">_master_params_to_model_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">fp16_group</span><span class="p">,</span> <span class="n">fp32_from_fp16_group</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fp16_groups</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fp32_from_fp16_groups</span><span class="p">):</span>
-            <span class="n">master_params_to_model_params</span><span class="p">(</span><span class="n">fp16_group</span><span class="p">,</span> <span class="n">fp32_from_fp16_group</span><span class="p">)</span>
 
 <div class="viewcode-block" id="FP16_Optimizer.state_dict"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer.state_dict">[docs]</a>    <span class="k">def</span> <span class="nf">state_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -713,14 +695,39 @@
             <span class="k">return</span> <span class="kc">None</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">None</span></div>
-        
+
+    <span class="c1"># Promote loss scale so it can be retrieved or set via &quot;fp16_optimizer_instance.loss_scale&quot;</span>
     <span class="k">def</span> <span class="nf">_get_loss_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">loss_scale</span>
 
     <span class="k">def</span> <span class="nf">_set_loss_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">cur_scale</span> <span class="o">=</span> <span class="n">value</span>
 
-    <span class="n">loss_scale</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span><span class="n">_get_loss_scale</span><span class="p">,</span> <span class="n">_set_loss_scale</span><span class="p">)</span></div>
+    <span class="n">loss_scale</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span><span class="n">_get_loss_scale</span><span class="p">,</span> <span class="n">_set_loss_scale</span><span class="p">)</span>
+
+    <span class="c1"># Promote optimizer.state, and optimizer.param_groups, to accommodate user code that </span>
+    <span class="c1"># directly manipulates &quot;optimizer.param_groups&quot; (for example, to adjust the learning rate).</span>
+    <span class="k">def</span> <span class="nf">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="c1"># I could condense the two cases by saying</span>
+        <span class="c1"># if name in [&#39;state&#39;, &#39;param_groups&#39;]:</span>
+        <span class="c1">#     return self.optimizer.__dict__[name],</span>
+        <span class="c1"># but this would bypass self.optimizer&#39;s custom getters and setters, if it chose to define any.</span>
+        <span class="c1"># I could also use properties, as for loss_scale, but I don&#39;t know if properties bypass </span>
+        <span class="c1"># self.optimizer&#39;s custom getters and setters.</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;state&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">state</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;param_groups&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">param_groups</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">object</span><span class="o">.</span><span class="fm">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;state&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;param_groups&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">param_groups</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span></div>
 </pre></div>
 
            </div>
