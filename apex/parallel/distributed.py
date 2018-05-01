@@ -48,14 +48,15 @@ class DistributedDataParallel(Module):
     Args:
         module: Network definition to be run in multi-gpu/distributed mode.
         message_size (Default = 100e6): Minimum number of elements in a communication bucket.
-
+        shared_param (Default = False): If your model uses shared parameters this must be true,
+        it will disable bucketing of parameters which is necessary to avoid race conditions.
 
     """
 
-    def __init__(self, module, message_size=100000000):
+    def __init__(self, module, message_size=100000000, shared_param=False):
         super(DistributedDataParallel, self).__init__()
         self.warn_on_half = True if dist._backend == dist.dist_backend.GLOO else False
-        
+        self.shared_param = shared_param
         self.message_size = message_size
         
         #reference to last iterations parameters to see if anything has changed
@@ -119,8 +120,7 @@ class DistributedDataParallel(Module):
                         Variable._execution_engine.queue_callback(allreduce_params)
                     else:
                         Variable._execution_engine.queue_callback(flush_buckets)
-                        self.param_state[self.record.index(param_i)] = 1
-                        self.comm_ready_buckets()
+                        self.comm_ready_buckets(self.record.index(param_i))
                     
                     
                 if param.requires_grad:
@@ -128,9 +128,14 @@ class DistributedDataParallel(Module):
             wrapper(param_i)
 
 
-    def comm_ready_buckets(self):
+    def comm_ready_buckets(self, param_ind):
 
+        if self.param_state[param_ind] != 0:
+            raise RuntimeError("Error: Your model uses shared parameters, DDP flag shared_params must be set to True in initialization.")
+            
+        
         if self.param_state[self.ready_end] == 0:
+            self.param_state[param_ind] = 1
             return
 
 
@@ -141,6 +146,7 @@ class DistributedDataParallel(Module):
 
 
         if self.ready_numel < self.message_size:
+            self.param_state[param_ind] = 1
             return
             
         grads = [param.grad.data for param in self.ready_params]
@@ -167,13 +173,20 @@ class DistributedDataParallel(Module):
             for i in range(self.ready_start, self.ready_start+len(bucket)):
                 self.param_state[i] = 2
                 self.ready_params.pop(0)
+
+        self.param_state[param_ind] = 1
         
     def forward(self, *inputs, **kwargs):
 
         param_list = [param for param in list(self.module.parameters()) if param.requires_grad]
 
-        
 
+        #Force needs_refresh to True if there are shared params
+        #this will force it to always, only call flush_buckets which is safe
+        #for shared parameters in the model.
+        if self.shared_param:
+            self.param_refs = []
+            
         self.needs_refresh = True if not self.param_refs else any(
             [param1 is not param2 for param1, param2 in zip(param_list, self.param_refs)]
         )
