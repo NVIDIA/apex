@@ -532,26 +532,22 @@ class FP16_Optimizer(object):
 
     loss_scale = property(_get_loss_scale, _set_loss_scale)
 
-    # Promote optimizer.state, and optimizer.param_groups, to accommodate user code that 
-    # directly manipulates "optimizer.param_groups" (for example, to adjust the learning rate).
-    def __getattribute__(self, name):
-        # I could condense the two cases by saying
-        # if name in ['state', 'param_groups']:
-        #     return self.optimizer.__dict__[name],
-        # but this would bypass self.optimizer's custom getters and setters, if it chose to define any.
-        # I could also use properties, as for loss_scale, but I don't know if properties bypass 
-        # self.optimizer's custom getters and setters.
-        if name == 'state':
-            return self.optimizer.state
-        elif name == 'param_groups':
-            return self.optimizer.param_groups
-        else:
-            return object.__getattribute__(self, name)
+    # Promote state so it can be retrieved or set via "fp16_optimizer_instance.state"
+    def _get_state(self):
+        return self.optimizer.state
 
-    def __setattr__(self, name, value):
-        if name == 'state':
-            self.optimizer.state = value
-        elif name == 'param_groups':
-            self.optimizer.param_groups = value
-        else:
-            object.__setattr__(self, name, value)
+    def _set_state(self, value):
+        self.optimizer.state = value
+
+    state = property(_get_state, _set_state)
+
+    # Promote param_groups so it can be retrieved or set via "fp16_optimizer_instance.param_groups"
+    # (for example, to adjust the learning rate)
+    def _get_param_groups(self):
+        return self.optimizer.param_groups
+
+    def _set_param_groups(self, value):
+        self.optimizer.param_groups = value
+
+    param_groups = property(_get_param_groups, _set_param_groups)
+
