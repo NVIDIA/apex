@@ -10,7 +10,7 @@ and start a single process run to allow the dataset to be downloaded (This will 
 ```python main.py```
 
 You can now the code multi-gpu with
-```python -m apex.parallelmultiproc main.py ...```
+```python -m apex.parallel.multiproc main.py ...```
 adding any normal option you'd like.
 
 ## Converting your own model
