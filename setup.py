@@ -125,7 +125,7 @@ library_dirs.append(os.path.dirname(libaten))
 object_files = []
 extra_link_args=[]
 main_libraries = []
-main_libraries += ['cudart', 'cuda', 'ATen']
+main_libraries += ['cudart', 'ATen']
 extra_compile_args = ["--std=c++11",]
 
 #findcuda returns root dir of CUDA
