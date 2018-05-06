@@ -63,6 +63,9 @@ parser.add_argument('--fp16', action='store_true',
                     help='Run model fp16 mode.')
 parser.add_argument('--static-loss-scale', type=float, default=1,
                     help='Static loss scale, positive power of 2 values can improve fp16 convergence.')
+parser.add_argument('--dynamic-loss-scale', action='store_true',
+                    help='Use dynamic loss scaling.  If supplied, this argument supersedes ' +
+                    '--static-loss-scale.')
 parser.add_argument('--prof', dest='prof', action='store_true',
                     help='Only run 10 iterations for profiling.')
 
@@ -117,18 +120,16 @@ def main():
     if args.distributed:
         model = DDP(model)
 
-    global model_params, master_params
-    if args.fp16:
-        model_params, master_params = prep_param_lists(model)
-    else:
-        master_params = list(model.parameters())
-
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
 
-    optimizer = torch.optim.SGD(master_params, args.lr,
+    optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
+    if args.fp16:
+        optimizer = FP16_Optimizer(optimizer,
+                                   static_loss_scale=args.static_loss_scale,
+                                   dynamic_loss_scale=args.dynamic_loss_scale)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -283,20 +284,12 @@ def train(train_loader, model, criterion, optimizer, epoch):
         top5.update(to_python_float(prec5), input.size(0))
 
         # compute gradient and do SGD step
+        optimizer.zero_grad()
         if args.fp16:
-            loss = loss*args.static_loss_scale
-            model.zero_grad()
-            loss.backward()
-            model_grads_to_master_grads(model_params, master_params)
-            if args.static_loss_scale != 1:
-                for param in master_params:
-                    param.grad.data = param.grad.data/args.static_loss_scale
-            optimizer.step()
-            master_params_to_model_params(model_params, master_params)
+            optimizer.backward(loss)
         else:
-            optimizer.zero_grad()
             loss.backward()
-            optimizer.step()
+        optimizer.step()
 
         # measure elapsed time
         batch_time.update(time.time() - end)

@@ -50,6 +50,9 @@ parser.add_argument('--fp16', action='store_true',
                     help='Run model in pseudo-fp16 mode (fp16 storage fp32 math).')
 parser.add_argument('--static-loss-scale', type=float, default=1,
                     help='Static loss scale, positive power of 2 values can improve fp16 convergence.')
+parser.add_argument('--dynamic-loss-scale', action='store_true',
+                    help='Use dynamic loss scaling.  If supplied, this argument supersedes ' +
+                    '--static-loss-scale.')
 
 args = parser.parse_args()
 
@@ -106,10 +109,22 @@ model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers
 
 if args.cuda and args.fp16:
     model.type(torch.cuda.HalfTensor)
-    model_params, master_params = prep_param_lists(model)
 elif args.cuda:
     model.cuda()
 criterion = nn.CrossEntropyLoss()
+
+optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
+
+###############################################################################
+# Create the FP16_Optimizer instance
+###############################################################################
+
+if args.cuda and args.fp16:
+    # If args.dynamic_loss_scale is False, static_loss_scale will be used.
+    # If args.dynamic_loss_scale is True, it will take precedence over static_loss_scale.
+    optimizer = FP16_Optimizer(optimizer,
+                               static_loss_scale = args.static_loss_scale,
+                               dynamic_loss_scale = args.dynamic_loss_scale)
 
 ###############################################################################
 # Training code
@@ -172,20 +187,16 @@ def train():
         model.zero_grad()
         output, hidden = model(data, hidden)
         loss = criterion(output.view(-1, ntokens), targets)
-        loss = loss * args.static_loss_scale
-        loss.backward()
-        loss = loss / args.static_loss_scale
-        # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-        torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
 
-        if args.fp16 and args.cuda:
-            model_grads_to_master_grads(model_params, master_params)
-            for param in master_params:
-                param.data = param.data - param.grad.data * (lr/args.static_loss_scale)
-            master_params_to_model_params(model_params, master_params)
+        # Clipping gradients helps prevent the exploding gradient problem in RNNs / LSTMs.
+        if args.cuda and args.fp16:
+            optimizer.backward(loss)
+            optimizer.clip_master_grads(args.clip)
         else:
-            for p in model.parameters():
-                p.data.add_(-lr/args.static_loss_scale, p.grad.data)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
+
+        optimizer.step()
 
         total_loss += loss.data
 
@@ -223,6 +234,8 @@ try:
         else:
             # Anneal the learning rate if no improvement has been seen in the validation dataset.
             lr /= 4.0
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
 except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')

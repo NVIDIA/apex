@@ -246,7 +246,8 @@ class FP16_Optimizer(object):
         if self.loss_scale != 1.0: 
             for group in self.optimizer.param_groups:
                 for param in group['params']:
-                    param.grad.data.mul_(1./self.loss_scale)
+                    if param.grad is not None:
+                        param.grad.data.mul_(1./self.loss_scale)
 
     def clip_master_grads(self, max_norm, norm_type=2):
         """

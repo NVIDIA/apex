@@ -3,11 +3,11 @@
 This example is based on https://github.com/pytorch/examples/tree/master/imagenet.
 It implements training of popular model architectures, such as ResNet, AlexNet, and VGG on the ImageNet dataset.
 
-`main.py` and `main_fp16_optimizer.py` have been modified to use the DistributedDataParallel module in APEx instead of the one in upstream PyTorch.  For description of how this works please see the distributed example included in this repo.
+`main.py` and `main_fp16_optimizer.py` have been modified to use the `DistributedDataParallel` module in APEx instead of the one in upstream PyTorch.  For description of how this works please see the distributed example included in this repo.
 
 `main.py` with the `--fp16` argument demonstrates mixed precision training with manual management of master parameters and loss scaling.
 
-`main_fp16_optimizer.py` with --fp16 demonstrates use of `apex.fp16_utils.FP16_Optimizer` to automatically manage master parameters and loss scaling.
+`main_fp16_optimizer.py` with `--fp16` demonstrates use of `apex.fp16_utils.FP16_Optimizer` to automatically manage master parameters and loss scaling.
 
 To run multi-gpu on a single node use the command
 ```python -m apex.parallel.multiproc main.py ...```

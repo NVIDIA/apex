@@ -135,3 +135,10 @@ def master_params_to_model_params(model_params, master_params, flat_master=False
     else:
         for model, master in zip(model_params, master_params):
             model.data.copy_(master.data)
+
+# item() is a recent addition, so this helps with backward compatibility.
+def to_python_float(t):
+    if hasattr(t, 'item'):
+        return t.item()
+    else:
+        return t[0]
