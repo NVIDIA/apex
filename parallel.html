@@ -25,30 +25,21 @@
   
 
   
-  
     <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  
-
-  
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  
-    <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
-  
-
-  
-        <link rel="index" title="Index"
-              href="genindex.html"/>
-        <link rel="search" title="Search" href="search.html"/>
-    <link rel="top" title="APEx 0.0.0 documentation" href="index.html"/>
-        <link rel="next" title="apex.reparameterization" href="reparameterization.html"/>
-        <link rel="prev" title="APEx (A PyTorch Extension)" href="index.html"/> 
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="apex.reparameterization" href="reparameterization.html" />
+    <link rel="prev" title="APEx (A PyTorch Extension)" href="index.html" /> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
 
 </head>
 
-<body class="wy-body-for-nav" role="document">
+<body class="wy-body-for-nav">
 
    
   <div class="wy-grid-for-nav">
@@ -65,7 +56,7 @@
 
           
             
-            <img src="_static/nv-pytorch2.png" class="logo" />
+            <img src="_static/nv-pytorch2.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -119,7 +110,7 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+      <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="index.html">APEx</a>
@@ -127,9 +118,10 @@
       </nav>
 
 
-      
       <div class="wy-nav-content">
+        
         <div class="rst-content">
+        
           
 
 
@@ -173,11 +165,10 @@
             
   <div class="section" id="module-apex.parallel">
 <span id="apex-parallel"></span><h1>apex.parallel<a class="headerlink" href="#module-apex.parallel" title="Permalink to this headline">¶</a></h1>
-<p>Still need to figure out how to document multiproc.py.</p>
 <dl class="class">
 <dt id="apex.parallel.DistributedDataParallel">
-<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">DistributedDataParallel</code><span class="sig-paren">(</span><em>module</em>, <em>message_size=10000000</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/distributed.html#DistributedDataParallel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.DistributedDataParallel" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> is a simpler version of upstream :class:`
+<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">DistributedDataParallel</code><span class="sig-paren">(</span><em>module</em>, <em>message_size=100000000</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/distributed.html#DistributedDataParallel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.DistributedDataParallel" title="Permalink to this definition">¶</a></dt>
+<dd><p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal notranslate"><span class="pre">DistributedDataParallel</span></code></a> is a simpler version of upstream :class:`
 DistributedDataParallel` that is optimized for use with NCCL. Its usage is designed
 to be used in conjunction with apex.parallel.multiproc.py. It assumes that your run
 is using multiprocess with 1 GPU/process, that the model is on the correct device,
@@ -191,7 +182,7 @@ allreduced in buckets durring the backward pass.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>module</strong> – Network definition to be run in multi-gpu/distributed mode.</li>
-<li><strong>message_size</strong> (<em>Default = 10000000</em>) – Minimum number of elements in a communication bucket.</li>
+<li><strong>message_size</strong> (<em>Default = 100e6</em>) – Minimum number of elements in a communication bucket.</li>
 </ul>
 </td>
 </tr>
@@ -200,9 +191,15 @@ allreduced in buckets durring the backward pass.</p>
 <dl class="method">
 <dt id="apex.parallel.DistributedDataParallel.forward">
 <code class="descname">forward</code><span class="sig-paren">(</span><em>*inputs</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/distributed.html#DistributedDataParallel.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.DistributedDataParallel.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Forward function for DDP.
-:param inputs: inputs that match the module’s passed in for initialization.
-:param kwargs: kwargs that match the module’s passed in for initialization.</p>
+<dd><p>Defines the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
 </dd></dl>
 
 </dd></dl>
@@ -211,9 +208,7 @@ allreduced in buckets durring the backward pass.</p>
 
 
            </div>
-           <div class="articleComments">
-            
-           </div>
+           
           </div>
           <footer>
   
@@ -235,7 +230,7 @@ allreduced in buckets durring the backward pass.</p>
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -254,6 +249,7 @@ allreduced in buckets durring the backward pass.</p>
         var DOCUMENTATION_OPTIONS = {
             URL_ROOT:'./',
             VERSION:'0.0.0',
+            LANGUAGE:'None',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
             HAS_SOURCE:  true,
@@ -272,14 +268,13 @@ allreduced in buckets durring the backward pass.</p>
     <script type="text/javascript" src="_static/js/theme.js"></script>
   
 
-  
-  
   <script type="text/javascript">
       jQuery(function () {
-          SphinxRtdTheme.StickyNav.enable();
+          
+          SphinxRtdTheme.Navigation.enableSticky();
+          
       });
-  </script>
-   
+  </script> 
 
 </body>
 </html>
