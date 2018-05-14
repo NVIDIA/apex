@@ -73,18 +73,10 @@ def prep_param_lists(model, flat_master=False):
             # flatten_dense_tensors returns a contiguous flat array.
             # http://pytorch.org/docs/master/_modules/torch/_utils.html
             master_params = _flatten_dense_tensors([param.data for param in model_params]).float()
-        except TypeError as instance:
-            # This is brittle, and depends on how cat chooses to word its error message.
-            if "cat received an invalid combination of arguments" not in instance.args[0]:
-                raise
-            else:
-                # If you append a message to the exception instance, via
-                # instance.args = instance.args + ("Error...",)
-                # this messes up the terminal-formatted printing of the instance's original message.
-                # Basic solution for now:
-                print("Error in prep_param_lists:  model likely contains a mixture of parameters "
+        except:
+            print("Error in prep_param_lists:  model may contain a mixture of parameters "
                       "of different types.  Use flat_master=False, or use F16_Optimizer.")
-                raise
+            raise
         master_params = torch.nn.Parameter(master_params)
         master_params.requires_grad = True
         # master_params.register_hook(backwards_debug_hook)
