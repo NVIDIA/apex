@@ -93,8 +93,10 @@ def main():
 
     if args.distributed:
         torch.cuda.set_device(args.gpu)
-        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                world_size=args.world_size)
+        dist.init_process_group(backend=args.dist_backend, 
+                                init_method=args.dist_url,
+                                world_size=args.world_size,
+                                rank=args.rank)
 
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
@@ -152,7 +154,7 @@ def main():
 
     if(args.arch == "inception_v3"):
         crop_size = 299
-        val_size = 320 # I chose this value arbitrarily, we can adjust.
+        val_size = 320 # Arbitrarily chosen, adjustable.
     else:
         crop_size = 224
         val_size = 256

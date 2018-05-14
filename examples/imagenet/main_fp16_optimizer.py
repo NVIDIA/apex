@@ -96,8 +96,10 @@ def main():
 
     if args.distributed:
         torch.cuda.set_device(args.gpu)
-        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                world_size=args.world_size)
+        dist.init_process_group(backend=args.dist_backend, 
+                                init_method=args.dist_url,
+                                world_size=args.world_size,
+                                rank=args.rank)
 
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
