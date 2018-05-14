@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
+from apex.fp16_utils import to_python_float
 
 #=====START: ADDED FOR DISTRIBUTED======
 '''Add custom module for distributed'''
@@ -83,8 +84,10 @@ if args.distributed:
     torch.cuda.set_device(args.rank % torch.cuda.device_count())
 
     '''Initialize distributed communication'''
-    dist.init_process_group(args.dist_backend, init_method=args.dist_url,
-                            world_size=args.world_size)
+    dist.init_process_group(args.dist_backend, 
+                            init_method=args.dist_url,
+                            world_size=args.world_size,
+                            rank=args.rank)
 
 #=====END:   ADDED FOR DISTRIBUTED======
 
@@ -174,20 +177,21 @@ def train(epoch):
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.data[0]))
+                100. * batch_idx / len(train_loader), to_python_float(loss.data)))
 
 def test():
     model.eval()
     test_loss = 0
     correct = 0
-    for data, target in test_loader:
-        if args.cuda:
-            data, target = data.cuda(), target.cuda()
-        data, target = Variable(data, volatile=True), Variable(target)
-        output = model(data)
-        test_loss += F.nll_loss(output, target, size_average=False).data[0] # sum up batch loss
-        pred = output.data.max(1, keepdim=True)[1] # get the index of the max log-probability
-        correct += pred.eq(target.data.view_as(pred)).cpu().sum()
+    for data, target in test_loader: 
+        with torch.no_grad():
+            if args.cuda:
+                data, target = data.cuda(), target.cuda()
+            data, target = Variable(data), Variable(target)
+            output = model(data)
+            test_loss += to_python_float(F.nll_loss(output, target, size_average=False).data) # sum up batch loss
+            pred = output.data.max(1, keepdim=True)[1] # get the index of the max log-probability
+            correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
     test_loss /= len(test_loader.dataset)
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
