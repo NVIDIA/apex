@@ -114,7 +114,8 @@ for i, entry in enumerate(libaten_names):
 
 aten_h = find(torch_dir, re.compile("aten.h", re.IGNORECASE).search, False)
 
-include_dirs = [os.path.dirname(os.path.dirname(aten_h))]
+torch_inc = os.path.dirname(os.path.dirname(aten_h))
+include_dirs = [torch_inc]
 library_dirs = []
 for file in cuda_headers+headers:
     dir = os.path.dirname(file)
@@ -178,6 +179,11 @@ def CompileCudaFiles(NVCC, CUDA_VERSION):
         for dir in include_dirs:
             nvcc_cmd.append("-I"+dir)
 
+        # Hack: compiling the cffi kernel code needs the TH{C}
+        #       subdirs of include on path as well
+        for suffix in ['TH', 'THC']:
+            nvcc_cmd.append('-I{}/{}'.format(torch_inc, suffix))
+
         for file in cuda_files:
             object_name = os.path.basename(
                 os.path.splitext(file)[0]+".o"
@@ -228,4 +234,6 @@ setup(
     ext_modules=[cuda_ext,],
     description='PyTorch Extensions written by NVIDIA',
     packages=find_packages(exclude=("build", "csrc", "include", "tests")),
+    cffi_modules=[os.path.join(os.path.dirname(__file__),
+                               'build_amp.py:extension')],
 )
