@@ -122,6 +122,10 @@ for file in cuda_headers+headers:
     if dir not in include_dirs:
         include_dirs.append(dir)
 
+# Object files that use the PyTorch cffi-extension interface
+# They need special handling during compilation
+cffi_objects = ['scale_kernel.o']
+
 assert libaten, "Could not find PyTorch's libATen."
 assert aten_h, "Could not find PyTorch's ATen header."
 
@@ -188,14 +192,20 @@ def CompileCudaFiles(NVCC, CUDA_VERSION):
             object_name = os.path.basename(
                 os.path.splitext(file)[0]+".o"
             )
-    
+
             object_file = os.path.join(buildir, object_name)
             object_files.append(object_file)
     
             file_opts = ['-c', file, '-o', object_file]
-            
-            print(' '.join(nvcc_cmd+file_opts))
-            subprocess.check_call(nvcc_cmd+file_opts)
+
+            extra_args = []
+            if object_name in cffi_objects:
+                for module in ['TH', 'THC']:
+                    extra_args.append('-I{}/{}'.format(torch_inc, module))
+
+            build_args = nvcc_cmd + extra_args + file_opts
+            print(' '.join(build_args))
+            subprocess.check_call(build_args)
             
         for object_file in object_files:
             extra_link_args.append(object_file)
@@ -234,6 +244,10 @@ setup(
     ext_modules=[cuda_ext,],
     description='PyTorch Extensions written by NVIDIA',
     packages=find_packages(exclude=("build", "csrc", "include", "tests")),
+
+    # Require cffi
+    install_requires=["cffi>=1.0.0"],
+    setup_requires=["cffi>=1.0.0"],
     cffi_modules=[os.path.join(os.path.dirname(__file__),
-                               'build_amp.py:extension')],
+                               'build_cffi.py:extension')],
 )
