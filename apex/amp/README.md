@@ -36,22 +36,8 @@ amp is developed on Python 3.6 and PyTorch 0.4. It takes care to be
 backwards-compatible with PyTorch 0.3, but users are _highly_
 encouraged to upgrade.
 
-amp includes a small amount of custom CUDA that gets compiled outside
-the normal `setuptools` path, so your build environment must have a
-working CUDA toolchain.
-
-#### Option 1: install the amp package (recommended)
-```bash
-# Guesses that CUDA_HOME is /usr/local/cuda
-# export CUDA_HOME=something_else if that's not the right place
-make install
-```
-
-#### Option 2: build CUDA code and then stick amp on your path
-```bash
-make local
-export PYTHONPATH=$PYTHONPATH:/path/to/this/directory
-```
+amp is installed during normal apex installation, so refer to the
+top-level README for more on installation.
 
 ## Usage and Getting Started
 
@@ -131,7 +117,7 @@ def fru(input, hidden, weight, bias):
 ```
 or as a library call:
 ```python
-import amp
+from apex import amp
 amp.register_fp16(custom_module.fru)
 amp.enable()
 ```
