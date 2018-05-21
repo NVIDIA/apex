@@ -300,6 +300,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
             loss.backward()
             optimizer.step()
 
+        torch.cuda.synchronize()
         # measure elapsed time
         batch_time.update(time.time() - end)
 
