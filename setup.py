@@ -106,7 +106,7 @@ cuda_files = find(curdir, lambda file: file.endswith(".cu"), True)
 cuda_headers = find(curdir, lambda file: file.endswith(".cuh"), True)
 headers = find(curdir, lambda file: file.endswith(".h"), True)
 
-libaten = list(set(find(torch_dir, re.compile("libaten", re.IGNORECASE).search, True)))
+libaten = list(set(find(torch_dir, re.compile("libaten.*so", re.IGNORECASE).match, True)))
 libaten_names = [os.path.splitext(os.path.basename(entry))[0] for entry in libaten]
 for i, entry in enumerate(libaten_names):
     if entry[:3]=='lib':
