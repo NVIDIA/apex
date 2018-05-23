@@ -8,8 +8,6 @@ import torch
 def cached_cast(mod, fn, cast_fn, handle,
                 try_caching=False, verbose=False):
     if not utils.has_func(mod, fn):
-        # Should happen only pre-0.4
-        assert not compat.variable_is_tensor()
         return
 
     orig_fn = utils.get_func(mod, fn)
