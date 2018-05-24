@@ -1,5 +1,5 @@
 from . import compat, utils, wrap
-from .handle import AmpHandle
+from .handle import AmpHandle, NoOpHandle
 from .lists import functional_overrides, torch_overrides, tensor_overrides
 
 import inspect
@@ -7,30 +7,44 @@ import itertools
 
 import torch
 
-_USER_REGISTRY = set()
+_USER_CAST_REGISTRY = set()
+_USER_PROMOTE_REGISTRY = set()
 
 # Can be used as a @decorator directly on the fn
-# or called w/ arg by user before `enable()`
+# or called w/ arg by user before `build()`
 def register_half(fn):
     mod = inspect.getmodule(fn)
-    _USER_REGISTRY.add((mod, fn.__name__, utils.maybe_half))
+    _USER_CAST_REGISTRY.add((mod, fn.__name__, utils.maybe_half))
     return fn
 
 def register_float(fn):
     mod = inspect.getmodule(fn)
-    _USER_REGISTRY.add((mod, fn.__name__, utils.maybe_float))
+    _USER_CAST_REGISTRY.add((mod, fn.__name__, utils.maybe_float))
+    return fn
+
+def register_promote(fn):
+    mod = inspect.getmodule(fn)
+    _USER_PROMOTE_REGISTRY.add((mod, fn.__name__))
     return fn
 
 # Top-level function to insert _all_ the hooks.
-def enable(enable_caching=True, verbose=False):
+def build(enabled=True, enable_caching=True, verbose=False):
+    if not enabled:
+        return NoOpHandle()
+
     handle = AmpHandle(enable_caching)
 
     # 0) Force-{fp16, fp32} for user-annotated functions
-    for mod, fn, cast_fn in _USER_REGISTRY:
+    for mod, fn, cast_fn in _USER_CAST_REGISTRY:
         try_caching = (cast_fn == utils.maybe_half)
         wrap.cached_cast(mod, fn, cast_fn, handle,
                          try_caching, verbose)
-    _USER_REGISTRY.clear()
+    _USER_CAST_REGISTRY.clear()
+
+    # 0.5) Force-promote for user-annotated functions
+    for mod, fn in _USER_PROMOTE_REGISTRY:
+        wrap.promote(mod, fn, verbose)
+    _USER_PROMOTE_REGISTRY.clear()
 
     # 1) Force-{fp16, fp32} on white- / black-list functions
     override_modules = [functional_overrides,
