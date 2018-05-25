@@ -1,5 +1,5 @@
 from . import compat, utils, wrap
-from .handle import AmpHandle
+from .handle import AmpHandle, NoOpHandle
 from .lists import functional_overrides, torch_overrides, tensor_overrides
 
 import inspect
@@ -22,7 +22,10 @@ def register_float(fn):
     return fn
 
 # Top-level function to insert _all_ the hooks.
-def enable(enable_caching=True, verbose=False):
+def build(enabled=True, enable_caching=True, verbose=False):
+    if not enabled:
+        return NoOpHandle()
+
     handle = AmpHandle(enable_caching)
 
     # 0) Force-{fp16, fp32} for user-annotated functions

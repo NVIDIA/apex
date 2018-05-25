@@ -66,3 +66,18 @@ class AmpHandle(object):
     def remove_cache(self, param):
         if self.has_cache and param in self.cache:
             del self.cache[param]
+
+class NoOpHandle(object):
+    def is_active(self):
+        return False
+
+    def wrap_optimizer(self, optimizer):
+        return OptimWrapper(optimizer, self)
+
+    @contextlib.contextmanager
+    def scale_loss(self, loss, optimizer):
+        yield loss
+
+    @property
+    def has_cache(self):
+        return False
