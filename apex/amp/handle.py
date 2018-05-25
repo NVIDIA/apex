@@ -14,9 +14,9 @@ class AmpHandle(object):
     def is_active(self):
         return True
 
-    def wrap_optimizer(self, optimizer):
+    def wrap_optimizer(self, optimizer, num_loss=1):
         self._default_scaler = None
-        return OptimWrapper(optimizer, self)
+        return OptimWrapper(optimizer, self, num_loss)
 
     @contextlib.contextmanager
     def scale_loss(self, loss, optimizer):
@@ -71,8 +71,8 @@ class NoOpHandle(object):
     def is_active(self):
         return False
 
-    def wrap_optimizer(self, optimizer):
-        return OptimWrapper(optimizer, self)
+    def wrap_optimizer(self, optimizer, num_loss=1):
+        return OptimWrapper(optimizer, self, num_loss)
 
     @contextlib.contextmanager
     def scale_loss(self, loss, optimizer):

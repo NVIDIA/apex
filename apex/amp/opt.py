@@ -3,12 +3,16 @@ import warnings
 
 from .scaler import LossScaler
 
+import numpy as np
+
 class OptimWrapper(object):
-    def __init__(self, optimizer, amp_handle):
+    def __init__(self, optimizer, amp_handle, num_loss):
         self._optimizer = optimizer
         self._amp_handle = amp_handle
-        self._skip_next = False
-        self._loss_scaler = LossScaler()
+        self._num_loss = num_loss
+        self._loss_idx = 0
+        self._skip_next = [False] * num_loss
+        self._loss_scaler = [LossScaler() for _ in range(num_loss)]
 
     @contextlib.contextmanager
     def scale_loss(self, loss):
@@ -24,16 +28,37 @@ class OptimWrapper(object):
             loss_backward()
         loss.backward = warning_wrapper
 
-        loss_scale = self._loss_scaler.loss_scale()
+
+        # if loss_idx > 0:
+        #    save out current grads to buffers
+        #    keep some group caches
+        #    .detach().clone()
+        #    zero grads
+        
+
+        
+        loss_scale = self._cur_loss_scaler().loss_scale()
+        print('Loss scale (log): {}'.format(np.log2(loss_scale)))
         yield loss * loss_scale
         loss.backward = loss_backward
 
-        self._skip_next = self._loss_scaler.unscale_and_update(
+        self._skip_next[self._loss_idx] = self._cur_loss_scaler().unscale_and_update(
             self._optimizer.param_groups, loss_scale)
+        print('GOT SKIP NEXT: {}'.format(self._skip_next[self._loss_idx]))
+        self._loss_idx += 1
+
+        # if loss_idx > 0:
+        #    += saved state into grads
+
+    def _cur_loss_scaler(self):
+        assert 0 <= self._loss_idx < self._num_loss
+        return self._loss_scaler[self._loss_idx]
 
     def step(self, closure=None):
         if not self._amp_handle.is_active():
             return self._optimizer.step(closure=closure)
+
+        self._loss_idx = 0
 
         for group in self._optimizer.param_groups:
             for p in group['params']:
@@ -43,14 +68,13 @@ class OptimWrapper(object):
             raise NotImplementedError(
                 'The `closure` argument is unsupported by the amp ' +
                 'optimizer wrapper.')
-        if self._skip_next:
-            self._skip_next = False
+        if any(self._skip_next):
+            self._skip_next = [False] * self._num_loss
+            print('SKIP')
         else:
             return self._optimizer.step(closure=closure)
 
-    def skip_next_(self):
-        self._skip_next = True
-
+    # Forward any attribute lookups
     def __getattr__(self, attr):
         return getattr(self._optimizer, attr)
 
