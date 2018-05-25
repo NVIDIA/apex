@@ -47,13 +47,13 @@ class DistributedDataParallel(Module):
 
     Args:
         module: Network definition to be run in multi-gpu/distributed mode.
-        message_size (Default = 100e6): Minimum number of elements in a communication bucket.
+        message_size (Default = 10e6): Minimum number of elements in a communication bucket.
         shared_param (Default = False): If your model uses shared parameters this must be true,
         it will disable bucketing of parameters which is necessary to avoid race conditions.
 
     """
 
-    def __init__(self, module, message_size=100000000, shared_param=False):
+    def __init__(self, module, message_size=10000000, shared_param=False):
         super(DistributedDataParallel, self).__init__()
         self.warn_on_half = True if dist._backend == dist.dist_backend.GLOO else False
         self.shared_param = shared_param
