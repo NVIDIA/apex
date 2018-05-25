@@ -4,7 +4,7 @@ import warnings
 
 import torch
 
-from ._C import scale_lib
+from apex._C import scale_check_overflow
 
 class AmpHandle(object):
     def __init__(self, enable_caching=True):
@@ -33,9 +33,9 @@ class AmpHandle(object):
         for group in optimizer.param_groups:
             for p in group['params']:
                 if p.grad is not None:
-                    scale_lib.scale_check_overflow(p.grad.data,
-                                                   1. / self._loss_scale,
-                                                   self._overflow_buf)
+                    scale_check_overflow(p.grad.data,
+                                         1. / self._loss_scale,
+                                         self._overflow_buf)
         if self._overflow_buf.any():
             self._loss_scale /= 2.
             optimizer_step = optimizer.step

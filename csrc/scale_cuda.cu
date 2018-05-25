@@ -1,16 +1,24 @@
-#include "scale_kernel.h"
+
+#include <ATen/ATen.h>
+#include "ATen/AccumulateType.h"
+#include "ATen/cuda/CUDATensorMethods.cuh"
+#include "ATen/cuda/CUDATypeConversion.cuh"
+#include <THC/THCTensorMathReduce.cuh>
+
 #include <assert.h>
 
 #define BLOCK_SIZE 1024
 #define MAX_BLOCKS 1024
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-__global__
-void scale_reduce_overflow(float *in, size_t n, float scale,
-                           uint8_t *overflow_out) {
+// It makes sense to lock the type to "float" here because the downscaling
+// should only be applied to the FP32 master gradients.  Also, if "in" were 
+// a different type, it would require divergent code for the vectorized load logic.
+__global__ void scale_reduce_overflow
+  (float *in, 
+   size_t n, 
+   float scale,
+   uint8_t *overflow_out) 
+{
     __shared__ uint8_t cta_overflow[BLOCK_SIZE];
 
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -71,17 +79,25 @@ void scale_reduce_overflow(float *in, size_t n, float scale,
     }
 }
 
-void scale_check_overflow_kernel(THCState *state,
-                                 float *d_grads, size_t n, float scale,
-                                 uint8_t *d_buf, size_t buf_n) {
-    int num_blks = min((int(n) + BLOCK_SIZE - 1) / BLOCK_SIZE,
-                       MAX_BLOCKS);
-    assert(buf_n >= num_blks);
-    cudaStream_t cur_stream = THCState_getCurrentStream(state);
-    scale_reduce_overflow<<<num_blks, BLOCK_SIZE, 0, cur_stream>>>(
-      d_grads, n, scale, d_buf);
+void scale_check_overflow_cuda
+  (const at::Tensor& d_grads, 
+   float scale,
+   const at::Tensor& d_buf) 
+{
+  using namespace at;
+  cudaStream_t stream = globalContext().getCurrentCUDAStream();
+  
+  size_t n = d_grads.numel();
+  size_t buf_n = d_buf.numel();
+
+  int num_blks = min((int(n) + BLOCK_SIZE - 1) / BLOCK_SIZE,
+                     MAX_BLOCKS);
+  assert(buf_n >= num_blks);
+  scale_reduce_overflow<<<num_blks, BLOCK_SIZE, 0, stream>>>
+    (d_grads.data<float>(), 
+     n, 
+     scale, 
+     d_buf.data<uint8_t>());
+  THCudaCheck(cudaGetLastError());
 }
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
