@@ -61,6 +61,10 @@ void scale_check_overflow
 { 
   AT_CHECK(grads.type().is_cuda(), "x must be a CUDA tensor");
   AT_CHECK(overflow_buf.type().is_cuda(), "y must be a CUDA tensor");
+  // Make sure we are downscaling the FP32 master grads
+  AT_CHECK
+    (grads.type().scalarType() == at::ScalarType::Float, 
+     "grads supplied to scale_check_overflow should be fp32 (master grads).")
   scale_check_overflow_cuda(grads, scale, overflow_buf);
 }
 

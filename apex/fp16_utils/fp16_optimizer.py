@@ -49,6 +49,7 @@ class FP16_Module(nn.Module):
     def forward(self, *inputs, **kwargs):
         return fp16_to_fp32(self.module(*(fp32_to_fp16(inputs)), **kwargs))
 
+# TODO:  Update overflow check + downscale to use Carl's fused kernel.
 class FP16_Optimizer(object):
     """
     :class:`FP16_Optimizer` is designed to wrap an existing PyTorch optimizer, 

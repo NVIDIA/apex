@@ -9,13 +9,13 @@ torch.cuda.manual_seed(2)
 # torch.cuda.manual_seed_all(2)
 torch.set_printoptions(precision=10)
 
-rows = 1    # 321
-cols = 4096 # 33
-fast = 4096 # 185
+rows = 321 # 1    
+cols = 33  # 4096 
+fast = 185 # 4096 
 dims = rows, cols, fast
 
-dim = 2
-CUDA_HALF = False
+dim = 0
+CUDA_HALF = True
 RAND      = True # If false, input gradients (the result of the backward pass) 
                  # should be analytically zero.
 

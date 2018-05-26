@@ -13,6 +13,10 @@
 // It makes sense to lock the type to "float" here because the downscaling
 // should only be applied to the FP32 master gradients.  Also, if "in" were 
 // a different type, it would require divergent code for the vectorized load logic.
+
+// TODO:  
+// Update overflow check to use reduction from kernel_utils.cuh with 
+// ReduceOp from THCTensorMathReduce.cuh.
 __global__ void scale_reduce_overflow
   (float *in, 
    size_t n, 
