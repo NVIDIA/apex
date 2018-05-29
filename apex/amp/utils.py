@@ -85,7 +85,15 @@ def cached_cast(cast_fn, x, cache):
     if is_nested(x):
         return type(x)([cached_cast(y) for y in x])
     if x in cache:
+        cached_x = cache[x]
+        # During eval, it's possible to end up caching casted weights
+        # with requires_grad == False. This is then a problem when they
+        # get reused on the next train iter. So we ensure that cached
+        # weights have same requires_grad flag of most recent request.
+        if x.requires_grad != cached_x.requires_grad:
+            cached_x.requires_grad_(x.requires_grad)
         return cache[x]
+
     casted_x = cast_fn(x)
     cache[x] = casted_x
     return casted_x
