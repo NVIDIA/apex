@@ -15,12 +15,11 @@ class LossScaler(object):
 
     def unscale_and_update(self, param_groups, scale):
         self._overflow_buf.zero_()
-        for group in param_groups:
-            for p in group['params']:
-                if p.grad is not None:
-                    scale_lib.scale_check_overflow(p.grad.data,
-                                                   1. / scale,
-                                                   self._overflow_buf)
+        for p in iter_params(param_groups):
+            if p.grad is not None:
+                scale_lib.scale_check_overflow(p.grad.data,
+                                               1. / scale,
+                                               self._overflow_buf)
 
         if self._overflow_buf.any():
             should_skip = True
@@ -35,3 +34,8 @@ class LossScaler(object):
             self._unskipped = 0
 
         return should_skip
+
+def iter_params(param_groups):
+    for group in param_groups:
+        for p in group['params']:
+            yield p
