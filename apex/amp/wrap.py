@@ -5,13 +5,8 @@ import functools
 
 import torch
 
-def cached_cast(mod, fn, cast_fn, handle,
-                try_caching=False, verbose=False):
-    if not utils.has_func(mod, fn):
-        return
-
-    orig_fn = utils.get_func(mod, fn)
-    cast_fn = utils.verbosify(cast_fn, fn, verbose)
+def make_cast_wrapper(orig_fn, cast_fn, handle,
+                      try_caching=False):
     @functools.wraps(orig_fn)
     def wrapper(*args, **kwargs):
         if try_caching and handle.has_cache:
@@ -26,18 +21,27 @@ def cached_cast(mod, fn, cast_fn, handle,
                                      args,
                                      kwargs)
         return orig_fn(*new_args, **kwargs)
+    return wrapper
+
+def cached_cast(mod, fn, cast_fn, handle,
+                try_caching=False, verbose=False):
+    if not utils.has_func(mod, fn):
+        return
+
+    orig_fn = utils.get_func(mod, fn)
+    cast_fn = utils.verbosify(cast_fn, fn, verbose)
+    wrapper = make_cast_wrapper(orig_fn, cast_fn, handle, try_caching)
     utils.set_func(mod, fn, wrapper)
 
-def promote(mod, fn, verbose=False):
-    orig_fn = utils.get_func(mod, fn)
-    maybe_float = utils.verbosify(utils.maybe_float, fn, verbose)
+# `handle` arg is unused, but simplifies API to make `make_cast_wrapper`
+def make_promote_wrapper(orig_fn, cast_fn, handle=None):
     @functools.wraps(orig_fn)
     def wrapper(*args, **kwargs):
         types = utils.collect_fp_tensor_types(args, kwargs)
         if len(types) <= 1:
             return orig_fn(*args, **kwargs)
         elif len(types) == 2 and types == set(['HalfTensor', 'FloatTensor']):
-            new_args = utils.casted_args(maybe_float,
+            new_args = utils.casted_args(cast_fn,
                                          args,
                                          kwargs)
             return orig_fn(*new_args, **kwargs)
@@ -45,8 +49,14 @@ def promote(mod, fn, verbose=False):
             raise NotImplementedError('Do not know how to handle ' +
                                       'these types to promote: {}'
                                       .format(types))
+    return wrapper
+
+def promote(mod, fn, verbose=False):
+    orig_fn = utils.get_func(mod, fn)
+    maybe_float = utils.verbosify(utils.maybe_float, fn, verbose)
+    wrapper = make_promote_wrapper(orig_fn, maybe_float)
     utils.set_func(mod, fn, wrapper)
-    
+
 def sequence_promote(mod, fn, verbose=False):
     orig_fn = utils.get_func(mod, fn)
     maybe_float = utils.verbosify(utils.maybe_float, fn, verbose)
