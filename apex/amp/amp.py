@@ -54,7 +54,7 @@ def register_promote_function(module, name):
     _USER_PROMOTE_REGISTRY.add((module, name))
 
 # Top-level function to insert _all_ the hooks.
-def init(enabled=True, enable_caching=True, verbose=False):
+def init(enabled=True, enable_caching=True, verbose=False, allow_banned=False):
     global _DECORATOR_HANDLE
 
     if not enabled:
@@ -144,6 +144,11 @@ def init(enabled=True, enable_caching=True, verbose=False):
 
     # 5.5) Extra-special handling of RNN backend
     wrap.rnn_cast(torch.nn.backends.thnn.backend, 'RNN', verbose)
+
+    # 6) Place error+print message on banned functions
+    if not allow_banned:
+        for fn, err_msg in functional_overrides.BANNED_FUNCS:
+            wrap.err_if_any_half(functional_overrides.MODULE, fn, err_msg)
 
     _DECORATOR_HANDLE = handle
     return handle
