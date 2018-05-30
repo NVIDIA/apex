@@ -1,1 +1,2 @@
-from .amp import build, register_half, register_float, register_promote
+from .amp import build, half_function, float_function, promote_function,\
+    register_half_function, register_float_function, register_promote_function

@@ -6,8 +6,9 @@ from .opt import OptimWrapper
 from .scaler import LossScaler
 
 class AmpHandle(object):
-    def __init__(self, enable_caching=True):
+    def __init__(self, enable_caching=True, verbose=False):
         self._enable_caching = enable_caching
+        self._verbose = verbose
         self._cache = dict()
         self._default_scaler = LossScaler()
 
@@ -67,6 +68,10 @@ class AmpHandle(object):
         if self.has_cache and param in self.cache:
             del self.cache[param]
 
+    @property
+    def verbose(self):
+        return self._verbose
+
 class NoOpHandle(object):
     def is_active(self):
         return False
@@ -80,4 +85,8 @@ class NoOpHandle(object):
 
     @property
     def has_cache(self):
+        return False
+
+    @property
+    def verbose(self):
         return False

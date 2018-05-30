@@ -2,37 +2,67 @@ from . import compat, utils, wrap
 from .handle import AmpHandle, NoOpHandle
 from .lists import functional_overrides, torch_overrides, tensor_overrides
 
-import inspect
+import functools
 import itertools
 
 import torch
 
+_DECORATOR_HANDLE = None
 _USER_CAST_REGISTRY = set()
 _USER_PROMOTE_REGISTRY = set()
 
-# Can be used as a @decorator directly on the fn
-# or called w/ arg by user before `build()`
-def register_half(fn):
-    mod = inspect.getmodule(fn)
-    _USER_CAST_REGISTRY.add((mod, fn.__name__, utils.maybe_half))
-    return fn
+def _decorator_helper(orig_fn, cast_fn, wrap_fn):
+    def wrapper(*args, **kwargs):
+        handle = _DECORATOR_HANDLE
+        if handle is None or not handle.is_active():
+            return orig_fn(*args, **kwargs)
+        inner_cast_fn = utils.verbosify(cast_fn, orig_fn.__name__,
+                                  handle.verbose)
+        return wrap_fn(orig_fn, inner_cast_fn, handle)(*args, **kwargs)
+    return wrapper
 
-def register_float(fn):
-    mod = inspect.getmodule(fn)
-    _USER_CAST_REGISTRY.add((mod, fn.__name__, utils.maybe_float))
-    return fn
+# Decorator form
+def half_function(fn):
+    wrap_fn = functools.partial(wrap.make_cast_wrapper, try_caching=True)
+    return _decorator_helper(fn, utils.maybe_half, wrap_fn)
 
-def register_promote(fn):
-    mod = inspect.getmodule(fn)
+def float_function(fn):
+    wrap_fn = functools.partial(wrap.make_cast_wrapper, try_caching=False)
+    return _decorator_helper(fn, utils.maybe_float, wrap_fn)
+
+def promote_function(fn):
+    wrap_fn = functools.partial(wrap.make_promote_wrapper)
+    return _decorator_helper(fn, utils.maybe_float, wrap_fn)
+
+# Registry form
+def register_half_function(module, name):
+    if not hasattr(module, name):
+        raise ValueError('No function named {} in module {}.'.format(
+            name, module))
+    _USER_CAST_REGISTRY.add((module, name, utils.maybe_half))
+
+def register_float_function(module, name):
+    if not hasattr(module, name):
+        raise ValueError('No function named {} in module {}.'.format(
+            name, module))
+    _USER_CAST_REGISTRY.add((module, name, utils.maybe_float))
+
+def register_promote_function(module, name):
+    if not hasattr(module, name):
+        raise ValueError('No function named {} in module {}.'.format(
+            name, module))
     _USER_PROMOTE_REGISTRY.add((mod, fn.__name__))
-    return fn
 
 # Top-level function to insert _all_ the hooks.
 def build(enabled=True, enable_caching=True, verbose=False):
-    if not enabled:
-        return NoOpHandle()
+    global _DECORATOR_HANDLE
 
-    handle = AmpHandle(enable_caching)
+    if not enabled:
+        handle = NoOpHandle()
+        _DECORATOR_HANDLE = handle
+        return handle
+
+    handle = AmpHandle(enable_caching, verbose)
 
     # 0) Force-{fp16, fp32} for user-annotated functions
     for mod, fn, cast_fn in _USER_CAST_REGISTRY:
@@ -115,4 +145,5 @@ def build(enabled=True, enable_caching=True, verbose=False):
     # 5.5) Extra-special handling of RNN backend
     wrap.rnn_cast(torch.nn.backends.thnn.backend, 'RNN', verbose)
 
+    _DECORATOR_HANDLE = handle
     return handle
