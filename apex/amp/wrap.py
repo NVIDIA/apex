@@ -94,7 +94,7 @@ def promote_match_arg0(mod, fn, verbose=False):
         return orig_fn(arg0, *new_args, **kwargs)
     utils.set_func(mod, fn, wrapper)
 
-def err_if_any_half(mod, fn):
+def err_if_any_half(mod, fn, custom_err_msg=None):
     if not utils.has_func(mod, fn):
         return
 
@@ -103,8 +103,11 @@ def err_if_any_half(mod, fn):
     def wrapper(*args, **kwargs):
         types = utils.collect_fp_tensor_types(args, kwargs)
         if 'HalfTensor' in types:
-            raise NotImplementedError('Cannot call in-place function ' +
-                                      '{} with fp16 arguments.'.format(fn))
+            if custom_err_msg:
+                raise NotImplementedError(custom_err_msg)
+            else:
+                raise NotImplementedError('Cannot call in-place function ' +
+                                          '{} with fp16 arguments.'.format(fn))
         else:
             return orig_fn(*args, **kwargs)
     utils.set_func(mod, fn, wrapper)
