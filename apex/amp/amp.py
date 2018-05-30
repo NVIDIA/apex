@@ -51,10 +51,10 @@ def register_promote_function(module, name):
     if not hasattr(module, name):
         raise ValueError('No function named {} in module {}.'.format(
             name, module))
-    _USER_PROMOTE_REGISTRY.add((mod, fn.__name__))
+    _USER_PROMOTE_REGISTRY.add((module, name))
 
 # Top-level function to insert _all_ the hooks.
-def build(enabled=True, enable_caching=True, verbose=False):
+def init(enabled=True, enable_caching=True, verbose=False):
     global _DECORATOR_HANDLE
 
     if not enabled:
