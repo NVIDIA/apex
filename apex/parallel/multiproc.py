@@ -13,7 +13,7 @@ argslist = list(sys.argv)[1:]
 world_size = torch.cuda.device_count()
 
 if '--world-size' in argslist:
-    argslist[argslist.index('--world-size')+1] = str(world_size)
+    world_size = int(argslist[argslist.index('--world-size')+1])
 else:
     argslist.append('--world-size')
     argslist.append(str(world_size))
