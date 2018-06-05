@@ -8,8 +8,6 @@ import torch
 def cached_cast(mod, fn, cast_fn, handle,
                 try_caching=False, verbose=False):
     if not utils.has_func(mod, fn):
-        # Should happen only pre-0.4
-        assert not compat.variable_is_tensor()
         return
 
     orig_fn = utils.get_func(mod, fn)
@@ -140,7 +138,7 @@ def rnn_cast(backend, fn, verbose=False):
             # autograd graph correctly backprops from the wgrads computed
             # inside cuDNN (on fp16 weights) into the fp32 weights.
             assert utils.type_string(flat_weight) == 'FloatTensor'
-            if compat.tensor_is_float_tensor():
+            if compat.tensor_is_float_tensor() or compat.tensor_is_variable():
                 # Pre-0.4. A little slower, since it zeros out memory.
                 flat_weight_fp16 = flat_weight.new().half().resize_(flat_weight.shape)
             else:
