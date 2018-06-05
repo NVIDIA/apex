@@ -8,7 +8,6 @@ import os
 import torch
 from torch.utils.ffi import create_extension
 
-assert torch.cuda.is_available()
 abs_path = os.path.dirname(os.path.realpath(__file__))
 
 sources = ['apex/amp/src/scale_cuda.c']
