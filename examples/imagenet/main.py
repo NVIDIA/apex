@@ -16,13 +16,13 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 
+import numpy as np
+
 try:
     from apex.parallel import DistributedDataParallel as DDP
     from apex.fp16_utils import *
 except ImportError:
     raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
-
-import numpy as np
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -61,8 +61,8 @@ parser.add_argument('--pretrained', dest='pretrained', action='store_true',
 
 parser.add_argument('--fp16', action='store_true',
                     help='Run model fp16 mode.')
-parser.add_argument('--static-loss-scale', type=float, default=1,
-                    help='Static loss scale, positive power of 2 values can improve fp16 convergence.')
+parser.add_argument('--loss-scale', type=float, default=1,
+                    help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
 parser.add_argument('--prof', dest='prof', action='store_true',
                     help='Only run 10 iterations for profiling.')
 
@@ -80,6 +80,26 @@ parser.add_argument('--rank', default=0, type=int,
 
 cudnn.benchmark = True
 
+
+import numpy as np
+
+def fast_collate(batch):
+    imgs = [img[0] for img in batch]
+    targets = torch.tensor([target[1] for target in batch], dtype=torch.int64)
+    w = imgs[0].size[0]
+    h = imgs[0].size[1]
+    tensor = torch.zeros( (len(imgs), 3, h, w), dtype=torch.uint8 )
+    for i, img in enumerate(imgs):
+        nump_array = np.asarray(img, dtype=np.uint8)
+        tens = torch.from_numpy(nump_array)
+        if(nump_array.ndim < 3):
+            nump_array = np.expand_dims(nump_array, axis=-1)
+        nump_array = np.rollaxis(nump_array, 2)
+
+        tensor[i] += torch.from_numpy(nump_array)
+        
+    return tensor, targets
+
 best_prec1 = 0
 args = parser.parse_args()
 def main():
@@ -93,17 +113,11 @@ def main():
 
     if args.distributed:
         torch.cuda.set_device(args.gpu)
-        dist.init_process_group(backend=args.dist_backend, 
-                                init_method=args.dist_url,
-                                world_size=args.world_size,
-                                rank=args.rank)
+        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
+                                world_size=args.world_size, rank=args.rank)
 
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
-
-    if args.static_loss_scale != 1.0:
-        if not args.fp16:
-            print("Warning:  if --fp16 is not used, static_loss_scale will be ignored.")
 
     # create model
     if args.pretrained:
@@ -149,12 +163,10 @@ def main():
     # Data loading code
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
 
     if(args.arch == "inception_v3"):
         crop_size = 299
-        val_size = 320 # Arbitrarily chosen, adjustable.
+        val_size = 320 # I chose this value arbitrarily, we can adjust.
     else:
         crop_size = 224
         val_size = 256
@@ -164,8 +176,8 @@ def main():
         transforms.Compose([
             transforms.RandomResizedCrop(crop_size),
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
+            #transforms.ToTensor(), Too slow
+            #normalize,
         ]))
 
     if args.distributed:
@@ -175,8 +187,12 @@ def main():
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-        num_workers=args.workers, pin_memory=True, sampler=train_sampler)
+        num_workers=args.workers, pin_memory=True, sampler=train_sampler, collate_fn=fast_collate)
 
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+    
+    
     val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, transforms.Compose([
             transforms.Resize(val_size),
@@ -215,10 +231,22 @@ def main():
                 'optimizer' : optimizer.state_dict(),
             }, is_best)
 
+# item() is a recent addition, so this helps with backward compatibility.
+def to_python_float(t):
+    if hasattr(t, 'item'):
+        return t.item()
+    else:
+        return t[0]
+
 class data_prefetcher():
     def __init__(self, loader):
         self.loader = iter(loader)
         self.stream = torch.cuda.Stream()
+        self.mean = torch.tensor([0.485, 0.456, 0.406]).cuda().view(1,3,1,1)
+        self.std = torch.tensor([0.229, 0.224, 0.225]).cuda().view(1,3,1,1)
+        if args.fp16:
+            self.mean = self.mean.half()
+            self.std = self.std.half()
         self.preload()
 
     def preload(self):
@@ -231,7 +259,12 @@ class data_prefetcher():
         with torch.cuda.stream(self.stream):
             self.next_input = self.next_input.cuda(async=True)
             self.next_target = self.next_target.cuda(async=True)
-
+            if args.fp16:
+                self.next_input = self.next_input.half()
+            else:
+                self.next_input = self.next_input.float()
+            self.next_input = self.next_input.sub_(self.mean).div_(self.std)
+            
     def next(self):
         torch.cuda.current_stream().wait_stream(self.stream)
         input = self.next_input
@@ -284,15 +317,15 @@ def train(train_loader, model, criterion, optimizer, epoch):
         top1.update(to_python_float(prec1), input.size(0))
         top5.update(to_python_float(prec5), input.size(0))
 
+        loss = loss*args.loss_scale
         # compute gradient and do SGD step
         if args.fp16:
-            loss = loss*args.static_loss_scale
             model.zero_grad()
             loss.backward()
             model_grads_to_master_grads(model_params, master_params)
-            if args.static_loss_scale != 1:
+            if args.loss_scale != 1:
                 for param in master_params:
-                    param.grad.data = param.grad.data/args.static_loss_scale
+                    param.grad.data = param.grad.data/args.loss_scale
             optimizer.step()
             master_params_to_model_params(model_params, master_params)
         else:
