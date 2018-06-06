@@ -2,3 +2,4 @@ apex.egg-info
 dist
 build
 docs/build
+*~
