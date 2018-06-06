@@ -1,6 +1,6 @@
 import torch
 from torch.autograd import Variable
-import apex._C
+import apex_C
 import numpy as np
 from compare import compare
 from norm import pt_norm, get_norm_shape
@@ -88,7 +88,7 @@ for rows, cols, fast in sizes:
         pLpg_cuda     = pLpg_cuda    .half()
    
     torch.cuda.nvtx.range_push("kernel weight norm backward")
-    apex._C.weight_norm_bwd(pLpInput_cuda, 
+    apex_C.weight_norm_bwd(pLpInput_cuda, 
                             pLpg_cuda, 
                             pLpOutput_fp16,
                             pt_input_fp16, 

@@ -1,7 +1,13 @@
 #include "kernel_utils.cuh"
 
 #include <ATen/ATen.h>
+
+#ifdef VERSION_LE_04
+#include "ATen/cuda/AccumulateType.cuh"
+#else
 #include "ATen/AccumulateType.h"
+#endif
+
 #include "ATen/cuda/CUDATensorMethods.cuh"
 #include "ATen/cuda/CUDATypeConversion.cuh"
 #include <THC/THCTensorMathReduce.cuh>
@@ -40,7 +46,7 @@ __global__ void weight_norm_bwd_first_dim_kernel
     thread_sum += pLpwi*savedvi; // AccumOp, could do Kahan here
   }
 
-  reduce_block_into_lanes(s, thread_sum, 1, ReduceAdd<accscalar_t>());
+  reduce_block_into_lanes(s, thread_sum, 1, REDUCE_ADD);
   accscalar_t result = s[0];
 
   // Could choose to save reciprocal of norm instead I suppose, but norms is probably
@@ -99,7 +105,7 @@ __global__ void weight_norm_bwd_last_dim_kernel
       slower_dims_location += blockDim.y; 
     }
 
-  reduce_block_into_lanes(s, thread_sum, blockDim.x, ReduceAdd<accscalar_t>()); 
+  reduce_block_into_lanes(s, thread_sum, blockDim.x, REDUCE_ADD); 
   accscalar_t result = s[threadIdx.x];
 
   // Broadcast load; could use shared memory instead.
@@ -159,7 +165,7 @@ void weight_norm_bwd_cuda
        [&]
        {
          using cuda_scalar_t = cuda::type<scalar_t>;
-         using accscalar_t = acc_type<cuda_scalar_t, true>;
+         USING_ACCSCALAR_T
 
 	 weight_norm_bwd_first_dim_kernel
 	   <<<pLpw.size(0), 
@@ -192,7 +198,7 @@ void weight_norm_bwd_cuda
        [&]
        {
          using cuda_scalar_t = cuda::type<scalar_t>;
-         using accscalar_t = acc_type<cuda_scalar_t, true>;
+         USING_ACCSCALAR_T
 
          weight_norm_bwd_last_dim_kernel
            <<<(fast_dim_size+TILE_W-1)/TILE_W,

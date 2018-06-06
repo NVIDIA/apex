@@ -4,7 +4,7 @@ import warnings
 
 import torch
 
-from apex._C import scale_check_overflow
+from apex_C import scale_check_overflow
 
 class AmpHandle(object):
     def __init__(self, enable_caching=True):

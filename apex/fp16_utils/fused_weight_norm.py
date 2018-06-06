@@ -1,7 +1,7 @@
 import torch
 from torch.autograd import Variable
 from torch.autograd.function import Function, once_differentiable
-import apex._C
+import apex_C
 
 def check_contig_cuda(tensors, names):
     for tensor, name in zip(tensors, names):
@@ -71,7 +71,7 @@ class Fused_Weight_Norm(Function):
         [output_size(0),1,1,...].
         """
 
-        apex._C.weight_norm_fwd(output, norms, input, g, dim)
+        apex_C.weight_norm_fwd(output, norms, input, g, dim)
         ctx.save_for_backward(input, g)
 
         # save_for_backward can only save input or output tensors,
@@ -102,7 +102,7 @@ class Fused_Weight_Norm(Function):
         grad_input = grad_output_contig.new(grad_output.size()).contiguous()
         grad_g = savedg.new(savedg.size()).contiguous()
 
-        apex._C.weight_norm_bwd(grad_input, 
+        apex_C.weight_norm_bwd(grad_input, 
                                 grad_g,
                                 grad_output_contig, 
                                 savedInput, 

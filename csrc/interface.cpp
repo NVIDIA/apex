@@ -4,7 +4,7 @@
 // here, but I can't make nvcc play well with torch.h.  For now, use a layer of indirection 
 // and separate .cu implementation files.
 
-// If we want everything to be part of "apex._C", we need all the interface functions defined 
+// If we want everything to be part of "apex_C", we need all the interface functions defined 
 // in this file, or linker will complain about "multiple definitions of PyInit".
 // TODO:  multiple modules?
 
@@ -54,15 +54,23 @@ void scale_check_overflow_cuda
    float scale,
    const at::Tensor& d_buf);
 
+#ifdef VERSION_LE_04
+#define VERSION_AGNOSTIC_CHECK AT_ASSERT
+#else
+#define VERSION_AGNOSTIC_CHECK AT_CHECK
+#endif
+
 void scale_check_overflow
   (at::Tensor grads,
    float scale,
    at::Tensor overflow_buf)
 { 
-  AT_CHECK(grads.type().is_cuda(), "x must be a CUDA tensor");
-  AT_CHECK(overflow_buf.type().is_cuda(), "y must be a CUDA tensor");
+  VERSION_AGNOSTIC_CHECK
+    (grads.type().is_cuda(), "x must be a CUDA tensor");
+  VERSION_AGNOSTIC_CHECK
+    (overflow_buf.type().is_cuda(), "y must be a CUDA tensor");
   // Make sure we are downscaling the FP32 master grads
-  AT_CHECK
+  VERSION_AGNOSTIC_CHECK
     (grads.type().scalarType() == at::ScalarType::Float, 
      "grads supplied to scale_check_overflow should be fp32 (master grads).")
   scale_check_overflow_cuda(grads, scale, overflow_buf);

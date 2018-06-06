@@ -1,6 +1,6 @@
 import torch
 import sys
-import apex._C
+import apex_C
 import numpy as np
 from compare import compare
 from norm import pt_norm, get_norm_shape
@@ -60,7 +60,7 @@ for rows, cols, fast in sizes:
         g        =        g.half()
         cuda_out = cuda_out.half()
     
-    apex._C.weight_norm_fwd(cuda_out, cuda_norms, pt_in, g, dim)
+    apex_C.weight_norm_fwd(cuda_out, cuda_norms, pt_in, g, dim)
     torch.cuda.synchronize()
     # quit()
 

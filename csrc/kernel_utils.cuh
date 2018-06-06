@@ -13,6 +13,19 @@
 #define __SYNCWARP 
 #endif
 
+#ifdef VERSION_LE_04                                                        
+#define USING_ACCSCALAR_T using accscalar_t = cuda::acc_type<cuda_scalar_t>;
+#else                                                                        
+#define USING_ACCSCALAR_T using accscalar_t = acc_type<cuda_scalar_t, true>; 
+#endif                                                                       
+
+#ifdef VERSION_LE_04                                    
+#define REDUCE_ADD ReduceAdd<accscalar_t, accscalar_t>()
+#else                                                   
+#define REDUCE_ADD ReduceAdd<accscalar_t>()             
+#endif                                                  
+
+
 // Block size for weight_norm_*_first_dim_kernel.
 // Currently, kernels are non-persistent.
 // Dialing up the block size to, say 1024, can improve performance by

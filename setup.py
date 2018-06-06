@@ -14,6 +14,18 @@ if not torch.cuda.is_available():
     print("Warning: Torch did not find available GPUs on this system.\n",
           "If your intention is to cross-compile, this is not an error.")
 
+print("torch.__version__  = ", torch.__version__)
+TORCH_MAJOR = int(torch.__version__.split('.')[0])
+TORCH_MINOR = int(torch.__version__.split('.')[1])
+
+if TORCH_MAJOR == 0 and TORCH_MINOR < 4:
+      raise RuntimeError("APEx requires Pytorch 0.4 or newer.\n" +
+                         "The latest stable release can be obtained from https://pytorch.org/")
+
+version_le_04 = []
+if TORCH_MAJOR == 0 and TORCH_MINOR == 4:
+    version_le_04 = ['-DVERSION_LE_04']
+
 def find(path, regex_func, collect=False):
     collection = [] if collect else None
     for root, dirs, files in os.walk(path):
@@ -35,37 +47,37 @@ def get_cuda_version():
     CUDA_LIB = re.compile(', V[0-9]+\.[0-9]+\.[0-9]+').search(nvcc_output).group(0).split('V')[1]
     print("Found CUDA_LIB = ", CUDA_LIB)
 
-    CUDA_MAJOR_VERSION = int(CUDA_LIB.split('.')[0])
-    print("Found CUDA_MAJOR_VERSION = ", CUDA_MAJOR_VERSION)
+    CUDA_MAJOR = int(CUDA_LIB.split('.')[0])
+    print("Found CUDA_MAJOR = ", CUDA_MAJOR)
 
-    if CUDA_MAJOR_VERSION < 8:
+    if CUDA_MAJOR < 8:
         raise RuntimeError("APex requires CUDA 8.0 or newer")
 
-    return CUDA_MAJOR_VERSION
+    return CUDA_MAJOR
 
 if CUDA_HOME is not None:
     print("Found CUDA_HOME = ", CUDA_HOME)
 
-    CUDA_MAJOR_VERSION = get_cuda_version()
+    CUDA_MAJOR = get_cuda_version()
 
     gencodes = ['-gencode', 'arch=compute_52,code=sm_52',
                 '-gencode', 'arch=compute_60,code=sm_60',
                 '-gencode', 'arch=compute_61,code=sm_61',]
 
-    if CUDA_MAJOR_VERSION > 8:
+    if CUDA_MAJOR > 8:
         gencodes += ['-gencode', 'arch=compute_70,code=sm_70',
                      '-gencode', 'arch=compute_70,code=compute_70',]
 
     ext_modules = []
     extension = CUDAExtension(
-        'apex._C', [
+        'apex_C', [
             'csrc/interface.cpp',
             'csrc/weight_norm_fwd_cuda.cu',
             'csrc/weight_norm_bwd_cuda.cu',
             'csrc/scale_cuda.cu',
         ],
-        extra_compile_args={'cxx': ['-g'],
-                            'nvcc': ['-O3'] + gencodes})
+        extra_compile_args={'cxx': ['-g'] + version_le_04,
+                            'nvcc': ['-O3'] + version_le_04 + gencodes})
     ext_modules.append(extension)
 else:
     raise RuntimeError("Could not find Cuda install directory")
