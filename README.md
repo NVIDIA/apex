@@ -5,7 +5,9 @@ This repo is designed to hold PyTorch modules and utilities that are under activ
 # Requirements
 
 Python 3
+
 CUDA 9
+
 PyTorch 0.4 or newer.  We recommend to use the latest stable release, obtainable from https://pytorch.org/.  We also test against the latest master branch, obtainable from https://github.com/pytorch/pytorch.  If you have any problems building, please file an issue.
 
 # [Full Documentation](https://nvidia.github.io/apex)
