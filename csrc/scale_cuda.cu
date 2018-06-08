@@ -2,7 +2,8 @@
 // #include "ATen/AccumulateType.h"
 #include "ATen/cuda/CUDATensorMethods.cuh"
 #include "ATen/cuda/CUDATypeConversion.cuh"
-#include <THC/THCTensorMathReduce.cuh>
+// #include <THC/THCTensorMathReduce.cuh>
+#include <THC/THCGeneral.h>
 
 #include <assert.h>
 

@@ -1,6 +1,11 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+// Lock in a local version of CUDATypeConversion.cuh
+#include "CUDATypeConversion.cuh"
+
+#include <THC/THCNumerics.cuh>
+
 #if __CUDACC_VER_MAJOR__ >= 9
 #define __SHFL_DOWN(var, delta)  __shfl_down_sync(0xffffffff, var, delta)
 #else
@@ -13,18 +18,12 @@
 #define __SYNCWARP 
 #endif
 
+// not a long term solution, need to get this code into upstream.
 #ifdef VERSION_LE_04                                                        
 #define USING_ACCSCALAR_T using accscalar_t = cuda::acc_type<cuda_scalar_t>;
 #else                                                                        
 #define USING_ACCSCALAR_T using accscalar_t = acc_type<cuda_scalar_t, true>; 
 #endif                                                                       
-
-#ifdef VERSION_LE_04                                    
-#define REDUCE_ADD ReduceAdd<accscalar_t, accscalar_t>()
-#else                                                   
-#define REDUCE_ADD ReduceAdd<accscalar_t>()             
-#endif                                                  
-
 
 // Block size for weight_norm_*_first_dim_kernel.
 // Currently, kernels are non-persistent.
@@ -44,13 +43,13 @@
 // blocks across the slow dimension up to the hardware-max block size of 1024.
 #define TILE_H 64
 
-// For reference, in THCTensorMathReduce.cuh:
-// template <typename T>
-// struct ReduceAdd {
-//   inline __device__ T operator()(const T a, const T b) const {
-//     return THCNumerics<T>::add(a, b);
-//   }
-// };
+// Lock in a local version of ReduceAdd, copied from THCTensorMathReduce.cuh:
+template <typename T>
+struct ReduceAdd {
+  inline __device__ T operator()(const T a, const T b) const {
+    return THCNumerics<T>::add(a, b);
+  }
+};
 
 // lanes is intended to be <= 32.
 template 

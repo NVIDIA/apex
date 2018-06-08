@@ -10,7 +10,7 @@
 
 #include "ATen/cuda/CUDATensorMethods.cuh"
 #include "ATen/cuda/CUDATypeConversion.cuh"
-#include <THC/THCTensorMathReduce.cuh>
+// #include <THC/THCTensorMathReduce.cuh>
 
 template
   <typename scalar_t, 
@@ -44,7 +44,7 @@ __global__ void weight_norm_fwd_first_dim_kernel
     thread_sum += val_f*val_f; // AccumOp, could do Kahan here
   }
 
-  reduce_block_into_lanes(s, thread_sum, 1, REDUCE_ADD);
+  reduce_block_into_lanes(s, thread_sum, 1, ReduceAdd<accscalar_t>());
   accscalar_t result = s[0];
 
   result = sqrtf(result);
@@ -98,7 +98,7 @@ __global__ void weight_norm_fwd_last_dim_kernel
       slower_dims_location += blockDim.y; 
     }
 
-  reduce_block_into_lanes(s, thread_sum, blockDim.x, REDUCE_ADD); 
+  reduce_block_into_lanes(s, thread_sum, blockDim.x, ReduceAdd<accscalar_t>()); 
 
   // Better to pass an EpilogueOp to reduce_block_into_lanes, implement later
   if(threadIdx.y == 0)
@@ -136,7 +136,7 @@ void weight_norm_fwd_cuda
 {
 #ifdef DEBUG_ANY
   using namespace std;
-  cout << "hello from send_to_fwd with v.type = " << v.type << endl;
+  cout << "hello from send_to_fwd with v.type() = " << v.type() << endl;
 #endif
 
   const int ndims = v.ndimension();
@@ -155,7 +155,7 @@ void weight_norm_fwd_cuda
        "weight_norm_fwd_first_dim_kernel",  
        [&]
        {
-         using cuda_scalar_t = cuda::type<scalar_t>;
+         using cuda_scalar_t = apex::cuda::type<scalar_t>;
          USING_ACCSCALAR_T
 
          weight_norm_fwd_first_dim_kernel
@@ -186,7 +186,7 @@ void weight_norm_fwd_cuda
        "weight_norm_fwd_last_dim_kernel",  
        [&]
        {
-         using cuda_scalar_t = cuda::type<scalar_t>;
+         using cuda_scalar_t = apex::cuda::type<scalar_t>;
          USING_ACCSCALAR_T
         
          // just trying this formatting out to see how it feels... 

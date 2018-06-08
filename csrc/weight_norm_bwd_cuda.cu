@@ -10,7 +10,7 @@
 
 #include "ATen/cuda/CUDATensorMethods.cuh"
 #include "ATen/cuda/CUDATypeConversion.cuh"
-#include <THC/THCTensorMathReduce.cuh>
+// #include <THC/THCTensorMathReduce.cuh>
 
 template
   <typename scalar_t, 
@@ -46,7 +46,7 @@ __global__ void weight_norm_bwd_first_dim_kernel
     thread_sum += pLpwi*savedvi; // AccumOp, could do Kahan here
   }
 
-  reduce_block_into_lanes(s, thread_sum, 1, REDUCE_ADD);
+  reduce_block_into_lanes(s, thread_sum, 1, ReduceAdd<accscalar_t>());
   accscalar_t result = s[0];
 
   // Could choose to save reciprocal of norm instead I suppose, but norms is probably
@@ -105,7 +105,7 @@ __global__ void weight_norm_bwd_last_dim_kernel
       slower_dims_location += blockDim.y; 
     }
 
-  reduce_block_into_lanes(s, thread_sum, blockDim.x, REDUCE_ADD); 
+  reduce_block_into_lanes(s, thread_sum, blockDim.x, ReduceAdd<accscalar_t>()); 
   accscalar_t result = s[threadIdx.x];
 
   // Broadcast load; could use shared memory instead.
@@ -145,7 +145,7 @@ void weight_norm_bwd_cuda
 {
 #ifdef DEBUG_ANY
   using namespace std;
-  cout << "Hello from send_to_bwd with pLpw.type = " << pLpw.type << endl;
+  cout << "Hello from send_to_bwd with pLpw.type() = " << pLpw.type() << endl;
 #endif
 
   const int ndims = savedv.ndimension();
@@ -164,7 +164,7 @@ void weight_norm_bwd_cuda
        "weight_norm_bwd_first_dim_kernel",  
        [&]
        {
-         using cuda_scalar_t = cuda::type<scalar_t>;
+         using cuda_scalar_t = apex::cuda::type<scalar_t>;
          USING_ACCSCALAR_T
 
 	 weight_norm_bwd_first_dim_kernel
@@ -197,7 +197,7 @@ void weight_norm_bwd_cuda
        "weight_norm_bwd_last_dim_kernel",  
        [&]
        {
-         using cuda_scalar_t = cuda::type<scalar_t>;
+         using cuda_scalar_t = apex::cuda::type<scalar_t>;
          USING_ACCSCALAR_T
 
          weight_norm_bwd_last_dim_kernel
