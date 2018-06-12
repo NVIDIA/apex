@@ -70,7 +70,7 @@ def sequence_promote(mod, fn, verbose=False):
                                          seq, {})
             return orig_fn(cast_seq, *args, **kwargs)
         else:
-            # TODO: other mixed-type cases aren't due to autohalf.
+            # TODO: other mixed-type cases aren't due to amp.
             #       Just pass through?
             return orig_fn(seq, *args, **kwargs)
     utils.set_func(mod, fn, wrapper)
