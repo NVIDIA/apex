@@ -11,9 +11,16 @@ class AmpHandle(object):
         self._verbose = verbose
         self._cache = dict()
         self._default_scaler = LossScaler()
+        self._is_active = True
 
     def is_active(self):
-        return True
+        return self._is_active
+
+    @contextlib.contextmanager
+    def _disable_casts(self):
+        self._is_active = False
+        yield
+        self._is_active = True
 
     def wrap_optimizer(self, optimizer, num_loss=1):
         self._default_scaler = None
@@ -75,6 +82,10 @@ class AmpHandle(object):
 class NoOpHandle(object):
     def is_active(self):
         return False
+
+    @contextlib.contextmanager
+    def _disable_casts(self):
+        yield
 
     def wrap_optimizer(self, optimizer, num_loss=1):
         return OptimWrapper(optimizer, self, num_loss)
