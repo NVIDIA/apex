@@ -9,6 +9,9 @@ def make_cast_wrapper(orig_fn, cast_fn, handle,
                       try_caching=False):
     @functools.wraps(orig_fn)
     def wrapper(*args, **kwargs):
+        if not handle.is_active():
+            return orig_fn(*args, **kwargs)
+
         if try_caching and handle.has_cache:
             args = list(args)
             for i in range(len(args)):
@@ -201,3 +204,14 @@ def rnn_cast(backend, fn, verbose=False):
             return forward(*new_args, **fkwargs)
         return fwd_wrapper
     utils.set_func(backend, fn, rnn_wrapper)
+
+def disable_casts(mod, fn, handle):
+    if not utils.has_func(mod, fn):
+        return
+
+    orig_fn = utils.get_func(mod, fn)
+    @functools.wraps(orig_fn)
+    def wrapper(*args, **kwargs):
+        with handle._disable_casts():
+            return orig_fn(*args, **kwargs)
+    utils.set_func(mod, fn, wrapper)
