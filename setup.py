@@ -36,6 +36,49 @@ def find(path, regex_func, collect=False):
                     return os.path.join(root, file)
     return list(set(collection))
 
+# Due to https://github.com/pytorch/pytorch/issues/8223, for Pytorch <= 0.4
+# torch.utils.cpp_extension's check for CUDA_HOME fails if there are no GPUs
+# available on the system, which prevents cross-compiling and building via Dockerfiles.
+# Workaround:  manually search for CUDA_HOME if Pytorch <= 0.4.
+def find_cuda_home():
+    cuda_path = None
+    CUDA_HOME = None
+
+    CUDA_HOME = os.getenv('CUDA_HOME', '/usr/local/cuda')
+    if not os.path.exists(CUDA_HOME):
+        # We use nvcc path on Linux and cudart path on macOS
+        cudart_path = ctypes.util.find_library('cudart')
+        if cudart_path is not None:
+            cuda_path = os.path.dirname(cudart_path)
+        if cuda_path is not None:
+            CUDA_HOME = os.path.dirname(cuda_path)
+            
+    if not cuda_path and not CUDA_HOME:
+        nvcc_path = find('/usr/local/', re.compile("nvcc").search, False)
+        if nvcc_path:
+            CUDA_HOME = os.path.dirname(nvcc_path)
+            if CUDA_HOME:
+                os.path.dirname(CUDA_HOME)
+
+        if (not os.path.exists(CUDA_HOME+os.sep+"lib64")
+            or not os.path.exists(CUDA_HOME+os.sep+"include") ):
+            raise RuntimeError("Error: found NVCC at ", 
+                               nvcc_path,
+                               " but could not locate CUDA libraries"+
+                               " or include directories.")
+        
+        raise RuntimeError("Error: Could not find cuda on this system. " +
+                            "Please set your CUDA_HOME enviornment variable "
+                            "to the CUDA base directory.")
+
+    return CUDA_HOME
+
+if TORCH_MAJOR == 0 and TORCH_MINOR == 4:
+    if CUDA_HOME is None:
+        CUDA_HOME = find_cuda_home()
+        # Patch cpp_extension's view of CUDA_HOME:
+        torch.utils.cpp_extension.CUDA_HOME = CUDA_HOME
+
 def get_cuda_version():
     NVCC = find(CUDA_HOME+os.sep+"bin",
                 re.compile('nvcc$').search)
@@ -55,6 +98,7 @@ def get_cuda_version():
     return CUDA_MAJOR
 
 if CUDA_HOME is not None:
+ 
     print("Found CUDA_HOME = ", CUDA_HOME)
 
     CUDA_MAJOR = get_cuda_version()
