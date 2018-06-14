@@ -31,7 +31,7 @@ model = torch.nn.Linear(D_in, D_out).cuda().half()
 model = DDP(model)
 
 optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
-### CONSTRUCT FP16_Optimizer ###
+### Construct FP16_Optimizer ###
 optimizer = FP16_Optimizer(optimizer)
 ###
 
@@ -40,8 +40,8 @@ loss_fn = torch.nn.MSELoss()
 for t in range(500):
     optimizer.zero_grad()
     y_pred = model(x)
-    loss = loss_fn(y_pred, y)
-    ### CHANGE loss.backward() TO: ###
+    loss = loss_fn(y_pred.float(), y.float())
+    ### Change loss.backward() to: ###
     optimizer.backward(loss)
     ###
     optimizer.step()

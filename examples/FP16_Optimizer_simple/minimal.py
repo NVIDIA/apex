@@ -1,15 +1,6 @@
 import torch
 from torch.autograd import Variable
-import argparse
 from apex.fp16_utils import FP16_Optimizer
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--local_rank", type=int)
-args = parser.parse_args()
-
-torch.cuda.set_device(args.local_rank)
-torch.distributed.init_process_group(backend='nccl',
-                                     init_method='env://')
 
 torch.backends.cudnn.benchmark = True
 
@@ -19,18 +10,19 @@ x = Variable(torch.cuda.FloatTensor(N, D_in ).normal_()).half()
 y = Variable(torch.cuda.FloatTensor(N, D_out).normal_()).half()
 
 model = torch.nn.Linear(D_in, D_out).cuda().half()
-model = torch.nn.parallel.DistributedDataParallel(model,
-                                                  device_ids=[args.local_rank],
-                                                  output_device=args.local_rank)
 
 optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
-### Construct FP16_Optimizer ###
-optimizer = FP16_Optimizer(optimizer)
-###
+### Construct FP16_Optimizer with static loss scaling ###
+optimizer = FP16_Optimizer(optimizer, static_loss_scale=128.0)
+### ...or construct with dynamic loss scaling ###
+# optimizer = FP16_Optimizer(optimizer, 
+#                            dynamic_loss_scale=True,
+#                            dynamic_loss_args={'scale_factor' : 4})
+### dynamic_loss_args is optional, for "power users,"  and unnecessary in most cases.
 
 loss_fn = torch.nn.MSELoss()
 
-for t in range(500):
+for t in range(1000):
     optimizer.zero_grad()
     y_pred = model(x)
     loss = loss_fn(y_pred.float(), y.float())
@@ -40,4 +32,3 @@ for t in range(500):
     optimizer.step()
 
 print("final loss = ", loss)
-
