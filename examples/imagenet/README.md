@@ -1,6 +1,6 @@
 # ImageNet training in PyTorch
 
-This example is based on https://github.com/pytorch/examples/tree/master/imagenet.
+This example is based on [https://github.com/pytorch/examples/tree/master/imagenet](https://github.com/pytorch/examples/tree/master/imagenet).
 It implements training of popular model architectures, such as ResNet, AlexNet, and VGG on the ImageNet dataset.
 
 `main.py` and `main_fp16_optimizer.py` have been modified to use the `DistributedDataParallel` module in APEx instead of the one in upstream PyTorch.  For description of how this works please see the distributed example included in this repo.

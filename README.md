@@ -6,25 +6,29 @@ Some of the code here will be included in upstream Pytorch eventually.
 The intention of Apex is to make up-to-date utilities available to 
 users as quickly as possible.
 
-# [Full Documentation](https://nvidia.github.io/apex)
+## Full API Documentation: [https://nvidia.github.io/apex](https://nvidia.github.io/apex)
 
 # Contents
 
 ## 1. Mixed Precision 
 
-[amp:  Automatic Mixed Precision](https://github.com/NVIDIA/apex/tree/master/apex/amp)
+### amp:  Automatic Mixed Precision
 
 `apex.amp` is a tool designed for ease of use and maximum safety in FP16 training.  All potentially unsafe ops are performed in FP32 under the hood, while safe ops are performed using faster, Tensor Core-friendly FP16 math.  `amp` also automatically implements dynamic loss scaling. 
 
 The intention of `amp` is to be the "on-ramp" to easy FP16 training: achieve all the numerical stability of full FP32 training, with most of the performance benefits of full FP16 training.
 
-[FP16_Optimizer](https://github.com/NVIDIA/apex/tree/master/apex/fp16_utils)
+[Python Source and API Documentation](https://github.com/NVIDIA/apex/tree/master/apex/amp)
+
+### FP16_Optimizer
 
 `apex.FP16_Optimizer` wraps an existing Python optimizer and automatically implements master parameters and static or dynamic loss scaling under the hood.
 
 The intention of `FP16_Optimizer` is to be the "highway" for FP16 training: achieve most of the numerically stability of full FP32 training, and almost all the performance benefits of full FP16 training.
 
-### Examples:
+[Python Source](https://github.com/NVIDIA/apex/tree/master/apex/fp16_utils)
+
+[API Documentation](https://nvidia.github.io/apex/fp16_utils.html#automatic-management-of-master-params-loss-scaling)
 
 [Simple examples with FP16_Optimizer](https://github.com/NVIDIA/apex/tree/master/examples/FP16_Optimizer_simple)
 
@@ -43,9 +47,11 @@ optimized for NVIDIA's NCCL communication library.
 
 `apex.parallel.multiproc` is a launch utility that helps set up arguments for `DistributedDataParallel.`
 
-### [Example/Walkthrough](https://github.com/csarofeen/examples/tree/apex/distributed).
+[API Documentation](https://nvidia.github.io/apex/parallel.html)
 
-### [Python Source](https://nvidia.github.io/apex/parallel).
+[Python Source](https://nvidia.github.io/apex/parallel)
+
+[Example/Walkthrough](https://github.com/NVIDIA/apex/tree/master/examples/distributed)
 
 # Requirements
 

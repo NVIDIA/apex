@@ -7,6 +7,6 @@ multiproc.py contains the source code for `apex.parallel.multiproc`, a launch ut
 
 ### [API Documentation](https://nvidia.github.io/apex/parallel.html)
 
-### [Example/Walkthrough](https://github.com/csarofeen/examples/tree/apex/distributed)
+### [Example/Walkthrough](https://github.com/NVIDIA/apex/tree/master/examples/distributed)
 
 
