@@ -20,15 +20,6 @@ For Pytorch users, Real Examples in particular is recommended.
 .. automodule:: apex.fp16_utils
 .. currentmodule:: apex.fp16_utils
 
-Manual master parameter management
-----------------------------------
-
-.. autofunction:: prep_param_lists
-
-.. autofunction:: master_params_to_model_params
-
-.. autofunction:: model_grads_to_master_grads
-
 Automatic management of master params + loss scaling
 ----------------------------------------------------
 
@@ -40,6 +31,15 @@ Automatic management of master params + loss scaling
 
 .. autoclass:: DynamicLossScaler
     :members:
+
+Manual master parameter management
+----------------------------------
+
+.. autofunction:: prep_param_lists
+
+.. autofunction:: master_params_to_model_params
+
+.. autofunction:: model_grads_to_master_grads
 
 
 Custom Operations
