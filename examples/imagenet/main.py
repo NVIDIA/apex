@@ -61,8 +61,8 @@ parser.add_argument('--pretrained', dest='pretrained', action='store_true',
 
 parser.add_argument('--fp16', action='store_true',
                     help='Run model fp16 mode.')
-parser.add_argument('--loss-scale', type=float, default=1,
-                    help='Loss scaling, positive power of 2 values can improve fp16 convergence.')
+parser.add_argument('--static-loss-scale', type=float, default=1,
+                    help='Static loss scale, positive power of 2 values can improve fp16 convergence.')
 parser.add_argument('--prof', dest='prof', action='store_true',
                     help='Only run 10 iterations for profiling.')
 
@@ -313,15 +313,15 @@ def train(train_loader, model, criterion, optimizer, epoch):
         top1.update(to_python_float(prec1), input.size(0))
         top5.update(to_python_float(prec5), input.size(0))
 
-        loss = loss*args.loss_scale
+        loss = loss*args.static_loss_scale
         # compute gradient and do SGD step
         if args.fp16:
             model.zero_grad()
             loss.backward()
             model_grads_to_master_grads(model_params, master_params)
-            if args.loss_scale != 1:
+            if args.static_loss_scale != 1:
                 for param in master_params:
-                    param.grad.data = param.grad.data/args.loss_scale
+                    param.grad.data = param.grad.data/args.static_loss_scale
             optimizer.step()
             master_params_to_model_params(model_params, master_params)
         else:
