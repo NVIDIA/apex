@@ -1,4 +1,5 @@
-FROM pytorch/pytorch:0.4_cuda9_cudnn7
+# Base image must at least have nvcc and CUDA installed.
+FROM <base>
 WORKDIR /workspace
 # uninstall Apex if present
 RUN pip uninstall -y apex || :
