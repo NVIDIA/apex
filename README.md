@@ -26,9 +26,9 @@ The intention of `amp` is to be the "on-ramp" to easy FP16 training: achieve all
 
 The intention of `FP16_Optimizer` is to be the "highway" for FP16 training: achieve most of the numerically stability of full FP32 training, and almost all the performance benefits of full FP16 training.
 
-[Python Source](https://github.com/NVIDIA/apex/tree/master/apex/fp16_utils)
-
 [API Documentation](https://nvidia.github.io/apex/fp16_utils.html#automatic-management-of-master-params-loss-scaling)
+
+[Python Source](https://github.com/NVIDIA/apex/tree/master/apex/fp16_utils)
 
 [Simple examples with FP16_Optimizer](https://github.com/NVIDIA/apex/tree/master/examples/FP16_Optimizer_simple)
 
