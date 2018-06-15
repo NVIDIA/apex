@@ -5,16 +5,13 @@
 
 :github_url: https://github.com/nvidia/apex
 
-APEx (A PyTorch Extension)
+Apex (A PyTorch Extension)
 ===================================
 
-This is a repo designed to hold PyTorch modules and utilities that are under active development and experimental. This repo is not designed as a long term solution or a production solution. Things placed in here are intended to be eventually moved to upstream PyTorch.
+This site contains the API documentation for Apex (https://github.com/nvidia/apex),
+a Pytorch extension with NVIDIA-maintained utilities to streamline mixed precision and distributed training.  Some of the code here will be included in upstream Pytorch eventually. The intention of Apex is to make up-to-date utilities available to users as quickly as possible.
 
-A major focus of this extension is the training of neural networks using 16-bit precision floating point math, which offers significant performance benefits on latest NVIDIA GPU architectures. The reduced dynamic range of half precision, however, is more vulnerable to numerical overflow/underflow.
-
-APEX is an NVIDIA-maintained repository of utilities, including some that are targeted to improve the accuracy and stability of half precision networks, while maintaining high performance. The utilities are designed to be minimally invasive and easy to use.
-
-Installation requires CUDA9, PyTorch 0.3 or later, and Python 3. Installation can be done by running
+Installation requires CUDA 9 or later, PyTorch 0.4 or later, and Python 3. Installation can be done by running
 ::
   git clone https://www.github.com/nvidia/apex
   cd apex
@@ -24,12 +21,18 @@ Installation requires CUDA9, PyTorch 0.3 or later, and Python 3. Installation ca
 
 .. toctree::
    :maxdepth: 1
-   :caption: apex
+   :caption: FP16/Mixed Precision Training
+
+   fp16_utils
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Distributed Training
 
    parallel
-   reparameterization
-   RNN
-   fp16_utils
+
+..   reparameterization
+..   RNN
    
 Indices and tables
 ==================

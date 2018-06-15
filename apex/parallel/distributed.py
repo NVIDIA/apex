@@ -35,21 +35,33 @@ def flat_dist_call(tensors, call, extra_args=None):
             
 class DistributedDataParallel(Module):
     """
-    :class:`DistributedDataParallel` is a simpler version of upstream :class:`
-    DistributedDataParallel` that is optimized for use with NCCL. Its usage is designed
-    to be used in conjunction with apex.parallel.multiproc.py. It assumes that your run
-    is using multiprocess with 1 GPU/process, that the model is on the correct device,
-    and that torch.set_device has been used to set the device. Parameters are broadcasted
-    to the other processes on initialization of DistributedDataParallel, and will be
-    allreduced in buckets durring the backward pass.
+    :class:`apex.parallel.DistributedDataParallel` is a module wrapper that enables
+    easy multiprocess distributed data parallel training, similar to ``torch.nn.parallel.DistributedDataParallel``.
 
-    See https://github.com/NVIDIA/apex/tree/master/examples/distributed for detailed usage.
+    :class:`DistributedDataParallel` is designed to work with
+    the launch utility script ``apex.parallel.multiproc.py``.  
+    When used with ``multiproc.py``, :class:`DistributedDataParallel` 
+    assigns 1 process to each of the available (visible) GPUs on the node.
+    Parameters are broadcast across participating processes on initialization, and gradients are
+    allreduced and averaged over processes during ``backward()`.
+
+    :class:``DistributedDataParallel`` is optimized for use with NCCL.  It achieves high performance by 
+    overlapping communication with computation during ``backward()`` and bucketing smaller gradient
+    transfers to reduce the total number of transfers required.
+
+    :class:``DistributedDataParallel`` assumes that your script accepts the command line 
+    arguments "rank" and "world-size."  It also assumes that your script calls
+    ``torch.cuda.set_device(args.rank)`` before creating the model.
+
+    https://github.com/NVIDIA/apex/tree/master/examples/distributed shows detailed usage.
+    https://github.com/NVIDIA/apex/tree/master/examples/imagenet shows another example
+    that combines :class:`DistributedDataParallel` with mixed precision training.
 
     Args:
         module: Network definition to be run in multi-gpu/distributed mode.
-        message_size (Default = 10e6): Minimum number of elements in a communication bucket.
-        shared_param (Default = False): If your model uses shared parameters this must be true,
-        it will disable bucketing of parameters which is necessary to avoid race conditions.
+        message_size (Default = 1e7): Minimum number of elements in a communication bucket.
+        shared_param (Default = False): If your model uses shared parameters this must be True.
+        It will disable bucketing of parameters to avoid race conditions.
 
     """
 

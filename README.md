@@ -54,6 +54,9 @@ optimized for NVIDIA's NCCL communication library.
 
 [Example/Walkthrough](https://github.com/NVIDIA/apex/tree/master/examples/distributed)
 
+The [Imagenet with FP16_Optimizer](https://github.com/NVIDIA/apex/tree/master/examples/imagenet) 
+mixed precision examples also demonstrate `apex.parallel.DistributedDataParallel`.
+
 # Requirements
 
 Python 3

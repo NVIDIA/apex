@@ -34,7 +34,7 @@ python main.py -a alexnet --lr 0.01 /path/to/imagenet/folder
 The directory at /path/to/imagenet/directory should contain two subdirectories called "train"
 and "val" that contain the training and validation data respectively. Train images are expected to be 256x256 jpegs.
 
-Example commands (note:  batch size --b 256 assumes your GPUs have >=16GB of onboard memory).
+**Example commands:** (note:  batch size `--b 256` assumes your GPUs have >=16GB of onboard memory)
 
 ```bash
 ### Softlink training dataset into current directory
