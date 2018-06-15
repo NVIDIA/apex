@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-:github_url: https://gitlab-master.nvidia.com/csarofeen/apex
+:github_url: https://github.com/nvidia/apex
 
 APEx (A PyTorch Extension)
 ===================================

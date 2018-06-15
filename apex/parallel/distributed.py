@@ -43,7 +43,7 @@ class DistributedDataParallel(Module):
     to the other processes on initialization of DistributedDataParallel, and will be
     allreduced in buckets durring the backward pass.
 
-    See https://github.com/csarofeen/examples/tree/apex/distributed for detailed usage.
+    See https://github.com/NVIDIA/apex/tree/master/examples/distributed for detailed usage.
 
     Args:
         module: Network definition to be run in multi-gpu/distributed mode.

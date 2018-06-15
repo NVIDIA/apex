@@ -4,7 +4,7 @@ This example demonstrates how to modify a network to use a simple but effective 
 
 [API Documentation](https://nvidia.github.io/apex/parallel.html)
 
-[Source Code](https://github.com/csarofeen/examples/tree/apex/distributed)
+[Source Code](https://github.com/NVIDIA/apex/tree/master/apex/parallel)
 
 ## Getting started
 Prior to running please run
@@ -22,4 +22,3 @@ To understand how to convert your own model to use the distributed module includ
 
 ## Requirements
 Pytorch master branch built from source. This requirement is to use NCCL as a distributed backend.
-Apex installed from https://www.github.com/nvidia/apex

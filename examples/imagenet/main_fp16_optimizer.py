@@ -120,7 +120,8 @@ def main():
     if args.fp16:
         model = network_to_half(model)
     if args.distributed:
-        model = DDP(model)
+        #shared param turns off bucketing in DDP, for lower latency runs this can improve perf
+        model = DDP(model, shared_param=True)
 
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
@@ -293,6 +294,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
             loss.backward()
         optimizer.step()
 
+        torch.cuda.synchronize()
         # measure elapsed time
         batch_time.update(time.time() - end)
 

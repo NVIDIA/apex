@@ -37,7 +37,8 @@ The intention of `FP16_Optimizer` is to be the "highway" for FP16 training: achi
 [word_language_model with FP16_Optimizer](https://github.com/NVIDIA/apex/tree/master/examples/word_language_model)
 
 The Imagenet and word_language_model directories also contain examples that show manual management of master parameters and static loss scaling.  
-These examples illustrate what sort of operations `amp` and `FP16_Optimizer` are performing automatically.
+
+These manual examples illustrate what sort of operations `amp` and `FP16_Optimizer` are performing automatically.
 
 ## 2. Distributed Training
 
@@ -49,7 +50,7 @@ optimized for NVIDIA's NCCL communication library.
 
 [API Documentation](https://nvidia.github.io/apex/parallel.html)
 
-[Python Source](https://nvidia.github.io/apex/parallel)
+[Python Source](https://github.com/NVIDIA/apex/tree/master/apex/parallel)
 
 [Example/Walkthrough](https://github.com/NVIDIA/apex/tree/master/examples/distributed)
 
