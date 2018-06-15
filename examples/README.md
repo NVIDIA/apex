@@ -8,4 +8,4 @@
 
 **word_language_model**:  Example based on [https://github.com/pytorch/examples/tree/master/word_language_model](https://github.com/pytorch/examples/tree/master/word_language_model) showing the use of `FP16_Optimizer`, as well as manual management of master parameters and loss scaling for illustration/comparison.
 
-**docker**:  Example of a minimal Dockerfile that installs Apex on top of the Pytorch 0.4 container.
+**docker**:  Example of a minimal Dockerfile that installs Apex on top of an existing container.
