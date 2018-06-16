@@ -53,7 +53,7 @@ class FP16_Module(nn.Module):
 class FP16_Optimizer(object):
     """
     :class:`FP16_Optimizer` is designed to wrap an existing PyTorch optimizer, 
-    and manage (dynamic) loss scaling and master weights in a manner transparent to the user.
+    and manage static or dynamic loss scaling and master weights in a manner transparent to the user.
     For standard use, only two lines must be changed:  creating the :class:`FP16_Optimizer` instance,
     and changing the call to ``backward``.
 

@@ -62,7 +62,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'APEx'
+project = 'Apex'
 copyright = '2018'
 author = 'Christian Sarofeen, Natalia Gimelshein, Michael Carilli, Raul Puri'
 
@@ -115,7 +115,7 @@ html_theme_options = {
     'logo_only': True,
 }
 
-html_logo = '_static/img/nv-pytorch2.png'
+# html_logo = '_static/img/nv-pytorch2.png'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -161,7 +161,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'apex.tex', 'APEx Documentation',
+    (master_doc, 'apex.tex', 'Apex Documentation',
      'Torch Contributors', 'manual'),
 ]
 
@@ -171,7 +171,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'APEx', 'APEx Documentation',
+    (master_doc, 'Apex', 'Apex Documentation',
      [author], 1)
 ]
 
@@ -182,8 +182,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'APEx', 'APEx Documentation',
-     author, 'APEx', 'One line description of project.',
+    (master_doc, 'Apex', 'Apex Documentation',
+     author, 'Apex', 'One line description of project.',
      'Miscellaneous'),
 ]
 

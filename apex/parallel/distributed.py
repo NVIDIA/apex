@@ -43,13 +43,13 @@ class DistributedDataParallel(Module):
     When used with ``multiproc.py``, :class:`DistributedDataParallel` 
     assigns 1 process to each of the available (visible) GPUs on the node.
     Parameters are broadcast across participating processes on initialization, and gradients are
-    allreduced and averaged over processes during ``backward()`.
+    allreduced and averaged over processes during ``backward()``.
 
-    :class:``DistributedDataParallel`` is optimized for use with NCCL.  It achieves high performance by 
+    :class:`DistributedDataParallel` is optimized for use with NCCL.  It achieves high performance by 
     overlapping communication with computation during ``backward()`` and bucketing smaller gradient
     transfers to reduce the total number of transfers required.
 
-    :class:``DistributedDataParallel`` assumes that your script accepts the command line 
+    :class:`DistributedDataParallel` assumes that your script accepts the command line 
     arguments "rank" and "world-size."  It also assumes that your script calls
     ``torch.cuda.set_device(args.rank)`` before creating the model.
 
@@ -60,8 +60,7 @@ class DistributedDataParallel(Module):
     Args:
         module: Network definition to be run in multi-gpu/distributed mode.
         message_size (Default = 1e7): Minimum number of elements in a communication bucket.
-        shared_param (Default = False): If your model uses shared parameters this must be True.
-        It will disable bucketing of parameters to avoid race conditions.
+        shared_param (Default = False): If your model uses shared parameters this must be True.  It will disable bucketing of parameters to avoid race conditions.
 
     """
 

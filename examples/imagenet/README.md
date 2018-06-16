@@ -3,7 +3,7 @@
 This example is based on [https://github.com/pytorch/examples/tree/master/imagenet](https://github.com/pytorch/examples/tree/master/imagenet).
 It implements training of popular model architectures, such as ResNet, AlexNet, and VGG on the ImageNet dataset.
 
-`main.py` and `main_fp16_optimizer.py` have been modified to use the `DistributedDataParallel` module in APEx instead of the one in upstream PyTorch.  For description of how this works please see the distributed example included in this repo.
+`main.py` and `main_fp16_optimizer.py` have been modified to use the `DistributedDataParallel` module in Apex instead of the one in upstream PyTorch.  For description of how this works please see the distributed example included in this repo.
 
 `main.py` with the `--fp16` argument demonstrates mixed precision training with manual management of master parameters and loss scaling.
 
@@ -15,8 +15,8 @@ adding any normal arguments.
 
 ## Requirements
 
-- APEx which can be installed from https://www.github.com/nvidia/apex
-- Install PyTorch from source, master branch of ([pytorch on github](https://www.github.com/pytorch/pytorch)
+- Apex which can be installed from https://www.github.com/nvidia/apex
+- Install PyTorch from source, master branch of [pytorch on github](https://www.github.com/pytorch/pytorch).
 - `pip install -r requirements.txt`
 - Download the ImageNet dataset and move validation images to labeled subfolders
     - To do this, you can use the following script: https://raw.githubusercontent.com/soumith/imagenetloader.torch/master/valprep.sh

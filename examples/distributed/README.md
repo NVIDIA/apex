@@ -17,6 +17,8 @@ transfers to reduce the total number of transfers required.
 
 [Source Code](https://github.com/NVIDIA/apex/tree/master/apex/parallel)
 
+[Another Example: Imagenet with mixed precision](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
+
 ## Getting started
 Prior to running please run
 ```pip install -r requirements.txt```
@@ -26,8 +28,10 @@ To download the dataset, run
 without any arguments.  Once you have downloaded the dataset, you should not need to do this again.
 
 You can now launch multi-process distributed data parallel jobs via
-```python -m apex.parallel.multiproc main.py args...```
-adding any args... you'd like.  The launch script `apex.parallel.multiproc` will 
+```bash
+python -m apex.parallel.multiproc main.py args...
+```
+adding any `args...` you like.  The launch script `apex.parallel.multiproc` will 
 spawn one process for each of your system's available (visible) GPUs.
 Each process will run `python main.py args... --world-size <worldsize> --rank <rank>`
 (the `--world-size` and `--rank` arguments are determined and appended by `apex.parallel.multiproc`).
@@ -44,8 +48,6 @@ which will run on devices 0 and 1.  By default, if `CUDA_VISIBLE_DEVICES` is uns
 ## Converting your own model
 
 To understand how to convert your own model, please see all sections of main.py within ```#=====START: ADDED FOR DISTRIBUTED======``` and ```#=====END:   ADDED FOR DISTRIBUTED======``` flags.
-
-[Example with Imagenet and mixed precision training](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
 
 ## Requirements
 Pytorch master branch built from source. This requirement is to use NCCL as a distributed backend.
