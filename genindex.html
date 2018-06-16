@@ -9,7 +9,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Index &mdash; APEx 0.0.0 documentation</title>
+  <title>Index &mdash; Apex 0.0.0 documentation</title>
   
 
   
@@ -26,19 +26,28 @@
   
 
   
+  
     <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
-    <link rel="index" title="Index" href="#" />
-    <link rel="search" title="Search" href="search.html" /> 
+  
+
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  
+    <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="#"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="Apex 0.0.0 documentation" href="index.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
 
 </head>
 
-<body class="wy-body-for-nav">
+<body class="wy-body-for-nav" role="document">
 
    
   <div class="wy-grid-for-nav">
@@ -50,12 +59,9 @@
           
 
           
-            <a href="index.html">
+            <a href="index.html" class="icon icon-home"> Apex
           
 
-          
-            
-            <img src="_static/nv-pytorch2.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -87,17 +93,22 @@
               
             
             
-              <p class="caption"><span class="caption-text">apex</span></p>
+              <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a></li>
-<li class="toctree-l1"><a class="reference internal" href="reparameterization.html">apex.reparameterization</a></li>
-<li class="toctree-l1"><a class="reference internal" href="RNN.html">apex.RNN</a></li>
+<li class="toctree-l1"><a class="reference internal" href="amp.html">apex.amp</a></li>
+</ul>
+<p class="caption"><span class="caption-text">FP16/Mixed Precision Utilities</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="fp16_utils.html">apex.fp16_utils</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#automatic-management-of-master-params-loss-scaling">Automatic management of master params + loss scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#custom-operations">Custom Operations</a></li>
 </ul>
 </li>
+</ul>
+<p class="caption"><span class="caption-text">Distributed Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a></li>
 </ul>
 
             
@@ -109,18 +120,17 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" aria-label="top navigation">
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">APEx</a>
+          <a href="index.html">Apex</a>
         
       </nav>
 
 
+      
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
           
 
 
@@ -169,16 +179,12 @@
  | <a href="#C"><strong>C</strong></a>
  | <a href="#D"><strong>D</strong></a>
  | <a href="#F"><strong>F</strong></a>
- | <a href="#G"><strong>G</strong></a>
  | <a href="#I"><strong>I</strong></a>
  | <a href="#L"><strong>L</strong></a>
  | <a href="#M"><strong>M</strong></a>
  | <a href="#P"><strong>P</strong></a>
- | <a href="#R"><strong>R</strong></a>
  | <a href="#S"><strong>S</strong></a>
- | <a href="#T"><strong>T</strong></a>
  | <a href="#U"><strong>U</strong></a>
- | <a href="#W"><strong>W</strong></a>
  | <a href="#Z"><strong>Z</strong></a>
  
 </div>
@@ -187,15 +193,9 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="fp16_utils.html#module-apex.fp16_utils">apex.fp16_utils (module)</a>
 </li>
-      <li><a href="parallel.html#module-apex.parallel">apex.parallel (module)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="reparameterization.html#module-apex.reparameterization">apex.reparameterization (module)</a>
-</li>
-      <li><a href="RNN.html#module-apex.RNN">apex.RNN (module)</a>
-</li>
-      <li><a href="reparameterization.html#apex.reparameterization.Reparameterization.apply">apply() (apex.reparameterization.Reparameterization static method)</a>
+      <li><a href="parallel.html#module-apex.parallel">apex.parallel (module)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -210,10 +210,6 @@
 </li>
       </ul></li>
   </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="reparameterization.html#apex.reparameterization.Reparameterization.backward_hook">backward_hook() (apex.reparameterization.Reparameterization method)</a>
-</li>
-  </ul></td>
 </tr></table>
 
 <h2 id="C">C</h2>
@@ -221,14 +217,6 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.clip_master_grads">clip_master_grads() (apex.fp16_utils.FP16_Optimizer method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="reparameterization.html#apex.reparameterization.Reparameterization.compute_weight">compute_weight() (apex.reparameterization.Reparameterization method)</a>
-
-      <ul>
-        <li><a href="reparameterization.html#apex.reparameterization.WeightNorm.compute_weight">(apex.reparameterization.WeightNorm method)</a>
-</li>
-      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -248,30 +236,12 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="fp16_utils.html#apex.fp16_utils.Fused_Weight_Norm.forward">forward() (apex.fp16_utils.Fused_Weight_Norm static method)</a>
-
-      <ul>
-        <li><a href="parallel.html#apex.parallel.DistributedDataParallel.forward">(apex.parallel.DistributedDataParallel method)</a>
 </li>
-      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer">FP16_Optimizer (class in apex.fp16_utils)</a>
 </li>
       <li><a href="fp16_utils.html#apex.fp16_utils.Fused_Weight_Norm">Fused_Weight_Norm (class in apex.fp16_utils)</a>
-</li>
-  </ul></td>
-</tr></table>
-
-<h2 id="G">G</h2>
-<table style="width: 100%" class="indextable genindextable"><tr>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="reparameterization.html#apex.reparameterization.Reparameterization.get_module_and_name">get_module_and_name() (apex.reparameterization.Reparameterization static method)</a>
-</li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="reparameterization.html#apex.reparameterization.Reparameterization.get_params">get_params() (apex.reparameterization.Reparameterization method)</a>
-</li>
-      <li><a href="RNN.html#apex.RNN.GRU">GRU() (in module apex.RNN)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -293,8 +263,6 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="fp16_utils.html#apex.fp16_utils.LossScaler">LossScaler (class in apex.fp16_utils)</a>
 </li>
-      <li><a href="RNN.html#apex.RNN.LSTM">LSTM() (in module apex.RNN)</a>
-</li>
   </ul></td>
 </tr></table>
 
@@ -305,8 +273,6 @@
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="RNN.html#apex.RNN.mLSTM">mLSTM() (in module apex.RNN)</a>
-</li>
       <li><a href="fp16_utils.html#apex.fp16_utils.model_grads_to_master_grads">model_grads_to_master_grads() (in module apex.fp16_utils)</a>
 </li>
   </ul></td>
@@ -317,26 +283,6 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="fp16_utils.html#apex.fp16_utils.prep_param_lists">prep_param_lists() (in module apex.fp16_utils)</a>
 </li>
-  </ul></td>
-</tr></table>
-
-<h2 id="R">R</h2>
-<table style="width: 100%" class="indextable genindextable"><tr>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="RNN.html#apex.RNN.ReLU">ReLU() (in module apex.RNN)</a>
-</li>
-      <li><a href="reparameterization.html#apex.reparameterization.Reparameterization.remove">remove() (apex.reparameterization.Reparameterization method)</a>
-</li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="reparameterization.html#apex.reparameterization.Reparameterization">Reparameterization (class in apex.reparameterization)</a>
-</li>
-      <li><a href="reparameterization.html#apex.reparameterization.Reparameterization.reparameterize">reparameterize() (apex.reparameterization.Reparameterization method)</a>
-
-      <ul>
-        <li><a href="reparameterization.html#apex.reparameterization.WeightNorm.reparameterize">(apex.reparameterization.WeightNorm method)</a>
-</li>
-      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -352,26 +298,10 @@
   </ul></td>
 </tr></table>
 
-<h2 id="T">T</h2>
-<table style="width: 100%" class="indextable genindextable"><tr>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="RNN.html#apex.RNN.Tanh">Tanh() (in module apex.RNN)</a>
-</li>
-  </ul></td>
-</tr></table>
-
 <h2 id="U">U</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.update_master_grads">update_master_grads() (apex.fp16_utils.FP16_Optimizer method)</a>
-</li>
-  </ul></td>
-</tr></table>
-
-<h2 id="W">W</h2>
-<table style="width: 100%" class="indextable genindextable"><tr>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="reparameterization.html#apex.reparameterization.WeightNorm">WeightNorm (class in apex.reparameterization)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -387,7 +317,9 @@
 
 
            </div>
-           
+           <div class="articleComments">
+            
+           </div>
           </div>
           <footer>
   
@@ -400,7 +332,7 @@
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -419,7 +351,6 @@
         var DOCUMENTATION_OPTIONS = {
             URL_ROOT:'./',
             VERSION:'0.0.0',
-            LANGUAGE:'None',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
             HAS_SOURCE:  true,
@@ -438,13 +369,14 @@
     <script type="text/javascript" src="_static/js/theme.js"></script>
   
 
+  
+  
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.StickyNav.enable();
       });
-  </script> 
+  </script>
+   
 
 </body>
 </html>

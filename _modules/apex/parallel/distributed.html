@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>apex.parallel.distributed &mdash; APEx 0.0.0 documentation</title>
+  <title>apex.parallel.distributed &mdash; Apex 0.0.0 documentation</title>
   
 
   
@@ -25,19 +25,29 @@
   
 
   
+  
     <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
-    <link rel="index" title="Index" href="../../../genindex.html" />
-    <link rel="search" title="Search" href="../../../search.html" /> 
+  
+
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  
+    <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Apex 0.0.0 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
 
   
   <script src="../../../_static/js/modernizr.min.js"></script>
 
 </head>
 
-<body class="wy-body-for-nav">
+<body class="wy-body-for-nav" role="document">
 
    
   <div class="wy-grid-for-nav">
@@ -49,12 +59,9 @@
           
 
           
-            <a href="../../../index.html">
+            <a href="../../../index.html" class="icon icon-home"> Apex
           
 
-          
-            
-            <img src="../../../_static/nv-pytorch2.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -86,17 +93,22 @@
               
             
             
-              <p class="caption"><span class="caption-text">apex</span></p>
+              <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../reparameterization.html">apex.reparameterization</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../RNN.html">apex.RNN</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../amp.html">apex.amp</a></li>
+</ul>
+<p class="caption"><span class="caption-text">FP16/Mixed Precision Utilities</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../fp16_utils.html">apex.fp16_utils</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../../fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../fp16_utils.html#automatic-management-of-master-params-loss-scaling">Automatic management of master params + loss scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../fp16_utils.html#custom-operations">Custom Operations</a></li>
 </ul>
 </li>
+</ul>
+<p class="caption"><span class="caption-text">Distributed Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a></li>
 </ul>
 
             
@@ -108,18 +120,17 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" aria-label="top navigation">
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../../index.html">APEx</a>
+          <a href="../../../index.html">Apex</a>
         
       </nav>
 
 
+      
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
           
 
 
@@ -148,6 +159,8 @@
     
     
       <li class="wy-breadcrumbs-aside">
+        
+            
         
       </li>
     
@@ -197,27 +210,39 @@
             
 <div class="viewcode-block" id="DistributedDataParallel"><a class="viewcode-back" href="../../../parallel.html#apex.parallel.DistributedDataParallel">[docs]</a><span class="k">class</span> <span class="nc">DistributedDataParallel</span><span class="p">(</span><span class="n">Module</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    :class:`DistributedDataParallel` is a simpler version of upstream :class:`</span>
-<span class="sd">    DistributedDataParallel` that is optimized for use with NCCL. Its usage is designed</span>
-<span class="sd">    to be used in conjunction with apex.parallel.multiproc.py. It assumes that your run</span>
-<span class="sd">    is using multiprocess with 1 GPU/process, that the model is on the correct device,</span>
-<span class="sd">    and that torch.set_device has been used to set the device. Parameters are broadcasted</span>
-<span class="sd">    to the other processes on initialization of DistributedDataParallel, and will be</span>
-<span class="sd">    allreduced in buckets durring the backward pass.</span>
+<span class="sd">    :class:`apex.parallel.DistributedDataParallel` is a module wrapper that enables</span>
+<span class="sd">    easy multiprocess distributed data parallel training, similar to ``torch.nn.parallel.DistributedDataParallel``.</span>
 
-<span class="sd">    See https://github.com/csarofeen/examples/tree/apex/distributed for detailed usage.</span>
+<span class="sd">    :class:`DistributedDataParallel` is designed to work with</span>
+<span class="sd">    the launch utility script ``apex.parallel.multiproc.py``.  </span>
+<span class="sd">    When used with ``multiproc.py``, :class:`DistributedDataParallel` </span>
+<span class="sd">    assigns 1 process to each of the available (visible) GPUs on the node.</span>
+<span class="sd">    Parameters are broadcast across participating processes on initialization, and gradients are</span>
+<span class="sd">    allreduced and averaged over processes during ``backward()``.</span>
+
+<span class="sd">    :class:`DistributedDataParallel` is optimized for use with NCCL.  It achieves high performance by </span>
+<span class="sd">    overlapping communication with computation during ``backward()`` and bucketing smaller gradient</span>
+<span class="sd">    transfers to reduce the total number of transfers required.</span>
+
+<span class="sd">    :class:`DistributedDataParallel` assumes that your script accepts the command line </span>
+<span class="sd">    arguments &quot;rank&quot; and &quot;world-size.&quot;  It also assumes that your script calls</span>
+<span class="sd">    ``torch.cuda.set_device(args.rank)`` before creating the model.</span>
+
+<span class="sd">    https://github.com/NVIDIA/apex/tree/master/examples/distributed shows detailed usage.</span>
+<span class="sd">    https://github.com/NVIDIA/apex/tree/master/examples/imagenet shows another example</span>
+<span class="sd">    that combines :class:`DistributedDataParallel` with mixed precision training.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        module: Network definition to be run in multi-gpu/distributed mode.</span>
-<span class="sd">        message_size (Default = 100e6): Minimum number of elements in a communication bucket.</span>
-
+<span class="sd">        message_size (Default = 1e7): Minimum number of elements in a communication bucket.</span>
+<span class="sd">        shared_param (Default = False): If your model uses shared parameters this must be True.  It will disable bucketing of parameters to avoid race conditions.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">message_size</span><span class="o">=</span><span class="mi">100000000</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">message_size</span><span class="o">=</span><span class="mi">10000000</span><span class="p">,</span> <span class="n">shared_param</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">DistributedDataParallel</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">warn_on_half</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">dist</span><span class="o">.</span><span class="n">_backend</span> <span class="o">==</span> <span class="n">dist</span><span class="o">.</span><span class="n">dist_backend</span><span class="o">.</span><span class="n">GLOO</span> <span class="k">else</span> <span class="kc">False</span>
-        
+        <span class="bp">self</span><span class="o">.</span><span class="n">shared_param</span> <span class="o">=</span> <span class="n">shared_param</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">message_size</span> <span class="o">=</span> <span class="n">message_size</span>
         
         <span class="c1">#reference to last iterations parameters to see if anything has changed</span>
@@ -240,17 +265,19 @@
     <span class="k">def</span> <span class="nf">create_hooks</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1">#all reduce gradient hook</span>
         <span class="k">def</span> <span class="nf">allreduce_params</span><span class="p">():</span>
-            <span class="k">if</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">needs_reduction</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">needs_reduction</span> <span class="o">=</span> <span class="kc">False</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">needs_refresh</span> <span class="o">=</span> <span class="kc">False</span>
-            <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">needs_reduction</span><span class="p">:</span>
                 <span class="k">return</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">needs_reduction</span> <span class="o">=</span> <span class="kc">False</span>
+
+            <span class="c1">#parameter ordering refresh</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">needs_refresh</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">shared_param</span><span class="p">:</span>
+                <span class="n">t_record</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">IntTensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="p">)</span>
+                <span class="n">dist</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span><span class="n">t_record</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">record</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">t_record</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">needs_refresh</span> <span class="o">=</span> <span class="kc">False</span>
+
             <span class="n">grads</span> <span class="o">=</span> <span class="p">[</span><span class="n">param</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">parameters</span><span class="p">()</span> <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
             <span class="n">flat_dist_call</span><span class="p">(</span><span class="n">grads</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">all_reduce</span><span class="p">)</span>
-            <span class="n">t_record</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">IntTensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="p">)</span>
-            <span class="n">dist</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span><span class="n">t_record</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">record</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">t_record</span><span class="p">]</span>
-
 
         <span class="k">def</span> <span class="nf">flush_buckets</span><span class="p">():</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">needs_reduction</span><span class="p">:</span>
@@ -281,8 +308,7 @@
                         <span class="n">Variable</span><span class="o">.</span><span class="n">_execution_engine</span><span class="o">.</span><span class="n">queue_callback</span><span class="p">(</span><span class="n">allreduce_params</span><span class="p">)</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">Variable</span><span class="o">.</span><span class="n">_execution_engine</span><span class="o">.</span><span class="n">queue_callback</span><span class="p">(</span><span class="n">flush_buckets</span><span class="p">)</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">param_i</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">1</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">comm_ready_buckets</span><span class="p">()</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">comm_ready_buckets</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">param_i</span><span class="p">))</span>
                     
                     
                 <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">:</span>
@@ -290,9 +316,14 @@
             <span class="n">wrapper</span><span class="p">(</span><span class="n">param_i</span><span class="p">)</span>
 
 
-    <span class="k">def</span> <span class="nf">comm_ready_buckets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">comm_ready_buckets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">param_ind</span><span class="p">):</span>
 
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">[</span><span class="n">param_ind</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Error: Your model uses shared parameters, DDP flag shared_params must be set to True in initialization.&quot;</span><span class="p">)</span>
+            
+        
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ready_end</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">[</span><span class="n">param_ind</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
             <span class="k">return</span>
 
 
@@ -303,6 +334,7 @@
 
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ready_numel</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">message_size</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">[</span><span class="n">param_ind</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
             <span class="k">return</span>
             
         <span class="n">grads</span> <span class="o">=</span> <span class="p">[</span><span class="n">param</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ready_params</span><span class="p">]</span>
@@ -329,16 +361,23 @@
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ready_start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ready_start</span><span class="o">+</span><span class="nb">len</span><span class="p">(</span><span class="n">bucket</span><span class="p">)):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">ready_params</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_state</span><span class="p">[</span><span class="n">param_ind</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
         
-<div class="viewcode-block" id="DistributedDataParallel.forward"><a class="viewcode-back" href="../../../parallel.html#apex.parallel.DistributedDataParallel.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 
         <span class="n">param_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">param</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">parameters</span><span class="p">())</span> <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">]</span>
 
-        
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">needs_refresh</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_refs</span> <span class="k">else</span> <span class="nb">any</span><span class="p">(</span>
-            <span class="p">[</span><span class="n">param1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">param2</span> <span class="k">for</span> <span class="n">param1</span><span class="p">,</span> <span class="n">param2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">param_list</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_refs</span><span class="p">)]</span>
-        <span class="p">)</span>
+        <span class="c1">#Force needs_refresh to True if there are shared params</span>
+        <span class="c1">#this will force it to always, only call flush_buckets which is safe</span>
+        <span class="c1">#for shared parameters in the model.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_refs</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">shared_param</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">needs_refresh</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">needs_refresh</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">param1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">param2</span> <span class="k">for</span> <span class="n">param1</span><span class="p">,</span> <span class="n">param2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">param_list</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_refs</span><span class="p">)]</span>
+            <span class="p">)</span>
                 
         <span class="k">if</span>  <span class="bp">self</span><span class="o">.</span><span class="n">needs_refresh</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">record</span> <span class="o">=</span> <span class="p">[]</span>
@@ -353,11 +392,13 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">ready_params</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ready_numel</span> <span class="o">=</span> <span class="mi">0</span>
         
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="p">(</span><span class="o">*</span><span class="n">inputs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="p">(</span><span class="o">*</span><span class="n">inputs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 </pre></div>
 
            </div>
-           
+           <div class="articleComments">
+            
+           </div>
           </div>
           <footer>
   
@@ -370,7 +411,7 @@
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -389,7 +430,6 @@
         var DOCUMENTATION_OPTIONS = {
             URL_ROOT:'../../../',
             VERSION:'0.0.0',
-            LANGUAGE:'None',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
             HAS_SOURCE:  true,
@@ -408,13 +448,14 @@
     <script type="text/javascript" src="../../../_static/js/theme.js"></script>
   
 
+  
+  
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.StickyNav.enable();
       });
-  </script> 
+  </script>
+   
 
 </body>
 </html>

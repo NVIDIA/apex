@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>apex.parallel &mdash; APEx 0.0.0 documentation</title>
+  <title>apex.parallel &mdash; Apex 0.0.0 documentation</title>
   
 
   
@@ -25,21 +25,29 @@
   
 
   
+  
     <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
-    <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="apex.reparameterization" href="reparameterization.html" />
-    <link rel="prev" title="APEx (A PyTorch Extension)" href="index.html" /> 
+  
+
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  
+    <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="Apex 0.0.0 documentation" href="index.html"/>
+        <link rel="prev" title="apex.fp16_utils" href="fp16_utils.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
 
 </head>
 
-<body class="wy-body-for-nav">
+<body class="wy-body-for-nav" role="document">
 
    
   <div class="wy-grid-for-nav">
@@ -51,12 +59,9 @@
           
 
           
-            <a href="index.html">
+            <a href="index.html" class="icon icon-home"> Apex
           
 
-          
-            
-            <img src="_static/nv-pytorch2.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -88,17 +93,22 @@
               
             
             
-              <p class="caption"><span class="caption-text">apex</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">apex.parallel</a></li>
-<li class="toctree-l1"><a class="reference internal" href="reparameterization.html">apex.reparameterization</a></li>
-<li class="toctree-l1"><a class="reference internal" href="RNN.html">apex.RNN</a></li>
+              <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="amp.html">apex.amp</a></li>
+</ul>
+<p class="caption"><span class="caption-text">FP16/Mixed Precision Utilities</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="fp16_utils.html">apex.fp16_utils</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#automatic-management-of-master-params-loss-scaling">Automatic management of master params + loss scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#custom-operations">Custom Operations</a></li>
 </ul>
 </li>
+</ul>
+<p class="caption"><span class="caption-text">Distributed Training</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">apex.parallel</a></li>
 </ul>
 
             
@@ -110,18 +120,17 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" aria-label="top navigation">
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">APEx</a>
+          <a href="index.html">Apex</a>
         
       </nav>
 
 
+      
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
           
 
 
@@ -167,57 +176,53 @@
 <span id="apex-parallel"></span><h1>apex.parallel<a class="headerlink" href="#module-apex.parallel" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="apex.parallel.DistributedDataParallel">
-<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">DistributedDataParallel</code><span class="sig-paren">(</span><em>module</em>, <em>message_size=100000000</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/distributed.html#DistributedDataParallel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.DistributedDataParallel" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal notranslate"><span class="pre">DistributedDataParallel</span></code></a> is a simpler version of upstream :class:`
-DistributedDataParallel` that is optimized for use with NCCL. Its usage is designed
-to be used in conjunction with apex.parallel.multiproc.py. It assumes that your run
-is using multiprocess with 1 GPU/process, that the model is on the correct device,
-and that torch.set_device has been used to set the device. Parameters are broadcasted
-to the other processes on initialization of DistributedDataParallel, and will be
-allreduced in buckets durring the backward pass.</p>
-<p>See <a class="reference external" href="https://github.com/csarofeen/examples/tree/apex/distributed">https://github.com/csarofeen/examples/tree/apex/distributed</a> for detailed usage.</p>
+<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">DistributedDataParallel</code><span class="sig-paren">(</span><em>module</em>, <em>message_size=10000000</em>, <em>shared_param=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/distributed.html#DistributedDataParallel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.DistributedDataParallel" title="Permalink to this definition">¶</a></dt>
+<dd><p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.DistributedDataParallel</span></code></a> is a module wrapper that enables
+easy multiprocess distributed data parallel training, similar to <code class="docutils literal"><span class="pre">torch.nn.parallel.DistributedDataParallel</span></code>.</p>
+<p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> is designed to work with
+the launch utility script <code class="docutils literal"><span class="pre">apex.parallel.multiproc.py</span></code>.
+When used with <code class="docutils literal"><span class="pre">multiproc.py</span></code>, <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a>
+assigns 1 process to each of the available (visible) GPUs on the node.
+Parameters are broadcast across participating processes on initialization, and gradients are
+allreduced and averaged over processes during <code class="docutils literal"><span class="pre">backward()</span></code>.</p>
+<p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> is optimized for use with NCCL.  It achieves high performance by
+overlapping communication with computation during <code class="docutils literal"><span class="pre">backward()</span></code> and bucketing smaller gradient
+transfers to reduce the total number of transfers required.</p>
+<p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> assumes that your script accepts the command line
+arguments “rank” and “world-size.”  It also assumes that your script calls
+<code class="docutils literal"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.</p>
+<p><a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/distributed">https://github.com/NVIDIA/apex/tree/master/examples/distributed</a> shows detailed usage.
+<a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/imagenet">https://github.com/NVIDIA/apex/tree/master/examples/imagenet</a> shows another example
+that combines <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> with mixed precision training.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>module</strong> – Network definition to be run in multi-gpu/distributed mode.</li>
-<li><strong>message_size</strong> (<em>Default = 100e6</em>) – Minimum number of elements in a communication bucket.</li>
+<li><strong>message_size</strong> (<em>Default = 1e7</em>) – Minimum number of elements in a communication bucket.</li>
+<li><strong>shared_param</strong> (<em>Default = False</em>) – If your model uses shared parameters this must be True.  It will disable bucketing of parameters to avoid race conditions.</li>
 </ul>
 </td>
 </tr>
 </tbody>
 </table>
-<dl class="method">
-<dt id="apex.parallel.DistributedDataParallel.forward">
-<code class="descname">forward</code><span class="sig-paren">(</span><em>*inputs</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/distributed.html#DistributedDataParallel.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.DistributedDataParallel.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
-</dd></dl>
-
 </dd></dl>
 
 </div>
 
 
            </div>
-           
+           <div class="articleComments">
+            
+           </div>
           </div>
           <footer>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="reparameterization.html" class="btn btn-neutral float-right" title="apex.reparameterization" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
-      
-        <a href="index.html" class="btn btn-neutral" title="APEx (A PyTorch Extension)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="fp16_utils.html" class="btn btn-neutral" title="apex.fp16_utils" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
@@ -230,7 +235,7 @@ registered hooks while the latter silently ignores them.</p>
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -249,7 +254,6 @@ registered hooks while the latter silently ignores them.</p>
         var DOCUMENTATION_OPTIONS = {
             URL_ROOT:'./',
             VERSION:'0.0.0',
-            LANGUAGE:'None',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
             HAS_SOURCE:  true,
@@ -268,13 +272,14 @@ registered hooks while the latter silently ignores them.</p>
     <script type="text/javascript" src="_static/js/theme.js"></script>
   
 
+  
+  
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.StickyNav.enable();
       });
-  </script> 
+  </script>
+   
 
 </body>
 </html>

@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>APEx (A PyTorch Extension) &mdash; APEx 0.0.0 documentation</title>
+  <title>Apex (A PyTorch Extension) &mdash; Apex 0.0.0 documentation</title>
   
 
   
@@ -25,20 +25,29 @@
   
 
   
+  
     <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
-    <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="apex.parallel" href="parallel.html" /> 
+  
+
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  
+    <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="Apex 0.0.0 documentation" href="#"/>
+        <link rel="next" title="apex.amp" href="amp.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
 
 </head>
 
-<body class="wy-body-for-nav">
+<body class="wy-body-for-nav" role="document">
 
    
   <div class="wy-grid-for-nav">
@@ -50,12 +59,9 @@
           
 
           
-            <a href="#">
+            <a href="#" class="icon icon-home"> Apex
           
 
-          
-            
-            <img src="_static/nv-pytorch2.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -87,17 +93,22 @@
               
             
             
-              <p class="caption"><span class="caption-text">apex</span></p>
+              <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a></li>
-<li class="toctree-l1"><a class="reference internal" href="reparameterization.html">apex.reparameterization</a></li>
-<li class="toctree-l1"><a class="reference internal" href="RNN.html">apex.RNN</a></li>
+<li class="toctree-l1"><a class="reference internal" href="amp.html">apex.amp</a></li>
+</ul>
+<p class="caption"><span class="caption-text">FP16/Mixed Precision Utilities</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="fp16_utils.html">apex.fp16_utils</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#automatic-management-of-master-params-loss-scaling">Automatic management of master params + loss scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#custom-operations">Custom Operations</a></li>
 </ul>
 </li>
+</ul>
+<p class="caption"><span class="caption-text">Distributed Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a></li>
 </ul>
 
             
@@ -109,18 +120,17 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" aria-label="top navigation">
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="#">APEx</a>
+          <a href="#">Apex</a>
         
       </nav>
 
 
+      
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
           
 
 
@@ -145,7 +155,7 @@
     
       <li><a href="#">Docs</a> &raquo;</li>
         
-      <li>APEx (A PyTorch Extension)</li>
+      <li>Apex (A PyTorch Extension)</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -153,7 +163,7 @@
             
             
               <!-- User defined GitHub URL -->
-              <a href="https://gitlab-master.nvidia.com/csarofeen/apex" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/nvidia/apex" class="fa fa-github"> Edit on GitHub</a>
             
           
         
@@ -168,23 +178,31 @@
            <div itemprop="articleBody">
             
   <div class="section" id="apex-a-pytorch-extension">
-<h1>APEx (A PyTorch Extension)<a class="headerlink" href="#apex-a-pytorch-extension" title="Permalink to this headline">¶</a></h1>
-<p>This is a repo designed to hold PyTorch modules and utilities that are under active development and experimental. This repo is not designed as a long term solution or a production solution. Things placed in here are intended to be eventually moved to upstream PyTorch.</p>
-<p>A major focus of this extension is the training of neural networks using 16-bit precision floating point math, which offers significant performance benefits on latest NVIDIA GPU architectures. The reduced dynamic range of half precision, however, is more vulnerable to numerical overflow/underflow.</p>
-<p>APEX is an NVIDIA-maintained repository of utilities, including some that are targeted to improve the accuracy and stability of half precision networks, while maintaining high performance. The utilities are designed to be minimally invasive and easy to use.</p>
-<p>Installation requires CUDA9, PyTorch 0.3 or later, and Python 3. Installation can be done by running</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">www</span><span class="o">.</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">nvidia</span><span class="o">/</span><span class="n">apex</span>
+<h1>Apex (A PyTorch Extension)<a class="headerlink" href="#apex-a-pytorch-extension" title="Permalink to this headline">¶</a></h1>
+<p>This site contains the API documentation for Apex (<a class="reference external" href="https://github.com/nvidia/apex">https://github.com/nvidia/apex</a>),
+a Pytorch extension with NVIDIA-maintained utilities to streamline mixed precision and distributed training.  Some of the code here will be included in upstream Pytorch eventually. The intention of Apex is to make up-to-date utilities available to users as quickly as possible.</p>
+<p>Installation requires CUDA 9 or later, PyTorch 0.4 or later, and Python 3. Install by running</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">www</span><span class="o">.</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">nvidia</span><span class="o">/</span><span class="n">apex</span>
 <span class="n">cd</span> <span class="n">apex</span>
 <span class="n">python</span> <span class="n">setup</span><span class="o">.</span><span class="n">py</span> <span class="n">install</span>
 </pre></div>
 </div>
 <div class="toctree-wrapper compound">
-<p class="caption"><span class="caption-text">apex</span></p>
+<p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="amp.html">apex.amp</a></li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption"><span class="caption-text">FP16/Mixed Precision Utilities</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="fp16_utils.html">apex.fp16_utils</a></li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption"><span class="caption-text">Distributed Training</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a></li>
-<li class="toctree-l1"><a class="reference internal" href="reparameterization.html">apex.reparameterization</a></li>
-<li class="toctree-l1"><a class="reference internal" href="RNN.html">apex.RNN</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fp16_utils.html">apex.fp16_utils</a></li>
 </ul>
 </div>
 </div>
@@ -198,13 +216,15 @@
 
 
            </div>
-           
+           <div class="articleComments">
+            
+           </div>
           </div>
           <footer>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="parallel.html" class="btn btn-neutral float-right" title="apex.parallel" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="amp.html" class="btn btn-neutral float-right" title="apex.amp" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
     </div>
@@ -218,7 +238,7 @@
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -237,7 +257,6 @@
         var DOCUMENTATION_OPTIONS = {
             URL_ROOT:'./',
             VERSION:'0.0.0',
-            LANGUAGE:'None',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
             HAS_SOURCE:  true,
@@ -256,13 +275,14 @@
     <script type="text/javascript" src="_static/js/theme.js"></script>
   
 
+  
+  
   <script type="text/javascript">
       jQuery(function () {
-          
-          SphinxRtdTheme.Navigation.enableSticky();
-          
+          SphinxRtdTheme.StickyNav.enable();
       });
-  </script> 
+  </script>
+   
 
 </body>
 </html>

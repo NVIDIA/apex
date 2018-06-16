@@ -4,11 +4,13 @@
 apex.reparameterization
 ===================================
 
-.. automodule:: apex.reparameterization
-.. currentmodule:: apex.reparameterization
+Under construction...
 
-.. autoclass:: Reparameterization
-    :members:
-
-.. autoclass:: WeightNorm
-    :members:
+.. .. automodule:: apex.reparameterization
+.. .. currentmodule:: apex.reparameterization
+.. 
+.. .. autoclass:: Reparameterization
+..     :members:
+.. 
+.. .. autoclass:: WeightNorm
+..     :members:
