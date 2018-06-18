@@ -199,6 +199,13 @@ class FP16_Optimizer(object):
         self.overflow = False
         self.first_closure_call_this_step = True
 
+        TORCH_MAJOR = int(torch.__version__.split('.')[0])
+        TORCH_MINOR = int(torch.__version__.split('.')[1])
+        if TORCH_MAJOR == 0 and TORCH_MINOR <= 4:
+            self.clip_grad_norm = torch.nn.utils.clip_grad_norm
+        else:
+            self.clip_grad_norm = torch.nn.utils.clip_grad_norm_
+            
     def __getstate__(self):
         raise RuntimeError("FP16_Optimizer should be serialized using state_dict().")
 
@@ -270,7 +277,7 @@ class FP16_Optimizer(object):
             for param_group in self.optimizer.param_groups:
                 for param in param_group['params']:
                     fp32_params.append(param)
-            return torch.nn.utils.clip_grad_norm(fp32_params, max_norm, norm_type)
+            return self.clip_grad_norm(fp32_params, max_norm, norm_type)
         else:
             return -1
 
