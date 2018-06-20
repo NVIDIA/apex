@@ -13,11 +13,11 @@ global interpreter lock contention versus having a single process (with a single
 overlapping communication with computation during ``backward()`` and bucketing smaller gradient
 transfers to reduce the total number of transfers required.
 
-[API Documentation](https://nvidia.github.io/apex/parallel.html)
+#### [API Documentation](https://nvidia.github.io/apex/parallel.html)
 
-[Source Code](https://github.com/NVIDIA/apex/tree/master/apex/parallel)
+#### [Source Code](https://github.com/NVIDIA/apex/tree/master/apex/parallel)
 
-[Another Example: Imagenet with mixed precision](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
+#### [Another Example: Imagenet with mixed precision](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
 
 ## Getting started
 Prior to running please run

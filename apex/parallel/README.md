@@ -6,10 +6,10 @@ transfers required.
 
 multiproc.py contains the source code for `apex.parallel.multiproc`, a launch utility that places one process on each of the node's available GPUs.
 
-### [API Documentation](https://nvidia.github.io/apex/parallel.html)
+#### [API Documentation](https://nvidia.github.io/apex/parallel.html)
 
-### [Example/Walkthrough](https://github.com/NVIDIA/apex/tree/master/examples/distributed)
+#### [Example/Walkthrough](https://github.com/NVIDIA/apex/tree/master/examples/distributed)
 
-### [Imagenet Example w/Mixed Precision](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
+#### [Imagenet Example w/Mixed Precision](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
 
 

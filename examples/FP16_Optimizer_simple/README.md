@@ -5,7 +5,7 @@ half and float parameters, only two lines of your training script need to change
 1. Construct an `FP16_Optimizer` instance from an existing optimizer.
 2. Replace `loss.backward()` with `optimizer.backward(loss)`.
 
-[Full API Documentation](https://nvidia.github.io/apex/fp16_utils.html#automatic-management-of-master-params-loss-scaling)
+#### [Full API Documentation](https://nvidia.github.io/apex/fp16_utils.html#automatic-management-of-master-params-loss-scaling)
 
 See "Other Options" at the bottom of this page for some cases that require special treatment.
 
