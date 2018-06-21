@@ -191,11 +191,11 @@ def rnn_cast(backend, fn, verbose=False):
             # 2) Inputs: either a tuple (for LSTM) or single tensor
             if isinstance(hiddens, tuple):
                 new_args.append(tuple(cast_fn(x) for x in hiddens))
-            elif utils.is_fp_tensor(hidden):
-                new_args.append(cast_fn(hidden))
+            elif utils.is_fp_tensor(hiddens):
+                new_args.append(cast_fn(hiddens))
             else:
-                # Hidden can, in principle, be `None` -- pass through
-                new_args.append(hidden)
+                # Hiddens can, in principle, be `None` -- pass through
+                new_args.append(hiddens)
 
             # 3) Batch sizes (0.4 or later only)
             if len(fargs) == 4:
