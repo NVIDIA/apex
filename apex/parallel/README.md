@@ -10,6 +10,8 @@ multiproc.py contains the source code for `apex.parallel.multiproc`, a launch ut
 
 #### [Example/Walkthrough](https://github.com/NVIDIA/apex/tree/master/examples/distributed)
 
-#### [Imagenet Example w/Mixed Precision](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
+#### [Imagenet example with Mixed Precision](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
+
+#### [Simple example with FP16_Optimizer](https://github.com/NVIDIA/apex/tree/master/examples/FP16_Optimizer_simple/distributed_apex)
 
 

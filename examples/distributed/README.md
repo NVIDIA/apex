@@ -1,4 +1,4 @@
-# Basic Multiprocess Example based on pytorch/examples/mnist
+# Multiprocess Example based on pytorch/examples/mnist
 
 main.py demonstrates how to modify a simple model to enable multiprocess distributed data parallel
 training using the module wrapper `apex.parallel.DistributedDataParallel` 
@@ -17,7 +17,9 @@ transfers to reduce the total number of transfers required.
 
 #### [Source Code](https://github.com/NVIDIA/apex/tree/master/apex/parallel)
 
-#### [Another Example: Imagenet with mixed precision](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
+#### [Another example: Imagenet with mixed precision](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
+
+#### [Simple example with FP16_Optimizer](https://github.com/NVIDIA/apex/tree/master/examples/FP16_Optimizer_simple/distributed_apex)
 
 ## Getting started
 Prior to running please run
