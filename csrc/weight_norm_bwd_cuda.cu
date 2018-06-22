@@ -9,7 +9,7 @@
 #endif
 
 #include "ATen/cuda/CUDATensorMethods.cuh"
-#include "ATen/cuda/CUDATypeConversion.cuh"
+// #include "ATen/cuda/CUDATypeConversion.cuh"
 // #include <THC/THCTensorMathReduce.cuh>
 
 template
