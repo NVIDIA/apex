@@ -1,5 +1,5 @@
 import torch.cuda
-import ctypes
+import ctypes.util
 import os
 import re
 import subprocess
