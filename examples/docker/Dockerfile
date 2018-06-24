@@ -1,5 +1,5 @@
 # Base image must at least have nvcc and CUDA installed.
-FROM gitlab-dl.nvidia.com:5005/dgx/pytorch:18.04-py3-devel
+FROM nvcr.io/nvidia/pytorch:18.04-py3
 WORKDIR /workspace
 # uninstall Apex if present
 RUN pip uninstall -y apex || :
