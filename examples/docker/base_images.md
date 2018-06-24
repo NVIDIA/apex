@@ -2,7 +2,7 @@ When specifying
 ```
 FROM <base image>
 ```
-in *Dockerfile*, `<base image>` must have Pytorch and CUDA installed.
+in **Dockerfile**, `<base image>` must have Pytorch and CUDA installed.
 
 If you have an NGC account, you can use Nvidia's official Pytorch container
 ```
@@ -19,6 +19,6 @@ docker build -t my_pytorch_image -f docker/pytorch/Dockerfile .
 ```
 `my_pytorch_image` will contain CUDA, and can be used as `<base image>`.
 
-Warning:
+**Warning:**
 Currently, Pytorch's latest stable image on Dockerhub
 [pytorch/pytorch:0.4_cuda9_cudnn7](https://hub.docker.com/r/pytorch/pytorch/tags/) contains Pytorch installed with prebuilt binaries.  It does not contain NVCC, which means it is not an eligible candidate for `<base image>`.
