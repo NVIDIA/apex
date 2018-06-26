@@ -3,11 +3,12 @@ from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 import torch.distributed as dist
 from torch.nn.modules import Module
 from torch.autograd import Variable
+from collections import OrderedDict
 
 
 def flat_dist_call(tensors, call, extra_args=None):
     flat_dist_call.warn_on_half = True
-    buckets = {}
+    buckets = OrderedDict()
     for tensor in tensors:
         tp = tensor.type()
         if tp not in buckets:
