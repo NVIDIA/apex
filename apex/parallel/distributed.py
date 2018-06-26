@@ -198,11 +198,13 @@ class DistributedDataParallel(Module):
         #Force needs_refresh to True if there are shared params
         #this will force it to always, only call flush_buckets which is safe
         #for shared parameters in the model.
-        if not self.param_refs or self.shared_param:
+        #Parentheses are not necessary for correct order of operations, but make the intent clearer.
+        if (not self.param_refs) or self.shared_param:
             self.needs_refresh = True
         else:
-            self.needs_refresh = any(
-                [param1 is not param2 for param1, param2 in zip(param_list, self.param_refs)]
+            self.needs_refresh = (
+                len(param_list) != len(self.param_refs)) or 
+                any(param1 is not param2 for param1, param2 in zip(param_list, self.param_refs)])
             )
                 
         if  self.needs_refresh:
