@@ -428,9 +428,8 @@ class FP16_Optimizer(object):
             while(self.overflow):
                 scale = self.loss_scaler.loss_scale
                 self._update_scale(self.overflow)
-                if self.overflow:
-                    print("OVERFLOW within closure! Skipping step. Attempted loss scale: {}, "
-                          "reducing to {}".format(scale, self.loss_scale))
+                print("OVERFLOW within closure! Skipping step. Attempted loss scale: {}, "
+                      "reducing to {}".format(scale, self.loss_scale))
                 temp_loss = closure()
             return temp_loss
 
