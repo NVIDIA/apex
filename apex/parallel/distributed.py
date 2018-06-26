@@ -203,9 +203,8 @@ class DistributedDataParallel(Module):
             self.needs_refresh = True
         else:
             self.needs_refresh = (
-                len(param_list) != len(self.param_refs)) or 
-                any(param1 is not param2 for param1, param2 in zip(param_list, self.param_refs)])
-            )
+                (len(param_list) != len(self.param_refs)) or any(
+                    [param1 is not param2 for param1, param2 in zip(param_list, self.param_refs)]))
                 
         if  self.needs_refresh:
             self.record = []
