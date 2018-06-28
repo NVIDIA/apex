@@ -238,8 +238,8 @@ class data_prefetcher():
     def __init__(self, loader):
         self.loader = iter(loader)
         self.stream = torch.cuda.Stream()
-        self.mean = torch.tensor([0.485, 0.456, 0.406]).cuda().view(1,3,1,1)
-        self.std = torch.tensor([0.229, 0.224, 0.225]).cuda().view(1,3,1,1)
+        self.mean = torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255]).cuda().view(1,3,1,1)
+        self.std = torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255]).cuda().view(1,3,1,1)
         if args.fp16:
             self.mean = self.mean.half()
             self.std = self.std.half()
