@@ -80,9 +80,6 @@ parser.add_argument('--rank', default=0, type=int,
 
 cudnn.benchmark = True
 
-
-import numpy as np
-
 def fast_collate(batch):
     imgs = [img[0] for img in batch]
     targets = torch.tensor([target[1] for target in batch], dtype=torch.int64)
@@ -113,8 +110,10 @@ def main():
 
     if args.distributed:
         torch.cuda.set_device(args.gpu)
-        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                world_size=args.world_size, rank=args.rank)
+        dist.init_process_group(backend=args.dist_backend, 
+                                init_method=args.dist_url,
+                                world_size=args.world_size,
+                                rank=args.rank)
 
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
@@ -177,8 +176,8 @@ def main():
         transforms.Compose([
             transforms.RandomResizedCrop(crop_size),
             transforms.RandomHorizontalFlip(),
-            #transforms.ToTensor(), Too slow
-            #normalize,
+            # transforms.ToTensor(), Too slow
+            # normalize,
         ]))
 
     if args.distributed:
@@ -226,13 +225,6 @@ def main():
                 'best_prec1': best_prec1,
                 'optimizer' : optimizer.state_dict(),
             }, is_best)
-
-# item() is a recent addition, so this helps with backward compatibility.
-def to_python_float(t):
-    if hasattr(t, 'item'):
-        return t.item()
-    else:
-        return t[0]
 
 class data_prefetcher():
     def __init__(self, loader):

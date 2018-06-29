@@ -16,13 +16,13 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 
+import numpy as np
+
 try:
     from apex.parallel import DistributedDataParallel as DDP
     from apex.fp16_utils import *
 except ImportError:
     raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
-
-import numpy as np
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -82,6 +82,23 @@ parser.add_argument('--rank', default=0, type=int,
                     'or automatically set by using \'python -m multiproc\'.')
 
 cudnn.benchmark = True
+
+def fast_collate(batch):
+    imgs = [img[0] for img in batch]
+    targets = torch.tensor([target[1] for target in batch], dtype=torch.int64)
+    w = imgs[0].size[0]
+    h = imgs[0].size[1]
+    tensor = torch.zeros( (len(imgs), 3, h, w), dtype=torch.uint8 )
+    for i, img in enumerate(imgs):
+        nump_array = np.asarray(img, dtype=np.uint8)
+        tens = torch.from_numpy(nump_array)
+        if(nump_array.ndim < 3):
+            nump_array = np.expand_dims(nump_array, axis=-1)
+        nump_array = np.rollaxis(nump_array, 2)
+
+        tensor[i] += torch.from_numpy(nump_array)
+        
+    return tensor, targets
 
 best_prec1 = 0
 args = parser.parse_args()
@@ -151,8 +168,6 @@ def main():
     # Data loading code
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
 
     if(args.arch == "inception_v3"):
         crop_size = 299
@@ -166,8 +181,8 @@ def main():
         transforms.Compose([
             transforms.RandomResizedCrop(crop_size),
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
+            # transforms.ToTensor(), Too slow
+            # normalize,
         ]))
 
     if args.distributed:
@@ -177,17 +192,16 @@ def main():
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-        num_workers=args.workers, pin_memory=True, sampler=train_sampler)
+        num_workers=args.workers, pin_memory=True, sampler=train_sampler, collate_fn=fast_collate)
 
     val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, transforms.Compose([
             transforms.Resize(val_size),
             transforms.CenterCrop(crop_size),
-            transforms.ToTensor(),
-            normalize,
         ])),
         batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=True)
+        num_workers=args.workers, pin_memory=True,
+        collate_fn=fast_collate)
 
     if args.evaluate:
         validate(val_loader, model, criterion)
@@ -221,6 +235,11 @@ class data_prefetcher():
     def __init__(self, loader):
         self.loader = iter(loader)
         self.stream = torch.cuda.Stream()
+        self.mean = torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255]).cuda().view(1,3,1,1)
+        self.std = torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255]).cuda().view(1,3,1,1)
+        if args.fp16:
+            self.mean = self.mean.half()
+            self.std = self.std.half()
         self.preload()
 
     def preload(self):
@@ -233,7 +252,12 @@ class data_prefetcher():
         with torch.cuda.stream(self.stream):
             self.next_input = self.next_input.cuda(async=True)
             self.next_target = self.next_target.cuda(async=True)
-
+            if args.fp16:
+                self.next_input = self.next_input.half()
+            else:
+                self.next_input = self.next_input.float()
+            self.next_input = self.next_input.sub_(self.mean).div_(self.std)
+            
     def next(self):
         torch.cuda.current_stream().wait_stream(self.stream)
         input = self.next_input
@@ -304,11 +328,15 @@ def train(train_loader, model, criterion, optimizer, epoch):
         if args.rank == 0 and i % args.print_freq == 0 and i > 1:
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  'Speed {3:.3f} ({4:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                   epoch, i, len(train_loader), batch_time=batch_time,
+                   epoch, i, len(train_loader),
+                   args.world_size * args.batch_size / batch_time.val,
+                   args.world_size * args.batch_size / batch_time.avg,
+                   batch_time=batch_time,
                    data_time=data_time, loss=losses, top1=top1, top5=top5))
 
 
@@ -359,10 +387,14 @@ def validate(val_loader, model, criterion):
         if args.rank == 0 and i % args.print_freq == 0:
             print('Test: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  'Speed {2:.3f} ({3:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                   i, len(val_loader), batch_time=batch_time, loss=losses,
+                   i, len(val_loader),
+                   args.world_size * args.batch_size / batch_time.val,
+                   args.world_size * args.batch_size / batch_time.avg,
+                   batch_time=batch_time, loss=losses,
                    top1=top1, top5=top5))
 
         input, target = prefetcher.next()
