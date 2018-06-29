@@ -5,7 +5,7 @@ from torch.nn.parameter import Parameter
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 from .loss_scaler import DynamicLossScaler, LossScaler
-from .fp16util import model_grads_to_master_grads, master_params_to_model_params
+from .fp16util import model_grads_to_master_grads, master_params_to_model_params, clip_grad_norm
 
 FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
 HALF_TYPES = (torch.HalfTensor, torch.cuda.HalfTensor)
@@ -199,12 +199,7 @@ class FP16_Optimizer(object):
         self.overflow = False
         self.first_closure_call_this_step = True
 
-        TORCH_MAJOR = int(torch.__version__.split('.')[0])
-        TORCH_MINOR = int(torch.__version__.split('.')[1])
-        if TORCH_MAJOR == 0 and TORCH_MINOR <= 4:
-            self.clip_grad_norm = torch.nn.utils.clip_grad_norm
-        else:
-            self.clip_grad_norm = torch.nn.utils.clip_grad_norm_
+        self.clip_grad_norm = clip_grad_norm
             
     def __getstate__(self):
         raise RuntimeError("FP16_Optimizer should be serialized using state_dict().")

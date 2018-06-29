@@ -177,7 +177,10 @@ def train():
         loss.backward()
         loss = loss / args.static_loss_scale
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-        torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
+        # apex.fp16_utils.clip_grad_norm selects between "torch.nn.utils.clip_grad_norm" 
+        # and "torch.nn.utils.clip_grad_norm_" based on Pytorch version.  
+        # It's not FP16-specific, just a small fix to avoid deprecation warnings.
+        clip_grad_norm(model.parameters(), args.clip)
 
         if args.fp16 and args.cuda:
             model_grads_to_master_grads(model_params, master_params)

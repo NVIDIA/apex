@@ -128,9 +128,17 @@ def master_params_to_model_params(model_params, master_params, flat_master=False
         for model, master in zip(model_params, master_params):
             model.data.copy_(master.data)
 
-# item() is a recent addition, so this helps with backward compatibility.
+# Backward compatibility fixes
+
 def to_python_float(t):
     if hasattr(t, 'item'):
         return t.item()
     else:
         return t[0]
+
+TORCH_MAJOR = int(torch.__version__.split('.')[0])
+TORCH_MINOR = int(torch.__version__.split('.')[1])
+if TORCH_MAJOR == 0 and TORCH_MINOR <= 4:
+    clip_grad_norm = torch.nn.utils.clip_grad_norm
+else:
+    clip_grad_norm = torch.nn.utils.clip_grad_norm_

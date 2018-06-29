@@ -195,7 +195,11 @@ def train():
             optimizer.clip_master_grads(args.clip)
         else:
             loss.backward()
-            torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
+            # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+            # apex.fp16_utils.clip_grad_norm selects between "torch.nn.utils.clip_grad_norm" 
+            # and "torch.nn.utils.clip_grad_norm_" based on Pytorch version.  
+            # It's not FP16-specific, just a small fix to avoid deprecation warnings.
+            clip_grad_norm(model.parameters(), args.clip)
 
         optimizer.step()
 
