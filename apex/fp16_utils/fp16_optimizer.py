@@ -184,7 +184,7 @@ class FP16_Optimizer(object):
             self.fp32_from_fp16_groups.append(fp32_from_fp16_params_this_group)
             self.fp32_from_fp32_groups.append(fp32_params_this_group)
 
-        self.optimizer = optimizer
+        self.optimizer = init_optimizer
 
         if dynamic_loss_scale:
             self.dynamic_loss_scale = True
