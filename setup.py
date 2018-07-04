@@ -69,7 +69,7 @@ def find_cuda_home():
                                " or include directories.")
         
         raise RuntimeError("Error: Could not find cuda on this system. " +
-                            "Please set your CUDA_HOME enviornment variable "
+                            "Please set your CUDA_HOME environment variable "
                             "to the CUDA base directory.")
 
     return CUDA_HOME
