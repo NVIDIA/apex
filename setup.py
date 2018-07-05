@@ -82,7 +82,7 @@ if TORCH_MAJOR == 0 and TORCH_MINOR == 4:
 
 def get_cuda_version():
     NVCC = find(CUDA_HOME+os.sep+"bin",
-                re.compile('nvcc$').search)
+                re.compile('nvcc$|nvcc.exe').search)
     print("Found NVCC = ", NVCC)
 
     # Parse output of nvcc to get cuda major version
@@ -104,7 +104,8 @@ if CUDA_HOME is not None:
 
     CUDA_MAJOR = get_cuda_version()
 
-    gencodes = ['-gencode', 'arch=compute_52,code=sm_52',
+    gencodes = ['-gencode', 'arch=compute_50,code=sm_50',
+                '-gencode', 'arch=compute_52,code=sm_52',
                 '-gencode', 'arch=compute_60,code=sm_60',
                 '-gencode', 'arch=compute_61,code=sm_61',]
 
