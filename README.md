@@ -71,6 +71,7 @@ If you have any problems building, please file an issue.
 
 # Quick Start
 
+### Linux
 To build the extension run the following command in the root directory of this project
 ```
 python setup.py install
@@ -84,6 +85,18 @@ and optionally (if required for your use)
 ```
 import apex_C as apex_backend
 ```
+
+### Windows support
+Windows support is experimental, and Linux is recommended.  If you wish to install Apex in Windows, there are two requirements:
+1.  Apex must be installed in the same Conda environment as Pytorch.
+2.  Building Apex requires the same Visual Studio environment settings as [building Pytorch from source](https://github.com/pytorch/pytorch#install-pytorch):
+```
+cd apex_dir
+set "VS150COMNTOOLS=C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\VC\Auxiliary\Build"
+call "%VS150COMNTOOLS%\vcvarsall.bat" x64 -vcvars_ver=14.11
+python setup.py install
+```
+You may need to replace `2017`, `Enterprise`, or `vcvars_ver` according to your version of Visual Studio.
 
 <!--
 reparametrization and RNN API under construction
