@@ -1,4 +1,4 @@
-## Create new container with Apex
+## Option 1:  Create a new container with Apex
 
 **Dockerfile** installs the latest Apex on top of an existing image.  Run
 ```
@@ -19,7 +19,7 @@ If you want to rebuild your image, and force the latest Apex to be cloned and in
 Currently, Pytorch's default non-devel image on Dockerhub
 [pytorch/pytorch:0.4_cuda9_cudnn7](https://hub.docker.com/r/pytorch/pytorch/tags/) contains Pytorch installed with prebuilt binaries.  It does not contain NVCC, which means it is not an eligible candidate for `<base image>`.
 
-## Install Apex in running container
+## Option 2:  Install Apex in a running container
 
 Instead of building a new container, it is also a viable option to clone Apex on bare metal, mount the Apex repo into your container at launch by running, for example,
 ```
