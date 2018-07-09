@@ -13,7 +13,7 @@ from .fp16util import (
 from .fused_weight_norm import Fused_Weight_Norm
 
 
-from .fp16_optimizer import fp32_to_fp16, fp16_to_fp32, FP16_Module, FP16_Optimizer
+from .fp16_optimizer import FP16_Optimizer
 
 
 from .loss_scaler import LossScaler, DynamicLossScaler
