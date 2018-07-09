@@ -201,7 +201,8 @@ def test():
 
 for epoch in range(1, args.epochs + 1):
     #=====START: ADDED FOR DISTRIBUTED======
-    train_sampler.set_epoch(epoch)
+    if args.distributed:
+        train_sampler.set_epoch(epoch)
     #=====END:   ADDED FOR DISTRIBUTED======
 
     train(epoch)
