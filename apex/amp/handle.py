@@ -2,6 +2,7 @@ import contextlib
 import logging
 import warnings
 
+from . import dbg
 from .opt import OptimWrapper
 from .scaler import LossScaler
 
@@ -79,6 +80,20 @@ class AmpHandle(object):
     def verbose(self):
         return self._verbose
 
+    def run_debug(self, model, loss_fn):
+        if not self.is_active():
+            raise RuntimeError('can call debug() on only an active amp handle')
+
+        # Disable caching during debug
+        enable_caching = self._enable_caching
+        self._enable_caching = False
+
+        dbg.run(self, model, loss_fn)
+
+        # Reset caching state
+        self._clear_cache()
+        self._enable_caching = enable_caching
+
 class NoOpHandle(object):
     def is_active(self):
         return False
@@ -101,3 +116,6 @@ class NoOpHandle(object):
     @property
     def verbose(self):
         return False
+
+    def run_debug(self, model, loss_fn):
+        raise RuntimeError('can call debug() on only an active amp handle')

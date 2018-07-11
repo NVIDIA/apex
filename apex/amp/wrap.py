@@ -140,10 +140,12 @@ def err_if_arg0_half(mod, fn, verbose=False):
 # - We interpose on the factory function to:
 #   1) Interpose on the actual forward function and put in casts
 #   2) Insert an fp16 `flat_weight` if necessary
-def rnn_cast(backend, fn, verbose=False):
+def rnn_cast(backend, fn, handle, verbose=False):
     orig_rnn = utils.get_func(backend, fn)
     @functools.wraps(orig_rnn)
     def rnn_wrapper(*args, **kwargs):
+        if not handle.is_active():
+            return orig_rnn(*args, **kwargs)
         flat_weight = kwargs.get('flat_weight')
         if flat_weight is not None:
             # We replace `flat_weight` with an uninitialized fp16
@@ -167,6 +169,7 @@ def rnn_cast(backend, fn, verbose=False):
         forward = orig_rnn(*args, **kwargs)
         @functools.wraps(forward)
         def fwd_wrapper(*fargs, **fkwargs):
+            assert handle.is_active()
             assert len(fargs) == 3 or len(fargs) == 4
             inputs, weights, hiddens = fargs[:3]
             assert utils.is_fp_tensor(inputs)

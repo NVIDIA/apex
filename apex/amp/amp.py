@@ -143,7 +143,7 @@ def init(enabled=True, enable_caching=True, verbose=False, allow_banned=False):
                          handle, try_caching=True, verbose=verbose)
 
     # 5.5) Extra-special handling of RNN backend
-    wrap.rnn_cast(torch.nn.backends.thnn.backend, 'RNN', verbose)
+    wrap.rnn_cast(torch.nn.backends.thnn.backend, 'RNN', handle, verbose)
 
     # And even more special handling of `backward` for fused gru / lstm
     # The `backward` method calls Tensor.sum() (blacklist) internally,
