@@ -92,7 +92,7 @@ class DistributedDataParallel(Module):
         super(DistributedDataParallel, self).__setstate__(state)
         self.reduction_stream = torch.cuda.Stream()
         
-    def __getstate__(self, state):
+    def __getstate__(self):
         attrs = copy.copy(self.__dict__)
         if dist._backend != dist.dist_backend.NCCL:
             del attrs['self.reduction_stream']
