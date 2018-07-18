@@ -87,6 +87,17 @@ class DistributedDataParallel(Module):
         self.create_hooks()
 
         flat_dist_call([param.data for param in self.module.parameters()], dist.broadcast, (0,) )
+
+    def __setstate__(self, state):
+        super(DistributedDataParallel, self).__setstate__(state)
+        self.reduction_stream = torch.cuda.Stream()
+        
+    def __getstate__(self, state):
+        attrs = copy.copy(self.__dict__)
+        if dist._backend != dist.dist_backend.NCCL:
+            del attrs['self.reduction_stream']
+            return attrs
+        
         
     def create_hooks(self):
         #all reduce gradient hook
