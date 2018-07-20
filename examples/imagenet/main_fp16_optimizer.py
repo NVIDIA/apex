@@ -117,6 +117,7 @@ def main():
                                 init_method=args.dist_url,
                                 world_size=args.world_size,
                                 rank=args.rank)
+        print(args.rank, torch.distributed.get_rank(), torch.cuda.device_count(), flush=True)
 
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."

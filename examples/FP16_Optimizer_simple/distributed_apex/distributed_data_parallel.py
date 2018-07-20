@@ -5,20 +5,12 @@ from apex.parallel import DistributedDataParallel as DDP
 from apex.fp16_utils import FP16_Optimizer
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
-                    help='url used to set up distributed training')
-parser.add_argument('--world-size', default=2, type=int,
-                    help='Number of distributed processes.')
-parser.add_argument("--rank", type=int,
-                    help='Rank of this process')
-
+parser.add_argument("--local_rank", default=0, type=int)
 args = parser.parse_args()
 
-torch.cuda.set_device(args.rank)
+torch.cuda.set_device(args.local_rank)
 torch.distributed.init_process_group(backend='nccl',
-                                     init_method=args.dist_url,
-                                     world_size=args.world_size,
-                                     rank=args.rank)
+                                     init_method='env://')
 
 torch.backends.cudnn.benchmark = True
 
