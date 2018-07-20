@@ -66,17 +66,7 @@ parser.add_argument('--static-loss-scale', type=float, default=1,
 parser.add_argument('--prof', dest='prof', action='store_true',
                     help='Only run 10 iterations for profiling.')
 
-parser.add_argument('--dist-url', default='file://sync.file', type=str,
-                    help='url used to set up distributed training')
-parser.add_argument('--dist-backend', default='nccl', type=str,
-                    help='distributed backend')
-
-parser.add_argument('--world-size', default=1, type=int,
-                    help='Number of GPUs to use. Can either be manually set ' +
-                    'or automatically set by using \'python -m multiproc\'.')
-parser.add_argument('--rank', default=0, type=int,
-                    help='Used for multi-process training. Can either be manually set ' +
-                    'or automatically set by using \'python -m multiproc\'.')
+parser.add_argument("--local_rank", default=0, type=int)
 
 cudnn.benchmark = True
 
@@ -102,19 +92,18 @@ args = parser.parse_args()
 def main():
     global best_prec1, args
 
-    args.distributed = args.world_size > 1
+    args.distributed = False
+    if 'WORLD_SIZE' in os.environ:
+        args.distributed = int(os.environ['WORLD_SIZE']) > 1
+
     args.gpu = 0
     if args.distributed:
-        args.gpu = args.rank % torch.cuda.device_count()
+        args.gpu = args.local_rank % torch.cuda.device_count()
         
-
     if args.distributed:
         torch.cuda.set_device(args.gpu)
-        dist.init_process_group(backend=args.dist_backend, 
-                                init_method=args.dist_url,
-                                world_size=args.world_size,
-                                rank=args.rank)
-        print(args.rank, torch.distributed.get_rank(), torch.cuda.device_count(), flush=True)
+        torch.distributed.init_process_group(backend='nccl',
+                                             init_method='env://')
 
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
@@ -131,7 +120,7 @@ def main():
     if args.fp16:
         model = network_to_half(model)
     if args.distributed:
-        #shared param turns off bucketing in DDP, for lower latency runs this can improve perf
+        # shared param turns off bucketing in DDP, for lower latency runs this can improve perf
         model = DDP(model, shared_param=True)
 
     global model_params, master_params
@@ -216,7 +205,7 @@ def main():
         prec1 = validate(val_loader, model, criterion)
 
         # remember best prec@1 and save checkpoint
-        if args.rank == 0:
+        if args.local_rank == 0:
             is_best = prec1 > best_prec1
             best_prec1 = max(prec1, best_prec1)
             save_checkpoint({
@@ -329,7 +318,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         end = time.time()
         input, target = prefetcher.next()
 
-        if args.rank == 0 and i % args.print_freq == 0 and i > 1:
+        if args.local_rank == 0 and i % args.print_freq == 0 and i > 1:
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Speed {3:.3f} ({4:.3f})\t'
@@ -338,8 +327,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                    epoch, i, len(train_loader),
-                   args.world_size * args.batch_size / batch_time.val,
-                   args.world_size * args.batch_size / batch_time.avg,
+                   torch.distributed.get_world_size() * args.batch_size / batch_time.val,
+                   torch.distributed.get_world_size() * args.batch_size / batch_time.avg,
                    batch_time=batch_time,
                    data_time=data_time, loss=losses, top1=top1, top5=top5))
 
@@ -388,7 +377,7 @@ def validate(val_loader, model, criterion):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if args.rank == 0 and i % args.print_freq == 0:
+        if args.local_rank == 0 and i % args.print_freq == 0:
             print('Test: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Speed {2:.3f} ({3:.3f})\t'
@@ -396,8 +385,8 @@ def validate(val_loader, model, criterion):
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                    i, len(val_loader),
-                   args.world_size * args.batch_size / batch_time.val,
-                   args.world_size * args.batch_size / batch_time.avg,
+                   torch.distributed.get_world_size() * args.batch_size / batch_time.val,
+                   torch.distributed.get_world_size() * args.batch_size / batch_time.avg,
                    batch_time=batch_time, loss=losses,
                    top1=top1, top5=top5))
 
@@ -459,7 +448,7 @@ def accuracy(output, target, topk=(1,)):
 def reduce_tensor(tensor):
     rt = tensor.clone()
     dist.all_reduce(rt, op=dist.reduce_op.SUM)
-    rt /= args.world_size
+    rt /= torch.distributed.get_world_size()
     return rt
 
 if __name__ == '__main__':
