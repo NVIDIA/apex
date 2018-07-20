@@ -34,8 +34,9 @@ The scripts can interact with
 [torch.distributed.launch](https://pytorch.org/docs/master/distributed.html#launch-utility)
 to spawn multiprocess jobs using the following syntax:
 ```
-python -m torch.distributed.launch --nproc_per_node=NUM_GPUS_YOU_HAVE main.py args...
+python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py args...
 ```
+`NUM_GPUS` should be less than or equal to the number of visible GPU devices on the node.
 
 ## Example commands
 
@@ -49,16 +50,16 @@ $ ln -sf /data/imagenet/val-jpeg/ val
 ### Single-process training
 $ python main.py -a resnet50 --fp16 --b 256 --workers 4 ./
 ### Multi-process training (uses all visible GPU on the node)
-$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS_YOU_HAVE main.py -a resnet50 --fp16 --b 256 --workers 4 ./
+$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --fp16 --b 256 --workers 4 ./
 ### Multi-process training on GPUs 0 and 1 only
 $ export CUDA_VISIBLE_DEVICES=0,1
-$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS_YOU_HAVE main.py -a resnet50 --fp16 --b 256 --workers 4 ./
+$ python -m torch.distributed.launch --nproc_per_node=2 main.py -a resnet50 --fp16 --b 256 --workers 4 ./
 ### Multi-process training with FP16_Optimizer, default loss scale 1.0 (still uses FP32 master params)
-$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS_YOU_HAVE main_fp16_optimizer.py -a resnet50 --fp16 --b 256 --workers 4 ./
+$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main_fp16_optimizer.py -a resnet50 --fp16 --b 256 --workers 4 ./
 # Multi-process training with FP16_Optimizer, static loss scale
-$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS_YOU_HAVE main_fp16_optimizer.py -a resnet50 --fp16 --b 256 --static-loss-scale 128.0 --workers 4 ./
+$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main_fp16_optimizer.py -a resnet50 --fp16 --b 256 --static-loss-scale 128.0 --workers 4 ./
 ### Multi-process training with FP16_Optimizer, dynamic loss scaling
-$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS_YOU_HAVE main_fp16_optimizer.py -a resnet50 --fp16 --b 256 --dynamic-loss-scale --workers 4 ./
+$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main_fp16_optimizer.py -a resnet50 --fp16 --b 256 --dynamic-loss-scale --workers 4 ./
 ```
 
 ## Usage for `main.py` and `main_fp16_optimizer.py`

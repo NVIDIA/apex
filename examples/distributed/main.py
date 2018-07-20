@@ -135,7 +135,7 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.dropout(x, training=self.training)
         x = self.fc2(x)
-        return F.log_softmax(x)
+        return F.log_softmax(x, dim=1)
 
 model = Net()
 if args.cuda:
@@ -184,10 +184,10 @@ def test():
             correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
     test_loss /= len(test_loader.dataset)
-    if args.local_rank == 0:
-        print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-            test_loss, correct, len(test_loader.dataset),
-            100. * correct / len(test_loader.dataset)))
+
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
 
 
 for epoch in range(1, args.epochs + 1):
@@ -197,4 +197,5 @@ for epoch in range(1, args.epochs + 1):
     #=====END:   ADDED FOR DISTRIBUTED======
 
     train(epoch)
-    test()
+    if args.local_rank == 0:
+        test()

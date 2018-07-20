@@ -37,7 +37,7 @@ python -m torch.distributed.launch --nproc_per_node=N main.py args...
 ```
 `torch.distributed.launch` spawns `N` processes, each of which runs as
 `python main.py args... --local_rank <rank>`.
-The ``local_rank` argument for each process is determined and appended by `torch.distributed.launch`,
+The `local_rank` argument for each process is determined and appended by `torch.distributed.launch`,
 and varies between  0 and `N-1`.  `torch.distributed.launch` also provides environment variables 
 for each process.
 Internally, each process calls `set_device` according to its local
@@ -50,4 +50,4 @@ For best performance, set `N` equal to the number of visible CUDA devices on the
 To understand how to convert your own model, please see all sections of main.py within ```#=====START: ADDED FOR DISTRIBUTED======``` and ```#=====END:   ADDED FOR DISTRIBUTED======``` flags.
 
 ## Requirements
-Pytorch master branch built from source. This requirement is to use NCCL as a distributed backend.
+Pytorch with NCCL available as a distributed backend.  Pytorch 0.4+, installed as a pip or conda package, should have this by default.  Otherwise, you can build Pytorch from source, in an environment where NCCL is installed and visible.
