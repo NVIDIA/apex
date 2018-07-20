@@ -1,5 +1,6 @@
 from __future__ import print_function
 import argparse
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -49,20 +50,10 @@ parser.add_argument('--log-interval', type=int, default=10, metavar='N',
 Add some distributed options. For explanation of dist-url and dist-backend please see
 http://pytorch.org/tutorials/intermediate/dist_tuto.html
 
---world-size and --rank are required parameters as they will be used by the multiproc.py launcher
-but do not have to be set explicitly.
+--local_rank will be supplied by the Pytorch launcher wrapper (torch.distributed.launch)
 '''
+parser.add_argument("--local_rank", default=0, type=int)
 
-parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
-                    help='url used to set up distributed training')
-parser.add_argument('--dist-backend', default='nccl', type=str,
-                    help='distributed backend')
-parser.add_argument('--world-size', default=1, type=int,
-                    help='Number of GPUs to use. Can either be manually set ' +
-                    'or automatically set by using \'python -m multiproc\'.')
-parser.add_argument('--rank', default=0, type=int,
-                    help='Used for multi-process training. Can either be manually set ' +
-                    'or automatically set by using \'python -m multiproc\'.')
 #=====END:   ADDED FOR DISTRIBUTED======
 
 args = parser.parse_args()
@@ -70,24 +61,23 @@ args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 #======START: ADDED FOR DISTRIBUTED======
 '''Add a convenience flag to see if we are running distributed'''
-args.distributed = args.world_size > 1
+args.distributed = False
+if 'WORLD_SIZE' in os.environ:
+    args.distributed = int(os.environ['WORLD_SIZE']) > 1
 
-'''Check that we are running with cuda, as distributed is only supported for cuda.'''
 if args.distributed:
+    '''Check that we are running with cuda, as distributed is only supported for cuda.'''
     assert args.cuda, "Distributed mode requires running with CUDA."
 
-if args.distributed:
     '''
     Set cuda device so everything is done on the right GPU.
     THIS MUST BE DONE AS SOON AS POSSIBLE.
     '''
-    torch.cuda.set_device(args.rank % torch.cuda.device_count())
+    torch.cuda.set_device(args.local_rank)
 
     '''Initialize distributed communication'''
-    dist.init_process_group(args.dist_backend, 
-                            init_method=args.dist_url,
-                            world_size=args.world_size,
-                            rank=args.rank)
+    torch.distributed.init_process_group(backend='nccl',
+                                         init_method='env://')
 
 #=====END:   ADDED FOR DISTRIBUTED======
 
@@ -145,7 +135,7 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.dropout(x, training=self.training)
         x = self.fc2(x)
-        return F.log_softmax(x)
+        return F.log_softmax(x, dim=1)
 
 model = Net()
 if args.cuda:
@@ -174,7 +164,7 @@ def train(epoch):
         loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
-        if batch_idx % args.log_interval == 0:
+        if batch_idx % args.log_interval == 0 and args.local_rank == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), to_python_float(loss.data)))
@@ -194,6 +184,7 @@ def test():
             correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
     test_loss /= len(test_loader.dataset)
+
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
@@ -206,4 +197,5 @@ for epoch in range(1, args.epochs + 1):
     #=====END:   ADDED FOR DISTRIBUTED======
 
     train(epoch)
-    test()
+    if args.local_rank == 0:
+        test()

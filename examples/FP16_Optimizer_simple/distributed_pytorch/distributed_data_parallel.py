@@ -4,7 +4,7 @@ import argparse
 from apex.fp16_utils import FP16_Optimizer
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--local_rank", type=int)
+parser.add_argument("--local_rank", default=0, type=int)
 args = parser.parse_args()
 
 torch.cuda.set_device(args.local_rank)

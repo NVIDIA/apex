@@ -1,7 +1,7 @@
 # Multiprocess Example based on pytorch/examples/mnist
 
 main.py demonstrates how to modify a simple model to enable multiprocess distributed data parallel
-training using the module wrapper `apex.parallel.DistributedDataParallel` 
+training using the module wrapper `apex.parallel.DistributedDataParallel`
 (similar to `torch.nn.parallel.DistributedDataParallel`).
 
 Multiprocess distributed data parallel training frequently outperforms single-process 
@@ -29,27 +29,25 @@ To download the dataset, run
 ```python main.py```
 without any arguments.  Once you have downloaded the dataset, you should not need to do this again.
 
-You can now launch multi-process distributed data parallel jobs via
+`main.py` runs multiprocess distributed data parallel jobs using the Pytorch launcher script
+[torch.distributed.launch](https://pytorch.org/docs/master/distributed.html#launch-utility).
+Jobs are launched via
 ```bash
-python -m apex.parallel.multiproc main.py args...
+python -m torch.distributed.launch --nproc_per_node=N main.py args...
 ```
-adding any `args...` you like.  The launch script `apex.parallel.multiproc` will 
-spawn one process for each of your system's available (visible) GPUs.
-Each process will run `python main.py args... --world-size <worldsize> --rank <rank>`
-(the `--world-size` and `--rank` arguments are determined and appended by `apex.parallel.multiproc`).
-Each `main.py` calls `torch.cuda.set_device()` and `torch.distributed.init_process_group()` 
-according to the `rank` and `world-size` arguments it receives.
-
-The number of visible GPU devices (and therefore the number of processes 
-`DistributedDataParallel` will spawn) can be controlled by setting the environment variable 
-`CUDA_VISIBLE_DEVICES`.  For example, if you `export CUDA_VISIBLE_DEVICES=0,1` and run
-```python -m apex.parallel.multiproc main.py ...```, the launch utility will spawn two processes
-which will run on devices 0 and 1.  By default, if `CUDA_VISIBLE_DEVICES` is unset, 
-`apex.parallel.multiproc` will attempt to use every device on the node.
+`torch.distributed.launch` spawns `N` processes, each of which runs as
+`python main.py args... --local_rank <rank>`.
+The `local_rank` argument for each process is determined and appended by `torch.distributed.launch`,
+and varies between  0 and `N-1`.  `torch.distributed.launch` also provides environment variables 
+for each process.
+Internally, each process calls `set_device` according to its local
+rank and `init_process_group` with `init_method=`env://' to ingest the provided environment 
+variables.
+For best performance, set `N` equal to the number of visible CUDA devices on the node.
 
 ## Converting your own model
 
 To understand how to convert your own model, please see all sections of main.py within ```#=====START: ADDED FOR DISTRIBUTED======``` and ```#=====END:   ADDED FOR DISTRIBUTED======``` flags.
 
 ## Requirements
-Pytorch master branch built from source. This requirement is to use NCCL as a distributed backend.
+Pytorch with NCCL available as a distributed backend.  Pytorch 0.4+, installed as a pip or conda package, should have this by default.  Otherwise, you can build Pytorch from source, in an environment where NCCL is installed and visible.
