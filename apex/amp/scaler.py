@@ -16,7 +16,7 @@ def scale_check_overflow(d_grads, scale):
             return True
         d_grads.mul_(scale)
         return False
-
+      
 class LossScaler(object):
     def __init__(self):
         self._loss_scale = 2.**16
@@ -36,7 +36,8 @@ class LossScaler(object):
             if p.grad is not None:
                 self._has_overflow = scale_check_overflow(p.grad.data,
                                                           1. / scale)
-            if self._has_overflow:  break
+            if self._has_overflow:  
+                break
 
         # if self._overflow_buf.any():
         if self._has_overflow:
