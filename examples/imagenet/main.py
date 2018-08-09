@@ -67,6 +67,7 @@ parser.add_argument('--prof', dest='prof', action='store_true',
                     help='Only run 10 iterations for profiling.')
 
 parser.add_argument("--local_rank", default=0, type=int)
+parser.add_argument("--sync_batchnorm", action="store_true")
 
 cudnn.benchmark = True
 
@@ -89,6 +90,10 @@ def fast_collate(batch):
 
 best_prec1 = 0
 args = parser.parse_args()
+if args.sync_batchnorm:
+    from apex.parallel import replace_with_SYNCBN
+    replace_with_SYNCBN()
+
 def main():
     global best_prec1, args
 
