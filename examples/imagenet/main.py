@@ -98,7 +98,7 @@ def main():
 
     args.gpu = 0
     args.world_size = 1
-        
+
     if args.distributed:
         args.gpu = args.local_rank % torch.cuda.device_count()
         torch.cuda.set_device(args.gpu)
