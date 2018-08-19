@@ -199,7 +199,6 @@ def main():
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
-        adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch)
@@ -271,6 +270,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
     i = -1
     while input is not None:
         i += 1
+
+        adjust_learning_rate(optimizer, epoch, i, len(train_loader))
 
         if args.prof:
             if i > 10:
@@ -426,9 +427,22 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def adjust_learning_rate(optimizer, epoch):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    lr = args.lr * (0.1 ** (epoch // 30))
+def adjust_learning_rate(optimizer, epoch, step, len_epoch):
+    """LR schedule that should yield 76% converged accuracy with batch size 256"""
+    factor = epoch // 30
+
+    if epoch >= 80:
+        factor = factor + 1
+
+    lr = args.lr*(0.1**factor)
+
+   """Warmup"""
+   if epoch < 5:
+       lr = lr*float(step + epoch*len_epoch)/(5.*len_epoch)
+
+    if(args.local_rank == 0):
+        print("epoch = {}, step = {}, lr = {}".format(epoch, step, lr))
+
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
