@@ -436,9 +436,9 @@ def adjust_learning_rate(optimizer, epoch, step, len_epoch):
 
     lr = args.lr*(0.1**factor)
 
-   """Warmup"""
-   if epoch < 5:
-       lr = lr*float(step + epoch*len_epoch)/(5.*len_epoch)
+    """Warmup"""
+    if epoch < 5:
+        lr = lr*float(1 + step + epoch*len_epoch)/(5.*len_epoch)
 
     if(args.local_rank == 0):
         print("epoch = {}, step = {}, lr = {}".format(epoch, step, lr))
