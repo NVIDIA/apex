@@ -72,22 +72,19 @@ If you have any problems building, please file an issue.
 # Quick Start
 
 ### Linux
-To build the extension run the following command in the root directory of this project
+To build the extension run
 ```
 python setup.py install
 ```
+in the root directory of the cloned repository.
 
 To use the extension
 ```
 import apex
 ```
-and optionally (if required for your use)
-```
-import apex_C as apex_backend
-```
 
 ### Windows support
-Windows support is experimental, and Linux is recommended.  However, since Apex is Python-only, there's a good chance it "just works."  If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
+Windows support is experimental, and Linux is recommended.  However, since Apex is Python-only, there's a good chance it "just works" the same way as Linux.  If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
 
 <!--
 reparametrization and RNN API under construction
