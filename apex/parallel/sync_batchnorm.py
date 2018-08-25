@@ -1,11 +1,12 @@
 import torch
 from torch.nn.parameter import Parameter
 from torch.nn import Module
+from torch.nn.modules.batchnorm import _BatchNorm
 
 from .sync_batchnorm_kernel import SyncBatchnormFunction
 
 
-class SyncBatchNorm(Module):
+class SyncBatchNorm(_BatchNorm):
     r"""Applies Synced Batch Normalization over a > 2D input
 
     This layer has the same interface as with torch.nn.BatchNormNd.
@@ -14,40 +15,41 @@ class SyncBatchNorm(Module):
     """
 
     def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True):
-        super(SyncBatchNorm, self).__init__()
-        self.num_features = num_features
-        self.eps = eps
-        self.momentum = momentum
-        self.affine = affine
-        self.track_running_stats = track_running_stats
-        if self.affine:
-            self.weight = Parameter(torch.Tensor(num_features))
-            self.bias = Parameter(torch.Tensor(num_features))
-        else:
-            self.register_parameter('weight', None)
-            self.register_parameter('bias', None)
-        if self.track_running_stats:
-            self.register_buffer('running_mean', torch.zeros(num_features))
-            self.register_buffer('running_var', torch.ones(num_features))
-            self.register_buffer('num_batches_tracked',
-                                 torch.tensor(0, dtype=torch.long))
-        else:
-            self.register_buffer('running_mean', None)
-            self.register_buffer('running_var', None)
-            self.register_buffer('num_batches_tracked', None)
-        self.reset_parameters()
+        print("enabled sync BN")
+        super(SyncBatchNorm, self).__init__(num_features, eps=eps, momentum=momentum, affine=affine)
+        #self.num_features = num_features
+        #self.eps = eps
+        #self.momentum = momentum
+        #self.affine = affine
+        #self.track_running_stats = track_running_stats
+        #if self.affine:
+        #    self.weight = Parameter(torch.Tensor(num_features))
+        #    self.bias = Parameter(torch.Tensor(num_features))
+        #else:
+        #    self.register_parameter('weight', None)
+        #    self.register_parameter('bias', None)
+        #if self.track_running_stats:
+        #    self.register_buffer('running_mean', torch.zeros(num_features))
+        #    self.register_buffer('running_var', torch.ones(num_features))
+        #    self.register_buffer('num_batches_tracked',
+        #                         torch.tensor(0, dtype=torch.long))
+        #else:
+        #    self.register_buffer('running_mean', None)
+        #    self.register_buffer('running_var', None)
+        #    self.register_buffer('num_batches_tracked', None)
+        #self.reset_parameters()
 
-    def reset_running_stats(self):
-        if self.track_running_stats:
-            self.running_mean.zero_()
-            self.running_var.fill_(1)
-            self.num_batches_tracked.zero_()
+    #def reset_running_stats(self):
+    #    if self.track_running_stats:
+    #        self.running_mean.zero_()
+    #        self.running_var.fill_(1)
+    #        self.num_batches_tracked.zero_()
 
-    def reset_parameters(self):
-        self.reset_running_stats()
-        if self.affine:
-            self.weight.data.uniform_()
-            self.bias.data.zero_()
+    #def reset_parameters(self):
+    #    self.reset_running_stats()
+    #    if self.affine:
+    #        self.weight.data.uniform_()
+    #        self.bias.data.zero_()
 
     def forward(self, input):
         training = torch.is_grad_enabled()
@@ -100,7 +102,6 @@ class SyncBatchNorm(Module):
             var = self.running_var
 
         return SyncBatchnormFunction.apply(input, self.weight, self.bias, mean, var, self.eps)
-
 
 # Quick drop-in replace hack
 def replace_with_SYNCBN():
