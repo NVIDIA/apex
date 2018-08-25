@@ -100,13 +100,14 @@ def main():
         args.distributed = int(os.environ['WORLD_SIZE']) > 1
 
     args.gpu = 0
+    args.world_size = 1
+
     if args.distributed:
         args.gpu = args.local_rank % torch.cuda.device_count()
-        
-    if args.distributed:
         torch.cuda.set_device(args.gpu)
         torch.distributed.init_process_group(backend='nccl',
                                              init_method='env://')
+        args.world_size = torch.distributed.get_world_size()
 
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
@@ -174,23 +175,26 @@ def main():
             # transforms.ToTensor(), Too slow
             # normalize,
         ]))
+    val_dataset = datasets.ImageFolder(valdir, transforms.Compose([
+            transforms.Resize(val_size),
+            transforms.CenterCrop(crop_size),
+        ]))
 
+    train_sampler = None
+    val_sampler = None
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-    else:
-        train_sampler = None
+        val_sampler = torch.utils.data.distributed.DistributedSampler(val_dataset)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler, collate_fn=fast_collate)
 
     val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(val_size),
-            transforms.CenterCrop(crop_size),
-        ])),
+        val_dataset,
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True,
+        sampler=val_sampler,
         collate_fn=fast_collate)
 
     if args.evaluate:
@@ -200,7 +204,6 @@ def main():
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
-        adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch)
@@ -273,6 +276,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
     while input is not None:
         i += 1
 
+        adjust_learning_rate(optimizer, epoch, i, len(train_loader))
+
         if args.prof:
             if i > 10:
                 break
@@ -324,8 +329,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                    epoch, i, len(train_loader),
-                   torch.distributed.get_world_size() * args.batch_size / batch_time.val,
-                   torch.distributed.get_world_size() * args.batch_size / batch_time.avg,
+                   args.world_size * args.batch_size / batch_time.val,
+                   args.world_size * args.batch_size / batch_time.avg,
                    batch_time=batch_time,
                    data_time=data_time, loss=losses, top1=top1, top5=top5))
 
@@ -382,8 +387,8 @@ def validate(val_loader, model, criterion):
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                    i, len(val_loader),
-                   torch.distributed.get_world_size() * args.batch_size / batch_time.val,
-                   torch.distributed.get_world_size() * args.batch_size / batch_time.avg,
+                   args.world_size * args.batch_size / batch_time.val,
+                   args.world_size * args.batch_size / batch_time.avg,
                    batch_time=batch_time, loss=losses,
                    top1=top1, top5=top5))
 
@@ -419,9 +424,22 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def adjust_learning_rate(optimizer, epoch):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    lr = args.lr * (0.1 ** (epoch // 30))
+def adjust_learning_rate(optimizer, epoch, step, len_epoch):
+    """LR schedule that should yield 76% converged accuracy with batch size 256"""
+    factor = epoch // 30
+
+    if epoch >= 80:
+        factor = factor + 1
+
+    lr = args.lr*(0.1**factor)
+
+    """Warmup"""
+    if epoch < 5:
+        lr = lr*float(1 + step + epoch*len_epoch)/(5.*len_epoch)
+
+    # if(args.local_rank == 0):
+    #     print("epoch = {}, step = {}, lr = {}".format(epoch, step, lr))
+
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
@@ -445,7 +463,7 @@ def accuracy(output, target, topk=(1,)):
 def reduce_tensor(tensor):
     rt = tensor.clone()
     dist.all_reduce(rt, op=dist.reduce_op.SUM)
-    rt /= torch.distributed.get_world_size()
+    rt /= args.world_size
     return rt
 
 if __name__ == '__main__':
