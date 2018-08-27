@@ -6,12 +6,15 @@ class SyncBatchnormFunction(Function):
 
     @staticmethod
     def forward(ctx, input, weight, bias, running_mean, running_variance, eps):
+        #return input.clone()
         # transpose it to channel last to support broadcasting for input with different rank
-        c_last_input = input.transpose(1, -1).contiguous()
+        c_last_input = input.transpose(1, -1).contiguous().clone()
 
         ctx.save_for_backward(c_last_input, weight, bias,
                               running_mean, running_variance)
         ctx.eps = eps
+
+        #return input.clone()
 
         c_last_input = (c_last_input - running_mean) / \
             torch.sqrt(running_variance + eps)
@@ -21,7 +24,7 @@ class SyncBatchnormFunction(Function):
         if bias is not None:
             c_last_input = c_last_input + bias
 
-        return c_last_input.transpose(1, -1).contiguous()
+        return c_last_input.transpose(1, -1).contiguous().clone()
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -29,6 +32,7 @@ class SyncBatchnormFunction(Function):
         # mu = 1./N*np.sum(h, axis = 0)
         # var = 1./N*np.sum((h-mu)**2, axis = 0)
         c_last_input, weight, bias, running_mean, running_variance = ctx.saved_tensors
+        #return grad_output.clone(), None, None, None, None, None
         eps = ctx.eps
         grad_input = grad_weight = grad_bias = None
         num_features = running_mean.size()[0]
@@ -36,7 +40,7 @@ class SyncBatchnormFunction(Function):
         # transpose it to channel last to support broadcasting for input with different rank
         c_last_grad = grad_output.transpose(1, -1).contiguous()
         # squash non-channel dimension so we can easily calculate mean
-        c_grad = c_last_grad.view(-1, num_features)
+        c_grad = c_last_grad.view(-1, num_features).contiguous()
 
         # calculate grad_input
         if ctx.needs_input_grad[0]:
@@ -61,6 +65,7 @@ class SyncBatchnormFunction(Function):
             grad_input = c_last_grad_input.transpose(1, -1).contiguous()
 
         # calculate grad_weight
+        grad_weight = None
         if weight is not None and ctx.needs_input_grad[1]:
             # dgamma = np.sum((h - mu) * (var + eps)**(-1. / 2.) * dy, axis=0)
             # DDP will handle all_reduce (mean), so we compensate that if running in DDP
@@ -70,6 +75,7 @@ class SyncBatchnormFunction(Function):
                 grad_weight *= torch.distributed.get_world_size()
 
         # calculate grad_bias
+        grad_bias = None
         if bias is not None and ctx.needs_input_grad[2]:
             # dbeta = np.sum(dy, axis=0)
             # DDP will handle all_reduce (mean), so we compensate that if running in DDP
