@@ -55,8 +55,6 @@ out.backward(output_grad[start:finish])
 
 sbn_opt.step()
 
-
-bn_layer.register_backward_hook(printgrad)
 bn_opt = optim.SGD(bn_layer.parameters(), lr=0.01)
 input2 = data.clone().cuda().requires_grad_(True)
 
@@ -67,6 +65,20 @@ out2 = bn_layer(input2)
 out2.backward(grad.clone().cuda())
 bn_opt.step()
     
+# prepare input data for inference
+with torch.no_grad():
+    data2 = torch.randn(*data_dim)*255.0
+    input_inference = data2.clone().cuda()
+    start = args.local_rank * num_batch//2
+    finish = (args.local_rank + 1) * num_batch//2
+    #sbn_layer.training = False
+    #sbn_layer.track_running_stats = False
+    out_inference = sbn_layer(input_inference[start:finish])
+    
+    input2_inference = data2.clone().cuda()
+    bn_layer.training = False
+    out2_inference = bn_layer(input2_inference)
+
 def compare(desc, inp1, inp2):
     close = np.allclose(inp1.detach().cpu().numpy(),
                         inp2.detach().cpu().numpy(),
@@ -94,6 +106,12 @@ result = (result and
           )
 )
 
+# comparing inference output
+result = (result and
+          compare("compare inference output equal: ",
+                  out_inference, out2_inference[start:finish]
+          )
+)
 
 if args.local_rank == 0:
 
