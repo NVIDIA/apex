@@ -65,19 +65,6 @@ out2 = bn_layer(input2)
 out2.backward(grad.clone().cuda())
 bn_opt.step()
     
-# prepare input data for inference
-with torch.no_grad():
-    data2 = torch.randn(*data_dim)*255.0
-    input_inference = data2.clone().cuda()
-    start = args.local_rank * num_batch//2
-    finish = (args.local_rank + 1) * num_batch//2
-    #sbn_layer.training = False
-    #sbn_layer.track_running_stats = False
-    out_inference = sbn_layer(input_inference[start:finish])
-    
-    input2_inference = data2.clone().cuda()
-    bn_layer.training = False
-    out2_inference = bn_layer(input2_inference)
 
 def compare(desc, inp1, inp2):
     close = np.allclose(inp1.detach().cpu().numpy(),
@@ -90,6 +77,30 @@ def compare(desc, inp1, inp2):
 
 result = True
 print ("-----sanity check----")
+
+# prepare input data for inference
+#for flag1, flag2 in list(itertools.product([True, False], repeat=2)):
+for flag2 in [True, False]:
+    with torch.no_grad():
+        data2 = torch.randn(*data_dim)*255.0
+        input_inference = data2.clone().cuda()
+        start = args.local_rank * num_batch//2
+        finish = (args.local_rank + 1) * num_batch//2
+        sbn_layer.module.training = False
+        sbn_layer.module.track_running_stats = flag2
+        out_inference = sbn_layer(input_inference[start:finish])
+        
+        input2_inference = data2.clone().cuda()
+        bn_layer.training = False
+        bn_layer.track_running_stats = flag2 
+        out2_inference = bn_layer(input2_inference)
+    
+    # comparing inference output
+    result = (result and
+              compare("compare inference output equal: ",
+                      out_inference, out2_inference[start:finish]
+              )
+    )
 
 # comparing output
 result = (result and
@@ -106,12 +117,6 @@ result = (result and
           )
 )
 
-# comparing inference output
-result = (result and
-          compare("compare inference output equal: ",
-                  out_inference, out2_inference[start:finish]
-          )
-)
 
 if args.local_rank == 0:
 

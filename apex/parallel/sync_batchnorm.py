@@ -21,11 +21,14 @@ class SyncBatchNorm(_BatchNorm):
         super(SyncBatchNorm, self).__init__(num_features, eps=eps, momentum=momentum, affine=affine)
 
     def forward(self, input):
-        training = torch.is_grad_enabled()
         mean = None
         var = None
-
-        if training:
+        #print("training: ", self.training, "ts: ", self.track_running_stats)
+        if not self.training and self.track_running_stats:
+            #print("fallback")
+            # fall back to pytorch implementation for inference
+            return F.batch_norm(input, self.running_mean, self.running_var, self.weight, self.bias, False, 0.0, self.eps)
+        else:
             self.num_batches_tracked += 1
             with torch.no_grad():
                 channel_first_input = input.transpose(0, 1).contiguous()
@@ -66,9 +69,6 @@ class SyncBatchNorm(_BatchNorm):
                             (m-1) * self.momentum * var + \
                             (1 - self.momentum) * self.running_var
             return SyncBatchnormFunction.apply(input, self.weight, self.bias, mean, var, self.eps)
-        else:
-            # fall back to pytorch implementation for inference
-            return F.batch_norm(input, self.running_mean, self.running_var, self.weight, self.bias, False, 0.0, self.eps)
 
 
 # Quick drop-in replace hack
