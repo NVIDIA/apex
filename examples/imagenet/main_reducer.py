@@ -19,7 +19,7 @@ import torchvision.models as models
 import numpy as np
 
 try:
-    from apex.parallel import Reducer as DDP
+    from apex.parallel import Reducer
     from apex.fp16_utils import *
 except ImportError:
     raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
@@ -121,9 +121,8 @@ def main():
     if args.fp16:
         model = network_to_half(model)
     if args.distributed:
-        # shared param turns off bucketing in DDP, for lower latency runs this can improve perf
         global reducer
-        reducer = DDP(model)
+        reducer = Reducer(model)
 
     global model_params, master_params
     if args.fp16:
