@@ -231,16 +231,7 @@ assumes 1:1 mapping of processes to GPUs.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>module_or_grads_list</strong> – Either a network definition (module) being run in</li>
-<li><strong>mode, or an iterable of gradients to be reduced.</strong> (<em>multi-gpu/distributed</em>) – </li>
-<li><strong>a module is passed in, the Reducer constructor will sync the parameters across processes</strong> (<em>If</em>) – </li>
-<li><strong>from rank 0) to make sure they're all initialized with the same values.</strong> (<em>(</em><em>broadcasting</em>) – </li>
-<li><strong>a list of gradients</strong> (<em>If</em>) – </li>
-<li><strong>passed in, the user is responsible for manually syncing that module's parameters</strong> (<em>is</em>) – </li>
-<li><strong>the beginning of training.</strong> (<em>at</em>) – </li>
-</ul>
-</td>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>module_or_grads_list</strong> – Either a network definition (module) being run in multi-gpu/distributed mode, or an iterable of gradients to be reduced.  If a module is passed in, the Reducer constructor will sync the parameters across processes (broadcasting from rank 0) to make sure they’re all initialized with the same values.  If a list of gradients (that came from some module) is passed in, the user is responsible for manually syncing that module’s parameters at the beginning of training.</td>
 </tr>
 </tbody>
 </table>
