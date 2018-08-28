@@ -134,6 +134,8 @@ def main():
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
 
+    # Scale learning rate based on per-process batch size
+    args.lr = args.lr*float(args.batch_size)/256. 
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)

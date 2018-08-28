@@ -64,9 +64,6 @@ $ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main_fp16_optimiz
 
 ## Usage for `main.py` and `main_fp16_optimizer.py`
 
-```bash
-```
-
 `main_fp16_optimizer.py` also accepts the optional flag
 ```bash
   --dynamic-loss-scale  Use dynamic loss scaling. If supplied, this argument
