@@ -49,20 +49,33 @@ def extract_tensors(maybe_tensor, tensor_list):
         
 class Reducer(object):
     """
-    :class:`apex.parallel.Reducer` is a simple class that helps reduce a module parameters. 
-    This class will not automatically reduce parameters in a module for the user, but it will
-    allow the user to call Reducer(module).reduce() which will immediately reduce all parameters.
-    :class:`apex.parallel.Reducer` is designed to work with
-    the launch utility script ``apex.parallel.multiproc.py`` or the launch utility script 
-    ``torch.distributed.launch`` with --nproc_per_node <= the number of gpus per node.
-    When used with these luanchers, :class:`apex.parallel.multiproc.py` 
-    assumes 1:1 mapping of processes to GPUs.
-    Args:
-        module_or_grads_list: Either a network definition being run in multi-gpu/distributed mode.
-        Or an iterable of gradients to be reduced. If a list of gradients are passed in, user must
-        manually sync parameters with broadcast or another means. If module is passed in, this parameters
-        will be broadcasted from rank 0.
+    :class:`apex.parallel.Reducer` is a simple class that helps allreduce a module's parameters
+    across processes.  :class:`Reducer` is intended to give the user additional control:
+    Unlike :class:`DistributedDataParallel`, :class:`Reducer` will not automatically allreduce
+    parameters during ``backward()``.
+    Instead, :class:`Reducer` waits for the user to call `<reducer_instance>.reduce()` manually.
+    This enables, for example, delaying the allreduce to be carried out every 
+    several iterations instead of every single iteration.
 
+    Like :class:`DistributedDataParallel`, :class:`Reducer` averages any tensors it allreduces 
+    over the number of participating processes.
+
+    :class:`Reducer` is designed to work with the launch utility script 
+    ``apex.parallel.multiproc.py`` or the upstream launch utility script 
+    ``torch.distributed.launch`` with --nproc_per_node <= the number of gpus per node.
+    When used with these launchers, :class:`apex.parallel.multiproc.py` 
+    assumes 1:1 mapping of processes to GPUs.
+
+    main_reducer.py in https://github.com/NVIDIA/apex/tree/master/examples/imagenet shows example usage.
+
+    Args:
+        module_or_grads_list: Either a network definition (module) being run in 
+        multi-gpu/distributed mode, or an iterable of gradients to be reduced. 
+        If a module is passed in, the Reducer constructor will sync the parameters across processes
+        (broadcasting from rank 0) to make sure they're all initialized with the same values.  
+        If a list of gradients (that came from some module) 
+        is passed in, the user is responsible for manually syncing that module's parameters
+        at the beginning of training.
     """
     
     def __init__(self, module_or_grads_list):

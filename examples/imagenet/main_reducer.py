@@ -98,7 +98,7 @@ def main():
 
     args.gpu = 0
     args.world_size = 1
-        
+
     if args.distributed:
         args.gpu = args.local_rank % torch.cuda.device_count()
         torch.cuda.set_device(args.gpu)
@@ -133,6 +133,8 @@ def main():
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
 
+    # Scale learning rate based on per-process batch size
+    args.lr = args.lr*float(args.batch_size)/256. 
     optimizer = torch.optim.SGD(master_params, args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
@@ -170,23 +172,26 @@ def main():
             # transforms.ToTensor(), Too slow
             # normalize,
         ]))
+    val_dataset = datasets.ImageFolder(valdir, transforms.Compose([
+            transforms.Resize(val_size),
+            transforms.CenterCrop(crop_size),
+        ]))
 
+    train_sampler = None
+    val_sampler = None
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-    else:
-        train_sampler = None
+        val_sampler = torch.utils.data.distributed.DistributedSampler(val_dataset)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler, collate_fn=fast_collate)
 
     val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(val_size),
-            transforms.CenterCrop(crop_size),
-        ])),
+        val_dataset,
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True,
+        sampler=val_sampler,
         collate_fn=fast_collate)
 
     if args.evaluate:
@@ -196,7 +201,6 @@ def main():
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
-        adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch)
@@ -268,6 +272,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
     i = -1
     while input is not None:
         i += 1
+
+        adjust_learning_rate(optimizer, epoch, i, len(train_loader))
 
         if args.prof:
             if i > 10:
@@ -425,9 +431,22 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def adjust_learning_rate(optimizer, epoch):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    lr = args.lr * (0.1 ** (epoch // 30))
+def adjust_learning_rate(optimizer, epoch, step, len_epoch):
+    """LR schedule that should yield 76% converged accuracy with batch size 256"""
+    factor = epoch // 30
+
+    if epoch >= 80:
+        factor = factor + 1
+
+    lr = args.lr*(0.1**factor)
+
+    """Warmup"""
+    if epoch < 5:
+        lr = lr*float(1 + step + epoch*len_epoch)/(5.*len_epoch)
+
+    # if(args.local_rank == 0):
+    #     print("epoch = {}, step = {}, lr = {}".format(epoch, step, lr))
+
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 

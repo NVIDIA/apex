@@ -12,3 +12,6 @@ apex.parallel
 
 .. autoclass:: DistributedDataParallel
     :members:
+
+.. autoclass:: Reducer
+    :members:

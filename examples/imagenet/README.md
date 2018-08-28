@@ -7,6 +7,9 @@ It implements training of popular model architectures, such as ResNet, AlexNet, 
 
 `main_fp16_optimizer.py` with `--fp16` demonstrates use of `apex.fp16_utils.FP16_Optimizer` to automatically manage master parameters and loss scaling.
 
+`apex.parallel.DistributedDataParallel` automatically allreduces and averages gradients during `backward()`.  If you wish to control the allreduce manually instead (for example, to carry out the allreduce every few iterations instead of every iteration), [apex.parallel.reduce](https://nvidia.github.io/apex/parallel.html#apex.parallel.Reducer) provides a convenient wrapper.  
+`main_reducer.py` is identical to `main.py`, except that it shows the use of `Reducer` instead of `DistributedDataParallel`.
+
 ## Requirements
 
 - `pip install -r requirements.txt`
