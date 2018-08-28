@@ -33,6 +33,55 @@ def flat_dist_call(tensors, call, extra_args=None):
             
         for buf, synced in zip(bucket, _unflatten_dense_tensors(coalesced, bucket)):
             buf.copy_(synced)
+
+            
+
+def extract_tensors(maybe_tensor, tensor_list):
+    if torch.is_tensor(maybe_tensor):
+        tensor_list.append(maybe_tensor)
+    else:
+        try:
+            for item in maybe_tensor:
+                extract_tensors(item, tensor_list)
+        except TypeError:
+            return
+
+        
+class Reducer(object):
+    """
+    :class:`apex.parallel.Reducer` is a simple class that helps reduce a module parameters. 
+    This class will not automatically reduce parameters in a module for the user, but it will
+    allow the user to call Reducer(module).reduce() which will immediately reduce all parameters.
+    :class:`apex.parallel.Reducer` is designed to work with
+    the launch utility script ``apex.parallel.multiproc.py`` or the launch utility script 
+    ``torch.distributed.launch`` with --nproc_per_node <= the number of gpus per node.
+    When used with these luanchers, :class:`apex.parallel.multiproc.py` 
+    assumes 1:1 mapping of processes to GPUs.
+    Args:
+        module_or_grads_list: Either a network definition being run in multi-gpu/distributed mode.
+        Or an iterable of gradients to be reduced. If a list of gradients are passed in, user must
+        manually sync parameters with broadcast or another means. If module is passed in, this parameters
+        will be broadcasted from rank 0.
+
+    """
+    
+    def __init__(self, module_or_grads_list):
+        if isinstance(module_or_grads_list, Module):
+            self.module = module_or_grads_list
+            flat_dist_call([param.data for param in self.module.parameters()], dist.broadcast, (0,) )
+
+        else:
+            self.module = None
+            self.grads = []
+            extract_tensors(module_or_grads_list, self.grads)
+            
+    def reduce(self):
+        if self.module:
+            grads = [param.grad.data for param in self.module.parameters() if param.grad is not None]
+            flat_dist_call(grads, dist.all_reduce)
+        else:
+            flat_dist_call(self.grads, dist.all_reduce)
+            
             
 class DistributedDataParallel(Module):
     """

@@ -1,1 +1,1 @@
-from .distributed import DistributedDataParallel
+from .distributed import DistributedDataParallel, Reducer

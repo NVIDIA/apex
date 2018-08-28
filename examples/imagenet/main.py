@@ -19,7 +19,7 @@ import torchvision.models as models
 import numpy as np
 
 try:
-    from apex.parallel import DistributedDataParallel as DDP
+    from apex.parallel import Reducer as DDP
     from apex.fp16_utils import *
 except ImportError:
     raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
@@ -122,7 +122,8 @@ def main():
         model = network_to_half(model)
     if args.distributed:
         # shared param turns off bucketing in DDP, for lower latency runs this can improve perf
-        model = DDP(model, shared_param=True)
+        global reducer
+        reducer = DDP(model)
 
     global model_params, master_params
     if args.fp16:
@@ -307,6 +308,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         if args.fp16:
             model.zero_grad()
             loss.backward()
+            reducer.reduce()
             model_grads_to_master_grads(model_params, master_params)
             if args.static_loss_scale != 1:
                 for param in master_params:
@@ -316,6 +318,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         else:
             optimizer.zero_grad()
             loss.backward()
+            reducer.reduce()
             optimizer.step()
 
         torch.cuda.synchronize()
