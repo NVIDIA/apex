@@ -26,7 +26,7 @@ python main.py -a alexnet --lr 0.01 /path/to/imagenet/folder
 ```
 
 The directory at /path/to/imagenet/directory should contain two subdirectories called "train"
-and "val" that contain the training and validation data respectively. Train images are expected to be 256x256 jpegs.
+and "val" that contain the training and validation data respectively.
 
 ## Distributed training
 
@@ -46,7 +46,7 @@ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py args...
 
 ```bash
 ### Softlink training dataset into current directory
-$ ln -sf /data/imagenet/train-jpeg-256x256/ train
+$ ln -sf /data/imagenet/train-jpeg/ train
 ### Softlink validation dataset into current directory
 $ ln -sf /data/imagenet/val-jpeg/ val
 ### Single-process training
