@@ -4,7 +4,7 @@ import torch.distributed as dist
 from torch.nn.modules import Module
 from torch.autograd import Variable
 from collections import OrderedDict
-
+import copy
 
 def flat_dist_call(tensors, call, extra_args=None):
     flat_dist_call.warn_on_half = True
