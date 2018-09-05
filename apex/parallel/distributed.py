@@ -271,10 +271,10 @@ class DistributedDataParallel(Module):
         # Forward has the authority to set needs_refresh to True, but only allreduce_params
         # in backward has the authority to set needs_refresh to False.
         # Parentheses are not necessary for correct order of operations, but make the intent clearer.
-        if (not self.param_refs) or 
-            self.shared_param or 
-            (len(param_list) != len(self.param_refs)) or
-            any([param1 is not param2 for param1, param2 in zip(param_list, self.param_refs)]):
+        if ( (not self.param_refs) or 
+             self.shared_param or 
+             (len(param_list) != len(self.param_refs)) or
+             any([param1 is not param2 for param1, param2 in zip(param_list, self.param_refs)]) ):
             self.needs_refresh = True
 
         if self.needs_refresh:
