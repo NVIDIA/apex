@@ -68,19 +68,13 @@ class SyncBatchnormFunction(Function):
         grad_weight = None
         if weight is not None and ctx.needs_input_grad[1]:
             # dgamma = np.sum((h - mu) * (var + eps)**(-1. / 2.) * dy, axis=0)
-            # DDP will handle all_reduce (mean), so we compensate that if running in DDP
             grad_weight = ((c_last_input - running_mean) / torch.sqrt(
                 running_variance + eps) * c_last_grad).view(-1, num_features).sum(0)
-            if torch.distributed.is_initialized():
-                grad_weight *= torch.distributed.get_world_size()
 
         # calculate grad_bias
         grad_bias = None
         if bias is not None and ctx.needs_input_grad[2]:
             # dbeta = np.sum(dy, axis=0)
-            # DDP will handle all_reduce (mean), so we compensate that if running in DDP
             grad_bias = c_grad.sum(0)
-            if torch.distributed.is_initialized():
-                grad_bias *= torch.distributed.get_world_size()
 
         return grad_input, grad_weight, grad_bias, None, None, None

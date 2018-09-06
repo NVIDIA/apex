@@ -1,15 +1,68 @@
 import torch
 import torch.nn as nn
 import argparse
+import os
 
 from apex.parallel import DistributedDataParallel as DDP
 from apex.parallel import SyncBatchNorm
 import numpy as np
 import torch.optim as optim
 
+
+def compare(desc, inp1, inp2):
+    close = np.allclose(inp1.detach().cpu().numpy(),
+                        inp2.detach().cpu().numpy(),
+                        1e-3, 1e-3)
+    if not close:
+        print(desc, close)
+        print("====\n{0} \n {1} \n=====".format(np.array2string(inp1.clone().detach().cpu().numpy()),
+                                                np.array2string(inp2.clone().detach().cpu().numpy())))
+    #print(desc, close)
+    return close
+
+def getBatchNormModule(module):
+    for m in module.modules():
+       if isinstance(m, (torch.nn.BatchNorm3d, SyncBatchNorm)):
+           return m
+
+def compareLayers(layer1, layer2):
+    result = True
+    # comparing running_var
+    result = (result and
+              compare("compare running_var equal: ",
+                      layer1.running_var,
+                      layer2.running_var
+              )
+    )
+    # comparing running_mean
+    result = (result and
+              compare("compare running_mean equal: ",
+                      layer1.running_mean,
+                      layer2.running_mean
+              )
+    )
+    # comparing updated weight
+    result = (result and
+              compare("compare layer weight equal: ",
+                      layer1.weight,
+                      layer2.weight
+              )
+    )
+    # comparing updated bias
+    result = (result and
+              compare("compare layer bias equal: ",
+                      layer1.bias,
+                      layer2.bias
+              )
+    )
+    return result
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--local_rank", default=0, type=int)
 args = parser.parse_args()
+
+args.world_size = int(os.environ['WORLD_SIZE'])
 
 torch.cuda.set_device(args.local_rank)
 torch.distributed.init_process_group(backend='nccl', init_method='env://')
@@ -18,17 +71,19 @@ torch.manual_seed(1)
 
 num_feature = 2
 num_batch = 4
-data_dim = (num_batch, num_feature, 2, 1, 1)
+num_iteration = 100
+data_dim = (num_iteration, num_batch, num_feature, 2, 1, 1)
 
 bn_layer = None
+sbn_layer = None
 bn_w = None
 bn_b = None
 
-# broadcasting parameters
+# creating torch.nn.BatchNorm layer (ground truth)
 bn_layer = nn.BatchNorm3d(num_feature).cuda()
 bn_w = bn_layer.weight
 bn_b = bn_layer.bias
-
+bn_opt = optim.SGD(bn_layer.parameters(), lr=1.0)
 
 # creating DDP sync_batchnorm_layer
 sbn_layer = SyncBatchNorm(num_feature).cuda()
@@ -36,139 +91,76 @@ sbn_layer = SyncBatchNorm(num_feature).cuda()
 sbn_layer.weight.data = bn_w.clone()
 sbn_layer.bias.data = bn_b.clone()
 
-sbn_opt = optim.SGD(sbn_layer.parameters(), lr=0.01)
+sbn_opt = optim.SGD(sbn_layer.parameters(), lr=1.0*args.world_size)
 
 sbn_layer = DDP(sbn_layer)
 
+# reset seed ( because DP sync bn is only created on rank 0)
+torch.manual_seed(100)
+
 # prepare input data for each node
-data = torch.randn(*data_dim)*255.0
+data = torch.randn(*data_dim).cuda()*255.0
+grad = torch.randn(*data_dim).cuda()*255.0
 
-input1 = data.clone().cuda()
-input1.requires_grad_(True)
+def execute(layer, inp, grad=None, is_training=True):
+    layer.train(mode=is_training)
+    inp = inp.clone().detach().requires_grad_(True)
+    grad = grad.clone().detach().requires_grad_(False)
+    out = layer(inp)
+    if is_training:
+        out.backward(grad)
+    return inp, out
 
-grad = torch.randn(*data_dim)*255.0
-output_grad = grad.cuda()
-start = args.local_rank * num_batch//2
-finish = (args.local_rank + 1) * num_batch//2
-out = sbn_layer(input1[start:finish])
-out.backward(output_grad[start:finish])
+training = True
+inference = True
+test_result = True
+start = args.local_rank * num_batch//args.world_size
+finish = (args.local_rank + 1) * num_batch//args.world_size
 
-sbn_opt.step()
+for i in range(0, num_iteration):
+    result = True
 
-bn_opt = optim.SGD(bn_layer.parameters(), lr=0.01)
-input2 = data.clone().cuda().requires_grad_(True)
+    # swap training and inference
+    if inference and (i+1) % 3 == 0:
+        training = not training
+    cur_input = data[i]
+    cur_grad = grad[i]
 
-# feed input
-out2 = bn_layer(input2)
+    bn_inp, bn_out = execute(bn_layer, cur_input, cur_grad, is_training=training)
 
-# concat output gradient and feed it to the back path
-out2.backward(grad.clone().cuda())
-bn_opt.step()
-    
+    if sbn_layer:
+       sbn_inp, sbn_out = execute(sbn_layer, cur_input[start:finish], cur_grad[start:finish], is_training=training)
+       result = (result and compareLayers(bn_layer, getBatchNormModule(sbn_layer)))
+       result = (result and 
+                 compare("compare training output bn vs apex sync bn: ",
+                         sbn_out, bn_out[start:finish]
+                 )
+       )
+       if training:
+           result = (result and 
+                     compare("compare training input grad bn vs apex sync bn: ",
+                             sbn_inp.grad, bn_inp.grad[start:finish]
+                     )
+           )
+    if not result:
+        print("\n====sbn failed at iter: {0}, training? {1}====\n".format(i, training))
+        test_result = test_result and result
+        result = True
 
-def compare(desc, inp1, inp2):
-    close = np.allclose(inp1.detach().cpu().numpy(),
-                        inp2.detach().cpu().numpy(),
-                        1e-4, 1e-4)
-    if not close:
-        print(inp1, inp2, "not close")
-    print(desc, close)
-    return close
+    if training:
+       bn_opt.step()
 
-result = True
-print ("-----sanity check----")
+       if sbn_layer:
+           sbn_opt.step()
+           result = (result and compareLayers(bn_layer, getBatchNormModule(sbn_layer)))
 
-# prepare input data for inference
-#for flag1, flag2 in list(itertools.product([True, False], repeat=2)):
-for flag2 in [True, False]:
-    with torch.no_grad():
-        data2 = torch.randn(*data_dim)*255.0
-        input_inference = data2.clone().cuda()
-        start = args.local_rank * num_batch//2
-        finish = (args.local_rank + 1) * num_batch//2
-        sbn_layer.module.training = False
-        sbn_layer.module.track_running_stats = flag2
-        out_inference = sbn_layer(input_inference[start:finish])
-        
-        input2_inference = data2.clone().cuda()
-        bn_layer.training = False
-        bn_layer.track_running_stats = flag2 
-        out2_inference = bn_layer(input2_inference)
-    
-    # comparing inference output
-    result = (result and
-              compare("compare inference output equal: ",
-                      out_inference, out2_inference[start:finish]
-              )
-    )
+    if not result and args.local_rank == 0:
+        print("\n====training failed at iter: {0}, training? {1}====\n".format(i, training))
 
-# comparing output
-result = (result and
-          compare("compare output equal: ",
-                  out, out2[start:finish]
-          )
-)
-
-# comparing input gradient (concat for input gradient)
-result = (result and
-          compare("compare input gradient equal: ",
-                  input1.grad[start:finish],
-                  input2.grad[start:finish]
-          )
-)
+    test_result = test_result and result
 
 
-if args.local_rank == 0:
-
-    # comparing running_var
-    result = (result and
-              compare("compare running_var equal: ",
-                      bn_layer.running_var,
-                      sbn_layer.module.running_var
-              )
-    )
-    
-    # comparing running_mean
-    result = (result and
-              compare("compare running_mean equal: ",
-                      bn_layer.running_mean,
-                      sbn_layer.module.running_mean
-              )
-    )
-
-    # comparing bias gradient (mean for bias gradient)
-    result = (result and
-              compare("compare layer parameter bias equal: ",
-                      bn_layer.bias.grad,
-                      sbn_layer.module.bias.grad
-              )
-    )
-
-    # comparing weight gradient (mean for weight gradient)
-    result = (result and
-              compare("compare layer parameter weight equal: ",
-                      bn_layer.weight.grad,
-                      sbn_layer.module.weight.grad
-              )
-    )
-
-    # comparing updated weight
-    result = (result and
-              compare("compare layer weight equal: ",
-                      bn_layer.weight,
-                      sbn_layer.module.weight
-              )
-    )
-
-    # comparing updated bias
-    result = (result and
-              compare("compare layer bias equal: ",
-                      bn_layer.bias,
-                      sbn_layer.module.bias
-              )
-    )
-    
-if result:
+if test_result:
     print("passed all test!")
 else:
     raise RuntimeError("test failed")
