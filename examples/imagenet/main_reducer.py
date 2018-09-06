@@ -307,7 +307,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
         if args.fp16:
             model.zero_grad()
             loss.backward()
-            reducer.reduce()
+            if args.distributed:
+                reducer.reduce()
             model_grads_to_master_grads(model_params, master_params)
             if args.static_loss_scale != 1:
                 for param in master_params:
@@ -317,7 +318,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
         else:
             optimizer.zero_grad()
             loss.backward()
-            reducer.reduce()
+            if args.distributed:
+                reducer.reduce()
             optimizer.step()
 
         torch.cuda.synchronize()
