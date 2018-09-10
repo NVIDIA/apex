@@ -139,10 +139,9 @@ class DistributedDataParallel(Module):
         self.reduction_stream = torch.cuda.Stream()
         
         self.module = module
-        self.param_list = list(self.module.parameters())
         
         if dist._backend == dist.dist_backend.NCCL:
-            for param in self.param_list:
+            for param in self.module.parameters():
                 assert param.is_cuda, "NCCL backend only supports model parameters to be on GPU."
                 
         self.record = []
@@ -227,7 +226,13 @@ class DistributedDataParallel(Module):
 
 
         while self.ready_end < len(self.param_state) and self.param_state[self.ready_end] == 1:
-            self.ready_params.append(self.param_refs[self.record[self.ready_end]])
+            try:
+                self.ready_params.append(self.param_refs[self.record[self.ready_end]])
+            except:
+                print("\n\nself.ready_end = {}".format(self.ready_end))
+                print("len(self.record) = {}".format(len(self.record))) 
+                print("record[ready_end] = {}\n\n".format(self.record[self.ready_end]))
+                raise
             self.ready_numel += self.ready_params[-1].numel()
             self.ready_end += 1
 
@@ -276,6 +281,10 @@ class DistributedDataParallel(Module):
              (len(param_list) != len(self.param_refs)) or
              any([param1 is not param2 for param1, param2 in zip(param_list, self.param_refs)]) ):
             self.needs_refresh = True
+
+        print("len(param_list) = ", len(param_list))
+        print("len(parameters()) = ", len(list(self.module.parameters())))
+        print("needs_refresh = ", self.needs_refresh)
 
         if self.needs_refresh:
             self.record = []
