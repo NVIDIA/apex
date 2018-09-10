@@ -126,6 +126,11 @@ def set_func(mod, fn, new_fn):
     else:
         setattr(mod, fn, new_fn)
 
+def set_func_save(handle, mod, fn, new_fn):
+    cur_fn = get_func(mod, fn)
+    handle._save_func(mod, fn, cur_fn)
+    set_func(mod, fn, new_fn)
+
 # A couple problems get solved here:
 # - The flat_weight buffer is disconnected from autograd graph,
 #   so the fp16 weights need to be derived from the input weights

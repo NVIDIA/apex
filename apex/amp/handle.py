@@ -2,6 +2,7 @@ import contextlib
 import logging
 import warnings
 
+from . import utils
 from .opt import OptimWrapper
 from .scaler import LossScaler
 
@@ -12,6 +13,7 @@ class AmpHandle(object):
         self._cache = dict()
         self._default_scaler = LossScaler()
         self._is_active = True
+        self._all_wrappers = []
 
     def is_active(self):
         return self._is_active
@@ -62,6 +64,15 @@ class AmpHandle(object):
 
     def _clear_cache(self):
         self._cache.clear()
+
+    # Experimental support for saving / restoring uncasted versions of functions
+    def _save_func(self, mod, fn, func):
+        self._all_wrappers.append((mod, fn, func))
+
+    def _deactivate(self):
+        for mod, fn, func in self._all_wrappers:
+            utils.set_func(mod, fn, func)
+        self._all_wrappers = []
 
     @property
     def has_cache(self):
