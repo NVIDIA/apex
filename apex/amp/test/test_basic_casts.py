@@ -71,15 +71,33 @@ class TestBasicCasts(unittest.TestCase):
         run_layer_test(self, [m, f], MATCH_INPUT, (self.b, self.c, self.h, self.h),
                             test_backward=False)
 
-    def test_bce_raises(self):
+class TestBannedMethods(unittest.TestCase):
+    def setUp(self):
+        self.handle = amp.init(enabled=True)
+        common_init(self)
+
+    def tearDown(self):
+        self.handle._deactivate()
+
+    def bce_common(self, assertion):
         shape = (self.b, self.h)
-        target = torch.randn(shape)
+        target = torch.rand(shape)
         mod = nn.BCELoss()
         m = lambda x: mod(x, target)
         f = ft.partial(F.binary_cross_entropy, target=target)
         for fn in [m, f]:
-            x = torch.randn(shape, dtype=torch.half)
-            self.assertRaises(NotImplementedError, fn, x)
+            x = torch.rand(shape, dtype=torch.half)
+            assertion(fn, x)
+
+    def test_bce_raises_by_default(self):
+        assertion = lambda fn, x: self.assertRaises(NotImplementedError, fn, x)
+        self.bce_common(assertion)
+
+    def test_bce_is_float_with_allow_banned(self):
+        self.handle._deactivate()
+        self.handle = amp.init(enabled=True, allow_banned=True)
+        assertion = lambda fn, x: self.assertEqual(fn(x).type(), FLOAT)
+        self.bce_common(assertion)
 
 class TestTensorCasts(unittest.TestCase):
     def setUp(self):

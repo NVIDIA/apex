@@ -153,9 +153,13 @@ def init(enabled=True, enable_caching=True, verbose=False, allow_banned=False):
         mod = getattr(torch.nn._functions.thnn.rnnFusedPointwise, rnn_type)
         wrap.disable_casts(mod, 'backward', handle)
 
-    # 6) Place error+print message on banned functions
-    if not allow_banned:
-        for fn, err_msg in functional_overrides.BANNED_FUNCS:
+    # 6) Place error+print message on banned functions.
+    #    Or, if allow_banned, then cast to FP32.
+    for fn, err_msg in functional_overrides.BANNED_FUNCS:
+        if allow_banned:
+            wrap.cached_cast(functional_overrides.MODULE, fn, utils.maybe_float,
+                             handle, try_caching=True, verbose=verbose)
+        else:
             wrap.err_if_any_half(functional_overrides.MODULE, fn, handle, err_msg)
 
     _DECORATOR_HANDLE = handle
