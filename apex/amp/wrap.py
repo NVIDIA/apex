@@ -205,6 +205,41 @@ def rnn_cast(backend, fn, handle, verbose=False):
         return fwd_wrapper
     utils.set_func_save(handle, backend, fn, rnn_wrapper)
 
+def new_rnn_cast(fn, handle, verbose=False):
+    mod = torch.nn.modules.rnn._rnn_impls
+    orig_fn = utils.get_func(mod, fn)
+    cast_fn = utils.verbosify(utils.maybe_half, fn, verbose)
+    @functools.wraps(orig_fn)
+    def wrapper(*args, **kwargs):
+        # Exact call signature from modules/rnn.py
+        assert len(args) == 9
+        assert len(kwargs) == 0
+
+        input_idx = 0
+        if isinstance(args[6], bool):
+            # Not PackedSequence case
+            hidden_idx, params_idx = (1, 2)
+        else:
+            # PackedSequence case
+            hidden_idx, params_idx = (2, 3)
+
+        new_args = []
+        for i, arg in enumerate(args):
+            if i == input_idx or i == hidden_idx:
+                new_args.append(cast_fn(arg))
+            elif i == params_idx:
+                num_params = sum([x.numel() for x in arg])
+                fp16_weight_buf = args[0].new_empty((num_params,),
+                                                    dtype=torch.half)
+                casted_weights = utils.new_synthesize_flattened_rnn_weights(
+                    arg, fp16_weight_buf, fn, verbose)
+                new_args.append(casted_weights)
+            else:
+                new_args.append(arg)
+
+        return orig_fn(*new_args)
+    utils.set_func_save(handle, mod, fn, wrapper)
+
 def disable_casts(mod, fn, handle):
     if not utils.has_func(mod, fn):
         return

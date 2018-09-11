@@ -1,4 +1,4 @@
-from . import compat, utils, wrap
+from . import compat, rnn_compat, utils, wrap
 from .handle import AmpHandle, NoOpHandle
 from .lists import functional_overrides, torch_overrides, tensor_overrides
 
@@ -137,21 +137,18 @@ def init(enabled=True, enable_caching=True, verbose=False, allow_banned=False):
             wrap.promote_match_arg0(torch.cuda.HalfTensor, fn, handle, verbose)
             wrap.promote_match_arg0(torch.cuda.FloatTensor, fn, handle, verbose)
 
-    # 5) Special handling to whitelist RNN cell backend impls.
-    for fn in ['RNNReLUCell', 'RNNTanhCell', 'LSTMCell', 'GRUCell']:
-        wrap.cached_cast(torch.nn.backends.thnn.backend, fn, utils.maybe_half,
-                         handle, try_caching=True, verbose=verbose)
+    # 5) RNNs + RNN cells are whitelisted specially
+    if rnn_compat.has_old_rnns():
+        wrap.rnn_cast(torch.nn.backends.thnn.backend, 'RNN', handle, verbose)
+    if not rnn_compat.has_old_rnns():
+        # Patch in our own indirection of `_VF` in modules/rnn s.t. it is mutable.
+        torch.nn.modules.rnn._VF = rnn_compat.VariableFunctionsShim()
+        # Wrap all the rnns
+        for x in rnn_compat.RNN_NAMES:
+            wrap.new_rnn_cast(x.upper(), handle, verbose)
 
-    # 5.5) Extra-special handling of RNN backend
-    wrap.rnn_cast(torch.nn.backends.thnn.backend, 'RNN', handle, verbose)
-
-    # And even more special handling of `backward` for fused gru / lstm
-    # The `backward` method calls Tensor.sum() (blacklist) internally,
-    # and then the resulting grad_input has the wrong type.
-    # TODO: where else is this a problem?
-    for rnn_type in ['GRUFused', 'LSTMFused']:
-        mod = getattr(torch.nn._functions.thnn.rnnFusedPointwise, rnn_type)
-        wrap.disable_casts(mod, 'backward', handle)
+    # Wrap all the RNN cells
+    rnn_compat.whitelist_rnn_cells(handle, verbose)
 
     # 6) Place error+print message on banned functions.
     #    Or, if allow_banned, then cast to FP32.
