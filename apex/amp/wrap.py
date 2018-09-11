@@ -215,25 +215,22 @@ def new_rnn_cast(fn, handle, verbose=False):
         assert len(args) == 9
         assert len(kwargs) == 0
 
-        input_idx = 0
         if isinstance(args[6], bool):
-            # Not PackedSequence case
-            hidden_idx, params_idx = (1, 2)
+            params_idx = 2 # Not PackedSequence case
         else:
-            # PackedSequence case
-            hidden_idx, params_idx = (2, 3)
+            params_idx = 3 # PackedSequence case
 
         new_args = []
         for i, arg in enumerate(args):
-            if i == input_idx or i == hidden_idx:
-                new_args.append(cast_fn(arg))
-            elif i == params_idx:
+            if i == params_idx:
                 num_params = sum([x.numel() for x in arg])
                 fp16_weight_buf = args[0].new_empty((num_params,),
                                                     dtype=torch.half)
                 casted_weights = utils.new_synthesize_flattened_rnn_weights(
                     arg, fp16_weight_buf, fn, verbose)
                 new_args.append(casted_weights)
+            elif utils.is_fp_tensor(arg):
+                new_args.append(cast_fn(arg))
             else:
                 new_args.append(arg)
 
