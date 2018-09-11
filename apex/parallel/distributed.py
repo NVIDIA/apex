@@ -172,7 +172,8 @@ class DistributedDataParallel(Module):
                 t_record = torch.cuda.IntTensor(self.record)
                 dist.broadcast(t_record, 0)
                 self.record = [int(entry) for entry in t_record]
-                self.param_id_to_record_i = {id(self.active_params[a]) : i for i, a in enumerate(self.record)}
+                self.param_id_to_record_i = {id(self.active_params[a]) : i 
+                                             for i, a in enumerate(self.record)}
                 self.needs_refresh = False
 
             grads = [param.grad.data for param in self.module.parameters() if param.grad is not None]
@@ -198,20 +199,21 @@ class DistributedDataParallel(Module):
                     
             torch.cuda.current_stream().wait_stream(self.reduction_stream)
 
-        for param in self.module.parameters() if param.requires_grad:
-            def wrapper(param):
-                def allreduce_hook(*unused):
-                    if self.needs_refresh:
-                        self.record.append(param_id_to_active_i[id(param)])
-                        Variable._execution_engine.queue_callback(allreduce_params)
-                    else:
-                        Variable._execution_engine.queue_callback(flush_buckets)
-                        self.comm_ready_buckets(param_id_to_record_i[id(param_i)])
-                    
-                if param.requires_grad:
+        for param in self.module.parameters():
+            if param.requires_grad:
+                def wrapper(param):
+
+                    def allreduce_hook(*unused):
+                        if self.needs_refresh:
+                            self.record.append(self.param_id_to_active_i[id(param)])
+                            Variable._execution_engine.queue_callback(allreduce_params)
+                        else:
+                            Variable._execution_engine.queue_callback(flush_buckets)
+                            self.comm_ready_buckets(self.param_id_to_record_i[id(param)])
+                        
                     param.register_hook(allreduce_hook)
 
-            wrapper(param)
+                wrapper(param)
 
 
     def comm_ready_buckets(self, record_i):
