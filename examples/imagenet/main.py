@@ -122,7 +122,7 @@ def main():
         model = network_to_half(model)
     if args.distributed:
         # shared param turns off bucketing in DDP, for lower latency runs this can improve perf
-        model = DDP(model)
+        model = DDP(model, shared_param=True)
 
     global model_params, master_params
     if args.fp16:
