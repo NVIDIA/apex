@@ -149,10 +149,12 @@ class DistributedDataParallel(Module):
 
         flat_dist_call([param.data for param in self.module.parameters()], dist.broadcast, (0,) )
 
+
     def __setstate__(self, state):
         super(DistributedDataParallel, self).__setstate__(state)
         self.reduction_stream = torch.cuda.Stream()
-        
+
+
     def __getstate__(self):
         attrs = copy.copy(self.__dict__)
         if dist._backend != dist.dist_backend.NCCL:
@@ -221,17 +223,14 @@ class DistributedDataParallel(Module):
         if self.param_state[record_i] != 0:
             raise RuntimeError("Error: Your model uses shared parameters, DDP flag shared_params must be set to True in initialization.")
             
-        
         if self.param_state[self.ready_end] == 0:
             self.param_state[record_i] = 1
             return
-
 
         while self.ready_end < len(self.param_state) and self.param_state[self.ready_end] == 1:
             self.ready_params.append(self.active_params[self.record[self.ready_end]])
             self.ready_numel += self.ready_params[-1].numel()
             self.ready_end += 1
-
 
         if self.ready_numel < self.message_size:
             self.param_state[record_i] = 1
@@ -263,6 +262,7 @@ class DistributedDataParallel(Module):
                 self.ready_params.pop(0)
 
         self.param_state[record_i] = 1
+
         
     def forward(self, *inputs, **kwargs):
 
