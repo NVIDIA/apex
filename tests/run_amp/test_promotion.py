@@ -7,7 +7,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from .utils import common_init, HALF, FLOAT, DTYPES
+from utils import common_init, HALF, FLOAT, DTYPES
 
 class TestPromotion(unittest.TestCase):
     def setUp(self):

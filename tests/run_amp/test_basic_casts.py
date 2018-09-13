@@ -8,7 +8,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from .utils import common_init, HALF, FLOAT,\
+from utils import common_init, HALF, FLOAT,\
     ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
 
 def run_layer_test(test_case, fns, expected, input_shape, test_backward=True):

@@ -5,7 +5,7 @@ import random
 import torch
 from torch import nn
 
-from .utils import common_init, HALF
+from utils import common_init, HALF
 
 class TestRnnCells(unittest.TestCase):
     def setUp(self):
