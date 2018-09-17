@@ -50,9 +50,9 @@ $ ln -sf /data/imagenet/train-jpeg/ train
 ### Softlink validation dataset into current directory
 $ ln -sf /data/imagenet/val-jpeg/ val
 ### Single-process training
-$ python main.py -a resnet50 --fp16 --b 256 --workers 4 --static-lose-scale 128.0 ./
-### Multi-process training (uses all visible GPU on the node)
-$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --fp16 --b 256 --workers 4 --static-lose-scale 128.0 ./
+$ python main.py -a resnet50 --fp16 --b 256 --workers 4 --static-loss-scale 128.0 ./
+### Multi-process training (uses all visible GPUs on the node)
+$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --fp16 --b 256 --workers 4 --static-loss-scale 128.0 ./
 ### Multi-process training on GPUs 0 and 1 only
 $ export CUDA_VISIBLE_DEVICES=0,1
 $ python -m torch.distributed.launch --nproc_per_node=2 main.py -a resnet50 --fp16 --b 256 --workers 4 ./
