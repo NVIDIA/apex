@@ -133,7 +133,9 @@ class DistributedDataParallel(Module):
         self.shared_param = shared_param
         self.message_size = message_size
         
-        # reference to last iterations parameters to see if anything has changed
+        # Will hold [param for param in self.module.parameters() if param.requires_grad]
+        # aka, the active paramters this iteration.  The ordering of this list will be 
+        # the same across all processes.
         self.active_params = []
         
         self.reduction_stream = torch.cuda.Stream()
@@ -174,6 +176,9 @@ class DistributedDataParallel(Module):
                 t_record = torch.cuda.IntTensor(self.record)
                 dist.broadcast(t_record, 0)
                 self.record = [int(entry) for entry in t_record]
+                # As before, self.record stores a list of indexes into self.active_params.
+                # param_id_to_record_i is a map from each active param's id to its slot in
+                # self.record.
                 self.param_id_to_record_i = {id(self.active_params[a]) : i 
                                              for i, a in enumerate(self.record)}
                 self.needs_refresh = False
@@ -211,6 +216,8 @@ class DistributedDataParallel(Module):
                             Variable._execution_engine.queue_callback(allreduce_params)
                         else:
                             Variable._execution_engine.queue_callback(flush_buckets)
+                            # param_id_to_record_i handily enables us to replace the 
+                            # O(N) self.record.index(param_i) call with an O(1) dict lookup. 
                             self.comm_ready_buckets(self.param_id_to_record_i[id(param)])
                         
                     param.register_hook(allreduce_hook)
@@ -280,6 +287,7 @@ class DistributedDataParallel(Module):
 
         if self.needs_refresh:
             self.record = []
+            # Map from each param's id to its index in the list of active parameters.
             self.param_id_to_active_i = {id(param) : i for i, param in enumerate(param_list)}  
             
         self.param_state = [0 for i in range(len(param_list))]
