@@ -4,8 +4,26 @@ import torch.distributed as dist
 from torch.nn.modules import Module
 from torch.autograd import Variable
 from collections import OrderedDict
+from itertools import chain
 import copy
 
+# apply_dist_call requires that tensors in 'bucket' are all the same type.
+def apply_flat_dist_call(bucket, extra_args=None):
+    coalesced = _flatten_dense_tensors(bucket)
+
+    if extra_args is not None:
+        call(coalesced, *extra_args)
+    else:
+        call(coalesced)
+
+    if call is dist.all_reduce:
+        coalesced /= dist.get_world_size()
+        
+    for buf, synced in zip(bucket, _unflatten_dense_tensors(coalesced, bucket)):
+        buf.copy_(synced)
+
+
+# flat_dist_call organizes 'tensors' by type.
 def flat_dist_call(tensors, call, extra_args=None):
     flat_dist_call.warn_on_half = True
     buckets = OrderedDict()
@@ -15,27 +33,11 @@ def flat_dist_call(tensors, call, extra_args=None):
             buckets[tp] = []
         buckets[tp].append(tensor)
                     
-    if flat_dist_call.warn_on_half:
-        if torch.cuda.HalfTensor in buckets:
-            print("WARNING: gloo dist backend for half parameters may be extremely slow." +
-                  " It is recommended to use the NCCL backend in this case.")
-            flat_dist_call.warn_on_half = False
-
     for tp in buckets:
         bucket = buckets[tp]
-        coalesced = _flatten_dense_tensors(bucket)
-        if extra_args is not None:
-            call(coalesced, *extra_args)
-        else:
-            call(coalesced)
-        if call is dist.all_reduce:
-            coalesced /= dist.get_world_size()
-            
-        for buf, synced in zip(bucket, _unflatten_dense_tensors(coalesced, bucket)):
-            buf.copy_(synced)
+        apply_flat_dist_call(bucket, extra_args)
 
             
-
 def extract_tensors(maybe_tensor, tensor_list):
     if torch.is_tensor(maybe_tensor):
         tensor_list.append(maybe_tensor)
@@ -140,14 +142,10 @@ class DistributedDataParallel(Module):
             self.backend_enum_holder = dist.dist_backend
 
         self.warn_on_half = True if self._backend == self.backend_enum_holder.GLOO else False
+
         self.shared_param = shared_param
         self.message_size = message_size
-        
-        # Will hold [param for param in self.module.parameters() if param.requires_grad]
-        # aka, the active paramters this iteration.  The ordering of this list will be 
-        # the same across all processes.
-        self.active_params = []
-        
+
         self.reduction_stream = torch.cuda.Stream()
         
         self.module = module
@@ -155,8 +153,9 @@ class DistributedDataParallel(Module):
         if self._backend == self.backend_enum_holder.NCCL:
             for param in self.module.parameters():
                 assert param.is_cuda, "NCCL backend only supports model parameters to be on GPU."
-                
-        self.record = []
+
+        self.active_params = []
+                 
         self.create_hooks()
 
         flat_dist_call([param.data for param in self.module.parameters()], dist.broadcast, (0,) )
@@ -172,141 +171,168 @@ class DistributedDataParallel(Module):
         if self._backend != self.backend_enum_holder.NCCL:
             del attrs['self.reduction_stream']
             return attrs
+      
+    # Broadcast rank 0's bucket structure across all processes, and have all processes 
+    # regenerate their bucket structures to match. 
+    def sync_bucket_structure(self):
+        self.num_buckets = len(buckets)
+        self.bucket_sizes = [len(bucket) for bucket in self.buckets]
+        info_tensor = torch.cuda.IntTensor([self.num_buckets] + self.bucket_sizes + list(chain(*buckets)))
+
+        dist.broadcast(info_tensor, 0)
+
+        info = [int(entry) for entry in info_tensor]
+
+        self.num_buckets = info[0]
+        self.bucket_sizes = a[1:self.num_buckets + 1] 
+        self.buckets = [[None for _ in range(bucket_sizes[i])] for i in range(self.num_buckets)] 
+        
+        flattened_buckets = info[self.num_buckets + 1:]
+        flat_i = 0
+        for bucket_i in range(self.num_buckets): 
+            for bucket_loc in range(self.bucket_sizes[bucket_i])
+                param_i = flattened_buckets[flat_i]
+                self.param_id_to_bucket[id(self.active_params[param_i])] = (bucket_i, bucket_loc)
+                flat_i += 1 
         
         
     def create_hooks(self):
-        # all reduce gradient hook
+        # Fallback hook that's only called at the end of backward.
+        # Used if you deliberately want to delay allreduces to the end, or to refresh the 
+        # bucket structure that will be used to overlap communication with computation in later
+        # iterations.
         def allreduce_params():
-            if not self.needs_reduction:
-                return
-            self.needs_reduction = False
-
-            # parameter ordering refresh
+            # Bucket record refresh
             if self.needs_refresh and not self.shared_param:
-                t_record = torch.cuda.IntTensor(self.record)
-                dist.broadcast(t_record, 0)
-                self.record = [int(entry) for entry in t_record]
-                # As before, self.record stores a list of indexes into self.active_params.
-                # param_id_to_record_i is a map from each active param's id to its slot in
-                # self.record.
-                self.param_id_to_record_i = {id(self.active_params[a]) : i 
-                                             for i, a in enumerate(self.record)}
+
+                # Append leftover buckets
+                for tmp_bucket in self.tmp_buckets:
+                    if len(tmp_bucket) > 0:
+                        self.buckets.append(tmp_bucket)
+
+                self.sync_bucket_structure()
+
                 self.needs_refresh = False
 
             grads = [param.grad.data for param in self.module.parameters() if param.grad is not None]
+           
             flat_dist_call(grads, dist.all_reduce)
 
-        def flush_buckets():
-            if not self.needs_reduction:
-                return
-            self.needs_reduction = False
-
-            grads = []
-            for i in range(self.ready_end, len(self.param_state)):
-                param = self.active_params[self.record[i]]
-                if param.grad is not None:
-                    grads.append(param.grad.data)
-            grads = [param.grad.data for param in self.ready_params] + grads
-
-            if(len(grads)>0):
-                orig_stream = torch.cuda.current_stream()
-                with torch.cuda.stream(self.reduction_stream):
-                    self.reduction_stream.wait_stream(orig_stream)
-                    flat_dist_call(grads, dist.all_reduce)
-                    
+        def overlapping_backward_epilogue(self):
             torch.cuda.current_stream().wait_stream(self.reduction_stream)
 
+        self.grad_accs = []
         for param in self.module.parameters():
             if param.requires_grad:
                 def wrapper(param):
 
+                    param_tmp = param.expand_as(param)
+                    grad_acc = param_tmp.grad_fn.next_functions[0][0]
+
                     def allreduce_hook(*unused):
-                        if self.needs_refresh:
-                            self.record.append(self.param_id_to_active_i[id(param)])
-                            Variable._execution_engine.queue_callback(allreduce_params)
+                        if self.needs_refresh or self.shared_param:
+                            if not self.shared_param:
+                                # Use the backward pass to build the bucket structure on the fly.
+                                active_i = self.param_id_to_active_i[id(param)]
+
+                                # FloatTensors and HalfTensors are grouped into buckets separately.
+                                if param.type() == "torch.cuda.HalfTensor": 
+                                    current_type = 0
+                                elif param.type == "torch.cuda.FloatTensor":
+                                    current_type = 1
+                                else:
+                                    raise TypeError("param is neither cuda float nor cuda half.")
+  
+                                self.tmp_buckets[current_type].append(active_i)                           
+                                self.tmp_numels[current_type] += param.numel()
+
+                                if self.tmp_numels[current_type] > message_size:
+                                    self.buckets.append(tmp_buckets[current_type])
+                                    self.tmp_buckets[current_type] = []
+                                    self.tmp_numels[current_type] = 0
+                            
+                            if not self.callback_queued:
+                                Variable._execution_engine.queue_callback(allreduce_params)
+                                self.callback_queued = True
                         else:
-                            Variable._execution_engine.queue_callback(flush_buckets)
-                            # param_id_to_record_i handily enables us to replace the 
-                            # O(N) self.record.index(param_i) call with an O(1) dict lookup. 
-                            self.comm_ready_buckets(self.param_id_to_record_i[id(param)])
+                            if not self.callback_queued:
+                                Variable._execution_engine.queue_callback(overlapping_backward_epilogue)
+                                self.callback_queued = True 
+
+                            self.comm_ready_buckets(param)
                         
-                    param.register_hook(allreduce_hook)
+                    grad_acc.register_hook(allreduce_hook)
+                    self.grad_accs.append(grad_acc)
 
                 wrapper(param)
 
 
-    def comm_ready_buckets(self, record_i):
+    def comm_ready_buckets(self, param):
+        torch.cuda.nvtx.range_push("comm_ready_buckets")
 
-        if self.param_state[record_i] != 0:
-            raise RuntimeError("Error: Your model uses shared parameters, DDP flag shared_params must be set to True in initialization.")
-            
-        if self.param_state[self.ready_end] == 0:
-            self.param_state[record_i] = 1
-            return
+        # Need to do this in every hook for compatibility with Ruberry's streaming backward PR.
+        self.reduction_stream.wait_stream(torch.cuda.current_stream())
 
-        while self.ready_end < len(self.param_state) and self.param_state[self.ready_end] == 1:
-            self.ready_params.append(self.active_params[self.record[self.ready_end]])
-            self.ready_numel += self.ready_params[-1].numel()
-            self.ready_end += 1
+        bucket, bucket_loc = self.param_id_to_bucket[id(param)]
 
-        if self.ready_numel < self.message_size:
-            self.param_state[record_i] = 1
-            return
-            
-        grads = [param.grad.data for param in self.ready_params]
+        self.buckets[bucket][bucket_loc] = param.grad
+        self.buckets_ready_size[bucket] += 1
 
-        bucket = []
-        bucket_inds = []
-        while grads:
-            bucket.append(grads.pop(0))
-            
-            cumm_size = 0
-            for ten in bucket:
-                cumm_size += ten.numel()
+        if self.buckets_ready_size[bucket] == self.bucket_sizes[bucket]:
+            if bucket == self.next_bucket:
+                with torch.cuda.stream(self.reduction_stream):
+                    apply_flat_dist_call(buckets[bucket], dist.all_reduce)
 
-            if cumm_size < self.message_size:
-                continue
+                self.next_bucket -= 1
 
-            evt = torch.cuda.Event()
-            evt.record(torch.cuda.current_stream())
-            evt.wait(stream=self.reduction_stream)
-        
-            with torch.cuda.stream(self.reduction_stream):
-                flat_dist_call(bucket, dist.all_reduce)
+                # Borrowing upstream's logic here.  The closer I can keep our logic to theirs, the
+                # easier it will be to merge eventually.
+                if len(self.ready_buckets_not_reduced > 0):
+                    sorted_todo = sorted(self.ready_buckets_not_reduced, reverse=True)
+                    for i in sorted_todo:
+                        # Nothing can be reduced now
+                        if i < self.next_bucket:
+                            break
+                        elif i == self.next_bucket:
+                            with torch.cuda.stream(self.reduction_stream):
+                                apply_flat_dist_call(buckets[i], dist.all_reduce)
+                            self.ready_buckets_not_reduced.remove(i)
+                            self.next_bucket -= 1 
+                        else:
+                            raise ValueError("i should always be <= next_bucket")
+            else:
+                self.ready_buckets_not_reduced.add(bucket)
 
-            for i in range(self.ready_start, self.ready_start+len(bucket)):
-                self.param_state[i] = 2
-                self.ready_params.pop(0)
-
-        self.param_state[record_i] = 1
+        torch.cuda.nvtx.range_pop()
 
         
     def forward(self, *inputs, **kwargs):
+        if not self.shared_param:
+            param_list = [param for param in self.module.parameters() if param.requires_grad]
 
-        param_list = [param for param in self.module.parameters() if param.requires_grad]
+            # Conditions under which to refresh self.record
+            # Forward has the authority to set needs_refresh to True, but only allreduce_params
+            # in backward has the authority to set needs_refresh to False.
+            # Parentheses are not necessary for correct order of operations, but make the intent clearer.
+            if ( (not self.active_params) or 
+                 (len(param_list) != len(self.active_params)) or
+                 any([param1 is not param2 for param1, param2 in zip(param_list, self.active_params)]) ):
+                self.needs_refresh = True
 
-        # Conditions under which to refresh self.record
-        # Forward has the authority to set needs_refresh to True, but only allreduce_params
-        # in backward has the authority to set needs_refresh to False.
-        # Parentheses are not necessary for correct order of operations, but make the intent clearer.
-        if ( (not self.active_params) or 
-             self.shared_param or 
-             (len(param_list) != len(self.active_params)) or
-             any([param1 is not param2 for param1, param2 in zip(param_list, self.active_params)]) ):
-            self.needs_refresh = True
-
-        if self.needs_refresh:
-            self.record = []
-            # Map from each param's id to its index in the list of active parameters.
-            self.param_id_to_active_i = {id(param) : i for i, param in enumerate(param_list)}  
+            if self.needs_refresh:
+                self.buckets = [[]]
+                self.tmp_buckets = [[], []] # [running half bucket, running float bucket]
+                self.tmp_numels = [0, 0]
+                self.bucket_sizes = []
+                self.param_id_to_active_i = {id(param) : i for i, param in enumerate(param_list)}  
+            else:
+                self.buckets = [[None for _ in range(bucket_sizes[i])] for i in range(self.num_buckets)] 
+                self.buckets_ready_size = [0 for i in range(self.num_buckets)]
+                self.next_bucket = self.num_buckets
+                self.ready_buckets_not_reduced = set()
             
-        self.param_state = [0 for i in range(len(param_list))]
-        self.active_params = param_list
-        self.needs_reduction = True
+            self.active_params = param_list
 
-        self.ready_start = 0
-        self.ready_end   = 0
-        self.ready_params = []
-        self.ready_numel = 0
+        self.callback_queued = False
         
         return self.module(*inputs, **kwargs)

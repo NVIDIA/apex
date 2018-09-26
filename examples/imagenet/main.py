@@ -123,6 +123,7 @@ def main():
     if args.distributed:
         # shared param turns off bucketing in DDP, for lower latency runs this can improve perf
         model = DDP(model, shared_param=True)
+        # model = DDP(model)
 
     global model_params, master_params
     if args.fp16:
@@ -289,7 +290,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         adjust_learning_rate(optimizer, epoch, i, len(train_loader))
 
         if args.prof:
-            if i > 10:
+            if i > 100:
                 break
         # measure data loading time
         data_time.update(time.time() - end)
