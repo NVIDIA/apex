@@ -228,6 +228,8 @@ class DistributedDataParallel(Module):
            
             flat_dist_call(grads, dist.all_reduce)
 
+            torch.cuda.current_stream().wait_stream(self.reduction_stream)
+
             torch.cuda.nvtx.range_pop()
 
         def overlapping_backward_epilogue():
