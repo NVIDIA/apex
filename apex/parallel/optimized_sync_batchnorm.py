@@ -23,8 +23,3 @@ class SyncBatchNorm(_BatchNorm):
         else:
             self.num_batches_tracked += 1
             return SyncBatchnormFunction.apply(input, self.weight, self.bias, self.running_mean, self.running_var, self.eps, self.track_running_stats, self.momentum)
-
-
-# Quick drop-in replace hack
-def replace_with_SYNCBN():
-    torch.nn.BatchNorm2d = SyncBatchNorm

@@ -65,8 +65,3 @@ class SyncBatchNorm(_BatchNorm):
                             (1 - self.momentum) * self.running_var
             torch.cuda.nvtx.range_pop()
             return SyncBatchnormFunction.apply(input, self.weight, self.bias, mean, var, self.eps)
-
-
-# Quick drop-in replace hack
-def replace_with_SYNCBN():
-    torch.nn.BatchNorm2d = SyncBatchNorm
