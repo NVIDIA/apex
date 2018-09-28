@@ -230,6 +230,11 @@ class DistributedDataParallel(Module):
 
         def overlapping_backward_epilogue():
             torch.cuda.current_stream().wait_stream(self.reduction_stream)
+     
+            # Sanity check that all the buckets were kicked off
+            for actual, expected in zip(self.buckets_ready_size, self.bucket_sizes):
+                if actual != expected:
+                    raise RuntimeError("Some param buckets were not allreduced.")
 
         self.grad_accs = []
         for param in self.module.parameters():
@@ -253,7 +258,7 @@ class DistributedDataParallel(Module):
                                 self.tmp_buckets[current_type].append(active_i)                           
                                 self.tmp_numels[current_type] += param.numel()
 
-                                if self.tmp_numels[current_type] > self.message_size:
+                                if self.tmp_numels[current_type] >= self.message_size:
                                     self.buckets.append(self.tmp_buckets[current_type])
                                     self.tmp_buckets[current_type] = []
                                     self.tmp_numels[current_type] = 0
