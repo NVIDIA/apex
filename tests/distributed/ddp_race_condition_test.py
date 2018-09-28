@@ -23,6 +23,7 @@ if args.distributed:
     args.world_size = torch.distributed.get_world_size()
 
 torch.set_printoptions(precision=10)
+torch.manual_seed(args.local_rank)
 
 class Model(Module):
     def __init__(self):
