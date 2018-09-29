@@ -89,6 +89,7 @@ def fast_collate(batch):
 
 best_prec1 = 0
 args = parser.parse_args()
+
 def main():
     global best_prec1, args
 
@@ -121,8 +122,11 @@ def main():
     if args.fp16:
         model = network_to_half(model)
     if args.distributed:
-        # shared param turns off bucketing in DDP, for lower latency runs this can improve perf
-        model = DDP(model, shared_param=True)
+        # By default, apex.parallel.DistributedDataParallel overlaps communication with 
+        # computation in the backward pass.
+        # model = DDP(model)
+        # delay_allreduce delays all communication to the end of the backward pass.
+        model = DDP(model, delay_allreduce=True)
 
     global model_params, master_params
     if args.fp16:
