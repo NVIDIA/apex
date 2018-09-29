@@ -318,7 +318,7 @@ class DistributedDataParallel(Module):
                                 self.ready_buckets_not_reduced.remove(i)
                                 self.next_bucket += 1 
                             else:
-                                raise ValueError("i should always be <= next_bucket")
+                                raise ValueError("i should always be >= next_bucket")
             else:
                 self.ready_buckets_not_reduced.add(bucket_idx)
 
