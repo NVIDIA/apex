@@ -324,6 +324,8 @@ class DistributedDataParallel(Module):
 
         
     def forward(self, *inputs, **kwargs):
+        result = self.module(*inputs, **kwargs)
+        
         if not self.delay_allreduce:
             param_list = [param for param in self.module.parameters() if param.requires_grad]
 
@@ -354,4 +356,4 @@ class DistributedDataParallel(Module):
 
         self.callback_queued = False
         
-        return self.module(*inputs, **kwargs)
+        return result
