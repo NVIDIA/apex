@@ -293,7 +293,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         adjust_learning_rate(optimizer, epoch, i, len(train_loader))
 
         if args.prof:
-            if i > 100:
+            if i > 10:
                 break
         # measure data loading time
         data_time.update(time.time() - end)
