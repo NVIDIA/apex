@@ -11,13 +11,13 @@ import copy
 def apply_flat_dist_call(bucket, call, extra_args=None):
     coalesced = _flatten_dense_tensors(bucket)
 
+    if call is dist.all_reduce:
+        coalesced /= dist.get_world_size()
+    
     if extra_args is not None:
         call(coalesced, *extra_args)
     else:
         call(coalesced)
-
-    if call is dist.all_reduce:
-        coalesced /= dist.get_world_size()
         
     for buf, synced in zip(bucket, _unflatten_dense_tensors(coalesced, bucket)):
         buf.copy_(synced)
