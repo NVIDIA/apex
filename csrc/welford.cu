@@ -18,8 +18,8 @@ __device__ __forceinline__ int lastpow2(int n)
   return out;
 }
 
-  // parallel reduce with interleaved threads
-  // TODO(jie): unroll this?
+// parallel reduce with interleaved threads
+// TODO(jie): unroll this?
 template <typename scalar_t>
 __device__ void welford_reduce_mean_m2n(
       scalar_t* __restrict__ mean_l,
@@ -44,6 +44,7 @@ __device__ void welford_reduce_mean_m2n(
   }
 }
 
+// return spatial size for NC+ Tensors
 __host__ int get_tensor_spatial_size(const at::Tensor& input)
 {
   auto space_size = input.size(2);
@@ -53,12 +54,14 @@ __host__ int get_tensor_spatial_size(const at::Tensor& input)
   return space_size;
 }
 
+// promote accumulation scalar type. promote half to float.
 __host__ at::ScalarType promote_scalartype(const at::Tensor& input)
 {
   return input.type().scalarType() == at::ScalarType::Half ?
            at::ScalarType::Float : input.type().scalarType();
 }
 
+// return single element size, optional accumulation type promotion.
 __host__ size_t get_element_data_size(const at::Tensor& input, bool accumulation = false)
 {
   auto scalar_type = accumulation ? promote_scalartype(input) : input.type().scalarType();
@@ -66,6 +69,7 @@ __host__ size_t get_element_data_size(const at::Tensor& input, bool accumulation
 }
 
 
+// welford kernel calculating mean/biased_variance/unbiased_variance
 template <typename scalar_t, typename accscalar_t, typename outscalar_t>
 __global__ void welford_kernel(
       const scalar_t* __restrict__ input,
@@ -79,8 +83,8 @@ __global__ void welford_kernel(
   int block_size = blockDim.x * blockDim.y;
 
   accscalar_t* mean_l = (accscalar_t*) s_mem;
-  accscalar_t* m2n_l = (accscalar_t*) &(s_mem[block_size]);
-  int *num_item_l = (int*) &(s_mem[block_size*2]);
+  accscalar_t* m2n_l = &(mean_l[block_size]);
+  int *num_item_l = (int*) &(m2n_l[block_size]);
 
   int count = 0;
   float x_mean = 0;
@@ -115,6 +119,7 @@ __global__ void welford_kernel(
   }
 }
 
+// elementwise BN kernel
 template <typename scalar_t, typename accscalar_t>
 __global__ void batchnorm_forward_kernel(
       const scalar_t* __restrict__ input,
@@ -128,15 +133,19 @@ __global__ void batchnorm_forward_kernel(
   int address_base = blockIdx.x*ss + blockIdx.y*gridDim.x*ss;
 
   auto m_c = mean[blockIdx.x];
-  auto var_c = sqrt(var[blockIdx.x] + eps);
+  auto inv_std_c = static_cast<accscalar_t>(rsqrt(var[blockIdx.x] + eps));
   auto w_c = static_cast<accscalar_t>(weight[blockIdx.x]);
   auto s_c = static_cast<accscalar_t>(shift[blockIdx.x]);
 
   for (int offset = threadIdx.x; offset < ss ; offset+= blockDim.x) {
-    out[address_base+offset] = static_cast<scalar_t>((static_cast<accscalar_t>(input[address_base+offset]) - m_c ) / var_c * w_c + s_c);
+    out[address_base+offset] = static_cast<scalar_t>(w_c * (static_cast<accscalar_t>(input[address_base+offset]) - m_c ) * inv_std_c + s_c);
   }
 }
 
+// Backward BN kernel, calculates grad_bias, grad_weight as well as intermediate
+// results to calculating grad_input.
+// Breaking the grad_input to two step to support sync BN, which requires all
+// reduce of the intermediate results across processes.
 template <typename scalar_t, typename accscalar_t>
 __global__ void reduce_bn_kernel(
       const scalar_t* __restrict__ input,
@@ -155,27 +164,39 @@ __global__ void reduce_bn_kernel(
   int block_size = blockDim.x * blockDim.y;
 
   accscalar_t* sum_dy_l = (accscalar_t*) s_mem;
-  accscalar_t* sum_dy_xmu_l = (accscalar_t*) &(s_mem[block_size]);
+  accscalar_t* sum_dy_xmu_l = &(sum_dy_l[block_size]);
   int total_item_num = bs * ss;
 
-  accscalar_t s_dy = 0.0;
-  accscalar_t s_dy_xmu = 0.0;
+
   int input_base = blockIdx.x*ss + threadIdx.y*ss*fs;
   int thread_id = threadIdx.y*blockDim.x + threadIdx.x;
 
-  // TODO(jie): stash accscalar_t mean / var;
   auto r_mean = mean[blockIdx.x];
-  auto factor = 1.0 / sqrt(var[blockIdx.x] + eps);
+  auto factor = accscalar_t(1.0) / (accscalar_t)sqrt(var[blockIdx.x] + eps);
 
+  // Kahan sum
+  accscalar_t sum_dy = 0.0;
+  accscalar_t sum_dy_xmu = 0.0;
+  accscalar_t sum_dy_c = 0.0;
+  accscalar_t sum_dy_xmu_c = 0.0;
   for (int offset = threadIdx.x; offset < ss ; offset+= blockDim.x) {
     auto e_grad = static_cast<accscalar_t>(grad_output[offset+input_base]);
     auto e_input = static_cast<accscalar_t>(input[offset+input_base]);
-    s_dy += e_grad;
-    s_dy_xmu += e_grad * (e_input - r_mean);
+    // calculating sum_dy
+    auto sum_dy_y = e_grad - sum_dy_c;
+    auto sum_dy_t = sum_dy + sum_dy_y;
+    sum_dy_c = (sum_dy_t - sum_dy) - sum_dy_y;
+    sum_dy = sum_dy_t;
+
+    // calculating sum_dy_xmu
+    auto sum_dy_xmu_y = e_grad * (e_input - r_mean) - sum_dy_xmu_c;
+    auto sum_dy_xmu_t = sum_dy_xmu + sum_dy_xmu_y;
+    sum_dy_xmu_c = (sum_dy_xmu_t - sum_dy_xmu) - sum_dy_xmu_y;
+    sum_dy_xmu = sum_dy_xmu_t;
   }
 
-  sum_dy_l[thread_id] = s_dy;
-  sum_dy_xmu_l[thread_id] = s_dy_xmu;
+  sum_dy_l[thread_id] = sum_dy;
+  sum_dy_xmu_l[thread_id] = sum_dy_xmu;
   __syncthreads();
   
   // parallel reduce with interleaved threads
@@ -183,8 +204,8 @@ __global__ void reduce_bn_kernel(
   // TODO(jie): maybe I should pad the blockDim.y to power of 2?
   for (int offset = lastpow2(block_size); offset > 0; offset>>=1) {
     if (thread_id < offset && thread_id + offset < block_size) {
-      sum_dy_l[thread_id] += sum_dy_l[thread_id+offset];
-      sum_dy_xmu_l[thread_id] += sum_dy_xmu_l[thread_id+offset];
+      sum_dy_l[thread_id] = sum_dy_l[thread_id] + sum_dy_l[thread_id+offset];
+      sum_dy_xmu_l[thread_id] = sum_dy_xmu_l[thread_id] + sum_dy_xmu_l[thread_id+offset];
     }
     __syncthreads();
   }
@@ -192,12 +213,12 @@ __global__ void reduce_bn_kernel(
   if (thread_id == 0) {
     grad_bias[blockIdx.x] = static_cast<scalar_t>(sum_dy_l[0]);
     grad_weight[blockIdx.x] = static_cast<scalar_t>(sum_dy_xmu_l[0] * factor);
-    //grad_weight[blockIdx.x] = static_cast<scalar_t>(sum_dy_xmu_l[0]);
     mean_dy[blockIdx.x] = sum_dy_l[0] / total_item_num;
     mean_dy_xmu[blockIdx.x] = sum_dy_xmu_l[0] / total_item_num;
   }
 }
 
+// elementwise backward BN kernel
 template <typename scalar_t, typename accscalar_t>
 __global__ void batchnorm_backward_kernel(
       const scalar_t* __restrict__ grad_output,
@@ -223,6 +244,45 @@ __global__ void batchnorm_backward_kernel(
   }
 }
 
+// parallel welford kernel to further reduce mean / biased_var / unbiased_var
+// across multiple processes.
+template <typename scalar_t, typename accscalar_t>
+__global__ void welford_kernel_parallel(
+      const scalar_t* __restrict__ mean,
+      const scalar_t* __restrict__ var_biased,
+      scalar_t* __restrict__ out_mean,
+      scalar_t* __restrict__ out_var,
+      scalar_t* __restrict__ out_var_biased,
+      const int ns,
+      const int fs,
+      const int numel) {
+  extern __shared__ int s_mem[];
+  int block_size = blockDim.x;
+
+  accscalar_t* mean_l = (accscalar_t*) s_mem;
+  accscalar_t* m2n_l = &(mean_l[block_size]);
+  int *num_item_l = (int*) &(m2n_l[block_size]);
+
+  int input_base = blockIdx.x*ns + threadIdx.x;
+  int thread_id = threadIdx.x;
+
+  // load data; 
+  mean_l[thread_id] = static_cast<accscalar_t>(mean[input_base]);
+  m2n_l[thread_id] = static_cast<accscalar_t>(var_biased[input_base]) * numel;
+  num_item_l[thread_id] = numel;
+
+  __syncthreads();
+
+  welford_reduce_mean_m2n<accscalar_t>(mean_l, m2n_l, num_item_l, block_size, thread_id);
+
+  if (thread_id == 0) {
+    out_mean[blockIdx.x] = static_cast<scalar_t>(mean_l[0]);
+    out_var[blockIdx.x] = static_cast<scalar_t>(m2n_l[0]/(num_item_l[0]-1));
+    out_var_biased[blockIdx.x] = static_cast<scalar_t>(m2n_l[0]/num_item_l[0]);
+  }
+}
+  
+
 std::vector<at::Tensor> welford_mean_var_CUDA(const at::Tensor input) {
   const auto batch_size = input.size(0);
   const auto feature_size = input.size(1);
@@ -230,7 +290,6 @@ std::vector<at::Tensor> welford_mean_var_CUDA(const at::Tensor input) {
   auto space_size = get_tensor_spatial_size(input);
   auto scalar_type = promote_scalartype(input);
 
-  // choose to discard runtime_type since we are only allocating output
   at::TensorOptions t_op(input);
   t_op.dtype(scalar_type);
   at::Tensor out_var = at::native::empty({feature_size}, t_op);
@@ -240,7 +299,8 @@ std::vector<at::Tensor> welford_mean_var_CUDA(const at::Tensor input) {
   int block_x = 16;
   const dim3 block(block_x, batch_size);
   const dim3 grid(feature_size);
-  // save current mean, var, num_elements;
+  
+  // shared memory used for reduce on mean, var, num_elements;
   int smem_size = batch_size * block_x * (sizeof(int) + 2 * get_element_data_size(input, true));
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "welford_mean_var_kernel", ([&] {
@@ -316,10 +376,10 @@ std::vector<at::Tensor> reduce_bn_CUDA(
   int block_x = 16;
   const dim3 block(block_x, batch_size);
   const dim3 grid(feature_size);
-  // shared memory used for reduce;
+  // shared memory used for reduce on sum_dy, sum_dy_xmu;
   int smem_size = batch_size * block_x * 2 * get_element_data_size(input, true);
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
+  AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward_reduce", ([&] {
     using accscalar_t = at::acc_type<scalar_t, true>;
     reduce_bn_kernel<scalar_t, accscalar_t><<<grid, block, smem_size>>>(
         input.data<scalar_t>(),
@@ -359,7 +419,7 @@ at::Tensor batchnorm_backward_CUDA(
   // TODO(jie): should I do 1 block per feature?
   const dim3 grid(feature_size, batch_size);
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
+  AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward", ([&] {
     using accscalar_t = at::acc_type<scalar_t, true>;
     batchnorm_backward_kernel<scalar_t, accscalar_t><<<grid, block>>>(
         grad_output.data<scalar_t>(),
@@ -377,55 +437,19 @@ at::Tensor batchnorm_backward_CUDA(
   return grad_input;
 }
 
-template <typename scalar_t, typename accscalar_t>
-__global__ void welford_kernel_parallel(
-      const scalar_t* __restrict__ mean,
-      const scalar_t* __restrict__ var_biased,
-      scalar_t* __restrict__ out_mean,
-      scalar_t* __restrict__ out_var,
-      scalar_t* __restrict__ out_var_biased,
-      const int ns,
-      const int fs,
-      const int numel) {
-  extern __shared__ int s_mem[];
-  int block_size = blockDim.x;
-
-  accscalar_t* mean_l = (accscalar_t*) s_mem;
-  accscalar_t* m2n_l = (accscalar_t*) &(s_mem[block_size]);
-  int *num_item_l = (int*) &(s_mem[block_size*2]);
-
-  int input_base = blockIdx.x*ns + threadIdx.x;
-  int thread_id = threadIdx.x;
-
-  // load data; 
-  mean_l[thread_id] = static_cast<accscalar_t>(mean[input_base]);
-  m2n_l[thread_id] = static_cast<accscalar_t>(var_biased[input_base]) * numel;
-  num_item_l[thread_id] = numel;
-
-  __syncthreads();
-  
-  welford_reduce_mean_m2n<accscalar_t>(mean_l, m2n_l, num_item_l, block_size, thread_id);
-
-  if (thread_id == 0) {
-    out_mean[blockIdx.x] = static_cast<scalar_t>(mean_l[0]);
-    out_var[blockIdx.x] = static_cast<scalar_t>(m2n_l[0]/(num_item_l[0]-1));
-    out_var_biased[blockIdx.x] = static_cast<scalar_t>(m2n_l[0]/num_item_l[0]);
-  }
-}
-  
 std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_nodes, const at::Tensor var_biased, int numel) {
   const auto feature_size = mean_feature_nodes.size(0);
   const auto node_size = mean_feature_nodes.size(1);
 
-  // TODO(jie): how to properly construct empty tensor with shape?
-  at::Tensor out_var = at::empty_like(var_biased).resize_({feature_size});
+  at::TensorOptions t_op(var_biased);
+  at::Tensor out_var = at::native::empty({feature_size}, t_op);
   at::Tensor out_var_biased = at::empty_like(out_var);
   at::Tensor out_mean = at::empty_like(out_var);
 
   // TODO(jie): 
   const dim3 block(node_size);
   const dim3 grid(feature_size);
-  // save current mean, var, num_elements;
+  // shared memory used for reduce on mean, var, num_elements;
   int smem_size = node_size * (sizeof(int) + 2 * get_element_data_size(mean_feature_nodes, true));
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(mean_feature_nodes.type(), "welford_parallel_kernel", ([&] {
