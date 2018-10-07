@@ -128,8 +128,11 @@ def main():
     if args.fp16:
         model = network_to_half(model)
     if args.distributed:
-        # shared param turns off bucketing in DDP, for lower latency runs this can improve perf
-        model = DDP(model, shared_param=True)
+        # By default, apex.parallel.DistributedDataParallel overlaps communication with 
+        # computation in the backward pass.
+        # model = DDP(model)
+        # delay_allreduce delays all communication to the end of the backward pass.
+        model = DDP(model, delay_allreduce=True)
 
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
