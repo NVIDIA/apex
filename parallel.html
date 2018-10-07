@@ -176,7 +176,7 @@
 <span id="apex-parallel"></span><h1>apex.parallel<a class="headerlink" href="#module-apex.parallel" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="apex.parallel.DistributedDataParallel">
-<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">DistributedDataParallel</code><span class="sig-paren">(</span><em>module</em>, <em>message_size=10000000</em>, <em>shared_param=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.DistributedDataParallel" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">DistributedDataParallel</code><span class="sig-paren">(</span><em>module</em>, <em>message_size=10000000</em>, <em>delay_allreduce=False</em>, <em>shared_param=None</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.DistributedDataParallel" title="Permalink to this definition">¶</a></dt>
 <dd><p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.DistributedDataParallel</span></code></a> is a module wrapper that enables
 easy multiprocess distributed data parallel training, similar to <code class="docutils literal"><span class="pre">torch.nn.parallel.DistributedDataParallel</span></code>.</p>
 <p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> is designed to work with
@@ -201,7 +201,7 @@ that combines <a class="reference internal" href="#apex.parallel.DistributedData
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>module</strong> – Network definition to be run in multi-gpu/distributed mode.</li>
 <li><strong>message_size</strong> (<em>Default = 1e7</em>) – Minimum number of elements in a communication bucket.</li>
-<li><strong>shared_param</strong> (<em>Default = False</em>) – If your model uses shared parameters this must be True.  It will disable bucketing of parameters to avoid race conditions.</li>
+<li><strong>delay_allreduce</strong> (<em>Default = False</em>) – Delay all communication to the end of the backward pass.  This disables overlapping communication with computation.</li>
 </ul>
 </td>
 </tr>
@@ -231,16 +231,7 @@ assumes 1:1 mapping of processes to GPUs.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>module_or_grads_list</strong> – Either a network definition (module) being run in</li>
-<li><strong>mode, or an iterable of gradients to be reduced.</strong> (<em>multi-gpu/distributed</em>) – </li>
-<li><strong>a module is passed in, the Reducer constructor will sync the parameters across processes</strong> (<em>If</em>) – </li>
-<li><strong>from rank 0) to make sure they're all initialized with the same values.</strong> (<em>(</em><em>broadcasting</em>) – </li>
-<li><strong>a list of gradients</strong> (<em>If</em>) – </li>
-<li><strong>passed in, the user is responsible for manually syncing that module's parameters</strong> (<em>is</em>) – </li>
-<li><strong>the beginning of training.</strong> (<em>at</em>) – </li>
-</ul>
-</td>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>module_or_grads_list</strong> – Either a network definition (module) being run in multi-gpu/distributed mode, or an iterable of gradients to be reduced.  If a module is passed in, the Reducer constructor will sync the parameters across processes (broadcasting from rank 0) to make sure they’re all initialized with the same values.  If a list of gradients (that came from some module) is passed in, the user is responsible for manually syncing that module’s parameters at the beginning of training.</td>
 </tr>
 </tbody>
 </table>
