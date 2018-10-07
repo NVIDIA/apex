@@ -43,9 +43,9 @@ parser.add_argument('--epochs', default=90, type=int, metavar='N',
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('-b', '--batch-size', default=256, type=int,
-                    metavar='N', help='mini-batch size (default: 256)')
+                    metavar='N', help='mini-batch size per process (default: 256)')
 parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
-                    metavar='LR', help='initial learning rate')
+                    metavar='LR', help='Initial learning rate.  Will be scaled by <global batch size>/256: args.lr = args.lr*float(args.batch_size*args.world_size)/256.  A warmup schedule will also be applied over the first 5 epochs.')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
@@ -89,6 +89,7 @@ def fast_collate(batch):
 
 best_prec1 = 0
 args = parser.parse_args()
+
 def main():
     global best_prec1, args
 
@@ -121,8 +122,11 @@ def main():
     if args.fp16:
         model = network_to_half(model)
     if args.distributed:
-        # shared param turns off bucketing in DDP, for lower latency runs this can improve perf
-        model = DDP(model)
+        # By default, apex.parallel.DistributedDataParallel overlaps communication with 
+        # computation in the backward pass.
+        # model = DDP(model)
+        # delay_allreduce delays all communication to the end of the backward pass.
+        model = DDP(model, delay_allreduce=True)
 
     global model_params, master_params
     if args.fp16:
@@ -133,25 +137,32 @@ def main():
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
 
-    # Scale learning rate based on per-process batch size
-    args.lr = args.lr*float(args.batch_size)/256. 
+    # Scale learning rate based on global batch size
+    args.lr = args.lr*float(args.batch_size*args.world_size)/256. 
     optimizer = torch.optim.SGD(master_params, args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
 
-    # optionally resume from a checkpoint
+    # Optionally resume from a checkpoint
     if args.resume:
-        if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
-            checkpoint = torch.load(args.resume, map_location = lambda storage, loc: storage.cuda(args.gpu))
-            args.start_epoch = checkpoint['epoch']
-            best_prec1 = checkpoint['best_prec1']
-            model.load_state_dict(checkpoint['state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            print("=> loaded checkpoint '{}' (epoch {})"
-                  .format(args.resume, checkpoint['epoch']))
-        else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
+        # Use a local scope to avoid dangling references
+        def resume():
+            if os.path.isfile(args.resume):
+                print("=> loading checkpoint '{}'".format(args.resume))
+                checkpoint = torch.load(args.resume, map_location = lambda storage, loc: storage.cuda(args.gpu))
+                args.start_epoch = checkpoint['epoch']
+                best_prec1 = checkpoint['best_prec1']
+                model.load_state_dict(checkpoint['state_dict'])
+                if args.fp16:
+                    saved_master_params = checkpoint['master_params']
+                    for master, saved in zip(master_params, saved_master_params):
+                        master.data.copy_(saved.data) 
+                optimizer.load_state_dict(checkpoint['optimizer'])
+                print("=> loaded checkpoint '{}' (epoch {})"
+                      .format(args.resume, checkpoint['epoch']))
+            else:
+                print("=> no checkpoint found at '{}'".format(args.resume))
+        resume()
 
     # Data loading code
     traindir = os.path.join(args.data, 'train')
@@ -213,13 +224,19 @@ def main():
         if args.local_rank == 0:
             is_best = prec1 > best_prec1
             best_prec1 = max(prec1, best_prec1)
-            save_checkpoint({
-                'epoch': epoch + 1,
-                'arch': args.arch,
-                'state_dict': model.state_dict(),
-                'best_prec1': best_prec1,
-                'optimizer' : optimizer.state_dict(),
-            }, is_best)
+            # Use local scope to avoid dangling references
+            def create_and_save_checkpoint():
+                checkpoint_dict = {
+                    'epoch': epoch + 1,
+                    'arch': args.arch,
+                    'state_dict': model.state_dict(),
+                    'best_prec1': best_prec1,
+                    'optimizer' : optimizer.state_dict(),
+                }
+                if args.fp16:
+                    checkpoint_dict['master_params'] = master_params
+                save_checkpoint(checkpoint_dict, is_best)
+            create_and_save_checkpoint()
 
 class data_prefetcher():
     def __init__(self, loader):

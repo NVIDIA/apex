@@ -34,7 +34,7 @@ def cached_cast(mod, fn, cast_fn, handle,
     orig_fn = utils.get_func(mod, fn)
     cast_fn = utils.verbosify(cast_fn, fn, verbose)
     wrapper = make_cast_wrapper(orig_fn, cast_fn, handle, try_caching)
-    utils.set_func(mod, fn, wrapper)
+    utils.set_func_save(handle, mod, fn, wrapper)
 
 # `handle` arg is unused, but simplifies API to make `make_cast_wrapper`
 def make_promote_wrapper(orig_fn, cast_fn, handle=None):
@@ -54,13 +54,13 @@ def make_promote_wrapper(orig_fn, cast_fn, handle=None):
                                       .format(types))
     return wrapper
 
-def promote(mod, fn, verbose=False):
+def promote(mod, fn, handle, verbose=False):
     orig_fn = utils.get_func(mod, fn)
     maybe_float = utils.verbosify(utils.maybe_float, fn, verbose)
     wrapper = make_promote_wrapper(orig_fn, maybe_float)
-    utils.set_func(mod, fn, wrapper)
+    utils.set_func_save(handle, mod, fn, wrapper)
 
-def sequence_promote(mod, fn, verbose=False):
+def sequence_promote(mod, fn, handle, verbose=False):
     orig_fn = utils.get_func(mod, fn)
     maybe_float = utils.verbosify(utils.maybe_float, fn, verbose)
     @functools.wraps(orig_fn)
@@ -76,9 +76,9 @@ def sequence_promote(mod, fn, verbose=False):
             # TODO: other mixed-type cases aren't due to amp.
             #       Just pass through?
             return orig_fn(seq, *args, **kwargs)
-    utils.set_func(mod, fn, wrapper)
+    utils.set_func_save(handle, mod, fn, wrapper)
 
-def promote_match_arg0(mod, fn, verbose=False):
+def promote_match_arg0(mod, fn, handle, verbose=False):
     if not utils.has_func(mod, fn):
         return
 
@@ -95,9 +95,9 @@ def promote_match_arg0(mod, fn, verbose=False):
         cast_fn = utils.verbosify(cast_fn, fn, verbose)
         new_args = utils.casted_args(cast_fn, args, kwargs)
         return orig_fn(arg0, *new_args, **kwargs)
-    utils.set_func(mod, fn, wrapper)
+    utils.set_func_save(handle, mod, fn, wrapper)
 
-def err_if_any_half(mod, fn, custom_err_msg=None):
+def err_if_any_half(mod, fn, handle, custom_err_msg=None):
     if not utils.has_func(mod, fn):
         return
 
@@ -113,9 +113,9 @@ def err_if_any_half(mod, fn, custom_err_msg=None):
                                           '{} with fp16 arguments.'.format(fn))
         else:
             return orig_fn(*args, **kwargs)
-    utils.set_func(mod, fn, wrapper)
+    utils.set_func_save(handle, mod, fn, wrapper)
 
-def err_if_arg0_half(mod, fn, verbose=False):
+def err_if_arg0_half(mod, fn, handle, verbose=False):
     if not utils.has_func(mod, fn):
         return
 
@@ -130,7 +130,7 @@ def err_if_arg0_half(mod, fn, verbose=False):
             cast_fn = utils.verbosify(utils.maybe_float, fn, verbose)
             new_args = utils.casted_args(cast_fn, args, kwargs)
             return orig_fn(arg0, *new_args, **kwargs)
-    utils.set_func(mod, fn, wrapper)
+    utils.set_func_save(handle, mod, fn, wrapper)
 
 # Current RNN approach:
 # - Wrap top-level `RNN` function in thnn backend
@@ -140,7 +140,7 @@ def err_if_arg0_half(mod, fn, verbose=False):
 # - We interpose on the factory function to:
 #   1) Interpose on the actual forward function and put in casts
 #   2) Insert an fp16 `flat_weight` if necessary
-def rnn_cast(backend, fn, verbose=False):
+def rnn_cast(backend, fn, handle, verbose=False):
     orig_rnn = utils.get_func(backend, fn)
     @functools.wraps(orig_rnn)
     def rnn_wrapper(*args, **kwargs):
@@ -203,7 +203,39 @@ def rnn_cast(backend, fn, verbose=False):
 
             return forward(*new_args, **fkwargs)
         return fwd_wrapper
-    utils.set_func(backend, fn, rnn_wrapper)
+    utils.set_func_save(handle, backend, fn, rnn_wrapper)
+
+def new_rnn_cast(fn, handle, verbose=False):
+    mod = torch.nn.modules.rnn._rnn_impls
+    orig_fn = utils.get_func(mod, fn)
+    cast_fn = utils.verbosify(utils.maybe_half, fn, verbose)
+    @functools.wraps(orig_fn)
+    def wrapper(*args, **kwargs):
+        # Exact call signature from modules/rnn.py
+        assert len(args) == 9
+        assert len(kwargs) == 0
+
+        if isinstance(args[6], bool):
+            params_idx = 2 # Not PackedSequence case
+        else:
+            params_idx = 3 # PackedSequence case
+
+        new_args = []
+        for i, arg in enumerate(args):
+            if i == params_idx:
+                num_params = sum([x.numel() for x in arg])
+                fp16_weight_buf = args[0].new_empty((num_params,),
+                                                    dtype=torch.half)
+                casted_weights = utils.new_synthesize_flattened_rnn_weights(
+                    arg, fp16_weight_buf, fn, verbose)
+                new_args.append(casted_weights)
+            elif utils.is_fp_tensor(arg):
+                new_args.append(cast_fn(arg))
+            else:
+                new_args.append(arg)
+
+        return orig_fn(*new_args)
+    utils.set_func_save(handle, mod, fn, wrapper)
 
 def disable_casts(mod, fn, handle):
     if not utils.has_func(mod, fn):
@@ -214,4 +246,4 @@ def disable_casts(mod, fn, handle):
     def wrapper(*args, **kwargs):
         with handle._disable_casts():
             return orig_fn(*args, **kwargs)
-    utils.set_func(mod, fn, wrapper)
+    utils.set_func_save(handle, mod, fn, wrapper)

@@ -40,6 +40,7 @@ class FP16_Optimizer(object):
         static_loss_scale (float, optional, default=1.0):  Loss scale used internally to scale gradients computed by the model.  Any fp16 gradients will be copied to fp32, then downscaled before being applied to the fp32 master params, so ``static_loss_scale`` should not affect learning rate.
         dynamic_loss_scale (bool, optional, default=False):  Use dynamic loss scaling.  If True, this will override any ``static_loss_scale`` option.
         dynamic_loss_args (dict, optional, default=None):  Dict of kwargs that will be forwarded to the internal :class:`DynamicLossScaler` instance's constructor.  Keys of this dict must match kwargs accepted by :class:`DynamicLossScaler`'s constructor.  If ``dynamic_loss_args`` is unspecified, :class:`DynamicLossScaler`'s defaults will be used.
+        verbose (bool, optional, default=True):  By default, FP16_Optimizer's constructor prints out the parameters and parameter groups it is ingesting, as a sanity check.  If this becomes annoying (e.g. for large models), it can be disabled by passing ``verbose=False``.  ``verbose=False`` will not disable printing when the loss scale is readjusted during dynamic loss scaling.
 
     ``init_optimizer`` is expected to have been constructed in the ordinary way.  
     It is recommended (although not required) that the newly constructed :class:`FP16_Optimizer` instance be 
@@ -105,9 +106,12 @@ class FP16_Optimizer(object):
                  init_optimizer, 
                  static_loss_scale=1.0, 
                  dynamic_loss_scale=False,
-                 dynamic_loss_args=None):
+                 dynamic_loss_args=None,
+                 verbose=True):
         if not torch.cuda.is_available:
             raise SystemError("Cannot use fp16 without CUDA.")
+
+        self.verbose = verbose
 
         self.optimizer = init_optimizer
         # init_state_dict sets up an alternative way to cast per-param state tensors.
@@ -118,15 +122,15 @@ class FP16_Optimizer(object):
         self.fp32_from_fp16_groups = []
         self.fp32_from_fp32_groups = []
         for i, param_group in enumerate(self.optimizer.param_groups):
-            print("FP16_Optimizer processing param group {}:".format(i))
+            self.maybe_print("FP16_Optimizer processing param group {}:".format(i))
             fp16_params_this_group = []
             fp32_params_this_group = []
             fp32_from_fp16_params_this_group = []
             for i, param in enumerate(param_group['params']):
                 if param.requires_grad:
                     if param.type() == 'torch.cuda.HalfTensor':
-                        print("FP16_Optimizer received torch.cuda.HalfTensor with {}"
-                              .format(param.size()))
+                        self.maybe_print("FP16_Optimizer received torch.cuda.HalfTensor with {}"
+                                         .format(param.size()))
                         fp16_params_this_group.append(param)
                         master_param = param.detach().clone().float()
                         master_param.requires_grad = True
@@ -137,8 +141,8 @@ class FP16_Optimizer(object):
                         if param in self.optimizer.state:
                            self.optimizer.state[master_param] = self.optimizer.state.pop(param) 
                     elif param.type() == 'torch.cuda.FloatTensor':
-                        print("FP16_Optimizer received torch.cuda.FloatTensor with {}"
-                              .format(param.size()))
+                        self.maybe_print("FP16_Optimizer received torch.cuda.FloatTensor with {}"
+                                         .format(param.size()))
                         fp32_params_this_group.append(param)
                         param_group['params'][i] = param
                     else:
@@ -169,6 +173,10 @@ class FP16_Optimizer(object):
         self.first_closure_call_this_step = True
 
         self.clip_grad_norm = clip_grad_norm
+
+    def maybe_print(self, msg):
+        if self.verbose:
+            print(msg)
             
     def __getstate__(self):
         raise RuntimeError("FP16_Optimizer should be serialized using state_dict().")
@@ -176,20 +184,31 @@ class FP16_Optimizer(object):
     def __setstate__(self, state):
         raise RuntimeError("FP16_Optimizer should be deserialized using load_state_dict().")
 
-    def zero_grad(self):
+    def zero_grad(self, set_grads_to_None=False):
         """
         Zero fp32 and fp16 parameter grads.
         """
         # In principle, only the .grad attributes of the model params need to be zeroed,
         # because gradients are copied into the FP32 master params.  However, we zero
         # all gradients owned by the optimizer, just to be safe:
-        self.optimizer.zero_grad()
+        for group in self.optimizer.param_groups:
+             for p in group['params']:
+                 if set_grads_to_None:
+                     p.grad = None
+                 else:
+                     if p.grad is not None:
+                         p.grad.detach_()
+                         p.grad.zero_()
+
         # Zero fp16 gradients owned by the model:
         for fp16_group in self.fp16_groups:
             for param in fp16_group:
-                if param.grad is not None:
-                    param.grad.detach_() # as in torch.optim.optimizer.zero_grad()
-                    param.grad.zero_()
+                if set_grads_to_None:
+                    param.grad = None
+                else:
+                    if param.grad is not None:
+                        param.grad.detach_() # as in torch.optim.optimizer.zero_grad()
+                        param.grad.zero_()
 
     def _check_overflow(self):
         params = [] 

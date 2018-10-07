@@ -1,4 +1,4 @@
-from . import compat, utils, wrap
+from . import compat, rnn_compat, utils, wrap
 from .handle import AmpHandle, NoOpHandle
 from .lists import functional_overrides, torch_overrides, tensor_overrides
 
@@ -73,7 +73,7 @@ def init(enabled=True, enable_caching=True, verbose=False, allow_banned=False):
 
     # 0.5) Force-promote for user-annotated functions
     for mod, fn in _USER_PROMOTE_REGISTRY:
-        wrap.promote(mod, fn, verbose)
+        wrap.promote(mod, fn, handle, verbose)
     _USER_PROMOTE_REGISTRY.clear()
 
     # 1) Force-{fp16, fp32} on white- / black-list functions
@@ -107,7 +107,7 @@ def init(enabled=True, enable_caching=True, verbose=False, allow_banned=False):
     for promote_mod, (list_name, promote_fn) in itertools.product(promote_modules,
                                                                   promote_table):
         for fn in getattr(promote_mod, list_name):
-            promote_fn(promote_mod.MODULE, fn, verbose)
+            promote_fn(promote_mod.MODULE, fn, handle, verbose)
 
     # 2.5) Pre-0.4, add blacklist methods directly to HalfTensor and FloatTensor types
     if compat.tensor_is_float_tensor():
@@ -115,48 +115,49 @@ def init(enabled=True, enable_caching=True, verbose=False, allow_banned=False):
                                                                torch.cuda.HalfTensor],
                                                               promote_table):
             for fn in getattr(tensor_overrides, list_name):
-                promote_fn(cls, fn, verbose)
+                promote_fn(cls, fn, handle, verbose)
 
     # 3) For any in-place version of a blacklist function, error if any input is fp16.
     #    NB: this is overly conservative.
     for fn in utils.as_inplace(torch_overrides.FP32_FUNCS):
-        wrap.err_if_any_half(torch_overrides.MODULE, fn)
+        wrap.err_if_any_half(torch_overrides.MODULE, fn, handle)
 
     # 3.5) For any in-place blacklist method, error if called on fp16 tensor
     for fn in utils.as_inplace(tensor_overrides.FP32_FUNCS):
-        wrap.err_if_arg0_half(tensor_overrides.MODULE, fn, verbose)
+        wrap.err_if_arg0_half(tensor_overrides.MODULE, fn, handle, verbose)
         if compat.tensor_is_float_tensor():
-            wrap.err_if_arg0_half(torch.cuda.HalfTensor, fn, verbose)
+            wrap.err_if_arg0_half(torch.cuda.HalfTensor, fn, handle, verbose)
 
     # 4) For other in-place methods, match the type of self tensor
     for fn in utils.as_inplace(itertools.chain(
             tensor_overrides.FP16_FUNCS,
             tensor_overrides.CASTS)):
-        wrap.promote_match_arg0(tensor_overrides.MODULE, fn, verbose)
+        wrap.promote_match_arg0(tensor_overrides.MODULE, fn, handle, verbose)
         if compat.tensor_is_float_tensor():
-            wrap.promote_match_arg0(torch.cuda.HalfTensor, fn, verbose)
-            wrap.promote_match_arg0(torch.cuda.FloatTensor, fn, verbose)
+            wrap.promote_match_arg0(torch.cuda.HalfTensor, fn, handle, verbose)
+            wrap.promote_match_arg0(torch.cuda.FloatTensor, fn, handle, verbose)
 
-    # 5) Special handling to whitelist RNN cell backend impls.
-    for fn in ['RNNReLUCell', 'RNNTanhCell', 'LSTMCell', 'GRUCell']:
-        wrap.cached_cast(torch.nn.backends.thnn.backend, fn, utils.maybe_half,
-                         handle, try_caching=True, verbose=verbose)
+    # 5) RNNs + RNN cells are whitelisted specially
+    if rnn_compat.has_old_rnns():
+        wrap.rnn_cast(torch.nn.backends.thnn.backend, 'RNN', handle, verbose)
+    if not rnn_compat.has_old_rnns():
+        # Patch in our own indirection of `_VF` in modules/rnn s.t. it is mutable.
+        torch.nn.modules.rnn._VF = rnn_compat.VariableFunctionsShim()
+        # Wrap all the rnns
+        for x in rnn_compat.RNN_NAMES:
+            wrap.new_rnn_cast(x.upper(), handle, verbose)
 
-    # 5.5) Extra-special handling of RNN backend
-    wrap.rnn_cast(torch.nn.backends.thnn.backend, 'RNN', verbose)
+    # Wrap all the RNN cells
+    rnn_compat.whitelist_rnn_cells(handle, verbose)
 
-    # And even more special handling of `backward` for fused gru / lstm
-    # The `backward` method calls Tensor.sum() (blacklist) internally,
-    # and then the resulting grad_input has the wrong type.
-    # TODO: where else is this a problem?
-    for rnn_type in ['GRUFused', 'LSTMFused']:
-        mod = getattr(torch.nn._functions.thnn.rnnFusedPointwise, rnn_type)
-        wrap.disable_casts(mod, 'backward', handle)
-
-    # 6) Place error+print message on banned functions
-    if not allow_banned:
-        for fn, err_msg in functional_overrides.BANNED_FUNCS:
-            wrap.err_if_any_half(functional_overrides.MODULE, fn, err_msg)
+    # 6) Place error+print message on banned functions.
+    #    Or, if allow_banned, then cast to FP32.
+    for fn, err_msg in functional_overrides.BANNED_FUNCS:
+        if allow_banned:
+            wrap.cached_cast(functional_overrides.MODULE, fn, utils.maybe_float,
+                             handle, try_caching=True, verbose=verbose)
+        else:
+            wrap.err_if_any_half(functional_overrides.MODULE, fn, handle, err_msg)
 
     _DECORATOR_HANDLE = handle
     return handle
