@@ -46,8 +46,6 @@ These manual examples illustrate what sort of operations `amp` and `FP16_Optimiz
 `torch.nn.parallel.DistributedDataParallel`.  It enables convenient multiprocess distributed training,
 optimized for NVIDIA's NCCL communication library.
 
-`apex.parallel.multiproc` is a launch utility that helps set up arguments for `DistributedDataParallel.`
-
 [API Documentation](https://nvidia.github.io/apex/parallel.html)
 
 [Python Source](https://github.com/NVIDIA/apex/tree/master/apex/parallel)
