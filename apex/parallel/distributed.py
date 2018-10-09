@@ -123,7 +123,12 @@ class DistributedDataParallel(Module):
 
     """
 
-    def __init__(self, module, message_size=10000000, delay_allreduce=False, shared_param=None):
+    def __init__(self, 
+                 module, 
+                 message_size=10000000, 
+                 delay_allreduce=False, 
+                 shared_param=None,
+                 allreduce_trigger_params=None):
         super(DistributedDataParallel, self).__init__()
 
         # Backward/forward compatibility around 
@@ -139,6 +144,12 @@ class DistributedDataParallel(Module):
 
         if shared_param is not None:
             raise ValueError("shared_param is no longer supported as an option.  It was misleadingly named from the start.  It turns out overlapping communication with computation should work fine with shared parameters.  If you still wish to delay communication to the end of the backward pass, use delay_allreduce=True|False instead.") 
+
+        if allreduce_trigger_params is not None:
+            if self.delay_allreduce:
+                raise ValueError("Setting allreduce_trigger_params is only valid if delay_allreduce=False.")  
+            self.custom_allreduce_triggers = True
+            self.allreduce_trigger_params = set([id(param) for param in allreduce_trigger_params])
 
         self.delay_allreduce = delay_allreduce
         self.message_size = message_size
@@ -179,14 +190,14 @@ class DistributedDataParallel(Module):
         # Append leftover buckets
         for tmp_bucket in self.tmp_buckets:
             if len(tmp_bucket) > 0:
-                self.buckets.append(tmp_bucket)
+                self.active_i_buckets.append(tmp_bucket)
 
-        self.num_buckets = len(self.buckets)
-        self.bucket_sizes = [len(bucket) for bucket in self.buckets]
+        self.num_buckets = len(self.active_i_buckets)
+        self.bucket_sizes = [len(bucket) for bucket in self.active_i_buckets]
 
         info_tensor = torch.cuda.IntTensor([self.num_buckets] + 
                                            self.bucket_sizes + 
-                                           list(chain(*self.buckets)))
+                                           list(chain(*self.active_i_buckets)))
 
         dist.broadcast(info_tensor, 0)
 
@@ -254,11 +265,19 @@ class DistributedDataParallel(Module):
                                 # Float, half, and double tensors are grouped into buckets separately.
                                 current_type = self.param_type_to_tmp_i[param.type()]
   
-                                self.tmp_buckets[current_type].append(active_i)                           
-                                self.tmp_numels[current_type] += param.numel()
+                                self.tmp_buckets[current_type].append(active_i)                          
 
-                                if self.tmp_numels[current_type] >= self.message_size:
-                                    self.buckets.append(self.tmp_buckets[current_type])
+                                ship_tmp_bucket = False
+                                if self.custom_allreduce_triggers:
+                                    if id(param) in self.allreduce_trigger_params:
+                                        ship_tmp_bucket = True
+                                else:
+                                    self.tmp_numels[current_type] += param.numel()
+                                    if self.tmp_numels[current_type] >= self.message_size:
+                                        ship_tmp_bucket = True
+
+                                if ship_tmp_bucket:
+                                    self.active_i_buckets.append(self.tmp_buckets[current_type])
                                     self.tmp_buckets[current_type] = []
                                     self.tmp_numels[current_type] = 0
                             
@@ -333,6 +352,7 @@ class DistributedDataParallel(Module):
                 self.needs_refresh = True
 
             if self.needs_refresh:
+                self.active_i_buckets = []
                 self.buckets = []
                 self.tmp_buckets = [[], [], []] # [running half, float, double buckets]
                 self.tmp_numels = [0, 0, 0]
