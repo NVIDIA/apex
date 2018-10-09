@@ -145,8 +145,9 @@ class DistributedDataParallel(Module):
         if shared_param is not None:
             raise ValueError("shared_param is no longer supported as an option.  It was misleadingly named from the start.  It turns out overlapping communication with computation should work fine with shared parameters.  If you still wish to delay communication to the end of the backward pass, use delay_allreduce=True|False instead.") 
 
+        self.custom_allreduce_triggers = False
         if allreduce_trigger_params is not None:
-            if self.delay_allreduce:
+            if delay_allreduce:
                 raise ValueError("Setting allreduce_trigger_params is only valid if delay_allreduce=False.")  
             self.custom_allreduce_triggers = True
             self.allreduce_trigger_params = set([id(param) for param in allreduce_trigger_params])
