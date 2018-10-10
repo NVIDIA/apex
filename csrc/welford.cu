@@ -290,11 +290,9 @@ std::vector<at::Tensor> welford_mean_var_CUDA(const at::Tensor input) {
   auto space_size = get_tensor_spatial_size(input);
   auto scalar_type = promote_scalartype(input);
 
-  at::TensorOptions t_op(input);
-  t_op.dtype(scalar_type);
-  at::Tensor out_var = at::native::empty({feature_size}, t_op);
-  at::Tensor out_var_biased = at::native::empty({feature_size}, t_op);
-  at::Tensor out_mean = at::native::empty({feature_size}, t_op);
+  at::Tensor out_var = at::native::empty({feature_size}, input.options().dtype(scalar_type));
+  at::Tensor out_var_biased = at::native::empty({feature_size}, input.options().dtype(scalar_type));
+  at::Tensor out_mean = at::native::empty({feature_size}, input.options().dtype(scalar_type));
 
   int block_x = 16;
   const dim3 block(block_x, batch_size);
@@ -362,14 +360,10 @@ std::vector<at::Tensor> reduce_bn_CUDA(
 
   auto scalar_type = promote_scalartype(input);
 
-  at::TensorOptions t_op(mean);
-  t_op.dtype(scalar_type);
-  at::Tensor mean_dy = at::native::empty({feature_size}, t_op);
-  at::Tensor mean_dy_xmu = at::native::empty({feature_size}, t_op);
-  at::TensorOptions grad_t_op(mean);
-  grad_t_op.dtype(input.dtype());
-  at::Tensor grad_weight = at::native::empty({feature_size}, grad_t_op);
-  at::Tensor grad_bias = at::native::empty({feature_size}, grad_t_op);
+  at::Tensor mean_dy = at::native::empty({feature_size}, mean.options());
+  at::Tensor mean_dy_xmu = at::native::empty({feature_size}, mean.options());
+  at::Tensor grad_weight = at::native::empty({feature_size}, input.options());
+  at::Tensor grad_bias = at::native::empty({feature_size}, input.options());
 
   auto space_size = get_tensor_spatial_size(input);
 
@@ -441,8 +435,7 @@ std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_node
   const auto feature_size = mean_feature_nodes.size(0);
   const auto node_size = mean_feature_nodes.size(1);
 
-  at::TensorOptions t_op(var_biased);
-  at::Tensor out_var = at::native::empty({feature_size}, t_op);
+  at::Tensor out_var = at::native::empty({feature_size}, var_biased.options());
   at::Tensor out_var_biased = at::empty_like(out_var);
   at::Tensor out_mean = at::empty_like(out_var);
 
