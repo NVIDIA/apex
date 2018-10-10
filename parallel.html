@@ -178,19 +178,18 @@
 <dt id="apex.parallel.DistributedDataParallel">
 <em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">DistributedDataParallel</code><span class="sig-paren">(</span><em>module</em>, <em>message_size=10000000</em>, <em>delay_allreduce=False</em>, <em>shared_param=None</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.DistributedDataParallel" title="Permalink to this definition">¶</a></dt>
 <dd><p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.DistributedDataParallel</span></code></a> is a module wrapper that enables
-easy multiprocess distributed data parallel training, similar to <code class="docutils literal"><span class="pre">torch.nn.parallel.DistributedDataParallel</span></code>.</p>
-<p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> is designed to work with
-the launch utility script <code class="docutils literal"><span class="pre">apex.parallel.multiproc.py</span></code>.
-When used with <code class="docutils literal"><span class="pre">multiproc.py</span></code>, <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a>
-assigns 1 process to each of the available (visible) GPUs on the node.
-Parameters are broadcast across participating processes on initialization, and gradients are
+easy multiprocess distributed data parallel training, similar to <code class="docutils literal"><span class="pre">torch.nn.parallel.DistributedDataParallel</span></code>.  Parameters are broadcast across participating processes on initialization, and gradients are
 allreduced and averaged over processes during <code class="docutils literal"><span class="pre">backward()</span></code>.</p>
 <p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> is optimized for use with NCCL.  It achieves high performance by
 overlapping communication with computation during <code class="docutils literal"><span class="pre">backward()</span></code> and bucketing smaller gradient
 transfers to reduce the total number of transfers required.</p>
-<p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> assumes that your script accepts the command line
-arguments “rank” and “world-size.”  It also assumes that your script calls
-<code class="docutils literal"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.</p>
+<p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> is designed to work with the launch utility script
+<code class="docutils literal"><span class="pre">apex.parallel.multiproc.py</span></code> or the upstream launch utility script
+<code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> with –nproc_per_node &lt;= the number of gpus per node.
+For forward compatibility, <code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> is recommended.
+When used with these launchers, <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> assumes 1:1 mapping of processes to GPUs.
+It also assumes that your script calls <code class="docutils literal"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.
+When used with these launchers, <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> assumes 1:1 mapping of processes to GPUs.</p>
 <p><a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/distributed">https://github.com/NVIDIA/apex/tree/master/examples/distributed</a> shows detailed usage.
 <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/imagenet">https://github.com/NVIDIA/apex/tree/master/examples/imagenet</a> shows another example
 that combines <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> with mixed precision training.</p>
@@ -224,8 +223,9 @@ over the number of participating processes.</p>
 <p><a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> is designed to work with the launch utility script
 <code class="docutils literal"><span class="pre">apex.parallel.multiproc.py</span></code> or the upstream launch utility script
 <code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> with –nproc_per_node &lt;= the number of gpus per node.
-When used with these launchers, <code class="xref py py-class docutils literal"><span class="pre">apex.parallel.multiproc.py</span></code>
-assumes 1:1 mapping of processes to GPUs.</p>
+For forward compatibility, <code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> is recommended.
+When used with these launchers, <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> assumes 1:1 mapping of processes to GPUs.
+It also assumes that your script calls <code class="docutils literal"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.</p>
 <p>main_reducer.py in <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/imagenet">https://github.com/NVIDIA/apex/tree/master/examples/imagenet</a> shows example usage.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
