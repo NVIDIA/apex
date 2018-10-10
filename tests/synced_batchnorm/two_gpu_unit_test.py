@@ -175,6 +175,6 @@ if args.local_rank == 0:
 
 
 if sbn_result:
-    print("====SBN single gpu passed tests")
+    print("====SBN two gpu passed tests")
 else:
-    print("*SBN single gpu failed*")
+    print("*SBN two gpu failed*")

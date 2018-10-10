@@ -21,8 +21,8 @@ def convert_syncbn_model(module):
         if module.affine:
             mod.weight.data = module.weight.data.clone().detach()
             mod.bias.data = module.bias.data.clone().detach()
-    for child in module.children():
-        mod.add_module(convert_syncbn_model(child))
+    for name, child in module.named_children():
+        mod.add_module(name, convert_syncbn_model(child))
     # TODO(jie) should I delete model explicitly?
     del module
     return mod

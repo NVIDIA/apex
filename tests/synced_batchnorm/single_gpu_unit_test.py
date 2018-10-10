@@ -133,6 +133,6 @@ compare("comparing grad_weight bn to ref: ", bn.weight.grad, grad_weight_r, erro
 sbn_result = compare("comparing grad_weight sbn to ref: ", sbn.weight.grad, grad_weight_r, error) and sbn_result
 
 if sbn_result:
-    print("====SBN two gpu passed tests")
+    print("====SBN single gpu passed tests")
 else:
-    print("*SBN two gpu failed*")
+    print("*SBN single gpu failed*")

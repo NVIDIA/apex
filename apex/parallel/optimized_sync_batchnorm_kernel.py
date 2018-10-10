@@ -13,10 +13,10 @@ class SyncBatchnormFunction(Function):
 
         if torch.distributed.is_initialized():
           world_size = torch.distributed.get_world_size()
-          mean_all = torch.empty(mean.size(0), world_size, dtype=mean.dtype, device=mean.device)
-          var_all = torch.empty(var.size(0), world_size, dtype=var.dtype, device=var.device)
-          mean_l = [mean_all.narrow(1, i, 1) for i in range(mean_all.size(1))]
-          var_l = [var_all.narrow(1, i, 1) for i in range(var_all.size(1))]
+          mean_all = torch.empty(world_size, mean.size(0), dtype=mean.dtype, device=mean.device)
+          var_all = torch.empty(world_size, var.size(0), dtype=var.dtype, device=var.device)
+          mean_l = [mean_all.narrow(0, i, 1) for i in range(world_size)]
+          var_l = [var_all.narrow(0, i, 1) for i in range(world_size)]
           torch.distributed.all_gather(mean_l, mean)
           torch.distributed.all_gather(var_l, var_biased)
           mean, var, var_biased = syncbn.welford_parallel(mean_all, var_all, int(input.numel()/input.size(1)))

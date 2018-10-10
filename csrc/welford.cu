@@ -263,7 +263,8 @@ __global__ void welford_kernel_parallel(
   accscalar_t* m2n_l = &(mean_l[block_size]);
   int *num_item_l = (int*) &(m2n_l[block_size]);
 
-  int input_base = blockIdx.x*ns + threadIdx.x;
+  // TODO(jie): memory coalescing!
+  int input_base = blockIdx.x + threadIdx.x*fs;
   int thread_id = threadIdx.x;
 
   // load data; 
@@ -432,18 +433,18 @@ at::Tensor batchnorm_backward_CUDA(
 }
 
 std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_nodes, const at::Tensor var_biased, int numel) {
-  const auto feature_size = mean_feature_nodes.size(0);
-  const auto node_size = mean_feature_nodes.size(1);
+  const auto feature_size = mean_feature_nodes.size(1);
+  const auto world_size = mean_feature_nodes.size(0);
 
   at::Tensor out_var = at::native::empty({feature_size}, var_biased.options());
   at::Tensor out_var_biased = at::empty_like(out_var);
   at::Tensor out_mean = at::empty_like(out_var);
 
   // TODO(jie): 
-  const dim3 block(node_size);
+  const dim3 block(world_size);
   const dim3 grid(feature_size);
   // shared memory used for reduce on mean, var, num_elements;
-  int smem_size = node_size * (sizeof(int) + 2 * get_element_data_size(mean_feature_nodes, true));
+  int smem_size = world_size * (sizeof(int) + 2 * get_element_data_size(mean_feature_nodes, true));
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(mean_feature_nodes.type(), "welford_parallel_kernel", ([&] {
     using accscalar_t = at::acc_type<scalar_t, true>;
@@ -453,7 +454,7 @@ std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_node
         out_mean.data<scalar_t>(),
         out_var.data<scalar_t>(),
         out_var_biased.data<scalar_t>(),
-        node_size,
+        world_size,
         feature_size,
         numel);
   }));
