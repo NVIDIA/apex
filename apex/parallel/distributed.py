@@ -277,6 +277,8 @@ class DistributedDataParallel(Module):
                                     if self.tmp_numels[current_type] >= self.message_size:
                                         ship_tmp_bucket = True
 
+                                # To consider:  If custom_allreduce_triggers are in use, ship all
+                                # tmp_buckets, not just tmp_buckets[current_type].
                                 if ship_tmp_bucket:
                                     self.active_i_buckets.append(self.tmp_buckets[current_type])
                                     self.tmp_buckets[current_type] = []
