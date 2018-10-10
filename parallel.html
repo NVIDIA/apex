@@ -185,11 +185,10 @@ overlapping communication with computation during <code class="docutils literal"
 transfers to reduce the total number of transfers required.</p>
 <p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> is designed to work with the launch utility script
 <code class="docutils literal"><span class="pre">apex.parallel.multiproc.py</span></code> or the upstream launch utility script
-<code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> with –nproc_per_node &lt;= the number of gpus per node.
+<code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> with <code class="docutils literal"><span class="pre">--nproc_per_node</span> <span class="pre">&lt;=</span> <span class="pre">number</span> <span class="pre">of</span> <span class="pre">gpus</span> <span class="pre">per</span> <span class="pre">node</span></code>.
 For forward compatibility, <code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> is recommended.
 When used with these launchers, <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> assumes 1:1 mapping of processes to GPUs.
-It also assumes that your script calls <code class="docutils literal"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.
-When used with these launchers, <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> assumes 1:1 mapping of processes to GPUs.</p>
+It also assumes that your script calls <code class="docutils literal"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.</p>
 <p><a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/distributed">https://github.com/NVIDIA/apex/tree/master/examples/distributed</a> shows detailed usage.
 <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/imagenet">https://github.com/NVIDIA/apex/tree/master/examples/imagenet</a> shows another example
 that combines <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> with mixed precision training.</p>
@@ -222,7 +221,7 @@ several iterations instead of every single iteration.</p>
 over the number of participating processes.</p>
 <p><a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> is designed to work with the launch utility script
 <code class="docutils literal"><span class="pre">apex.parallel.multiproc.py</span></code> or the upstream launch utility script
-<code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> with –nproc_per_node &lt;= the number of gpus per node.
+<code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> with <code class="docutils literal"><span class="pre">--nproc_per_node</span> <span class="pre">&lt;=</span> <span class="pre">number</span> <span class="pre">of</span> <span class="pre">gpus</span> <span class="pre">per</span> <span class="pre">node</span></code>.
 For forward compatibility, <code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> is recommended.
 When used with these launchers, <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> assumes 1:1 mapping of processes to GPUs.
 It also assumes that your script calls <code class="docutils literal"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.</p>
