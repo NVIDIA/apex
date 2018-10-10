@@ -19,7 +19,7 @@ class SyncBatchnormFunction(Function):
           var_l = [var_all.narrow(0, i, 1) for i in range(world_size)]
           torch.distributed.all_gather(mean_l, mean)
           torch.distributed.all_gather(var_l, var_biased)
-          mean, var, var_biased = syncbn.welford_parallel(mean_all, var_all, int(input.numel()/input.size(1)))
+          mean, var, var_biased = syncbn.welford_parallel(mean_all.transpose(1,0).contiguous(), var_all.transpose(1,0).contiguous(), int(input.numel()/input.size(1)))
 
         if track_running_stats:
           # TODO(Jie): should do fp32 math instead!

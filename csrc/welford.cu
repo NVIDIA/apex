@@ -263,8 +263,7 @@ __global__ void welford_kernel_parallel(
   accscalar_t* m2n_l = &(mean_l[block_size]);
   int *num_item_l = (int*) &(m2n_l[block_size]);
 
-  // TODO(jie): memory coalescing!
-  int input_base = blockIdx.x + threadIdx.x*fs;
+  int input_base = blockIdx.x*ns + threadIdx.x;
   int thread_id = threadIdx.x;
 
   // load data; 
@@ -433,8 +432,8 @@ at::Tensor batchnorm_backward_CUDA(
 }
 
 std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_nodes, const at::Tensor var_biased, int numel) {
-  const auto feature_size = mean_feature_nodes.size(1);
-  const auto world_size = mean_feature_nodes.size(0);
+  const auto feature_size = mean_feature_nodes.size(0);
+  const auto world_size = mean_feature_nodes.size(1);
 
   at::Tensor out_var = at::native::empty({feature_size}, var_biased.options());
   at::Tensor out_var_biased = at::empty_like(out_var);
