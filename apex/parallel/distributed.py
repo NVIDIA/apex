@@ -10,6 +10,7 @@ import copy
 
 # apply_dist_call requires that tensors in 'bucket' are all the same type.
 def apply_flat_dist_call(bucket, call, extra_args=None):
+
     coalesced = apex_C.flatten(bucket)
 
     if extra_args is not None:
@@ -157,6 +158,7 @@ class DistributedDataParallel(Module):
         self.message_size = message_size
 
         self.reduction_stream = torch.cuda.Stream()
+        self.reduction_event = torch.cuda.Event(enable_timing=False, blocking=False) 
         
         self.module = module
         
@@ -178,12 +180,14 @@ class DistributedDataParallel(Module):
     def __setstate__(self, state):
         super(DistributedDataParallel, self).__setstate__(state)
         self.reduction_stream = torch.cuda.Stream()
+        self.reduction_event = torch.cuda.Event(enable_timing=False, blocking=False) 
 
 
     def __getstate__(self):
         attrs = copy.copy(self.__dict__)
         if self._backend != self.backend_enum_holder.NCCL:
             del attrs['self.reduction_stream']
+            del attrs['self.reduction_event']
             return attrs
       
     # Broadcast rank 0's bucket structure across all processes, and have all processes 
@@ -236,7 +240,8 @@ class DistributedDataParallel(Module):
             flat_dist_call(grads, dist.all_reduce)
 
         def overlapping_backward_epilogue():
-            torch.cuda.current_stream().wait_stream(self.reduction_stream)
+            self.reduction_stream.record_event(self.reduction_event)
+            torch.cuda.current_stream().wait_event(self.reduction_event)
      
             # Sanity checks that all the buckets were kicked off
             if self.next_bucket != self.num_buckets:
@@ -316,7 +321,8 @@ class DistributedDataParallel(Module):
 
         if self.buckets_ready_size[bucket_idx] == self.bucket_sizes[bucket_idx]:
             if bucket_idx == self.next_bucket:
-                self.reduction_stream.wait_stream(torch.cuda.current_stream())
+                torch.cuda.current_stream().record_event(self.reduction_event)
+                self.reduction_stream.wait_event(self.reduction_event)
                 with torch.cuda.stream(self.reduction_stream):
                     apply_flat_dist_call(self.buckets[bucket_idx], dist.all_reduce)
 
