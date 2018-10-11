@@ -14,6 +14,7 @@ def convert_syncbn_model(module):
     Designed to work with apex sync BN
     replaces all BN layer in the model with sync BN
     '''
+    mod = module
     if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
         mod = SyncBatchNorm(module.num_features, module.eps, module.momentum, module.affine, module.track_running_stats)
         mod.running_mean = module.running_mean

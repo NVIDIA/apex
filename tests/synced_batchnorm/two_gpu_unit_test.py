@@ -46,10 +46,6 @@ elif args.fp64:
     dtype = np.float64
 
 np.random.seed(18)
-#inp = (np.random.randn(batch_size, feature_size, space_size, space_size) * 2.0 + 3.5).astype(dtype)
-#grad = (np.random.randn(batch_size, feature_size, space_size, space_size) * 0.2 + 0.2).astype(dtype)
-#weight = (np.random.randn(feature_size) * 4.0).astype(dtype)
-#bias = (np.random.randn(feature_size) * 2.0 + 3.5).astype(dtype)
 inp = np.random.randn(batch_size, feature_size, space_size, space_size).astype(dtype)
 grad = np.random.randn(batch_size, feature_size, space_size, space_size).astype(dtype)
 weight = np.random.randn(feature_size).astype(dtype)
@@ -114,7 +110,6 @@ sbn_result = True
 bn_result = True
 
 if args.local_rank == 0:
-    #print("\n==== comparing mean var kernel\n")
     sbn_result = compare("comparing mean: ", mean, m, error) and sbn_result
     sbn_result = compare("comparing variance: ", var, unb_v, error) and sbn_result
     sbn_result = compare("comparing biased variance: ", var_biased, b_v, error) and sbn_result
@@ -125,7 +120,6 @@ out = syncbn.batchnorm_forward(inp_t, mean, var_biased, weight_t, bias_t, eps)
 out_r = weight_r * (inp2_r - m.view(-1, 1, 1)) * torch.rsqrt(b_v.view(-1,1,1) + eps) + bias_r
 
 if args.local_rank == 0:
-    #print("\n==== comparing BN output\n")
     sbn_result = compare("comparing output: ", out, out_r, error) and sbn_result
     compare("comparing bn output: ", out_bn, out_r, error)
 
@@ -142,10 +136,9 @@ mean_dy_xmu_r = ((inp2_r - m.view(-1, 1, 1)) * grad_output2_r).transpose(1,0).co
 
 grad_input_r = (grad_output2_r - mean_dy_r.view(-1, 1, 1) - (inp2_r - m.view(-1, 1, 1)) / (b_v.view(-1,1,1) + eps) * mean_dy_xmu_r.view(-1, 1, 1) ) * torch.rsqrt(b_v.view(-1,1,1) + eps) * weight_r.view(-1,1,1)
 
-mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output_t, inp_t, mean, var_biased, eps)
+mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output_t, inp_t, mean, var_biased, weight_t, eps)
 grad_input = syncbn.batchnorm_backward(grad_output_t, inp_t, mean, var_biased, weight_t, mean_dy, mean_dy_xmu, eps)
 if args.local_rank == 0:
-    #print("\n==== comparing backward BN grad\n")
     sbn_result = compare("comparing bias grad: ", grad_bias, grad_bias_r, error) and sbn_result
     sbn_result = compare("comparing weight grad: ", grad_weight, grad_weight_r, error) and sbn_result
     sbn_result = compare("comparing mean_dy grad: ", mean_dy, mean_dy_r, error) and sbn_result
@@ -154,7 +147,6 @@ if args.local_rank == 0:
     compare("comparing bn input grad: ", inp_bn.grad, grad_input_r, error)
 
 if args.local_rank == 0:
-    #print("\n==== comparing layers\n")
     sbn_result = compare("comparing running_mean: ", bn.running_mean.data, sbn.module.running_mean.data, error) and sbn_result
     sbn_result = compare("comparing running_variance: ", bn.running_var.data, sbn.module.running_var.data, error) and sbn_result
 

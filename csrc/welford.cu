@@ -18,6 +18,27 @@ __device__ __forceinline__ int lastpow2(int n)
   return out;
 }
 
+__host__ __forceinline__ int h_next_pow2(unsigned int n) {
+    n |= (n >>  1);
+    n |= (n >>  2);
+    n |= (n >>  4);
+    n |= (n >>  8);
+    n |= (n >> 16);
+    return n + 1;
+}
+
+__host__ __forceinline__ int h_last_pow2(unsigned int n) {
+    n |= (n >>  1);
+    n |= (n >>  2);
+    n |= (n >>  4);
+    n |= (n >>  8);
+    n |= (n >> 16);
+    return n - (n >> 1);
+}
+
+#define TILE_W 16
+#define MAX_BLOCK_SIZE 1024
+
 // parallel reduce with interleaved threads
 // TODO(jie): unroll this?
 template <typename scalar_t>
@@ -89,16 +110,18 @@ __global__ void welford_kernel(
   int count = 0;
   float x_mean = 0;
   float m_2_n = 0;
-  int input_base = blockIdx.x*ss + threadIdx.y*ss*fs;
   int thread_id = threadIdx.y*blockDim.x + threadIdx.x;
 
-  // sequential welford
-  for (int offset = threadIdx.x; offset < ss ; offset+= blockDim.x) {
-    count++;
-    auto x_n = static_cast<accscalar_t>(input[offset+input_base]);
-    auto x_mean_new = x_mean + (x_n - x_mean) / count;
-    m_2_n = m_2_n + (x_n - x_mean_new) * (x_n - x_mean);
-    x_mean = x_mean_new;
+  for (int batch_id = threadIdx.y; batch_id < bs; batch_id += blockDim.y) {
+    int input_base = blockIdx.x*ss + batch_id*ss*fs;
+    // sequential welford
+    for (int offset = threadIdx.x; offset < ss ; offset += blockDim.x) {
+      count++;
+      auto x_n = static_cast<accscalar_t>(input[offset+input_base]);
+      auto x_mean_new = x_mean + (x_n - x_mean) / count;
+      m_2_n = m_2_n + (x_n - x_mean_new) * (x_n - x_mean);
+      x_mean = x_mean_new;
+    }
   }
 
   // allow idle thread to write to shared memory
@@ -120,13 +143,13 @@ __global__ void welford_kernel(
 }
 
 // elementwise BN kernel
-template <typename scalar_t, typename accscalar_t>
+template <typename scalar_t, typename accscalar_t, typename layerscalar_t>
 __global__ void batchnorm_forward_kernel(
       const scalar_t* __restrict__ input,
       const accscalar_t* __restrict__ mean,
       const accscalar_t* __restrict__ var,
-      const scalar_t* __restrict__ weight,
-      const scalar_t* __restrict__ shift,
+      const layerscalar_t* __restrict__ weight,
+      const layerscalar_t* __restrict__ shift,
       scalar_t* __restrict__ out,
       const int ss,
       const float eps) {
@@ -146,7 +169,7 @@ __global__ void batchnorm_forward_kernel(
 // results to calculating grad_input.
 // Breaking the grad_input to two step to support sync BN, which requires all
 // reduce of the intermediate results across processes.
-template <typename scalar_t, typename accscalar_t>
+template <typename scalar_t, typename accscalar_t, typename layerscalar_t>
 __global__ void reduce_bn_kernel(
       const scalar_t* __restrict__ input,
       const scalar_t* __restrict__ grad_output,
@@ -154,8 +177,8 @@ __global__ void reduce_bn_kernel(
       const accscalar_t* __restrict__ var,
       accscalar_t* __restrict__ mean_dy,
       accscalar_t* __restrict__ mean_dy_xmu,
-      scalar_t* __restrict__ grad_weight,
-      scalar_t* __restrict__ grad_bias,
+      layerscalar_t* __restrict__ grad_weight,
+      layerscalar_t* __restrict__ grad_bias,
       const int bs,
       const int fs,
       const int ss,
@@ -167,8 +190,6 @@ __global__ void reduce_bn_kernel(
   accscalar_t* sum_dy_xmu_l = &(sum_dy_l[block_size]);
   int total_item_num = bs * ss;
 
-
-  int input_base = blockIdx.x*ss + threadIdx.y*ss*fs;
   int thread_id = threadIdx.y*blockDim.x + threadIdx.x;
 
   auto r_mean = mean[blockIdx.x];
@@ -179,20 +200,23 @@ __global__ void reduce_bn_kernel(
   accscalar_t sum_dy_xmu = 0.0;
   accscalar_t sum_dy_c = 0.0;
   accscalar_t sum_dy_xmu_c = 0.0;
-  for (int offset = threadIdx.x; offset < ss ; offset+= blockDim.x) {
-    auto e_grad = static_cast<accscalar_t>(grad_output[offset+input_base]);
-    auto e_input = static_cast<accscalar_t>(input[offset+input_base]);
-    // calculating sum_dy
-    auto sum_dy_y = e_grad - sum_dy_c;
-    auto sum_dy_t = sum_dy + sum_dy_y;
-    sum_dy_c = (sum_dy_t - sum_dy) - sum_dy_y;
-    sum_dy = sum_dy_t;
+  for (int batch_id = threadIdx.y; batch_id < bs; batch_id += blockDim.y) {
+    int input_base = blockIdx.x*ss + batch_id*ss*fs;
+    for (int offset = threadIdx.x; offset < ss ; offset += blockDim.x) {
+      auto e_grad = static_cast<accscalar_t>(grad_output[offset+input_base]);
+      auto e_input = static_cast<accscalar_t>(input[offset+input_base]);
+      // calculating sum_dy
+      auto sum_dy_y = e_grad - sum_dy_c;
+      auto sum_dy_t = sum_dy + sum_dy_y;
+      sum_dy_c = (sum_dy_t - sum_dy) - sum_dy_y;
+      sum_dy = sum_dy_t;
 
-    // calculating sum_dy_xmu
-    auto sum_dy_xmu_y = e_grad * (e_input - r_mean) - sum_dy_xmu_c;
-    auto sum_dy_xmu_t = sum_dy_xmu + sum_dy_xmu_y;
-    sum_dy_xmu_c = (sum_dy_xmu_t - sum_dy_xmu) - sum_dy_xmu_y;
-    sum_dy_xmu = sum_dy_xmu_t;
+      // calculating sum_dy_xmu
+      auto sum_dy_xmu_y = e_grad * (e_input - r_mean) - sum_dy_xmu_c;
+      auto sum_dy_xmu_t = sum_dy_xmu + sum_dy_xmu_y;
+      sum_dy_xmu_c = (sum_dy_xmu_t - sum_dy_xmu) - sum_dy_xmu_y;
+      sum_dy_xmu = sum_dy_xmu_t;
+    }
   }
 
   sum_dy_l[thread_id] = sum_dy;
@@ -211,21 +235,21 @@ __global__ void reduce_bn_kernel(
   }
 
   if (thread_id == 0) {
-    grad_bias[blockIdx.x] = static_cast<scalar_t>(sum_dy_l[0]);
-    grad_weight[blockIdx.x] = static_cast<scalar_t>(sum_dy_xmu_l[0] * factor);
+    grad_bias[blockIdx.x] = static_cast<layerscalar_t>(sum_dy_l[0]);
+    grad_weight[blockIdx.x] = static_cast<layerscalar_t>(sum_dy_xmu_l[0] * factor);
     mean_dy[blockIdx.x] = sum_dy_l[0] / total_item_num;
     mean_dy_xmu[blockIdx.x] = sum_dy_xmu_l[0] / total_item_num;
   }
 }
 
 // elementwise backward BN kernel
-template <typename scalar_t, typename accscalar_t>
+template <typename scalar_t, typename accscalar_t, typename layerscalar_t>
 __global__ void batchnorm_backward_kernel(
       const scalar_t* __restrict__ grad_output,
       const scalar_t* __restrict__ input,
       const accscalar_t* __restrict__ mean,
       const accscalar_t* __restrict__ var,
-      const scalar_t* __restrict__ weight,
+      const layerscalar_t* __restrict__ weight,
       const accscalar_t* __restrict__ mean_dy,
       const accscalar_t* __restrict__ mean_dy_xmu,
       scalar_t* __restrict__ grad_input,
@@ -294,12 +318,14 @@ std::vector<at::Tensor> welford_mean_var_CUDA(const at::Tensor input) {
   at::Tensor out_var_biased = at::native::empty({feature_size}, input.options().dtype(scalar_type));
   at::Tensor out_mean = at::native::empty({feature_size}, input.options().dtype(scalar_type));
 
-  int block_x = 16;
-  const dim3 block(block_x, batch_size);
+  // TODO(jie): this launch config will be really bad for resnet, where batch_size is big and space_size is small.
+  int block_x = min(h_last_pow2(space_size), MAX_BLOCK_SIZE);
+  int block_y = min(int(batch_size), int(MAX_BLOCK_SIZE / block_x));
+  const dim3 block(block_x, block_y);
   const dim3 grid(feature_size);
   
   // shared memory used for reduce on mean, var, num_elements;
-  int smem_size = batch_size * block_x * (sizeof(int) + 2 * get_element_data_size(input, true));
+  int smem_size = block_y * block_x * (sizeof(int) + 2 * get_element_data_size(input, true));
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "welford_mean_var_kernel", ([&] {
     using accscalar_t = at::acc_type<scalar_t, true>;
@@ -329,22 +355,38 @@ at::Tensor batchnorm_forward_CUDA(
 
   auto space_size = get_tensor_spatial_size(input);
 
-  const dim3 block(512);
+  int block = min(MAX_BLOCK_SIZE, h_next_pow2(space_size));
   // TODO(jie): should I do 1 block per feature?
   const dim3 grid(feature_size, batch_size);
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
-    using accscalar_t = at::acc_type<scalar_t, true>;
-    batchnorm_forward_kernel<scalar_t, accscalar_t><<<grid, block>>>(
-        input.data<scalar_t>(),
-        mean.data<accscalar_t>(),
-        var.data<accscalar_t>(),
-        weight.data<scalar_t>(),
-        shift.data<scalar_t>(),
-        out.data<scalar_t>(),
-        space_size,
-        eps);
-  }));
-  
+
+  if (input.type().scalarType() == at::ScalarType::Half && weight.type().scalarType() == at::ScalarType::Float) {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
+      using accscalar_t = at::acc_type<scalar_t, true>;
+      batchnorm_forward_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block>>>(
+          input.data<scalar_t>(),
+          mean.data<accscalar_t>(),
+          var.data<accscalar_t>(),
+          weight.data<accscalar_t>(),
+          shift.data<accscalar_t>(),
+          out.data<scalar_t>(),
+          space_size,
+          eps);
+    }));
+  } else {
+    AT_CHECK(input.type().scalarType() == weight.type().scalarType(), "input.type().scalarType() is not supported with weight.type().scalarType()"); 
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
+      using accscalar_t = at::acc_type<scalar_t, true>;
+      batchnorm_forward_kernel<scalar_t, accscalar_t, scalar_t><<<grid, block>>>(
+          input.data<scalar_t>(),
+          mean.data<accscalar_t>(),
+          var.data<accscalar_t>(),
+          weight.data<scalar_t>(),
+          shift.data<scalar_t>(),
+          out.data<scalar_t>(),
+          space_size,
+          eps);
+    }));
+  }
   return out;
 }
 
@@ -353,6 +395,7 @@ std::vector<at::Tensor> reduce_bn_CUDA(
     const at::Tensor input,
     const at::Tensor mean,
     const at::Tensor var,
+    const at::Tensor weight,
     const float eps)
 {
   const auto batch_size = input.size(0);
@@ -362,33 +405,54 @@ std::vector<at::Tensor> reduce_bn_CUDA(
 
   at::Tensor mean_dy = at::native::empty({feature_size}, mean.options());
   at::Tensor mean_dy_xmu = at::native::empty({feature_size}, mean.options());
-  at::Tensor grad_weight = at::native::empty({feature_size}, input.options());
-  at::Tensor grad_bias = at::native::empty({feature_size}, input.options());
+  at::Tensor grad_weight = at::native::empty({feature_size}, weight.options());
+  at::Tensor grad_bias = at::native::empty({feature_size}, weight.options());
 
   auto space_size = get_tensor_spatial_size(input);
 
-  int block_x = 16;
-  const dim3 block(block_x, batch_size);
+  int block_x = min(h_last_pow2(space_size), MAX_BLOCK_SIZE);
+  int block_y = min(int(batch_size), int(MAX_BLOCK_SIZE / block_x));
+  const dim3 block(block_x, block_y);
   const dim3 grid(feature_size);
   // shared memory used for reduce on sum_dy, sum_dy_xmu;
-  int smem_size = batch_size * block_x * 2 * get_element_data_size(input, true);
+  int smem_size = block_y * block_x * 2 * get_element_data_size(input, true);
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward_reduce", ([&] {
-    using accscalar_t = at::acc_type<scalar_t, true>;
-    reduce_bn_kernel<scalar_t, accscalar_t><<<grid, block, smem_size>>>(
-        input.data<scalar_t>(),
-        grad_output.data<scalar_t>(),
-        mean.data<accscalar_t>(),
-        var.data<accscalar_t>(),
-        mean_dy.data<accscalar_t>(),
-        mean_dy_xmu.data<accscalar_t>(),
-        grad_weight.data<scalar_t>(),
-        grad_bias.data<scalar_t>(),
-        batch_size,
-        feature_size,
-        space_size,
-        eps);
-  }));
+  if (input.type().scalarType() == at::ScalarType::Half && weight.type().scalarType() == at::ScalarType::Float) {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward_reduce", ([&] {
+      using accscalar_t = at::acc_type<scalar_t, true>;
+      reduce_bn_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block, smem_size>>>(
+          input.data<scalar_t>(),
+          grad_output.data<scalar_t>(),
+          mean.data<accscalar_t>(),
+          var.data<accscalar_t>(),
+          mean_dy.data<accscalar_t>(),
+          mean_dy_xmu.data<accscalar_t>(),
+          grad_weight.data<accscalar_t>(),
+          grad_bias.data<accscalar_t>(),
+          batch_size,
+          feature_size,
+          space_size,
+          eps);
+    }));
+  } else {
+    AT_CHECK(input.type().scalarType() == weight.type().scalarType(), "input.type().scalarType() is not supported with weight.type().scalarType()"); 
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward_reduce", ([&] {
+      using accscalar_t = at::acc_type<scalar_t, true>;
+      reduce_bn_kernel<scalar_t, accscalar_t, scalar_t><<<grid, block, smem_size>>>(
+          input.data<scalar_t>(),
+          grad_output.data<scalar_t>(),
+          mean.data<accscalar_t>(),
+          var.data<accscalar_t>(),
+          mean_dy.data<accscalar_t>(),
+          mean_dy_xmu.data<accscalar_t>(),
+          grad_weight.data<scalar_t>(),
+          grad_bias.data<scalar_t>(),
+          batch_size,
+          feature_size,
+          space_size,
+          eps);
+    }));
+  }
   
   return {mean_dy, mean_dy_xmu, grad_weight, grad_bias};
 }
@@ -409,24 +473,42 @@ at::Tensor batchnorm_backward_CUDA(
 
   auto space_size = get_tensor_spatial_size(input);
 
-  const dim3 block(512);
+  int block = min(MAX_BLOCK_SIZE, h_next_pow2(space_size));
   // TODO(jie): should I do 1 block per feature?
   const dim3 grid(feature_size, batch_size);
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward", ([&] {
-    using accscalar_t = at::acc_type<scalar_t, true>;
-    batchnorm_backward_kernel<scalar_t, accscalar_t><<<grid, block>>>(
-        grad_output.data<scalar_t>(),
-        input.data<scalar_t>(),
-        mean.data<accscalar_t>(),
-        var.data<accscalar_t>(),
-        weight.data<scalar_t>(),
-        mean_dy.data<accscalar_t>(),
-        mean_dy_xmu.data<accscalar_t>(),
-        grad_input.data<scalar_t>(),
-        space_size,
-        eps);
-  }));
+  if (input.type().scalarType() == at::ScalarType::Half && weight.type().scalarType() == at::ScalarType::Float) {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward", ([&] {
+      using accscalar_t = at::acc_type<scalar_t, true>;
+      batchnorm_backward_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block>>>(
+          grad_output.data<scalar_t>(),
+          input.data<scalar_t>(),
+          mean.data<accscalar_t>(),
+          var.data<accscalar_t>(),
+          weight.data<accscalar_t>(),
+          mean_dy.data<accscalar_t>(),
+          mean_dy_xmu.data<accscalar_t>(),
+          grad_input.data<scalar_t>(),
+          space_size,
+          eps);
+    }));
+  } else {
+    AT_CHECK(input.type().scalarType() == weight.type().scalarType(), "input.type().scalarType() is not supported with weight.type().scalarType()"); 
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward", ([&] {
+      using accscalar_t = at::acc_type<scalar_t, true>;
+      batchnorm_backward_kernel<scalar_t, accscalar_t, scalar_t><<<grid, block>>>(
+          grad_output.data<scalar_t>(),
+          input.data<scalar_t>(),
+          mean.data<accscalar_t>(),
+          var.data<accscalar_t>(),
+          weight.data<scalar_t>(),
+          mean_dy.data<accscalar_t>(),
+          mean_dy_xmu.data<accscalar_t>(),
+          grad_input.data<scalar_t>(),
+          space_size,
+          eps);
+    }));
+  }
   
   return grad_input;
 }
@@ -439,7 +521,7 @@ std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_node
   at::Tensor out_var_biased = at::empty_like(out_var);
   at::Tensor out_mean = at::empty_like(out_var);
 
-  // TODO(jie): 
+  // TODO(jie): tile this for memory coalescing!
   const dim3 block(world_size);
   const dim3 grid(feature_size);
   // shared memory used for reduce on mean, var, num_elements;

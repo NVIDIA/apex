@@ -30,6 +30,7 @@ std::vector<at::Tensor> reduce_bn_CUDA(const at::Tensor grad_output,
                                            const at::Tensor input,
                                            const at::Tensor mean,
                                            const at::Tensor var,
+                                           const at::Tensor weight,
                                            const float eps);
 
 // elementwise backward BN operation, returns grad_input

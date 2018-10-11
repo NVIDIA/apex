@@ -23,8 +23,8 @@ class SyncBatchnormFunction(Function):
 
         if track_running_stats:
           # TODO(Jie): should do fp32 math instead!
-          r_m_inc = mean if input.dtype != torch.float16 else mean.half()
-          r_v_inc = var if input.dtype != torch.float16 else var.half()
+          r_m_inc = mean if running_mean.dtype != torch.float16 else mean.half()
+          r_v_inc = var if running_variance.dtype != torch.float16 else var.half()
           running_mean.data = running_mean.data * (1-momentum) + momentum*r_m_inc
           running_variance.data = running_variance.data * (1-momentum) + momentum*r_v_inc
 
@@ -48,7 +48,7 @@ class SyncBatchnormFunction(Function):
         grad_input = grad_weight = grad_bias = None
 
         # TODO(jie): why do I have to clone here? life time of grad_output?
-        mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output, saved_input, running_mean, running_variance, eps)
+        mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output, saved_input, running_mean, running_variance, weight, eps)
 
         # calculate grad_input
         if ctx.needs_input_grad[0]:
