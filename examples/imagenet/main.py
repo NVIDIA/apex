@@ -124,9 +124,9 @@ def main():
     if args.distributed:
         # By default, apex.parallel.DistributedDataParallel overlaps communication with 
         # computation in the backward pass.
-        # model = DDP(model)
+        model = DDP(model)
         # delay_allreduce delays all communication to the end of the backward pass.
-        model = DDP(model, delay_allreduce=True)
+        # model = DDP(model, delay_allreduce=True)
 
     global model_params, master_params
     if args.fp16:
