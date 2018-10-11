@@ -1,5 +1,6 @@
 import torch
-from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
+# from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
+import apex_C
 import torch.distributed as dist
 from torch.nn.modules import Module
 from torch.autograd import Variable
@@ -9,7 +10,7 @@ import copy
 
 # apply_dist_call requires that tensors in 'bucket' are all the same type.
 def apply_flat_dist_call(bucket, call, extra_args=None):
-    coalesced = _flatten_dense_tensors(bucket)
+    coalesced = apex_C.flatten(bucket)
 
     if extra_args is not None:
         call(coalesced, *extra_args)
@@ -19,7 +20,7 @@ def apply_flat_dist_call(bucket, call, extra_args=None):
     if call is dist.all_reduce:
         coalesced /= dist.get_world_size()
         
-    for buf, synced in zip(bucket, _unflatten_dense_tensors(coalesced, bucket)):
+    for buf, synced in zip(bucket, apex_C.unflatten(coalesced, bucket)):
         buf.copy_(synced)
 
 
