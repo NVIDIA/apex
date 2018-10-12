@@ -130,7 +130,8 @@ class DistributedDataParallel(Module):
                  message_size=10000000, 
                  delay_allreduce=False, 
                  shared_param=None,
-                 allreduce_trigger_params=None):
+                 allreduce_trigger_params=None,
+                 retain_allreduce_buffers=False):
         super(DistributedDataParallel, self).__init__()
 
         # Backward/forward compatibility around 
@@ -146,6 +147,8 @@ class DistributedDataParallel(Module):
 
         if shared_param is not None:
             raise ValueError("shared_param is no longer supported as an option.  It was misleadingly named from the start.  It turns out overlapping communication with computation should work fine with shared parameters.  If you still wish to delay communication to the end of the backward pass, use delay_allreduce=True|False instead.") 
+
+        self.retain_allreduce_buffers = retain_allreduce_buffers
 
         self.custom_allreduce_triggers = False
         if allreduce_trigger_params is not None:
@@ -305,6 +308,16 @@ class DistributedDataParallel(Module):
 
                 wrapper(param)
 
+    def allreduce_maybe_retain(self, bucket_idx):
+        if self.retain_allreduce_buffers:
+            if self.allreduce_buffers[bucket_idx] is not None:
+                raise RuntimeError("The backward pass is attempting to replace an already-filled "
+                                   "allreduce buffer.  This is almost certainly an error.")
+            self.allreduce_buffers[bucket_idx] = apex_C.flatten(self.buckets[bucket_idx])
+            dist.all_reduce(self.allreduce_buffers[bucket_idx])
+            self.allreduce_buffers[bucket_idx].mul_(1./dist.get_world_size())
+        else:
+            apply_flat_dist_call(self.buckets[bucket_idx], dist.all_reduce)
 
     def comm_ready_buckets(self, param):
         # Need to do this in every hook for compatibility with Ruberry's streaming backward PR.
@@ -324,7 +337,7 @@ class DistributedDataParallel(Module):
                 torch.cuda.current_stream().record_event(self.reduction_event)
                 self.reduction_stream.wait_event(self.reduction_event)
                 with torch.cuda.stream(self.reduction_stream):
-                    apply_flat_dist_call(self.buckets[bucket_idx], dist.all_reduce)
+                    self.allreduce_maybe_retain(bucket_idx)
 
                     self.next_bucket += 1
 
@@ -337,7 +350,7 @@ class DistributedDataParallel(Module):
                             if i > self.next_bucket:
                                 break
                             elif i == self.next_bucket:
-                                apply_flat_dist_call(self.buckets[i], dist.all_reduce)
+                                self.allreduce_maybe_retain(i)
                                 self.ready_buckets_not_reduced.remove(i)
                                 self.next_bucket += 1 
                             else:
@@ -373,6 +386,8 @@ class DistributedDataParallel(Module):
                 self.buckets = [[None for _ in range(self.bucket_sizes[i])] 
                                 for i in range(self.num_buckets)] 
                 self.buckets_ready_size = [0 for i in range(self.num_buckets)]
+                if(self.retain_allreduce_buffers):
+                    self.allreduce_buffers = [None for _ in range(self.num_buckets)]
                 self.next_bucket = 0
                 self.ready_buckets_not_reduced = set()
             
