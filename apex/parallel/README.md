@@ -1,3 +1,5 @@
+## Distributed Data Parallel
+
 distributed.py contains the source code for `apex.parallel.DistributedDataParallel`, a module wrapper that enables multi-process multi-GPU data parallel training optimized for NVIDIA's NCCL communication library.
 
 `apex.parallel.DistributedDataParallel` achieves high performance by overlapping communication with
@@ -29,19 +31,19 @@ when install with `python setup.py install`.
 It uses PyTorch primitive operations and distributed communication package from
 `torch.distributed`.
 
-**_Python-only implementation requires input tensor to be of same data type as
-layer_**
+   - _Python-only implementation requires input tensor to be of same data type as
+layer_
 
 2. We also provide implementation with kernels through CUDA/C++ extension with
 improved performance. We are experimenting with Welford and Kahan for reduction
 hoping to get better accuracy.
-
-To use the kernel implementation, user need to install Apex with CUDA extension
+   To use the kernel implementation, user need to install Apex with CUDA extension
 enabled `python setup.py install --cuda_ext`.
 
-**_Custom kernel implementation supports fp16 input with fp32 layer as cudnn.
-This is required to run imagenet example in fp16._**
-**_Currently kernel implementation only supports GPU._**
+   - _Custom kernel implementation supports fp16 input with fp32 layer as cudnn.
+This is required to run imagenet example in fp16._
+
+   - _Currently kernel implementation only supports GPU._
 
 #### HowTo
 
