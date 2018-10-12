@@ -28,6 +28,7 @@ Apex provides two sync BN implementation:
 when install with `python setup.py install`.
 It uses PyTorch primitive operations and distributed communication package from
 `torch.distributed`.
+
 **_Python-only implementation requires input tensor to be of same data type as
 layer_**
 
@@ -37,6 +38,7 @@ hoping to get better accuracy.
 
 To use the kernel implementation, user need to install Apex with CUDA extension
 enabled `python setup.py install --cuda_ext`.
+
 **_Custom kernel implementation supports fp16 input with fp32 layer as cudnn.
 This is required to run imagenet example in fp16._**
 **_Currently kernel implementation only supports GPU._**

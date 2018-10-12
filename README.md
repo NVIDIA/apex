@@ -69,26 +69,6 @@ All-reduced stats boost the effective batch size for sync BN layer to be the
 total number of mini-batches across all processes.
 It has improved the converged accuracy in some of our research models.
 
-Apex provides two sync BN implementation:
-
-1. There is the Python-only implementation, which is the default implementation
-when install with `python setup.py install`.
-It uses PyTorch primitive operations and distributed communication package from
-`torch.distributed`.
-**_Python-only implementation requires input tensor to be of same data type as
-layer_**
-
-2. We also provide implementation with kernels through CUDA/C++ extension with
-improved performance and accuracy.
-To use the kernel implementation, user need to install Apex with CUDA extension
-enabled `python setup.py install --cuda_ext`.
-**_Custom kernel implementation supports fp16 input with fp32 layer as cudnn.
-This is required to run imagenet example in fp16._**
-
-[API Documentation Place Holder](https://nvidia.github.io/apex/parallel.html)
-
-The [Imagenet Example with sync_bn option](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
-
 # Requirements
 
 Python 3
