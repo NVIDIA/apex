@@ -11,8 +11,20 @@ except ImportError:
 
 def convert_syncbn_model(module):
     '''
-    Designed to work with apex sync BN
-    replaces all BN layer in the model with sync BN
+    Recursively traverse module and its children to replace all
+    `torch.nn.modules.batchnorm._BatchNorm` with `apex.parallel.SyncBatchNorm`
+
+    All `torch.nn.BatchNorm*N*d` wraps around
+    `torch.nn.modules.batchnorm._BatchNorm`, this function let you easily switch
+    to use sync BN.
+
+    Args:
+        module: input module `torch.nn.Module`
+
+    Examples::
+        >>> # model is an instance of torch.nn.Module
+        >>> import apex
+        >>> sync_bn_model = apex.parallel.convert_syncbn_model(model)
     '''
     mod = module
     if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):

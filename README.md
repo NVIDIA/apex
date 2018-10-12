@@ -57,6 +57,38 @@ optimized for NVIDIA's NCCL communication library.
 The [Imagenet with FP16_Optimizer](https://github.com/NVIDIA/apex/tree/master/examples/imagenet) 
 mixed precision examples also demonstrate `apex.parallel.DistributedDataParallel`.
 
+### Synchronized Batch Normalization
+
+`apex.parallel.SyncBatchNorm` extends `torch.nn.modules.batchnorm._BatchNorm` to
+support synchronized BN.
+It reduces stats across processes during multiprocess distributed data parallel
+training.
+Synchronous Batch Normalization has been used in cases where only very small
+number of mini-batch could be fit on each GPU.
+All-reduced stats boost the effective batch size for sync BN layer to be the
+total number of mini-batches across all processes.
+It has improved the converged accuracy in some of our research models.
+
+Apex provides two sync BN implementation:
+
+1. There is the Python-only implementation, which is the default implementation
+when install with `python setup.py install`.
+It uses PyTorch primitive operations and distributed communication package from
+`torch.distributed`.
+**_Python-only implementation requires input tensor to be of same data type as
+layer_**
+
+2. We also provide implementation with kernels through CUDA/C++ extension with
+improved performance and accuracy.
+To use the kernel implementation, user need to install Apex with CUDA extension
+enabled `python setup.py install --cuda_ext`.
+**_Custom kernel implementation supports fp16 input with fp32 layer as cudnn.
+This is required to run imagenet example in fp16._**
+
+[API Documentation Place Holder](https://nvidia.github.io/apex/parallel.html)
+
+The [Imagenet Example with sync_bn option](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
+
 # Requirements
 
 Python 3
@@ -83,8 +115,18 @@ To use the extension
 import apex
 ```
 
+### CUDA/C++ extension
+To build Apex with CUDA/C++ extension, follow the Linux instruction with the
+`--cuda_ext` option enabled
+```
+python setup.py install --cuda_ext
+```
+
+CUDA/C++ extension provides customed synchronized Batch Normalization kernels
+that provides better performance and numerical accuracy.
+
 ### Windows support
-Windows support is experimental, and Linux is recommended.  However, since Apex is Python-only, there's a good chance it "just works" the same way as Linux.  If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
+Windows support is experimental, and Linux is recommended.  However, since Apex could be Python-only, there's a good chance the Python-only features "just works" the same way as Linux.  If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
 
 <!--
 reparametrization and RNN API under construction
@@ -93,5 +135,3 @@ Current version of apex contains:
 3. Reparameterization function that allows you to recursively apply reparameterization to an entire module (including children modules).
 4. An experimental and in development flexible RNN API.
 -->
-
-

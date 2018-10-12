@@ -6,27 +6,31 @@ import syncbn
 class SyncBatchnormFunction(Function):
 
     @staticmethod
-    def forward(ctx, input, weight, bias, running_mean, running_variance, eps, track_running_stats = False, momentum = 1.0):
+    def forward(ctx, input, weight, bias, running_mean, running_variance, eps, track_running_stats = True, momentum = 1.0):
         torch.cuda.nvtx.range_push("sync_BN_fw")
         input = input.contiguous()
-        mean, var, var_biased = syncbn.welford_mean_var(input)
-
-        if torch.distributed.is_initialized():
-          world_size = torch.distributed.get_world_size()
-          mean_all = torch.empty(world_size, mean.size(0), dtype=mean.dtype, device=mean.device)
-          var_all = torch.empty(world_size, var.size(0), dtype=var.dtype, device=var.device)
-          mean_l = [mean_all.narrow(0, i, 1) for i in range(world_size)]
-          var_l = [var_all.narrow(0, i, 1) for i in range(world_size)]
-          torch.distributed.all_gather(mean_l, mean)
-          torch.distributed.all_gather(var_l, var_biased)
-          mean, var, var_biased = syncbn.welford_parallel(mean_all.transpose(1,0).contiguous(), var_all.transpose(1,0).contiguous(), int(input.numel()/input.size(1)))
 
         if track_running_stats:
-          # TODO(Jie): should do fp32 math instead!
-          r_m_inc = mean if running_mean.dtype != torch.float16 else mean.half()
-          r_v_inc = var if running_variance.dtype != torch.float16 else var.half()
-          running_mean.data = running_mean.data * (1-momentum) + momentum*r_m_inc
-          running_variance.data = running_variance.data * (1-momentum) + momentum*r_v_inc
+            mean, var, var_biased = syncbn.welford_mean_var(input)
+
+            if torch.distributed.is_initialized():
+                world_size = torch.distributed.get_world_size()
+                mean_all = torch.empty(world_size, mean.size(0), dtype=mean.dtype, device=mean.device)
+                var_all = torch.empty(world_size, var.size(0), dtype=var.dtype, device=var.device)
+                mean_l = [mean_all.narrow(0, i, 1) for i in range(world_size)]
+                var_l = [var_all.narrow(0, i, 1) for i in range(world_size)]
+                torch.distributed.all_gather(mean_l, mean)
+                torch.distributed.all_gather(var_l, var_biased)
+                mean, var, var_biased = syncbn.welford_parallel(mean_all.transpose(1,0).contiguous(), var_all.transpose(1,0).contiguous(), int(input.numel()/input.size(1)))
+                # TODO(Jie): should do fp32 math instead!
+
+            r_m_inc = mean if running_mean.dtype != torch.float16 else mean.half()
+            r_v_inc = var if running_variance.dtype != torch.float16 else var.half()
+            running_mean.data = running_mean.data * (1-momentum) + momentum*r_m_inc
+            running_variance.data = running_variance.data * (1-momentum) + momentum*r_v_inc
+        else:
+            mean = running_mean.data
+            var_biased = running_var.data
 
         ctx.save_for_backward(input, weight, mean, var_biased)
         ctx.eps = eps
