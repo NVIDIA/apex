@@ -40,6 +40,9 @@ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py args...
 ```
 `NUM_GPUS` should be less than or equal to the number of visible GPU devices on the node.
 
+Optionally one can run imagenet with sync batch normalization by adding
+`--sync_bn` into the `args...`
+
 ## Example commands
 
 (note:  batch size `--b 256` assumes your GPUs have >=16GB of onboard memory)
