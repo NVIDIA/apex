@@ -328,8 +328,8 @@ class DistributedDataParallel(Module):
         if self.allreduce_always_fp32:
             tensor_to_allreduce = tensor.float() 
 
-        # if self.gradient_average_split_factor != 1.0:
-        #     tensor_to_allreduce.mul_(1./self.gradient_average_split_factor)
+        if self.gradient_average_split_factor != 1.0:
+            tensor_to_allreduce.mul_(1./self.gradient_average_split_factor)
 
         dist.all_reduce(tensor_to_allreduce)
 
@@ -387,7 +387,7 @@ class DistributedDataParallel(Module):
                             if i > self.next_bucket:
                                 break
                             elif i == self.next_bucket:
-                                self.allreduce_maybe_retain(self.buckets[bucket_idx], i)
+                                self.allreduce_maybe_retain(self.buckets[i], i)
                                 self.ready_buckets_not_reduced.remove(i)
                                 self.next_bucket += 1 
                             else:
