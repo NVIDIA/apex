@@ -24,16 +24,18 @@ def apply_flat_dist_call(bucket, call, extra_args=None):
     for buf, synced in zip(bucket, apex_C.unflatten(coalesced, bucket)):
         buf.copy_(synced)
 
-
-# flat_dist_call organizes 'tensors' by type.
-def flat_dist_call(tensors, call, extra_args=None):
-    flat_dist_call.warn_on_half = True
+def split_by_type(tensors):
     buckets = OrderedDict()
     for tensor in tensors:
         tp = tensor.type()
         if tp not in buckets:
             buckets[tp] = []
         buckets[tp].append(tensor)
+    return buckets
+
+# flat_dist_call organizes 'tensors' by type.
+def flat_dist_call(tensors, call, extra_args=None):
+    buckets = split_by_type(tensors)
                     
     for tp in buckets:
         bucket = buckets[tp]
@@ -131,7 +133,9 @@ class DistributedDataParallel(Module):
                  delay_allreduce=False, 
                  shared_param=None,
                  allreduce_trigger_params=None,
-                 retain_allreduce_buffers=False):
+                 retain_allreduce_buffers=False,
+                 allreduce_always_fp32=False,
+                 gradient_average_split_factor=1.0):
         super(DistributedDataParallel, self).__init__()
 
         # Backward/forward compatibility around 
@@ -148,7 +152,11 @@ class DistributedDataParallel(Module):
         if shared_param is not None:
             raise ValueError("shared_param is no longer supported as an option.  It was misleadingly named from the start.  It turns out overlapping communication with computation should work fine with shared parameters.  If you still wish to delay communication to the end of the backward pass, use delay_allreduce=True|False instead.") 
 
+        self.world_size = float(dist.get_world_size())
+
         self.retain_allreduce_buffers = retain_allreduce_buffers
+        self.allreduce_always_fp32 = allreduce_always_fp32
+        self.gradient_average_split_factor = gradient_average_split_factor
 
         self.custom_allreduce_triggers = False
         if allreduce_trigger_params is not None:
@@ -240,7 +248,11 @@ class DistributedDataParallel(Module):
 
             grads = [param.grad.data for param in self.module.parameters() if param.grad is not None]
            
-            flat_dist_call(grads, dist.all_reduce)
+            split_buckets = split_by_type(grads)
+            for tp in split_buckets:
+                bucket = split_buckets[tp]
+                self.allreduce_maybe_retain(bucket)
+
 
         def overlapping_backward_epilogue():
             self.reduction_stream.record_event(self.reduction_event)
@@ -308,16 +320,41 @@ class DistributedDataParallel(Module):
 
                 wrapper(param)
 
-    def allreduce_maybe_retain(self, bucket_idx):
+    def allreduce_bucket(self, bucket):
+        tensor = apex_C.flatten(bucket)
+
+        tensor_to_allreduce = tensor 
+
+        if self.allreduce_always_fp32:
+            tensor_to_allreduce = tensor.float() 
+
+        # if self.gradient_average_split_factor != 1.0:
+        #     tensor_to_allreduce.mul_(1./self.gradient_average_split_factor)
+
+        dist.all_reduce(tensor_to_allreduce)
+
+        tensor_to_allreduce.mul_(self.gradient_average_split_factor/self.world_size)
+
+        if self.allreduce_always_fp32 and tensor is not tensor_to_allreduce:
+            tensor.copy_(tensor_to_allreduce)
+ 
+        return tensor
+    
+
+    def allreduce_maybe_retain(self, bucket, bucket_idx=-1):
+        allreduced = self.allreduce_bucket(bucket)
         if self.retain_allreduce_buffers:
+            if self.delay_allreduce:
+                raise RuntimeError("Currently, retain_allreduce_buffers only works with "
+                                   "delay_allreduce=False.")
             if self.allreduce_buffers[bucket_idx] is not None:
                 raise RuntimeError("The backward pass is attempting to replace an already-filled "
                                    "allreduce buffer.  This is almost certainly an error.")
-            self.allreduce_buffers[bucket_idx] = apex_C.flatten(self.buckets[bucket_idx])
-            dist.all_reduce(self.allreduce_buffers[bucket_idx])
-            self.allreduce_buffers[bucket_idx].mul_(1./dist.get_world_size())
+            self.allreduce_buffers[bucket_idx] = allreduced
         else:
-            apply_flat_dist_call(self.buckets[bucket_idx], dist.all_reduce)
+            for buf, synced in zip(bucket, apex_C.unflatten(allreduced, bucket)):
+                buf.copy_(synced)
+
 
     def comm_ready_buckets(self, param):
         # Need to do this in every hook for compatibility with Ruberry's streaming backward PR.
@@ -337,7 +374,7 @@ class DistributedDataParallel(Module):
                 torch.cuda.current_stream().record_event(self.reduction_event)
                 self.reduction_stream.wait_event(self.reduction_event)
                 with torch.cuda.stream(self.reduction_stream):
-                    self.allreduce_maybe_retain(bucket_idx)
+                    self.allreduce_maybe_retain(self.buckets[bucket_idx], bucket_idx)
 
                     self.next_bucket += 1
 
@@ -350,7 +387,7 @@ class DistributedDataParallel(Module):
                             if i > self.next_bucket:
                                 break
                             elif i == self.next_bucket:
-                                self.allreduce_maybe_retain(i)
+                                self.allreduce_maybe_retain(self.buckets[bucket_idx], i)
                                 self.ready_buckets_not_reduced.remove(i)
                                 self.next_bucket += 1 
                             else:
