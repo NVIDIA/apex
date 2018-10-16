@@ -33,7 +33,7 @@ class Model(Module):
     def forward(self, input):
         return (input*self.a)*self.b
 
-model = DDP(Model(), message_size=1)
+model = DDP(Model(), message_size=1, gradient_average_split_factor=2.0)
 # model = DDP(Model(), delay_allreduce=True)
 # model = DDP(model, message_size=1, allreduce_trigger_params=[model.b])
 
