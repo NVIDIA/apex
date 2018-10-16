@@ -23,8 +23,8 @@ def compare(desc, inp1, inp2, error):
     return close
 
 feature_size = 10
-space_size = 40
-batch_size = 32
+space_size = 16
+batch_size = 5
 
 
 error = 1e-5

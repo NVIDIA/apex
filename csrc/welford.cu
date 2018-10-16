@@ -1,6 +1,7 @@
 #include <iostream>
 #include <ATen/ATen.h>
 #include <ATen/AccumulateType.h>
+#include <ATen/cuda/CUDAContext.h>
 
 
 #include <cuda.h>
@@ -36,33 +37,90 @@ __host__ __forceinline__ int h_last_pow2(unsigned int n) {
     return n - (n >> 1);
 }
 
-#define TILE_W 16
-#define MAX_BLOCK_SIZE 1024
 
-// parallel reduce with interleaved threads
-// TODO(jie): unroll this?
-template <typename scalar_t>
+#define WARP_SIZE 32
+
+template<typename T>
+__device__ __forceinline__ T warp_reduce_sum(T val)
+{
+  #pragma unroll
+  for(int i = WARP_SIZE/2; i > 0; i >>= 1)
+    val = val + __shfl_down_sync(0xffffffff, val, i);
+  return val;
+}
+
+template<typename T>
+__device__ __forceinline__ T reduce_block(T *x, T val)
+{
+  int tid = threadIdx.y*blockDim.x + threadIdx.x;
+  int blockSize = blockDim.x * blockDim.y;
+
+  if (blockSize > 32) {
+    val = warp_reduce_sum(val);
+    if (tid % WARP_SIZE == 0)
+      x[tid/WARP_SIZE] = val;
+
+    __syncthreads();
+
+    val = (tid < blockSize / WARP_SIZE? x[tid%WARP_SIZE] : T(0));
+  }
+
+  if(tid/WARP_SIZE==0) val = warp_reduce_sum(val);
+
+  return val;
+}
+
+#define TILE_W 32
+#define MAX_BLOCK_SIZE 256
+
+template<typename T>
+__device__ __forceinline__ void warp_reduce_mean_m2n(T &mean, T &m2n, int &num)
+{
+  #pragma unroll
+  for(int i = WARP_SIZE/2; i > 0; i >>= 1) {
+    auto num_new = num + __shfl_down_sync(0xffffffff, num, i);
+    if (num_new != 0) {
+      auto dif_mean = mean - __shfl_down_sync(0xffffffff, mean, i);
+      mean = (__shfl_down_sync(0xffffffff, mean, i)*__shfl_down_sync(0xffffffff, num, i)
+              + mean * num) / num_new;
+      m2n += __shfl_down_sync(0xffffffff, m2n, i) + dif_mean*dif_mean*num*__shfl_down_sync(0xffffffff, num, i)/num_new;
+      num = num_new;
+    }
+  }
+}
+
+template <typename T>
 __device__ void welford_reduce_mean_m2n(
-      scalar_t* __restrict__ mean_l,
-      scalar_t* __restrict__ m2n_l,
-      int* __restrict__ num_item_l,
+      T* __restrict__ x,
+      int* __restrict__ count,
+      T &mean,
+      T &m2n,
+      int &num,
       int block_size,
       int thread_id)
 {
-  for (int offset = lastpow2(block_size); offset > 0; offset>>=1) {
-    if (thread_id < offset && thread_id + offset < block_size) {
-      auto count = num_item_l[thread_id];
-      auto val = mean_l[thread_id];
-      auto count2 = num_item_l[thread_id+offset];
-      auto val2 = mean_l[thread_id+offset];
+  int lane = thread_id % WARP_SIZE;
+  int wid = thread_id / WARP_SIZE;
 
-      mean_l[thread_id] = (val * count + val2 * count2) / (count + count2);
-      val = val - val2;
-      m2n_l[thread_id] += m2n_l[thread_id + offset] + val*val*count*count2/(count+count2);
-      num_item_l[thread_id] = count + count2;
+  if (block_size > 32) {
+    warp_reduce_mean_m2n(mean, m2n, num);
+    if (lane == 0) {
+      x[wid*2] = mean;
+      x[wid*2+1] = m2n;
+      count[wid] = num;
     }
     __syncthreads();
+
+    if (wid == 0) {
+      mean = (thread_id < block_size / WARP_SIZE)? x[lane*2] : T(0);
+      m2n = (thread_id < block_size / WARP_SIZE)? x[lane*2+1] : T(0);
+      num = (thread_id < block_size / WARP_SIZE)? count[lane] : int(0);
+    }
   }
+
+  if (wid==0) warp_reduce_mean_m2n(mean, m2n, num);
+
+  return;
 }
 
 // return spatial size for NC+ Tensors
@@ -100,16 +158,15 @@ __global__ void welford_kernel(
       const int bs,
       const int fs,
       const int ss) {
-  extern __shared__ int s_mem[];
+  static __shared__ int s_mem[160];
   int block_size = blockDim.x * blockDim.y;
 
-  accscalar_t* mean_l = (accscalar_t*) s_mem;
-  accscalar_t* m2n_l = &(mean_l[block_size]);
-  int *num_item_l = (int*) &(m2n_l[block_size]);
+  accscalar_t* s_mem_ac = (accscalar_t*) &s_mem[32];
 
   int count = 0;
-  float x_mean = 0;
-  float m_2_n = 0;
+  accscalar_t x_mean = accscalar_t(0);
+  accscalar_t m_2_n = accscalar_t(0);
+
   int thread_id = threadIdx.y*blockDim.x + threadIdx.x;
 
   for (int batch_id = threadIdx.y; batch_id < bs; batch_id += blockDim.y) {
@@ -124,21 +181,12 @@ __global__ void welford_kernel(
     }
   }
 
-  // allow idle thread to write to shared memory
-  mean_l[thread_id] = x_mean;
-  m2n_l[thread_id] = m_2_n;
-  num_item_l[thread_id] = count;
-  __syncthreads();
-  
-  // parallel reduce with interleaved threads
-  // TODO(jie): unroll this?
-  // TODO(jie): maybe I should pad the blockDim.y to power of 2?
-  welford_reduce_mean_m2n<accscalar_t>(mean_l, m2n_l, num_item_l, block_size, thread_id);
+  welford_reduce_mean_m2n<accscalar_t>(s_mem_ac, s_mem, x_mean, m_2_n, count, block_size, thread_id);
 
   if (thread_id == 0) {
-    out_mean[blockIdx.x] = static_cast<outscalar_t>(mean_l[0]);
-    out_var[blockIdx.x] = static_cast<outscalar_t>(m2n_l[0]/(num_item_l[0]-1));
-    out_var_biased[blockIdx.x] = static_cast<outscalar_t>(m2n_l[0]/num_item_l[0]);
+    out_mean[blockIdx.x] = static_cast<outscalar_t>(x_mean);
+    out_var[blockIdx.x] = static_cast<outscalar_t>(m_2_n/(count-1));
+    out_var_biased[blockIdx.x] = static_cast<outscalar_t>(m_2_n/count);
   }
 }
 
@@ -183,11 +231,7 @@ __global__ void reduce_bn_kernel(
       const int fs,
       const int ss,
       const float eps) {
-  extern __shared__ int s_mem[];
-  int block_size = blockDim.x * blockDim.y;
-
-  accscalar_t* sum_dy_l = (accscalar_t*) s_mem;
-  accscalar_t* sum_dy_xmu_l = &(sum_dy_l[block_size]);
+  static __shared__ int s_mem[64];
   int total_item_num = bs * ss;
 
   int thread_id = threadIdx.y*blockDim.x + threadIdx.x;
@@ -219,26 +263,15 @@ __global__ void reduce_bn_kernel(
     }
   }
 
-  sum_dy_l[thread_id] = sum_dy;
-  sum_dy_xmu_l[thread_id] = sum_dy_xmu;
+  sum_dy = reduce_block((accscalar_t*)s_mem, sum_dy);
   __syncthreads();
+  sum_dy_xmu = reduce_block((accscalar_t*)s_mem, sum_dy_xmu);
   
-  // parallel reduce with interleaved threads
-  // TODO(jie): unroll this?
-  // TODO(jie): maybe I should pad the blockDim.y to power of 2?
-  for (int offset = lastpow2(block_size); offset > 0; offset>>=1) {
-    if (thread_id < offset && thread_id + offset < block_size) {
-      sum_dy_l[thread_id] = sum_dy_l[thread_id] + sum_dy_l[thread_id+offset];
-      sum_dy_xmu_l[thread_id] = sum_dy_xmu_l[thread_id] + sum_dy_xmu_l[thread_id+offset];
-    }
-    __syncthreads();
-  }
-
   if (thread_id == 0) {
-    grad_bias[blockIdx.x] = static_cast<layerscalar_t>(sum_dy_l[0]);
-    grad_weight[blockIdx.x] = static_cast<layerscalar_t>(sum_dy_xmu_l[0] * factor);
-    mean_dy[blockIdx.x] = sum_dy_l[0] / total_item_num;
-    mean_dy_xmu[blockIdx.x] = sum_dy_xmu_l[0] / total_item_num;
+    grad_bias[blockIdx.x] = static_cast<layerscalar_t>(sum_dy);
+    grad_weight[blockIdx.x] = static_cast<layerscalar_t>(sum_dy_xmu * factor);
+    mean_dy[blockIdx.x] = sum_dy / total_item_num;
+    mean_dy_xmu[blockIdx.x] = sum_dy_xmu / total_item_num;
   }
 }
 
@@ -280,29 +313,27 @@ __global__ void welford_kernel_parallel(
       const int ns,
       const int fs,
       const int numel) {
-  extern __shared__ int s_mem[];
+  static __shared__ int s_mem[160];
   int block_size = blockDim.x;
 
-  accscalar_t* mean_l = (accscalar_t*) s_mem;
-  accscalar_t* m2n_l = &(mean_l[block_size]);
-  int *num_item_l = (int*) &(m2n_l[block_size]);
+  accscalar_t* s_mem_ac = (accscalar_t*) &s_mem[32];
 
   int input_base = blockIdx.x*ns + threadIdx.x;
   int thread_id = threadIdx.x;
 
   // load data; 
-  mean_l[thread_id] = static_cast<accscalar_t>(mean[input_base]);
-  m2n_l[thread_id] = static_cast<accscalar_t>(var_biased[input_base]) * numel;
-  num_item_l[thread_id] = numel;
+  auto x_mean = static_cast<accscalar_t>(mean[input_base]);
+  auto m_2_n = static_cast<accscalar_t>(var_biased[input_base]) * numel;
+  auto count = numel;
 
   __syncthreads();
 
-  welford_reduce_mean_m2n<accscalar_t>(mean_l, m2n_l, num_item_l, block_size, thread_id);
+  welford_reduce_mean_m2n<accscalar_t>(s_mem_ac, s_mem, x_mean, m_2_n, count, block_size, thread_id);
 
   if (thread_id == 0) {
-    out_mean[blockIdx.x] = static_cast<scalar_t>(mean_l[0]);
-    out_var[blockIdx.x] = static_cast<scalar_t>(m2n_l[0]/(num_item_l[0]-1));
-    out_var_biased[blockIdx.x] = static_cast<scalar_t>(m2n_l[0]/num_item_l[0]);
+    out_mean[blockIdx.x] = static_cast<scalar_t>(x_mean);
+    out_var[blockIdx.x] = static_cast<scalar_t>(m_2_n/(count-1));
+    out_var_biased[blockIdx.x] = static_cast<scalar_t>(m_2_n/count);
   }
 }
   
@@ -318,18 +349,17 @@ std::vector<at::Tensor> welford_mean_var_CUDA(const at::Tensor input) {
   at::Tensor out_var_biased = at::native::empty({feature_size}, input.options().dtype(scalar_type));
   at::Tensor out_mean = at::native::empty({feature_size}, input.options().dtype(scalar_type));
 
-  // TODO(jie): this launch config will be really bad for resnet, where batch_size is big and space_size is small.
-  int block_x = min(h_last_pow2(space_size), MAX_BLOCK_SIZE);
-  int block_y = min(int(batch_size), int(MAX_BLOCK_SIZE / block_x));
+  int block_x = TILE_W;
+  int block_y = min(h_last_pow2(batch_size), int(MAX_BLOCK_SIZE / block_x));
   const dim3 block(block_x, block_y);
   const dim3 grid(feature_size);
-  
+
   // shared memory used for reduce on mean, var, num_elements;
-  int smem_size = block_y * block_x * (sizeof(int) + 2 * get_element_data_size(input, true));
+  auto stream = at::cuda::getCurrentCUDAStream();
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "welford_mean_var_kernel", ([&] {
     using accscalar_t = at::acc_type<scalar_t, true>;
-    welford_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block, smem_size>>>(
+    welford_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block, 0, stream>>>(
         input.data<scalar_t>(),
         out_mean.data<accscalar_t>(),
         out_var.data<accscalar_t>(),
@@ -355,14 +385,15 @@ at::Tensor batchnorm_forward_CUDA(
 
   auto space_size = get_tensor_spatial_size(input);
 
-  int block = min(MAX_BLOCK_SIZE, h_next_pow2(space_size));
+  int block = min(MAX_BLOCK_SIZE, h_next_pow2(space_size)/4);
   // TODO(jie): should I do 1 block per feature?
   const dim3 grid(feature_size, batch_size);
+  auto stream = at::cuda::getCurrentCUDAStream();
 
   if (input.type().scalarType() == at::ScalarType::Half && weight.type().scalarType() == at::ScalarType::Float) {
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
-      batchnorm_forward_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block>>>(
+      batchnorm_forward_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block, 0, stream>>>(
           input.data<scalar_t>(),
           mean.data<accscalar_t>(),
           var.data<accscalar_t>(),
@@ -376,7 +407,7 @@ at::Tensor batchnorm_forward_CUDA(
     AT_CHECK(input.type().scalarType() == weight.type().scalarType(), "input.type().scalarType() is not supported with weight.type().scalarType()"); 
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
-      batchnorm_forward_kernel<scalar_t, accscalar_t, scalar_t><<<grid, block>>>(
+      batchnorm_forward_kernel<scalar_t, accscalar_t, scalar_t><<<grid, block, 0, stream>>>(
           input.data<scalar_t>(),
           mean.data<accscalar_t>(),
           var.data<accscalar_t>(),
@@ -410,17 +441,17 @@ std::vector<at::Tensor> reduce_bn_CUDA(
 
   auto space_size = get_tensor_spatial_size(input);
 
-  int block_x = min(h_last_pow2(space_size), MAX_BLOCK_SIZE);
-  int block_y = min(int(batch_size), int(MAX_BLOCK_SIZE / block_x));
+  int block_x = TILE_W;
+  int block_y = min(h_last_pow2(batch_size), int(MAX_BLOCK_SIZE / block_x));
   const dim3 block(block_x, block_y);
   const dim3 grid(feature_size);
   // shared memory used for reduce on sum_dy, sum_dy_xmu;
-  int smem_size = block_y * block_x * 2 * get_element_data_size(input, true);
+  auto stream = at::cuda::getCurrentCUDAStream();
 
   if (input.type().scalarType() == at::ScalarType::Half && weight.type().scalarType() == at::ScalarType::Float) {
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward_reduce", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
-      reduce_bn_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block, smem_size>>>(
+      reduce_bn_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block, 0, stream>>>(
           input.data<scalar_t>(),
           grad_output.data<scalar_t>(),
           mean.data<accscalar_t>(),
@@ -438,7 +469,7 @@ std::vector<at::Tensor> reduce_bn_CUDA(
     AT_CHECK(input.type().scalarType() == weight.type().scalarType(), "input.type().scalarType() is not supported with weight.type().scalarType()"); 
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward_reduce", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
-      reduce_bn_kernel<scalar_t, accscalar_t, scalar_t><<<grid, block, smem_size>>>(
+      reduce_bn_kernel<scalar_t, accscalar_t, scalar_t><<<grid, block, 0, stream>>>(
           input.data<scalar_t>(),
           grad_output.data<scalar_t>(),
           mean.data<accscalar_t>(),
@@ -473,14 +504,15 @@ at::Tensor batchnorm_backward_CUDA(
 
   auto space_size = get_tensor_spatial_size(input);
 
-  int block = min(MAX_BLOCK_SIZE, h_next_pow2(space_size));
+  int block = min(MAX_BLOCK_SIZE, h_next_pow2(space_size)/4);
   // TODO(jie): should I do 1 block per feature?
   const dim3 grid(feature_size, batch_size);
+  auto stream = at::cuda::getCurrentCUDAStream();
 
   if (input.type().scalarType() == at::ScalarType::Half && weight.type().scalarType() == at::ScalarType::Float) {
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
-      batchnorm_backward_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block>>>(
+      batchnorm_backward_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block, 0, stream>>>(
           grad_output.data<scalar_t>(),
           input.data<scalar_t>(),
           mean.data<accscalar_t>(),
@@ -496,7 +528,7 @@ at::Tensor batchnorm_backward_CUDA(
     AT_CHECK(input.type().scalarType() == weight.type().scalarType(), "input.type().scalarType() is not supported with weight.type().scalarType()"); 
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
-      batchnorm_backward_kernel<scalar_t, accscalar_t, scalar_t><<<grid, block>>>(
+      batchnorm_backward_kernel<scalar_t, accscalar_t, scalar_t><<<grid, block, 0, stream>>>(
           grad_output.data<scalar_t>(),
           input.data<scalar_t>(),
           mean.data<accscalar_t>(),
@@ -525,11 +557,11 @@ std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_node
   const dim3 block(world_size);
   const dim3 grid(feature_size);
   // shared memory used for reduce on mean, var, num_elements;
-  int smem_size = world_size * (sizeof(int) + 2 * get_element_data_size(mean_feature_nodes, true));
+  auto stream = at::cuda::getCurrentCUDAStream();
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(mean_feature_nodes.type(), "welford_parallel_kernel", ([&] {
     using accscalar_t = at::acc_type<scalar_t, true>;
-    welford_kernel_parallel<scalar_t, accscalar_t><<<grid, block, smem_size>>>(
+    welford_kernel_parallel<scalar_t, accscalar_t><<<grid, block, 0, stream>>>(
         mean_feature_nodes.data<scalar_t>(),
         var_biased.data<scalar_t>(),
         out_mean.data<scalar_t>(),
