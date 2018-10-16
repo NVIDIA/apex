@@ -246,12 +246,7 @@ class DistributedDataParallel(Module):
 
                     self.needs_refresh = False
 
-            grads = [param.grad.data for param in self.module.parameters() if param.grad is not None]
-           
-            split_buckets = split_by_type(grads)
-            for tp in split_buckets:
-                bucket = split_buckets[tp]
-                self.allreduce_maybe_retain(bucket)
+            self.allreduce_fallback()
 
 
         def overlapping_backward_epilogue():
@@ -352,6 +347,17 @@ class DistributedDataParallel(Module):
                                    "allreduce buffer.  This is almost certainly an error.")
             self.allreduce_buffers[bucket_idx] = allreduced
         else:
+            for buf, synced in zip(bucket, apex_C.unflatten(allreduced, bucket)):
+                buf.copy_(synced)
+
+
+    def allreduce_fallback(self):
+        grads = [param.grad.data for param in self.module.parameters() if param.grad is not None]
+
+        split_buckets = split_by_type(grads)
+        for tp in split_buckets:
+            bucket = split_buckets[tp]
+            allreduced = self.allreduce_bucket(bucket)
             for buf, synced in zip(bucket, apex_C.unflatten(allreduced, bucket)):
                 buf.copy_(synced)
 
