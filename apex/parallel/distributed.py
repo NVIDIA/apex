@@ -24,6 +24,15 @@ def apply_flat_dist_call(bucket, call, extra_args=None):
     for buf, synced in zip(bucket, apex_C.unflatten(coalesced, bucket)):
         buf.copy_(synced)
 
+def split_half_float_double(tensors):
+    dtypes = ["torch.cuda.HalfTensor",  "torch.cuda.FloatTensor", "torch.cuda.DoubleTensor"]
+    buckets = []
+    for i, dtype in enumerate(dtypes):
+        bucket = [t for t in tensors if t.type() == dtype]
+        if bucket:
+            buckets.append(bucket) 
+    return buckets
+
 def split_by_type(tensors):
     buckets = OrderedDict()
     for tensor in tensors:
@@ -345,9 +354,6 @@ class DistributedDataParallel(Module):
     def allreduce_maybe_retain(self, bucket, bucket_idx=-1):
         allreduced = self.allreduce_bucket(bucket)
         if self.retain_allreduce_buffers:
-            if self.delay_allreduce:
-                raise RuntimeError("Currently, retain_allreduce_buffers only works with "
-                                   "delay_allreduce=False.")
             if self.allreduce_buffers[bucket_idx] is not None:
                 raise RuntimeError("The backward pass is attempting to replace an already-filled "
                                    "allreduce buffer.  This is almost certainly an error.")
@@ -360,12 +366,16 @@ class DistributedDataParallel(Module):
     def allreduce_fallback(self):
         grads = [param.grad.data for param in self.module.parameters() if param.grad is not None]
 
-        split_buckets = split_by_type(grads)
-        for tp in split_buckets:
-            bucket = split_buckets[tp]
-            allreduced = self.allreduce_bucket(bucket)
-            for buf, synced in zip(bucket, apex_C.unflatten(allreduced, bucket)):
-                buf.copy_(synced)
+        split_buckets = split_half_float_double(grads)
+
+        # If retain_allreduce_buffers is True and delay_allreduce is False,
+        # this will only be done during the first backward pass, ignored by the 
+        # training script, and overwritten in the next forward pass.  So it's harmless. 
+        if self.retain_allreduce_buffers:
+            self.allreduce_buffers = [None for _ in len(split_buckets)]
+        
+        for i, bucket in enumerate(split_buckets):
+            allreduced = self.allreduce_maybe_retain(bucket, i)
 
 
     def comm_ready_buckets(self, param):
