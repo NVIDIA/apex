@@ -372,7 +372,7 @@ class DistributedDataParallel(Module):
         # this will only be done during the first backward pass, ignored by the 
         # training script, and overwritten in the next forward pass.  So it's harmless. 
         if self.retain_allreduce_buffers:
-            self.allreduce_buffers = [None for _ in len(split_buckets)]
+            self.allreduce_buffers = [None for _ in range(len(split_buckets))]
         
         for i, bucket in enumerate(split_buckets):
             allreduced = self.allreduce_maybe_retain(bucket, i)
