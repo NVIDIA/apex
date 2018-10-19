@@ -2,16 +2,17 @@ import contextlib
 import torch
 from torch import optim
 
+from . import amp2
+
 # High level TODO question: can we assume that all the desired cast-to-half of model
 # params have already occurred when this object is constructed? If not, we need to
 # provide a mechanism to "refresh" its view on what to manage.
 class MPOptimizer(optim.Optimizer):
     def __init__(self, optimizer):
         # TODO: things to support
-        # - Disabling (so can control w/ cmd line switch)
+        # - Disabling loss scaling (so can revert to "true" fp32 training w/ cmd line switch)
         # - Loss scale config / state / etc.
         # - Delayed updates (loss accumulation)
-        # - Knowledge of the amp cache for step()
 
         if not isinstance(optimizer, optim.Optimizer):
             raise ArgumentError('Argument `optimizer` must be an instance of ' +
@@ -73,6 +74,7 @@ class MPOptimizer(optim.Optimizer):
         for master_param, model_param in self._managed_params:
             with torch.no_grad():
                 model_param.copy_(master_param)
+        amp2.clear_amp_cache()
 
     def zero_grad(self):
         self._optimizer.zero_grad()
