@@ -26,14 +26,26 @@ ext_modules.append(
     CppExtension('apex_C',
                  ['csrc/flatten_unflatten.cpp',]))
 
+ext_modules.append(
+    CUDAExtension(name='adam_cuda',
+                  sources=[
+                      'apex/optimizers/csrc/adam_cuda.cpp',
+                      'apex/optimizers/csrc//adam_cuda_kernel.cu'
+                  ],
+                  extra_compile_args={
+                      'cxx': ['-O3',],
+                      'nvcc':['--gpu-architecture=sm_70', '-03', '--use_fast_math']
+                  }
+    )
+)
 
 setup(
     name='apex',
     version='0.1',
-    packages=find_packages(exclude=('build', 
-                                    'csrc', 
-                                    'include', 
-                                    'tests', 
+    packages=find_packages(exclude=('build',
+                                    'csrc',
+                                    'include',
+                                    'tests',
                                     'dist',
                                     'docs',
                                     'tests',
