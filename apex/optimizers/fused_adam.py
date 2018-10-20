@@ -1,4 +1,5 @@
 import torch
+import fused_adam_cuda
 
 class FusedAdam(torch.optim.Adam):
 
@@ -29,7 +30,7 @@ class FusedAdam(torch.optim.Adam):
                  weight_decay=0, amsgrad=False):
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
-        super(FusedAdam, self).__init__(params, defaults)
+        super(FusedAdam, self).__init__(params, lr, betas, eps, weight_decay, amsgrad)
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -65,16 +66,17 @@ class FusedAdam(torch.optim.Adam):
 
                 state['step'] += 1
 
-                adam_cuda.adam(p.data,
-                               p.new_empty(),
-                               exp_avg,
-                               exp_avg_sq,
-                               grad,
-                               group['lr'],
-                               beta1,
-                               beta2,
-                               group['eps'],
-                               state['step'],
-                               1)
+                fused_adam_cuda.adam(p.data,
+                                     p.new_empty(p.size()),
+                                     exp_avg,
+                                     exp_avg_sq,
+                                     grad,
+                                     group['lr'],
+                                     beta1,
+                                     beta2,
+                                     group['eps'],
+                                     1.0,
+                                     state['step'],
+                                     1)
         return loss
 

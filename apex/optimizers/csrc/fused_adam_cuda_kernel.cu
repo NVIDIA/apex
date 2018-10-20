@@ -49,7 +49,7 @@ __global__ void adam_cuda_kernel(
         }
 }
 
-void adam_cuda(
+void fused_adam_cuda(
         at::Tensor & p,
         at::Tensor & p_copy,
         at::Tensor & m,
