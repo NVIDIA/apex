@@ -1,5 +1,6 @@
-#include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include "ATen/ATen.h"
+#include "ATen/cuda/CUDAContext.h"
+#include "ATen/cuda/detail/IndexUtils.cuh"
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
@@ -65,18 +66,11 @@ void fused_adam_cuda(
         int mode) {
 
         //Get tensor size
-        int tsize = 1;
-        for (int i = 0; i < p.ndimension(); i++) {
-                tsize *= p.size(i);
-        }
-
+        int tsize = p.numel();
         //Determine #threads and #blocks
         const int threadsPerBlock = 512;
-        //elemPerThread = 1 actually works better.
-        const int elemPerThread = std::min(16, (tsize+40959)/40960); //40960 = 80 SMs * 512 threads each
-        const int elemPerBlock = threadsPerBlock*elemPerThread;
-        const dim3 blocks((tsize+elemPerBlock-1)/elemPerBlock,1);
-
+        const dim3 blocks((tsize+threadsPerBlock-1)/threadsPerBlock);
+        AT_ASSERTM(at::cuda::detail::canUse32BitIndexMath(p), "parameter tensor is too large to be indexed with int32");
         //Constants
         const float bias_correction1 = 1 - std::pow(beta1, step);
         const float bias_correction2 = 1 - std::pow(beta2, step);
@@ -85,7 +79,7 @@ void fused_adam_cuda(
 
         if (g.type().scalarType() == at::ScalarType::Half) {
 //all other values should be fp32 for half gradients
-            AT_ASSERTM(p.type().scalarType() == at::ScalarType::Float, "message");
+            AT_ASSERTM(p.type().scalarType() == at::ScalarType::Float, "expected parameter to be of float type");
 //dispatch is done on the gradient type 
             AT_DISPATCH_FLOATING_TYPES_AND_HALF(g.type(), "adam_cuda_kernel", ([&] {
                 using accscalar_t = at::acc_type<scalar_t, true>;

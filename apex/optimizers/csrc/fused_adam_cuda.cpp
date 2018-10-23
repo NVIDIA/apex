@@ -14,6 +14,12 @@ void adam(at::Tensor & p, at::Tensor & p_copy, at::Tensor & m, at::Tensor & v, a
         CHECK_INPUT(m);
         CHECK_INPUT(v);
         CHECK_INPUT(g);
+        int64_t num_elem = p.numel();
+        AT_ASSERTM(m.numel() == num_elem, "number of elements in m and p tensors should be equal");
+        AT_ASSERTM(v.numel() == num_elem, "number of elements in v and p tensors should be equal");
+        AT_ASSERTM(g.numel() == num_elem, "number of elements in g and p tensors should be equal");
+        AT_ASSERTM(p_copy.numel() == num_elem || p_copy.numel() == 0, "number of elements in p_copy and p tensors should be equal, or p_copy should be empty");
+
         fused_adam_cuda(p, p_copy, m, v, g, lr, beta1, beta2, eps, grad_scale, step, mode);
 }
 
