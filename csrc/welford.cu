@@ -78,13 +78,14 @@ __device__ __forceinline__ void warp_reduce_mean_m2n(T &mean, T &m2n, int &num)
 {
   #pragma unroll
   for(int i = WARP_SIZE/2; i > 0; i >>= 1) {
-    auto num_new = num + __shfl_down_sync(0xffffffff, num, i);
+    auto num_new = __shfl_down_sync(0xffffffff, num, i);
+    auto mean_new = __shfl_down_sync(0xffffffff, mean, i);
+    auto m2n_new = __shfl_down_sync(0xffffffff, m2n, i);
     if (num_new != 0) {
-      auto dif_mean = mean - __shfl_down_sync(0xffffffff, mean, i);
-      mean = (__shfl_down_sync(0xffffffff, mean, i)*__shfl_down_sync(0xffffffff, num, i)
-              + mean * num) / num_new;
-      m2n += __shfl_down_sync(0xffffffff, m2n, i) + dif_mean*dif_mean*num*__shfl_down_sync(0xffffffff, num, i)/num_new;
-      num = num_new;
+      auto dif_mean = mean - mean_new;
+      mean = (mean_new * num_new + mean * num) / (num + num_new);
+      m2n += m2n_new + dif_mean*dif_mean*num*num_new/(num_new+num);
+      num += num_new;
     }
   }
 }
@@ -345,9 +346,9 @@ std::vector<at::Tensor> welford_mean_var_CUDA(const at::Tensor input) {
   auto space_size = get_tensor_spatial_size(input);
   auto scalar_type = promote_scalartype(input);
 
-  at::Tensor out_var = at::native::empty({feature_size}, input.options().dtype(scalar_type));
-  at::Tensor out_var_biased = at::native::empty({feature_size}, input.options().dtype(scalar_type));
-  at::Tensor out_mean = at::native::empty({feature_size}, input.options().dtype(scalar_type));
+  at::Tensor out_var = at::empty({feature_size}, input.options().dtype(scalar_type));
+  at::Tensor out_var_biased = at::empty({feature_size}, input.options().dtype(scalar_type));
+  at::Tensor out_mean = at::empty({feature_size}, input.options().dtype(scalar_type));
 
   int block_x = TILE_W;
   int block_y = min(h_last_pow2(batch_size), int(MAX_BLOCK_SIZE / block_x));
@@ -434,10 +435,10 @@ std::vector<at::Tensor> reduce_bn_CUDA(
 
   auto scalar_type = promote_scalartype(input);
 
-  at::Tensor mean_dy = at::native::empty({feature_size}, mean.options());
-  at::Tensor mean_dy_xmu = at::native::empty({feature_size}, mean.options());
-  at::Tensor grad_weight = at::native::empty({feature_size}, weight.options());
-  at::Tensor grad_bias = at::native::empty({feature_size}, weight.options());
+  at::Tensor mean_dy = at::empty({feature_size}, mean.options());
+  at::Tensor mean_dy_xmu = at::empty({feature_size}, mean.options());
+  at::Tensor grad_weight = at::empty({feature_size}, weight.options());
+  at::Tensor grad_bias = at::empty({feature_size}, weight.options());
 
   auto space_size = get_tensor_spatial_size(input);
 
@@ -549,7 +550,7 @@ std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_node
   const auto feature_size = mean_feature_nodes.size(0);
   const auto world_size = mean_feature_nodes.size(1);
 
-  at::Tensor out_var = at::native::empty({feature_size}, var_biased.options());
+  at::Tensor out_var = at::empty({feature_size}, var_biased.options());
   at::Tensor out_var_biased = at::empty_like(out_var);
   at::Tensor out_mean = at::empty_like(out_var);
 
