@@ -27,12 +27,13 @@ class FusedAdam(torch.optim.Adam):
     """
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
-                 weight_decay=0, amsgrad=False):
+                 weight_decay=0, amsgrad=False, eps_inside_sqrt = False):
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
         super(FusedAdam, self).__init__(params, lr, betas, eps, weight_decay, amsgrad)
+        self.eps_mode = 0 if  eps_inside_sqrt else 1
 
-    def step(self, closure=None, grads=None, output_params=None, scale=1):
+    def step(self, closure=None, grads=None, output_params=None, scale=1.):
         """Performs a single optimization step.
 
         Arguments:
@@ -49,10 +50,12 @@ class FusedAdam(torch.optim.Adam):
                grads = [None]*len(group['params'])
             if output_params is None:
                output_params = [None]*len(group['params'])
-            for p, grad, output_params in zip(group['params'],grads, output_params):
-                if p.grad is None:
+            for p, grad, output_param in zip(group['params'],grads, output_params):
+                #note: p.grad should not ever be set for correct operation of mixed precision optimizer that sometimes sends None gradients
+                if p.grad is None and grad is None:
                     continue
-                grad = p.grad.data
+                if grad is None:
+                    grad = p.grad.data 
                 if grad.is_sparse:
                     raise RuntimeError('FusedAdam does not support sparse gradients, please consider SparseAdam instead')
 
@@ -70,9 +73,9 @@ class FusedAdam(torch.optim.Adam):
                 beta1, beta2 = group['betas']
 
                 state['step'] += 1
-
+                out_p = torch.tensor([], dtype = torch.float) if output_param is None else output_param
                 fused_adam_cuda.adam(p.data,
-                                     torch.tensor([], dtype = torch.float),#p.new_empty(p.size()),
+                                     out_p,
                                      exp_avg,
                                      exp_avg_sq,
                                      grad,
@@ -80,8 +83,8 @@ class FusedAdam(torch.optim.Adam):
                                      beta1,
                                      beta2,
                                      group['eps'],
-                                     1.0,
+                                     scale,
                                      state['step'],
-                                     1)
+                                     self.eps_mode)
         return loss
 

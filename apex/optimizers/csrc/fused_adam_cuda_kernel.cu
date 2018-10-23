@@ -81,14 +81,13 @@ void fused_adam_cuda(
         const float bias_correction1 = 1 - std::pow(beta1, step);
         const float bias_correction2 = 1 - std::pow(beta2, step);
         const float step_size = lr * std::sqrt(bias_correction2)/bias_correction1;
-
         cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
         if (g.type().scalarType() == at::ScalarType::Half) {
 //all other values should be fp32 for half gradients
             AT_ASSERTM(p.type().scalarType() == at::ScalarType::Float, "message");
 //dispatch is done on the gradient type 
-            AT_DISPATCH_ALL_TYPES(g.type(), "adam_cuda_kernel", ([&] {
+            AT_DISPATCH_FLOATING_TYPES_AND_HALF(g.type(), "adam_cuda_kernel", ([&] {
                 using accscalar_t = at::acc_type<scalar_t, true>;
                 adam_cuda_kernel<accscalar_t, scalar_t><<<blocks,threadsPerBlock, 0, stream>>>(
                         p.data<accscalar_t>(),
@@ -105,7 +104,7 @@ void fused_adam_cuda(
                         (adamMode_t) mode);
             }));
       } else {
-            AT_DISPATCH_ALL_TYPES(g.type(), "adam_cuda_kernel", ([&] {
+            AT_DISPATCH_FLOATING_TYPES(g.type(), "adam_cuda_kernel", ([&] {
                 adam_cuda_kernel<scalar_t, scalar_t><<<blocks,threadsPerBlock, 0, stream>>>(
                         p.data<scalar_t>(),
                         NULL, //don't output p_copy for fp32, it's wasted write
