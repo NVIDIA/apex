@@ -7,6 +7,7 @@
 #include "ATen/TensorUtils.h"
 #include "ATen/Type.h"
 #include "ATen/AccumulateType.h"
+#include <THC/THCGeneral.h>
 
 typedef enum{
     ADAM_MODE_0   =0, // eps under square root
@@ -91,7 +92,7 @@ void fused_adam_cuda(
                 using accscalar_t = at::acc_type<scalar_t, true>;
                 adam_cuda_kernel<accscalar_t, scalar_t><<<blocks,threadsPerBlock, 0, stream>>>(
                         p.data<accscalar_t>(),
-                        p_copy.data<scalar_t>(),
+                        p_copy.numel() ? p_copy.data<scalar_t>() : NULL,
                         m.data<accscalar_t>(),
                         v.data<accscalar_t>(),
                         g.data<scalar_t>(),
@@ -107,7 +108,7 @@ void fused_adam_cuda(
             AT_DISPATCH_ALL_TYPES(g.type(), "adam_cuda_kernel", ([&] {
                 adam_cuda_kernel<scalar_t, scalar_t><<<blocks,threadsPerBlock, 0, stream>>>(
                         p.data<scalar_t>(),
-                        p_copy.data<scalar_t>(),
+                        NULL, //don't output p_copy for fp32, it's wasted write
                         m.data<scalar_t>(),
                         v.data<scalar_t>(),
                         g.data<scalar_t>(),
@@ -120,4 +121,6 @@ void fused_adam_cuda(
                         (adamMode_t) mode);
             }));
       }
+      THCudaCheck(cudaGetLastError());
+
 }

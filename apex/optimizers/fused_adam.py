@@ -32,7 +32,7 @@ class FusedAdam(torch.optim.Adam):
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
         super(FusedAdam, self).__init__(params, lr, betas, eps, weight_decay, amsgrad)
 
-    def step(self, closure=None):
+    def step(self, closure=None, grads=None, output_params=None, scale=1):
         """Performs a single optimization step.
 
         Arguments:
@@ -42,9 +42,14 @@ class FusedAdam(torch.optim.Adam):
         loss = None
         if closure is not None:
             loss = closure()
-
+        if grads is not None:
+           assert len(self.param_groups)==1, "mixed precision optimizer works for a single group only"
         for group in self.param_groups:
-            for p in group['params']:
+            if grads is None:
+               grads = [None]*len(group['params'])
+            if output_params is None:
+               output_params = [None]*len(group['params'])
+            for p, grad, output_params in zip(group['params'],grads, output_params):
                 if p.grad is None:
                     continue
                 grad = p.grad.data
@@ -67,7 +72,7 @@ class FusedAdam(torch.optim.Adam):
                 state['step'] += 1
 
                 fused_adam_cuda.adam(p.data,
-                                     p.new_empty(p.size()),
+                                     torch.tensor([], dtype = torch.float),#p.new_empty(p.size()),
                                      exp_avg,
                                      exp_avg_sq,
                                      grad,
