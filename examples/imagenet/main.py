@@ -68,6 +68,8 @@ parser.add_argument('--prof', dest='prof', action='store_true',
 parser.add_argument('--deterministic', action='store_true')
 
 parser.add_argument("--local_rank", default=0, type=int)
+parser.add_argument('--sync_bn', action='store_true',
+                    help='enabling apex sync BN.')
 
 cudnn.benchmark = True
 
@@ -123,6 +125,11 @@ def main():
     else:
         print("=> creating model '{}'".format(args.arch))
         model = models.__dict__[args.arch]()
+
+    if args.sync_bn:
+        import apex
+        print("using apex synced BN")
+        model = apex.parallel.convert_syncbn_model(model)
 
     model = model.cuda()
     if args.fp16:

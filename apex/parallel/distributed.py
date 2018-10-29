@@ -83,9 +83,10 @@ class Reducer(object):
 
     :class:`Reducer` is designed to work with the launch utility script 
     ``apex.parallel.multiproc.py`` or the upstream launch utility script 
-    ``torch.distributed.launch`` with --nproc_per_node <= the number of gpus per node.
-    When used with these launchers, :class:`apex.parallel.multiproc.py` 
-    assumes 1:1 mapping of processes to GPUs.
+    ``torch.distributed.launch`` with ``--nproc_per_node <= number of gpus per node``.
+    For forward compatibility, ``torch.distributed.launch`` is recommended.
+    When used with these launchers, :class:`Reducer` assumes 1:1 mapping of processes to GPUs.
+    It also assumes that your script calls ``torch.cuda.set_device(args.rank)`` before creating the model.
 
     main_reducer.py in https://github.com/NVIDIA/apex/tree/master/examples/imagenet shows example usage.
 
@@ -114,22 +115,19 @@ class Reducer(object):
 class DistributedDataParallel(Module):
     """
     :class:`apex.parallel.DistributedDataParallel` is a module wrapper that enables
-    easy multiprocess distributed data parallel training, similar to ``torch.nn.parallel.DistributedDataParallel``.
-
-    :class:`DistributedDataParallel` is designed to work with
-    the launch utility script ``apex.parallel.multiproc.py``.  
-    When used with ``multiproc.py``, :class:`DistributedDataParallel` 
-    assigns 1 process to each of the available (visible) GPUs on the node.
-    Parameters are broadcast across participating processes on initialization, and gradients are
+    easy multiprocess distributed data parallel training, similar to ``torch.nn.parallel.DistributedDataParallel``.  Parameters are broadcast across participating processes on initialization, and gradients are
     allreduced and averaged over processes during ``backward()``.
 
     :class:`DistributedDataParallel` is optimized for use with NCCL.  It achieves high performance by 
     overlapping communication with computation during ``backward()`` and bucketing smaller gradient
     transfers to reduce the total number of transfers required.
 
-    :class:`DistributedDataParallel` assumes that your script accepts the command line 
-    arguments "rank" and "world-size."  It also assumes that your script calls
-    ``torch.cuda.set_device(args.rank)`` before creating the model.
+    :class:`DistributedDataParallel` is designed to work with the launch utility script 
+    ``apex.parallel.multiproc.py`` or the upstream launch utility script 
+    ``torch.distributed.launch`` with ``--nproc_per_node <= number of gpus per node``.
+    For forward compatibility, ``torch.distributed.launch`` is recommended.
+    When used with these launchers, :class:`DistributedDataParallel` assumes 1:1 mapping of processes to GPUs.
+    It also assumes that your script calls ``torch.cuda.set_device(args.rank)`` before creating the model.
 
     https://github.com/NVIDIA/apex/tree/master/examples/distributed shows detailed usage.
     https://github.com/NVIDIA/apex/tree/master/examples/imagenet shows another example

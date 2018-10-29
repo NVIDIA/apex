@@ -40,6 +40,11 @@ if "--cuda_ext" in sys.argv:
                                           'nvcc':['--gpu-architecture=sm_70', 
                                                   '-O3', 
                                                   '--use_fast_math']}))
+    ext_modules.append(
+        CUDAExtension(name='syncbn',
+                      sources=['csrc/syncbn.cpp',
+                               'csrc/welford.cu']))
+
 
 setup(
     name='apex',
