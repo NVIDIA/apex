@@ -18,26 +18,28 @@ if TORCH_MAJOR == 0 and TORCH_MINOR < 4:
 cmdclass = {}
 ext_modules = []
 
-# if "--cuda_ext" in sys.argv:
-from torch.utils.cpp_extension import CppExtension, CUDAExtension, BuildExtension
-# sys.argv.remove("--cuda_ext")
-cmdclass['build_ext'] = BuildExtension
-ext_modules.append(
-    CppExtension('apex_C',
-                 ['csrc/flatten_unflatten.cpp',]))
+if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension
 
-ext_modules.append(
-    CUDAExtension(name='fused_adam_cuda',
-                  sources=[
-                      'apex/optimizers/csrc/fused_adam_cuda.cpp',
-                      'apex/optimizers/csrc/fused_adam_cuda_kernel.cu'
-                  ],
-                  extra_compile_args={
-                      'cxx': ['-O3',],
-                      'nvcc':['--gpu-architecture=sm_70', '-O3', '--use_fast_math']
-                  }
-    )
-)
+if "--cpp_ext" in sys.argv:
+    from torch.utils.cpp_extension import CppExtension
+    sys.argv.remove("--cpp_ext")
+    ext_modules.append(
+        CppExtension('apex_C',
+                     ['csrc/flatten_unflatten.cpp',]))
+
+if "--cuda_ext" in sys.argv:
+    from torch.utils.cpp_extension import CUDAExtension
+    sys.argv.remove("--cuda_ext")
+    ext_modules.append(
+        CUDAExtension(name='fused_adam_cuda',
+                      sources=['apex/optimizers/csrc/fused_adam_cuda.cpp',
+                               'apex/optimizers/csrc/fused_adam_cuda_kernel.cu'],
+                      extra_compile_args={'cxx': ['-O3',],
+                                          'nvcc':['--gpu-architecture=sm_70', 
+                                                  '-O3', 
+                                                  '--use_fast_math']}))
 
 setup(
     name='apex',

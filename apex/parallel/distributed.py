@@ -1,6 +1,12 @@
 import torch
 # from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
-import apex_C
+try: 
+    from apex_C import flatten
+    from apex_C import unflatten
+except ImportError:
+    print("Apex was built without --cpp_ext; falling back to Python flatten and unflatten")
+    from torch._utils import _flatten_dense_tensors as flatten
+    from torch._utils import _unflatten_dense_tensors as unflatten
 import torch.distributed as dist
 from torch.nn.modules import Module
 from torch.autograd import Variable
@@ -11,7 +17,7 @@ import copy
 # apply_dist_call requires that tensors in 'bucket' are all the same type.
 def apply_flat_dist_call(bucket, call, extra_args=None):
 
-    coalesced = apex_C.flatten(bucket)
+    coalesced = flatten(bucket)
 
     if extra_args is not None:
         call(coalesced, *extra_args)
@@ -21,7 +27,7 @@ def apply_flat_dist_call(bucket, call, extra_args=None):
     if call is dist.all_reduce:
         coalesced /= dist.get_world_size()
         
-    for buf, synced in zip(bucket, apex_C.unflatten(coalesced, bucket)):
+    for buf, synced in zip(bucket, unflatten(coalesced, bucket)):
         buf.copy_(synced)
 
 def split_half_float_double(tensors):
@@ -331,7 +337,7 @@ class DistributedDataParallel(Module):
                 wrapper(param)
 
     def allreduce_bucket(self, bucket):
-        tensor = apex_C.flatten(bucket)
+        tensor = flatten(bucket)
 
         tensor_to_allreduce = tensor 
 
@@ -359,7 +365,7 @@ class DistributedDataParallel(Module):
                                    "allreduce buffer.  This is almost certainly an error.")
             self.allreduce_buffers[bucket_idx] = allreduced
         else:
-            for buf, synced in zip(bucket, apex_C.unflatten(allreduced, bucket)):
+            for buf, synced in zip(bucket, unflatten(allreduced, bucket)):
                 buf.copy_(synced)
 
 
