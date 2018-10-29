@@ -33,20 +33,23 @@ class Model(Module):
     def forward(self, input):
         return (input*self.a)*self.b
 
-model = DDP(Model(), message_size=1)
-# model = DDP(Model(), delay_allreduce=True)
+model = Model()
+# model = DDP(model, message_size=1, gradient_average_split_factor=2.0)
+# model = DDP(model, delay_allreduce=True)
+model = DDP(model, message_size=1, allreduce_trigger_params=[model.b])
 
 x = torch.cuda.FloatTensor(4096*4096)
 
 passed = True
+torch.cuda.cudart().cudaProfilerStart()
 for i in range(10):
     x.fill_(i + args.local_rank) # fill x with new values every iteration for sanity
     model.zero_grad()
     out = model(x)
     loss = out.sum()
-    # torch.cuda.nvtx.range_push("backward")
+    torch.cuda.nvtx.range_push("backward")
     loss.backward()
-    # torch.cuda.nvtx.range_pop()
+    torch.cuda.nvtx.range_pop()
     
     # torch.cuda.nvtx.range_push("synchronize() + info")
     # torch.cuda.synchronize()
@@ -60,5 +63,6 @@ for i in range(10):
     if not info("model.a", model.module.a, 2.):  passed = False
     if not info("model.b", model.module.b, 1.):  passed = False
     # torch.cuda.nvtx.range_pop()
+torch.cuda.cudart().cudaProfilerStop()
 
 print("passed = ", passed)

@@ -65,6 +65,7 @@ parser.add_argument('--static-loss-scale', type=float, default=1,
                     help='Static loss scale, positive power of 2 values can improve fp16 convergence.')
 parser.add_argument('--prof', dest='prof', action='store_true',
                     help='Only run 10 iterations for profiling.')
+parser.add_argument('--deterministic', action='store_true')
 
 parser.add_argument("--local_rank", default=0, type=int)
 parser.add_argument('--sync_bn', action='store_true',
@@ -91,6 +92,11 @@ def fast_collate(batch):
 
 best_prec1 = 0
 args = parser.parse_args()
+
+if args.deterministic:
+    cudnn.benchmark = False
+    cudnn.deterministic = True
+    torch.manual_seed(args.local_rank)
 
 def main():
     global best_prec1, args
