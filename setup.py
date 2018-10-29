@@ -18,14 +18,16 @@ if TORCH_MAJOR == 0 and TORCH_MINOR < 4:
 cmdclass = {}
 ext_modules = []
 
-# if "--cuda_ext" in sys.argv:
-from torch.utils.cpp_extension import CppExtension, BuildExtension
-# sys.argv.remove("--cuda_ext")
-cmdclass['build_ext'] = BuildExtension
-ext_modules.append(
-    CppExtension('apex_C',
-                 ['csrc/flatten_unflatten.cpp',]))
+if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension
 
+if "--cpp_ext" in sys.argv:
+    from torch.utils.cpp_extension import CppExtension
+    sys.argv.remove("--cpp_ext")
+    ext_modules.append(
+        CppExtension('apex_C',
+                     ['csrc/flatten_unflatten.cpp',]))
 
 setup(
     name='apex',
