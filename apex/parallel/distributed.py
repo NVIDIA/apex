@@ -4,7 +4,7 @@ try:
     from apex_C import flatten
     from apex_C import unflatten
 except ImportError:
-    print("Apex was built without --cpp_ext; falling back to Python flatten and unflatten")
+    print("Warning:  apex was installed without --cpp_ext.  Falling back to Python flatten and unflatten.")
     from torch._utils import _flatten_dense_tensors as flatten
     from torch._utils import _unflatten_dense_tensors as unflatten
 import torch.distributed as dist

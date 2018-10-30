@@ -3,10 +3,9 @@ import torch
 from .distributed import DistributedDataParallel, Reducer
 try:
     import syncbn
-    print("using fused syncBN")
     from .optimized_sync_batchnorm import SyncBatchNorm
 except ImportError:
-    print("using non-fused syncBN, try install apex with 'python setup.py install --cuda_ext' to enable fused syncBN for better performance")
+    print("Warning:  apex was installed without --cuda_ext. Fused syncbn kernels will be unavailable.  Python fallbacks will be used instead.")
     from .sync_batchnorm import SyncBatchNorm
 
 def convert_syncbn_model(module):
