@@ -94,14 +94,16 @@ import apex
 ```
 
 ### CUDA/C++ extension
-To build Apex with CUDA/C++ extension, follow the Linux instruction with the
-`--cuda_ext` option enabled
+Apex contains optional CUDA/C++ extensions, installable via
 ```
-python setup.py install --cuda_ext
+python setup.py install [--cuda_ext] [--cpp_ext]
 ```
+Currently, `--cuda_ext` enables
+- Fused kernels that improve the performance and numerical stability of `apex.parallel.SyncBatchNorm`.
+- Fused kernels required to use `apex.optimizers.FusedAdam`.
 
-CUDA/C++ extension provides customed synchronized Batch Normalization kernels
-that provides better performance and numerical accuracy.
+`--cpp_ext` enables
+- C++-side flattening and unflattening utilities that reduce the CPU overhead of `apex.parallel.DistributedDataParallel`.
 
 ### Windows support
 Windows support is experimental, and Linux is recommended.  However, since Apex could be Python-only, there's a good chance the Python-only features "just works" the same way as Linux.  If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.

@@ -81,11 +81,9 @@ class Reducer(object):
     Like :class:`DistributedDataParallel`, :class:`Reducer` averages any tensors it allreduces 
     over the number of participating processes.
 
-    :class:`Reducer` is designed to work with the launch utility script 
-    ``apex.parallel.multiproc.py`` or the upstream launch utility script 
+    :class:`Reducer` is designed to work with the upstream launch utility script 
     ``torch.distributed.launch`` with ``--nproc_per_node <= number of gpus per node``.
-    For forward compatibility, ``torch.distributed.launch`` is recommended.
-    When used with these launchers, :class:`Reducer` assumes 1:1 mapping of processes to GPUs.
+    When used with this launcher, :class:`Reducer` assumes 1:1 mapping of processes to GPUs.
     It also assumes that your script calls ``torch.cuda.set_device(args.rank)`` before creating the model.
 
     main_reducer.py in https://github.com/NVIDIA/apex/tree/master/examples/imagenet shows example usage.
@@ -122,11 +120,9 @@ class DistributedDataParallel(Module):
     overlapping communication with computation during ``backward()`` and bucketing smaller gradient
     transfers to reduce the total number of transfers required.
 
-    :class:`DistributedDataParallel` is designed to work with the launch utility script 
-    ``apex.parallel.multiproc.py`` or the upstream launch utility script 
+    :class:`DistributedDataParallel` is designed to work with the upstream launch utility script 
     ``torch.distributed.launch`` with ``--nproc_per_node <= number of gpus per node``.
-    For forward compatibility, ``torch.distributed.launch`` is recommended.
-    When used with these launchers, :class:`DistributedDataParallel` assumes 1:1 mapping of processes to GPUs.
+    When used with this launcher, :class:`DistributedDataParallel` assumes 1:1 mapping of processes to GPUs.
     It also assumes that your script calls ``torch.cuda.set_device(args.rank)`` before creating the model.
 
     https://github.com/NVIDIA/apex/tree/master/examples/distributed shows detailed usage.
@@ -135,8 +131,11 @@ class DistributedDataParallel(Module):
 
     Args:
         module: Network definition to be run in multi-gpu/distributed mode.
-        message_size (Default = 1e7): Minimum number of elements in a communication bucket.
-        delay_allreduce (Default = False):  Delay all communication to the end of the backward pass.  This disables overlapping communication with computation.
+        message_size (int, default=1e7): Minimum number of elements in a communication bucket.
+        delay_allreduce (bool, default=False):  Delay all communication to the end of the backward pass.  This disables overlapping communication with computation.
+        allreduce_trigger_params (list, optional, default=None):  If supplied, should contain a list of parameters drawn from the model.  Allreduces will be kicked off whenever one of these parameters receives its gradient (as opposed to when a bucket of size message_size is full).  At the end of backward(), a cleanup allreduce to catch any remaining gradients will also be performed automatically.  If allreduce_trigger_params is supplied, the message_size argument will be ignored.
+        allreduce_always_fp32 (bool, default=False):  Convert any FP16 gradients to FP32 before allreducing.  This can improve stability for widely scaled-out runs.
+        gradient_average_split_factor (float, default=1.0):  Perform the averaging of gradients over proceses partially before and partially after the allreduce.  Before allreduce:  grads.mul_(1.0/gradient_average_split_factor).  After allreduce:  grads.mul_(gradient_average_split_factor/world size).  This can reduce the stress on the dynamic range of FP16 allreduces for widely scaled-out runs.
 
     """
 
