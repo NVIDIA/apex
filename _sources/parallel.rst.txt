@@ -15,3 +15,11 @@ apex.parallel
 
 .. autoclass:: Reducer
     :members:
+
+.. autoclass:: SyncBatchNorm
+    :members:
+
+Utility functions
+----------------------------------
+
+.. autofunction:: convert_syncbn_model

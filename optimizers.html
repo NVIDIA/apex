@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Python Module Index &mdash; Apex 0.1.0 documentation</title>
+  <title>apex.optimizers &mdash; Apex 0.1.0 documentation</title>
   
 
   
@@ -40,9 +40,7 @@
               href="genindex.html"/>
         <link rel="search" title="Search" href="search.html"/>
     <link rel="top" title="Apex 0.1.0 documentation" href="index.html"/>
- 
-
-
+        <link rel="prev" title="apex.parallel" href="parallel.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -116,8 +114,8 @@
 </li>
 </ul>
 <p class="caption"><span class="caption-text">Fused Optimizers</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="optimizers.html">apex.optimizers</a></li>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">apex.optimizers</a></li>
 </ul>
 
             
@@ -162,12 +160,14 @@
     
       <li><a href="index.html">Docs</a> &raquo;</li>
         
-      <li>Python Module Index</li>
+      <li>apex.optimizers</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
             
+            <a href="_sources/optimizers.rst.txt" rel="nofollow"> View page source</a>
+          
         
       </li>
     
@@ -179,39 +179,52 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
+  <div class="section" id="module-apex.optimizers">
+<span id="apex-optimizers"></span><h1>apex.optimizers<a class="headerlink" href="#module-apex.optimizers" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="apex.optimizers.FusedAdam">
+<em class="property">class </em><code class="descclassname">apex.optimizers.</code><code class="descname">FusedAdam</code><span class="sig-paren">(</span><em>params</em>, <em>lr=0.001</em>, <em>betas=(0.9</em>, <em>0.999)</em>, <em>eps=1e-08</em>, <em>weight_decay=0</em>, <em>amsgrad=False</em>, <em>eps_inside_sqrt=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_adam.html#FusedAdam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedAdam" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implements Adam algorithm.</p>
+<p>It has been proposed in <a class="reference external" href="https://arxiv.org/abs/1412.6980">Adam: A Method for Stochastic Optimization</a>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>params</strong> (<em>iterable</em>) – iterable of parameters to optimize or dicts defining
+parameter groups</li>
+<li><strong>lr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – learning rate (default: 1e-3)</li>
+<li><strong>betas</strong> (<em>Tuple</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>]</em><em>, </em><em>optional</em>) – coefficients used for computing
+running averages of gradient and its square (default: (0.9, 0.999))</li>
+<li><strong>eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – term added to the denominator to improve
+numerical stability (default: 1e-8)</li>
+<li><strong>weight_decay</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – weight decay (L2 penalty) (default: 0)</li>
+<li><strong>amsgrad</strong> (<em>boolean</em><em>, </em><em>optional</em>) – whether to use the AMSGrad variant of this
+algorithm from the paper <a class="reference external" href="https://openreview.net/forum?id=ryQu7f-RZ">On the Convergence of Adam and Beyond</a>
+(default: False) NOT SUPPORTED in FusedAdam!</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="apex.optimizers.FusedAdam.step">
+<code class="descname">step</code><span class="sig-paren">(</span><em>closure=None</em>, <em>grads=None</em>, <em>output_params=None</em>, <em>scale=1.0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_adam.html#FusedAdam.step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedAdam.step" title="Permalink to this definition">¶</a></dt>
+<dd><p>Performs a single optimization step.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>closure</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#callable" title="(in Python v3.7)"><em>callable</em></a><em>, </em><em>optional</em>) – A closure that reevaluates the model
+and returns the loss.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
-   <h1>Python Module Index</h1>
+</dd></dl>
 
-   <div class="modindex-jumpbox">
-   <a href="#cap-a"><strong>a</strong></a>
-   </div>
-
-   <table class="indextable modindextable">
-     <tr class="pcap"><td></td><td>&#160;</td><td></td></tr>
-     <tr class="cap" id="cap-a"><td></td><td>
-       <strong>a</strong></td><td></td></tr>
-     <tr>
-       <td><img src="_static/minus.png" class="toggler"
-              id="toggle-1" style="display: none" alt="-" /></td>
-       <td>
-       <code class="xref">apex</code></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="fp16_utils.html#module-apex.fp16_utils"><code class="xref">apex.fp16_utils</code></a></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="optimizers.html#module-apex.optimizers"><code class="xref">apex.optimizers</code></a></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="parallel.html#module-apex.parallel"><code class="xref">apex.parallel</code></a></td><td>
-       <em></em></td></tr>
-   </table>
+</div>
 
 
            </div>
@@ -220,6 +233,13 @@
            </div>
           </div>
           <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+      
+        <a href="parallel.html" class="btn btn-neutral" title="apex.parallel" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
   
 
   <hr/>

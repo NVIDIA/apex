@@ -17,7 +17,7 @@ Installation requires CUDA 9 or later, PyTorch 0.4 or later, and Python 3. Insta
 
    git clone https://www.github.com/nvidia/apex
    cd apex
-   python setup.py install
+   python setup.py install [--cuda_ext] [--cpp_ext]
 
 	       
 .. toctree::
@@ -37,6 +37,12 @@ Installation requires CUDA 9 or later, PyTorch 0.4 or later, and Python 3. Insta
    :caption: Distributed Training
 
    parallel
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Fused Optimizers
+
+   optimizers
 
 ..   reparameterization
 ..   RNN

@@ -108,7 +108,14 @@
 </ul>
 <p class="caption"><span class="caption-text">Distributed Training</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="parallel.html#utility-functions">Utility functions</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Fused Optimizers</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="optimizers.html">apex.optimizers</a></li>
 </ul>
 
             
@@ -196,6 +203,8 @@
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="optimizers.html#module-apex.optimizers">apex.optimizers (module)</a>
+</li>
       <li><a href="parallel.html#module-apex.parallel">apex.parallel (module)</a>
 </li>
   </ul></td>
@@ -213,6 +222,10 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.clip_master_grads">clip_master_grads() (apex.fp16_utils.FP16_Optimizer method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="parallel.html#apex.parallel.convert_syncbn_model">convert_syncbn_model() (in module apex.parallel)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -237,6 +250,8 @@
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="fp16_utils.html#apex.fp16_utils.Fused_Weight_Norm">Fused_Weight_Norm (class in apex.fp16_utils)</a>
+</li>
+      <li><a href="optimizers.html#apex.optimizers.FusedAdam">FusedAdam (class in apex.optimizers)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -294,9 +309,15 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.state_dict">state_dict() (apex.fp16_utils.FP16_Optimizer method)</a>
 </li>
+      <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.step">step() (apex.fp16_utils.FP16_Optimizer method)</a>
+
+      <ul>
+        <li><a href="optimizers.html#apex.optimizers.FusedAdam.step">(apex.optimizers.FusedAdam method)</a>
+</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="fp16_utils.html#apex.fp16_utils.FP16_Optimizer.step">step() (apex.fp16_utils.FP16_Optimizer method)</a>
+      <li><a href="parallel.html#apex.parallel.SyncBatchNorm">SyncBatchNorm (class in apex.parallel)</a>
 </li>
   </ul></td>
 </tr></table>
