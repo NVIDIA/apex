@@ -35,7 +35,7 @@ class TestFusedAdam(unittest.TestCase):
         half_grads = []
         for p_ref, p_tst in zip(ref_param, tst_param):
             half_grads.append(torch.rand_like(p_ref).half())
-            p_ref.grad = half_grads[-1].float() * scale
+            p_ref.grad = half_grads[-1].float() / scale
         return half_grads
 
     def get_max_diff(self, ref_param, tst_param):
@@ -50,8 +50,7 @@ class TestFusedAdam(unittest.TestCase):
         return max_abs_diff, max_rel_diff
 
     def gen_single_type_test(self, param_type=torch.float):
-        # Flattened master weight configuration from GNMT
-        nelem = 278011553
+        nelem = 278011
         adam_option = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08,
             'weight_decay':0, 'amsgrad':False}
 
@@ -75,8 +74,7 @@ class TestFusedAdam(unittest.TestCase):
         self.gen_single_type_test(param_type=torch.float)
 
     def test_half(self):
-        # Flattened master weight configuration from GNMT
-        nelem = 278011553
+        nelem = 278011
         adam_option = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08,
             'weight_decay':0, 'amsgrad':False}
 
@@ -114,8 +112,7 @@ class TestFusedAdam(unittest.TestCase):
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
     def test_scale(self):
-        # Flattened master weight configuration from GNMT
-        nelem = 278011553
+        nelem = 278011
         adam_option = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08,
             'weight_decay':0, 'amsgrad':False}
 
@@ -134,8 +131,7 @@ class TestFusedAdam(unittest.TestCase):
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
     def test_fp16_output(self):
-        # Flattened master weight configuration from GNMT
-        nelem = 278011553
+        nelem = 278011
         adam_option = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08,
             'weight_decay':0, 'amsgrad':False}
 
@@ -154,12 +150,12 @@ class TestFusedAdam(unittest.TestCase):
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
-            max_abs_diff, max_rel_diff = self.get_max_diff(tst_param, fp16_param)
+            max_abs_diff, max_rel_diff = self.get_max_diff(tst_param, \
+                [fp16_param.float()])
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
     def test_adam_option(self):
-        # Flattened master weight configuration from GNMT
         nelem = 1
         adam_option = {'lr':0.01, 'betas':(0.6, 0.9), 'eps':3e-06,
             'weight_decay':0, 'amsgrad':False}
