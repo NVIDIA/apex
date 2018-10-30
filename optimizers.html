@@ -192,16 +192,20 @@
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>params</strong> (<em>iterable</em>) – iterable of parameters to optimize or dicts defining
-parameter groups</li>
-<li><strong>lr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – learning rate (default: 1e-3)</li>
+parameter groups.</li>
+<li><strong>lr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – learning rate. (default: 1e-3)</li>
 <li><strong>betas</strong> (<em>Tuple</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>]</em><em>, </em><em>optional</em>) – coefficients used for computing
-running averages of gradient and its square (default: (0.9, 0.999))</li>
+running averages of gradient and its square. (default: (0.9, 0.999))</li>
 <li><strong>eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – term added to the denominator to improve
-numerical stability (default: 1e-8)</li>
+numerical stability. (default: 1e-8)</li>
 <li><strong>weight_decay</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – weight decay (L2 penalty) (default: 0)</li>
 <li><strong>amsgrad</strong> (<em>boolean</em><em>, </em><em>optional</em>) – whether to use the AMSGrad variant of this
 algorithm from the paper <a class="reference external" href="https://openreview.net/forum?id=ryQu7f-RZ">On the Convergence of Adam and Beyond</a>
 (default: False) NOT SUPPORTED in FusedAdam!</li>
+<li><strong>eps_inside_sqrt</strong> (<em>boolean</em><em>, </em><em>optional</em>) – in the ‘update parameters’ step,
+adds eps to the bias-corrected second moment estimate before
+evaluating square root instead of adding it to the square root of
+second moment estimate as in the original paper. (default: False)</li>
 </ul>
 </td>
 </tr>
@@ -215,8 +219,17 @@ algorithm from the paper <a class="reference external" href="https://openreview.
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>closure</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#callable" title="(in Python v3.7)"><em>callable</em></a><em>, </em><em>optional</em>) – A closure that reevaluates the model
-and returns the loss.</td>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>closure</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#callable" title="(in Python v3.7)"><em>callable</em></a><em>, </em><em>optional</em>) – A closure that reevaluates the model
+and returns the loss.</li>
+<li><strong>grads</strong> (<em>list of tensors</em><em>, </em><em>optional</em>) – weight gradient to use for the
+optimizer update. (default: None)</li>
+<li><strong>params</strong> (<em>output</em>) – A reduced precision copy
+of the updated weights written out in addition to the regular
+updated weights. (default: None)</li>
+<li><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – scaling factor for gradients. (default: 1)</li>
+</ul>
+</td>
 </tr>
 </tbody>
 </table>
