@@ -10,6 +10,7 @@ class TestFusedAdam(unittest.TestCase):
         self.max_abs_diff = max_abs_diff
         self.max_rel_diff = max_rel_diff
         self.iters = iters
+        torch.cuda.manual_seed(9876)
 
     def tearDown(self):
         pass
@@ -107,7 +108,6 @@ class TestFusedAdam(unittest.TestCase):
             ref_optim.step()
             tst_optim.step(grads=half_grads)
             max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
-
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
@@ -173,15 +173,7 @@ class TestFusedAdam(unittest.TestCase):
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
-def print_suite(suite):
-    if hasattr(suite, '__iter__'):
-        for x in suite:
-            print_suite(x)
-    else:
-        print(suite)
 
 if __name__ == '__main__':
     script_path = os.path.dirname(os.path.realpath(__file__))
-    print_suite(unittest.defaultTestLoader.discover(script_path))
-
     unittest.main()
