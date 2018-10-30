@@ -9,16 +9,20 @@ class FusedAdam(torch.optim.Adam):
 
     Arguments:
         params (iterable): iterable of parameters to optimize or dicts defining
-            parameter groups
-        lr (float, optional): learning rate (default: 1e-3)
+            parameter groups.
+        lr (float, optional): learning rate. (default: 1e-3)
         betas (Tuple[float, float], optional): coefficients used for computing
-            running averages of gradient and its square (default: (0.9, 0.999))
+            running averages of gradient and its square. (default: (0.9, 0.999))
         eps (float, optional): term added to the denominator to improve
-            numerical stability (default: 1e-8)
+            numerical stability. (default: 1e-8)
         weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
         amsgrad (boolean, optional): whether to use the AMSGrad variant of this
             algorithm from the paper `On the Convergence of Adam and Beyond`_
             (default: False) NOT SUPPORTED in FusedAdam!
+        eps_inside_sqrt (boolean, optional): in the 'update parameters' step, 
+            adds eps to the bias-corrected second moment estimate before 
+            evaluating square root instead of adding it to the square root of
+            second moment estimate as in the original paper. (default: False)
 
     .. _Adam\: A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
@@ -39,6 +43,12 @@ class FusedAdam(torch.optim.Adam):
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
+            grads (list of tensors, optional): weight gradient to use for the 
+                optimizer update. (default: None)
+            output params (list of tensors, optional): A reduced precision copy 
+                of the updated weights written out in addition to the regular 
+                updated weights. (default: None)
+            scale (float, optional): scaling factor for gradients. (default: 1)
         """
         loss = None
         if closure is not None:
