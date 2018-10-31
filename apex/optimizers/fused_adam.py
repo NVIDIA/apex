@@ -3,7 +3,7 @@ import fused_adam_cuda
 
 class FusedAdam(torch.optim.Adam):
 
-    """Implements Adam algorithm.
+    """Implements Adam algorithm. Currently GPU-only.
 
     It has been proposed in `Adam: A Method for Stochastic Optimization`_.
 
@@ -44,11 +44,13 @@ class FusedAdam(torch.optim.Adam):
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
             grads (list of tensors, optional): weight gradient to use for the 
-                optimizer update. (default: None)
+                optimizer update. If gradients have type torch.half, parameters 
+                are expected to be in type torch.float. (default: None)
             output params (list of tensors, optional): A reduced precision copy 
                 of the updated weights written out in addition to the regular 
-                updated weights. (default: None)
-            scale (float, optional): scaling factor for gradients. (default: 1)
+                updated weights. Have to be of same type as gradients. (default: None)
+            scale (float, optional): factor to divide gradient tensor values
+                by before applying to weights. (default: 1)
         """
         loss = None
         if closure is not None:
