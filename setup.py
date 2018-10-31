@@ -49,8 +49,7 @@ if "--cuda_ext" in sys.argv:
                       sources=['apex/normalization/csrc/layer_norm_cuda.cpp',
                                'apex/normalization/csrc/layer_norm_cuda_kernel.cu'],
                       extra_compile_args={'cxx': ['-O3',],
-                                          'nvcc':['--gpu-architecture=sm_70', 
-					          '-maxrregcount=50',
+                                          'nvcc':['-maxrregcount=50',
                                                   '-O3', 
                                                   '--use_fast_math']}))
 

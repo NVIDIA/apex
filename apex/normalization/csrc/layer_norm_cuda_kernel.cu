@@ -1,5 +1,7 @@
-#include <ATen/ATen.h>
+#include "ATen/ATen.h"
+#include "ATen/AccumulateType.h"
 #include "ATen/cuda/CUDAContext.h"
+#include <THC/THCDeviceUtils.cuh>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -84,9 +86,9 @@ void cuWelfordMuSigma2(
     // intra-warp reductions
     for (int l = 0;  l <= 4;  ++l) {
       int srcLaneB = (threadIdx.x+(1<<l))&31;
-      U muB = __shfl_sync(0xffffffff, mu, srcLaneB);
-      U countB = __shfl_sync(0xffffffff, count, srcLaneB);
-      U sigma2B = __shfl_sync(0xffffffff, sigma2, srcLaneB);
+      U muB = WARP_SHFL(mu, srcLaneB);
+      U countB = WARP_SHFL(count, srcLaneB);
+      U sigma2B = WARP_SHFL(sigma2, srcLaneB);
       cuChanOnlineSum<U>(muB,sigma2B,countB,mu,sigma2,count);
     }
     // threadIdx.x == 0 has correct values for each warp
@@ -122,8 +124,8 @@ void cuWelfordMuSigma2(
       sigma2 = ubuf[1]/U(n2);
       // don't care about final value of count, we know count == n2
     } else {
-      mu = __shfl_sync(0xffffffff, mu, 0);
-      sigma2 = __shfl_sync(0xffffffff, sigma2/U(n2), 0);
+      mu = WARP_SHFL(mu, 0);
+      sigma2 = WARP_SHFL(sigma2/U(n2), 0);
     }
   }
 }
@@ -179,9 +181,9 @@ void cuWelfordMuSigma2(
     // intra-warp reductions
     for (int l = 0;  l <= 4;  ++l) {
       int srcLaneB = (threadIdx.x+(1<<l))&31;
-      float muB = __shfl_sync(0xffffffff, mu, srcLaneB);
-      float countB = __shfl_sync(0xffffffff, count, srcLaneB);
-      float sigma2B = __shfl_sync(0xffffffff, sigma2, srcLaneB);
+      float muB = WARP_SHFL(mu, srcLaneB);
+      float countB = WARP_SHFL(count, srcLaneB);
+      float sigma2B = WARP_SHFL(sigma2, srcLaneB);
       cuChanOnlineSum(muB,sigma2B,countB,mu,sigma2,count);
     }
     // threadIdx.x == 0 has correct values for each warp
@@ -217,8 +219,8 @@ void cuWelfordMuSigma2(
       sigma2 = ubuf[1]/float(n2);
       // don't care about final value of count, we know count == n2
     } else {
-      mu = __shfl_sync(0xffffffff, mu, 0);
-      sigma2 = __shfl_sync(0xffffffff, sigma2/float(n2), 0);
+      mu = WARP_SHFL(mu, 0);
+      sigma2 = WARP_SHFL(sigma2/float(n2), 0);
     }
   }
 }
@@ -570,8 +572,8 @@ void cuComputeGradInput(
     }
     // intra-warp reductions
     for (int mask = blockDim.x/2;  mask > 0;  mask /= 2) {
-      sum_loss1 += __shfl_xor_sync(0xffffffff, sum_loss1, mask);
-      sum_loss2 += __shfl_xor_sync(0xffffffff, sum_loss2, mask);
+      sum_loss1 += WARP_SHFL_XOR(sum_loss1, mask);
+      sum_loss2 += WARP_SHFL_XOR(sum_loss2, mask);
     }
     // inter-warp reductions
     if (blockDim.y > 1) {
@@ -631,11 +633,11 @@ void cuComputeGradInput(
   }
 }
 
-template<typename T> 
+template<typename T, typename U> 
 void HostApplyLayerNorm(
     T* output,
-    at::Tensor* mean,
-    at::Tensor* invvar,
+    U* mean,
+    U* invvar,
     const T* input,
     int n1,
     int n2,
@@ -649,73 +651,15 @@ void HostApplyLayerNorm(
     const dim3 blocks(1,n1,1);
     int nshared = 
         threads.y > 1 ? 
-	    threads.y*sizeof(float)+(threads.y/2)*sizeof(float) : 
+	    threads.y*sizeof(U)+(threads.y/2)*sizeof(U) : 
 	    0;
     cuApplyLayerNorm<<<blocks, threads, nshared, stream>>>(
 		    output,
-		    mean->data<float>(),
-		    invvar->data<float>(),
+		    mean,
+		    invvar,
 		    input,
 		    n1,n2,
-		    (float)epsilon,
-                    gamma,beta);
-}
-template<> 
-void HostApplyLayerNorm(
-    int64_t* output,
-    at::Tensor* mean,
-    at::Tensor* invvar,
-    const int64_t* input,
-    int n1,
-    int n2,
-    double epsilon,
-    const int64_t* gamma,
-    const int64_t* beta
-    )
-{
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
-    const dim3 threads(32,4,1);
-    const dim3 blocks(1,n1,1);
-    int nshared = 
-        threads.y > 1 ? 
-	    threads.y*sizeof(double)+(threads.y/2)*sizeof(double) : 
-	    0;
-    cuApplyLayerNorm<<<blocks, threads, nshared, stream>>>(
-		    output,
-		    mean->data<double>(),
-		    invvar->data<double>(),
-		    input,
-		    n1,n2,
-		    (double)epsilon,
-                    gamma,beta);
-}
-template<> 
-void HostApplyLayerNorm(
-    double* output,
-    at::Tensor* mean,
-    at::Tensor* invvar,
-    const double* input,
-    int n1,
-    int n2,
-    double epsilon,
-    const double* gamma,
-    const double* beta
-    )
-{
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
-    const dim3 threads(32,4,1);
-    const dim3 blocks(1,n1,1);
-    int nshared = 
-        threads.y > 1 ? 
-	    threads.y*sizeof(double)+(threads.y/2)*sizeof(double) : 
-	    0;
-    cuApplyLayerNorm<<<blocks, threads, nshared, stream>>>(
-		    output,
-		    mean->data<double>(),
-		    invvar->data<double>(),
-		    input,
-		    n1,n2,
-		    (double)epsilon,
+		    U(epsilon),
                     gamma,beta);
 }
 
@@ -731,11 +675,12 @@ void cuda_layer_norm(
     at::Tensor* beta,
     double epsilon)
 {
-    AT_DISPATCH_ALL_TYPES_AND_HALF(input->type(), "layer_norm_cuda_kernel", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input->type(), "layer_norm_cuda_kernel", ([&] {
+        using accscalar_t = at::acc_type<scalar_t, true>;
         HostApplyLayerNorm(
             output->data<scalar_t>(),
-	    mean,
-	    invvar,
+	    mean->data<accscalar_t>(),
+	    invvar->data<accscalar_t>(),
 	    input->data<scalar_t>(),
 	    n1,n2,
 	    epsilon,
@@ -744,20 +689,20 @@ void cuda_layer_norm(
       }));
 }
 
-template<typename T> 
+template<typename T, typename U> 
 void HostLayerNormGradient(
     const T* dout,
-    at::Tensor* mean,
-    at::Tensor* invvar,
+    const U* mean,
+    const U* invvar,
     at::Tensor* input,
     int n1,
     int n2,
     const T* gamma,
     const T* beta,
     double epsilon,
-    at::Tensor* grad_input,
-    at::Tensor* grad_gamma,
-    at::Tensor* grad_beta
+    T* grad_input,
+    T* grad_gamma,
+    T* grad_beta
     )
 {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
@@ -767,31 +712,31 @@ void HostLayerNormGradient(
       const int part_size = 16;
       const dim3 threads2(32,4,1);
       const dim3 blocks2((n2+threads2.x-1)/threads2.x,part_size,1);
-      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input->options().dtype(at::kFloat));
-      at::Tensor part_grad_beta = at::empty({part_size,n2}, input->options().dtype(at::kFloat));
-      const int nshared2_a = 2 * sizeof(float) * threads2.y * threads2.y * (threads2.x + 1);
-      const int nshared2_b = threads2.x * threads2.y * sizeof(float);
+      const int nshared2_a = 2 * sizeof(U) * threads2.y * threads2.y * (threads2.x + 1);
+      const int nshared2_b = threads2.x * threads2.y * sizeof(U);
       const int nshared2 = nshared2_a > nshared2_b ? nshared2_a : nshared2_b;
+      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input->options().dtype(input->type().scalarType()==at::ScalarType::Half ? at::ScalarType::Float : input->type().scalarType()));
+      at::Tensor part_grad_beta = at::empty_like(part_grad_gamma);
       cuComputePartGradGammaBeta<<<blocks2, threads2, nshared2, stream>>>(
 		      dout,
 		      input->data<T>(),
 		      n1,n2,
-		      mean->data<float>(),
-		      invvar->data<float>(),
-		      (float)epsilon,
-		      part_grad_gamma.data<float>(),
-		      part_grad_beta.data<float>());
+		      mean,
+		      invvar,
+		      U(epsilon),
+		      part_grad_gamma.data<U>(),
+		      part_grad_beta.data<U>());
 
       const dim3 threads3(32,8,1);
       const dim3 blocks3((n2+threads2.x-1)/threads2.x,1,1);
-      const int nshared3 = threads3.x * threads3.y * sizeof(float);
+      const int nshared3 = threads3.x * threads3.y * sizeof(U);
       cuComputeGradGammaBeta<<<blocks3, threads3, nshared3, stream>>>(
-		      part_grad_gamma.data<float>(),
-		      part_grad_beta.data<float>(),
+		      part_grad_gamma.data<U>(),
+		      part_grad_beta.data<U>(),
 		      part_size,
 		      n1,n2,
-		      grad_gamma->data<T>(),
-		      grad_beta->data<T>());
+		      grad_gamma,
+		      grad_beta);
     }
 
     // compute grad_input
@@ -799,151 +744,17 @@ void HostLayerNormGradient(
     const dim3 blocks1(1,n1,1);
     int nshared =
 	    threads1.y > 1 ?
-	    threads1.y*threads1.x*sizeof(float) :
+	    threads1.y*threads1.x*sizeof(U) :
 	    0;
     cuComputeGradInput<<<blocks1, threads1, nshared, stream>>>(
             dout,
             input->data<T>(),
             n1,n2,
-            mean->data<float>(),
-            invvar->data<float>(),
-            (float)epsilon,
+            mean,
+            invvar,
+            U(epsilon),
             gamma,
-            grad_input->data<T>());
-}
-template<> 
-void HostLayerNormGradient(
-    const int64_t* dout,
-    at::Tensor* mean,
-    at::Tensor* invvar,
-    at::Tensor* input,
-    int n1,
-    int n2,
-    const int64_t* gamma,
-    const int64_t* beta,
-    double epsilon,
-    at::Tensor* grad_input,
-    at::Tensor* grad_gamma,
-    at::Tensor* grad_beta
-    )
-{
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
-
-    if (gamma != NULL && beta != NULL) {
-      // compute grad_gamma(j) and grad_beta(j)
-      const int part_size = 16;
-      const dim3 threads2(32,4,1);
-      const dim3 blocks2((n2+threads2.x-1)/threads2.x,part_size,1);
-      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input->options().dtype(at::kDouble));
-      at::Tensor part_grad_beta = at::empty({part_size,n2}, input->options().dtype(at::kDouble));
-      const int nshared2_a = 2 * sizeof(double) * threads2.y * threads2.y * (threads2.x + 1);
-      const int nshared2_b = threads2.x * threads2.y * sizeof(double);
-      const int nshared2 = nshared2_a > nshared2_b ? nshared2_a : nshared2_b;
-      cuComputePartGradGammaBeta<<<blocks2, threads2, nshared2, stream>>>(
-		      dout,
-		      input->data<int64_t>(),
-		      n1,n2,
-		      mean->data<double>(),
-		      invvar->data<double>(),
-		      (double)epsilon,
-		      part_grad_gamma.data<double>(),
-		      part_grad_beta.data<double>());
-
-      const dim3 threads3(32,8,1);
-      const dim3 blocks3((n2+threads2.x-1)/threads2.x,1,1);
-      const int nshared3 = threads3.x * threads3.y * sizeof(double);
-      cuComputeGradGammaBeta<<<blocks3, threads3, nshared3, stream>>>(
-		      part_grad_gamma.data<double>(),
-		      part_grad_beta.data<double>(),
-		      part_size,
-		      n1,n2,
-		      grad_gamma->data<int64_t>(),
-		      grad_beta->data<int64_t>());
-    }
-
-    // compute grad_input
-    const dim3 threads1(32,4,1);
-    const dim3 blocks1(1,n1,1);
-    int nshared =
-	    threads1.y > 1 ?
-	    threads1.y*threads1.x*sizeof(double) :
-	    0;
-    cuComputeGradInput<<<blocks1, threads1, nshared, stream>>>(
-            dout,
-            input->data<int64_t>(),
-            n1,n2,
-            mean->data<double>(),
-            invvar->data<double>(),
-            (double)epsilon,
-            gamma,
-            grad_input->data<int64_t>());
-}
-template<> 
-void HostLayerNormGradient(
-    const double* dout,
-    at::Tensor* mean,
-    at::Tensor* invvar,
-    at::Tensor* input,
-    int n1,
-    int n2,
-    const double* gamma,
-    const double* beta,
-    double epsilon,
-    at::Tensor* grad_input,
-    at::Tensor* grad_gamma,
-    at::Tensor* grad_beta
-    )
-{
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
-
-    if (gamma != NULL && beta != NULL) {
-      // compute grad_gamma(j) and grad_beta(j)
-      const int part_size = 16;
-      const dim3 threads2(32,4,1);
-      const dim3 blocks2((n2+threads2.x-1)/threads2.x,part_size,1);
-      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input->options().dtype(at::kDouble));
-      at::Tensor part_grad_beta = at::empty({part_size,n2}, input->options().dtype(at::kDouble));
-      const int nshared2_a = 2 * sizeof(double) * threads2.y * threads2.y * (threads2.x + 1);
-      const int nshared2_b = threads2.x * threads2.y * sizeof(double);
-      const int nshared2 = nshared2_a > nshared2_b ? nshared2_a : nshared2_b;
-      cuComputePartGradGammaBeta<<<blocks2, threads2, nshared2, stream>>>(
-		      dout,
-		      input->data<double>(),
-		      n1,n2,
-		      mean->data<double>(),
-		      invvar->data<double>(),
-		      (double)epsilon,
-		      part_grad_gamma.data<double>(),
-		      part_grad_beta.data<double>());
-
-      const dim3 threads3(32,8,1);
-      const dim3 blocks3((n2+threads2.x-1)/threads2.x,1,1);
-      const int nshared3 = threads3.x * threads3.y * sizeof(double);
-      cuComputeGradGammaBeta<<<blocks3, threads3, nshared3, stream>>>(
-		      part_grad_gamma.data<double>(),
-		      part_grad_beta.data<double>(),
-		      part_size,
-		      n1,n2,
-		      grad_gamma->data<double>(),
-		      grad_beta->data<double>());
-    }
-
-    // compute grad_input
-    const dim3 threads1(32,4,1);
-    const dim3 blocks1(1,n1,1);
-    int nshared =
-	    threads1.y > 1 ?
-	    threads1.y*threads1.x*sizeof(double) :
-	    0;
-    cuComputeGradInput<<<blocks1, threads1, nshared, stream>>>(
-            dout,
-            input->data<double>(),
-            n1,n2,
-            mean->data<double>(),
-            invvar->data<double>(),
-            (double)epsilon,
-            gamma,
-            grad_input->data<double>());
+            grad_input);
 }
 
 void cuda_layer_norm_gradient(
@@ -961,15 +772,19 @@ void cuda_layer_norm_gradient(
     at::Tensor* grad_gamma,
     at::Tensor* grad_beta)
 {
-    AT_DISPATCH_ALL_TYPES_AND_HALF(input->type(), "cuComputeGradInput", ([&] {
-			    HostLayerNormGradient(
-					    dout->data<scalar_t>(),
-					    mean,invvar,
-					    input,
-					    n1,n2,
-					    gamma->data<scalar_t>(),
-					    beta->data<scalar_t>(),
-					    epsilon,
-					    grad_input,grad_gamma,grad_beta);
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input->type(), "cuComputeGradInput", ([&] {
+        using accscalar_t = at::acc_type<scalar_t, true>;
+        HostLayerNormGradient(
+	    dout->data<scalar_t>(),
+	    mean->data<accscalar_t>(),
+	    invvar->data<accscalar_t>(),
+	    input,
+	    n1,n2,
+	    gamma->data<scalar_t>(),
+	    beta->data<scalar_t>(),
+	    epsilon,
+	    grad_input->data<scalar_t>(),
+	    grad_gamma->data<scalar_t>(),
+	    grad_beta->data<scalar_t>());
       }));
 }

@@ -27,21 +27,8 @@ void check_args(
     at::Tensor beta
     )
 {
-    if (gamma.defined() && !gamma.sizes().equals(normalized_shape)) {
-      std::stringstream ss;
-      ss << "Expected gamma to be of same shape as normalized_shape, but got "
-         << "gamma of shape " << gamma.sizes() << " and normalized_shape="
-         << normalized_shape;
-      throw std::runtime_error(ss.str());
-    }
-
-    if (beta.defined() && !beta.sizes().equals(normalized_shape)) {
-      std::stringstream ss;
-      ss << "Expected beta to be of same shape as normalized_shape, but got "
-         << "beta of shape " << beta.sizes() << " and normalized_shape="
-         << normalized_shape;
-      throw std::runtime_error(ss.str());
-    }
+    AT_CHECK(!gamma.defined() || gamma.sizes().equals(normalized_shape));
+    AT_CHECK(!beta.defined() || beta.sizes().equals(normalized_shape));
 }
 
 void check_args(
@@ -92,49 +79,6 @@ void check_args(
     check_args(input,normalized_shape,n1,n2);
     check_args(normalized_shape,gamma,beta);
 }
-
-template<typename T> 
-void allocate_layer_norm_output_tensors(
-    at::Tensor input,
-    const T* input_data,
-    int n1,
-    at::Tensor& output,
-    at::Tensor& mean,
-    at::Tensor& invvar
-    )
-{
-  output = at::empty_like(input);
-  mean = at::empty({n1}, input.options().dtype(at::kFloat));
-  invvar = at::empty_like(mean);
-}
-template<> 
-void allocate_layer_norm_output_tensors(
-    at::Tensor input,
-    const int64_t* input_data,
-    int n1,
-    at::Tensor& output,
-    at::Tensor& mean,
-    at::Tensor& invvar
-    )
-{
-  output = at::empty_like(input);
-  mean = at::empty({n1}, input.options().dtype(at::kDouble));
-  invvar = at::empty_like(mean);
-}
-template<> 
-void allocate_layer_norm_output_tensors(
-    at::Tensor input,
-    const double* input_data,
-    int n1,
-    at::Tensor& output,
-    at::Tensor& mean,
-    at::Tensor& invvar
-    )
-{
-  output = at::empty_like(input);
-  mean = at::empty({n1}, input.options().dtype(at::kDouble));
-  invvar = at::empty_like(mean);
-}
 }
 
 void cuda_layer_norm(
@@ -149,8 +93,8 @@ void cuda_layer_norm(
     at::Tensor* beta,
     double epsilon);
 
-#define CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")
-#define CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
+#define CHECK_CUDA(x) AT_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CONTIGUOUS(x) AT_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 std::vector<at::Tensor> layer_norm(
@@ -160,14 +104,9 @@ std::vector<at::Tensor> layer_norm(
   CHECK_INPUT(input);
   int n1,n2;
   check_args(input,normalized_shape,n1,n2);
-  at::Tensor output;
-  at::Tensor mean;
-  at::Tensor invvar;
-  AT_DISPATCH_ALL_TYPES_AND_HALF(input.type(), "allocate_layer_norm_output_tensors", ([&] {
-        allocate_layer_norm_output_tensors(
-            input,input.data<scalar_t>(),n1,
-            output,mean,invvar);
-      }));
+  at::Tensor output = at::empty_like(input);
+  at::Tensor mean = at::empty({n1}, input.options().dtype(input.type().scalarType()==at::ScalarType::Half ? at::ScalarType::Float : input.type().scalarType()));
+  at::Tensor invvar = at::empty_like(mean);
   cuda_layer_norm(&output,&mean,&invvar,&input,n1,n2,
       normalized_shape,NULL,NULL,epsilon);
   return {output, mean, invvar};
@@ -183,14 +122,9 @@ std::vector<at::Tensor> layer_norm_affine(
   CHECK_INPUT(beta);
   int n1,n2;
   check_args(input,normalized_shape,gamma,beta,n1,n2);
-  at::Tensor output;
-  at::Tensor mean;
-  at::Tensor invvar;
-  AT_DISPATCH_ALL_TYPES_AND_HALF(input.type(), "allocate_layer_norm_output_tensors", ([&] {
-        allocate_layer_norm_output_tensors(
-            input,input.data<scalar_t>(),n1,
-            output,mean,invvar);
-      }));
+  at::Tensor output = at::empty_like(input);
+  at::Tensor mean = at::empty({n1}, input.options().dtype(input.type().scalarType()==at::ScalarType::Half ? at::ScalarType::Float : input.type().scalarType()));
+  at::Tensor invvar = at::empty_like(mean);
   cuda_layer_norm(&output,&mean,&invvar,&input,n1,n2,
       normalized_shape,&gamma,&beta,epsilon);
   return {output, mean, invvar};
