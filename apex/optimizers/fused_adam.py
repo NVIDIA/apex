@@ -3,7 +3,8 @@ import fused_adam_cuda
 
 class FusedAdam(torch.optim.Adam):
 
-    """Implements Adam algorithm. Currently GPU-only.
+    """Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
+    ``python setup.py install --cuda_ext --cpp_ext``.
 
     It has been proposed in `Adam: A Method for Stochastic Optimization`_.
 
