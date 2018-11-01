@@ -34,9 +34,9 @@ class Model(Module):
         return (input*self.a)*self.b
 
 model = Model()
-# model = DDP(model, message_size=1, gradient_average_split_factor=2.0)
+model = DDP(model, message_size=1, gradient_predivide_factor=8.0)
 # model = DDP(model, delay_allreduce=True)
-model = DDP(model, message_size=1, allreduce_trigger_params=[model.b])
+# model = DDP(model, message_size=1, allreduce_trigger_params=[model.b])
 
 x = torch.cuda.FloatTensor(4096*4096)
 
@@ -47,9 +47,9 @@ for i in range(10):
     model.zero_grad()
     out = model(x)
     loss = out.sum()
-    torch.cuda.nvtx.range_push("backward")
+    # torch.cuda.nvtx.range_push("backward")
     loss.backward()
-    torch.cuda.nvtx.range_pop()
+    # torch.cuda.nvtx.range_pop()
     
     # torch.cuda.nvtx.range_push("synchronize() + info")
     # torch.cuda.synchronize()
