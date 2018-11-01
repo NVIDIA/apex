@@ -184,7 +184,8 @@
 <dl class="class">
 <dt id="apex.optimizers.FusedAdam">
 <em class="property">class </em><code class="descclassname">apex.optimizers.</code><code class="descname">FusedAdam</code><span class="sig-paren">(</span><em>params</em>, <em>lr=0.001</em>, <em>betas=(0.9</em>, <em>0.999)</em>, <em>eps=1e-08</em>, <em>weight_decay=0</em>, <em>amsgrad=False</em>, <em>eps_inside_sqrt=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_adam.html#FusedAdam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedAdam" title="Permalink to this definition">¶</a></dt>
-<dd><p>Implements Adam algorithm.</p>
+<dd><p>Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
+<code class="docutils literal"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span> <span class="pre">--cuda_ext</span> <span class="pre">--cpp_ext</span></code>.</p>
 <p>It has been proposed in <a class="reference external" href="https://arxiv.org/abs/1412.6980">Adam: A Method for Stochastic Optimization</a>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -223,11 +224,13 @@ second moment estimate as in the original paper. (default: False)</li>
 <li><strong>closure</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#callable" title="(in Python v3.7)"><em>callable</em></a><em>, </em><em>optional</em>) – A closure that reevaluates the model
 and returns the loss.</li>
 <li><strong>grads</strong> (<em>list of tensors</em><em>, </em><em>optional</em>) – weight gradient to use for the
-optimizer update. (default: None)</li>
+optimizer update. If gradients have type torch.half, parameters
+are expected to be in type torch.float. (default: None)</li>
 <li><strong>params</strong> (<em>output</em>) – A reduced precision copy
 of the updated weights written out in addition to the regular
-updated weights. (default: None)</li>
-<li><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – scaling factor for gradients. (default: 1)</li>
+updated weights. Have to be of same type as gradients. (default: None)</li>
+<li><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – factor to divide gradient tensor values
+by before applying to weights. (default: 1)</li>
 </ul>
 </td>
 </tr>

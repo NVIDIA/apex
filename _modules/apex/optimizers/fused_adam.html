@@ -185,7 +185,8 @@
 
 <div class="viewcode-block" id="FusedAdam"><a class="viewcode-back" href="../../../optimizers.html#apex.optimizers.FusedAdam">[docs]</a><span class="k">class</span> <span class="nc">FusedAdam</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;Implements Adam algorithm.</span>
+    <span class="sd">&quot;&quot;&quot;Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via</span>
+<span class="sd">    ``python setup.py install --cuda_ext --cpp_ext``.</span>
 
 <span class="sd">    It has been proposed in `Adam: A Method for Stochastic Optimization`_.</span>
 
@@ -226,11 +227,13 @@
 <span class="sd">            closure (callable, optional): A closure that reevaluates the model</span>
 <span class="sd">                and returns the loss.</span>
 <span class="sd">            grads (list of tensors, optional): weight gradient to use for the </span>
-<span class="sd">                optimizer update. (default: None)</span>
+<span class="sd">                optimizer update. If gradients have type torch.half, parameters </span>
+<span class="sd">                are expected to be in type torch.float. (default: None)</span>
 <span class="sd">            output params (list of tensors, optional): A reduced precision copy </span>
 <span class="sd">                of the updated weights written out in addition to the regular </span>
-<span class="sd">                updated weights. (default: None)</span>
-<span class="sd">            scale (float, optional): scaling factor for gradients. (default: 1)</span>
+<span class="sd">                updated weights. Have to be of same type as gradients. (default: None)</span>
+<span class="sd">            scale (float, optional): factor to divide gradient tensor values</span>
+<span class="sd">                by before applying to weights. (default: 1)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">loss</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="n">closure</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
