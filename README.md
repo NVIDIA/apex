@@ -101,6 +101,7 @@ python setup.py install [--cuda_ext] [--cpp_ext]
 Currently, `--cuda_ext` enables
 - Fused kernels that improve the performance and numerical stability of `apex.parallel.SyncBatchNorm`.
 - Fused kernels required to use `apex.optimizers.FusedAdam`.
+- Fused kernels required to use 'apex.normalization.FusedLayerNorm'.
 
 `--cpp_ext` enables
 - C++-side flattening and unflattening utilities that reduce the CPU overhead of `apex.parallel.DistributedDataParallel`.

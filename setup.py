@@ -37,14 +37,20 @@ if "--cuda_ext" in sys.argv:
                       sources=['apex/optimizers/csrc/fused_adam_cuda.cpp',
                                'apex/optimizers/csrc/fused_adam_cuda_kernel.cu'],
                       extra_compile_args={'cxx': ['-O3',],
-                                          'nvcc':['--gpu-architecture=sm_70', 
-                                                  '-O3', 
+                                          'nvcc':['-O3', 
                                                   '--use_fast_math']}))
     ext_modules.append(
         CUDAExtension(name='syncbn',
                       sources=['csrc/syncbn.cpp',
                                'csrc/welford.cu']))
-
+    ext_modules.append(
+        CUDAExtension(name='fused_layer_norm_cuda',
+                      sources=['apex/normalization/csrc/layer_norm_cuda.cpp',
+                               'apex/normalization/csrc/layer_norm_cuda_kernel.cu'],
+                      extra_compile_args={'cxx': ['-O3',],
+                                          'nvcc':['-maxrregcount=50',
+                                                  '-O3', 
+                                                  '--use_fast_math']}))
 
 setup(
     name='apex',

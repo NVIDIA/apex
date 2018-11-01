@@ -135,7 +135,11 @@ class DistributedDataParallel(Module):
         delay_allreduce (bool, default=False):  Delay all communication to the end of the backward pass.  This disables overlapping communication with computation.
         allreduce_trigger_params (list, optional, default=None):  If supplied, should contain a list of parameters drawn from the model.  Allreduces will be kicked off whenever one of these parameters receives its gradient (as opposed to when a bucket of size message_size is full).  At the end of backward(), a cleanup allreduce to catch any remaining gradients will also be performed automatically.  If allreduce_trigger_params is supplied, the message_size argument will be ignored.
         allreduce_always_fp32 (bool, default=False):  Convert any FP16 gradients to FP32 before allreducing.  This can improve stability for widely scaled-out runs.
-        gradient_average_split_factor (float, default=1.0):  Perform the averaging of gradients over proceses partially before and partially after the allreduce.  Before allreduce:  grads.mul_(1.0/gradient_average_split_factor).  After allreduce:  grads.mul_(gradient_average_split_factor/world size).  This can reduce the stress on the dynamic range of FP16 allreduces for widely scaled-out runs.
+        gradient_average (bool, default=True):  Option to toggle whether or not DDP averages the allreduced gradients over processes.  For proper scaling, the default value of True is recommended.
+        gradient_predivide_factor (float, default=1.0):  Allows perfoming the average of gradients over processes partially before and partially after the allreduce.  Before allreduce:  ``grads.mul_(1.0/gradient_predivide_factor)``.  After allreduce:  ``grads.mul_(gradient_predivide_factor/world size)``.  This can reduce the stress on the dynamic range of FP16 allreduces for widely scaled-out runs.
+
+    .. warning::
+        If ``gradient_average=False``, the pre-allreduce division (``grads.mul_(1.0/gradient_predivide_factor)``) will still be applied, but the post-allreduce gradient averaging (``grads.mul_(gradient_predivide_factor/world size)``) will be omitted.
 
     """
 
@@ -147,7 +151,9 @@ class DistributedDataParallel(Module):
                  allreduce_trigger_params=None,
                  retain_allreduce_buffers=False,
                  allreduce_always_fp32=False,
-                 gradient_average_split_factor=1.0):
+                 gradient_average=True,
+                 gradient_predivide_factor=1.0,
+                 gradient_average_split_factor=None):
         super(DistributedDataParallel, self).__init__()
 
         # Backward/forward compatibility around 
@@ -164,11 +170,16 @@ class DistributedDataParallel(Module):
         if shared_param is not None:
             raise ValueError("shared_param is no longer supported as an option.  It was misleadingly named from the start.  It turns out overlapping communication with computation should work fine with shared parameters.  If you still wish to delay communication to the end of the backward pass, use delay_allreduce=True|False instead.") 
 
+        if gradient_average_split_factor is not None:
+            print("Warning:  gradient_average_split_factor has been renamed to gradient_predivide_factor.  For now, gradient_average_split_factor will also work, but please update to gradient_predivide_factor instead.")
+            self.gradient_predivide_factor = gradient_average_split_factor
+
         self.world_size = float(dist.get_world_size())
 
         self.retain_allreduce_buffers = retain_allreduce_buffers
         self.allreduce_always_fp32 = allreduce_always_fp32
-        self.gradient_average_split_factor = gradient_average_split_factor
+        self.gradient_average = gradient_average
+        self.gradient_predivide_factor = gradient_predivide_factor
 
         self.custom_allreduce_triggers = False
         if allreduce_trigger_params is not None:
@@ -341,12 +352,13 @@ class DistributedDataParallel(Module):
         if self.allreduce_always_fp32:
             tensor_to_allreduce = tensor.float() 
 
-        if self.gradient_average_split_factor != 1.0:
-            tensor_to_allreduce.mul_(1./self.gradient_average_split_factor)
+        if self.gradient_predivide_factor != 1.0:
+            tensor_to_allreduce.mul_(1./self.gradient_predivide_factor)
 
         dist.all_reduce(tensor_to_allreduce)
 
-        tensor_to_allreduce.mul_(self.gradient_average_split_factor/self.world_size)
+        if self.gradient_average:
+            tensor_to_allreduce.mul_(self.gradient_predivide_factor/self.world_size)
 
         if self.allreduce_always_fp32 and tensor is not tensor_to_allreduce:
             tensor.copy_(tensor_to_allreduce)

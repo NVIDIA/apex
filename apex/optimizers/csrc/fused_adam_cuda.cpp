@@ -1,4 +1,4 @@
-#include <torch/torch.h>
+#include <torch/extension.h>
 
 // CUDA forward declaration
 void fused_adam_cuda(at::Tensor & p, at::Tensor & p_copy, at::Tensor & m, at::Tensor & v, at::Tensor & g, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode);
