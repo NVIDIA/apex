@@ -136,10 +136,10 @@ class DistributedDataParallel(Module):
         allreduce_trigger_params (list, optional, default=None):  If supplied, should contain a list of parameters drawn from the model.  Allreduces will be kicked off whenever one of these parameters receives its gradient (as opposed to when a bucket of size message_size is full).  At the end of backward(), a cleanup allreduce to catch any remaining gradients will also be performed automatically.  If allreduce_trigger_params is supplied, the message_size argument will be ignored.
         allreduce_always_fp32 (bool, default=False):  Convert any FP16 gradients to FP32 before allreducing.  This can improve stability for widely scaled-out runs.
         gradient_average (bool, default=True):  Option to toggle whether or not DDP averages the allreduced gradients over processes.  For proper scaling, the default value of True is recommended.
-        gradient_predivide_factor (float, default=1.0):  Allows perfoming the average of gradients over proceses partially before and partially after the allreduce.  Before allreduce:  grads.mul_(1.0/gradient_predivide_factor).  After allreduce:  grads.mul_(gradient_predivide_factor/world size).  This can reduce the stress on the dynamic range of FP16 allreduces for widely scaled-out runs.
+        gradient_predivide_factor (float, default=1.0):  Allows perfoming the average of gradients over processes partially before and partially after the allreduce.  Before allreduce:  ``grads.mul_(1.0/gradient_predivide_factor)``.  After allreduce:  ``grads.mul_(gradient_predivide_factor/world size)``.  This can reduce the stress on the dynamic range of FP16 allreduces for widely scaled-out runs.
 
-        ..warning::
-            If gradient_average=False, the second step (``grads.mul_(gradient_predivide_factor/world size)``) will be omitted.
+    .. warning::
+        If ``gradient_average=False``, the pre-allreduce division (``grads.mul_(1.0/gradient_predivide_factor)``) will still be applied, but the post-allreduce gradient averaging (``grads.mul_(gradient_predivide_factor/world size)``) will be omitted.
 
     """
 
