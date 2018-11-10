@@ -45,7 +45,7 @@ Optionally one can run imagenet with sync batch normalization by adding
 
 ## Example commands
 
-(note:  batch size `--b 256` assumes your GPUs have >=16GB of onboard memory)
+(note:  batch size `--b 224` assumes your GPUs have >=16GB of onboard memory)
 
 ```bash
 ### Softlink training dataset into current directory
@@ -53,16 +53,16 @@ $ ln -sf /data/imagenet/train-jpeg/ train
 ### Softlink validation dataset into current directory
 $ ln -sf /data/imagenet/val-jpeg/ val
 ### Single-process training
-$ python main.py -a resnet50 --fp16 --b 256 --workers 4 --static-loss-scale 128.0 ./
+$ python main.py -a resnet50 --fp16 --b 224 --workers 4 --static-loss-scale 128.0 ./
 ### Multi-process training (uses all visible GPUs on the node)
-$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --fp16 --b 256 --workers 4 --static-loss-scale 128.0 ./
+$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --fp16 --b 224 --workers 4 --static-loss-scale 128.0 ./
 ### Multi-process training on GPUs 0 and 1 only
 $ export CUDA_VISIBLE_DEVICES=0,1
-$ python -m torch.distributed.launch --nproc_per_node=2 main.py -a resnet50 --fp16 --b 256 --workers 4 ./
+$ python -m torch.distributed.launch --nproc_per_node=2 main.py -a resnet50 --fp16 --b 224 --workers 4 ./
 ### Multi-process training with FP16_Optimizer, static loss scale 128.0 (still uses FP32 master params)
-$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main_fp16_optimizer.py -a resnet50 --fp16 --b 256 --static-loss-scale 128.0 --workers 4 ./
+$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main_fp16_optimizer.py -a resnet50 --fp16 --b 224 --static-loss-scale 128.0 --workers 4 ./
 ### Multi-process training with FP16_Optimizer, dynamic loss scaling
-$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main_fp16_optimizer.py -a resnet50 --fp16 --b 256 --dynamic-loss-scale --workers 4 ./
+$ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main_fp16_optimizer.py -a resnet50 --fp16 --b 224 --dynamic-loss-scale --workers 4 ./
 ```
 
 ## Usage for `main.py` and `main_fp16_optimizer.py`
