@@ -157,10 +157,14 @@ class DistributedDataParallel(Module):
         super(DistributedDataParallel, self).__init__()
 
         # Backward/forward compatibility around 
-        # https://github.com/pytorch/pytorch/commit/540ef9b1fc5506369a48491af8a285a686689b36 
-        if(hasattr(dist, "get_backend")):
+        # https://github.com/pytorch/pytorch/commit/540ef9b1fc5506369a48491af8a285a686689b36 and
+        # https://github.com/pytorch/pytorch/commit/044d00516ccd6572c0d6ab6d54587155b02a3b86
+        if hasattr(dist, "get_backend"):
             self._backend = dist.get_backend()
-            self.backend_enum_holder = dist.DistBackend
+            if hasattr(dist, "DistBackend"):
+                self.backend_enum_holder = dist.DistBackend
+            else:
+                self.backend_enum_holder = dist.Backend
         else:
             self._backend = dist._backend 
             self.backend_enum_holder = dist.dist_backend
