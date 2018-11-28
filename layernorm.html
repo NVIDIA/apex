@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>apex.amp &mdash; Apex 0.1.0 documentation</title>
+  <title>apex.normalization.fused_layer_norm &mdash; Apex 0.1.0 documentation</title>
   
 
   
@@ -40,8 +40,7 @@
               href="genindex.html"/>
         <link rel="search" title="Search" href="search.html"/>
     <link rel="top" title="Apex 0.1.0 documentation" href="index.html"/>
-        <link rel="next" title="apex.fp16_utils" href="fp16_utils.html"/>
-        <link rel="prev" title="Apex (A PyTorch Extension)" href="index.html"/> 
+        <link rel="prev" title="apex.optimizers" href="optimizers.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -95,8 +94,8 @@
             
             
               <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">apex.amp</a></li>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="amp.html">apex.amp</a></li>
 </ul>
 <p class="caption"><span class="caption-text">FP16/Mixed Precision Utilities</span></p>
 <ul>
@@ -119,8 +118,8 @@
 <li class="toctree-l1"><a class="reference internal" href="optimizers.html">apex.optimizers</a></li>
 </ul>
 <p class="caption"><span class="caption-text">Fused Layer Norm</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="layernorm.html">apex.normalization.fused_layer_norm</a></li>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">apex.normalization.fused_layer_norm</a></li>
 </ul>
 
             
@@ -165,13 +164,13 @@
     
       <li><a href="index.html">Docs</a> &raquo;</li>
         
-      <li>apex.amp</li>
+      <li>apex.normalization.fused_layer_norm</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
             
-            <a href="_sources/amp.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/layernorm.rst.txt" rel="nofollow"> View page source</a>
           
         
       </li>
@@ -184,11 +183,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="apex-amp">
-<h1>apex.amp<a class="headerlink" href="#apex-amp" title="Permalink to this headline">¶</a></h1>
-<p>Amp (Automatic Mixed Precision) is a tool designed for ease of use and maximum safety in FP16 training. All potentially unsafe ops are performed in FP32 under the hood, while safe ops are performed using faster, Tensor Core-friendly FP16 math. Amp also automatically implements dynamic loss scaling.</p>
-<p>The intention of Amp is to be the “on-ramp” to easy FP16 training: achieve all the numerical stability of full FP32 training, with most of the performance benefits of full FP16 training.</p>
-<p>Currently, complete API documentation resides on the Github page: <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/apex/amp">https://github.com/NVIDIA/apex/tree/master/apex/amp</a>.</p>
+  <div class="section" id="apex-normalization-fused-layer-norm">
+<h1>apex.normalization.fused_layer_norm<a class="headerlink" href="#apex-normalization-fused-layer-norm" title="Permalink to this headline">¶</a></h1>
 </div>
 
 
@@ -201,10 +197,8 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="fp16_utils.html" class="btn btn-neutral float-right" title="apex.fp16_utils" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
-      
-        <a href="index.html" class="btn btn-neutral" title="Apex (A PyTorch Extension)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="optimizers.html" class="btn btn-neutral" title="apex.optimizers" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
