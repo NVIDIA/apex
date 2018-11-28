@@ -44,6 +44,12 @@ Installation requires CUDA 9 or later, PyTorch 0.4 or later, and Python 3. Insta
 
    optimizers
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Fused Layer Norm
+
+   layernorm
+
 ..   reparameterization
 ..   RNN
    
