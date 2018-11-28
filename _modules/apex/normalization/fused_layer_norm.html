@@ -242,7 +242,7 @@
 <span class="k">def</span> <span class="nf">fused_layer_norm</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="n">normalized_shape</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">):</span>
     <span class="k">return</span> <span class="n">FusedLayerNormFunction</span><span class="p">(</span><span class="n">normalized_shape</span><span class="p">,</span><span class="n">eps</span><span class="p">)(</span><span class="nb">input</span><span class="p">)</span>
 
-<div class="viewcode-block" id="FusedLayerNorm"><a class="viewcode-back" href="../../../layernorm.html#apex.normalization.fused_layer_norm.FusedLayerNorm">[docs]</a><span class="k">class</span> <span class="nc">FusedLayerNorm</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<div class="viewcode-block" id="FusedLayerNorm"><a class="viewcode-back" href="../../../layernorm.html#apex.normalization.FusedLayerNorm">[docs]</a><span class="k">class</span> <span class="nc">FusedLayerNorm</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Applies Layer Normalization over a mini-batch of inputs as described in</span>
 <span class="sd">    the paper `Layer Normalization`_ .</span>
 
