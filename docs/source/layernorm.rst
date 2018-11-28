@@ -4,8 +4,8 @@
 apex.normalization.fused_layer_norm
 ===================================
 
-.. automodule:: apex.normalization.fused_layer_norm
-.. currentmodule:: apex.normalization.fused_layer_norm
+.. automodule:: apex.normalization
+.. currentmodule:: apex.normalization
 
 .. FusedAdam
    ----------
