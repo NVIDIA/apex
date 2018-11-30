@@ -118,6 +118,10 @@ def main():
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
 
+    if args.static_loss_scale != 1.0:
+        if not args.fp16:
+            print("Warning:  if --fp16 is not used, static_loss_scale will be ignored.")
+
     # create model
     if args.pretrained:
         print("=> using pre-trained model '{}'".format(args.arch))
