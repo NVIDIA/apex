@@ -4,7 +4,6 @@ import time
 import math
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
 import data
 import model
 
@@ -58,8 +57,6 @@ torch.manual_seed(args.seed)
 if torch.cuda.is_available():
     if not args.cuda:
         print("WARNING: You have a CUDA device, so you should probably run with --cuda")
-    else:
-        torch.cuda.manual_seed(args.seed)
 if args.fp16 and not args.cuda:
     print("WARNING: --fp16 requires --cuda, ignoring --fp16 option")
 
@@ -117,7 +114,7 @@ criterion = nn.CrossEntropyLoss()
 
 
 def repackage_hidden(h):
-    """Wraps hidden states in new Variables, to detach them from their history."""
+    """Detaches hidden states from their history."""
     if torch.is_tensor(h):
         return h.detach()
     else:
@@ -136,8 +133,8 @@ def repackage_hidden(h):
 
 def get_batch(source, i):
     seq_len = min(args.bptt, len(source) - 1 - i)
-    data = Variable(source[i:i+seq_len])
-    target = Variable(source[i+1:i+1+seq_len].view(-1))
+    data = source[i:i+seq_len]
+    target = source[i+1:i+1+seq_len].view(-1)
     return data, target
 
 

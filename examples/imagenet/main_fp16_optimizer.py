@@ -4,7 +4,6 @@ import shutil
 import time
 
 import torch
-from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
@@ -307,12 +306,9 @@ def train(train_loader, model, criterion, optimizer, epoch):
         # measure data loading time
         data_time.update(time.time() - end)
 
-        input_var = Variable(input)
-        target_var = Variable(target)
-
         # compute output
-        output = model(input_var)
-        loss = criterion(output, target_var)
+        output = model(input)
+        loss = criterion(output, target)
 
         # measure accuracy and record loss
         prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
@@ -376,13 +372,11 @@ def validate(val_loader, model, criterion):
         i += 1
 
         target = target.cuda(async=True)
-        input_var = Variable(input)
-        target_var = Variable(target)
 
         # compute output
         with torch.no_grad():
-            output = model(input_var)
-            loss = criterion(output, target_var)
+            output = model(input)
+            loss = criterion(output, target)
 
         # measure accuracy and record loss
         prec1, prec5 = accuracy(output.data, target, topk=(1, 5))

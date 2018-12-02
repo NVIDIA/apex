@@ -6,7 +6,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
-from torch.autograd import Variable
 from apex.fp16_utils import to_python_float
 
 #=====START: ADDED FOR DISTRIBUTED======
@@ -82,9 +81,6 @@ if args.distributed:
 #=====END:   ADDED FOR DISTRIBUTED======
 
 torch.manual_seed(args.seed)
-if args.cuda:
-    torch.cuda.manual_seed(args.seed)
-
 
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
@@ -158,7 +154,6 @@ def train(epoch):
     for batch_idx, (data, target) in enumerate(train_loader):
         if args.cuda:
             data, target = data.cuda(), target.cuda()
-        data, target = Variable(data), Variable(target)
         optimizer.zero_grad()
         output = model(data)
         loss = F.nll_loss(output, target)
@@ -177,11 +172,10 @@ def test():
         with torch.no_grad():
             if args.cuda:
                 data, target = data.cuda(), target.cuda()
-            data, target = Variable(data), Variable(target)
             output = model(data)
             test_loss += to_python_float(F.nll_loss(output, target, size_average=False).data) # sum up batch loss
             pred = output.data.max(1, keepdim=True)[1] # get the index of the max log-probability
-            correct += pred.eq(target.data.view_as(pred)).cpu().sum()
+            correct += pred.eq(target.data.view_as(pred)).cpu().float().sum()
 
     test_loss /= len(test_loader.dataset)
 

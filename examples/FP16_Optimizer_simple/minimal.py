@@ -1,13 +1,12 @@
 import torch
-from torch.autograd import Variable
 from apex.fp16_utils import FP16_Optimizer
 
 torch.backends.cudnn.benchmark = True
 
 N, D_in, D_out = 64, 1024, 16
 
-x = Variable(torch.cuda.FloatTensor(N, D_in ).normal_()).half()
-y = Variable(torch.cuda.FloatTensor(N, D_out).normal_()).half()
+x = torch.randn(N, D_in, device='cuda', dtype=torch.half)
+y = torch.randn(N, D_out, device='cuda', dtype=torch.half)
 
 model = torch.nn.Linear(D_in, D_out).cuda().half()
 
