@@ -35,6 +35,9 @@ class SyncBatchNorm(_BatchNorm):
             module tracks the running mean and variance, and when set to ``False``,
             this module does not track such statistics and always uses batch
             statistics in both training and eval modes. Default: ``True``
+        process_group: pass in a process group within which the stats of the
+            mini-batch is being synchronized. ``None`` for using default process
+            group
 
     Examples::
         >>> sbn = apex.parallel.SyncBatchNorm(100).cuda()
@@ -44,8 +47,12 @@ class SyncBatchNorm(_BatchNorm):
         >>> out = sbn(inp)
     """
 
-    def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True):
+    def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True, process_group=None):
         super(SyncBatchNorm, self).__init__(num_features, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
+        self.process_group = process_group
+
+    def _specify_process_group(self, process_group):
+        self.process_group = process_group
 
     def forward(self, input):
         if not self.training and self.track_running_stats:
@@ -53,4 +60,4 @@ class SyncBatchNorm(_BatchNorm):
             return F.batch_norm(input, self.running_mean, self.running_var, self.weight, self.bias, False, 0.0, self.eps)
         else:
             self.num_batches_tracked += 1
-            return SyncBatchnormFunction.apply(input, self.weight, self.bias, self.running_mean, self.running_var, self.eps, self.track_running_stats, self.momentum)
+            return SyncBatchnormFunction.apply(input, self.weight, self.bias, self.running_mean, self.running_var, self.eps, self.track_running_stats, self.momentum, self.process_group)
