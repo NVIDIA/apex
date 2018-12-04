@@ -371,8 +371,6 @@ def validate(val_loader, model, criterion):
     while input is not None:
         i += 1
 
-        target = target.cuda(async=True)
-
         # compute output
         with torch.no_grad():
             output = model(input)

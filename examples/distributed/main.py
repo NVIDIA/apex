@@ -175,7 +175,7 @@ def test():
             output = model(data)
             test_loss += to_python_float(F.nll_loss(output, target, size_average=False).data) # sum up batch loss
             pred = output.data.max(1, keepdim=True)[1] # get the index of the max log-probability
-            correct += pred.eq(target.data.view_as(pred)).cpu().float().sum()
+            correct += pred.eq(target.data.view_as(pred)).float().cpu().sum()
 
     test_loss /= len(test_loader.dataset)
 
