@@ -28,7 +28,8 @@ __global__ void adam_cuda_kernel(
         const float grad_scale,
         const float step_size,
         const size_t tsize,
-        adamMode_t mode) {
+        adamMode_t mode,
+        const float decay) {
 
         //Assuming 2D grids and 2D blocks
         const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
@@ -46,7 +47,8 @@ __global__ void adam_cuda_kernel(
                     denom = sqrtf(v[j] + eps);
                 else // Mode 1
                     denom = sqrtf(v[j]) + eps;
-                p[j] = p[j] - (step_size*m[j]/denom);
+                float update = (m[j]/denom) + (decay*p[j]);
+                p[j] = p[j] - (step_size*update);
                 if (p_copy != NULL) p_copy[j] = (GRAD_T) p[j];
         }
 }
@@ -63,7 +65,9 @@ void fused_adam_cuda(
         float eps,
         float grad_scale,
         int step,
-        int mode) {
+        int mode,
+        int bias_correction,
+        float decay) {
 
         //Get tensor size
         int tsize = p.numel();
@@ -72,15 +76,21 @@ void fused_adam_cuda(
         const dim3 blocks((tsize+threadsPerBlock-1)/threadsPerBlock);
         AT_ASSERTM(at::cuda::detail::canUse32BitIndexMath(p), "parameter tensor is too large to be indexed with int32");
         //Constants
-        const float bias_correction1 = 1 - std::pow(beta1, step);
-        const float bias_correction2 = 1 - std::pow(beta2, step);
-        const float step_size = lr * std::sqrt(bias_correction2)/bias_correction1;
+        float step_size = 0;
+        if (bias_correction == 1) {
+            const float bias_correction1 = 1 - std::pow(beta1, step);
+            const float bias_correction2 = 1 - std::pow(beta2, step);
+            step_size = lr * std::sqrt(bias_correction2)/bias_correction1;
+        }
+        else {
+            step_size = lr;
+        }
         cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
         if (g.type().scalarType() == at::ScalarType::Half) {
 //all other values should be fp32 for half gradients
             AT_ASSERTM(p.type().scalarType() == at::ScalarType::Float, "expected parameter to be of float type");
-//dispatch is done on the gradient type 
+//dispatch is done on the gradient type
             AT_DISPATCH_FLOATING_TYPES_AND_HALF(g.type(), "adam_cuda_kernel", ([&] {
                 using accscalar_t = at::acc_type<scalar_t, true>;
                 adam_cuda_kernel<accscalar_t, scalar_t><<<blocks,threadsPerBlock, 0, stream>>>(
@@ -95,7 +105,8 @@ void fused_adam_cuda(
                         grad_scale,
                         step_size,
                         tsize,
-                        (adamMode_t) mode);
+                        (adamMode_t) mode,
+                        decay);
             }));
       } else {
             AT_DISPATCH_FLOATING_TYPES(g.type(), "adam_cuda_kernel", ([&] {
@@ -111,7 +122,8 @@ void fused_adam_cuda(
                         grad_scale,
                         step_size,
                         tsize,
-                        (adamMode_t) mode);
+                        (adamMode_t) mode,
+                        decay);
             }));
       }
       THCudaCheck(cudaGetLastError());
