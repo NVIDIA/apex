@@ -1,5 +1,18 @@
 import torch
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
+import ctypes
+
+lib = ctypes.cdll.LoadLibrary(None)
+lib.THCudaHalfTensor_normall.argtypes=[ctypes.c_void_p, ctypes.c_void_p]
+lib.THCudaHalfTensor_normall.restype = ctypes.c_float
+
+def fused_norm(input):
+    if input.type() == 'torch.cuda.HalfTensor':
+        # 16384 is half 2 if you stare at it long enough
+        return lib.THCudaHalfTensor_normall(torch.cuda._state_cdata,
+            input._cdata, 16384)
+    else:
+        return input.norm()
 
 class FP16_Optimizer(object):
     """
@@ -115,7 +128,8 @@ class FP16_Optimizer(object):
             Returns -1 if the most recently computed fp16 gradients overflowed
         """
         # TODO: currently using pre-1.0 api, and not most efficient with copy to cpu and sync
-        norm = float(torch.norm(fp16_grads_flat, p=norm_type))
+        # only support 2-norm now
+        norm = float(fused_norm(fp16_grads_flat))
         if norm == float('inf') or norm == -float('inf') or norm != norm:
             return -1
         else:
@@ -140,8 +154,8 @@ class FP16_Optimizer(object):
             return
 
         # norm is in fact norm*cur_scale
-        self.optimizer.step(grads_group=[[g] for g in grads_groups_flat],
-                            output_params_group=[[p] for p in self.fp16_groups_flat],
+        self.optimizer.step(grads=[[g] for g in grads_groups_flat],
+                            output_params=[[p] for p in self.fp16_groups_flat],
                             scale=self.cur_scale,
                             grad_norms=norm_groups)
 

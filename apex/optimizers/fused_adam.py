@@ -65,7 +65,7 @@ class FusedAdam(torch.optim.Optimizer):
         super(FusedAdam, self).__init__(params, defaults)
         self.eps_mode = 0 if  eps_inside_sqrt else 1
 
-    def step(self, closure=None, grads_group=None, output_params_group=None, scale=1., grad_norms=None):
+    def step(self, closure=None, grads=None, output_params=None, scale=1., grad_norms=None):
         """Performs a single optimization step.
 
         Arguments:
@@ -84,18 +84,30 @@ class FusedAdam(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
-        if grads_group is None:
+        if grads is None:
             grads_group = [None]*len(self.param_groups)
-        if output_params_group is None:
+        # backward compatibility
+        # assuming a list of parameter means single group
+        elif type(grads[0])!=list:
+            grads_group = [grads]
+        else:
+            grads_group = grads
+
+        if output_params is None:
             output_params_group = [None]*len(self.param_groups)
+        elif type(output_params[0])!=list:
+            output_params_group = [output_params]
+        else:
+            output_params_group = output_params
+
         if grad_norms is None:
             grad_norms = [None]*len(self.param_groups)
 
-        for group, grads, output_params, grad_norm in zip(self.param_groups, grads_group, output_params_group, grad_norms):
-            if grads is None:
-               grads = [None]*len(group['params'])
-            if output_params is None:
-               output_params = [None]*len(group['params'])
+        for group, grads_this_group, output_params_this_group, grad_norm in zip(self.param_groups, grads_group, output_params_group, grad_norms):
+            if grads_this_group is None:
+               grads_this_group = [None]*len(group['params'])
+            if output_params_this_group is None:
+               output_params_this_group = [None]*len(group['params'])
 
             # compute combined scale factor for this group
             combined_scale = scale
@@ -105,7 +117,7 @@ class FusedAdam(torch.optim.Optimizer):
                 if clip > 1:
                     combined_scale = clip * scale
 
-            for p, grad, output_param in zip(group['params'], grads, output_params):
+            for p, grad, output_param in zip(group['params'], grads_this_group, output_params_this_group):
                 #note: p.grad should not ever be set for correct operation of mixed precision optimizer that sometimes sends None gradients
                 if p.grad is None and grad is None:
                     continue
