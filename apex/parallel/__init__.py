@@ -8,7 +8,7 @@ except ImportError:
     print("Warning:  apex was installed without --cuda_ext. Fused syncbn kernels will be unavailable.  Python fallbacks will be used instead.")
     from .sync_batchnorm import SyncBatchNorm
 
-def convert_syncbn_model(module):
+def convert_syncbn_model(module, process_group=None):
     '''
     Recursively traverse module and its children to replace all
     `torch.nn.modules.batchnorm._BatchNorm` with `apex.parallel.SyncBatchNorm`
@@ -27,7 +27,7 @@ def convert_syncbn_model(module):
     '''
     mod = module
     if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
-        mod = SyncBatchNorm(module.num_features, module.eps, module.momentum, module.affine, module.track_running_stats)
+        mod = SyncBatchNorm(module.num_features, module.eps, module.momentum, module.affine, module.track_running_stats, process_group)
         mod.running_mean = module.running_mean
         mod.running_var = module.running_var
         if module.affine:
