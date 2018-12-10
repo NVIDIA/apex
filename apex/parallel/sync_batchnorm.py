@@ -44,8 +44,12 @@ class SyncBatchNorm(_BatchNorm):
         >>> out = sbn(inp)
     """
 
-    def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True):
+    def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True, process_group=None):
         super(SyncBatchNorm, self).__init__(num_features, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
+        self.process_group = process_group
+
+    def _specify_process_group(self, process_group):
+        self.process_group = process_group
 
     def forward(self, input):
         torch.cuda.nvtx.range_push("sync_bn_fw_with_mean_var")
@@ -56,6 +60,13 @@ class SyncBatchNorm(_BatchNorm):
             torch.cuda.nvtx.range_pop()
             return F.batch_norm(input, self.running_mean, self.running_var, self.weight, self.bias, False, 0.0, self.eps)
         else:
+            process_group = self.process_group
+            world_size = 0
+            if self.process_group:
+                world_size = torch.distributed.get_world_size(process_group)
+            else:
+                process_group = torch.distributed.get_default_group()
+                world_size = torch.distributed.get_world_size()
             self.num_batches_tracked += 1
             with torch.no_grad():
                 channel_first_input = input.transpose(0, 1).contiguous()
@@ -69,12 +80,12 @@ class SyncBatchNorm(_BatchNorm):
                     squashed_input_tensor_view, 2).mean(1)
                 if torch.distributed.is_initialized():
                     torch.distributed.all_reduce(
-                        local_mean, op=torch.distributed.reduce_op.SUM)
-                    mean = local_mean / torch.distributed.get_world_size()
+                        local_mean, torch.distributed.reduce_op.SUM, process_group)
+                    mean = local_mean / world_size
                     torch.distributed.all_reduce(
-                        local_sqr_mean, op=torch.distributed.reduce_op.SUM)
-                    sqr_mean = local_sqr_mean / torch.distributed.get_world_size()
-                    m = local_m * torch.distributed.get_world_size()
+                        local_sqr_mean, torch.distributed.reduce_op.SUM, process_group)
+                    sqr_mean = local_sqr_mean / world_size
+                    m = local_m * world_size
                 else:
                     m = local_m
                     mean = local_mean
@@ -94,4 +105,4 @@ class SyncBatchNorm(_BatchNorm):
                         (m-1) * self.momentum * var + \
                         (1 - self.momentum) * self.running_var
             torch.cuda.nvtx.range_pop()
-            return SyncBatchnormFunction.apply(input, self.weight, self.bias, mean, var, self.eps)
+            return SyncBatchnormFunction.apply(input, self.weight, self.bias, mean, var, self.eps, process_group, world_size)
