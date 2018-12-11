@@ -1,3 +1,4 @@
+import types
 import torch
 import fused_adam_cuda
 
@@ -65,7 +66,9 @@ class FusedAdam(torch.optim.Optimizer):
         if grads is None:
             grads_group = [None]*len(self.param_groups)
         # backward compatibility
-        # assuming a list of parameter means single group
+        # assuming a list/generator of parameter means single group
+        elif isinstance(grads, types.GeneratorType):
+            grads_group = [grads]
         elif type(grads[0])!=list:
             grads_group = [grads]
         else:
@@ -73,6 +76,8 @@ class FusedAdam(torch.optim.Optimizer):
 
         if output_params is None:
             output_params_group = [None]*len(self.param_groups)
+        elif isinstance(output_params, types.GeneratorType):
+            output_params_group = [output_params]
         elif type(output_params[0])!=list:
             output_params_group = [output_params]
         else:
