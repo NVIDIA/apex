@@ -195,3 +195,23 @@ class FP16_Optimizer(object):
                 print("Using static loss scale of", self.cur_scale)
         self.cur_iter +=1
         return
+
+    # Promote state so it can be retrieved or set via "fp16_optimizer_instance.state"
+    def _get_state(self):
+        return self.optimizer.state
+
+    def _set_state(self, value):
+        self.optimizer.state = value
+
+    state = property(_get_state, _set_state)
+
+    # Promote param_groups so it can be retrieved or set via "fp16_optimizer_instance.param_groups"
+    # (for example, to adjust the learning rate)
+    def _get_param_groups(self):
+        return self.optimizer.param_groups
+
+    def _set_param_groups(self, value):
+        self.optimizer.param_groups = value
+
+    param_groups = property(_get_param_groups, _set_param_groups)
+

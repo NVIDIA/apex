@@ -1,27 +1,5 @@
-import math
 import torch
 import fused_adam_cuda
-
-def warmup_cosine(x, warmup=0.002):
-    if x < warmup:
-        return x/warmup
-    return 0.5 * (1.0 + torch.cos(math.pi * x))
-
-def warmup_constant(x, warmup=0.002):
-    if x < warmup:
-        return x/warmup
-    return 1.0
-
-def warmup_linear(x, warmup=0.002):
-    if x < warmup:
-        return x/warmup
-    return 1.0 - x
-
-SCHEDULES = {
-    'warmup_cosine':warmup_cosine,
-    'warmup_constant':warmup_constant,
-    'warmup_linear':warmup_linear,
-}
 
 class FusedAdam(torch.optim.Optimizer):
 
@@ -54,12 +32,12 @@ class FusedAdam(torch.optim.Optimizer):
     """
 
     def __init__(self, params,
-                 lr=1e-3, warmup=-1, t_total=-1, schedule='warmup_linear',
+                 lr=1e-3, bias_correction = True,
                  betas=(0.9, 0.999), eps=1e-8, eps_inside_sqrt = False,
                  weight_decay=0., max_grad_norm=0., amsgrad=False):
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
-        defaults = dict(lr=lr, schedule=schedule, warmup=warmup, t_total=t_total,
+        defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         max_grad_norm=max_grad_norm)
         super(FusedAdam, self).__init__(params, defaults)
@@ -117,6 +95,11 @@ class FusedAdam(torch.optim.Optimizer):
                 if clip > 1:
                     combined_scale = clip * scale
 
+            # set bias correction for this group
+            bias_correction = 0
+            if group['bias_correction']:
+                bias_correction = 1
+
             for p, grad, output_param in zip(group['params'], grads_this_group, output_params_this_group):
                 #note: p.grad should not ever be set for correct operation of mixed precision optimizer that sometimes sends None gradients
                 if p.grad is None and grad is None:
@@ -138,14 +121,6 @@ class FusedAdam(torch.optim.Optimizer):
 
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
                 beta1, beta2 = group['betas']
-
-                if group['t_total'] != -1:
-                    schedule_fct = SCHEDULES[group['schedule']]
-                    lr_scheduled = group['lr'] * schedule_fct(state['step']/group['t_total'], group['warmup'])
-                    bias_correction = 0
-                else:
-                    lr_scheduled = group['lr']
-                    bias_correction = 1
 
                 state['step'] += 1
 
