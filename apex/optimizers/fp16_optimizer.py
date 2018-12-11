@@ -182,7 +182,7 @@ class FP16_Optimizer(object):
     def _update_scale(self, skip):
         if self.dynamic_loss_scale:
             if skip:
-                print("grad overflow on iteration", self.cur_iter)
+                print("\nGrad overflow on iteration", self.cur_iter)
                 print("Using dynamic loss scale of", self.cur_scale)
                 self.cur_scale = max(self.cur_scale/self.scale_factor, 1)
                 self.last_overflow_iter = self.cur_iter
@@ -191,7 +191,7 @@ class FP16_Optimizer(object):
                     self.cur_scale *= self.scale_factor
         else:
             if skip:
-                print("Grad overflow on iteration", self.cur_iter)
+                print("\nGrad overflow on iteration", self.cur_iter)
                 print("Using static loss scale of", self.cur_scale)
         self.cur_iter +=1
         return
@@ -214,4 +214,3 @@ class FP16_Optimizer(object):
         self.optimizer.param_groups = value
 
     param_groups = property(_get_param_groups, _set_param_groups)
-
