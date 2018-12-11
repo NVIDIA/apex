@@ -100,10 +100,7 @@ class FusedAdam(torch.optim.Optimizer):
                 if clip > 1:
                     combined_scale = clip * scale
 
-            # set bias correction for this group
-            bias_correction = 0
-            if group['bias_correction']:
-                bias_correction = 1
+            bias_correction = 1 if group['bias_correction'] else 0
 
             for p, grad, output_param in zip(group['params'], grads_this_group, output_params_this_group):
                 #note: p.grad should not ever be set for correct operation of mixed precision optimizer that sometimes sends None gradients
