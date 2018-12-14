@@ -5,7 +5,11 @@ try:
     import syncbn
     from .optimized_sync_batchnorm import SyncBatchNorm
 except ImportError:
-    print("Warning:  apex was installed without --cuda_ext. Fused syncbn kernels will be unavailable.  Python fallbacks will be used instead.")
+    try:
+        _ = warned_syncbn
+    except NameError:
+        print("Warning:  apex was installed without --cuda_ext. Fused syncbn kernels will be unavailable.  Python fallbacks will be used instead.")
+        warned_syncbn = True
     from .sync_batchnorm import SyncBatchNorm
 
 def convert_syncbn_model(module, process_group=None):
