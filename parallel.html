@@ -254,7 +254,7 @@ It also assumes that your script calls <code class="docutils literal"><span clas
 
 <dl class="class">
 <dt id="apex.parallel.SyncBatchNorm">
-<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">SyncBatchNorm</code><span class="sig-paren">(</span><em>num_features</em>, <em>eps=1e-05</em>, <em>momentum=0.1</em>, <em>affine=True</em>, <em>track_running_stats=True</em>, <em>process_group=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/sync_batchnorm.html#SyncBatchNorm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.SyncBatchNorm" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">SyncBatchNorm</code><span class="sig-paren">(</span><em>num_features</em>, <em>eps=1e-05</em>, <em>momentum=0.1</em>, <em>affine=True</em>, <em>track_running_stats=True</em>, <em>process_group=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/optimized_sync_batchnorm.html#SyncBatchNorm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.SyncBatchNorm" title="Permalink to this definition">¶</a></dt>
 <dd><p>synchronized batch normalization module extented from <cite>torch.nn.BatchNormNd</cite>
 with the added stats reduction across multiple processes.
 <a class="reference internal" href="#apex.parallel.SyncBatchNorm" title="apex.parallel.SyncBatchNorm"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.SyncBatchNorm</span></code></a> is designed to work with
@@ -284,6 +284,9 @@ learnable affine parameters. Default: <code class="docutils literal"><span class
 module tracks the running mean and variance, and when set to <code class="docutils literal"><span class="pre">False</span></code>,
 this module does not track such statistics and always uses batch
 statistics in both training and eval modes. Default: <code class="docutils literal"><span class="pre">True</span></code></li>
+<li><strong>process_group</strong> – pass in a process group within which the stats of the
+mini-batch is being synchronized. <code class="docutils literal"><span class="pre">None</span></code> for using default process
+group</li>
 </ul>
 </td>
 </tr>

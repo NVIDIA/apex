@@ -192,7 +192,11 @@
     <span class="kn">from</span> <span class="nn">apex_C</span> <span class="k">import</span> <span class="n">flatten</span>
     <span class="kn">from</span> <span class="nn">apex_C</span> <span class="k">import</span> <span class="n">unflatten</span>
 <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Warning:  apex was installed without --cpp_ext.  Falling back to Python flatten and unflatten.&quot;</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">_</span> <span class="o">=</span> <span class="n">warned_flatten</span>
+    <span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Warning:  apex was installed without --cpp_ext.  Falling back to Python flatten and unflatten.&quot;</span><span class="p">)</span>
+        <span class="n">warned_flatten</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="kn">from</span> <span class="nn">torch._utils</span> <span class="k">import</span> <span class="n">_flatten_dense_tensors</span> <span class="k">as</span> <span class="n">flatten</span>
     <span class="kn">from</span> <span class="nn">torch._utils</span> <span class="k">import</span> <span class="n">_unflatten_dense_tensors</span> <span class="k">as</span> <span class="n">unflatten</span>
 <span class="kn">import</span> <span class="nn">torch.distributed</span> <span class="k">as</span> <span class="nn">dist</span>

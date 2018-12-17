@@ -608,7 +608,7 @@
 
         <span class="k">return</span> <span class="n">retval</span>
 
-<div class="viewcode-block" id="FP16_Optimizer.backward"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer.backward">[docs]</a>    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss</span><span class="p">,</span> <span class="n">update_master_grads</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<div class="viewcode-block" id="FP16_Optimizer.backward"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.FP16_Optimizer.backward">[docs]</a>    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss</span><span class="p">,</span> <span class="n">update_master_grads</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">retain_graph</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; </span>
 <span class="sd">        :attr:`backward` performs the following conceptual steps:</span>
 
@@ -642,6 +642,7 @@
 <span class="sd">        Args:</span>
 <span class="sd">            loss:  The loss output by the user&#39;s model.  loss may be either float or half (but see first Note above).</span>
 <span class="sd">            update_master_grads (bool, optional, default=True):  Option to copy fp16 grads to fp32 grads on this call.  By setting this to False, the user can delay the copy, which is useful to eliminate redundant fp16-&gt;fp32 grad copies if :attr:`backward` is being called on multiple losses in one iteration.  If set to False, the user becomes responsible for calling :attr:`update_master_grads` before calling :attr:`step`.</span>
+<span class="sd">            retain_graph (bool, optional, default=False):  Forwards the usual ``retain_graph=True`` option to the internal call to ``loss.backward``.  If ``retain_graph`` is being used to accumulate gradient values from multiple backward passes before calling ``optimizer.step``, passing ``update_master_grads=False`` is also recommended (see Example below).</span>
 
 <span class="sd">        Example::</span>
 
@@ -665,7 +666,7 @@
         <span class="c1"># a loss scale that works.  After you find a loss scale that works, do a final dummy</span>
         <span class="c1"># backward pass with retain_graph=False to tear down the graph.  Doing this would avoid </span>
         <span class="c1"># discarding the iteration,  but probably wouldn&#39;t improve overall efficiency.  </span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss</span><span class="o">.</span><span class="n">float</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss</span><span class="o">.</span><span class="n">float</span><span class="p">(),</span> <span class="n">retain_graph</span><span class="o">=</span><span class="n">retain_graph</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">update_master_grads</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">update_master_grads</span><span class="p">()</span></div>
 
@@ -698,14 +699,23 @@
 <span class="sd">            List of lists (one list for each parameter group).  The list for each parameter group</span>
 <span class="sd">            is a list of the ``.grad.data`` attributes of the fp32 master params belonging to that group.                 </span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Currently not implemented, working on it...&quot;</span><span class="p">)</span>
-        <span class="n">fp32_grads_each_group</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">overflow</span><span class="p">:</span>
             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Warning:  calling FP16_Optimizer.inspect_master_grad_data while in an overflow state.  &quot;</span>
                   <span class="s2">&quot;Gradients are currently invalid (may be inf, nan, or stale).  Returning None.&quot;</span><span class="p">)</span>
             <span class="k">return</span> <span class="kc">None</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">None</span></div>
+            <span class="c1"># The optimizer owns only references to master params.</span>
+            <span class="n">master_grads_data</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">param_group</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">param_groups</span><span class="p">:</span>
+                <span class="n">master_grads_this_group</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">param_group</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">master_grads_this_group</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">param</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">master_grads_this_group</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+                <span class="n">master_grads_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">master_grads_this_group</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">master_grads_data</span></div>
+
 
     <span class="c1"># Promote loss scale so it can be retrieved or set via &quot;fp16_optimizer_instance.loss_scale&quot;</span>
     <span class="k">def</span> <span class="nf">_get_loss_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

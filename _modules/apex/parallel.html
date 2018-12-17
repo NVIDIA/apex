@@ -191,7 +191,11 @@
     <span class="kn">import</span> <span class="nn">syncbn</span>
     <span class="kn">from</span> <span class="nn">.optimized_sync_batchnorm</span> <span class="k">import</span> <span class="n">SyncBatchNorm</span>
 <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Warning:  apex was installed without --cuda_ext. Fused syncbn kernels will be unavailable.  Python fallbacks will be used instead.&quot;</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">_</span> <span class="o">=</span> <span class="n">warned_syncbn</span>
+    <span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Warning:  apex was installed without --cuda_ext. Fused syncbn kernels will be unavailable.  Python fallbacks will be used instead.&quot;</span><span class="p">)</span>
+        <span class="n">warned_syncbn</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="kn">from</span> <span class="nn">.sync_batchnorm</span> <span class="k">import</span> <span class="n">SyncBatchNorm</span>
 
 <div class="viewcode-block" id="convert_syncbn_model"><a class="viewcode-back" href="../../parallel.html#apex.parallel.convert_syncbn_model">[docs]</a><span class="k">def</span> <span class="nf">convert_syncbn_model</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">process_group</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>

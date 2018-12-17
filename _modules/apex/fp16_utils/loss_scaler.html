@@ -226,9 +226,9 @@
     <span class="k">def</span> <span class="nf">scale_gradient</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">grad_in</span><span class="p">,</span> <span class="n">grad_out</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span> <span class="o">*</span> <span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">grad_in</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss</span><span class="p">,</span> <span class="n">retain_graph</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="n">scaled_loss</span> <span class="o">=</span> <span class="n">loss</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span>
-        <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span></div>
+        <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">retain_graph</span><span class="o">=</span><span class="n">retain_graph</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="DynamicLossScaler"><a class="viewcode-back" href="../../../fp16_utils.html#apex.fp16_utils.DynamicLossScaler">[docs]</a><span class="k">class</span> <span class="nc">DynamicLossScaler</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -313,9 +313,9 @@
     <span class="k">def</span> <span class="nf">scale_gradient</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">grad_in</span><span class="p">,</span> <span class="n">grad_out</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span> <span class="o">*</span> <span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">grad_in</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss</span><span class="p">,</span> <span class="n">retain_graph</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="n">scaled_loss</span> <span class="o">=</span> <span class="n">loss</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">loss_scale</span>
-        <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span></div>
+        <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">retain_graph</span><span class="o">=</span><span class="n">retain_graph</span><span class="p">)</span></div>
         
 <span class="c1">##############################################################        </span>
 <span class="c1"># Example usage below here -- assuming it&#39;s in a separate file</span>
