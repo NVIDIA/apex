@@ -7,6 +7,11 @@ if hasattr(torch.distributed, 'get_default_group'):
 else:
     group_creator = torch.distributed.new_group
 
+if hasattr(torch.distributed, 'ReduceOp'):
+    ReduceOp = torch.distributed.ReduceOp
+else:
+    ReduceOp = torch.distributed.reduce_op
+
 from .distributed import DistributedDataParallel, Reducer
 try:
     import syncbn

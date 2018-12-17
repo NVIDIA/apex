@@ -3,6 +3,7 @@ from torch.nn.modules.batchnorm import _BatchNorm
 from torch.nn import functional as F
 
 from .sync_batchnorm_kernel import SyncBatchnormFunction
+from apex.parallel import group_creator, ReduceOp
 
 
 class SyncBatchNorm(_BatchNorm):
@@ -80,10 +81,10 @@ class SyncBatchNorm(_BatchNorm):
                     squashed_input_tensor_view, 2).mean(1)
                 if torch.distributed.is_initialized():
                     torch.distributed.all_reduce(
-                        local_mean, torch.distributed.reduce_op.SUM, process_group)
+                        local_mean, ReduceOp.SUM, process_group)
                     mean = local_mean / world_size
                     torch.distributed.all_reduce(
-                        local_sqr_mean, torch.distributed.reduce_op.SUM, process_group)
+                        local_sqr_mean, ReduceOp.SUM, process_group)
                     sqr_mean = local_sqr_mean / world_size
                     m = local_m * world_size
                 else:

@@ -1,6 +1,8 @@
 import torch
 from torch.autograd.function import Function
 
+from apex.parallel import group_creator, ReduceOp
+
 
 class SyncBatchnormFunction(Function):
 
@@ -57,10 +59,10 @@ class SyncBatchnormFunction(Function):
                                           running_mean)).view(-1, num_features).mean(0)
             if torch.distributed.is_initialized():
                 torch.distributed.all_reduce(
-                    mean_dy, torch.distributed.reduce_op.SUM, process_group)
+                    mean_dy, ReduceOp.SUM, process_group)
                 mean_dy = mean_dy / world_size
                 torch.distributed.all_reduce(
-                    mean_dy_xmu, torch.distributed.reduce_op.SUM, process_group)
+                    mean_dy_xmu, ReduceOp.SUM, process_group)
                 mean_dy_xmu = mean_dy_xmu / world_size
             c_last_grad_input = (c_last_grad - mean_dy - (c_last_input - running_mean) / (
                 running_variance + eps) * mean_dy_xmu) / torch.sqrt(running_variance + eps)
