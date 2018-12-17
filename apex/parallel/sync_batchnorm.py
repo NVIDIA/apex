@@ -65,7 +65,7 @@ class SyncBatchNorm(_BatchNorm):
             if self.process_group:
                 world_size = torch.distributed.get_world_size(process_group)
             else:
-                process_group = torch.distributed.get_default_group()
+                process_group = group_creator()
                 world_size = torch.distributed.get_world_size()
             self.num_batches_tracked += 1
             with torch.no_grad():

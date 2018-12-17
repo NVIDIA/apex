@@ -18,7 +18,7 @@ class SyncBatchnormFunction(Function):
                 if process_group:
                     world_size = torch.distributed.get_world_size(process_group)
                 else:
-                    process_group = torch.distributed.get_default_group()
+                    process_group = group_creator()
                     world_size = torch.distributed.get_world_size()
                 mean_all = torch.empty(world_size, mean.size(0), dtype=mean.dtype, device=mean.device)
                 var_all = torch.empty(world_size, var.size(0), dtype=var.dtype, device=var.device)

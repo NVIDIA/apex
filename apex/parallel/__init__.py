@@ -1,5 +1,12 @@
 import torch
 
+# Backward compatibility hack around
+# https://github.com/pytorch/pytorch/pull/14767
+if hasattr(torch.distributed, 'get_default_group'):
+    group_creator = torch.distributed.get_default_group
+else:
+    group_creator = torch.distributed.new_group
+
 from .distributed import DistributedDataParallel, Reducer
 try:
     import syncbn
