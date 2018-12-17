@@ -184,67 +184,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="module-apex.optimizers">
-<span id="apex-optimizers"></span><h1>apex.optimizers<a class="headerlink" href="#module-apex.optimizers" title="Permalink to this headline">¶</a></h1>
-<dl class="class">
-<dt id="apex.optimizers.FusedAdam">
-<em class="property">class </em><code class="descclassname">apex.optimizers.</code><code class="descname">FusedAdam</code><span class="sig-paren">(</span><em>params</em>, <em>lr=0.001</em>, <em>betas=(0.9</em>, <em>0.999)</em>, <em>eps=1e-08</em>, <em>weight_decay=0</em>, <em>amsgrad=False</em>, <em>eps_inside_sqrt=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_adam.html#FusedAdam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedAdam" title="Permalink to this definition">¶</a></dt>
-<dd><p>Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
-<code class="docutils literal"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span> <span class="pre">--cuda_ext</span> <span class="pre">--cpp_ext</span></code>.</p>
-<p>It has been proposed in <a class="reference external" href="https://arxiv.org/abs/1412.6980">Adam: A Method for Stochastic Optimization</a>.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>params</strong> (<em>iterable</em>) – iterable of parameters to optimize or dicts defining
-parameter groups.</li>
-<li><strong>lr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – learning rate. (default: 1e-3)</li>
-<li><strong>betas</strong> (<em>Tuple</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>]</em><em>, </em><em>optional</em>) – coefficients used for computing
-running averages of gradient and its square. (default: (0.9, 0.999))</li>
-<li><strong>eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – term added to the denominator to improve
-numerical stability. (default: 1e-8)</li>
-<li><strong>weight_decay</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – weight decay (L2 penalty) (default: 0)</li>
-<li><strong>amsgrad</strong> (<em>boolean</em><em>, </em><em>optional</em>) – whether to use the AMSGrad variant of this
-algorithm from the paper <a class="reference external" href="https://openreview.net/forum?id=ryQu7f-RZ">On the Convergence of Adam and Beyond</a>
-(default: False) NOT SUPPORTED in FusedAdam!</li>
-<li><strong>eps_inside_sqrt</strong> (<em>boolean</em><em>, </em><em>optional</em>) – in the ‘update parameters’ step,
-adds eps to the bias-corrected second moment estimate before
-evaluating square root instead of adding it to the square root of
-second moment estimate as in the original paper. (default: False)</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-<dl class="method">
-<dt id="apex.optimizers.FusedAdam.step">
-<code class="descname">step</code><span class="sig-paren">(</span><em>closure=None</em>, <em>grads=None</em>, <em>output_params=None</em>, <em>scale=1.0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_adam.html#FusedAdam.step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedAdam.step" title="Permalink to this definition">¶</a></dt>
-<dd><p>Performs a single optimization step.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>closure</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#callable" title="(in Python v3.7)"><em>callable</em></a><em>, </em><em>optional</em>) – A closure that reevaluates the model
-and returns the loss.</li>
-<li><strong>grads</strong> (<em>list of tensors</em><em>, </em><em>optional</em>) – weight gradient to use for the
-optimizer update. If gradients have type torch.half, parameters
-are expected to be in type torch.float. (default: None)</li>
-<li><strong>params</strong> (<em>output</em>) – A reduced precision copy
-of the updated weights written out in addition to the regular
-updated weights. Have to be of same type as gradients. (default: None)</li>
-<li><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – factor to divide gradient tensor values
-by before applying to weights. (default: 1)</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</dd></dl>
-
+  <div class="section" id="apex-optimizers">
+<h1>apex.optimizers<a class="headerlink" href="#apex-optimizers" title="Permalink to this headline">¶</a></h1>
 </div>
 
 

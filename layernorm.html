@@ -183,76 +183,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="module-apex.normalization">
-<span id="apex-normalization-fused-layer-norm"></span><h1>apex.normalization.fused_layer_norm<a class="headerlink" href="#module-apex.normalization" title="Permalink to this headline">¶</a></h1>
-<dl class="class">
-<dt id="apex.normalization.FusedLayerNorm">
-<em class="property">class </em><code class="descclassname">apex.normalization.</code><code class="descname">FusedLayerNorm</code><span class="sig-paren">(</span><em>normalized_shape</em>, <em>eps=1e-05</em>, <em>elementwise_affine=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/normalization/fused_layer_norm.html#FusedLayerNorm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.normalization.FusedLayerNorm" title="Permalink to this definition">¶</a></dt>
-<dd><p>Applies Layer Normalization over a mini-batch of inputs as described in
-the paper <a class="reference external" href="https://arxiv.org/abs/1607.06450">Layer Normalization</a> .</p>
-<p>Currently only runs on cuda() tensors.</p>
-<div class="math">
-\[y = \frac{x - \mathrm{E}[x]}{ \sqrt{\mathrm{Var}[x] + \epsilon}} * \gamma + \beta\]</div>
-<p>The mean and standard-deviation are calculated separately over the last
-certain number dimensions which have to be of the shape specified by
-<code class="xref py py-attr docutils literal"><span class="pre">normalized_shape</span></code>.
-<span class="math">\(\gamma\)</span> and <span class="math">\(\beta\)</span> are learnable affine transform parameters of
-<code class="xref py py-attr docutils literal"><span class="pre">normalized_shape</span></code> if <code class="xref py py-attr docutils literal"><span class="pre">elementwise_affine</span></code> is <code class="docutils literal"><span class="pre">True</span></code>.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Unlike Batch Normalization and Instance Normalization, which applies
-scalar scale and bias for each entire channel/plane with the
-<code class="xref py py-attr docutils literal"><span class="pre">affine</span></code> option, Layer Normalization applies per-element scale and
-bias with <code class="xref py py-attr docutils literal"><span class="pre">elementwise_affine</span></code>.</p>
-</div>
-<p>This layer uses statistics computed from input data in both training and
-evaluation modes.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>normalized_shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a><em> or </em><em>torch.Size</em>) – <p>input shape from an expected input
-of size</p>
-<div class="math">
-\[[* \times \text{normalized}\_\text{shape}[0] \times \text{normalized}\_\text{shape}[1]
-    \times \ldots \times \text{normalized}\_\text{shape}[-1]]\]</div>
-<p>If a single integer is used, it is treated as a singleton list, and this module will
-normalize over the last dimension which is expected to be of that specific size.</p>
-</li>
-<li><strong>eps</strong> – a value added to the denominator for numerical stability. Default: 1e-5</li>
-<li><strong>elementwise_affine</strong> – a boolean value that when set to <code class="docutils literal"><span class="pre">True</span></code>, this module
-has learnable per-element affine parameters initialized to ones (for weights)
-and zeros (for biases). Default: <code class="docutils literal"><span class="pre">True</span></code>.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-<dl class="docutils">
-<dt>Shape:</dt>
-<dd><ul class="first last simple">
-<li>Input: <span class="math">\((N, *)\)</span></li>
-<li>Output: <span class="math">\((N, *)\)</span> (same shape as input)</li>
-</ul>
-</dd>
-</dl>
-<p>Examples:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nb">input</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># With Learnable Parameters</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">normalization</span><span class="o">.</span><span class="n">FusedLayerNorm</span><span class="p">(</span><span class="nb">input</span><span class="o">.</span><span class="n">size</span><span class="p">()[</span><span class="mi">1</span><span class="p">:])</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Without Learnable Parameters</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">normalization</span><span class="o">.</span><span class="n">FusedLayerNorm</span><span class="p">(</span><span class="nb">input</span><span class="o">.</span><span class="n">size</span><span class="p">()[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">elementwise_affine</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Normalize over last two dimensions</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">normalization</span><span class="o">.</span><span class="n">FusedLayerNorm</span><span class="p">([</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">])</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Normalize over last dimension of size 10</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">normalization</span><span class="o">.</span><span class="n">FusedLayerNorm</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Activating the module</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">output</span> <span class="o">=</span> <span class="n">m</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span>
-</pre></div>
-</div>
-</dd></dl>
-
+  <div class="section" id="apex-normalization-fused-layer-norm">
+<h1>apex.normalization.fused_layer_norm<a class="headerlink" href="#apex-normalization-fused-layer-norm" title="Permalink to this headline">¶</a></h1>
 </div>
 
 

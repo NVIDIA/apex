@@ -19,7 +19,7 @@ Installation requires CUDA 9 or later, PyTorch 0.4 or later, and Python 3. Insta
    cd apex
    python setup.py install [--cuda_ext] [--cpp_ext]
 
-	       
+
 .. toctree::
    :maxdepth: 1
    :caption: AMP:  Automatic Mixed Precision
