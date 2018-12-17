@@ -40,9 +40,9 @@ class LossScaler:
     def scale_gradient(self, module, grad_in, grad_out):
         return tuple(self.loss_scale * g for g in grad_in)
 
-    def backward(self, loss):
+    def backward(self, loss, retain_graph=False):
         scaled_loss = loss*self.loss_scale
-        scaled_loss.backward()
+        scaled_loss.backward(retain_graph=retain_graph)
 
 class DynamicLossScaler:
     """
@@ -127,9 +127,9 @@ class DynamicLossScaler:
     def scale_gradient(self, module, grad_in, grad_out):
         return tuple(self.loss_scale * g for g in grad_in)
 
-    def backward(self, loss):
+    def backward(self, loss, retain_graph=False):
         scaled_loss = loss*self.loss_scale
-        scaled_loss.backward()
+        scaled_loss.backward(retain_graph=retain_graph)
         
 ##############################################################        
 # Example usage below here -- assuming it's in a separate file
