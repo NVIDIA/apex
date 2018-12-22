@@ -4,13 +4,17 @@ import torch
 # https://github.com/pytorch/pytorch/pull/14767
 if hasattr(torch.distributed, 'get_default_group'):
     group_creator = torch.distributed.get_default_group
-else:
+elif hasattr(torch.distributed, 'new_group'):
     group_creator = torch.distributed.new_group
+else:
+    group_creator = torch.distributed.deprecated.new_group
 
 if hasattr(torch.distributed, 'ReduceOp'):
     ReduceOp = torch.distributed.ReduceOp
-else:
+elif hasattr(torch.distributed, 'reduce_op'):
     ReduceOp = torch.distributed.reduce_op
+else:
+    ReduceOp = torch.distributed.deprecated.reduce_op
 
 from .distributed import DistributedDataParallel, Reducer
 try:
