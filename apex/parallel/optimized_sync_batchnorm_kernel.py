@@ -2,7 +2,7 @@ import torch
 from torch.autograd.function import Function
 
 import syncbn
-from apex.parallel import group_creator, ReduceOp
+from apex.parallel import ReduceOp
 
 class SyncBatchnormFunction(Function):
 
@@ -16,11 +16,9 @@ class SyncBatchnormFunction(Function):
             mean, var, var_biased = syncbn.welford_mean_var(input)
 
             if torch.distributed.is_initialized():
-                if process_group:
-                    world_size = torch.distributed.get_world_size(process_group)
-                else:
-                    process_group = group_creator()
-                    world_size = torch.distributed.get_world_size()
+                if not process_group:
+                    process_group = torch.distributed.group.WORLD
+                world_size = torch.distributed.get_world_size(process_group)
                 mean_all = torch.empty(world_size, mean.size(0), dtype=mean.dtype, device=mean.device)
                 var_all = torch.empty(world_size, var.size(0), dtype=var.dtype, device=var.device)
                 mean_l = [mean_all.narrow(0, i, 1) for i in range(world_size)]

@@ -1,14 +1,5 @@
 import torch
 
-# Backward compatibility hack around
-# https://github.com/pytorch/pytorch/pull/14767
-if hasattr(torch.distributed, 'get_default_group'):
-    group_creator = torch.distributed.get_default_group
-elif hasattr(torch.distributed, 'new_group'):
-    group_creator = torch.distributed.new_group
-else:
-    group_creator = torch.distributed.deprecated.new_group
-
 if hasattr(torch.distributed, 'ReduceOp'):
     ReduceOp = torch.distributed.ReduceOp
 elif hasattr(torch.distributed, 'reduce_op'):

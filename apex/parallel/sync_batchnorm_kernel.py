@@ -1,7 +1,7 @@
 import torch
 from torch.autograd.function import Function
 
-from apex.parallel import group_creator, ReduceOp
+from apex.parallel import ReduceOp
 
 
 class SyncBatchnormFunction(Function):
