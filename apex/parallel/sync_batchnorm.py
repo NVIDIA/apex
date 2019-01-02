@@ -3,7 +3,7 @@ from torch.nn.modules.batchnorm import _BatchNorm
 from torch.nn import functional as F
 
 from .sync_batchnorm_kernel import SyncBatchnormFunction
-from apex.parallel import group_creator, ReduceOp
+from apex.parallel import ReduceOp
 
 
 class SyncBatchNorm(_BatchNorm):
@@ -63,11 +63,9 @@ class SyncBatchNorm(_BatchNorm):
         else:
             process_group = self.process_group
             world_size = 0
-            if self.process_group:
-                world_size = torch.distributed.get_world_size(process_group)
-            else:
-                process_group = group_creator()
-                world_size = torch.distributed.get_world_size()
+            if not self.process_group:
+                process_group = torch.distributed.group.WORLD
+            world_size = torch.distributed.get_world_size(process_group)
             self.num_batches_tracked += 1
             with torch.no_grad():
                 channel_first_input = input.transpose(0, 1).contiguous()
