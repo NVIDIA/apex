@@ -20,6 +20,7 @@ import numpy as np
 try:
     from apex.parallel import DistributedDataParallel as DDP
     from apex.fp16_utils import *
+    from apex import amp
 except ImportError:
     raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
 
@@ -60,8 +61,6 @@ parser.add_argument('--pretrained', dest='pretrained', action='store_true',
 
 parser.add_argument('--fp16', action='store_true',
                     help='Run model fp16 mode.')
-parser.add_argument('--static-loss-scale', type=float, default=1,
-                    help='Static loss scale, positive power of 2 values can improve fp16 convergence.')
 parser.add_argument('--prof', dest='prof', action='store_true',
                     help='Only run 10 iterations for profiling.')
 parser.add_argument('--deterministic', action='store_true')
@@ -97,6 +96,9 @@ if args.deterministic:
     cudnn.deterministic = True
     torch.manual_seed(args.local_rank)
 
+# Initialize Amp 
+amp_handle = amp.init(enabled=args.fp16)
+
 def main():
     global best_prec1, args
 
@@ -117,10 +119,6 @@ def main():
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
 
-    if args.static_loss_scale != 1.0:
-        if not args.fp16:
-            print("Warning:  if --fp16 is not used, static_loss_scale will be ignored.")
-
     # create model
     if args.pretrained:
         print("=> using pre-trained model '{}'".format(args.arch))
@@ -135,8 +133,7 @@ def main():
         model = apex.parallel.convert_syncbn_model(model)
 
     model = model.cuda()
-    if args.fp16:
-        model = network_to_half(model)
+
     if args.distributed:
         # By default, apex.parallel.DistributedDataParallel overlaps communication with 
         # computation in the backward pass.
@@ -144,18 +141,12 @@ def main():
         # delay_allreduce delays all communication to the end of the backward pass.
         model = DDP(model, delay_allreduce=True)
 
-    global model_params, master_params
-    if args.fp16:
-        model_params, master_params = prep_param_lists(model)
-    else:
-        master_params = list(model.parameters())
-
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
 
     # Scale learning rate based on global batch size
     args.lr = args.lr*float(args.batch_size*args.world_size)/256. 
-    optimizer = torch.optim.SGD(master_params, args.lr,
+    optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
 
@@ -169,10 +160,6 @@ def main():
                 args.start_epoch = checkpoint['epoch']
                 best_prec1 = checkpoint['best_prec1']
                 model.load_state_dict(checkpoint['state_dict'])
-                if args.fp16:
-                    saved_master_params = checkpoint['master_params']
-                    for master, saved in zip(master_params, saved_master_params):
-                        master.data.copy_(saved.data) 
                 optimizer.load_state_dict(checkpoint['optimizer'])
                 print("=> loaded checkpoint '{}' (epoch {})"
                       .format(args.resume, checkpoint['epoch']))
@@ -240,19 +227,13 @@ def main():
         if args.local_rank == 0:
             is_best = prec1 > best_prec1
             best_prec1 = max(prec1, best_prec1)
-            # Use local scope to avoid dangling references
-            def create_and_save_checkpoint():
-                checkpoint_dict = {
-                    'epoch': epoch + 1,
-                    'arch': args.arch,
-                    'state_dict': model.state_dict(),
-                    'best_prec1': best_prec1,
-                    'optimizer' : optimizer.state_dict(),
-                }
-                if args.fp16:
-                    checkpoint_dict['master_params'] = master_params
-                save_checkpoint(checkpoint_dict, is_best)
-            create_and_save_checkpoint()
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'arch': args.arch,
+                'state_dict': model.state_dict(),
+                'best_prec1': best_prec1,
+                'optimizer' : optimizer.state_dict(),
+            }, is_best)
 
 class data_prefetcher():
     def __init__(self, loader):
@@ -260,9 +241,11 @@ class data_prefetcher():
         self.stream = torch.cuda.Stream()
         self.mean = torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255]).cuda().view(1,3,1,1)
         self.std = torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255]).cuda().view(1,3,1,1)
-        if args.fp16:
-            self.mean = self.mean.half()
-            self.std = self.std.half()
+        # With Amp, it isn't necessary to manually convert data to half.
+        # Type conversions are done internally on the fly within patched torch functions.
+        # if args.fp16:
+        #     self.mean = self.mean.half()
+        #     self.std = self.std.half()
         self.preload()
 
     def preload(self):
@@ -275,10 +258,12 @@ class data_prefetcher():
         with torch.cuda.stream(self.stream):
             self.next_input = self.next_input.cuda(async=True)
             self.next_target = self.next_target.cuda(async=True)
-            if args.fp16:
-                self.next_input = self.next_input.half()
-            else:
-                self.next_input = self.next_input.float()
+            # With Amp, it isn't necessary to manually convert data to half.
+            # Type conversions are done internally on the fly within patched torch functions.
+            # if args.fp16:
+            #     self.next_input = self.next_input.half()
+            # else:
+            self.next_input = self.next_input.float()
             self.next_input = self.next_input.sub_(self.mean).div_(self.std)
             
     def next(self):
@@ -332,21 +317,13 @@ def train(train_loader, model, criterion, optimizer, epoch):
         top1.update(to_python_float(prec1), input.size(0))
         top5.update(to_python_float(prec5), input.size(0))
 
-        loss = loss*args.static_loss_scale
         # compute gradient and do SGD step
-        if args.fp16:
-            model.zero_grad()
-            loss.backward()
-            model_grads_to_master_grads(model_params, master_params)
-            if args.static_loss_scale != 1:
-                for param in master_params:
-                    param.grad.data = param.grad.data/args.static_loss_scale
-            optimizer.step()
-            master_params_to_model_params(model_params, master_params)
-        else:
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+        optimizer.zero_grad()
+
+        with amp_handle.scale_loss(loss, optimizer) as scaled_loss:
+            scaled_loss.backward()
+
+        optimizer.step()
 
         torch.cuda.synchronize()
         # measure elapsed time

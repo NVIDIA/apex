@@ -7,6 +7,10 @@ It implements training of popular model architectures, such as ResNet, AlexNet, 
 
 `main_fp16_optimizer.py` with `--fp16` demonstrates use of `apex.fp16_utils.FP16_Optimizer` to automatically manage master parameters and loss scaling.
 
+`main_amp.py` with `--fp16` demonstrates use of Amp to automatically perform all FP16-friendly operations in half precision under the hood.  Notice that with Amp:
+..* you don't need to explicitly convert your model, or the input data, to half().  Conversions will occur on-the-fly internally within the Amp-patched torch functions.
+..* dynamic loss scaling is always used under the hood.
+
 `main_reducer.py` is identical to `main.py`, except that it shows the use of [apex.parallel.Reduce](https://nvidia.github.io/apex/parallel.html#apex.parallel.Reducer) instead of `DistributedDataParallel`.
 
 ## Requirements
@@ -54,6 +58,9 @@ $ ln -sf /data/imagenet/train-jpeg/ train
 $ ln -sf /data/imagenet/val-jpeg/ val
 ### Single-process training
 $ python main.py -a resnet50 --fp16 --b 224 --workers 4 --static-loss-scale 128.0 ./
+### Single-process training with Amp.  Amp's casting causes it to use a bit more memory,
+### hence the batch size 128.
+$ python main_amp.py -a resnet50 --fp16 --b 128 --workers 4 ./
 ### Multi-process training (uses all visible GPUs on the node)
 $ python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --fp16 --b 224 --workers 4 --static-loss-scale 128.0 ./
 ### Multi-process training on GPUs 0 and 1 only
