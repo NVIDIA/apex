@@ -199,7 +199,7 @@ class DistributedDataParallel(Module):
         self.delay_allreduce = delay_allreduce
         self.message_size = message_size
 
-        self.reduction_stream = torch.cuda.Stream()
+        self.reduction_stream = torch.cuda.Stream(priority=-1)
         self.reduction_event = torch.cuda.Event(enable_timing=False, blocking=False) 
         
         self.module = module
