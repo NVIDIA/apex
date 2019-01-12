@@ -155,6 +155,7 @@ class DistributedDataParallel(Module):
                  allreduce_trigger_params=None,
                  retain_allreduce_buffers=False,
                  allreduce_always_fp32=False,
+                 allreduce_different_streams=False,
                  gradient_average=True,
                  gradient_predivide_factor=1.0,
                  gradient_average_split_factor=None):
@@ -174,6 +175,11 @@ class DistributedDataParallel(Module):
             self.backend_enum_holder = dist.dist_backend
 
         self.warn_on_half = True if self._backend == self.backend_enum_holder.GLOO else False
+
+        if allreduce_different_streams and delay_allreduce:
+            raise ValueError("allreduce_different_streams may only be used if delay_allreduce=False.")
+
+        self.allreduce_different_streams = allreduce_different_streams
 
         if shared_param is not None:
             raise ValueError("shared_param is no longer supported as an option.  It was misleadingly named from the start.  It turns out overlapping communication with computation should work fine with shared parameters.  If you still wish to delay communication to the end of the backward pass, use delay_allreduce=True|False instead.") 
@@ -352,7 +358,7 @@ class DistributedDataParallel(Module):
 
                 wrapper(param)
 
-    def allreduce_bucket(self, bucket):
+    def allreduce_bucket(self, bucket, bucket_idx):
         tensor = flatten(bucket)
 
         tensor_to_allreduce = tensor 
@@ -363,7 +369,10 @@ class DistributedDataParallel(Module):
         if self.gradient_predivide_factor != 1.0:
             tensor_to_allreduce.mul_(1./self.gradient_predivide_factor)
 
-        dist.all_reduce(tensor_to_allreduce)
+        if self.allreduce_different_streams and self.bucket_groups:
+            dist.all_reduce(tensor_to_allreduce, group=self.bucket_groups[bucket_idx])
+        else:
+            dist.all_reduce(tensor_to_allreduce)
 
         if self.gradient_average:
             tensor_to_allreduce.mul_(self.gradient_predivide_factor/self.world_size)
@@ -375,7 +384,7 @@ class DistributedDataParallel(Module):
     
 
     def allreduce_maybe_retain(self, bucket, bucket_idx=-1):
-        allreduced = self.allreduce_bucket(bucket)
+        allreduced = self.allreduce_bucket(bucket, bucket_idx)
         if self.retain_allreduce_buffers:
             if self.allreduce_buffers[bucket_idx] is not None:
                 raise RuntimeError("The backward pass is attempting to replace an already-filled "
@@ -464,9 +473,23 @@ class DistributedDataParallel(Module):
                 self.bucket_sizes = []
                 self.param_id_to_active_i = {id(param) : i for i, param in enumerate(param_list)}  
                 self.param_id_to_bucket = {}
+                self.bucket_groups = []
             else:
-                self.buckets = [[None for _ in range(self.bucket_sizes[i])] 
-                                for i in range(self.num_buckets)] 
+                if not self.buckets:
+                    self.buckets = [[None for _ in range(self.bucket_sizes[i])] 
+                                    for i in range(self.num_buckets)] 
+                else:
+                    assert len(self.buckets) == self.num_buckets, "len(buckets) = {}, expected {}".format(
+                        len(self.buckets), self.num_buckets)
+                    for b, bucket in enumerate(self.buckets):
+                        assert len(bucket) == self.bucket_sizes[b], "len(buckets[{}]) = {}, expected {})".format(
+                            b, len(buckets[b]), self.bucket_sizes[b])
+                        for i in range(len(bucket)):
+                            bucket[i] = None
+                if self.allreduce_different_streams and not self.bucket_groups:
+                    self.bucket_groups = [dist.new_group() for _ in range(self.num_buckets)]
+                    for i, bg in enumerate(self.bucket_groups):
+                        print("rank {} created group {} with backend {}".format(dist.get_rank(), i, dist.get_backend(bg)))
                 self.buckets_ready_size = [0 for i in range(self.num_buckets)]
                 if(self.retain_allreduce_buffers):
                     self.allreduce_buffers = [None for _ in range(self.num_buckets)]

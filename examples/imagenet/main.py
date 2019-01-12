@@ -141,8 +141,10 @@ def main():
         # By default, apex.parallel.DistributedDataParallel overlaps communication with 
         # computation in the backward pass.
         # model = DDP(model)
+        model = DDP(model, allreduce_different_streams=False)
         # delay_allreduce delays all communication to the end of the backward pass.
-        model = DDP(model, delay_allreduce=True)
+        # model = DDP(model, delay_allreduce=True)
+        # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
 
     global model_params, master_params
     if args.fp16:
