@@ -205,8 +205,8 @@ class DistributedDataParallel(Module):
         self.delay_allreduce = delay_allreduce
         self.message_size = message_size
 
-        self.reduction_stream = torch.cuda.Stream()
-        self.reduction_event = torch.cuda.Event(enable_timing=False, blocking=False) 
+        self.bucket_streams = []
+        self.bucket_events = []
         
         self.module = module
         
@@ -227,15 +227,22 @@ class DistributedDataParallel(Module):
 
     def __setstate__(self, state):
         super(DistributedDataParallel, self).__setstate__(state)
-        self.reduction_stream = torch.cuda.Stream()
-        self.reduction_event = torch.cuda.Event(enable_timing=False, blocking=False) 
+
+        if allreduce_different_streams and delay_allreduce:
+            raise ValueError("allreduce_different_streams may only be used if delay_allreduce=False.")
+
+        if self.delay_allreduce:
+            self.needs_refresh = True
+
+        self.bucket_streams = []
+        self.bucket_events = []
 
 
     def __getstate__(self):
         attrs = copy.copy(self.__dict__)
         if self._backend != self.backend_enum_holder.NCCL:
-            del attrs['self.reduction_stream']
-            del attrs['self.reduction_event']
+            del attrs['self.bucket_streams']
+            del attrs['self.bucket_events']
             return attrs
       
     # Broadcast rank 0's bucket structure across all processes, and have all processes 
@@ -293,8 +300,9 @@ class DistributedDataParallel(Module):
 
 
         def overlapping_backward_epilogue():
-            self.reduction_stream.record_event(self.reduction_event)
-            torch.cuda.current_stream().wait_event(self.reduction_event)
+            for stream, event in zip(self.bucket_streams, self.bucket_events):
+                stream.record_event(event)
+                torch.cuda.current_stream().wait_event(event)
      
             # Sanity checks that all the buckets were kicked off
             if self.next_bucket != self.num_buckets:
@@ -358,6 +366,20 @@ class DistributedDataParallel(Module):
 
                 wrapper(param)
 
+    def _stream_this_bucket(self, bucket_idx):
+        if self.allreduce_different_streams:
+            return self.bucket_streams[bucket_idx]
+        else:
+            return self.bucket_streams[0]
+
+
+    def _event_this_bucket(self, bucket_idx):
+        if self.allreduce_different_streams:
+            return self.bucket_events[bucket_idx]
+        else:
+            return self.bucket_events[0]
+
+
     def allreduce_bucket(self, bucket, bucket_idx):
         tensor = flatten(bucket)
 
@@ -369,8 +391,8 @@ class DistributedDataParallel(Module):
         if self.gradient_predivide_factor != 1.0:
             tensor_to_allreduce.mul_(1./self.gradient_predivide_factor)
 
-        if self.allreduce_different_streams and self.bucket_groups:
-            dist.all_reduce(tensor_to_allreduce, group=self.bucket_groups[bucket_idx])
+        if self.allreduce_different_streams and self.bucket_pgs:
+            dist.all_reduce(tensor_to_allreduce, group=self.bucket_pgs[bucket_idx])
         else:
             dist.all_reduce(tensor_to_allreduce)
 
@@ -425,9 +447,11 @@ class DistributedDataParallel(Module):
 
         if self.buckets_ready_size[bucket_idx] == self.bucket_sizes[bucket_idx]:
             if bucket_idx == self.next_bucket:
-                torch.cuda.current_stream().record_event(self.reduction_event)
-                self.reduction_stream.wait_event(self.reduction_event)
-                with torch.cuda.stream(self.reduction_stream):
+                bucket_stream = self._stream_this_bucket(bucket_idx)
+                bucket_event = self._event_this_bucket(bucket_idx)
+                torch.cuda.current_stream().record_event(bucket_event)
+                bucket_stream.wait_event(bucket_event)
+                with torch.cuda.stream(bucket_stream):
                     self.allreduce_maybe_retain(self.buckets[bucket_idx], bucket_idx)
 
                     self.next_bucket += 1
@@ -473,7 +497,9 @@ class DistributedDataParallel(Module):
                 self.bucket_sizes = []
                 self.param_id_to_active_i = {id(param) : i for i, param in enumerate(param_list)}  
                 self.param_id_to_bucket = {}
-                self.bucket_groups = []
+                self.bucket_pgs = []
+                self.bucket_streams = []
+                self.bucket_events = []
             else:
                 if not self.buckets:
                     self.buckets = [[None for _ in range(self.bucket_sizes[i])] 
@@ -486,10 +512,21 @@ class DistributedDataParallel(Module):
                             b, len(buckets[b]), self.bucket_sizes[b])
                         for i in range(len(bucket)):
                             bucket[i] = None
-                if self.allreduce_different_streams and not self.bucket_groups:
-                    self.bucket_groups = [dist.new_group() for _ in range(self.num_buckets)]
-                    for i, bg in enumerate(self.bucket_groups):
-                        print("rank {} created group {} with backend {}".format(dist.get_rank(), i, dist.get_backend(bg)))
+                if self.allreduce_different_streams:
+                    if not self.bucket_pgs:
+                        self.bucket_pgs = [dist.new_group() for _ in range(self.num_buckets)]
+                        for i, bg in enumerate(self.bucket_pgs):
+                            print("rank {} created group {} with backend {}".format(
+                                  dist.get_rank(), i, dist.get_backend(bg)))
+                if self.allreduce_different_streams:
+                    if not self.bucket_streams:
+                        self.bucket_streams = [torch.cuda.Stream() for _ in range(self.num_buckets)]
+                        self.bucket_events = [torch.cuda.Event(enable_timing=False,
+                                              blocking=False) for _ in range(self.num_buckets)]
+                else:
+                    if not self.bucket_streams:
+                        self.bucket_streams = [torch.cuda.Stream()]
+                        self.bucket_events = [torch.cuda.Event(enable_timing=False, blocking=False)]
                 self.buckets_ready_size = [0 for i in range(self.num_buckets)]
                 if(self.retain_allreduce_buffers):
                     self.allreduce_buffers = [None for _ in range(self.num_buckets)]
