@@ -158,7 +158,8 @@ class DistributedDataParallel(Module):
                  allreduce_different_streams=False,
                  gradient_average=True,
                  gradient_predivide_factor=1.0,
-                 gradient_average_split_factor=None):
+                 gradient_average_split_factor=None,
+                 prof=False):
         super(DistributedDataParallel, self).__init__()
 
         # Backward/forward compatibility around 
@@ -175,6 +176,8 @@ class DistributedDataParallel(Module):
             self.backend_enum_holder = dist.dist_backend
 
         self.warn_on_half = True if self._backend == self.backend_enum_holder.GLOO else False
+
+        self.prof = prof
 
         if allreduce_different_streams and delay_allreduce:
             raise ValueError("allreduce_different_streams may only be used if delay_allreduce=False.")
@@ -322,6 +325,9 @@ class DistributedDataParallel(Module):
                     grad_acc = param_tmp.grad_fn.next_functions[0][0]
 
                     def allreduce_hook(*unused):
+                        if self.prof:
+                            torch.cuda.nvtx.range_push("allreduce_hook")
+
                         if self.delay_allreduce or self.needs_refresh:
                             # TODO:  How do we want to handle multiple backward passes between
                             # each forward, e.g., backward passes with retain_graph=True?
@@ -360,6 +366,9 @@ class DistributedDataParallel(Module):
                                 self.callback_queued = True 
 
                             self.comm_ready_buckets(param)
+
+                        if self.prof:
+                            torch.cuda.nvtx.range_pop()
                         
                     grad_acc.register_hook(allreduce_hook)
                     self.grad_accs.append(grad_acc)
@@ -436,6 +445,9 @@ class DistributedDataParallel(Module):
         # Need to do this in every hook for compatibility with Ruberry's streaming backward PR.
         # self.reduction_stream.wait_stream(torch.cuda.current_stream())
 
+        if self.prof:
+            torch.cuda.nvtx.range_push("comm_ready_buckets")
+
         bucket_idx, bucket_loc = self.param_id_to_bucket[id(param)]
 
         if self.buckets[bucket_idx][bucket_loc] is not None:
@@ -473,10 +485,16 @@ class DistributedDataParallel(Module):
             else:
                 self.ready_buckets_not_reduced.add(bucket_idx)
 
+        if self.prof:
+            torch.cuda.nvtx.range_pop()
+
         
     def forward(self, *inputs, **kwargs):
         result = self.module(*inputs, **kwargs)
-        
+
+        if self.prof:
+            torch.cuda.nvtx.range_push("forward pass DDP logic")
+
         if not self.delay_allreduce:
             param_list = [param for param in self.module.parameters() if param.requires_grad]
 
@@ -536,5 +554,8 @@ class DistributedDataParallel(Module):
             self.active_params = param_list
 
         self.callback_queued = False
-        
+
+        if self.prof:
+            torch.cuda.nvtx.range_pop()
+
         return result
