@@ -445,8 +445,8 @@ class DistributedDataParallel(Module):
         # Need to do this in every hook for compatibility with Ruberry's streaming backward PR.
         # self.reduction_stream.wait_stream(torch.cuda.current_stream())
 
-        if self.prof:
-            torch.cuda.nvtx.range_push("comm_ready_buckets")
+        # if self.prof:
+        #     torch.cuda.nvtx.range_push("comm_ready_buckets")
 
         bucket_idx, bucket_loc = self.param_id_to_bucket[id(param)]
 
@@ -485,8 +485,8 @@ class DistributedDataParallel(Module):
             else:
                 self.ready_buckets_not_reduced.add(bucket_idx)
 
-        if self.prof:
-            torch.cuda.nvtx.range_pop()
+        # if self.prof:
+        #     torch.cuda.nvtx.range_pop()
 
         
     def forward(self, *inputs, **kwargs):
@@ -538,12 +538,12 @@ class DistributedDataParallel(Module):
                                   dist.get_rank(), i, dist.get_backend(bg)))
                 if self.allreduce_different_streams:
                     if not self.bucket_streams:
-                        self.bucket_streams = [torch.cuda.Stream() for _ in range(self.num_buckets)]
+                        self.bucket_streams = [torch.cuda.current_stream() for _ in range(self.num_buckets)]
                         self.bucket_events = [torch.cuda.Event(enable_timing=False,
                                               blocking=False) for _ in range(self.num_buckets)]
                 else:
                     if not self.bucket_streams:
-                        self.bucket_streams = [torch.cuda.Stream()]
+                        self.bucket_streams = [torch.cuda.current_stream()]
                         self.bucket_events = [torch.cuda.Event(enable_timing=False, blocking=False)]
                 self.buckets_ready_size = [0 for i in range(self.num_buckets)]
                 if(self.retain_allreduce_buffers):
