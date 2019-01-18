@@ -508,6 +508,7 @@ welford_kernel_c_last(
     }
 
     __threadfence();
+    __syncthreads(); // ensuring writes to staging_ is visible to all blocks
 
     __shared__ bool is_last_block_done;
     // mark block done
@@ -724,6 +725,7 @@ __global__ void reduce_bn_c_last_kernel(
     }
 
     __threadfence();
+    __syncthreads(); // ensuring writes to staging_ is visible to all blocks
 
     __shared__ bool is_last_block_done;
     // mark block done
