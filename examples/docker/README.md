@@ -25,4 +25,4 @@ Instead of building a new container, it is also a viable option to clone Apex on
 ```
 docker run --runtime=nvidia -it --rm --ipc=host -v /bare/metal/apex:/apex/in/container <base image>
 ```
-then go to /apex/in/container within the running container and `python setup.py install`.
+then go to /apex/in/container within the running container and `python setup.py install [--cuda_ext] [--cpp_ext]`.
