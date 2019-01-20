@@ -94,7 +94,8 @@ import apex
 ```
 
 ### CUDA/C++ extension
-Apex contains optional CUDA/C++ extensions, installable via (Note: gcc version not later than 6 is required)
+Apex contains optional CUDA/C++ extensions, installable via 
+(Note: gcc version not later than 6 is required to install with --cuda_ext --cpp_ext)
 ```
 python setup.py install --cuda_ext --cpp_ext
 ```
