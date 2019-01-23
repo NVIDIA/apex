@@ -112,3 +112,6 @@ class NoOpHandle(object):
     @property
     def verbose(self):
         return False
+
+    def _deactivate(self):
+        pass
