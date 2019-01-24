@@ -292,7 +292,8 @@ class DistributedDataParallel(Module):
      
             # Sanity checks that all the buckets were kicked off
             if self.next_bucket != self.num_buckets:
-                raise RuntimeError("In epilogue, next_bucket != num_buckets.  "
+                raise RuntimeError("In epilogue, next_bucket ({}) != num_buckets ({}).  ".format(
+                                   self.next_bucket, self.num_buckets),
                                    "This probably indicates some buckets were not allreduced.")
 
             for actual, expected in zip(self.buckets_ready_size, self.bucket_sizes):
@@ -389,6 +390,8 @@ class DistributedDataParallel(Module):
     def allreduce_fallback(self):
         grads = [param.grad.data for param in self.module.parameters() if param.grad is not None]
 
+        print("In allreduce_fallback: {}".format(len(grads)))
+
         split_buckets = split_half_float_double(grads)
 
         # If retain_allreduce_buffers is True and delay_allreduce is False,
@@ -413,6 +416,7 @@ class DistributedDataParallel(Module):
 
         self.buckets[bucket_idx][bucket_loc] = param.grad.data
         self.buckets_ready_size[bucket_idx] += 1
+        print(self.buckets_ready_size)
 
         if self.buckets_ready_size[bucket_idx] == self.bucket_sizes[bucket_idx]:
             if bucket_idx == self.next_bucket:
@@ -472,6 +476,9 @@ class DistributedDataParallel(Module):
                     self.allreduce_buffers = [None for _ in range(self.num_buckets)]
                 self.next_bucket = 0
                 self.ready_buckets_not_reduced = set()
+
+            print(len(param_list), len(self.active_params), [len(b) for b in self.buckets],
+                  self.needs_refresh)
             
             self.active_params = param_list
 
