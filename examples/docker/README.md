@@ -21,8 +21,8 @@ Currently, Pytorch's default non-devel image on Dockerhub
 
 ## Option 2:  Install Apex in a running container
 
-Instead of building a new container, it is also a viable option to clone Apex on bare metal, mount the Apex repo into your container at launch by running, for example,
+Instead of building a new container, it is also a viable option to `git clone https://github.com/NVIDIA/apex.git` on bare metal, mount the Apex repo into your container at launch by running, for example,
 ```
 docker run --runtime=nvidia -it --rm --ipc=host -v /bare/metal/apex:/apex/in/container <base image>
 ```
-then go to /apex/in/container within the running container and `python setup.py install`.
+then go to /apex/in/container within the running container and `python setup.py install [--cuda_ext] [--cpp_ext]`.

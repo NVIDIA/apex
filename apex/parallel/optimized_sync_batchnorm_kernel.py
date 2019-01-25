@@ -7,26 +7,40 @@ from apex.parallel import ReduceOp
 class SyncBatchnormFunction(Function):
 
     @staticmethod
-    def forward(ctx, input, weight, bias, running_mean, running_variance, eps, track_running_stats = True, momentum = 1.0, process_group = None):
+    def forward(ctx, input, weight, bias, running_mean, running_variance, eps, track_running_stats = True, momentum = 1.0, process_group = None, channel_last = False):
         torch.cuda.nvtx.range_push("sync_BN_fw")
         input = input.contiguous()
         world_size = 0
 
+        mean = None
+        var_biased = None
+        inv_std = None
+        var = None
+        out = None
+        count = None
         if track_running_stats:
-            mean, var, var_biased = syncbn.welford_mean_var(input)
+            if channel_last:
+                count = int(input.numel()/input.size(-1))
+                mean, var_biased = syncbn.welford_mean_var_c_last(input)
+            else :
+                count = int(input.numel()/input.size(1))
+                mean, var_biased = syncbn.welford_mean_var(input)
 
             if torch.distributed.is_initialized():
                 if not process_group:
                     process_group = torch.distributed.group.WORLD
                 world_size = torch.distributed.get_world_size(process_group)
                 mean_all = torch.empty(world_size, mean.size(0), dtype=mean.dtype, device=mean.device)
-                var_all = torch.empty(world_size, var.size(0), dtype=var.dtype, device=var.device)
+                var_all = torch.empty(world_size, var_biased.size(0), dtype=var_biased.dtype, device=var_biased.device)
                 mean_l = [mean_all.narrow(0, i, 1) for i in range(world_size)]
                 var_l = [var_all.narrow(0, i, 1) for i in range(world_size)]
                 torch.distributed.all_gather(mean_l, mean, process_group)
                 torch.distributed.all_gather(var_l, var_biased, process_group)
-                mean, var, var_biased = syncbn.welford_parallel(mean_all.transpose(1,0).contiguous(), var_all.transpose(1,0).contiguous(), int(input.numel()/input.size(1)))
+                mean, var, inv_std = syncbn.welford_parallel(mean_all, var_all, count, eps)
                 # TODO(Jie): should do fp32 math instead!
+            else:
+                inv_std = 1.0 / torch.sqrt(var_biased + eps)
+                var = var_biased * (count) / (count-1) 
 
             r_m_inc = mean if running_mean.dtype != torch.float16 else mean.half()
             r_v_inc = var if running_variance.dtype != torch.float16 else var.half()
@@ -34,14 +48,17 @@ class SyncBatchnormFunction(Function):
             running_variance.data = running_variance.data * (1-momentum) + momentum*r_v_inc
         else:
             mean = running_mean.data
-            var_biased = running_var.data
+            inv_std = 1.0 / torch.sqrt(running_var.data + eps)
 
-        ctx.save_for_backward(input, weight, mean, var_biased)
-        ctx.eps = eps
+        ctx.save_for_backward(input, weight, mean, inv_std)
         ctx.process_group = process_group
+        ctx.channel_last = channel_last
         ctx.world_size = world_size
 
-        out = syncbn.batchnorm_forward(input, mean, var_biased, weight, bias, eps)
+        if channel_last:
+            out = syncbn.batchnorm_forward_c_last(input, mean, inv_std, weight, bias)
+        else:
+            out = syncbn.batchnorm_forward(input, mean, inv_std, weight, bias)
 
         torch.cuda.nvtx.range_pop()
         return out
@@ -53,14 +70,17 @@ class SyncBatchnormFunction(Function):
         # mini batch mean & var are calculated by forward path.
         # mu = 1./N*np.sum(h, axis = 0)
         # var = 1./N*np.sum((h-mu)**2, axis = 0)
-        saved_input, weight, running_mean, running_variance = ctx.saved_tensors
-        eps = ctx.eps
+        saved_input, weight, mean, inv_std = ctx.saved_tensors
         process_group = ctx.process_group
+        channel_last = ctx.channel_last
         world_size = ctx.world_size
         grad_input = grad_weight = grad_bias = None
 
         # TODO(jie): why do I have to clone here? life time of grad_output?
-        mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output, saved_input, running_mean, running_variance, weight, eps)
+        if channel_last:
+            mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn_c_last(grad_output, saved_input, mean, inv_std, weight)
+        else:
+            mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output, saved_input, mean, inv_std, weight)
 
         # calculate grad_input
         if ctx.needs_input_grad[0]:
@@ -72,7 +92,10 @@ class SyncBatchnormFunction(Function):
                 torch.distributed.all_reduce(
                     mean_dy_xmu, ReduceOp.SUM, process_group)
                 mean_dy_xmu = mean_dy_xmu / world_size
-            grad_input = syncbn.batchnorm_backward(grad_output, saved_input, running_mean, running_variance, weight, mean_dy, mean_dy_xmu, eps)
+            if channel_last:
+                grad_input = syncbn.batchnorm_backward_c_last(grad_output, saved_input, mean, inv_std, weight, mean_dy, mean_dy_xmu)
+            else:
+                grad_input = syncbn.batchnorm_backward(grad_output, saved_input, mean, inv_std, weight, mean_dy, mean_dy_xmu)
 
         if weight is None or not ctx.needs_input_grad[1]:
             grad_weight = None
@@ -81,4 +104,4 @@ class SyncBatchnormFunction(Function):
             grad_bias = None
 
         torch.cuda.nvtx.range_pop()
-        return grad_input, grad_weight, grad_bias, None, None, None, None, None, None
+        return grad_input, grad_weight, grad_bias, None, None, None, None, None, None, None

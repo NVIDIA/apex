@@ -75,7 +75,10 @@ m = inp_r.mean(1)
 b_v = inp_r.var(1, unbiased=False)
 unb_v = inp_r.var(1, unbiased=True)
 
-mean, var, var_biased = syncbn.welford_mean_var(inp_t)
+eps = 1e-5
+
+mean, var_biased = syncbn.welford_mean_var(inp_t)
+inv_std = 1.0 / torch.sqrt(var_biased + eps)
 
 bn = torch.nn.BatchNorm2d(feature_size).cuda()
 bn.momentum = 1.0
@@ -111,12 +114,9 @@ bn_result = True
 
 if args.local_rank == 0:
     sbn_result = compare("comparing mean: ", mean, m, error) and sbn_result
-    sbn_result = compare("comparing variance: ", var, unb_v, error) and sbn_result
     sbn_result = compare("comparing biased variance: ", var_biased, b_v, error) and sbn_result
 
-eps = 1e-5
-
-out = syncbn.batchnorm_forward(inp_t, mean, var_biased, weight_t, bias_t, eps)
+out = syncbn.batchnorm_forward(inp_t, mean, inv_std, weight_t, bias_t)
 out_r = weight_r * (inp2_r - m.view(-1, 1, 1)) * torch.rsqrt(b_v.view(-1,1,1) + eps) + bias_r
 
 if args.local_rank == 0:
@@ -136,8 +136,8 @@ mean_dy_xmu_r = ((inp2_r - m.view(-1, 1, 1)) * grad_output2_r).transpose(1,0).co
 
 grad_input_r = (grad_output2_r - mean_dy_r.view(-1, 1, 1) - (inp2_r - m.view(-1, 1, 1)) / (b_v.view(-1,1,1) + eps) * mean_dy_xmu_r.view(-1, 1, 1) ) * torch.rsqrt(b_v.view(-1,1,1) + eps) * weight_r.view(-1,1,1)
 
-mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output_t, inp_t, mean, var_biased, weight_t, eps)
-grad_input = syncbn.batchnorm_backward(grad_output_t, inp_t, mean, var_biased, weight_t, mean_dy, mean_dy_xmu, eps)
+mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output_t, inp_t, mean, inv_std, weight_t)
+grad_input = syncbn.batchnorm_backward(grad_output_t, inp_t, mean, inv_std, weight_t, mean_dy, mean_dy_xmu)
 if args.local_rank == 0:
     sbn_result = compare("comparing bias grad: ", grad_bias, grad_bias_r, error) and sbn_result
     sbn_result = compare("comparing weight grad: ", grad_weight, grad_weight_r, error) and sbn_result
