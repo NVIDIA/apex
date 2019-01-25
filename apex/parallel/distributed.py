@@ -473,7 +473,6 @@ class DistributedDataParallel(Module):
                     self.allreduce_buffers = [None for _ in range(self.num_buckets)]
                 self.next_bucket = 0
                 self.ready_buckets_not_reduced = set()
-
             
             self.active_params = param_list
 
