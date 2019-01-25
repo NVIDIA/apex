@@ -82,7 +82,6 @@ def casted_args(cast_fn, args, kwargs):
     return new_args
 
 def cached_cast(cast_fn, x, cache):
-    # print("Calling cached_cast")
     if is_nested(x):
         return type(x)([cached_cast(y) for y in x])
     if x in cache:
@@ -97,7 +96,7 @@ def cached_cast(cast_fn, x, cache):
         # and reused from the cache, it will not actually have x as its parent.
         # Therefore, we choose to invalidate the cache (and force refreshing the cast)
         # if x.requires_grad and cached_x.requires_grad do not match.
-        if x.requires_grad != cached_x.requires_grad:
+        if torch.is_grad_enabled() and x.requires_grad != cached_x.requires_grad:
             del cache[x]
         else:
             return cached_x
