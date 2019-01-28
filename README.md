@@ -71,11 +71,13 @@ It has improved the converged accuracy in some of our research models.
 
 Python 3
 
-CUDA 9
+CUDA 9 or 10
 
 PyTorch 0.4 or newer.  We recommend to use the latest stable release, obtainable from 
 [https://pytorch.org/](https://pytorch.org/).  We also test against the latest master branch, obtainable from [https://github.com/pytorch/pytorch](https://github.com/pytorch/pytorch).  
 If you have any problems building, please file an issue.
+
+The cpp and cuda extensions require pytorch 1.0 or newer.
 
 
 
