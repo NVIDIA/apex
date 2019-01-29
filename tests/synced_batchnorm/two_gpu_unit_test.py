@@ -92,6 +92,8 @@ inp_bn = inp_t.clone().requires_grad_()
 grad_bn = grad_output_t.clone().detach()
 out_bn = bn(inp_bn)
 out_bn.backward(grad_bn)
+# compensating the averaging over processes done by DDP
+# in order to produce mathmetically equivalent result
 for param in bn.parameters():
     param.grad = param.grad / args.world_size
 bn_opt = optim.SGD(bn.parameters(), lr=1.0)
