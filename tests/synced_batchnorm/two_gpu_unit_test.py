@@ -94,6 +94,7 @@ out_bn = bn(inp_bn)
 out_bn.backward(grad_bn)
 # compensating the averaging over processes done by DDP
 # in order to produce mathematically equivalent result
+# https://github.com/NVIDIA/apex/issues/134#issuecomment-458307368
 for param in bn.parameters():
     param.grad = param.grad / args.world_size
 bn_opt = optim.SGD(bn.parameters(), lr=1.0)
