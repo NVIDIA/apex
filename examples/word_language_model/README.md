@@ -9,11 +9,12 @@ The trained model can then be used by the generate script to generate new text.
 
 `main_fp16_optimizer.py` with `--fp16` demonstrates use of `apex.fp16_utils.FP16_Optimizer` to automatically manage master parameters and loss scaling.
 
-With `--fp16`, to enable Tensor Core use and achieve best performance, all dimensions that participate in GEMMs in the model should be multiples of 8.  Specifically, these are
+With `--fp16`, to enable Tensor Core use and achieve best performance, dimensions that participate in GEMMs in the model should be multiples of 8.  Specifically, these are
 * dictionary length (ntokens in `main.py`),
 * embedding size (`--emsize`),
 * hidden size (`--nhid`), and
 * batch size (`--batch_size`).
+
 The dictionary length is a property of the dataset, and is not controlled by a command line argument. In `main.py`, `corpus = data.Corpus(args.data, pad_to_multiple_of=8)` and the `Corpus` constructor in
 `data.py` ensure that the dictionary length is a multiple of 8.
 
