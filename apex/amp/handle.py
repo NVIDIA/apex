@@ -56,7 +56,8 @@ class AmpHandle(object):
         if should_skip:
             optimizer_step = optimizer.step
             def skip_step():
-                logging.info('Gradient overflow, skipping update')
+                logger = logging.getLogger('apex.amp')
+                logger.info('Gradient overflow, skipping update')
                 optimizer.step = optimizer_step
             optimizer.step = skip_step
 

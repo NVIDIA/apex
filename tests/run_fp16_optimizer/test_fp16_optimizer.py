@@ -6,6 +6,8 @@ import itertools as it
 import torch
 from apex.fp16_utils import FP16_Optimizer
 
+# Currently no-ops (tested via examples).
+# FP16_Optimizer to be deprecated and moved under unified Amp API.
 class TestFP16Optimizer(unittest.TestCase):
     def setUp(self):
         N, D_in, D_out = 64, 1024, 16

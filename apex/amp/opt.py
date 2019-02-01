@@ -76,7 +76,8 @@ class OptimWrapper(object):
                 'The `closure` argument is unsupported by the amp ' +
                 'optimizer wrapper.')
         if any(self._skip_next):
-            logging.info('Gradient overflow, skipping update')
+            logger = logging.getLogger('apex.amp')
+            logger.info('Gradient overflow, skipping update')
             self._skip_next = [False] * self._num_loss
         else:
             return self._optimizer.step(closure=closure)
