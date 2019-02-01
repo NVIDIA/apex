@@ -3,9 +3,10 @@ import torch.nn as nn
 from torch.autograd import Variable
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
+
 class tofp16(nn.Module):
     """
-    Model wrapper that implements::
+    Utility module that implements::
 
         def forward(self, input):
             return input.half()
@@ -19,14 +20,11 @@ class tofp16(nn.Module):
 
 
 def BN_convert_float(module):
-    '''
-    Designed to work with network_to_half.
-    BatchNorm layers need parameters in single precision.
-    Find all layers and convert them back to float. This can't
-    be done with built in .apply as that function will apply
-    fn to all modules, parameters, and buffers. Thus we wouldn't
-    be able to guard the float conversion based on the module type.
-    '''
+    """
+    Utility function for network_to_half().
+
+    Retained for legacy purposes.
+    """
     if isinstance(module, torch.nn.modules.batchnorm._BatchNorm) and module.affine is True:
         module.float()
     for child in module.children():
@@ -37,8 +35,51 @@ def BN_convert_float(module):
 def network_to_half(network):
     """
     Convert model to half precision in a batchnorm-safe way.
+
+    Retained for legacy purposes. It is recommended to use FP16Model.
     """
     return nn.Sequential(tofp16(), BN_convert_float(network.half()))
+
+
+def convert_module(module, dtype):
+    """
+    Converts a module's immediate parameters and buffers to dtype.
+    """
+    for param in module.parameters(recurse=False):
+        if param is not None:
+            if param.data.dtype.is_floating_point:
+                param.data = param.data.to(dtype=dtype)
+            if param._grad is not None and param._grad.data.dtype.is_floating_point:
+                param._grad.data = param._grad.data.to(dtype=dtype)
+
+    for buf in module.buffers(recurse=False):
+        if buf is not None and buf.data.dtype.is_floating_point:
+            buf.data = buf.data.to(dtype=dtype)
+
+
+def convert_network(network, dtype):
+    """
+    Converts a network's parameters and buffers to dtype.
+    """
+    for module in network.modules():
+        if isinstance(module, torch.nn.modules.batchnorm._BatchNorm) and module.affine is True:
+            continue
+        convert_module(module, dtype)
+    return network
+
+
+class FP16Model(nn.Module):
+    """
+    Convert model to half precision in a batchnorm-safe way.
+    """
+
+    def __init__(self, network):
+        super(FP16Model, self).__init__()
+        self.network = convert_network(network, dtype=torch.half)
+
+    def forward(self, *inputs):
+        inputs = tuple(t.half() for t in inputs)
+        return self.network(*inputs)
 
 
 def backwards_debug_hook(grad):
@@ -46,7 +87,7 @@ def backwards_debug_hook(grad):
 
 def prep_param_lists(model, flat_master=False):
     """
-    Creates a list of FP32 master parameters for a given model, as in 
+    Creates a list of FP32 master parameters for a given model, as in
     `Training Neural Networks with Mixed Precision:  Real Examples`_.
 
     Args:
