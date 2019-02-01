@@ -47,7 +47,7 @@ parser.add_argument('--save', type=str,  default='model.pt',
                     help='path to save the final model')
 parser.add_argument('--fp16', action='store_true',
                     help='Run model in pseudo-fp16 mode (fp16 storage fp32 math).')
-parser.add_argument('--static-loss-scale', type=float, default=1,
+parser.add_argument('--static-loss-scale', type=float, default=128.0,
                     help='Static loss scale, positive power of 2 values can improve fp16 convergence.')
 parser.add_argument('--dynamic-loss-scale', action='store_true',
                     help='Use dynamic loss scaling.  If supplied, this argument supersedes ' +

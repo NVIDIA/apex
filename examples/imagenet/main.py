@@ -119,7 +119,9 @@ def main():
 
     if args.static_loss_scale != 1.0:
         if not args.fp16:
-            print("Warning:  if --fp16 is not used, static_loss_scale will be ignored.")
+            print("Warning:  static_loss_scale != 1.0 is only necessary with --fp16. "
+                  "Resetting static_loss_scale to 1.0")
+            args.static_loss_scale = 1.0
 
     # create model
     if args.pretrained:

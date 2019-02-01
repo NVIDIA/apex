@@ -47,7 +47,7 @@ parser.add_argument('--save', type=str,  default='model.pt',
                     help='path to save the final model')
 parser.add_argument('--fp16', action='store_true',
                     help='Run model in pseudo-fp16 mode (fp16 storage fp32 math).')
-parser.add_argument('--static-loss-scale', type=float, default=1,
+parser.add_argument('--static-loss-scale', type=float, default=128.0,
                     help='Static loss scale, positive power of 2 values can improve fp16 convergence.')
 
 args = parser.parse_args()
@@ -118,6 +118,12 @@ if args.cuda and args.fp16:
     model_params, master_params = prep_param_lists(model)
 elif args.cuda:
     model.cuda()
+
+if (not args.fp16) or (not args.cuda):
+    print("Warning:  static_loss_scale != 1.0 is only necessary with --fp16. "
+          "Resetting static_loss_scale to 1.0")
+    args.static_loss_scale = 1.0
+
 criterion = nn.CrossEntropyLoss()
 
 ###############################################################################
@@ -184,21 +190,21 @@ def train():
         loss = criterion(output.view(-1, ntokens), targets)
         loss = loss * args.static_loss_scale
         loss.backward()
-        loss = loss / args.static_loss_scale
-        # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-        # apex.fp16_utils.clip_grad_norm selects between "torch.nn.utils.clip_grad_norm" 
-        # and "torch.nn.utils.clip_grad_norm_" based on Pytorch version.  
-        # It's not FP16-specific, just a small fix to avoid deprecation warnings.
-        clip_grad_norm(model.parameters(), args.clip)
+        loss.data = loss.data / args.static_loss_scale
 
         if args.fp16 and args.cuda:
             model_grads_to_master_grads(model_params, master_params)
+            if args.static_loss_scale != 1:
+                for param in master_params:
+                    param.grad.data = param.grad.data/args.static_loss_scale
+            clip_grad_norm(master_params, args.clip)
             for param in master_params:
-                param.data = param.data - param.grad.data * (lr/args.static_loss_scale)
+                param.data = param.data - param.grad.data * lr
             master_params_to_model_params(model_params, master_params)
         else:
+            clip_grad_norm(model.parameters(), args.clip)
             for p in model.parameters():
-                p.data.add_(-lr/args.static_loss_scale, p.grad.data)
+                p.data.add_(-lr, p.grad.data)
 
         total_loss += loss.data
 
