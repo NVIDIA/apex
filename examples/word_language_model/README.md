@@ -9,7 +9,11 @@ The trained model can then be used by the generate script to generate new text.
 
 `main_fp16_optimizer.py` with `--fp16` demonstrates use of `apex.fp16_utils.FP16_Optimizer` to automatically manage master parameters and loss scaling.
 
-This example is intended as an illustration of the mixed precision recipe, not necessarily as a performance showcase.  However, it does demonstrate certain best practices.  With `--fp16`, to enable Tensor Core use and improve performance, dimensions that participate in GEMMs in the model should be multiples of 8.  Specifically, these are
+These examples are intended as an illustration of the mixed precision recipe, not necessarily as a performance showcase.  However, they do demonstrate certain best practices.
+
+First, a default loss scale of 128.0 is used.  In our testing, this improves converged test perplexity modestly with mixed precision, from around 93 with loss scale 1.0 to around 90 with loss scale 128.0.
+
+Second, to enable Tensor Core use with `--fp16` and improve performance, dimensions that participate in GEMMs in the model are made multiples of 8.  Specifically, these are
 * dictionary length (ntokens in `main.py`),
 * embedding size (`--emsize`),
 * hidden size (`--nhid`), and
