@@ -8,16 +8,15 @@ else:
     ReduceOp = torch.distributed.deprecated.reduce_op
 
 from .distributed import DistributedDataParallel, Reducer
+# This is tricky because I'd like SyncBatchNorm to be exposed the same way
+# for both the cuda-enabled and python-fallback versions, and I don't want
+# to suppress the error information.
 try:
     import syncbn
     from .optimized_sync_batchnorm import SyncBatchNorm
-except ImportError:
-    try:
-        _ = warned_syncbn
-    except NameError:
-        print("Warning:  apex was installed without --cuda_ext. Fused syncbn kernels will be unavailable.  Python fallbacks will be used instead.")
-        warned_syncbn = True
+except ImportError as err:
     from .sync_batchnorm import SyncBatchNorm
+    SyncBatchNorm.syncbn_import_error = err
 
 def convert_syncbn_model(module, process_group=None, channel_last=False):
     '''

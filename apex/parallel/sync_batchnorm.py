@@ -45,7 +45,14 @@ class SyncBatchNorm(_BatchNorm):
         >>> out = sbn(inp)
     """
 
+    warned = False
+
     def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True, process_group=None):
+
+        if not SyncBatchNorm.warned:
+            print("Warning:  using Python fallback for SyncBatchNorm, possibly because apex was installed without --cuda_ext.  The exception raised when attempting to import the cuda backend was: ", self.syncbn_import_error)
+            SyncBatchNorm.warned = True
+
         super(SyncBatchNorm, self).__init__(num_features, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
         self.process_group = process_group
 

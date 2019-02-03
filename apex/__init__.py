@@ -3,23 +3,13 @@
 from . import fp16_utils
 from . import parallel
 from . import amp
-try:
-    from . import optimizers
-except ImportError:
-    # An attempt to fix https://github.com/NVIDIA/apex/issues/97.  I'm not sure why 97 is even
-    # happening because Python modules should only be imported once, even if import is called
-    # multiple times.
-    try:
-        _ = warned_optimizers
-    except NameError:
-        print("Warning:  apex was installed without --cuda_ext.  FusedAdam will be unavailable.")
-        warned_optimizers = True
-try:
-    from . import normalization
-except ImportError:
-    try:
-        _ = warned_normalization
-    except NameError:
-        print("Warning:  apex was installed without --cuda_ext.  FusedLayerNorm will be unavailable.")
-        warned_normalization = True
 
+# For optimizers and normalization there is no Python fallback.
+# Absence of cuda backend is a hard error.
+# I would like the errors from importing fused_adam_cuda or fused_layer_norm_cuda
+# to be triggered lazily, because if someone has installed with --cpp_ext and --cuda_ext
+# so they expect those backends to be available, but for some reason they actually aren't
+# available (for example because they built improperly in a way that isn't revealed until
+# load time) the error message is timely and visible.
+from . import optimizers
+from . import normalization
