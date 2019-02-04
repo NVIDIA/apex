@@ -37,6 +37,10 @@ if "--cuda_ext" in sys.argv:
         print("Warning:  nvcc is not available.  Ignoring --cuda-ext") 
     else:
         ext_modules.append(
+            CUDAExtension(name='amp_C',
+                          sources=['csrc/scale_check_overflow.cpp',
+                                   'csrc/scale_check_overflow_kernel.cu']))
+        ext_modules.append(
             CUDAExtension(name='fused_adam_cuda',
                           sources=['apex/optimizers/csrc/fused_adam_cuda.cpp',
                                    'apex/optimizers/csrc/fused_adam_cuda_kernel.cu'],

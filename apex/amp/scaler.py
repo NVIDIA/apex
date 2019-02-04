@@ -2,8 +2,7 @@ import torch
 
 # from apex_C import scale_check_overflow
 
-# Python stopgap, until we get a future-proof kernel into upstream
-def scale_check_overflow(d_grads, scale):
+def scale_check_overflow_python(d_grads, scale):
     # Exception handling for 18.04 compatibility
     try:
         cpu_sum = float(d_grads.float().sum())
@@ -18,28 +17,49 @@ def scale_check_overflow(d_grads, scale):
         return False
       
 class LossScaler(object):
+    warned_no_fused_kernel = False
+    has_fused_kernel = False
+
     def __init__(self):
         self._loss_scale = 2.**16
         self._max_loss_scale = 2.**24
         self._scale_seq_len = 2000
         self._unskipped = 0
         self._has_overflow = False
-        # self._overflow_buf = torch.cuda.ByteTensor(1024,)
+        try:
+            import amp_C
+            LossScaler.has_fused_kernel = True
+            LossScaler.scale_check_overflow = amp_C.scale_check_overflow
+            self._overflow_buf = torch.cuda.ByteTensor(1024,)
+        except ImportError as err:
+            print("Warning:  Amp fused downscale kernel is unavailable, possibly because apex "
+                  "was installed without --cuda_ext.  Using Python fallback.  ImportError was: ", err)
+            LossScaler.has_fused_kernel = False
+            LossScaler.scale_check_overflow = scale_check_overflow_python
 
     def loss_scale(self):
         return self._loss_scale
 
     def unscale_and_update(self, param_groups, scale):
-        # self._overflow_buf.zero_()
+        if LossScaler.has_fused_kernel:
+            self._overflow_buf.zero_()
         self._has_overflow = False
         for p in iter_params(param_groups):
             if p.grad is not None:
-                self._has_overflow = scale_check_overflow(p.grad.data,
-                                                          1. / scale)
-            if self._has_overflow:  
-                break
+                if LossScaler.has_fused_kernel:
+                    LossScaler.scale_check_overflow(p.grad.data,
+                                                    1. / scale,
+                                                    self._overflow_buf)
+                else:
+                    self._has_overflow = LossScaler.scale_check_overflow(p.grad.data,
+                                                                         1. / scale)
+                    if self._has_overflow:
+                        break
 
-        # if self._overflow_buf.any():
+        # If the fused kernel is available, we only need one D2H memcopy and sync.
+        if LossScaler.has_fused_kernel:
+            self._has_overflow = self._overflow_buf.any()
+
         if self._has_overflow:
             should_skip = True
             self._loss_scale /= 2.
