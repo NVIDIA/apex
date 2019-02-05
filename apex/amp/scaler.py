@@ -1,4 +1,5 @@
 import torch
+import logging
 
 # from apex_C import scale_check_overflow
 
@@ -18,6 +19,7 @@ def scale_check_overflow_python(d_grads, scale):
       
 class LossScaler(object):
     warned_no_fused_kernel = False
+    warned_fp16_grad = False
     has_fused_kernel = False
 
     def __init__(self):
@@ -46,18 +48,25 @@ class LossScaler(object):
         self._has_overflow = False
         for p in iter_params(param_groups):
             if p.grad is not None:
-                if LossScaler.has_fused_kernel:
+                if LossScaler.has_fused_kernel and p.grad.data.type() == "torch.cuda.FloatTensor":
                     LossScaler.scale_check_overflow(p.grad.data,
                                                     1. / scale,
                                                     self._overflow_buf)
                 else:
+                    if p.grad.data.type() != "torch.cuda.FloatTensor"
+                            and not LossScaler.warned_fp16_grad:
+                        logger = logging.getLogger("apex.amp")
+                        logger.warning("Incoming grads are not fp32 (not master grads). "
+                                       "Downscaling non-fp32 grads may indicate an error. "
+                                       "When using Amp, you don't need to call .half() on your model.")
+                        LossScaler.warned_fp16_grad = True
                     self._has_overflow = LossScaler.scale_check_overflow(p.grad.data,
                                                                          1. / scale)
                     if self._has_overflow:
                         break
 
         # If the fused kernel is available, we only need one D2H memcopy and sync.
-        if LossScaler.has_fused_kernel:
+        if LossScaler.has_fused_kernel and not self._has_overflow:
             self._has_overflow = self._overflow_buf.any()
 
         if self._has_overflow:
