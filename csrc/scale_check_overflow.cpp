@@ -20,6 +20,7 @@ void scale_check_overflow(at::Tensor grads,
   // Make sure we are downscaling the FP32 master grads
   AT_CHECK(downscaled_grads.type().scalarType() == at::ScalarType::Float, 
     "The output grads supplied to scale_check_overflow should be fp32 (master grads).")
+  AT_CHECK(grads.numel() == downscaled_grads.numel(), "Input and output grads must be the same size.");
 
   scale_check_overflow_cuda(grads, scale, overflow_buf, downscaled_grads);
 }
