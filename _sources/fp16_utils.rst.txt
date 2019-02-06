@@ -57,10 +57,3 @@ Manual master parameter management
 .. autofunction:: master_params_to_model_params
 
 .. autofunction:: model_grads_to_master_grads
-
-
-Custom Operations
------------------
-
-.. autoclass:: Fused_Weight_Norm
-    :members:

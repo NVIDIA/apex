@@ -56,7 +56,7 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search">
-          
+           
 
           
             <a href="index.html" class="icon icon-home"> Apex
@@ -84,6 +84,36 @@
 </div>
 
           
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #76b900;
+    }
+
+    .wy-side-nav-search a:link, .wy-nav-top a:link {
+      color: #fff;
+    }
+    .wy-side-nav-search a:visited, .wy-nav-top a:visited {
+      color: #fff;
+    }
+    .wy-side-nav-search a:hover, .wy-nav-top a:hover {
+      color: #fff;
+    }
+
+    .wy-menu-vertical a:link, .wy-menu-vertical a:visited {
+      color: #d9d9d9
+    }
+
+    .wy-menu-vertical a:active {
+      background-color: #76b900
+    }
+
+    .wy-side-nav-search>div.version {
+      color: rgba(0, 0, 0, 0.3)
+    }
+  </style>
+  
         </div>
 
         <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
@@ -102,7 +132,6 @@
 <li class="toctree-l1"><a class="reference internal" href="fp16_utils.html">apex.fp16_utils</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#automatic-management-of-master-params-loss-scaling">Automatic management of master params + loss scaling</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
-<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#custom-operations">Custom Operations</a></li>
 </ul>
 </li>
 </ul>
@@ -187,7 +216,7 @@
 <span id="apex-normalization-fused-layer-norm"></span><h1>apex.normalization.fused_layer_norm<a class="headerlink" href="#module-apex.normalization" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="apex.normalization.FusedLayerNorm">
-<em class="property">class </em><code class="descclassname">apex.normalization.</code><code class="descname">FusedLayerNorm</code><span class="sig-paren">(</span><em>normalized_shape</em>, <em>eps=1e-05</em>, <em>elementwise_affine=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/normalization/fused_layer_norm.html#FusedLayerNorm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.normalization.FusedLayerNorm" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">apex.normalization.</code><code class="descname">FusedLayerNorm</code><span class="sig-paren">(</span><em>normalized_shape</em>, <em>eps=1e-05</em>, <em>elementwise_affine=True</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.normalization.FusedLayerNorm" title="Permalink to this definition">¶</a></dt>
 <dd><p>Applies Layer Normalization over a mini-batch of inputs as described in
 the paper <a class="reference external" href="https://arxiv.org/abs/1607.06450">Layer Normalization</a> .</p>
 <p>Currently only runs on cuda() tensors.</p>
@@ -323,7 +352,24 @@ and zeros (for biases). Default: <code class="docutils literal"><span class="pre
           SphinxRtdTheme.StickyNav.enable();
       });
   </script>
-   
+    
+
+  <style>
+  a:link, a:visited {
+    color: #76b900;
+  }
+
+  a:hover {
+    color: #8c0;
+  }
+
+  .rst-content dl:not(.docutils) dt {
+    background: rgba(118, 185, 0, 0.1);
+    color: rgba(59,93,0,1);
+    border-top: solid 3px rgba(59,93,0,1);
+  }
+  </style>
+  
 
 </body>
 </html>

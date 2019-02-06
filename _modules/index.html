@@ -55,7 +55,7 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search">
-          
+           
 
           
             <a href="../index.html" class="icon icon-home"> Apex
@@ -83,6 +83,36 @@
 </div>
 
           
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #76b900;
+    }
+
+    .wy-side-nav-search a:link, .wy-nav-top a:link {
+      color: #fff;
+    }
+    .wy-side-nav-search a:visited, .wy-nav-top a:visited {
+      color: #fff;
+    }
+    .wy-side-nav-search a:hover, .wy-nav-top a:hover {
+      color: #fff;
+    }
+
+    .wy-menu-vertical a:link, .wy-menu-vertical a:visited {
+      color: #d9d9d9
+    }
+
+    .wy-menu-vertical a:active {
+      background-color: #76b900
+    }
+
+    .wy-side-nav-search>div.version {
+      color: rgba(0, 0, 0, 0.3)
+    }
+  </style>
+  
         </div>
 
         <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
@@ -101,7 +131,6 @@
 <li class="toctree-l1"><a class="reference internal" href="../fp16_utils.html">apex.fp16_utils</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../fp16_utils.html#automatic-management-of-master-params-loss-scaling">Automatic management of master params + loss scaling</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../fp16_utils.html#custom-operations">Custom Operations</a></li>
 </ul>
 </li>
 </ul>
@@ -183,13 +212,12 @@
   <h1>All modules for which code is available</h1>
 <ul><li><a href="apex/fp16_utils/fp16_optimizer.html">apex.fp16_utils.fp16_optimizer</a></li>
 <li><a href="apex/fp16_utils/fp16util.html">apex.fp16_utils.fp16util</a></li>
-<li><a href="apex/fp16_utils/fused_weight_norm.html">apex.fp16_utils.fused_weight_norm</a></li>
 <li><a href="apex/fp16_utils/loss_scaler.html">apex.fp16_utils.loss_scaler</a></li>
 <li><a href="apex/normalization/fused_layer_norm.html">apex.normalization.fused_layer_norm</a></li>
 <li><a href="apex/optimizers/fused_adam.html">apex.optimizers.fused_adam</a></li>
 <li><a href="apex/parallel.html">apex.parallel</a></li>
 <ul><li><a href="apex/parallel/distributed.html">apex.parallel.distributed</a></li>
-<li><a href="apex/parallel/optimized_sync_batchnorm.html">apex.parallel.optimized_sync_batchnorm</a></li>
+<li><a href="apex/parallel/sync_batchnorm.html">apex.parallel.sync_batchnorm</a></li>
 </ul></ul>
 
            </div>
@@ -252,7 +280,24 @@
           SphinxRtdTheme.StickyNav.enable();
       });
   </script>
-   
+    
+
+  <style>
+  a:link, a:visited {
+    color: #76b900;
+  }
+
+  a:hover {
+    color: #8c0;
+  }
+
+  .rst-content dl:not(.docutils) dt {
+    background: rgba(118, 185, 0, 0.1);
+    color: rgba(59,93,0,1);
+    border-top: solid 3px rgba(59,93,0,1);
+  }
+  </style>
+  
 
 </body>
 </html>
