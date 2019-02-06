@@ -32,7 +32,7 @@ class LossScaler(object):
             import amp_C
             LossScaler.has_fused_kernel = True
             LossScaler.scale_check_overflow_cuda = amp_C.scale_check_overflow
-            self._overflow_buf = torch.cuda.ByteTensor(1024,)
+            self._overflow_buf = torch.cuda.IntTensor([0])
         except ImportError as err:
             if not LossScaler.warned_no_fused_kernel:
                 print("Warning:  Amp fused downscale kernel is unavailable, possibly because apex "
@@ -53,7 +53,8 @@ class LossScaler(object):
                 if LossScaler.has_fused_kernel and p.grad.data.type() == "torch.cuda.FloatTensor":
                     LossScaler.scale_check_overflow_cuda(p.grad.data,
                                                          1./scale,
-                                                         self._overflow_buf)
+                                                         self._overflow_buf,
+                                                         p.grad.data)
                 else:
                     if (p.grad.data.type() != "torch.cuda.FloatTensor"
                             and not LossScaler.warned_fp16_grad):
@@ -69,7 +70,7 @@ class LossScaler(object):
 
         # If the fused kernel is available, we only need one D2H memcopy and sync.
         if LossScaler.has_fused_kernel and not self._has_overflow:
-            self._has_overflow = self._overflow_buf.any()
+            self._has_overflow = self._overflow_buf.item()
 
         if self._has_overflow:
             should_skip = True

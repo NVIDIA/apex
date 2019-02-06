@@ -4,101 +4,78 @@
 #include <ATen/cuda/Exceptions.h>
 
 #include <assert.h>
+#include <cuda_runtime.h>
 
 #define BLOCK_SIZE 1024
-#define MAX_BLOCKS 1024
+#define NBLOCKS 160
 
-// It makes sense to lock the type to "float" here because the downscaling
-// should only be applied to the FP32 master gradients.  Also, if "in" were 
-// a different type, it would require divergent code for the vectorized load logic.
+// It makes sense to lock the output type to fp32 because the downscaled
+// grads should be master grads (and in the case of Amp, the params and their
+// gradients should always be fp32.
 
-// TODO:  
-// Update overflow check to use reduction from kernel_utils.cuh with 
-// ReduceOp from THCTensorMathReduce.cuh.
-__global__ void scale_reduce_overflow
-  (float *in, 
-   size_t n, 
-   float scale,
-   uint8_t *overflow_out) 
+// This can be optimized with ILP but it's fine for now.
+template<typename in_t>
+__global__ void scale_reduce_overflow(in_t* in,
+                                      float* out,
+                                      int n,
+                                      float scale,
+                                      volatile int* overflow_global)
 {
-    __shared__ uint8_t cta_overflow[BLOCK_SIZE];
+  __shared__ int overflow;
 
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = gridDim.x * blockDim.x;
+  int tid = blockIdx.x*blockDim.x + threadIdx.x;
+  int stride = gridDim.x*blockDim.x;
 
-    uint8_t my_overflow = 0;
-    for (int i = tid * 4; i < n; i+= stride * 4) {
-        if (i < (n - 3)) {
-            float4 f4 = ((float4*)in)[i / 4];
-            if (isfinite(f4.x)) {
-                f4.x *= scale;
-            } else {
-                my_overflow = 1;
-            }
-            if (isfinite(f4.y)) {
-                f4.y *= scale;
-            } else {
-                my_overflow = 1;
-            }
-            if (isfinite(f4.z)) {
-                f4.z *= scale;
-            } else {
-                my_overflow = 1;
-            }
-            if (isfinite(f4.w)) {
-                f4.w *= scale;
-            } else {
-                my_overflow = 1;
-            }
-            ((float4*)in)[i / 4] = f4;
-        } else {
-            for (; i < n; ++i) {
-                if (isfinite(in[i])) {
-                    in[i] *= scale;
-                } else {
-                    my_overflow = 1;
-                }
-            }
-        }
-    }
+  // Non-divergent exit condition for the __syncthreads
+  for(int i = tid; i - threadIdx.x < n; i += stride)
+  {
+    if(threadIdx.x == 0)
+      overflow = *overflow_global;
 
-    int tIdx = threadIdx.x;
-    cta_overflow[tIdx] = my_overflow;
     __syncthreads();
 
-    int participating = BLOCK_SIZE / 2;
-    while (participating > 0) {
-        if (tIdx < participating) {
-            cta_overflow[tIdx] = max(cta_overflow[tIdx],
-                                     cta_overflow[tIdx + participating]);
-        }
-        participating /= 2;
-        __syncthreads();
+    if(overflow == 1)
+      break;
+
+    if(i < n)
+    {
+      float incoming_val = static_cast<float>(in[i]);
+      if(isfinite(incoming_val))
+        out[i] = incoming_val*scale;
+      else
+        *overflow_global = 1; // Blindly fire off a write.  These will race but that's ok.
+        // This is NOT guaranteed to be seen immediately by thread 0 on the next iteration.
+        // I wonder if there's a way we can rig the short-circuiting with only one syncthreads.
+        // It's possible we can just lean on the cache (no smem or syncs) and still be fast.
     }
-    if (tIdx == 0) {
-        overflow_out[blockIdx.x] = max(cta_overflow[0],
-                                       overflow_out[blockIdx.x]);
-    }
+  }
 }
 
+
 void scale_check_overflow_cuda
-  (const at::Tensor& d_grads, 
+  (const at::Tensor& grads,
    float scale,
-   const at::Tensor& d_buf) 
+   const at::Tensor& overflow_buf,
+   const at::Tensor& downscaled_grads)
 {
   using namespace at;
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
   
-  size_t n = d_grads.numel();
-  size_t buf_n = d_buf.numel();
+  int n = grads.numel();
 
-  int num_blks = min((int(n) + BLOCK_SIZE - 1) / BLOCK_SIZE,
-                     MAX_BLOCKS);
-  assert(buf_n >= num_blks);
-  scale_reduce_overflow<<<num_blks, BLOCK_SIZE, 0, stream>>>
-    (d_grads.data<float>(), 
-     n, 
-     scale, 
-     d_buf.data<uint8_t>());
+  // Lock the output (downscaled) type to float.
+  AT_DISPATCH_FLOATING_TYPES_AND_HALF(grads.type(),
+     "scale_check_overflow_cuda",
+     [&]
+     {
+       // using accscalar_t = acc_type<scalar_t, true>;
+       scale_reduce_overflow<<<NBLOCKS, BLOCK_SIZE, 0, stream>>>
+         (grads.data<scalar_t>(),
+          downscaled_grads.data<float>(),
+          n,
+          scale,
+          overflow_buf.data<int>());
+     });
+
   AT_CUDA_CHECK(cudaGetLastError());
 }
