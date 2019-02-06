@@ -9,11 +9,5 @@ from .fp16util import (
     clip_grad_norm,
 )
 
-
-from .fused_weight_norm import Fused_Weight_Norm
-
-
 from .fp16_optimizer import FP16_Optimizer
-
-
 from .loss_scaler import LossScaler, DynamicLossScaler

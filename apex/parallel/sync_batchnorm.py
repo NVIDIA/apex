@@ -8,19 +8,19 @@ from apex.parallel import ReduceOp
 
 class SyncBatchNorm(_BatchNorm):
     """
-    synchronized batch normalization module extented from `torch.nn.BatchNormNd`
+    synchronized batch normalization module extented from ``torch.nn.BatchNormNd``
     with the added stats reduction across multiple processes.
     :class:`apex.parallel.SyncBatchNorm` is designed to work with
-    `DistributedDataParallel`.
+    ``DistributedDataParallel``.
 
     When running in training mode, the layer reduces stats across all processes
     to increase the effective batchsize for normalization layer. This is useful
     in applications where batch size is small on a given process that would
     diminish converged accuracy of the model. The model uses collective
-    communication package from `torch.distributed`.
+    communication package from ``torch.distributed``.
 
     When running in evaluation mode, the layer falls back to
-    `torch.nn.functional.batch_norm`
+    ``torch.nn.functional.batch_norm``.
 
     Args:
         num_features: :math:`C` from an expected input of size
@@ -37,7 +37,8 @@ class SyncBatchNorm(_BatchNorm):
             this module does not track such statistics and always uses batch
             statistics in both training and eval modes. Default: ``True``
 
-    Examples::
+    Example::
+
         >>> sbn = apex.parallel.SyncBatchNorm(100).cuda()
         >>> inp = torch.randn(10, 100, 14, 14).cuda()
         >>> out = sbn(inp)

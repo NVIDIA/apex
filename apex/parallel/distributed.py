@@ -91,7 +91,7 @@ class Reducer(object):
     across processes.  :class:`Reducer` is intended to give the user additional control:
     Unlike :class:`DistributedDataParallel`, :class:`Reducer` will not automatically allreduce
     parameters during ``backward()``.
-    Instead, :class:`Reducer` waits for the user to call `<reducer_instance>.reduce()` manually.
+    Instead, :class:`Reducer` waits for the user to call ``<reducer_instance>.reduce()`` manually.
     This enables, for example, delaying the allreduce to be carried out every 
     several iterations instead of every single iteration.
 
