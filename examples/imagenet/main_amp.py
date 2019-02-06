@@ -256,8 +256,8 @@ class data_prefetcher():
             self.next_target = None
             return
         with torch.cuda.stream(self.stream):
-            self.next_input = self.next_input.cuda(async=True)
-            self.next_target = self.next_target.cuda(async=True)
+            self.next_input = self.next_input.cuda(non_blocking=True)
+            self.next_target = self.next_target.cuda(non_blocking=True)
             # With Amp, it isn't necessary to manually convert data to half.
             # Type conversions are done internally on the fly within patched torch functions.
             # if args.fp16:

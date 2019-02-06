@@ -17,9 +17,9 @@ parser.add_argument('--data', type=str, default='./data/wikitext-2',
                     help='location of the data corpus')
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU)')
-parser.add_argument('--emsize', type=int, default=200,
+parser.add_argument('--emsize', type=int, default=1504,
                     help='size of word embeddings')
-parser.add_argument('--nhid', type=int, default=200,
+parser.add_argument('--nhid', type=int, default=1504,
                     help='number of hidden units per layer')
 parser.add_argument('--nlayers', type=int, default=2,
                     help='number of layers')
@@ -29,7 +29,7 @@ parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
 parser.add_argument('--epochs', type=int, default=40,
                     help='upper epoch limit')
-parser.add_argument('--batch_size', type=int, default=20, metavar='N',
+parser.add_argument('--batch_size', type=int, default=24, metavar='N',
                     help='batch size')
 parser.add_argument('--bptt', type=int, default=35,
                     help='sequence length')
@@ -47,7 +47,7 @@ parser.add_argument('--save', type=str,  default='model.pt',
                     help='path to save the final model')
 parser.add_argument('--fp16', action='store_true',
                     help='Run model in pseudo-fp16 mode (fp16 storage fp32 math).')
-parser.add_argument('--static-loss-scale', type=float, default=1,
+parser.add_argument('--static-loss-scale', type=float, default=128.0,
                     help='Static loss scale, positive power of 2 values can improve fp16 convergence.')
 parser.add_argument('--dynamic-loss-scale', action='store_true',
                     help='Use dynamic loss scaling.  If supplied, this argument supersedes ' +
@@ -67,7 +67,9 @@ if args.fp16 and not args.cuda:
 # Load data
 ###############################################################################
 
-corpus = data.Corpus(args.data)
+# Ensure that the dictionary length is a multiple of 8,
+# so that the decoder's GEMMs will use Tensor Cores.
+corpus = data.Corpus(args.data, pad_to_multiple_of=8)
 
 # Starting from sequential data, batchify arranges the dataset into columns.
 # For instance, with the alphabet as the sequence and batch size 4, we'd get
@@ -102,6 +104,16 @@ test_data = batchify(corpus.test, eval_batch_size)
 ###############################################################################
 
 ntokens = len(corpus.dictionary)
+
+if args.fp16 and args.cuda:
+    if ntokens%8 != 0:
+        print("Warning: the dictionary size (ntokens = {}) should be a multiple of 8 to ensure "
+              "Tensor Core use for the decoder's GEMMs.".format(ntokens))
+    if args.emsize%8 != 0 or args.nhid%8 != 0 or args.batch_size%8 != 0:
+        print("Warning: emsize = {}, nhid = {}, batch_size = {} should all be multiples of 8 "
+              "to ensure Tensor Core use for the RNN's GEMMs.".format(
+              args.emsize, args.nhid, args.batch_size))
+
 model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied)
 
 if args.cuda and args.fp16:

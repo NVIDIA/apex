@@ -1,22 +1,35 @@
 import torch
-# from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
-try: 
-    from apex_C import flatten
-    from apex_C import unflatten
-except ImportError:
-    try:
-        _ = warned_flatten
-    except NameError:
-        print("Warning:  apex was installed without --cpp_ext.  Falling back to Python flatten and unflatten.")
-        warned_flatten = True
-    from torch._utils import _flatten_dense_tensors as flatten
-    from torch._utils import _unflatten_dense_tensors as unflatten
 import torch.distributed as dist
 from torch.nn.modules import Module
 from torch.autograd import Variable
 from collections import OrderedDict
 from itertools import chain
 import copy
+import importlib
+
+imported_flatten_impl = False
+
+def import_flatten_impl():
+    global flatten_impl, unflatten_impl, imported_flatten_impl
+    try:
+        import apex_C
+        flatten_impl = apex_C.flatten
+        unflatten_impl = apex_C.unflatten
+    except ImportError:
+        print("Warning:  apex was installed without --cpp_ext.  Falling back to Python flatten and unflatten.")
+        flatten_impl = torch._utils._flatten_dense_tensors
+        unflatten_impl = torch._utils._unflatten_dense_tensors
+    imported_flatten_impl = True
+
+def flatten(bucket):
+    if not imported_flatten_impl:
+        import_flatten_impl()
+    return flatten_impl(bucket)
+
+def unflatten(coalesced, bucket):
+    if not imported_flatten_impl:
+        import_flatten_impl()
+    return unflatten_impl(coalesced, bucket)
 
 # apply_dist_call requires that tensors in 'bucket' are all the same type.
 def apply_flat_dist_call(bucket, call, extra_args=None):

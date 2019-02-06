@@ -1,7 +1,7 @@
 import unittest
 import sys
 
-test_dirs = ["run_fp16_optimizer", "run_amp", "run_mixed_adam"]
+test_dirs = ["run_amp", "run_mixed_adam"]
 
 runner = unittest.TextTestRunner(verbosity=2)
 

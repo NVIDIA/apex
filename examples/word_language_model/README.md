@@ -9,10 +9,26 @@ The trained model can then be used by the generate script to generate new text.
 
 `main_fp16_optimizer.py` with `--fp16` demonstrates use of `apex.fp16_utils.FP16_Optimizer` to automatically manage master parameters and loss scaling.
 
+These examples are intended as an illustration of the mixed precision recipe, not necessarily as a performance showcase.  However, they do demonstrate certain best practices.
+
+First, a default loss scale of 128.0 is used.  In our testing, this improves converged test perplexity modestly with mixed precision, from around 93 with loss scale 1.0 to around 90 with loss scale 128.0.
+
+Second, to enable Tensor Core use with `--fp16` and improve performance, dimensions that participate in GEMMs in the model are made multiples of 8.  Specifically, these are
+* dictionary length (ntokens in `main.py`),
+* embedding size (`--emsize`),
+* hidden size (`--nhid`), and
+* batch size (`--batch_size`).
+
+The dictionary length is a property of the dataset, and is not controlled by a command line argument. In `main.py`, `corpus = data.Corpus(args.data, pad_to_multiple_of=8)` and the `Corpus` constructor in
+`data.py` ensure that the dictionary length is a multiple of 8.
+
+Also, for mixed precision performance, a good general rule is: the more work you give the GPU, the better.  Bigger models and larger batch sizes supply the cores with more work and do a better job saturating the device.  A (very rough) way to check if you're saturating the device is to run nvidia-smi from another terminal, and see what fraction of device memory you're using.  This will tell you how much leeway you have to increase model or batch size.
+
 ```bash
-python main.py --cuda --epochs 6        # Train a LSTM on Wikitext-2 with CUDA, reaching perplexity of 117.61
-python main.py --cuda --epochs 6 --tied # Train a tied LSTM on Wikitext-2 with CUDA, reaching perplexity of 110.44
-python main.py --cuda --tied            # Train a tied LSTM on Wikitext-2 with CUDA for 40 epochs, reaching perplexity of 87.17
+python main.py --cuda --epochs 6        # Train a LSTM on Wikitext-2 with CUDA
+python main.py --cuda --epochs 6 --fp16 # Train a LSTM on Wikitext-2 with CUDA and mixed precision
+python main.py --cuda --epochs 6 --tied # Train a tied LSTM on Wikitext-2 with CUDA
+python main.py --cuda --tied            # Train a tied LSTM on Wikitext-2 with CUDA for 40 epochs
 python generate.py                      # Generate samples from the trained LSTM model.
 ```
 
@@ -67,16 +83,11 @@ optional arguments:
 ```
 which triggers the use of dynamic loss scaling.  Supplying `--dynamic-loss-scale` will override the `--loss_scale` argument, if any.
 
-With these arguments, a variety of models can be tested.
-As an example, the following arguments produce slower but better models:
+With these arguments, a variety of models can be tested.  For example
 
 ```bash
-python main.py --cuda --emsize 650 --nhid 650 --dropout 0.5 --epochs 40           # Test perplexity of 80.97
-python main.py --cuda --emsize 650 --nhid 650 --dropout 0.5 --epochs 40 --tied    # Test perplexity of 75.96
-python main.py --cuda --emsize 1500 --nhid 1500 --dropout 0.65 --epochs 40        # Test perplexity of 77.42
-python main.py --cuda --emsize 1500 --nhid 1500 --dropout 0.65 --epochs 40 --tied # Test perplexity of 72.30
+python main.py --cuda --emsize 656 --nhid 656 --dropout 0.5 --epochs 40
+python main.py --cuda --emsize 656 --nhid 656 --dropout 0.5 --epochs 40 --tied
+python main.py --cuda --emsize 1504 --nhid 1504 --dropout 0.65 --epochs 40
+python main.py --cuda --emsize 1504 --nhid 1504 --dropout 0.65 --epochs 40 --tied
 ```
-
-Perplexities on PTB are equal or better than
-[Recurrent Neural Network Regularization (Zaremba et al. 2014)](https://arxiv.org/pdf/1409.2329.pdf)
-and are similar to [Using the Output Embedding to Improve Language Models (Press & Wolf 2016](https://arxiv.org/abs/1608.05859) and [Tying Word Vectors and Word Classifiers: A Loss Framework for Language Modeling (Inan et al. 2016)](https://arxiv.org/pdf/1611.01462.pdf), though both of these papers have improved perplexities by using a form of recurrent dropout [(variational dropout)](http://papers.nips.cc/paper/6241-a-theoretically-grounded-application-of-dropout-in-recurrent-neural-networks).

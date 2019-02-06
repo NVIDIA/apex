@@ -40,23 +40,16 @@ class AmpHandle(object):
                 'use `optimizer.scale_loss(loss)`.')
 
         # TODO: this code block is duplicated here and `opt.py`. Unify.
-        loss_backward = loss.backward
-        def warning_wrapper():
-            warnings.warn("You called .backward() on the unscaled loss "
-                          "inside a scale_loss block. This is almost "
-                          "certainly an error.", stacklevel=2)
-            loss_backward()
-        loss.backward = warning_wrapper
         loss_scale = self._default_scaler.loss_scale()
         yield loss * loss_scale
-        loss.backward = loss_backward
 
         should_skip = self._default_scaler.unscale_and_update(
             optimizer.param_groups, loss_scale)
         if should_skip:
             optimizer_step = optimizer.step
             def skip_step():
-                logging.info('Gradient overflow, skipping update')
+                logger = logging.getLogger('apex.amp')
+                logger.warning('Gradient overflow, skipping update')
                 optimizer.step = optimizer_step
             optimizer.step = skip_step
 

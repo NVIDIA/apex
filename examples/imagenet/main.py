@@ -119,7 +119,9 @@ def main():
 
     if args.static_loss_scale != 1.0:
         if not args.fp16:
-            print("Warning:  if --fp16 is not used, static_loss_scale will be ignored.")
+            print("Warning:  static_loss_scale != 1.0 is only necessary with --fp16. "
+                  "Resetting static_loss_scale to 1.0")
+            args.static_loss_scale = 1.0
 
     # create model
     if args.pretrained:
@@ -273,8 +275,8 @@ class data_prefetcher():
             self.next_target = None
             return
         with torch.cuda.stream(self.stream):
-            self.next_input = self.next_input.cuda(async=True)
-            self.next_target = self.next_target.cuda(async=True)
+            self.next_input = self.next_input.cuda(non_blocking=True)
+            self.next_target = self.next_target.cuda(non_blocking=True)
             if args.fp16:
                 self.next_input = self.next_input.half()
             else:

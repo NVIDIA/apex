@@ -1,6 +1,6 @@
 import types
 import torch
-import fused_adam_cuda
+import importlib
 
 class FusedAdam(torch.optim.Optimizer):
 
@@ -36,6 +36,9 @@ class FusedAdam(torch.optim.Optimizer):
                  lr=1e-3, bias_correction = True,
                  betas=(0.9, 0.999), eps=1e-8, eps_inside_sqrt = False,
                  weight_decay=0., max_grad_norm=0., amsgrad=False):
+        global fused_adam_cuda
+        fused_adam_cuda = importlib.import_module("fused_adam_cuda")
+
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
         defaults = dict(lr=lr, bias_correction=bias_correction,
