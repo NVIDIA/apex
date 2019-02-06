@@ -6,7 +6,7 @@ void scale_check_overflow_cuda(const at::Tensor& grads,
                                const at::Tensor& downscaled_grads);
 
 void scale_check_overflow(at::Tensor grads,
-                          float scale, 
+                          float scale,
                           at::Tensor overflow_buf,
                           at::Tensor downscaled_grads)
                           // const at::optional<at::Tensor> downscaled_grads)
@@ -18,7 +18,7 @@ void scale_check_overflow(at::Tensor grads,
   AT_CHECK(downscaled_grads.type().is_cuda(), "downscaled_grads must be a CUDA tensor");
   AT_CHECK(downscaled_grads.is_contiguous(), "downscaled_grads must be contiguous");
   // Make sure we are downscaling the FP32 master grads
-  AT_CHECK(downscaled_grads.type().scalarType() == at::ScalarType::Float, 
+  AT_CHECK(downscaled_grads.type().scalarType() == at::ScalarType::Float,
     "The output grads supplied to scale_check_overflow should be fp32 (master grads).")
   AT_CHECK(grads.numel() == downscaled_grads.numel(), "Input and output grads must be the same size.");
 
