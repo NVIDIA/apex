@@ -38,7 +38,9 @@ class OptimWrapper(object):
         yield loss * loss_scale
 
         self._skip_next[self._loss_idx] = self._cur_loss_scaler().unscale_and_update(
-            self._optimizer.param_groups, loss_scale)
+            iter_params(self._optimizer.param_groups), 
+            iter_params(self._optimizer.param_groups), 
+            loss_scale)
         self._loss_idx += 1
 
         if len(cached_grads) > 0:

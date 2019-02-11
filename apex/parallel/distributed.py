@@ -322,7 +322,6 @@ class DistributedDataParallel(Module):
                     grad_acc = param_tmp.grad_fn.next_functions[0][0]
 
                     def allreduce_hook(*unused):
-                        print("hook fired")
                         if self.delay_allreduce or self.needs_refresh:
                             # TODO:  How do we want to handle multiple backward passes between
                             # each forward, e.g., backward passes with retain_graph=True?

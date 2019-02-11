@@ -4,7 +4,7 @@ from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
-from .loss_scaler import DynamicLossScaler, LossScaler
+from ..amp.scaler import LossScaler
 from .fp16util import model_grads_to_master_grads, master_params_to_model_params, clip_grad_norm
 
 # TODO:  Update overflow check + downscale to use Carl's fused kernel.
@@ -162,9 +162,9 @@ class FP16_Optimizer(object):
         if dynamic_loss_scale:
             self.dynamic_loss_scale = True
             if dynamic_loss_args is not None:
-                self.loss_scaler = DynamicLossScaler(**dynamic_loss_args)
+                self.loss_scaler = LossScaler("dynamic", **dynamic_loss_args)
             else:
-                self.loss_scaler = DynamicLossScaler()
+                self.loss_scaler = LossScaler("dynamic")
         else:
             self.dynamic_loss_scale = False
             self.loss_scaler = LossScaler(static_loss_scale)
@@ -480,7 +480,7 @@ class FP16_Optimizer(object):
         # a loss scale that works.  After you find a loss scale that works, do a final dummy
         # backward pass with retain_graph=False to tear down the graph.  Doing this would avoid 
         # discarding the iteration,  but probably wouldn't improve overall efficiency.  
-        self.loss_scaler.backward(loss.float(), retain_graph=retain_graph)
+        loss.float()*loss_scaler.loss_scale().backward(retain_graph=retain_graph)
         if update_master_grads:
             self.update_master_grads()
 

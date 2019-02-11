@@ -4,14 +4,14 @@ import warnings
 
 from . import utils
 from .opt import OptimWrapper
-from .scaler import LossScaler
+from .scaler import LossScaler, iter_params
 
 class AmpHandle(object):
-    def __init__(self, enable_caching=True, verbose=False):
+    def __init__(self, loss_scale="dynamic", enable_caching=True, verbose=False):
         self._enable_caching = enable_caching
         self._verbose = verbose
         self._cache = dict()
-        self._default_scaler = LossScaler()
+        self._default_scaler = LossScaler(loss_scale)
         self._is_active = True
         self._all_wrappers = []
 
@@ -44,7 +44,9 @@ class AmpHandle(object):
         yield loss * loss_scale
 
         should_skip = self._default_scaler.unscale_and_update(
-            optimizer.param_groups, loss_scale)
+            iter_params(optimizer.param_groups),
+            iter_params(optimizer.param_groups),
+            loss_scale)
         if should_skip:
             optimizer_step = optimizer.step
             def skip_step():

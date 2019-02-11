@@ -1,6 +1,7 @@
 import torch
 from torch._six import container_abcs, string_classes
 import functools
+from apex.fp16_utils import convert_network
 
 
 def to_type(dtype, t):
@@ -36,7 +37,7 @@ def initialize(optimizers, models, properties):
     if properties.cast_model_type is not None:
         if properties.cast_batchnorm is not None:
             for model in models:
-                model.to(properties.cast_model_type)
+                convert_network(model, properties.cast_model_type)
         else:
             for model in models:
                 model.to(properties.cast_model_type)
@@ -55,3 +56,15 @@ def initialize(optimizers, models, properties):
         # State dict trick to recast any preexisting per-param state tensors 
         for optimizer in optimizers:
             optimizer.load_state_dict(optimizer.state_dict())
+
+    if properties.master_weights:
+        for i, optimizer in enumerate(optimizers):
+            if properties.loss_scale == "dynamic":
+                optimizers[i] = FP16_Optimizer(optimizer[i], dynamic_loss_scale=True)
+            else:
+                optimizers[i] = FP16_Optimizer(optimizer[i], static_loss_scale=properties.loss_scale)
+
+    if properties.cast_torch_functions:
+        handle = amp.init() # the handle is also globally accessible as amp._DECORATOR_HANDLE
+
+    return optimizers, models

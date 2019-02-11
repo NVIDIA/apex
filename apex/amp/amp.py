@@ -1,7 +1,6 @@
 from . import compat, rnn_compat, utils, wrap
 from .handle import AmpHandle, NoOpHandle
 from .lists import functional_overrides, torch_overrides, tensor_overrides
-from ..fp16_utils import FP16_Optimizer
 from .frontend import *
 
 import functools
@@ -65,7 +64,7 @@ def register_promote_function(module, name):
 
 
 # Top-level function to insert _all_ the hooks.
-def init(enabled=True, enable_caching=True, verbose=False, allow_banned=False):
+def init(enabled=True, loss_scale="dynamic", enable_caching=True, verbose=False, allow_banned=False):
     global _DECORATOR_HANDLE
 
     if not enabled:
@@ -73,7 +72,7 @@ def init(enabled=True, enable_caching=True, verbose=False, allow_banned=False):
         _DECORATOR_HANDLE = handle
         return handle
 
-    handle = AmpHandle(enable_caching, verbose)
+    handle = AmpHandle(loss_scale, enable_caching, verbose)
 
     # 0) Force-{fp16, fp32} for user-annotated functions
     for mod, fn, cast_fn in _USER_CAST_REGISTRY:

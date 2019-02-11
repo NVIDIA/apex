@@ -199,7 +199,7 @@ def register(enabled=False,
     for k, v in amp.opt_properties.options:
         print("{:20} : {}", k, v)
 
-    initialize(optimizers, models)
+    return initialize(optimizers, models)
 
 
 def check_option_consistency(enabled=False,

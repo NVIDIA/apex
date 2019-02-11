@@ -3,7 +3,7 @@ import logging
 
 # from apex_C import scale_check_overflow
 
-def scale_check_overflow_python(d_grads, scale):
+def scale_check_overflow_python(model_grad, scale, master_grad):
     # Exception handling for 18.04 compatibility
     try:
         cpu_sum = float(d_grads.float().sum())
@@ -14,7 +14,9 @@ def scale_check_overflow_python(d_grads, scale):
     else:
         if cpu_sum == float('inf') or cpu_sum == -float('inf') or cpu_sum != cpu_sum:
             return True
-        d_grads.mul_(scale)
+        if master_grad is not model_grad:
+            master_grad.copy_(model_grad)
+        master_grad.mul_(scale)
         return False
       
 class LossScaler(object):
@@ -22,10 +24,19 @@ class LossScaler(object):
     warned_fp16_grad = False
     has_fused_kernel = False
 
-    def __init__(self):
-        self._loss_scale = 2.**16
+    def __init__(self,
+                 loss_scale,
+                 init_scale=2.**16,
+                 scale_factor=2.,
+                 scale_window=2000):
+        if loss_scale == "dynamic":
+            self.dynamic = True
+            self._loss_scale = init_scale
+        else:
+            self.dynamic = False
+            self._loss_scale = loss_scale
         self._max_loss_scale = 2.**24
-        self._scale_seq_len = 2000
+        self._scale_seq_len = scale_window
         self._unskipped = 0
         self._has_overflow = False
         try:
@@ -44,35 +55,37 @@ class LossScaler(object):
     def loss_scale(self):
         return self._loss_scale
 
-    def unscale_and_update(self, param_groups, scale):
+    def unscale_and_update(self, model_params, master_params, scale):
         if LossScaler.has_fused_kernel:
             self._overflow_buf.zero_()
         self._has_overflow = False
-        for p in iter_params(param_groups):
-            if p.grad is not None:
-                if LossScaler.has_fused_kernel and p.grad.data.type() == "torch.cuda.FloatTensor":
-                    LossScaler.scale_check_overflow_cuda(p.grad.data,
+        for model, master in zip(model_params, master_params):
+            if model.grad is not None:
+                if LossScaler.has_fused_kernel and master.grad.data.type() == "torch.cuda.FloatTensor":
+                    LossScaler.scale_check_overflow_cuda(model.grad.data,
                                                          1./scale,
                                                          self._overflow_buf,
-                                                         p.grad.data)
+                                                         master.grad.data)
                 else:
-                    if (p.grad.data.type() != "torch.cuda.FloatTensor"
+                    if (master.grad.data.type() != "torch.cuda.FloatTensor"
                             and not LossScaler.warned_fp16_grad):
                         logger = logging.getLogger("apex.amp")
-                        logger.warning("Incoming grads are not fp32 (not master grads). "
-                                       "Downscaling non-fp32 grads may indicate an error. "
-                                       "When using Amp, you don't need to call .half() on your model.")
+                        logger.warning(
+                            "Attempting to downscale {} grads. ".format(master.grad.data.type()) +
+                            "Downscaling non-fp32 grads may indicate an error. "
+                            "When using Amp, you don't need to call .half() on your model.")
                         LossScaler.warned_fp16_grad = True
-                    self._has_overflow = scale_check_overflow_python(p.grad.data,
-                                                                     1./scale)
-                    if self._has_overflow:
+                    self._has_overflow = scale_check_overflow_python(model.grad.data,
+                                                                     1./scale,
+                                                                     master.grad.data)
+                    if self._has_overflow and self.dynamic:
                         break
 
         # If the fused kernel is available, we only need one D2H memcopy and sync.
-        if LossScaler.has_fused_kernel and not self._has_overflow:
+        if LossScaler.has_fused_kernel and self.dynamic and not self._has_overflow:
             self._has_overflow = self._overflow_buf.item()
 
-        if self._has_overflow:
+        if self._has_overflow and self.dynamic:
             should_skip = True
             self._loss_scale /= 2.
             self._unskipped = 0
@@ -80,7 +93,7 @@ class LossScaler(object):
             should_skip = False
             self._unskipped += 1
 
-        if self._unskipped == self._scale_seq_len:
+        if self._unskipped == self._scale_seq_len and self.dynamic:
             self._loss_scale = min(self._max_loss_scale, self._loss_scale * 2.)
             self._unskipped = 0
 

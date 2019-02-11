@@ -39,7 +39,12 @@ if "--cuda_ext" in sys.argv:
         ext_modules.append(
             CUDAExtension(name='amp_C',
                           sources=['csrc/scale_check_overflow.cpp',
-                                   'csrc/scale_check_overflow_kernel.cu']))
+                                   'csrc/scale_check_overflow_kernel.cu',
+                                   'csrc/multi_tensor_unscale_kernel.cu'],
+                          extra_compile_args={'cxx': ['-O3',],
+                                              'nvcc':['-lineinfo',
+                                                      '-O3', 
+                                                      '--use_fast_math']}))
         ext_modules.append(
             CUDAExtension(name='fused_adam_cuda',
                           sources=['apex/optimizers/csrc/fused_adam_cuda.cpp',
