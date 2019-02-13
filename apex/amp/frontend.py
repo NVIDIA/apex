@@ -1,5 +1,6 @@
 import torch
-from .initialize import initialize
+from .initialize import _initialize
+from ._amp_state import _amp_state
 
 
 class Properties(object):
@@ -10,6 +11,7 @@ class Properties(object):
     """
     def __init__(self):
         self.options = {
+            "enabled" : False,
             "opt_level" : None,
             "cast_model_type" : None,
             "cast_torch_functions" : False,
@@ -18,6 +20,7 @@ class Properties(object):
             "loss_scale" : 1.0,
             "flatten_model_params" : False,
             "flatten_master_params" : False,
+            "fused_optimizer" : False,
             "enable_ddp_interop" : False}
 
     """
@@ -45,7 +48,7 @@ class Properties(object):
     def __setattr__(self, name, value):
         if "options" in self.__dict__:
             if name in self.options:
-                print("setting {}".format(name))
+                print("setting {} {}".format(name, value))
                 self.options[name] = value 
         else:
             super(Properties, self).__setattr__(name, value)
@@ -63,7 +66,8 @@ class O3:
         "If not, try other optimization levels."
 
     def __call__(self, properties):
-        properties.opt_level = "O3",
+        properties.enabled = True
+        properties.opt_level = "O3"
         properties.cast_model_type = torch.float16
         properties.cast_torch_functions = False
         properties.cast_batchnorm = False
@@ -71,6 +75,7 @@ class O3:
         properties.loss_scale = 1.0
         properties.flatten_model_params = False
         properties.flatten_master_params = False
+        properties.fused_optimizer = False
         properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
 
@@ -86,7 +91,8 @@ class O2:
         "Master weights can also improve convergence and stability."
 
     def __call__(self, properties):
-        properties.opt_level = "O2",
+        properties.enabled = True
+        properties.opt_level = "O2"
         properties.cast_model_type = torch.float16
         properties.cast_torch_functions = False
         properties.cast_batchnorm = torch.float32
@@ -94,6 +100,7 @@ class O2:
         properties.loss_scale = 128.0
         properties.flatten_model_params = False
         properties.flatten_master_params = False
+        properties.fused_optimizer = False
         properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
 
@@ -108,7 +115,8 @@ class O1:
         "trying mixed precision training for the first time."
 
     def __call__(self, properties):
-        properties.opt_level = "O1",
+        properties.enabled = True
+        properties.opt_level = "O1"
         properties.cast_model_type = False
         properties.cast_torch_functions = True
         properties.cast_batchnorm = False
@@ -116,6 +124,7 @@ class O1:
         properties.loss_scale = "dynamic"
         properties.flatten_model_params = False
         properties.flatten_master_params = False
+        properties.fused_optimizer = False
         properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
 
@@ -128,7 +137,8 @@ class O0:
         "may still be requested.\n"
 
     def __call__(self, properties):
-        properties.opt_level = "O0",
+        properties.enabled = True
+        properties.opt_level = "O0"
         properties.cast_model_type = torch.float32
         properties.cast_torch_functions = False
         properties.cast_batchnorm = False
@@ -136,6 +146,7 @@ class O0:
         properties.loss_scale = 1.0
         properties.flatten_model_params = False
         properties.flatten_master_params = False
+        properties.fused_optimizer = False
         properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
 
@@ -162,47 +173,49 @@ def check_params_fp32(model):
 
 
 # allow user to directly pass Properties struct as well?
-def register(enabled=False,
-             optimizers=None,
-             models=None,
-             opt_level=None,
-             cast_model_type=None,
-             cast_torch_functions=None,
-             cast_batchnorm=None,
-             master_weights=None,
-             loss_scale=None,
-             flatten_model_params=None,
-             flatten_master_params=None,
-             enable_ddp_interop=None):
-
+def register(models, optimizers, enabled=True, opt_level=None, **kwargs):
+    """
+    Expected kwargs:
+    opt_level=None,
+    cast_model_type=None,
+    cast_torch_functions=None,
+    cast_batchnorm=None,
+    master_weights=None,
+    loss_scale=None,
+    flatten_model_params=None,
+    flatten_master_params=None,
+    enable_ddp_interop=None):
+    """
     if not enabled:
-        return
+        return models, optimizers
 
     if opt_level not in opt_levels:
-        raise RuntimeError("Unexpected optimization level.  Options are 'O0', 'O1', 'O2', 'O3'.")
+        raise RuntimeError(
+            "Unexpected optimization level {}. ".format(opt_level) +
+            "Options are 'O0', 'O1', 'O2', 'O3'.")
     else:
-        amp.opt_properties = opt_levels[opt_level](Properties())
-        print("Selected optimization level {}", opt_levels[opt_level].brief)
+        _amp_state.opt_properties = opt_levels[opt_level](Properties())
+        print("Selected optimization level {}".format(opt_levels[opt_level].brief))
         print("Defaults for this optimization level are:")
-        for k, v in amp.opt_properties.options:
-            print("{:20} : {}", k, v)
-
-    for model in models:
-        check_params_fp32(model)
+        print(_amp_state.opt_properties.options)
+        for k, v in _amp_state.opt_properties.options.items():
+            print("{:20} : {}".format(k, v))
 
     print("Processing user overrides (additional kwargs that are not None)...")
-    for k, v in kwargs:
+    for k, v in kwargs.items():
+        if k not in _amp_state.opt_properties.options:
+            raise RuntimeError("Unexpected kwarg {}".format(k))
         if v is not None:
-            setattr(amp.opt_properties, k, v)
+            setattr(_amp_state.opt_properties, k, v)
 
     print("After processing overrides, optimization options are:")
-    for k, v in amp.opt_properties.options:
-        print("{:20} : {}", k, v)
+    for k, v in _amp_state.opt_properties.options.items():
+        print("{:20} : {}".format(k, v))
 
-    return initialize(optimizers, models)
+    return _initialize(models, optimizers, _amp_state.opt_properties)
 
 
-def check_option_consistency(enabled=False,
+def check_option_consistency(enabled=True,
                              opt_level=None,
                              cast_model_type=None,
                              cast_torch_functions=None,
@@ -230,13 +243,15 @@ def check_option_consistency(enabled=False,
         print("Selected optimization level {}", opt_levels[opt_level].brief)
         print("Defaults for this optimization level are:")
         for k, v in opt_properties.options:
-            print("{:20} : {}", k, v)
+            print("{:20} : {}".format(k, v))
 
     print("Processing user overrides (additional kwargs that are not None)...")
     for k, v in kwargs:
+        if k not in amp_state.opt_properties.options:
+            raise RuntimeError("Unexpected kwarg {}".format(k))
         if v is not None:
             setattr(opt_properties, k, v)
 
     print("After processing overrides, optimization options are:")
     for k, v in opt_properties.options:
-        print("{:20} : {}", k, v)
+        print("{:20} : {}".format(k, v))

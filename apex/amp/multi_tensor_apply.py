@@ -1,14 +1,40 @@
 import torch
-from amp_C import prep_multi_tensor_launch
 
 class MultiTensorApply(object):
+    available = False
+    warned = False
+
     def __init__(self, max_blocks, max_tensors, max_depth, chunk_size):
-        self.chunk_size = chunk_size
-        self.reallocate(max_blocks, max_tensors, max_depth)
+        try:
+            import amp_C
+            MultiTensorApply.available = True
+            MultiTensorApply.prep_multi_tensor_launch = amp_C.prep_multi_tensor_launch
+            self.chunk_size = chunk_size
+            self.reallocate(max_blocks, max_tensors, max_depth)
+        except ImportError as err:
+            MultiTensorApply.availble = False
+            MultiTensorApply.import_err = err
+
+    def check_avail(self):
+        if MultiTensorApply.available == False:
+            raise RuntimeError(
+                "Attempted to call MultiTensorApply method, but MultiTensorApply "
+                "is not available, possibly because Apex was installed without "
+                "--cpp_ext --cuda_ext.  Original import error message:",
+                MultiTensorApply.import_err)
 
     def __call__(self, op, noop_flag_buffer, tensor_lists, *args):
-        self.assign_blocks(tensor_lists)
+        self.check_avail()
 
+        assert len(tensor_lists) > 0, "len(tensor_lists) = {}".format(len(tensor_lists))
+        len0 = len(tensor_lists[0])
+        assert len0 > 0, "len(tensor_lists[0]) = {}".format(len0)
+        for i, l in enumerate(tensor_lists):
+            assert len(tensor_lists[i]) == len0,\
+                "len(tensor_lists[{}] = {}, len(tensor_lists[0] = {}".format(
+                len(tensor_lists[i]), len(tensor_lists[0]))
+
+        self.assign_blocks(tensor_lists)
         # print(self.gpu_block_to_tensor)
         # print(self.gpu_block_to_chunk)
         # print(self.gpu_tensor_sizes)
@@ -16,11 +42,11 @@ class MultiTensorApply(object):
         return op(self.nblocks,
                   noop_flag_buffer,
                   self.cpu_tensor_addresses,
-                  self.gpu_block_to_tensor, 
+                  self.gpu_block_to_tensor,
                   self.gpu_block_to_chunk,
                   self.gpu_tensor_sizes,
                   self.gpu_tensor_addresses,
-                  self.chunk_size, 
+                  self.chunk_size,
                   tensor_lists,
                   *args)
 
@@ -30,6 +56,8 @@ class MultiTensorApply(object):
         # print(self.gpu_tensor_addresses)
 
     def assign_blocks(self, tensor_lists):
+        self.check_avail()
+
         needs_reallocate = False
 
         # Currently, this loop appears prohibitively expensive.
@@ -38,7 +66,7 @@ class MultiTensorApply(object):
         # list0 = tensor_lists[0]
         # self.nblocks = 0
         # for t, tensor in enumerate(list0):
-        #     blocks_this_tensor = (tensor.numel() + 
+        #     blocks_this_tensor = (tensor.numel() +
         #                           self.chunk_size - 1)//self.chunk_size
         #     if not needs_reallocate:
         #         self.cpu_tensor_sizes[t] = tensor.numel()
@@ -49,20 +77,21 @@ class MultiTensorApply(object):
         #             self.cpu_block_to_tensor[self.nblocks] = t
         #             self.cpu_block_to_chunk[self.nblocks] = chunk
         #         self.nblocks += 1
-        needs_reallocate, self.nblocks = prep_multi_tensor_launch(self.cpu_block_to_tensor, 
-                                                                  self.cpu_block_to_chunk,
-                                                                  self.cpu_tensor_sizes,
-                                                                  self.gpu_block_to_tensor, 
-                                                                  self.gpu_block_to_chunk,
-                                                                  self.gpu_tensor_sizes,
-                                                                  self.chunk_size,
-                                                                  self.max_depth,
-                                                                  self.max_tensors,
-                                                                  self.max_blocks,
-                                                                  tensor_lists)
+        needs_reallocate, self.nblocks = MultiTensorApply.prep_multi_tensor_launch(
+            self.cpu_block_to_tensor,
+            self.cpu_block_to_chunk,
+            self.cpu_tensor_sizes,
+            self.gpu_block_to_tensor,
+            self.gpu_block_to_chunk,
+            self.gpu_tensor_sizes,
+            self.chunk_size,
+            self.max_depth,
+            self.max_tensors,
+            self.max_blocks,
+            tensor_lists)
         torch.cuda.nvtx.range_pop()
 
-        print(self.nblocks)
+        # print(self.nblocks)
 
         if self.nblocks > self.max_blocks:
             self.max_blocks = self.nblocks
@@ -73,23 +102,26 @@ class MultiTensorApply(object):
 
         if needs_reallocate:
             self.reallocate(self.max_blocks, self.max_tensors, self.max_depth)
-            needs_reallocate, self.nblocks = prep_multi_tensor_launch(self.cpu_block_to_tensor, 
-                                                                      self.cpu_block_to_chunk,
-                                                                      self.cpu_tensor_sizes,
-                                                                      self.gpu_block_to_tensor, 
-                                                                      self.gpu_block_to_chunk,
-                                                                      self.gpu_tensor_sizes,
-                                                                      self.chunk_size,
-                                                                      self.max_depth,
-                                                                      self.max_tensors,
-                                                                      self.max_blocks,
-                                                                      tensor_lists)
+            needs_reallocate, self.nblocks = MultiTensorApply.prep_multi_tensor_launch(
+                self.cpu_block_to_tensor,
+                self.cpu_block_to_chunk,
+                self.cpu_tensor_sizes,
+                self.gpu_block_to_tensor,
+                self.gpu_block_to_chunk,
+                self.gpu_tensor_sizes,
+                self.chunk_size,
+                self.max_depth,
+                self.max_tensors,
+                self.max_blocks,
+                tensor_lists)
             assert needs_reallocate == 0, "Should not need reallocate on second attempt."
             assert self.nblocks <= self.max_blocks, "Should not need to increase blocks again."
 
     def reallocate(self, max_blocks, max_tensors, max_depth):
+        self.check_avail()
+
         self.max_blocks = max_blocks
-        self.max_tensors = max_tensors 
+        self.max_tensors = max_tensors
         self.max_depth = max_depth
 
         self.cpu_block_to_tensor = torch.IntTensor(max_blocks).pin_memory()
@@ -101,3 +133,5 @@ class MultiTensorApply(object):
         self.gpu_block_to_chunk = torch.cuda.IntTensor(max_blocks)
         self.gpu_tensor_sizes = torch.cuda.IntTensor(max_tensors)
         self.gpu_tensor_addresses = torch.cuda.LongTensor(max_depth, max_tensors)
+
+multi_tensor_applier = MultiTensorApply(1000, 100, 4, 2048)

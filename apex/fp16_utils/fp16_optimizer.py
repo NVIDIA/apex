@@ -39,7 +39,7 @@ class FP16_Optimizer(object):
         init_optimizer (torch.optim.optimizer):  Existing optimizer created with the parameters to optimize.  Internally, :class:`FP16_Optimizer` replaces the passed optimizer's fp16 parameters, if any, with fp32 master parameters copied from the original ones.  :class:`FP16_Optimizer` also stores references to the original fp16 parameters, and updates these fp16 parameters from the master fp32 copy at the end of each :attr:`step`.  
         static_loss_scale (float, optional, default=1.0):  Loss scale used internally to scale gradients computed by the model.  Any fp16 gradients will be copied to fp32, then downscaled before being applied to the fp32 master params, so ``static_loss_scale`` should not affect learning rate.
         dynamic_loss_scale (bool, optional, default=False):  Use dynamic loss scaling.  If True, this will override any ``static_loss_scale`` option.
-        dynamic_loss_args (dict, optional, default=None):  Dict of kwargs that will be forwarded to the internal :class:`DynamicLossScaler` instance's constructor.  Keys of this dict must match kwargs accepted by :class:`DynamicLossScaler`'s constructor.  If ``dynamic_loss_args`` is unspecified, :class:`DynamicLossScaler`'s defaults will be used.
+        dynamic_loss_args (dict, optional, default=None):  Dict of kwargs that will be forwarded to the internal :class:`LossScaler` instance's constructor.  Keys of this dict must match kwargs accepted by :class:`LossScaler`'s constructor.  If ``dynamic_loss_args`` is unspecified, :class:`LossScaler`'s defaults will be used.
         verbose (bool, optional, default=True):  By default, FP16_Optimizer's constructor prints out the parameters and parameter groups it is ingesting, as a sanity check.  If this becomes annoying (e.g. for large models), it can be disabled by passing ``verbose=False``.  ``verbose=False`` will not disable printing when the loss scale is readjusted during dynamic loss scaling.
 
     ``init_optimizer`` is expected to have been constructed in the ordinary way.  
@@ -154,6 +154,18 @@ class FP16_Optimizer(object):
             self.fp32_from_fp16_groups.append(fp32_from_fp16_params_this_group)
             self.fp32_from_fp32_groups.append(fp32_params_this_group)
 
+        self.all_fp16_params = []
+        for group in self.fp16_groups:
+            self.all_fp16_params += group
+
+        self.all_fp32_from_fp16_params = []
+        for group in self.fp32_from_fp16_groups:
+            self.all_fp32_from_fp16_params += group
+
+        self.all_fp32_from_fp32_params = []
+        for group in self.fp32_from_fp32_groups:
+            self.all_fp32_from_fp32_params += group
+
         # Leverage state_dict() and load_state_dict() to recast preexisting per-param state tensors
         self.optimizer.load_state_dict(self.optimizer.state_dict())
         # alternative way to cast per-param state tensors:
@@ -210,35 +222,36 @@ class FP16_Optimizer(object):
                         param.grad.detach_() # as in torch.optim.optimizer.zero_grad()
                         param.grad.zero_()
 
-    def _check_overflow(self):
-        params = [] 
-        for group in self.fp16_groups:
-            for param in group:
-                params.append(param)
-        for group in self.fp32_from_fp32_groups:
-            for param in group:
-                params.append(param)
-        self.overflow = self.loss_scaler.has_overflow(params)
+    # Should not be used anymore.
+    # def _check_overflow(self):
+    #     params = []
+    #     for group in self.fp16_groups:
+    #         for param in group:
+    #             params.append(param)
+    #     for group in self.fp32_from_fp32_groups:
+    #         for param in group:
+    #             params.append(param)
+    #     self.overflow = self.loss_scaler.has_overflow(params)
 
-    def _update_scale(self, has_overflow=False):
-        self.loss_scaler.update_scale(has_overflow)
+    # def _update_scale(self, has_overflow=False):
+    #     self.loss_scaler.update_scale(has_overflow)
 
     def _master_params_to_model_params(self):
         for fp16_group, fp32_from_fp16_group in zip(self.fp16_groups, self.fp32_from_fp16_groups):
             master_params_to_model_params(fp16_group, fp32_from_fp16_group)
 
-    # To consider:  Integrate distributed with this wrapper by registering a hook on each variable 
+    # To consider:  Integrate distributed with this wrapper by registering a hook on each variable
     # that does the overflow check, gradient copy + downscale, and fp32 allreduce in a different stream.
-    def _model_grads_to_master_grads(self):
-        for fp16_group, fp32_from_fp16_group in zip(self.fp16_groups, self.fp32_from_fp16_groups):
-            model_grads_to_master_grads(fp16_group, fp32_from_fp16_group)
+    # def _model_grads_to_master_grads(self):
+    #     for fp16_group, fp32_from_fp16_group in zip(self.fp16_groups, self.fp32_from_fp16_groups):
+    #         model_grads_to_master_grads(fp16_group, fp32_from_fp16_group)
 
-    def _downscale_master(self):
-        if self.loss_scale != 1.0: 
-            for group in self.optimizer.param_groups:
-                for param in group['params']:
-                    if param.grad is not None:
-                        param.grad.data.mul_(1./self.loss_scale)
+    # def _downscale_master(self):
+    #     if self.loss_scale != 1.0:
+    #         for group in self.optimizer.param_groups:
+    #             for param in group['params']:
+    #                 if param.grad is not None:
+    #                     param.grad.data.mul_(1./self.loss_scale)
 
     def clip_master_grads(self, max_norm, norm_type=2):
         """
@@ -366,12 +379,15 @@ class FP16_Optimizer(object):
             http://pytorch.org/docs/master/optim.html#optimizer-step-closure
         """
 
-        scale = self.loss_scaler.loss_scale
-        self._update_scale(self.overflow)
+        scale = self.loss_scaler.loss_scale()
+        # To consider:  Should this be in step(), or update_master_grads?  It works either way,
+        # but I should make it consistent with the Amp control flow, which updates the scale
+        # during backward context manager exit.
+        # self._update_scale(self.overflow)
 
         if self.overflow:
-            print("OVERFLOW! Skipping step. Attempted loss scale: {}, reducing to {}"
-                .format(scale, self.loss_scale))
+            print("OVERFLOW! Skipping step, reducing loss scale to {}".format(
+                  self.loss_scaler.loss_scale()))
             return
         
         if closure is not None:
@@ -409,10 +425,10 @@ class FP16_Optimizer(object):
             # closure() and return the loss.
             temp_loss = closure() 
             while(self.overflow):
-                scale = self.loss_scaler.loss_scale
-                self._update_scale(self.overflow)
-                print("OVERFLOW within closure! Skipping step. Attempted loss scale: {}, "
-                      "reducing to {}".format(scale, self.loss_scale))
+                scale = self.loss_scaler.loss_scale()
+                # self._update_scale(self.overflow) # now done at the end of backward
+                print("OVERFLOW within closure! Skipping step, reducing loss scale to {}".format(
+                      self.loss_scaler.loss_scale()))
                 temp_loss = closure()
             return temp_loss
 
@@ -480,7 +496,8 @@ class FP16_Optimizer(object):
         # a loss scale that works.  After you find a loss scale that works, do a final dummy
         # backward pass with retain_graph=False to tear down the graph.  Doing this would avoid 
         # discarding the iteration,  but probably wouldn't improve overall efficiency.  
-        loss.float()*loss_scaler.loss_scale().backward(retain_graph=retain_graph)
+        scaled_loss = loss.float()*self.loss_scaler.loss_scale()
+        scaled_loss.backward(retain_graph=retain_graph)
         if update_master_grads:
             self.update_master_grads()
 
@@ -491,11 +508,24 @@ class FP16_Optimizer(object):
         updated by the optimizer.  :attr:`update_master_grads` only needs to be called if
         ``fp16_optimizer_obj.backward`` was called with ``update_master_grads=False``.
         """
-        if self.dynamic_loss_scale:
-            self._check_overflow()
-            if self.overflow: return
-        self._model_grads_to_master_grads()
-        self._downscale_master()
+        # if self.dynamic_loss_scale:
+        #     self._check_overflow()
+        #     if self.overflow: return
+        # self._model_grads_to_master_grads()
+        # self._downscale_master()
+        # Use the one-shot multi-tensor apply kernel
+        if len(self.all_fp16_params) > 0:
+            self.loss_scaler.unscale(
+                self.all_fp16_params,
+                self.all_fp32_from_fp16_params,
+                self.loss_scaler.loss_scale())
+        if len(self.all_fp32_from_fp32_params) > 0:
+            self.loss_scaler.unscale(
+                self.all_fp32_from_fp32_params,
+                self.all_fp32_from_fp32_params,
+                self.loss_scaler.loss_scale())
+        self.overflow = self.loss_scaler.update_scale()
+
 
     def inspect_master_grad_data(self):
         """
@@ -533,10 +563,10 @@ class FP16_Optimizer(object):
 
     # Promote loss scale so it can be retrieved or set via "fp16_optimizer_instance.loss_scale"
     def _get_loss_scale(self):
-        return self.loss_scaler.loss_scale
+        return self.loss_scaler.loss_scale()
 
     def _set_loss_scale(self, value):
-        self.loss_scaler.cur_scale = value
+        self.loss_scaler._loss_scale = value
 
     loss_scale = property(_get_loss_scale, _set_loss_scale)
 

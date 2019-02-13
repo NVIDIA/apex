@@ -1,6 +1,7 @@
 from . import compat, rnn_compat, utils, wrap
 from .handle import AmpHandle, NoOpHandle
 from .lists import functional_overrides, torch_overrides, tensor_overrides
+from ._amp_state import _amp_state
 from .frontend import *
 
 import functools
@@ -170,4 +171,7 @@ def init(enabled=True, loss_scale="dynamic", enable_caching=True, verbose=False,
             wrap.err_if_any_half(functional_overrides.MODULE, fn, handle, err_msg)
 
     _DECORATOR_HANDLE = handle
+
+    _amp_state.handle = handle
+
     return handle

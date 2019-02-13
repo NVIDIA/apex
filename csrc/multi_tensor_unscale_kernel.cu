@@ -52,7 +52,7 @@ struct UnscaleFunctor
       {
         incoming_vals[ii] = 0;
         int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n)
+        if(i < n && i < chunk_size)
           incoming_vals[ii] = static_cast<float>(in[i]);
       }
 
@@ -60,7 +60,7 @@ struct UnscaleFunctor
       for(int ii = 0; ii < ILP; ii++)
       {
         int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n)
+        if(i < n && i < chunk_size)
           if(isfinite(incoming_vals[ii]))
             out[i] = incoming_vals[ii]*scale;
           else
@@ -84,6 +84,8 @@ void multi_tensor_unscale_cuda(
   float scale)
 {
   using namespace at;
+
+  AT_CHECK(nblocks > 0, "nblocks is not > 0");
 
   int addresses_x = gpu_tensor_addresses.size(1);
 
