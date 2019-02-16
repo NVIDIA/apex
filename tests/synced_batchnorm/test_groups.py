@@ -38,12 +38,6 @@ except:
     print("This is a multi-gpu test. To run it please use 'python -m torch.distributed.launch --nproc_per_node=<num gpus> test_groups.py <more options>'")
     exit(1)
 
-if args.group_size==0:
-    args.group_size = args.world_size
-
-assert(args.world_size >= args.group_size)
-assert(args.world_size % args.group_size == 0)
-
 torch.cuda.set_device(args.local_rank)
 torch.distributed.init_process_group(backend='nccl', init_method='env://')
 
@@ -116,14 +110,7 @@ for param in bn.parameters():
     param.grad = param.grad / args.group_size
 bn_opt = optim.SGD(bn.parameters(), lr=1.0)
 
-# create process groups and pick the group this gpu participates
-for group_num in (range(args.world_size//args.group_size)):
-   group_ids = range(group_num*args.group_size, (group_num+1)*args.group_size)
-   cur_group = torch.distributed.new_group(ranks=group_ids)
-   if (torch.distributed.get_rank()//args.group_size == group_num):
-       group = cur_group
-
-sbn = apex.parallel.SyncBatchNorm(feature_size, process_group=group).cuda()
+sbn = apex.parallel.SyncBatchNorm(feature_size, process_group=apex.parallel.create_syncbn_process_group(args.group_size)).cuda()
 sbn.momentum = 1.0
 sbn.weight.data = weight_t.clone()
 sbn.bias.data = bias_t.clone()
