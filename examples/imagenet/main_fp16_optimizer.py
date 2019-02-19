@@ -139,7 +139,7 @@ def main():
 
     model = model.cuda()
     if args.fp16:
-        model = network_to_half(model)
+        model = FP16Model(model)
     if args.distributed:
         # By default, apex.parallel.DistributedDataParallel overlaps communication with 
         # computation in the backward pass.

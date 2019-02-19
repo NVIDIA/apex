@@ -515,15 +515,24 @@ class FP16_Optimizer(object):
         # self._downscale_master()
         # Use the one-shot multi-tensor apply kernel
         if len(self.all_fp16_params) > 0:
+            # print("Model grads before")
+            # print([param.grad.data for param in self.all_fp16_params])
             self.loss_scaler.unscale(
                 self.all_fp16_params,
                 self.all_fp32_from_fp16_params,
                 self.loss_scaler.loss_scale())
+            # print("Master grads after")
+            # print([param.grad.data for param in self.all_fp32_from_fp16_params])
         if len(self.all_fp32_from_fp32_params) > 0:
+            # print("Model grads before")
+            # print([param.grad.data for param in self.all_fp32_from_fp32_params])
             self.loss_scaler.unscale(
                 self.all_fp32_from_fp32_params,
                 self.all_fp32_from_fp32_params,
                 self.loss_scaler.loss_scale())
+            # print("Master grads after")
+            # print([param.grad.data for param in self.all_fp32_from_fp32_params])
+        # quit()
         self.overflow = self.loss_scaler.update_scale()
 
 

@@ -1,5 +1,5 @@
 import torch
-from .initialize import _initialize
+from ._initialize import _initialize
 from ._amp_state import _amp_state
 
 
@@ -24,7 +24,7 @@ class Properties(object):
             "enable_ddp_interop" : False}
 
     """
-    This function will allow updating several options at a time without routing through
+    This function allows updating several options at a time without routing through
     __setattr__ checks, to avoid "you can't get there from here" scenarios.
     """
     def update_options_dict(new_options):
@@ -97,7 +97,7 @@ class O2:
         properties.cast_torch_functions = False
         properties.cast_batchnorm = torch.float32
         properties.master_weights = True
-        properties.loss_scale = 128.0
+        properties.loss_scale = "dynamic"
         properties.flatten_model_params = False
         properties.flatten_master_params = False
         properties.fused_optimizer = False
@@ -160,20 +160,20 @@ def check_params_fp32(model):
     for name, param in model.named_parameters():
         if param.type() != "torch.cuda.FloatTensor":
             print("Warning:  Found param {} with type {}, expected torch.cuda.FloatTensor.\n"
-                  "When using amp.register, you do not need to call .half() on your model\n"
+                  "When using amp.initialize, you do not need to call .half() on your model\n"
                   "before passing it, no matter what optimization level you choose.",
                   name, param.type())
 
     for name, param in model.named_buffers():
         if param.type() != "torch.cuda.FloatTensor":
             print("Warning:  Found buffer {} with type {}, expected torch.cuda.FloatTensor.\n"
-                  "When using amp.register, you do not need to call .half() on your model\n"
+                  "When using amp.initialize, you do not need to call .half() on your model\n"
                   "before passing it, no matter what optimization level you choose.",
                   name, param.type())
 
 
 # allow user to directly pass Properties struct as well?
-def register(models, optimizers, enabled=True, opt_level=None, **kwargs):
+def initialize(models, optimizers, enabled=True, opt_level=None, **kwargs):
     """
     Expected kwargs:
     opt_level=None,

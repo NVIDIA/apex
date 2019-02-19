@@ -1,6 +1,6 @@
 import torch
 import logging
-from .multi_tensor_apply import multi_tensor_applier
+from ..multi_tensor_apply import multi_tensor_applier
 from ._amp_state import _amp_state
 
 # from apex_C import scale_check_overflow
@@ -46,7 +46,7 @@ class LossScaler(object):
         if multi_tensor_applier.available:
             import amp_C
             LossScaler.has_fused_kernel = multi_tensor_applier.available
-            LossScaler.multi_tensor_unscale_cuda = amp_C.multi_tensor_unscale
+            LossScaler.multi_tensor_scale_cuda = amp_C.multi_tensor_scale
         else:
             if not LossScaler.warned_no_fused_kernel:
                 print("Warning:  multi_tensor_applier fused downscale kernel is unavailable, "
@@ -115,7 +115,7 @@ class LossScaler(object):
                     return
                 else:
                     multi_tensor_applier(
-                        LossScaler.multi_tensor_unscale_cuda,
+                        LossScaler.multi_tensor_scale_cuda,
                         self._overflow_buf,
                         [model_grads, master_grads],
                         1./scale)

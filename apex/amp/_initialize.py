@@ -11,14 +11,14 @@ def check_params_fp32(model):
     for name, param in model.named_parameters():
         if param.is_floating_point() and param.type() != "torch.cuda.FloatTensor":
             print("Warning:  Found param {} with type {}, expected torch.cuda.FloatTensor.\n"
-                  "When using amp.register, you do not need to call .half() on your model\n"
+                  "When using amp.initialize, you do not need to call .half() on your model\n"
                   "before passing it, no matter what optimization level you choose.".format(
                   name, param.type()))
 
     for name, buf in model.named_buffers():
         if buf.is_floating_point() and buf.type() != "torch.cuda.FloatTensor":
             print("Warning:  Found buffer {} with type {}, expected torch.cuda.FloatTensor.\n"
-                  "When using amp.register, you do not need to call .half() on your model\n"
+                  "When using amp.initialize, you do not need to call .half() on your model\n"
                   "before passing it, no matter what optimization level you choose.".format(
                   name, buf.type()))
 
@@ -79,7 +79,7 @@ def _initialize(models, optimizers, properties):
         if parallel_type is not None:
             raise RuntimeError("Incoming model is an instance of {}. ".format(parallel_type) +
                 "Parallel wrappers should only be applied AFTER the model(s) have been "
-                "returned from amp.register.")
+                "returned from amp.initialize.")
 
     for model in models:
         check_params_fp32(model)
