@@ -156,7 +156,7 @@ def main():
     criterion = nn.CrossEntropyLoss().cuda()
 
     # Scale learning rate based on global batch size
-    args.lr = args.lr*float(args.batch_size*args.world_size)/256. 
+    args.lr = args.lr*float(args.batch_size*args.world_size)/float(args.batch_size)
     optimizer = torch.optim.SGD(master_params, args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
