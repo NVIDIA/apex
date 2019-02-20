@@ -1,3 +1,7 @@
+# PSA:  Amp 1.0 API coming soon!  
+
+Currently tracked by branch `api_refactor`, documentation and examples coming by the end of February.
+
 # Introduction
 
 This repository holds NVIDIA-maintained utilities to streamline 
