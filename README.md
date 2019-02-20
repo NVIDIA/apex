@@ -1,6 +1,6 @@
 # PSA:  Amp 1.0 API coming soon!  
-
-Currently tracked by branch `api_refactor`, documentation and examples coming by the end of February.
+(as introduced by https://info.nvidia.com/webinar-mixed-precision-with-pytorch-reg-page.html)
+Progress is tracked by branch `api_refactor`, documentation and examples are coming by the end of February.
 
 # Introduction
 
