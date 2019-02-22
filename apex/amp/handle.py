@@ -31,7 +31,7 @@ def scale_loss(loss,
         # Needing to drop the cache here as well is an ugly gotcha.
         # But for now I think it's necessary to short-circuit.
         # Probably ok to skip this if not delay_unscale
-        if _amp_state.opt_properties.cast_torch_functions:
+        if _amp_state.opt_properties.patch_torch_functions:
             _amp_state.handle._clear_cache()
         return
 
@@ -60,7 +60,7 @@ def scale_loss(loss,
                 optimizer.step = skip_step
 
     # Probably ok to skip this if not delay_unscale
-    if _amp_state.opt_properties.cast_torch_functions:
+    if _amp_state.opt_properties.patch_torch_functions:
         _amp_state.handle._clear_cache()
 
 

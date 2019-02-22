@@ -88,7 +88,7 @@ def _initialize(models, optimizers, properties):
     # if properties.master_weights:
 
     if properties.cast_model_type:
-        if properties.cast_batchnorm:
+        if properties.keep_batchnorm_fp32:
             for model in models:
                 convert_network(model, properties.cast_model_type)
         else:
@@ -120,7 +120,7 @@ def _initialize(models, optimizers, properties):
         for optimizer in optimizers:
             optimizer.loss_scaler = LossScaler(properties.loss_scale)
 
-    if properties.cast_torch_functions:
+    if properties.patch_torch_functions:
         handle = amp_init(loss_scale=properties.loss_scale)
 
     if optimizers_was_list:

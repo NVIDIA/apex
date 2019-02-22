@@ -11,6 +11,8 @@
 
 // This header is the one-stop shop for all your multi-tensor apply needs.
 
+
+// TODO:  Kernel arg size limit may be <4KB for some other cards (ie Jetson)
 constexpr int depth_to_max_tensors[5] = {110, 64, 48, 36, 30};
 constexpr int depth_to_max_blocks[5] = {320, 320, 320, 320, 320};
 
@@ -18,8 +20,8 @@ template<int n> struct TensorList
 {
   void* addresses[n][depth_to_max_tensors[n-1]];
   int sizes[depth_to_max_tensors[n-1]];
-  int block_to_tensor[depth_to_max_blocks[n-1]];
-  int block_to_chunk[depth_to_max_blocks[n-1]]; 
+  unsigned char block_to_tensor[depth_to_max_blocks[n-1]];
+  int block_to_chunk[depth_to_max_blocks[n-1]]; // I fear this needs to be a full int.
 };
 
 
@@ -44,7 +46,7 @@ void multi_tensor_apply(
   T callable,
   ArgTypes... args)
 {
-  AT_CHECK(tensor_lists.size() > 0, "tensor_lists.size() is not > 0");
+  AT_CHECK(tensor_lists.size() == depth, "tensor_lists.size() != depth");
   int len0 = tensor_lists[0].size();
   AT_CHECK(len0 > 0, "tensor_lists[0].size() is not > 0");
 
@@ -53,6 +55,7 @@ void multi_tensor_apply(
     AT_CHECK(tensor_lists[l].size() == len0, "Size mismatch among tensor lists");
     for(int t = 0; t < tensor_lists[l].size(); t++)
     {
+      // TODO:  Print which tensor fails.
       AT_CHECK(tensor_lists[l][t].is_contiguous(), "A tensor was not contiguous.");
       AT_CHECK(tensor_lists[l][t].is_cuda(), "A tensor was not cuda.");
       AT_CHECK(tensor_lists[l][t].numel() == tensor_lists[0][t].numel(), "Size mismatch");

@@ -14,12 +14,10 @@ class Properties(object):
             "enabled" : False,
             "opt_level" : None,
             "cast_model_type" : None,
-            "cast_torch_functions" : False,
-            "cast_batchnorm" : None,
+            "patch_torch_functions" : False,
+            "keep_batchnorm_fp32" : None,
             "master_weights" : False,
             "loss_scale" : 1.0,
-            "flatten_model_params" : False,
-            "flatten_master_params" : False,
             "fused_optimizer" : False,
             "enable_ddp_interop" : False}
 
@@ -69,12 +67,10 @@ class O3:
         properties.enabled = True
         properties.opt_level = "O3"
         properties.cast_model_type = torch.float16
-        properties.cast_torch_functions = False
-        properties.cast_batchnorm = False
+        properties.patch_torch_functions = False
+        properties.keep_batchnorm_fp32 = False
         properties.master_weights = False
         properties.loss_scale = 1.0
-        properties.flatten_model_params = False
-        properties.flatten_master_params = False
         properties.fused_optimizer = False
         properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
@@ -94,12 +90,10 @@ class O2:
         properties.enabled = True
         properties.opt_level = "O2"
         properties.cast_model_type = torch.float16
-        properties.cast_torch_functions = False
-        properties.cast_batchnorm = torch.float32
+        properties.patch_torch_functions = False
+        properties.keep_batchnorm_fp32 = torch.float32
         properties.master_weights = True
         properties.loss_scale = "dynamic"
-        properties.flatten_model_params = False
-        properties.flatten_master_params = False
         properties.fused_optimizer = False
         properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
@@ -118,12 +112,10 @@ class O1:
         properties.enabled = True
         properties.opt_level = "O1"
         properties.cast_model_type = False
-        properties.cast_torch_functions = True
-        properties.cast_batchnorm = False
+        properties.patch_torch_functions = True
+        properties.keep_batchnorm_fp32 = False
         properties.master_weights = False
         properties.loss_scale = "dynamic"
-        properties.flatten_model_params = False
-        properties.flatten_master_params = False
         properties.fused_optimizer = False
         properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
@@ -133,19 +125,16 @@ class O0:
     brief = "O0:  Pure FP32 training.\n"
     more = "Your models are checked to make sure parameters are FP32, but otherwise the\n"\
         "types of weights and internal Pytorch operations are not altered.  This mode disables any\n"\
-        "FP16 arithmetic, although other optimizations like parameter flattening and DDP interop\n"\
-        "may still be requested.\n"
+        "FP16 arithmetic, although other optimizations like DDP interop may still be requested.\n"
 
     def __call__(self, properties):
         properties.enabled = True
         properties.opt_level = "O0"
         properties.cast_model_type = torch.float32
-        properties.cast_torch_functions = False
-        properties.cast_batchnorm = False
+        properties.patch_torch_functions = False
+        properties.keep_batchnorm_fp32 = False
         properties.master_weights = False
         properties.loss_scale = 1.0
-        properties.flatten_model_params = False
-        properties.flatten_master_params = False
         properties.fused_optimizer = False
         properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
@@ -178,12 +167,10 @@ def initialize(models, optimizers, enabled=True, opt_level=None, **kwargs):
     Expected kwargs:
     opt_level=None,
     cast_model_type=None,
-    cast_torch_functions=None,
-    cast_batchnorm=None,
+    patch_torch_functions=None,
+    keep_batchnorm_fp32=None,
     master_weights=None,
     loss_scale=None,
-    flatten_model_params=None,
-    flatten_master_params=None,
     enable_ddp_interop=None):
     """
     if not enabled:
@@ -218,12 +205,10 @@ def initialize(models, optimizers, enabled=True, opt_level=None, **kwargs):
 def check_option_consistency(enabled=True,
                              opt_level=None,
                              cast_model_type=None,
-                             cast_torch_functions=None,
-                             cast_batchnorm=None,
+                             patch_torch_functions=None,
+                             keep_batchnorm_fp32=None,
                              master_weights=None,
                              loss_scale=None,
-                             flatten_model_params=None,
-                             flatten_master_params=None,
                              enable_ddp_interop=None):
     """
     Utility function that enables users to quickly check if the option combination they intend

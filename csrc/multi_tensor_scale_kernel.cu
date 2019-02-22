@@ -10,7 +10,7 @@
 #define BLOCK_SIZE 512
 #define ILP 4
 
-template<typename in_t>
+template<typename in_t, typename out_t>
 struct ScaleFunctor
 {
    __device__ __forceinline__ void operator()(
@@ -34,7 +34,7 @@ struct ScaleFunctor
     in_t* in = (in_t*)tl.addresses[0][tensor_loc];
     in += chunk_idx*chunk_size;
    
-    float* out = (float*)tl.addresses[1][tensor_loc];
+    out_t* out = (out_t*)tl.addresses[1][tensor_loc];
     out += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -65,7 +65,7 @@ struct ScaleFunctor
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
           if(isfinite(incoming_vals[ii]))
-            out[i] = incoming_vals[ii]*scale;
+            out[i] = static_cast<out_t>(incoming_vals[ii]*scale);
           else
             *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
       }
@@ -96,13 +96,30 @@ void multi_tensor_scale_cuda(
      [&]
      {
        // using accscalar_t = acc_type<scalar_t, true>;
-       multi_tensor_apply<2>(
-         BLOCK_SIZE,
-         chunk_size,
-         noop_flag,
-         tensor_lists,
-         ScaleFunctor<scalar_t>(),
-         scale);
+       switch(tensor_lists[1][0].type().scalarType())
+       {
+         case at::ScalarType::Half:
+           multi_tensor_apply<2>(
+             BLOCK_SIZE,
+             chunk_size,
+             noop_flag,
+             tensor_lists,
+             ScaleFunctor<scalar_t, at::Half>(),
+             scale);
+           break;
+         case at::ScalarType::Float:
+           multi_tensor_apply<2>(
+             BLOCK_SIZE,
+             chunk_size,
+             noop_flag,
+             tensor_lists,
+             ScaleFunctor<scalar_t, float>(),
+             scale);
+           break;
+         default:
+           AT_ERROR("multi_tensor_scale_cuda not implemented for output type = ",
+                    tensor_lists[1][0].type().toString());
+       }
      });
 
   AT_CUDA_CHECK(cudaGetLastError());

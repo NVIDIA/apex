@@ -24,7 +24,7 @@ def scale_check_overflow_python(model_grad, scale, master_grad):
 
 class LossScaler(object):
     warned_no_fused_kernel = False
-    warned_fp16_grad = False
+    warned_unscaling_non_fp32_grad = False
     has_fused_kernel = False
 
     def __init__(self,
@@ -49,7 +49,7 @@ class LossScaler(object):
             LossScaler.multi_tensor_scale_cuda = amp_C.multi_tensor_scale
         else:
             if not LossScaler.warned_no_fused_kernel:
-                print("Warning:  multi_tensor_applier fused downscale kernel is unavailable, "
+                print("Warning:  multi_tensor_applier fused unscale kernel is unavailable, "
                       "possibly because apex was installed without --cuda_ext --cpp_ext. "
                       "Using Python fallback.  Original ImportError was: ",
                       multi_tensor_applier.import_err)
@@ -62,14 +62,14 @@ class LossScaler(object):
     def unscale_grads_python(self, model_grads, master_grads, scale):
         for model, master in zip(model_grads, master_grads):
             if model is not None:
-                if (master.type() != "torch.cuda.FloatTensor"
-                        and not LossScaler.warned_fp16_grad):
-                    logger = logging.getLogger("apex.amp")
-                    logger.warning(
-                        "Attempting to downscale {} grads. ".format(master.type()) +
-                        "Downscaling non-fp32 grads may indicate an error. "
-                        "When using Amp, you don't need to call .half() on your model.")
-                    LossScaler.warned_fp16_grad = True
+                if not LossScaler.warned_unscaling_non_fp32_grad:
+                    if master.type() != "torch.cuda.FloatTensor":
+                        logger = logging.getLogger("apex.amp")
+                        logger.warning(
+                            "Attempting to unscale a grad with type {} ".format(master.type()) +
+                            "Unscaling non-fp32 grads may indicate an error. "
+                            "When using Amp, you don't need to call .half() on your model.")
+                        LossScaler.warned_unscaling_non_fp32_grad = True
                 self._has_overflow = scale_check_overflow_python(
                     model,
                     1./scale,
@@ -102,23 +102,29 @@ class LossScaler(object):
             # The master grads should never be fp16.  The kernel can't handle that, so bail out
             # and print a warning.  This is overly conservative, and maybe we do want to enable
             # fast downscaling of fp16 grads eventually.
-            if any(grad.type() == "torch.cuda.HalfTensor" for grad in master_grads):
-                self.unscale_grads_python(model_grads, master_grads, scale)
+            if not LossScaler.warned_unscaling_non_fp32_grad:
+                if any(grad.type() != "torch.cuda.FloatTensor" for grad in master_grads):
+                    logger = logging.getLogger("apex.amp")
+                    logger.warning(
+                        "Attempting to unscale grads that are not FP32. "
+                        "Unscaling non-fp32 grads may indicate an error. "
+                        "When using Amp, you don't need to call .half() on your model.")
+                # Warning:  setting this to True unconditionally allows the possibility of an escape
+                # if never-before-seen non-fp32 grads are created in some later iteration.
+                LossScaler.warned_unscaling_non_fp32_grad = True
+            self._overflow_buf.zero_()
+            # handle case of opt_level O1 and loss_scale 1.0.  There's also some
+            # special-cased yields in scale_loss to potentially short-circuit earlier.
+            # TODO:  Profile and find out if all the O(N) list processing in unscale()
+            # is a bottleneck.
+            if scale == 1.0 and all_same and not self.dynamic:
+                return
             else:
-                # This is inefficient if opt_level is O1 and loss scale is 1.0.  But to elide
-                # the launch, I would need to make sure the model grads are the master grads.
-                # The O(N) checks are proliferating...
-                self._overflow_buf.zero_()
-                # handle case of opt_level O1 and loss_scale 1.0.  There's also some
-                # special-cased yields in scale_loss to potentially short-circuit earlier.
-                if scale == 1.0 and all_same and not self.dynamic:
-                    return
-                else:
-                    multi_tensor_applier(
-                        LossScaler.multi_tensor_scale_cuda,
-                        self._overflow_buf,
-                        [model_grads, master_grads],
-                        1./scale)
+                multi_tensor_applier(
+                    LossScaler.multi_tensor_scale_cuda,
+                    self._overflow_buf,
+                    [model_grads, master_grads],
+                    1./scale)
         else:
             self.unscale_grads_python(model_grads, master_grads, scale)
 

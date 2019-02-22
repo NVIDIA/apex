@@ -34,14 +34,14 @@ class TestMultiTensorScale(unittest.TestCase):
         pass
 
     # The tensor creation here is written for convenience, not speed.
-    def downscale(self, sizea, sizeb, applier, repeat_tensors, in_type, inplace=False):
+    def downscale(self, sizea, sizeb, applier, repeat_tensors, in_type, out_type, inplace=False):
         self.overflow_buf.zero_()
         a = torch.cuda.FloatTensor(sizea).fill_(self.scale)
         b = torch.cuda.FloatTensor(sizeb).fill_(self.scale)
 
         out_list = []
         for i in range(repeat_tensors):
-            out_list += [a.clone(), b.clone()]
+            out_list += [a.clone().to(out_type), b.clone().to(out_type)]
 
         if inplace:
             in_list = out_list
@@ -50,17 +50,17 @@ class TestMultiTensorScale(unittest.TestCase):
 
         applier(multi_tensor_scale, self.overflow_buf, [in_list, out_list], 1./self.scale)
 
-        self.assertTrue(all([torch.allclose(out, self.ref) for out in out_list]))
+        self.assertTrue(all([torch.allclose(out, self.ref.to(out_type)) for out in out_list]))
         self.assertTrue(self.overflow_buf.item() == 0)
  
-    def find_inf(self, sizea, sizeb, applier, repeat_tensors, in_type, t, ind, val, inplace=False):
+    def find_inf(self, sizea, sizeb, applier, repeat_tensors, in_type, out_type, t, ind, val, inplace=False):
         self.overflow_buf.zero_()
         a = torch.cuda.FloatTensor(sizea).fill_(self.scale)
         b = torch.cuda.FloatTensor(sizeb).fill_(self.scale)
 
         out_list = []
         for i in range(repeat_tensors):
-            out_list += [a.clone(), b.clone()]
+            out_list += [a.clone().to(out_type), b.clone().to(out_type)]
 
         if inplace:
             in_list = out_list
@@ -103,22 +103,23 @@ class TestMultiTensorScale(unittest.TestCase):
         repeat_tensors = (
             1,
             55)
-        dtype_inplace_pairs = (
-            (torch.float16, False),
-            (torch.float32, False),
-            (torch.float32, True))
 
         for sizea, sizeb in input_size_pairs:
           for applier in appliers:
             for repeat in repeat_tensors:
-              for dtype, inplace in dtype_inplace_pairs:
-                self.downscale(sizea, sizeb, applier, repeat, dtype, inplace=inplace)
-                self.find_inf(sizea, sizeb, applier, repeat, dtype,
-                              0, 0, float('nan'), inplace=inplace)
-                self.find_inf(sizea, sizeb, applier, repeat, dtype,
-                              2*repeat-1, sizeb-1, float('inf'), inplace=inplace)
-                self.find_inf(sizea, sizeb, applier, repeat, dtype,
-                             2*(repeat//2), sizea//2, float('inf'), inplace=inplace)
+              for in_type in (torch.float32, torch.float16):
+                for out_type in (torch.float32, torch.float16):
+                  for inplace in (True, False):
+                    if inplace is True and (out_type is not in_type):
+                      continue
+                    else:
+                      self.downscale(sizea, sizeb, applier, repeat, in_type, out_type, inplace=inplace)
+                      self.find_inf(sizea, sizeb, applier, repeat, in_type, out_type,
+                                    0, 0, float('nan'), inplace=inplace)
+                      self.find_inf(sizea, sizeb, applier, repeat, in_type, out_type,
+                                    2*repeat-1, sizeb-1, float('inf'), inplace=inplace)
+                      self.find_inf(sizea, sizeb, applier, repeat, in_type, out_type,
+                                   2*(repeat//2), sizea//2, float('inf'), inplace=inplace)
 
 
 
