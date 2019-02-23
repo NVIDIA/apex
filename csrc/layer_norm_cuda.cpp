@@ -5,7 +5,7 @@
 namespace {
 void compute_n1_n2(
     at::Tensor input,
-    at::IntList normalized_shape,
+    at::IntArrayRef normalized_shape,
     int& n1,
     int& n2)
 {
@@ -22,7 +22,7 @@ void compute_n1_n2(
 }
 
 void check_args(
-    at::IntList normalized_shape,
+    at::IntArrayRef normalized_shape,
     at::Tensor gamma,
     at::Tensor beta
     )
@@ -33,7 +33,7 @@ void check_args(
 
 void check_args(
     at::Tensor input,
-    at::IntList normalized_shape,
+    at::IntArrayRef normalized_shape,
     int& n1,
     int& n2
     )
@@ -69,7 +69,7 @@ void check_args(
 
 void check_args(
     at::Tensor input,
-    at::IntList normalized_shape,
+    at::IntArrayRef normalized_shape,
     at::Tensor gamma,
     at::Tensor beta,
     int& n1,
@@ -88,7 +88,7 @@ void cuda_layer_norm(
     at::Tensor* input,
     int n1,
     int n2,
-    at::IntList normalized_shape,
+    at::IntArrayRef normalized_shape,
     at::Tensor* gamma,
     at::Tensor* beta,
     double epsilon);
@@ -99,7 +99,7 @@ void cuda_layer_norm(
 
 std::vector<at::Tensor> layer_norm(
     at::Tensor input,
-    at::IntList normalized_shape,
+    at::IntArrayRef normalized_shape,
     double epsilon) {
   CHECK_INPUT(input);
   int n1,n2;
@@ -113,7 +113,7 @@ std::vector<at::Tensor> layer_norm(
 }
 std::vector<at::Tensor> layer_norm_affine(
     at::Tensor input,
-    at::IntList normalized_shape,
+    at::IntArrayRef normalized_shape,
     at::Tensor gamma,
     at::Tensor beta,
     double epsilon) {
@@ -137,7 +137,7 @@ void cuda_layer_norm_gradient(
     at::Tensor* input,
     int n1,
     int n2,
-    at::IntList normalized_shape,
+    at::IntArrayRef normalized_shape,
     at::Tensor* gamma,
     at::Tensor* beta,
     double epsilon,
@@ -151,7 +151,7 @@ at::Tensor layer_norm_gradient(
     at::Tensor mean,
     at::Tensor invvar,
     at::Tensor input,
-    at::IntList normalized_shape,
+    at::IntArrayRef normalized_shape,
     double epsilon) {
   CHECK_INPUT(dout);
   CHECK_INPUT(mean);
@@ -170,7 +170,7 @@ std::vector<at::Tensor> layer_norm_gradient_affine(
     at::Tensor mean,
     at::Tensor invvar,
     at::Tensor input,
-    at::IntList normalized_shape,
+    at::IntArrayRef normalized_shape,
     at::Tensor gamma,
     at::Tensor beta,
     double epsilon) {
