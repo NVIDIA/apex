@@ -26,7 +26,7 @@ except TypeError as err:
 class FP16_Optimizer(object):
     """
     :class:`FP16_Optimizer` A cutdown version of apex.fp16_utils.FP16_Optimizer.
-    Design to be used in the same way but support only fused optimizers in apex.
+    Designed only to wrap apex.optimizers.FusedAdam.
     Refer to apex.fp16_utils documents for more information.
 
     Example::
@@ -179,7 +179,7 @@ class FP16_Optimizer(object):
 
     def backward(self, loss):
         """
-        :attr:`backward` performs the following conceptual steps:
+        :attr:`backward` performs the following steps:
 
         1. fp32_loss = loss.float()
         2. scaled_loss = fp32_loss*loss_scale

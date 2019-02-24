@@ -4,23 +4,9 @@ import functools
 from apex.fp16_utils import convert_network
 from ._amp_state import _amp_state
 from .scaler import LossScaler
-from ..fp16_utils import FP16_Optimizer
-
-
-def check_params_fp32(model):
-    for name, param in model.named_parameters():
-        if param.is_floating_point() and param.type() != "torch.cuda.FloatTensor":
-            print("Warning:  Found param {} with type {}, expected torch.cuda.FloatTensor.\n"
-                  "When using amp.initialize, you do not need to call .half() on your model\n"
-                  "before passing it, no matter what optimization level you choose.".format(
-                  name, param.type()))
-
-    for name, buf in model.named_buffers():
-        if buf.is_floating_point() and buf.type() != "torch.cuda.FloatTensor":
-            print("Warning:  Found buffer {} with type {}, expected torch.cuda.FloatTensor.\n"
-                  "When using amp.initialize, you do not need to call .half() on your model\n"
-                  "before passing it, no matter what optimization level you choose.".format(
-                  name, buf.type()))
+from ..fp16_utils import FP16_Optimizer as FP16_Optimizer_general
+from ..optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
+from ..optimizers import FusedAdam
 
 
 def to_type(dtype, t):
@@ -48,6 +34,56 @@ def applier(value, fn):
         return value
 
 
+def check_models(models):
+    for model in models:
+        parallel_type = None
+        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
+            parallel_type = "torch.nn.parallel.DistributedDataParallel"
+        if isinstance(model, apex_DDP):
+            parallel_type = "apex.parallel.DistributedDataParallel"
+        if isinstance(model, torch.nn.parallel.DataParallel):
+            parallel_type = "torch.nn.parallel.DataParallel"
+        if parallel_type is not None:
+            raise RuntimeError("Incoming model is an instance of {}. ".format(parallel_type) +
+                "Parallel wrappers should only be applied to the model(s) AFTER \n"
+                "the model(s) have been returned from amp.initialize.")
+
+
+def check_params_fp32(models):
+    for model in models:
+        for name, param in model.named_parameters():
+            if param.is_floating_point() and param.type() != "torch.cuda.FloatTensor":
+                print("Warning:  Found param {} with type {}, expected torch.cuda.FloatTensor.\n"
+                      "When using amp.initialize, you do not need to call .half() on your model\n"
+                      "before passing it, no matter what optimization level you choose.".format(
+                      name, param.type()))
+
+        for name, buf in model.named_buffers():
+            if buf.is_floating_point() and buf.type() != "torch.cuda.FloatTensor":
+                print("Warning:  Found buffer {} with type {}, expected torch.cuda.FloatTensor.\n"
+                      "When using amp.initialize, you do not need to call .half() on your model\n"
+                      "before passing it, no matter what optimization level you choose.".format(
+                      name, buf.type()))
+
+
+def check_optimizers(optimizers):
+    for optim in optimizers:
+        bad_optim_type = None
+        if isinstance(optim, FP16_Optimizer_general):
+            bad_optim_type = "apex.fp16_utils.FP16_Optimizer"
+        if isinstance(model, FP16_Optimizer_for_fused):
+            bad_optim_type = "apex.optimizers.FP16_Optimizer"
+        if bad_optim_type is not None:
+            raise RuntimeError("An incoming optimizer is an instance of {}. ".format(optim_type) +
+                               "The optimizer(s) passed to amp.initialize() should be bare \n"
+                               "instances of either ordinary Pytorch optimizers, or Apex fused \n"
+                               "optimizers (currently just FusedAdam, but FusedSGD will be added \n"
+                               "soon).  You should not manually wrap your optimizer in either \n"
+                               "apex.fp16_utils.FP16_Optimizer or apex.optimizers.FP16_Optimizer. \n"
+                               "amp.initialize will take care of that for you (if necessary) based \n"
+                               "on the specified opt_level (and optional overridden properties)."
+
+
 def _initialize(models, optimizers, properties):
     from apex.parallel import DistributedDataParallel as apex_DDP
     from .amp import init as amp_init
@@ -68,21 +104,11 @@ def _initialize(models, optimizers, properties):
     else:
         raise TypeError("models must be either a single model or a list of models.")
 
-    for model in models:
-        parallel_type = None
-        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
-            parallel_type = "torch.nn.parallel.DistributedDataParallel"
-        if isinstance(model, apex_DDP):
-            parallel_type = "apex.parallel.DistributedDataParallel"
-        if isinstance(model, torch.nn.parallel.DataParallel):
-            parallel_type = "torch.nn.parallel.DataParallel"
-        if parallel_type is not None:
-            raise RuntimeError("Incoming model is an instance of {}. ".format(parallel_type) +
-                "Parallel wrappers should only be applied AFTER the model(s) have been "
-                "returned from amp.initialize.")
+    check_models(models)
 
-    for model in models:
-        check_params_fp32(model)
+    check_params_fp32(models)
+
+    check_optimizers(optimizers)
 
     # Stash master weights before casting the model.
     # if properties.master_weights:
@@ -112,8 +138,10 @@ def _initialize(models, optimizers, properties):
 
     if properties.master_weights:
         for i, optimizer in enumerate(optimizers):
+            if isinstance(optimizer, FusedAdam):
+                optimizers[i] = wrap_fused_adam(optimizer, properties)
             if properties.loss_scale == "dynamic":
-                optimizers[i] = FP16_Optimizer(optimizers[i], dynamic_loss_scale=True)
+                optimizers[i] = FP16_Optimizer_general(optimizers[i], dynamic_loss_scale=True)
             else:
                 optimizers[i] = FP16_Optimizer(optimizers[i], static_loss_scale=properties.loss_scale)
     else:
@@ -121,6 +149,7 @@ def _initialize(models, optimizers, properties):
             optimizer.loss_scaler = LossScaler(properties.loss_scale)
 
     if properties.patch_torch_functions:
+        # handle is unused here. It's accessible later through a global value anyway.
         handle = amp_init(loss_scale=properties.loss_scale)
 
     if optimizers_was_list:

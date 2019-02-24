@@ -112,9 +112,9 @@ void multi_tensor_apply(
         else
         {
           // std::cout << "Hit case 2 " << cond1 << " " << cond2 << " " << cond3 << std::endl;
+          tl.sizes[0] = tl.sizes[loc_tensor_info-1];
           for(int d = 0; d < depth; d++)
             tl.addresses[d][0] = tl.addresses[d][loc_tensor_info-1];
-          tl.sizes[0] = tl.sizes[loc_tensor_info-1];
           loc_tensor_info = 1;
         }
       }
