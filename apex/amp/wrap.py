@@ -1,5 +1,6 @@
 from . import compat
 from . import utils
+from . import rnn_compat
 
 import functools
 
@@ -206,7 +207,17 @@ def rnn_cast(backend, fn, handle, verbose=False):
     utils.set_func_save(handle, backend, fn, rnn_wrapper)
 
 def new_rnn_cast(fn, handle, verbose=False):
-    mod = torch.nn.modules.rnn._rnn_impls
+    # Forward+backward compatibility around https://github.com/pytorch/pytorch/pull/15744
+    # For rnn backend calls that route through _rnn_impls, we must patch the ref
+    # that _rnn_impls stashed.  For rnn backend calls that directly invoke
+    # _VF.<backend>, e.g. _VF.lstm, we can patch onto VariableFunctionsShim,
+    # which in turn has patched the ref named "_VF" in torch.nn.modules.rnn.
+    if utils.has_func(torch.nn.modules.rnn._rnn_impls, fn):
+        mod = torch.nn.modules.rnn._rnn_impls
+    else:
+        mod = torch.nn.modules.rnn._VF
+        assert isinstance(mod, rnn_compat.VariableFunctionsShim)
+        fn = fn.lower()
     orig_fn = utils.get_func(mod, fn)
     cast_fn = utils.verbosify(utils.maybe_half, fn, verbose)
     @functools.wraps(orig_fn)
