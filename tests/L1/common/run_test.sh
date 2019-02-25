@@ -6,7 +6,8 @@ print_banner() {
 
 print_banner "Distributed status:  $1"
 
-DATADIR="/home/mcarilli/Desktop/pt18data/apex/examples/imagenet/bare_metal_train_val/"
+# DATADIR="/home/mcarilli/Desktop/pt18data/apex/examples/imagenet/bare_metal_train_val/"
+DATADIR="/opt/home/apex/examples/imagenet/"
 
 if [ "$1" == "single_gpu" ]
 then

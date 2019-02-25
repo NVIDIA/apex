@@ -11,10 +11,15 @@ def _gen_VF_wrapper(name):
 
 # Some python magic to generate an object that has the rnn cell functions
 # defined on it, all of which call into corresponding _VF version.
+# Intended to patch torch.nn.modules.rnn._VF (aka, the ref named "_VF"
+# imported at module scope within torch.nn.modules.rnn).  This should
+# not affect third-party importers of _VF.py.
 class VariableFunctionsShim(object):
     def __init__(self):
         for name in RNN_NAMES:
-            setattr(self, name + '_cell', _gen_VF_wrapper(name + '_cell'))
+            for suffix in ['', '_cell']:
+               fn_name = name + suffix
+               setattr(self, fn_name, _gen_VF_wrapper(fn_name))
 
 def has_old_rnns():
     try:
