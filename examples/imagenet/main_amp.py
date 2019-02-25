@@ -95,6 +95,7 @@ if args.deterministic:
     cudnn.benchmark = False
     cudnn.deterministic = True
     torch.manual_seed(args.local_rank)
+    torch.set_printoptions(precision=10)
 
 # Initialize Amp 
 amp_handle = amp.init(enabled=args.fp16)
@@ -337,7 +338,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Speed {3:.3f} ({4:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                  'Loss {loss.val:.10f} ({loss.avg:.4f})\t'
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                    epoch, i, len(train_loader),

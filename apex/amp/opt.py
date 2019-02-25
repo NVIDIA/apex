@@ -37,6 +37,7 @@ class OptimWrapper(object):
         loss_scale = self._cur_loss_scaler().loss_scale()
         yield loss * loss_scale
 
+        self._cur_loss_scaler().clear_overflow_state()
         self._cur_loss_scaler().unscale(
             iter_params(self._optimizer.param_groups), 
             iter_params(self._optimizer.param_groups), 

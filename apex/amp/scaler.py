@@ -5,22 +5,18 @@ from ._amp_state import _amp_state
 
 # from apex_C import scale_check_overflow
 
-def scale_check_overflow_python(model_grad, scale, master_grad):
+def scale_check_overflow_python(model_grad, scale, master_grad, check_overflow=False):
     # Exception handling for 18.04 compatibility
-    try:
+    if check_overflow:
         cpu_sum = float(model_grad.float().sum())
-    except RuntimeError as instance:
-        if "value cannot be converted" not in instance.args[0]:
-            raise
-        return True
-    else:
         if cpu_sum == float('inf') or cpu_sum == -float('inf') or cpu_sum != cpu_sum:
             return True
-        if master_grad is not model_grad:
-            master_grad.copy_(model_grad)
-        if scale != 1.0:
-            master_grad.mul_(scale)
-        return False
+
+    if master_grad is not model_grad: # copy_ probably internally short-circuits this
+        master_grad.copy_(model_grad)
+    if scale != 1.0:
+        master_grad.mul_(scale)
+    return False
 
 class LossScaler(object):
     warned_no_fused_kernel = False
@@ -73,12 +69,21 @@ class LossScaler(object):
                 self._has_overflow = scale_check_overflow_python(
                     model,
                     1./scale,
-                    master)
+                    master,
+                    self.dynamic)
                 if self._has_overflow and self.dynamic:
                     break
 
-    def unscale(self, model_params, master_params, scale):
+    def clear_overflow_state(self):
         self._has_overflow = False
+        if self.has_fused_kernel:
+            self._overflow_buf.zero_()
+
+    def unscale(self, model_params, master_params, scale):
+        # torch.cuda.nvtx.range_push("unscale")
+        if self._has_overflow:
+            # torch.cuda.nvtx.range_pop()
+            return
 
         # Lots of defensive list processing going on here.  Way more less efficient than
         # consuming the iterator directly.  Need to examine Python overhead.
@@ -112,12 +117,12 @@ class LossScaler(object):
                 # Warning:  setting this to True unconditionally allows the possibility of an escape
                 # if never-before-seen non-fp32 grads are created in some later iteration.
                 LossScaler.warned_unscaling_non_fp32_grad = True
-            self._overflow_buf.zero_()
             # handle case of opt_level O1 and loss_scale 1.0.  There's also some
             # special-cased yields in scale_loss to potentially short-circuit earlier.
             # TODO:  Profile and find out if all the O(N) list processing in unscale()
             # is a bottleneck.
             if scale == 1.0 and all_same and not self.dynamic:
+                # torch.cuda.nvtx.range_pop()
                 return
             else:
                 multi_tensor_applier(
@@ -128,12 +133,14 @@ class LossScaler(object):
         else:
             self.unscale_grads_python(model_grads, master_grads, scale)
 
-    # Break into multiple param groups so unscale() can be called more that once before updating.
-    def update_scale(self):
         # If the fused kernel is available, we only need one D2H memcopy and sync.
         if LossScaler.has_fused_kernel and self.dynamic and not self._has_overflow:
             self._has_overflow = self._overflow_buf.item()
 
+        # torch.cuda.nvtx.range_pop()
+
+    # Separate so unscale() can be called more that once before updating.
+    def update_scale(self):
         if self._has_overflow and self.dynamic:
             should_skip = True
             self._loss_scale /= 2.

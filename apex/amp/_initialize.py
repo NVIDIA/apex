@@ -1,12 +1,13 @@
 import torch
 from torch._six import container_abcs, string_classes
 import functools
-from apex.fp16_utils import convert_network
 from ._amp_state import _amp_state
 from .scaler import LossScaler
+from apex.fp16_utils import convert_network
 from ..fp16_utils import FP16_Optimizer as FP16_Optimizer_general
 from ..optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
 from ..optimizers import FusedAdam
+from ..parallel import DistributedDataParallel as apex_DDP
 
 
 def to_type(dtype, t):
@@ -71,7 +72,7 @@ def check_optimizers(optimizers):
         bad_optim_type = None
         if isinstance(optim, FP16_Optimizer_general):
             bad_optim_type = "apex.fp16_utils.FP16_Optimizer"
-        if isinstance(model, FP16_Optimizer_for_fused):
+        if isinstance(optim, FP16_Optimizer_for_fused):
             bad_optim_type = "apex.optimizers.FP16_Optimizer"
         if bad_optim_type is not None:
             raise RuntimeError("An incoming optimizer is an instance of {}. ".format(optim_type) +
@@ -81,7 +82,7 @@ def check_optimizers(optimizers):
                                "soon).  You should not manually wrap your optimizer in either \n"
                                "apex.fp16_utils.FP16_Optimizer or apex.optimizers.FP16_Optimizer. \n"
                                "amp.initialize will take care of that for you (if necessary) based \n"
-                               "on the specified opt_level (and optional overridden properties)."
+                               "on the specified opt_level (and optional overridden properties).")
 
 
 def _initialize(models, optimizers, properties):
@@ -141,9 +142,11 @@ def _initialize(models, optimizers, properties):
             if isinstance(optimizer, FusedAdam):
                 optimizers[i] = wrap_fused_adam(optimizer, properties)
             if properties.loss_scale == "dynamic":
-                optimizers[i] = FP16_Optimizer_general(optimizers[i], dynamic_loss_scale=True)
+                optimizers[i] = FP16_Optimizer_general(optimizers[i],
+                                                       dynamic_loss_scale=True)
             else:
-                optimizers[i] = FP16_Optimizer(optimizers[i], static_loss_scale=properties.loss_scale)
+                optimizers[i] = FP16_Optimizer_general(optimizers[i],
+                                                       static_loss_scale=properties.loss_scale)
     else:
         for optimizer in optimizers:
             optimizer.loss_scaler = LossScaler(properties.loss_scale)

@@ -45,11 +45,13 @@ def scale_loss(loss,
         if isinstance(optimizer, FP16_Optimizer):
             optimizer.update_master_grads()
         else:
+            optimizer.loss_scaler.clear_overflow_state()
             optimizer.loss_scaler.unscale(
                 iter_params(optimizer.param_groups),
                 iter_params(optimizer.param_groups),
                 loss_scale)
-            # If overflow_check_on_cpu is False, should_skip will always be False.
+            # In the future, once I have fused optimizers that enable sync-free dynamic loss scaling,
+            # should_skip will always be False.
             should_skip = optimizer.loss_scaler.update_scale()
             if should_skip:
                 optimizer_step = optimizer.step
@@ -101,6 +103,7 @@ class AmpHandle(object):
         loss_scale = self._default_scaler.loss_scale()
         yield loss * loss_scale
 
+        self._default_scaler.clear_overflow_state()
         self._default_scaler.unscale(
             iter_params(optimizer.param_groups),
             iter_params(optimizer.param_groups),

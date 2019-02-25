@@ -393,7 +393,9 @@ class FP16_Optimizer(object):
         if closure is not None:
             retval = self._step_with_closure(closure)
         else:
+            # torch.cuda.nvtx.range_push("pytorch optimizer step")
             retval = self.optimizer.step()
+            # torch.cuda.nvtx.range_pop()
 
         self._master_params_to_model_params()
 
@@ -502,6 +504,7 @@ class FP16_Optimizer(object):
             self.update_master_grads()
 
     def update_master_grads(self):
+        # torch.cuda.nvtx.range_push("update_master_grads")
         """
         Copy the ``.grad`` attribute from stored references to fp16 parameters to 
         the ``.grad`` attribute of the fp32 master parameters that are directly 
@@ -514,6 +517,7 @@ class FP16_Optimizer(object):
         # self._model_grads_to_master_grads()
         # self._downscale_master()
         # Use the one-shot multi-tensor apply kernel
+        self.loss_scaler.clear_overflow_state()
         if len(self.all_fp16_params) > 0:
             # print("Model grads before")
             # print([param.grad.data for param in self.all_fp16_params])
@@ -534,6 +538,7 @@ class FP16_Optimizer(object):
             # print([param.grad.data for param in self.all_fp32_from_fp32_params])
         # quit()
         self.overflow = self.loss_scaler.update_scale()
+        # torch.cuda.nvtx.range_pop()
 
 
     def inspect_master_grad_data(self):

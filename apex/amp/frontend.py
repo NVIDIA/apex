@@ -91,7 +91,7 @@ class O2:
         properties.opt_level = "O2"
         properties.cast_model_type = torch.float16
         properties.patch_torch_functions = False
-        properties.keep_batchnorm_fp32 = torch.float32
+        properties.keep_batchnorm_fp32 = True
         properties.master_weights = True
         properties.loss_scale = "dynamic"
         properties.fused_optimizer = False
@@ -174,6 +174,7 @@ def initialize(models, optimizers, enabled=True, opt_level=None, **kwargs):
     enable_ddp_interop=None):
     """
     if not enabled:
+        _amp_state.opt_properties = Properties()
         return models, optimizers
 
     if opt_level not in opt_levels:
@@ -186,7 +187,7 @@ def initialize(models, optimizers, enabled=True, opt_level=None, **kwargs):
         print("Defaults for this optimization level are:")
         print(_amp_state.opt_properties.options)
         for k, v in _amp_state.opt_properties.options.items():
-            print("{:20} : {}".format(k, v))
+            print("{:22} : {}".format(k, v))
 
     print("Processing user overrides (additional kwargs that are not None)...")
     for k, v in kwargs.items():
@@ -197,7 +198,7 @@ def initialize(models, optimizers, enabled=True, opt_level=None, **kwargs):
 
     print("After processing overrides, optimization options are:")
     for k, v in _amp_state.opt_properties.options.items():
-        print("{:20} : {}".format(k, v))
+        print("{:22} : {}".format(k, v))
 
     return _initialize(models, optimizers, _amp_state.opt_properties)
 
@@ -228,7 +229,7 @@ def check_option_consistency(enabled=True,
         print("Selected optimization level {}", opt_levels[opt_level].brief)
         print("Defaults for this optimization level are:")
         for k, v in opt_properties.options:
-            print("{:20} : {}".format(k, v))
+            print("{:22} : {}".format(k, v))
 
     print("Processing user overrides (additional kwargs that are not None)...")
     for k, v in kwargs:
@@ -239,4 +240,4 @@ def check_option_consistency(enabled=True,
 
     print("After processing overrides, optimization options are:")
     for k, v in opt_properties.options:
-        print("{:20} : {}".format(k, v))
+        print("{:22} : {}".format(k, v))
