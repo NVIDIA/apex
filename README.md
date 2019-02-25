@@ -1,3 +1,8 @@
+# PSA:  Amp 1.0 API coming soon!  
+(as introduced by https://info.nvidia.com/webinar-mixed-precision-with-pytorch-reg-page.html.  The `amp` and `FP16_Optimizer` tools currently in master are separate prototypes, which will be unified by the Amp 1.0 API.)
+
+Branch `api_refactor` is tracking my progress.  I will merge to master, along with documentation and examples, by the end of February.
+
 # Introduction
 
 This repository holds NVIDIA-maintained utilities to streamline 
