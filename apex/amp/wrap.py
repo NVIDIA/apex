@@ -1,5 +1,6 @@
 from . import compat
 from . import utils
+from ._amp_state import _amp_state
 
 import functools
 
@@ -37,10 +38,16 @@ def cached_cast(mod, fn, cast_fn, handle,
     utils.set_func_save(handle, mod, fn, wrapper)
 
 # `handle` arg is unused, but simplifies API to make `make_cast_wrapper`
+# Annoyingly, make_promote_wrapper still uses the global handle.  Once everyone
+# is on the new API and I am free to get rid of handle, I can clean this up.
 def make_promote_wrapper(orig_fn, cast_fn, handle=None):
     @functools.wraps(orig_fn)
     def wrapper(*args, **kwargs):
+        if not _amp_state.handle.is_active():
+            return orig_fn(*args, **kwargs)
+
         types = utils.collect_fp_tensor_types(args, kwargs)
+
         if len(types) <= 1:
             return orig_fn(*args, **kwargs)
         elif len(types) == 2 and types == set(['HalfTensor', 'FloatTensor']):
@@ -65,6 +72,9 @@ def sequence_promote(mod, fn, handle, verbose=False):
     maybe_float = utils.verbosify(utils.maybe_float, fn, verbose)
     @functools.wraps(orig_fn)
     def wrapper(seq, *args, **kwargs):
+        if not _amp_state.handle.is_active():
+            return orig_fn(seq, *args, **kwargs)
+
         types = set([utils.type_string(x) for x in seq])
         if len(types) <= 1:
             return orig_fn(seq, *args, **kwargs)
@@ -86,6 +96,9 @@ def promote_match_arg0(mod, fn, handle, verbose=False):
     @functools.wraps(orig_fn)
     def wrapper(arg0, *args, **kwargs):
         assert compat.is_tensor_like(arg0)
+        if not _amp_state.handle.is_active():
+            return orig_fn(arg0, *args, **kwargs)
+
         if utils.type_string(arg0) == 'HalfTensor':
             cast_fn = utils.maybe_half
         elif utils.type_string(arg0) == 'FloatTensor':
@@ -214,6 +227,9 @@ def new_rnn_cast(fn, handle, verbose=False):
         # Exact call signature from modules/rnn.py
         assert len(args) == 9
         assert len(kwargs) == 0
+
+        if not _amp_state.handle.is_active():
+            return orig_fn(*args, **kwargs)
 
         if isinstance(args[6], bool):
             params_idx = 2 # Not PackedSequence case

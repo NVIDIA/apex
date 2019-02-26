@@ -50,7 +50,7 @@ def scale_loss(loss,
                 iter_params(optimizer.param_groups),
                 iter_params(optimizer.param_groups),
                 loss_scale)
-            # In the future, once I have fused optimizers that enable sync-free dynamic loss scaling,
+            # For future fused optimizers that enable sync-free dynamic loss scaling,
             # should_skip will always be False.
             should_skip = optimizer.loss_scaler.update_scale()
             if should_skip:
@@ -64,6 +64,15 @@ def scale_loss(loss,
     # Probably ok to skip this if not delay_unscale
     if _amp_state.opt_properties.patch_torch_functions:
         _amp_state.handle._clear_cache()
+
+
+# Free function version of AmpHandle.disable_casts, another step on the
+# path to removing the concept of "AmpHandle"
+@contextlib.contextmanager
+def disable_casts():
+    _amp_state.handle._is_active = False
+    yield
+    _amp_state.handle._is_active = True
 
 
 class AmpHandle(object):

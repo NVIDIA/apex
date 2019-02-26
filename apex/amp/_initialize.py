@@ -2,6 +2,7 @@ import torch
 from torch._six import container_abcs, string_classes
 import functools
 from ._amp_state import _amp_state
+from .handle import disable_casts
 from .scaler import LossScaler
 from apex.fp16_utils import convert_network
 from ..fp16_utils import FP16_Optimizer as FP16_Optimizer_general
@@ -111,8 +112,8 @@ def _initialize(models, optimizers, properties):
 
     check_optimizers(optimizers)
 
-    # Stash master weights before casting the model.
-    # if properties.master_weights:
+    # In the future, when FP16_Optimizer can be deprecated and master weights can
+    # become an attribute, remember to stash master weights before casting the model.
 
     if properties.cast_model_type:
         if properties.keep_batchnorm_fp32:
@@ -125,6 +126,7 @@ def _initialize(models, optimizers, properties):
         caster = functools.partial(to_type, properties.cast_model_type)
 
         # Patch the forward method to cast incoming data to the correct type.
+        # I like writing things explicitly more than decorators.
         def patch_forward(old_fwd):
             def new_fwd(*args, **kwargs):
                 return old_fwd(*applier(args, caster),
@@ -142,10 +144,10 @@ def _initialize(models, optimizers, properties):
             if isinstance(optimizer, FusedAdam):
                 optimizers[i] = wrap_fused_adam(optimizer, properties)
             if properties.loss_scale == "dynamic":
-                optimizers[i] = FP16_Optimizer_general(optimizers[i],
+                optimizers[i] = FP16_Optimizer_general(optimizer,
                                                        dynamic_loss_scale=True)
             else:
-                optimizers[i] = FP16_Optimizer_general(optimizers[i],
+                optimizers[i] = FP16_Optimizer_general(optimizer,
                                                        static_loss_scale=properties.loss_scale)
     else:
         for optimizer in optimizers:
@@ -154,6 +156,17 @@ def _initialize(models, optimizers, properties):
     if properties.patch_torch_functions:
         # handle is unused here. It's accessible later through a global value anyway.
         handle = amp_init(loss_scale=properties.loss_scale)
+        for optimizer in optimizers:
+            # Disable Amp casting for the optimizer step, because it should only be
+            # applied to FP32 master params anyway.
+            def patch_step(old_step):
+                def new_step(*args, **kwargs):
+                    with disable_casts():
+                        output = old_step(*args, **kwargs)
+                    return output
+                return new_step
+
+            optimizer.step = patch_step(optimizer.step)
 
     if optimizers_was_list:
         if models_was_list:
