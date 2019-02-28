@@ -15,7 +15,25 @@ import torch.nn.functional
 
 MODULE = torch.nn.functional
 
-FP16_FUNCS = [
+def _whitelist_only(config):
+    return config == 'TENSOR_CORES_ONLY'
+
+def fp16_funcs(config):
+    return _FP16_FUNCS
+
+def fp32_funcs(config):
+    if _whitelist_only(config):
+        return []
+    else:
+        return _FP32_FUNCS
+
+def banned_funcs(config):
+    if _whitelist_only(config):
+        return []
+    else:
+        return _BANNED_FUNCS
+
+_FP16_FUNCS = [
     'conv1d',
     'conv2d',
     'conv3d',
@@ -26,7 +44,7 @@ FP16_FUNCS = [
     'linear',
 ]
 
-FP32_FUNCS = [
+_FP32_FUNCS = [
     # Pointwise
     'softplus',
     'softmin',
@@ -60,7 +78,7 @@ FP32_FUNCS = [
     'triplet_margin_loss'
 ]
 
-BANNED_FUNCS = [
+_BANNED_FUNCS = [
     ('binary_cross_entropy',
      ("\namp does not work out-of-the-box with `F.binary_cross_entropy` or `torch.nn.BCELoss.` "
       "It requires that the output of the previous function be already a FloatTensor. \n\n"

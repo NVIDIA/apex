@@ -8,7 +8,7 @@ import functools
 import torch
 
 def make_cast_wrapper(orig_fn, cast_fn, handle,
-                      try_caching=False):
+                      try_caching=False, post_fn=None):
     @functools.wraps(orig_fn)
     def wrapper(*args, **kwargs):
         if not handle.is_active():
@@ -25,17 +25,20 @@ def make_cast_wrapper(orig_fn, cast_fn, handle,
         new_args = utils.casted_args(cast_fn,
                                      args,
                                      kwargs)
-        return orig_fn(*new_args, **kwargs)
+        ret = orig_fn(*new_args, **kwargs)
+        if post_fn is not None:
+            ret = post_fn(ret)
+        return ret
     return wrapper
 
 def cached_cast(mod, fn, cast_fn, handle,
-                try_caching=False, verbose=False):
+                try_caching=False, verbose=False, post_fn=None):
     if not utils.has_func(mod, fn):
         return
 
     orig_fn = utils.get_func(mod, fn)
     cast_fn = utils.verbosify(cast_fn, fn, verbose)
-    wrapper = make_cast_wrapper(orig_fn, cast_fn, handle, try_caching)
+    wrapper = make_cast_wrapper(orig_fn, cast_fn, handle, try_caching, post_fn)
     utils.set_func_save(handle, mod, fn, wrapper)
 
 # `handle` arg is unused, but simplifies API to make `make_cast_wrapper`
@@ -154,7 +157,7 @@ def err_if_arg0_half(mod, fn, handle, verbose=False):
 # - We interpose on the factory function to:
 #   1) Interpose on the actual forward function and put in casts
 #   2) Insert an fp16 `flat_weight` if necessary
-def rnn_cast(backend, fn, handle, verbose=False):
+def rnn_cast(backend, fn, handle, verbose=False, post_fn=None):
     orig_rnn = utils.get_func(backend, fn)
     @functools.wraps(orig_rnn)
     def rnn_wrapper(*args, **kwargs):
@@ -215,11 +218,14 @@ def rnn_cast(backend, fn, handle, verbose=False):
             if len(fargs) == 4:
                 new_args.append(fargs[3])
 
-            return forward(*new_args, **fkwargs)
+            ret = forward(*new_args, **fkwargs)
+            if post_fn is not None:
+                ret = post_fn(ret)
+            return ret
         return fwd_wrapper
     utils.set_func_save(handle, backend, fn, rnn_wrapper)
 
-def new_rnn_cast(fn, handle, verbose=False):
+def new_rnn_cast(fn, handle, verbose=False, post_fn=None):
     # Forward+backward compatibility around https://github.com/pytorch/pytorch/pull/15744
     # For rnn backend calls that route through _rnn_impls, we must patch the ref
     # that _rnn_impls stashed.  For rnn backend calls that directly invoke
@@ -261,7 +267,10 @@ def new_rnn_cast(fn, handle, verbose=False):
             else:
                 new_args.append(arg)
 
-        return orig_fn(*new_args)
+        ret = orig_fn(*new_args)
+        if post_fn is not None:
+            ret = post_fn(ret)
+        return ret
     utils.set_func_save(handle, mod, fn, wrapper)
 
 def disable_casts(mod, fn, handle):

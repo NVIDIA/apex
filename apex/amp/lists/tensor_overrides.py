@@ -10,12 +10,35 @@ if compat.variable_is_tensor() and not compat.tensor_is_variable():
 else:
     MODULE = torch.autograd.Variable
 
+def _whitelist_only(config):
+    return config == 'TENSOR_CORES_ONLY'
 
-FP16_FUNCS = [
+def fp16_funcs(config):
+    return _FP16_FUNCS
+
+def fp32_funcs(config):
+    if _whitelist_only(config):
+        return []
+    else:
+        return _FP32_FUNCS
+
+def casts(config):
+    if _whitelist_only(config):
+        return []
+    else:
+        return _CASTS
+
+def sequence_casts(config):
+    if _whitelist_only(config):
+        return []
+    else:
+        return _SEQUENCE_CASTS
+
+_FP16_FUNCS = [
     '__matmul__',
 ]
 
-FP32_FUNCS = [
+_FP32_FUNCS = [
     '__ipow__',
     '__pow__',
     '__rpow__',
@@ -24,7 +47,7 @@ FP32_FUNCS = [
     'cpu',
 ]
 
-CASTS = [
+_CASTS = [
     '__add__',
     '__div__',
     '__eq__',
@@ -49,14 +72,14 @@ CASTS = [
 ]
 
 # None of these, but here to make code cleaner.
-SEQUENCE_CASTS = []
+_SEQUENCE_CASTS = []
 
 # We need to grab all the methods from torch_overrides and add them to
 # the Tensor lists as well, as almost all methods are duplicated
 # between `torch` and `torch.Tensor` (and check with `hasattr`,
 # because a few random ones aren't defined on Tensor)
 _self_mod = importlib.import_module(__name__)
-for attrname in ['FP16_FUNCS', 'FP32_FUNCS', 'CASTS', 'SEQUENCE_CASTS']:
+for attrname in ['_FP16_FUNCS', '_FP32_FUNCS', '_CASTS', '_SEQUENCE_CASTS']:
     lst = getattr(_self_mod, attrname)
     for fn in getattr(torch_overrides, attrname):
         if hasattr(MODULE, fn):

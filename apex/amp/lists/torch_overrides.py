@@ -2,7 +2,31 @@ import torch
 
 MODULE = torch
 
-FP16_FUNCS = [
+def _whitelist_only(config):
+    return config == 'TENSOR_CORES_ONLY'
+
+def fp16_funcs(config):
+    return _FP16_FUNCS
+
+def fp32_funcs(config):
+    if _whitelist_only(config):
+        return []
+    else:
+        return _FP32_FUNCS
+
+def casts(config):
+    if _whitelist_only(config):
+        return []
+    else:
+        return _CASTS
+
+def sequence_casts(config):
+    if _whitelist_only(config):
+        return []
+    else:
+        return _SEQUENCE_CASTS
+
+_FP16_FUNCS = [
     # Math
     # TODO: why are these in top-level torch namespace?
     'conv1d',
@@ -24,7 +48,7 @@ FP16_FUNCS = [
 ]
 
 # TODO: ban in-place versions of these in fp16
-FP32_FUNCS = [
+_FP32_FUNCS = [
     # Pointwise
     'acos',
     'asin',
@@ -64,7 +88,7 @@ FP32_FUNCS = [
 ]
 
 # Multi-tensor fns that may need type promotion
-CASTS = [
+_CASTS = [
     # Multi-tensor math
     'addcdiv',
     'addcmul',
@@ -88,7 +112,7 @@ CASTS = [
 ]
 
 # Will possibly need to promote *all* elements of `seq`
-SEQUENCE_CASTS = [
+_SEQUENCE_CASTS = [
     'cat', # torch.cat(seq, dim=0, out=None)
     'stack' # torch.stack(seq, dim=0, out=None)
 ]
