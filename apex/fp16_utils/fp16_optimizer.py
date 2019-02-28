@@ -5,6 +5,7 @@ from torch.nn.parameter import Parameter
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 from ..amp.scaler import LossScaler
+from ..multi_tensor_apply import multi_tensor_applier
 from .fp16util import model_grads_to_master_grads, master_params_to_model_params, clip_grad_norm
 
 # TODO:  Update overflow check + downscale to use Carl's fused kernel.
@@ -186,6 +187,12 @@ class FP16_Optimizer(object):
 
         self.clip_grad_norm = clip_grad_norm
 
+        # TODO:  Centralize exposure and import error checking for the C backend.
+        if multi_tensor_applier.available:
+            import amp_C
+            self.multi_tensor_scale = amp_C.multi_tensor_scale
+            self._dummy_overflow_buf = torch.cuda.IntTensor([0]);
+
     def maybe_print(self, msg):
         if self.verbose:
             print(msg)
@@ -237,8 +244,16 @@ class FP16_Optimizer(object):
     #     self.loss_scaler.update_scale(has_overflow)
 
     def _master_params_to_model_params(self):
-        for fp16_group, fp32_from_fp16_group in zip(self.fp16_groups, self.fp32_from_fp16_groups):
-            master_params_to_model_params(fp16_group, fp32_from_fp16_group)
+        if multi_tensor_applier.available:
+            if len(self.all_fp16_params) > 0:
+                multi_tensor_applier(
+                    self.multi_tensor_scale,
+                    self._dummy_overflow_buf,
+                    [self.all_fp32_from_fp16_params, self.all_fp16_params],
+                    1.0)
+        else:
+            for fp16_group, fp32_from_fp16_group in zip(self.fp16_groups, self.fp32_from_fp16_groups):
+                master_params_to_model_params(fp16_group, fp32_from_fp16_group)
 
     # To consider:  Integrate distributed with this wrapper by registering a hook on each variable
     # that does the overflow check, gradient copy + downscale, and fp32 allreduce in a different stream.
@@ -386,8 +401,8 @@ class FP16_Optimizer(object):
         # self._update_scale(self.overflow)
 
         if self.overflow:
-            print("OVERFLOW! Skipping step, reducing loss scale to {}".format(
-                  self.loss_scaler.loss_scale()))
+            print("Gradient overflow.  Skipping step, reducing " +
+                  "loss scale to {}".format(self.loss_scaler.loss_scale()))
             return
         
         if closure is not None:

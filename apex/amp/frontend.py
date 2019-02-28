@@ -4,8 +4,8 @@ from ._amp_state import _amp_state
 
 
 class Properties(object):
-    """ 
-    The purpose of this class is twofold:  to establish a set of default properties,
+    """
+    This class has two purposes: to establish a set of default properties,
     and to route setting of these attributes through __setattr__ so that (in theory)
     they can be checked for consistency with other existing args.
     """
@@ -18,22 +18,26 @@ class Properties(object):
             "keep_batchnorm_fp32" : None,
             "master_weights" : False,
             "loss_scale" : 1.0,
-            "fused_optimizer" : False,
-            "enable_ddp_interop" : False}
+            # Reserved for future functionality
+            # "fused_optimizer" : False,
+            # "enable_ddp_interop" : False,
+            }
 
     """
     This function allows updating several options at a time without routing through
     __setattr__ checks, to avoid "you can't get there from here" scenarios.
+    Currently not intended to be exposed; users are expected to select an opt_level
+    and apply consistent modifications.
     """
-    def update_options_dict(new_options):
+    def _update_options_dict(new_options):
         for k, v in new_options:
             if k in self.options:
                 self.options[k] = v
             else:
                 raise ValueError("Tried to set unexpected option {}".format(k))
     """
-    The members of options are not direct attributes of self, so __getattr__ is ok.
-    This borrows from the logic in torch.nn.Module. 
+    The members of "options" are not direct attributes of self, so access attempts
+    will roll down to __getattr__.  This borrows from the logic in torch.nn.Module.
     """
     def __getattr__(self, name):
         if "options" in self.__dict__:
@@ -42,12 +46,28 @@ class Properties(object):
                 return options[name]
         raise AttributeError("'{}' object has no attribute '{}'".format(
             type(self).__name__, name))
-                    
+
     def __setattr__(self, name, value):
         if "options" in self.__dict__:
             if name in self.options:
-                print("setting {} {}".format(name, value))
-                self.options[name] = value 
+                # print("setting {} {}".format(name, value))
+                if name == "loss_scale":
+                    if value == "dynamic":
+                        self.options[name] = value
+                    else:
+                        self.options[name] = float(value)
+                elif name == "keep_batchnorm_fp32":
+                    if value == "False":
+                        self.options[name] = False
+                    elif value == "True":
+                        self.options[name] = True
+                    else:
+                        assert (value is True or value is False or value is None),\
+                            "keep_batchnorm_fp32 must be a boolean, the string 'True' or 'False', "\
+                            "or None"
+                        self.options[name] = value
+                else:
+                    self.options[name] = value
         else:
             super(Properties, self).__setattr__(name, value)
 
@@ -71,8 +91,8 @@ class O3:
         properties.keep_batchnorm_fp32 = False
         properties.master_weights = False
         properties.loss_scale = 1.0
-        properties.fused_optimizer = False
-        properties.enable_ddp_interop = False
+        # properties.fused_optimizer = False
+        # properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
 
 
@@ -94,8 +114,8 @@ class O2:
         properties.keep_batchnorm_fp32 = True
         properties.master_weights = True
         properties.loss_scale = "dynamic"
-        properties.fused_optimizer = False
-        properties.enable_ddp_interop = False
+        # properties.fused_optimizer = False
+        # properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
 
 
@@ -113,11 +133,11 @@ class O1:
         properties.opt_level = "O1"
         properties.cast_model_type = False
         properties.patch_torch_functions = True
-        properties.keep_batchnorm_fp32 = False
+        properties.keep_batchnorm_fp32 = None
         properties.master_weights = False
         properties.loss_scale = "dynamic"
-        properties.fused_optimizer = False
-        properties.enable_ddp_interop = False
+        # properties.fused_optimizer = False
+        # properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
 
 
@@ -132,11 +152,11 @@ class O0:
         properties.opt_level = "O0"
         properties.cast_model_type = torch.float32
         properties.patch_torch_functions = False
-        properties.keep_batchnorm_fp32 = False
+        properties.keep_batchnorm_fp32 = None
         properties.master_weights = False
         properties.loss_scale = 1.0
-        properties.fused_optimizer = False
-        properties.enable_ddp_interop = False
+        # properties.fused_optimizer = False
+        # properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
 
 
@@ -170,8 +190,7 @@ def initialize(models, optimizers, enabled=True, opt_level=None, **kwargs):
     patch_torch_functions=None,
     keep_batchnorm_fp32=None,
     master_weights=None,
-    loss_scale=None,
-    enable_ddp_interop=None):
+    loss_scale=None,)
     """
     if not enabled:
         _amp_state.opt_properties = Properties()

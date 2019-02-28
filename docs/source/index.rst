@@ -28,7 +28,7 @@ Installation requires CUDA 9 or later, PyTorch 0.4 or later, and Python 3. Insta
 
 .. toctree::
    :maxdepth: 1
-   :caption: FP16/Mixed Precision Utilities
+   :caption: Legacy mixed precision utilities
 
    fp16_utils
 

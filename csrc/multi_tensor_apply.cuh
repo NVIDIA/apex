@@ -31,7 +31,7 @@ __global__ void multi_tensor_apply_kernel(
     volatile int* noop_flag,
     T tl,
     U callable,
-    ArgTypes... args) // in_t** in, float** out, float scale
+    ArgTypes... args)
 {
   // Hand the chunk information to the user-supplied functor to process however it likes.
   callable(chunk_size, noop_flag, tl, args...); 

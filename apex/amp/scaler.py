@@ -2,6 +2,7 @@ import torch
 import logging
 from ..multi_tensor_apply import multi_tensor_applier
 from ._amp_state import _amp_state
+from itertools import product
 
 # from apex_C import scale_check_overflow
 
@@ -90,47 +91,60 @@ class LossScaler(object):
         model_master_params = [(model, master) for model, master
             in zip(model_params, master_params)] # some of these may be None
 
-        # Sync the None-ness of model and master params.
-        all_same = True
-        for model, master in model_master_params:
-            if model.grad is None and master.grad is not None:
-                master.grad = None
-            if model.grad is not None and master.grad is None:
-                master.grad = torch.empty_like(master)
-            if model.grad is not master.grad:
-                all_same = False
-
-        model_grads = [mmp[0].grad.data for mmp in model_master_params if mmp[0].grad is not None]
-        master_grads = [mmp[1].grad.data for mmp in model_master_params if mmp[1].grad is not None]
-
         if LossScaler.has_fused_kernel:
-            # The master grads should never be fp16.  The kernel can't handle that, so bail out
-            # and print a warning.  This is overly conservative, and maybe we do want to enable
-            # fast downscaling of fp16 grads eventually.
-            if not LossScaler.warned_unscaling_non_fp32_grad:
-                if any(grad.type() != "torch.cuda.FloatTensor" for grad in master_grads):
-                    logger = logging.getLogger("apex.amp")
-                    logger.warning(
-                        "Attempting to unscale grads that are not FP32. "
-                        "Unscaling non-fp32 grads may indicate an error. "
-                        "When using Amp, you don't need to call .half() on your model.")
-                # Warning:  setting this to True unconditionally allows the possibility of an escape
-                # if never-before-seen non-fp32 grads are created in some later iteration.
-                LossScaler.warned_unscaling_non_fp32_grad = True
-            # handle case of opt_level O1 and loss_scale 1.0.  There's also some
-            # special-cased yields in scale_loss to potentially short-circuit earlier.
-            # TODO:  Profile and find out if all the O(N) list processing in unscale()
-            # is a bottleneck.
-            if scale == 1.0 and all_same and not self.dynamic:
-                # torch.cuda.nvtx.range_pop()
-                return
-            else:
-                multi_tensor_applier(
-                    LossScaler.multi_tensor_scale_cuda,
-                    self._overflow_buf,
-                    [model_grads, master_grads],
-                    1./scale)
+            src_dst_pairs = {torch.float16 : {torch.float16 : [[],[]], torch.float32 : [[],[]]},
+                             torch.float32 : {torch.float16 : [[],[]], torch.float32 : [[],[]]}}
+
+            for model, master in model_master_params:
+                # Sync the None-ness of model and master params
+                if model.grad is None and master.grad is not None:
+                    master.grad = None
+                if model.grad is not None and master.grad is None:
+                    master.grad = torch.empty_like(master)
+
+                if model.grad is not None:
+                    if model.grad is master.grad and scale == 1.0 and not self.dynamic:
+                        continue
+                    else:
+                        src_dst_pairs[model.dtype][master.dtype][0].append(model.grad.data)
+                        src_dst_pairs[model.dtype][master.dtype][1].append(master.grad.data)
+
+            assert len(src_dst_pairs[torch.float32][torch.float16][0]) == 0, "The loss scaler is "\
+                "being asked to unscale FP32 model gradients into FP16 master gradients.  This is "\
+                "almost certainly an error."
+
+            for src, dst in product((torch.float16, torch.float32),
+                                    (torch.float16, torch.float32)):
+                if len(src_dst_pairs[src][dst][0]) > 0:
+                    if not LossScaler.warned_unscaling_non_fp32_grad and dst is torch.float16:
+                        print("Warning:  unscaling grads that are not FP32. "
+                              "Unscaling non-fp32 grads may indicate an error. "
+                              "When using Amp, you don't need to call .half() on your model.")
+                        # Setting this to True unconditionally allows the possibility of an escape
+                        # if never-before-seen non-fp32 grads are created in some later iteration.
+                        LossScaler.warned_unscaling_non_fp32_grad = True
+                    multi_tensor_applier(
+                        LossScaler.multi_tensor_scale_cuda,
+                        self._overflow_buf,
+                        src_dst_pairs[src][dst],
+                        1./scale)
         else:
+            # Sync the None-ness of model and master params.
+            all_same = True
+            for model, master in model_master_params:
+                if model.grad is None and master.grad is not None:
+                    master.grad = None
+                if model.grad is not None and master.grad is None:
+                    master.grad = torch.empty_like(master)
+                if model.grad is not master.grad:
+                    all_same = False
+
+            if scale == 1.0 and all_same and not self.dynamic:
+                return
+
+            model_grads = [mmp[0].grad.data for mmp in model_master_params if mmp[0].grad is not None]
+            master_grads = [mmp[1].grad.data for mmp in model_master_params if mmp[1].grad is not None]
+
             self.unscale_grads_python(model_grads, master_grads, scale)
 
         # If the fused kernel is available, we only need one D2H memcopy and sync.

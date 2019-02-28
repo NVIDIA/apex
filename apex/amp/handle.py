@@ -15,6 +15,19 @@ def scale_loss(loss,
                optimizer,
                model=None,
                delay_unscale=False):
+    """
+    On context manager entrance, scale the loss in a way consistent with the current loss scale.
+    Yield the loss
+
+    On context manager exit (if ``delay_unscale=False``), unscale the gradients so that
+    ``optimizer.step()`` can be called.
+
+    .. note::
+    If Amp is using explicit FP32 master params (which is the default for ``opt_level=O2``, and
+    can also be manually enabled by supplying ``master_weights=True`` to ``amp.initialize``)
+    any FP16 gradients are copied to FP32 master gradients before being unscaled.  ``optimizer.step()``
+    will then apply the unscaled master gradients to the master params.
+    """
     if not _amp_state.opt_properties.enabled:
         yield loss
         return
@@ -57,7 +70,8 @@ def scale_loss(loss,
                 optimizer_step = optimizer.step
                 def skip_step():
                     logger = logging.getLogger('apex.amp')
-                    logger.warning('Gradient overflow, skipping update')
+                    logger.warning("Gradient overflow.  Skipping step, reducing " +
+                                   "loss scale to {}".format(optimizer.loss_scaler.loss_scale()))
                     optimizer.step = optimizer_step
                 optimizer.step = skip_step
 
