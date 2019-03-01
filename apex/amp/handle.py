@@ -61,6 +61,8 @@ def scale_loss(loss,
     # I can simply construct a set of attributes (e.g. master params) and assign them
     # directly to optimizer instances.
     if not delay_unscale:
+        # The FP16_Optimizer for FusedAdam will take care of unscaling as part of
+        # its step() method.
         if not isinstance(optimizer, FP16_Optimizer_for_fused):
             if isinstance(optimizer, FP16_Optimizer_general):
                 optimizer.update_master_grads()

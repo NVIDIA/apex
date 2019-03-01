@@ -96,9 +96,9 @@ def wrap_fused_adam(optimizer, properties):
     assert (properties.keep_batchnorm_fp32 is False or
             properties.keep_batchnorm_fp32 is None), msg
 
-    if properties.loss_scale == "dynamic"
+    if properties.loss_scale == "dynamic":
         return FP16_Optimizer_for_fused(optimizer, dynamic_loss_scale=True)
-    else
+    else:
         return FP16_Optimizer_for_fused(optimizer, static_loss_scale=properties.loss_scale)
 
 

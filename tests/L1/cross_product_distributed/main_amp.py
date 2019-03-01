@@ -20,7 +20,7 @@ import numpy as np
 try:
     from apex.parallel import DistributedDataParallel as DDP
     from apex.fp16_utils import *
-    from apex import amp
+    from apex import amp, optimizers
     from apex.multi_tensor_apply import multi_tensor_applier
 except ImportError:
     raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
@@ -72,6 +72,7 @@ parser.add_argument('--has-ext', action='store_true')
 parser.add_argument('--opt-level', type=str)
 parser.add_argument('--keep-batchnorm-fp32', type=str, default=None)
 parser.add_argument('--loss-scale', type=str, default=None)
+parser.add_argument('--fused-adam', action='store_true')
 
 parser.add_argument('--prints-to-process', type=int, default=10)
 
@@ -148,9 +149,12 @@ def main():
 
     # Scale learning rate based on global batch size
     args.lr = args.lr*float(args.batch_size*args.world_size)/256. 
-    optimizer = torch.optim.SGD(model.parameters(), args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
+    if args.fused_adam:
+        optimizer = optimizers.FusedAdam(model.parameters())
+    else:
+        optimizer = torch.optim.SGD(model.parameters(), args.lr,
+                                    momentum=args.momentum,
+                                    weight_decay=args.weight_decay)
 
     model, optimizer = amp.initialize(
         model, optimizer,
@@ -380,7 +384,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
             if len(run_info_dict["Loss"]) == args.prints_to_process:
                 torch.save(run_info_dict, 
                            str(args.has_ext) + "_" + str(args.opt_level) + "_" + 
-                           str(args.loss_scale) + "_" + str(args.keep_batchnorm_fp32))
+                           str(args.loss_scale) + "_" + str(args.keep_batchnorm_fp32) + "_" +
+                           str(args.fused_adam))
                 quit()
 
 

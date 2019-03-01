@@ -5,9 +5,14 @@ parser = argparse.ArgumentParser(description='Compare')
 parser.add_argument('--opt-level', type=str)
 parser.add_argument('--keep-batchnorm-fp32', type=str, default=None)
 parser.add_argument('--loss-scale', type=str, default=None)
+parser.add_argument('--fused-adam', action='store_true')
 args = parser.parse_args()
 
-base_file =  str(args.opt_level) + "_" + str(args.loss_scale) + "_" + str(args.keep_batchnorm_fp32)
+base_file = str(args.opt_level) + "_" +\
+            str(args.loss_scale) + "_" +\
+            str(args.keep_batchnorm_fp32) + "_" +\
+            str(args.fused_adam)
+
 file_e = "True_" + base_file
 file_p = "False_" + base_file
 
