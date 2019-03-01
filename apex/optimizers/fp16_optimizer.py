@@ -96,7 +96,7 @@ class FP16_Optimizer(object):
             if dynamic_loss_args is not None:
                 raise SystemError("Do not support dynamic loss scale args for now.")
             self.dynamic_loss_scale = True
-            self.cur_scale = 2**32
+            self.cur_scale = 2**16
             self.cur_iter = 0
             self.last_overflow_iter = -1
             self.scale_factor = 2
