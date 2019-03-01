@@ -365,27 +365,29 @@ def train(train_loader, model, criterion, optimizer, epoch):
         end = time.time()
         input, target = prefetcher.next()
 
-        if args.local_rank == 0 and i % args.print_freq == 0 and i > 1:
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Speed {3:.3f} ({4:.3f})\t'
-                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.10f} ({loss.avg:.4f})\t'
-                  'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                  'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                   epoch, i, len(train_loader),
-                   args.world_size * args.batch_size / batch_time.val,
-                   args.world_size * args.batch_size / batch_time.avg,
-                   batch_time=batch_time,
-                   data_time=data_time, loss=losses, top1=top1, top5=top5))
+        if i % args.print_freq == 0 and i > 1:
+            if args.local_rank == 0:
+                print('Epoch: [{0}][{1}/{2}]\t'
+                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                      'Speed {3:.3f} ({4:.3f})\t'
+                      'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                      'Loss {loss.val:.10f} ({loss.avg:.4f})\t'
+                      'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                      'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+                       epoch, i, len(train_loader),
+                       args.world_size * args.batch_size / batch_time.val,
+                       args.world_size * args.batch_size / batch_time.avg,
+                       batch_time=batch_time,
+                       data_time=data_time, loss=losses, top1=top1, top5=top5))
             run_info_dict["Iteration"].append(i)
             run_info_dict["Loss"].append(losses.val)
             run_info_dict["Speed"].append(args.world_size * args.batch_size / batch_time.val)
             if len(run_info_dict["Loss"]) == args.prints_to_process:
-                torch.save(run_info_dict, 
-                           str(args.has_ext) + "_" + str(args.opt_level) + "_" + 
-                           str(args.loss_scale) + "_" + str(args.keep_batchnorm_fp32) + "_" +
-                           str(args.fused_adam))
+                if args.local_rank == 0:
+                    torch.save(run_info_dict,
+                               str(args.has_ext) + "_" + str(args.opt_level) + "_" +
+                               str(args.loss_scale) + "_" + str(args.keep_batchnorm_fp32) + "_" +
+                               str(args.fused_adam))
                 quit()
 
 

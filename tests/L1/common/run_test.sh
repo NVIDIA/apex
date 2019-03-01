@@ -1,13 +1,24 @@
 #!/bin/bash
 
-DATADIR="/home/mcarilli/Desktop/pt18data/apex/examples/imagenet/bare_metal_train_val/"
-BASE_CMD="python -m multiproc python main_amp.py -a resnet50 --b 128 --workers 4 --deterministic --prints-to-process 5"
-
-ADAM_ARGS="--opt-level O2 --keep-batchnorm-fp32 False --fused-adam"
-
 print_banner() {
   printf "\n\n\n\e[30m\e[42m$1\e[0m\n\n\n\n"
 }
+
+print_banner "Distributed status:  $1"
+
+DATADIR="/home/mcarilli/Desktop/pt18data/apex/examples/imagenet/bare_metal_train_val/"
+
+if [ "$1" == "single_gpu" ]
+then
+  BASE_CMD="python main_amp.py -a resnet50 --b 128 --workers 4 --deterministic --prints-to-process 5"
+fi
+
+if [ "$1" == "distributed" ]
+then
+  BASE_CMD="python -m torch.distributed.launch --nproc_per_node=2 main_amp.py -a resnet50 --b 128 --workers 4 --deterministic --prints-to-process 5"
+fi
+
+ADAM_ARGS="--opt-level O2 --keep-batchnorm-fp32 False --fused-adam"
 
 keep_batchnorms=(
 ""
