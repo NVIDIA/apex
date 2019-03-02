@@ -10,7 +10,7 @@ class MultiTensorApply(object):
             MultiTensorApply.available = True
             self.chunk_size = chunk_size
         except ImportError as err:
-            MultiTensorApply.availble = False
+            MultiTensorApply.available = False
             MultiTensorApply.import_err = err
 
     def check_avail(self):

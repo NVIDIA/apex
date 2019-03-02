@@ -81,9 +81,7 @@ class LossScaler(object):
             self._overflow_buf.zero_()
 
     def unscale(self, model_params, master_params, scale):
-        # torch.cuda.nvtx.range_push("unscale")
         if self._has_overflow:
-            # torch.cuda.nvtx.range_pop()
             return
 
         # Lots of defensive list processing going on here.  Way more less efficient than
@@ -92,6 +90,12 @@ class LossScaler(object):
             in zip(model_params, master_params)] # some of these may be None
 
         if LossScaler.has_fused_kernel:
+            # TODO:  Make these lists permanent attributes of self, so they don't need to be created
+            # or garbage collected.  Profiler shows that garbage collection overhead may be
+            # substantial (200-300 usec).
+            # This may be tricky because right now the lists need to be packed densely.
+            # Maybe this could be handled within the multi_tensor_apply wrapper
+            # (allow some Tensors to be None using at::optional).
             src_dst_pairs = {torch.float16 : {torch.float16 : [[],[]], torch.float32 : [[],[]]},
                              torch.float32 : {torch.float16 : [[],[]], torch.float32 : [[],[]]}}
 
@@ -142,6 +146,8 @@ class LossScaler(object):
             if scale == 1.0 and all_same and not self.dynamic:
                 return
 
+            # TODO:  Make these lists permanent attributes of self, so they don't need to be created
+            # or garbage collected?
             model_grads = [mmp[0].grad.data for mmp in model_master_params if mmp[0].grad is not None]
             master_grads = [mmp[1].grad.data for mmp in model_master_params if mmp[1].grad is not None]
 
@@ -150,8 +156,6 @@ class LossScaler(object):
         # If the fused kernel is available, we only need one D2H memcopy and sync.
         if LossScaler.has_fused_kernel and self.dynamic and not self._has_overflow:
             self._has_overflow = self._overflow_buf.item()
-
-        # torch.cuda.nvtx.range_pop()
 
     # Separate so unscale() can be called more that once before updating.
     def update_scale(self):

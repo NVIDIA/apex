@@ -107,6 +107,8 @@ print("keep_batchnorm_fp32 = {}".format(args.keep_batchnorm_fp32), type(args.kee
 print("loss_scale = {}".format(args.loss_scale), type(args.loss_scale))
 
 
+print("\nCUDNN VERSION: {}\n".format(torch.backends.cudnn.version()))
+
 if args.deterministic:
     cudnn.benchmark = False
     cudnn.deterministic = True

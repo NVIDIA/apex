@@ -1,6 +1,7 @@
 import contextlib
 import logging
 import warnings
+import torch
 
 from . import utils
 from .opt import OptimWrapper
@@ -83,7 +84,6 @@ def scale_loss(loss,
                                        "loss scale to {}".format(optimizer.loss_scaler.loss_scale()))
                         optimizer.step = optimizer_step
                     optimizer.step = skip_step
-
     # Probably ok to skip this if not delay_unscale
     if _amp_state.opt_properties.patch_torch_functions:
         _amp_state.handle._clear_cache()

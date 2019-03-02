@@ -46,6 +46,8 @@ rm False*
 
 set -e
 
+print_banner "Installing Apex with --cuda_ext and --cpp_ext"
+
 pushd ../../..
 python setup.py install --cuda_ext --cpp_ext
 popd
@@ -76,6 +78,8 @@ do
   set +x
 done
 
+print_banner "Reinstalling apex without extensions"
+
 pushd ../../..
 python setup.py install
 popd
@@ -102,12 +106,16 @@ do
   do
     for keep_batchnorm in "${keep_batchnorms[@]}"
     do
+      echo ""
+      echo "${BASE_CMD} --opt-level ${opt_level} ${loss_scale} ${keep_batchnorm} [--has-ext] $DATADIR"
       set -x
       python compare.py --opt-level ${opt_level} ${loss_scale} ${keep_batchnorm}
       set +x
     done
   done
 done
+
+print_banner "Reinstalling Apex with --cuda_ext and --cpp_ext"
 
 pushd ../../..
 python setup.py install --cuda_ext --cpp_ext
