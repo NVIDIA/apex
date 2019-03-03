@@ -20,13 +20,13 @@ __device__ __forceinline__ int lastpow2(int n)
 }
 
 __host__ __forceinline__ int h_next_pow2(unsigned int n) {
-    unsigned int old = n;
+    n--;
     n |= (n >>  1);
     n |= (n >>  2);
     n |= (n >>  4);
     n |= (n >>  8);
     n |= (n >> 16);
-    return n == old? n : n + 1;
+    return ++n;
 }
 
 __host__ __forceinline__ int h_last_pow2(unsigned int n) {
