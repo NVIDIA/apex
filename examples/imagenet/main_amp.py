@@ -95,14 +95,9 @@ def fast_collate(batch):
 best_prec1 = 0
 args = parser.parse_args()
 
-# Let multi_tensor_applier be the canary in the coalmine
-# that verifies if the backend is what we think it is
-assert multi_tensor_applier.available == args.has_ext 
-
 print("opt_level = {}".format(args.opt_level))
 print("keep_batchnorm_fp32 = {}".format(args.keep_batchnorm_fp32), type(args.keep_batchnorm_fp32))
 print("loss_scale = {}".format(args.loss_scale), type(args.loss_scale))
-
 
 print("\nCUDNN VERSION: {}\n".format(torch.backends.cudnn.version()))
 
@@ -342,8 +337,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
         input, target = prefetcher.next()
 
         if i%args.print_freq == 0:
-            # Every print_freq iterations, let's check the accuracy and speed.
-            # For best performance, it doesn't make sense to collect these metrics every
+            # Every print_freq iterations, check the loss accuracy and speed.
+            # For best performance, it doesn't make sense to print these metrics every
             # iteration, since they incur an allreduce and some host<->device syncs.
 
             # Measure accuracy
@@ -374,8 +369,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
                       'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                       'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                        epoch, i, len(train_loader),
-                       args.print_freq*args.world_size*args.batch_size/batch_time.val,
-                       args.print_freq*args.world_size*args.batch_size/batch_time.avg,
+                       args.world_size*args.batch_size/batch_time.val,
+                       args.world_size*args.batch_size/batch_time.avg,
                        batch_time=batch_time,
                        loss=losses, top1=top1, top5=top5))
 

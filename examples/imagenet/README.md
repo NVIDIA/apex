@@ -30,7 +30,7 @@ CPU data loading bottlenecks.
 `O0` and `O3` can be told to use loss scaling via manual overrides, but using loss scaling with `O0`
 (pure FP32 training) does not really make sense, and will trigger a warning.
 
-Softlink training and validation dataset into current directory
+Softlink training and validation dataset into current directory:
 ```
 $ ln -sf /data/imagenet/train-jpeg/ train
 $ ln -sf /data/imagenet/val-jpeg/ val
@@ -42,7 +42,7 @@ Amp enables easy experimentation with various pure and mixed precision options.
 ```
 $ python main_amp.py -a resnet50 --b 128 --workers 4 --opt-level O0 ./
 $ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O3 ./
-$ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O3 --keep-batchnorm-FP32 True ./
+$ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O3 --keep-batchnorm-fp32 True ./
 $ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O1 ./
 $ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O1 --loss-scale 128.0 ./
 $ python -m torch.distributed.launch --nproc_per_node=2 main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O1 ./
@@ -64,7 +64,7 @@ $ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O3 ./
 ```
 FP16 training with FP32 batchnorm:
 ```
-$ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O3 --keep-batchnorm-FP32 True ./
+$ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O3 --keep-batchnorm-fp32 True ./
 ```
 Keeping the batchnorms in FP32 improves stability and allows Pytorch
 to use cudnn batchnorms, which significantly increases speed in Resnet50.
@@ -72,8 +72,8 @@ to use cudnn batchnorms, which significantly increases speed in Resnet50.
 The `O3` options might not converge, because they are not true mixed precision.
 However, they can be useful to establish "speed of light" performance for
 your model, which provides a baseline for comparison with `O1` and `O2`.
-For Resnet50 in particular, `--opt-level O3 --keep-batchnorm-FP32 True` establishes
-the "speed of light."  (Without `--keep-batchnorm-FP32`, it's slower, because it does
+For Resnet50 in particular, `--opt-level O3 --keep-batchnorm-fp32 True` establishes
+the "speed of light."  (Without `--keep-batchnorm-fp32`, it's slower, because it does
 not use cudnn batchnorm.)
 
 #### `--opt-level O1` ("conservative mixed precision")
