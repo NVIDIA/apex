@@ -36,7 +36,23 @@ $ ln -sf /data/imagenet/train-jpeg/ train
 $ ln -sf /data/imagenet/val-jpeg/ val
 ```
 
-### `--opt-level O0` (FP32 training) and `O3` (FP16 training)
+### Summary
+
+Amp enables easy experimentation with various pure and mixed precision options.
+```
+$ python main_amp.py -a resnet50 --b 128 --workers 4 --opt-level O0 ./
+$ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O3 ./
+$ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O3 --keep-batchnorm-FP32 True ./
+$ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O1 ./
+$ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O1 --loss-scale 128.0 ./
+$ python -m torch.distributed.launch --nproc_per_node=2 main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O1 ./
+$ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O2 ./
+$ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O2 --loss-scale 128.0 ./
+$ python -m torch.distributed.launch --nproc_per_node=2 main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O2 ./
+```
+Options are broken down in detail below.
+
+#### `--opt-level O0` (FP32 training) and `O3` (FP16 training)
 
 "Pure FP32" training:
 ```
@@ -60,7 +76,7 @@ For Resnet50 in particular, `--opt-level O3 --keep-batchnorm-FP32 True` establis
 the "speed of light."  (Without `--keep-batchnorm-FP32`, it's slower, because it does
 not use cudnn batchnorm.)
 
-### `--opt-level O1` ("conservative mixed precision")
+#### `--opt-level O1` ("conservative mixed precision")
 
 `O1` patches Torch functions to cast inputs according to a whitelist-blacklist model.
 FP16-friendly (Tensor Core) ops like gemms and convolutions run in FP16, while ops
@@ -81,7 +97,7 @@ $ python -m torch.distributed.launch --nproc_per_node=2 main_amp.py -a resnet50 
 For best performance, set `--nproc_per_node` equal to the total number of GPUs on the node
 to use all available resources.
 
-### `--opt-level O2` ("fast mixed precision")
+#### `--opt-level O2` ("fast mixed precision")
 
 `O2` casts the model to FP16, keeps batchnorms in FP32,
 maintains master weights in FP32, and implements
