@@ -1,6 +1,6 @@
 import torch
 from ._initialize import _initialize
-from ._amp_state import _amp_state
+from ._amp_state import _amp_state, warn_or_err
 
 
 class Properties(object):
@@ -165,21 +165,6 @@ opt_levels = {"O3": O3(),
               "O1": O1(),
               "O0": O0()}
 
-def check_params_fp32(model):
-    for name, param in model.named_parameters():
-        if param.type() != "torch.cuda.FloatTensor":
-            print("Warning:  Found param {} with type {}, expected torch.cuda.FloatTensor.\n"
-                  "When using amp.initialize, you do not need to call .half() on your model\n"
-                  "before passing it, no matter what optimization level you choose.".format(
-                  name, param.type()))
-
-    for name, param in model.named_buffers():
-        if param.type() != "torch.cuda.FloatTensor":
-            print("Warning:  Found buffer {} with type {}, expected torch.cuda.FloatTensor.\n"
-                  "When using amp.initialize, you do not need to call .half() on your model\n"
-                  "before passing it, no matter what optimization level you choose.".format(
-                  name, param.type()))
-
 
 # allow user to directly pass Properties struct as well?
 def initialize(models, optimizers, enabled=True, opt_level=None, **kwargs):
@@ -193,6 +178,8 @@ def initialize(models, optimizers, enabled=True, opt_level=None, **kwargs):
     loss_scale=None,)
     """
     if not enabled:
+        if "hard_override" in kwargs:
+            _amp_state.hard_override = kwargs["hard_override"]
         _amp_state.opt_properties = Properties()
         return models, optimizers
 
@@ -222,41 +209,43 @@ def initialize(models, optimizers, enabled=True, opt_level=None, **kwargs):
     return _initialize(models, optimizers, _amp_state.opt_properties)
 
 
-def check_option_consistency(enabled=True,
-                             opt_level=None,
-                             cast_model_type=None,
-                             patch_torch_functions=None,
-                             keep_batchnorm_fp32=None,
-                             master_weights=None,
-                             loss_scale=None,
-                             enable_ddp_interop=None):
-    """
-    Utility function that enables users to quickly check if the option combination they intend
-    to use is permitted.  ``check_option_consistency`` does not require models or optimizers
-    to be constructed, and can be called at any point in the script.  ``check_option_consistency``
-    is totally self-contained; it does not set any amp global state or affect anything outside
-    of itself.
-    """
-
-    if not enabled:
-        return
-
-    if opt_level not in opt_levels:
-        raise RuntimeError("Unexpected optimization level.  Options are 'O0', 'O1', 'O2', 'O3'.")
-    else:
-        opt_properties = opt_levels[opt_level](Properties())
-        print("Selected optimization level {}", opt_levels[opt_level].brief)
-        print("Defaults for this optimization level are:")
-        for k, v in opt_properties.options:
-            print("{:22} : {}".format(k, v))
-
-    print("Processing user overrides (additional kwargs that are not None)...")
-    for k, v in kwargs:
-        if k not in amp_state.opt_properties.options:
-            raise RuntimeError("Unexpected kwarg {}".format(k))
-        if v is not None:
-            setattr(opt_properties, k, v)
-
-    print("After processing overrides, optimization options are:")
-    for k, v in opt_properties.options:
-        print("{:22} : {}".format(k, v))
+# TODO:  is this necessary/useful?
+# def check_option_consistency(enabled=True,
+#                              opt_level=None,
+#                              cast_model_type=None,
+#                              patch_torch_functions=None,
+#                              keep_batchnorm_fp32=None,
+#                              master_weights=None,
+#                              loss_scale=None,
+#                              enable_ddp_interop=None,
+#                              hard_override=False):
+#     """
+#     Utility function that enables users to quickly check if the option combination they intend
+#     to use is permitted.  ``check_option_consistency`` does not require models or optimizers
+#     to be constructed, and can be called at any point in the script.  ``check_option_consistency``
+#     is totally self-contained; it does not set any amp global state or affect anything outside
+#     of itself.
+#     """
+#
+#     if not enabled:
+#         return
+#
+#     if opt_level not in opt_levels:
+#         raise RuntimeError("Unexpected optimization level.  Options are 'O0', 'O1', 'O2', 'O3'.")
+#     else:
+#         opt_properties = opt_levels[opt_level](Properties())
+#         print("Selected optimization level {}", opt_levels[opt_level].brief)
+#         print("Defaults for this optimization level are:")
+#         for k, v in opt_properties.options:
+#             print("{:22} : {}".format(k, v))
+#
+#     print("Processing user overrides (additional kwargs that are not None)...")
+#     for k, v in kwargs:
+#         if k not in _amp_state.opt_properties.options:
+#             raise RuntimeError("Unexpected kwarg {}".format(k))
+#         if v is not None:
+#             setattr(opt_properties, k, v)
+#
+#     print("After processing overrides, optimization options are:")
+#     for k, v in opt_properties.options:
+#         print("{:22} : {}".format(k, v))

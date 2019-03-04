@@ -12,13 +12,16 @@ TORCH_MAJOR = int(torch.__version__.split('.')[0])
 TORCH_MINOR = int(torch.__version__.split('.')[1])
 
 if TORCH_MAJOR == 0 and TORCH_MINOR < 4:
-      raise RuntimeError("APEx requires Pytorch 0.4 or newer.\n" +
+      raise RuntimeError("Apex requires Pytorch 0.4 or newer.\n" +
                          "The latest stable release can be obtained from https://pytorch.org/")
 
 cmdclass = {}
 ext_modules = []
 
 if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
+    if TORCH_MAJOR == 0:
+        raise RuntimeError("--cpp_ext requires Pytorch 1.0 or later, "
+                           "found torch.__version__ = {}".format(torch.__version))
     from torch.utils.cpp_extension import BuildExtension
     cmdclass['build_ext'] = BuildExtension
 
@@ -34,7 +37,7 @@ if "--cuda_ext" in sys.argv:
     sys.argv.remove("--cuda_ext")
 
     if torch.utils.cpp_extension.CUDA_HOME is None:
-        print("Warning:  nvcc is not available.  Ignoring --cuda-ext") 
+        raise RuntimeError("--cuda_ext was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
         ext_modules.append(
             CUDAExtension(name='amp_C',

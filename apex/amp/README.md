@@ -1,8 +1,8 @@
 # amp: Automatic Mixed Precision
 
-## This README documents the legacy (pre-Amp 1.0) API.
+## This README documents the deprecated (pre-unified) API.
 
-## Documentation for the new 1.0 API can be found [here](https://nvidia.github.io/apex/)
+## Documentation for the current unified API can be found [here](https://nvidia.github.io/apex/)
 
 amp is an experimental tool to enable mixed precision training in
 PyTorch with extreme simplicity and overall numerical safety. It

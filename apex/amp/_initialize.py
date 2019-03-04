@@ -1,7 +1,7 @@
 import torch
 from torch._six import container_abcs, string_classes
 import functools
-from ._amp_state import _amp_state
+from ._amp_state import _amp_state, warn_or_err
 from .handle import disable_casts
 from .scaler import LossScaler
 from apex.fp16_utils import convert_network
@@ -13,10 +13,12 @@ from ..parallel import DistributedDataParallel as apex_DDP
 
 def to_type(dtype, t):
     if not t.is_cuda:
-        print("Warning:  input tensor was not cuda.  Call .cuda() on your data before passing it.")
+        # This should not be a hard error, since it may be legitimate.
+        print("Warning:  An input tensor was not cuda. ")
     if t.requires_grad:
-        print("Warning:  input data requires grad.  Since input data is not a model parameter,\n"
-              "its gradients will not be properly allreduced by DDP.")
+        # This should be a hard-ish error.
+        warn_or_err("input data requires grad.  Since input data is not a model parameter,\n"
+            "its gradients will not be properly allreduced by DDP.")
     if t.is_floating_point():
         return t.to(dtype)
     return t
@@ -55,17 +57,17 @@ def check_params_fp32(models):
     for model in models:
         for name, param in model.named_parameters():
             if param.is_floating_point() and param.type() != "torch.cuda.FloatTensor":
-                print("Warning:  Found param {} with type {}, expected torch.cuda.FloatTensor.\n"
-                      "When using amp.initialize, you do not need to call .half() on your model\n"
-                      "before passing it, no matter what optimization level you choose.".format(
-                      name, param.type()))
+                warn_or_err("Found param {} with type {}, expected torch.cuda.FloatTensor.\n"
+                    "When using amp.initialize, you do not need to call .half() on your model\n"
+                    "before passing it, no matter what optimization level you choose.".format(
+                    name, param.type()))
 
         for name, buf in model.named_buffers():
             if buf.is_floating_point() and buf.type() != "torch.cuda.FloatTensor":
-                print("Warning:  Found buffer {} with type {}, expected torch.cuda.FloatTensor.\n"
-                      "When using amp.initialize, you do not need to call .half() on your model\n"
-                      "before passing it, no matter what optimization level you choose.".format(
-                      name, buf.type()))
+                warn_or_err("Found buffer {} with type {}, expected torch.cuda.FloatTensor.\n"
+                    "When using amp.initialize, you do not need to call .half() on your model\n"
+                    "before passing it, no matter what optimization level you choose.".format(
+                    name, buf.type()))
 
 
 def check_optimizers(optimizers):
@@ -77,7 +79,7 @@ def check_optimizers(optimizers):
             bad_optim_type = "apex.optimizers.FP16_Optimizer"
         if bad_optim_type is not None:
             raise RuntimeError("An incoming optimizer is an instance of {}. ".format(optim_type) +
-                               "The optimizer(s) passed to amp.initialize() should be bare \n"
+                               "The optimizer(s) passed to amp.initialize() must be bare \n"
                                "instances of either ordinary Pytorch optimizers, or Apex fused \n"
                                "optimizers (currently just FusedAdam, but FusedSGD will be added \n"
                                "soon).  You should not manually wrap your optimizer in either \n"

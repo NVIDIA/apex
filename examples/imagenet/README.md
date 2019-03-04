@@ -1,16 +1,24 @@
 # Mixed Precision ImageNet Training in PyTorch
 
-This example is based on [https://github.com/pytorch/examples/tree/master/imagenet](https://github.com/pytorch/examples/tree/master/imagenet).
-It implements mixed precision training of popular model architectures, such as ResNet, AlexNet, and VGG on the ImageNet dataset.
+`main_amp.py` is based on [https://github.com/pytorch/examples/tree/master/imagenet](https://github.com/pytorch/examples/tree/master/imagenet).
+It implements Automatic Mixed Precision (Amp) training of popular model architectures, such as ResNet, AlexNet, and VGG, on the ImageNet dataset, and illustrates use of the new Amp API along with command-line flags (forwarded to `amp.initialize`) to easily manipulate and switch between various pure and mixed precision training modes.
 
-`main_amp.py` illustrates use of the new Amp API along with command-line flags (forwarded to `amp.initialize`) to easily manipulate and switch between various pure and mixed precision training modes.
+Three lines enable Amp:
+```
+# Added after model and optimizer construction
+model, optimizer = amp.initialize(model, optimizer, flags...)
+...
+# loss.backward() changed to:
+with amp.scale_loss(loss, optimizer) as scaled_loss:
+    scaled_loss.backward()
+```
 
-Notice that with the new Amp API **you never need to explicitly convert your model, or the input data, to half().**
+With the new Amp API **you never need to explicitly convert your model, or the input data, to half().**
 
 ## Requirements
 
 - Download the ImageNet dataset and move validation images to labeled subfolders
-    - To do this, you can use the following script: https://raw.githubusercontent.com/soumith/imagenetloader.torch/master/valprep.sh
+    - The following script may be helpful: https://raw.githubusercontent.com/soumith/imagenetloader.torch/master/valprep.sh
 
 ## Training
 
@@ -30,7 +38,7 @@ CPU data loading bottlenecks.
 `O0` and `O3` can be told to use loss scaling via manual overrides, but using loss scaling with `O0`
 (pure FP32 training) does not really make sense, and will trigger a warning.
 
-Softlink training and validation dataset into current directory:
+Softlink training and validation datasets into the current directory:
 ```
 $ ln -sf /data/imagenet/train-jpeg/ train
 $ ln -sf /data/imagenet/val-jpeg/ val
@@ -38,7 +46,7 @@ $ ln -sf /data/imagenet/val-jpeg/ val
 
 ### Summary
 
-Amp enables easy experimentation with various pure and mixed precision options.
+Amp allows easy experimentation with various pure and mixed precision options.
 ```
 $ python main_amp.py -a resnet50 --b 128 --workers 4 --opt-level O0 ./
 $ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O3 ./
@@ -132,6 +140,16 @@ manually specify the device to run on and the output device.
 With Apex DDP, it uses only the current device by default).
 
 The choice of DDP wrapper (Torch or Apex) is orthogonal to the use of Amp and other Apex tools.  It is safe to use `apex.amp` with either `torch.nn.parallel.DistributedDataParallel` or `apex.parallel.DistributedDataParallel`.  In the future, I may add some features that permit optional tighter integration between `Amp` and `apex.parallel.DistributedDataParallel` for marginal performance benefits, but currently, there's no compelling reason to use Apex DDP versus Torch DDP for most models.
+
+To use DDP with `apex.amp`, the only gotcha is that
+```
+model, optimizer = amp.initialize(model, optimizer, flags...)
+```
+must precede
+```
+model = DDP(model)
+```
+If DDP wrapping occurs before `amp.initialize`, `amp.initialize` will raise an error.
 
 With both Apex DDP and Torch DDP, you must also call `torch.cuda.set_device(args.local_rank)` within
 each process prior to initializing your model or any other tensors.
