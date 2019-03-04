@@ -16,7 +16,7 @@ Notice that with the new Amp API **you never need to explicitly convert your mod
 
 To train a model, create softlinks to the Imagenet dataset, then run `main.py` with the desired model architecture, as shown in `Example commands` below.
 
-The default learning rate schedule is set for ResNet50.  `main_amp.py` script rescales the learning rate according to the global batch size (number of distributed processes x per-process minibatch size).
+The default learning rate schedule is set for ResNet50.  `main_amp.py` script rescales the learning rate according to the global batch size (number of distributed processes \* per-process minibatch size).
 
 ## Example commands
 
@@ -26,59 +26,65 @@ The default learning rate schedule is set for ResNet50.  `main_amp.py` script re
 CPU data loading bottlenecks.
 
 **Note:**  `--opt-level` `O1` and `O2` both use dynamic loss scaling by default unless manually overridden.
-`--opt-level` `O0` and `O3` (the "pure" training modes) do not use loss scaling by default, but they
-can also be told to use loss scaling via manual overrides.  Using loss scaling with `O0`
-(pure FP32 training) does not really make sense, though, and will trigger a warning.
+`--opt-level` `O0` and `O3` (the "pure" training modes) do not use loss scaling by default.
+`O0` and `O3` can be told to use loss scaling via manual overrides, but using loss scaling with `O0`
+(pure FP32 training) does not really make sense, and will trigger a warning.
 
-```bash
-### Softlink training dataset into current directory
+Softlink training and validation dataset into current directory
+```
 $ ln -sf /data/imagenet/train-jpeg/ train
-### Softlink validation dataset into current directory
 $ ln -sf /data/imagenet/val-jpeg/ val
 ```
 
-Single-process "pure fp32" training
+### `--opt-level O0` (FP32 training) and `O3` (FP16 training)
+
+"Pure FP32" training:
 ```
 $ python main_amp.py -a resnet50 --b 128 --workers 4 --opt-level O0 ./
 ```
-Single-process "pure fp16" training
+"Pure FP16" training:
 ```
 $ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O3 ./
 ```
-Single-process fp16 training with fp32 batchnorm
+FP16 training with FP32 batchnorm:
 ```
-$ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O3 --keep-batchnorm-fp32 True ./
+$ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O3 --keep-batchnorm-FP32 True ./
 ```
-Keeping the batchnorms in fp32 improves stability and allows Pytorch
+Keeping the batchnorms in FP32 improves stability and allows Pytorch
 to use cudnn batchnorms, which significantly increases speed in Resnet50.
 
-The "O3" options might not converge, because they are not true mixed precision.
+The `O3` options might not converge, because they are not true mixed precision.
 However, they can be useful to establish "speed of light" performance for
-your model, which provides a baseline for comparison with opt-levels O1 and O2.
-For Resnet50 in particular, --opt-level O3 --keep-batchnorm-fp32 True establishes
-the "speed of light."  (Without --keep-batchnorm-fp32, it's slower, because it does
+your model, which provides a baseline for comparison with `O1` and `O2`.
+For Resnet50 in particular, `--opt-level O3 --keep-batchnorm-FP32 True` establishes
+the "speed of light."  (Without `--keep-batchnorm-FP32`, it's slower, because it does
 not use cudnn batchnorm.)
 
-`--opt-level O1` ("conservative mixed precision") training patches Torch functions
-to cast inputs according to a whitelist-blacklist model.  FP16-friendly (Tensor Core)
-ops like gemms and convolutions run in FP16, while ops that benefit from FP32,
-like batchnorm and softmax, run in FP32 (also, dynamic loss scaling is used by default):
+### `--opt-level O1` ("conservative mixed precision")
+
+`O1` patches Torch functions to cast inputs according to a whitelist-blacklist model.
+FP16-friendly (Tensor Core) ops like gemms and convolutions run in FP16, while ops
+that benefit from FP32, like batchnorm and softmax, run in FP32.
+Also, dynamic loss scaling is used by default.
 ```
 $ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O1 ./
 ```
-"Conservative mixed precision" overridden to use static loss scaling:
+`O1` overridden to use static loss scaling:
 ```
 $ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O1 --loss-scale 128.0
 ```
-Distributed training with 2 processes (1 GPU per process)
+Distributed training with 2 processes (1 GPU per process, see **Distributed training** below
+for more detail)
 ```
 $ python -m torch.distributed.launch --nproc_per_node=2 main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O1 ./
 ```
 For best performance, set `--nproc_per_node` equal to the total number of GPUs on the node
 to use all available resources.
 
-`--opt-level O2` ("fast mixed precision") training casts the model to FP16,
-keeps batchnorms in FP32, maintains master weights in FP32, and implements
+### `--opt-level O2` ("fast mixed precision")
+
+`O2` casts the model to FP16, keeps batchnorms in FP32,
+maintains master weights in FP32, and implements
 dynamic loss scaling by default. (Unlike --opt-level O1, --opt-level O2
 does not patch Torch functions.)
 ```
