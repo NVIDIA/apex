@@ -170,15 +170,15 @@ def check_params_fp32(model):
         if param.type() != "torch.cuda.FloatTensor":
             print("Warning:  Found param {} with type {}, expected torch.cuda.FloatTensor.\n"
                   "When using amp.initialize, you do not need to call .half() on your model\n"
-                  "before passing it, no matter what optimization level you choose.",
-                  name, param.type())
+                  "before passing it, no matter what optimization level you choose.".format(
+                  name, param.type()))
 
     for name, param in model.named_buffers():
         if param.type() != "torch.cuda.FloatTensor":
             print("Warning:  Found buffer {} with type {}, expected torch.cuda.FloatTensor.\n"
                   "When using amp.initialize, you do not need to call .half() on your model\n"
-                  "before passing it, no matter what optimization level you choose.",
-                  name, param.type())
+                  "before passing it, no matter what optimization level you choose.".format(
+                  name, param.type()))
 
 
 # allow user to directly pass Properties struct as well?

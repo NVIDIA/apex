@@ -20,8 +20,7 @@ import numpy as np
 try:
     from apex.parallel import DistributedDataParallel as DDP
     from apex.fp16_utils import *
-    from apex import amp, optimizers
-    from apex.multi_tensor_apply import multi_tensor_applier
+    from apex import amp
 except ImportError:
     raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
 
@@ -60,6 +59,8 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
 parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                     help='use pre-trained model')
 
+parser.add_argument('--fp16', action='store_true',
+                    help='Run model fp16 mode.')
 parser.add_argument('--prof', dest='prof', action='store_true',
                     help='Only run 10 iterations for profiling.')
 parser.add_argument('--deterministic', action='store_true')
@@ -67,11 +68,6 @@ parser.add_argument('--deterministic', action='store_true')
 parser.add_argument("--local_rank", default=0, type=int)
 parser.add_argument('--sync_bn', action='store_true',
                     help='enabling apex sync BN.')
-
-parser.add_argument('--has-ext', action='store_true')
-parser.add_argument('--opt-level', type=str)
-parser.add_argument('--keep-batchnorm-fp32', type=str, default=None)
-parser.add_argument('--loss-scale', type=str, default=None)
 
 cudnn.benchmark = True
 
@@ -95,22 +91,14 @@ def fast_collate(batch):
 best_prec1 = 0
 args = parser.parse_args()
 
-# Let multi_tensor_applier be the canary in the coalmine
-# that verifies if the backend is what we think it is
-assert multi_tensor_applier.available == args.has_ext 
-
-print("opt_level = {}".format(args.opt_level))
-print("keep_batchnorm_fp32 = {}".format(args.keep_batchnorm_fp32), type(args.keep_batchnorm_fp32))
-print("loss_scale = {}".format(args.loss_scale), type(args.loss_scale))
-
-
-print("\nCUDNN VERSION: {}\n".format(torch.backends.cudnn.version()))
-
 if args.deterministic:
     cudnn.benchmark = False
     cudnn.deterministic = True
     torch.manual_seed(args.local_rank)
     torch.set_printoptions(precision=10)
+
+# Initialize Amp 
+amp_handle = amp.init(enabled=args.fp16)
 
 def main():
     global best_prec1, args
@@ -129,7 +117,8 @@ def main():
                                              init_method='env://')
         args.world_size = torch.distributed.get_world_size()
 
-    assert torch.backends.cudnn.enabled, "Amp requires cudnn backend to be enabled."
+    if args.fp16:
+        assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
 
     # create model
     if args.pretrained:
@@ -146,24 +135,6 @@ def main():
 
     model = model.cuda()
 
-    # Scale learning rate based on global batch size
-    args.lr = args.lr*float(args.batch_size*args.world_size)/256. 
-    optimizer = torch.optim.SGD(model.parameters(), args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
-
-    # Initialize Amp.  Amp accepts either values or strings for the optional override arguments,
-    # for convenient interoperation with argparse.
-    model, optimizer = amp.initialize(model, optimizer,
-                                      opt_level=args.opt_level,
-                                      keep_batchnorm_fp32=args.keep_batchnorm_fp32,
-                                      loss_scale=args.loss_scale
-                                      )
-
-    # For distributed training, wrap the model with apex.parallel.DistributedDataParallel.
-    # This must be done AFTER the call to amp.initialize.  If model = DDP(model) is called
-    # before model, ... = amp.initialize(model, ...), the call to amp.initialize may alter
-    # the types of model's parameters in a way that disrupts or destroys DDP's allreduce hooks.
     if args.distributed:
         # By default, apex.parallel.DistributedDataParallel overlaps communication with 
         # computation in the backward pass.
@@ -173,6 +144,12 @@ def main():
 
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
+
+    # Scale learning rate based on global batch size
+    args.lr = args.lr*float(args.batch_size*args.world_size)/256. 
+    optimizer = torch.optim.SGD(model.parameters(), args.lr,
+                                momentum=args.momentum,
+                                weight_decay=args.weight_decay)
 
     # Optionally resume from a checkpoint
     if args.resume:
@@ -266,6 +243,7 @@ class data_prefetcher():
         self.mean = torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255]).cuda().view(1,3,1,1)
         self.std = torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255]).cuda().view(1,3,1,1)
         # With Amp, it isn't necessary to manually convert data to half.
+        # Type conversions are done internally on the fly within patched torch functions.
         # if args.fp16:
         #     self.mean = self.mean.half()
         #     self.std = self.std.half()
@@ -282,6 +260,7 @@ class data_prefetcher():
             self.next_input = self.next_input.cuda(non_blocking=True)
             self.next_target = self.next_target.cuda(non_blocking=True)
             # With Amp, it isn't necessary to manually convert data to half.
+            # Type conversions are done internally on the fly within patched torch functions.
             # if args.fp16:
             #     self.next_input = self.next_input.half()
             # else:
@@ -298,6 +277,7 @@ class data_prefetcher():
 
 def train(train_loader, model, criterion, optimizer, epoch):
     batch_time = AverageMeter()
+    data_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
@@ -308,7 +288,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
     prefetcher = data_prefetcher(train_loader)
     input, target = prefetcher.next()
-    i = 0
+    i = -1
     while input is not None:
         i += 1
 
@@ -317,67 +297,55 @@ def train(train_loader, model, criterion, optimizer, epoch):
         if args.prof:
             if i > 10:
                 break
+        # measure data loading time
+        data_time.update(time.time() - end)
 
         # compute output
-        if args.prof: torch.cuda.nvtx.range_push("forward")
         output = model(input)
-        if args.prof: torch.cuda.nvtx.range_pop()
         loss = criterion(output, target)
+
+        # measure accuracy and record loss
+        prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
+
+        if args.distributed:
+            reduced_loss = reduce_tensor(loss.data)
+            prec1 = reduce_tensor(prec1)
+            prec5 = reduce_tensor(prec5)
+        else:
+            reduced_loss = loss.data
+
+        losses.update(to_python_float(reduced_loss), input.size(0))
+        top1.update(to_python_float(prec1), input.size(0))
+        top5.update(to_python_float(prec5), input.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
 
-        if args.prof: torch.cuda.nvtx.range_push("backward")
-        with amp.scale_loss(loss, optimizer) as scaled_loss:
+        with amp_handle.scale_loss(loss, optimizer) as scaled_loss:
             scaled_loss.backward()
-        if args.prof: torch.cuda.nvtx.range_pop()
 
-        # for param in model.parameters():
-        #     print(param.data.double().sum().item(), param.grad.data.double().sum().item())
-
-        if args.prof: torch.cuda.nvtx.range_push("step")
         optimizer.step()
-        if args.prof: torch.cuda.nvtx.range_pop()
 
+        torch.cuda.synchronize()
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+
+        end = time.time()
         input, target = prefetcher.next()
 
-        if i%args.print_freq == 0:
-            # Every print_freq iterations, let's check the accuracy and speed.
-            # For best performance, it doesn't make sense to collect these metrics every
-            # iteration, since they incur an allreduce and some host<->device syncs.
-
-            # Measure accuracy
-            prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
-   
-            # Average loss and accuracy across processes for logging 
-            if args.distributed:
-                reduced_loss = reduce_tensor(loss.data)
-                prec1 = reduce_tensor(prec1)
-                prec5 = reduce_tensor(prec5)
-            else:
-                reduced_loss = loss.data
-   
-            # to_python_float incurs a host<->device sync
-            losses.update(to_python_float(reduced_loss), input.size(0))
-            top1.update(to_python_float(prec1), input.size(0))
-            top5.update(to_python_float(prec5), input.size(0))
-    
-            torch.cuda.synchronize()
-            batch_time.update((time.time() - end)/args.print_freq)
-            end = time.time()
-
-            if args.local_rank == 0:
-                print('Epoch: [{0}][{1}/{2}]\t'
-                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Speed {3:.3f} ({4:.3f})\t'
-                      'Loss {loss.val:.10f} ({loss.avg:.4f})\t'
-                      'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                      'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                       epoch, i, len(train_loader),
-                       args.print_freq*args.world_size*args.batch_size/batch_time.val,
-                       args.print_freq*args.world_size*args.batch_size/batch_time.avg,
-                       batch_time=batch_time,
-                       loss=losses, top1=top1, top5=top5))
+        if args.local_rank == 0 and i % args.print_freq == 0 and i > 1:
+            print('Epoch: [{0}][{1}/{2}]\t'
+                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  'Speed {3:.3f} ({4:.3f})\t'
+                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                  'Loss {loss.val:.10f} ({loss.avg:.4f})\t'
+                  'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                  'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+                   epoch, i, len(train_loader),
+                   args.world_size * args.batch_size / batch_time.val,
+                   args.world_size * args.batch_size / batch_time.avg,
+                   batch_time=batch_time,
+                   data_time=data_time, loss=losses, top1=top1, top5=top5))
 
 
 def validate(val_loader, model, criterion):
@@ -393,7 +361,7 @@ def validate(val_loader, model, criterion):
 
     prefetcher = data_prefetcher(val_loader)
     input, target = prefetcher.next()
-    i = 0
+    i = -1
     while input is not None:
         i += 1
 
@@ -420,7 +388,6 @@ def validate(val_loader, model, criterion):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        # TODO:  Change timings to mirror train().
         if args.local_rank == 0 and i % args.print_freq == 0:
             print('Test: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'

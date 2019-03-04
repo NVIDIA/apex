@@ -1,11 +1,4 @@
-## Contents:
+This directory contains examples illustrating Apex mixed precision and distributed tools.
 
-**distributed**:  Walkthrough of apex distributed data parallel utilities.
-
-**FP16_Optimizer_simple**:  Simple examples demonstrating various use cases of `FP16_Optimizer` to automatically manage master parameters and static or dynamic loss scaling.
-
-**imagenet**:  Example based on [https://github.com/pytorch/examples/tree/master/imagenet](https://github.com/pytorch/examples/tree/master/imagenet) showing the use of `FP16_Optimizer`, as well as manual management of master parameters and loss scaling for illustration/comparison.
-
-**word_language_model**:  Example based on [https://github.com/pytorch/examples/tree/master/word_language_model](https://github.com/pytorch/examples/tree/master/word_language_model) showing the use of `FP16_Optimizer`, as well as manual management of master parameters and loss scaling for illustration/comparison.
-
-**docker**:  Example of a minimal Dockerfile that installs Apex on top of an existing container.
+**Note for users of the pre-unification API**:
+`deprecated_api` contains examples illustrating the old (pre-unified) APIs.  These APIs will be removed soon, and users are strongly encouraged to switch.  The separate mixed precision tools called `Amp` and `FP16_Optimizer` in the old API are exposed via different flags/optimization levels in the new API.
