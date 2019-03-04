@@ -1,3 +1,8 @@
+# PSA:  Unified API for mixed precision tools coming soon!  
+(as introduced by https://info.nvidia.com/webinar-mixed-precision-with-pytorch-reg-page.html.
+
+Branch `api_refactor` is tracking my progress.  Update as of 2/28:  PR-ed in https://github.com/NVIDIA/apex/pull/173. I'd like to clean up the documentation a bit more before final merge.
+
 # Introduction
 
 This repository holds NVIDIA-maintained utilities to streamline 

@@ -7,7 +7,6 @@ try:
     lib = ctypes.cdll.LoadLibrary(None)
     lib.THCudaHalfTensor_normall.argtypes=[ctypes.c_void_p, ctypes.c_void_p]
     lib.THCudaHalfTensor_normall.restype = ctypes.c_float
-    
     def fused_norm(input):
         if input.type() == 'torch.cuda.HalfTensor':
             # 16384 is half 2 if you stare at it long enough
@@ -22,6 +21,7 @@ except TypeError as err:
               "because of lib = ctypes.cdll.LoadLibrary(None):  you can't "
               "LoadLibrary with None.  Original exception message was ",
               stashed_err)
+
 
 class FP16_Optimizer(object):
     """
