@@ -39,6 +39,12 @@ if "--cuda_ext" in sys.argv:
     if torch.utils.cpp_extension.CUDA_HOME is None:
         raise RuntimeError("--cuda_ext was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
+        # Set up macros for forward/backward compatibility hack around
+        # https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
+        version_ge_1_1 = []
+        if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 0):
+            version_ge_1_1 = ['-DVERSION_GE_1_1']
+
         ext_modules.append(
             CUDAExtension(name='amp_C',
                           sources=['csrc/amp_C_frontend.cpp',
@@ -63,10 +69,10 @@ if "--cuda_ext" in sys.argv:
             CUDAExtension(name='fused_layer_norm_cuda',
                           sources=['apex/normalization/csrc/layer_norm_cuda.cpp',
                                    'apex/normalization/csrc/layer_norm_cuda_kernel.cu'],
-                          extra_compile_args={'cxx': ['-O3',],
+                          extra_compile_args={'cxx': ['-O3'] + version_ge_1_1,
                                               'nvcc':['-maxrregcount=50',
                                                       '-O3', 
-                                                      '--use_fast_math']}))
+                                                      '--use_fast_math'] + version_ge_1_1}))
 
 setup(
     name='apex',
