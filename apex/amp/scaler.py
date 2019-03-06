@@ -1,7 +1,7 @@
 import torch
 import logging
 from ..multi_tensor_apply import multi_tensor_applier
-from ._amp_state import _amp_state
+from ._amp_state import _amp_state, master_params
 from itertools import product
 
 # from apex_C import scale_check_overflow
@@ -172,8 +172,3 @@ class LossScaler(object):
             self._unskipped = 0
 
         return should_skip
-
-def iter_params(param_groups):
-    for group in param_groups:
-        for p in group['params']:
-            yield p

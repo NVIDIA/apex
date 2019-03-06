@@ -15,3 +15,19 @@ def warn_or_err(msg):
     else:
         raise RuntimeError(msg + "  If you're sure you know what you're doing, supply " +
                            "hard_override=True to amp.initialize.")
+
+# def iter_params(param_groups):
+#     for group in param_groups:
+#         for p in group['params']:
+#             yield p
+
+def master_params(optimizer):
+    """
+    Generator expression that iterates over the params owned by ``optimizer``.
+
+    Args:
+        optimizer: An optimizer previously returned from ``amp.initialize``.
+    """
+    for group in optimizer.param_groups:
+        for p in group['params']:
+            yield p

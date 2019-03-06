@@ -14,5 +14,3 @@ from .fp16util import (
 
 from .fp16_optimizer import FP16_Optimizer
 from .loss_scaler import LossScaler, DynamicLossScaler
-
-test = 1

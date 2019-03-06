@@ -5,8 +5,8 @@ import torch
 
 from . import utils
 from .opt import OptimWrapper
-from .scaler import LossScaler, iter_params
-from ._amp_state import _amp_state
+from .scaler import LossScaler
+from ._amp_state import _amp_state, master_params
 from ..fp16_utils import FP16_Optimizer as FP16_Optimizer_general
 from ..optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
 
@@ -18,17 +18,44 @@ def scale_loss(loss,
                model=None,
                delay_unscale=False):
     """
-    On context manager entrance, scale the loss in a way consistent with the current loss scale.
-    Yield the loss
+    On context manager entrance, creates ``scaled_loss = (loss.float())*current loss scale``.
+    ``scaled_loss`` is yielded so that the user can call ``scaled_loss.backward()``::
 
-    On context manager exit (if ``delay_unscale=False``), unscale the gradients so that
-    ``optimizer.step()`` can be called.
+        with amp.scale_loss(loss, optimizer) as scaled_loss:
+            scaled_loss.backward()
+
+    On context manager exit (if ``delay_unscale=False``), the gradients are checked for infs/NaNs
+    and unscaled, so that ``optimizer.step()`` can be called.
 
     .. note::
-    If Amp is using explicit FP32 master params (which is the default for ``opt_level=O2``, and
-    can also be manually enabled by supplying ``master_weights=True`` to ``amp.initialize``)
-    any FP16 gradients are copied to FP32 master gradients before being unscaled.  ``optimizer.step()``
-    will then apply the unscaled master gradients to the master params.
+        If Amp is using explicit FP32 master params (which is the default for ``opt_level=O2``, and
+        can also be manually enabled by supplying ``master_weights=True`` to ``amp.initialize``)
+        any FP16 gradients are copied to FP32 master gradients before being unscaled.
+        ``optimizer.step()`` will then apply the unscaled master gradients to the master params.
+
+    .. warning::
+        If Amp is using explicit FP32 master params, only the FP32 master gradients will be
+        unscaled.  The direct ``.grad`` attributes of any FP16
+        model params will remain scaled after context manager exit.
+        This subtlety affects gradient clipping.  See "Gradient clipping" under
+        "Advanced use cases" for best practices.
+
+    Args:
+        loss(Tensor):  Typically a scalar Tensor. The ``scaled_loss`` that the context
+            manager yields is simply ``loss.float()*loss_scale``, so in principle
+            `loss` could have more than one element, as long as you call
+            ``backward()`` on ``scaled_loss`` appropriately within the context manager body.
+        optimizer:  **Must** be an optimizer returned from an earlier call to ``amp.initialize``.
+        model(torch.nn.Module, optional, default=None):  Currently unused, reserved to enable future
+            optimizations.
+        delay_unscale(bool, default=False):  Don't unscale the gradients or perform model->master
+            gradient copies on context manager exit.  "Advanced use cases" illustrates
+            situations where this is necessary.
+
+    .. warning::If ``True``, ``optimizer.step()`` cannot be
+            called yet after context manager exit, and must wait for another, later backward context
+            manager invocation with ``delay_unscale`` left to False.
+            See "Advanced use cases" for examples.
     """
     if not _amp_state.opt_properties.enabled:
         yield loss
@@ -70,8 +97,8 @@ def scale_loss(loss,
             else:
                 optimizer.loss_scaler.clear_overflow_state()
                 optimizer.loss_scaler.unscale(
-                    iter_params(optimizer.param_groups),
-                    iter_params(optimizer.param_groups),
+                    master_params(optimizer),
+                    master_params(optimizer),
                     loss_scale)
                 # For future fused optimizers that enable sync-free dynamic loss scaling,
                 # should_skip will always be False.
@@ -137,8 +164,8 @@ class AmpHandle(object):
 
         self._default_scaler.clear_overflow_state()
         self._default_scaler.unscale(
-            iter_params(optimizer.param_groups),
-            iter_params(optimizer.param_groups),
+            master_params(optimizer),
+            master_params(optimizer),
             loss_scale)
         should_skip = self._default_scaler.update_scale()
         if should_skip:

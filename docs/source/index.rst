@@ -37,11 +37,10 @@ Installation instructions can be found here:  https://github.com/NVIDIA/apex#qui
 
    layernorm
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Deprecated mixed precision utilities
-
-   fp16_utils
+..   .. toctree::
+     :maxdepth: 1
+     :caption: Deprecated mixed precision API
+     fp16_util
 
 ..   reparameterization
 ..   RNN

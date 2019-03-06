@@ -169,13 +169,60 @@ opt_levels = {"O3": O3(),
 # allow user to directly pass Properties struct as well?
 def initialize(models, optimizers, enabled=True, opt_level=None, **kwargs):
     """
-    Expected kwargs:
-    opt_level=None,
-    cast_model_type=None,
-    patch_torch_functions=None,
-    keep_batchnorm_fp32=None,
-    master_weights=None,
-    loss_scale=None,)
+    Initialize your models, optimizers, and the Torch tensor and functional namespace according to the
+    chosen ``opt_level`` and overridden properties, if any.
+
+    To prevent having to rewrite anything else in your script, name the returned models/optimizers
+    to replace the passed models/optimizers, as in the Usage below.
+
+    Args:
+        models (torch.nn.Module or list of torch.nn.Modules):  Models to modify/cast.
+        optimizers (torch.optim.Optimizer or list of torch.optim.Optimizers):  Optimizers to modify/cast.
+        enabled (bool, optional, default=True):  If False, renders all Amp calls no-ops, so your script
+            should run as if Amp were not present.
+        opt_level(str, required):  Pure or mixed precision optimization level.  Accepted values are
+            "O0", "O1", "O2", and "O3", which are explained in detail above.
+        cast_model_type (torch.dtype, optional, default=None):  Optional property override, see
+            above.
+        patch_torch_functions (bool, optional, default=None):  Optional property override.
+        keep_batchnorm_fp32 (bool or str, optional, default=None):  Optional property override.  If
+            passed as a string, must be the string "True" or "False".
+        master_weights (bool, optional, default=None):  Optional property override.
+        loss_scale(float or str, default=None):  Optional property override.  If passed as a string,
+            must be a string representing a number, e.g., "128.0", or the string "dynamic".
+
+    Returns:
+        Model(s) and optimizer(s) modified according to the ``opt_level``.
+        If either the ``models`` or ``optimizers`` args were lists, the corresponding return value will
+        also be a list.
+
+    Usage::
+
+        model, optim = amp.initialize(model, optim,...)
+        model, [optim1, optim2] = amp.initialize(model, [optim1, optim2],...)
+        [model1, model2], optim = amp.initialize([model1, model2], optim,...)
+        [model1, model2], [optim1, optim2] = amp.initialize([model1, model2], [optim1, optim2],...)
+
+        # This is not an exhaustive list of the cross product of options that are possible,
+        # just a set of examples.
+        model, optim = amp.initialize(model, optim, opt_level="O0")
+        model, optim = amp.initialize(model, optim, opt_level="O0", loss_scale="dynamic"|128.0|"128.0")
+
+        model, optim = amp.initialize(model, optim, opt_level="O1") # uses "loss_scale="dynamic" default
+        model, optim = amp.initialize(model, optim, opt_level="O1", loss_scale=128.0|"128.0")
+
+        model, optim = amp.initialize(model, optim, opt_level="O2") # uses "loss_scale="dynamic" default
+        model, optim = amp.initialize(model, optim, opt_level="O2", loss_scale=128.0|"128.0")
+        model, optim = amp.initialize(model, optim, opt_level="O2", keep_batchnorm_fp32=True|False|"True"|"False")
+
+        model, optim = amp.initialize(model, optim, opt_level="O3") # uses loss_scale=1.0 default
+        model, optim = amp.initialize(model, optim, opt_level="O3", loss_scale="dynamic"|128.0|"128.0")
+        model, optim = amp.initialize(model, optim, opt_level="O3", keep_batchnorm_fp32=True|False|"True"|"False")
+
+    The `Imagenet example`_ demonstrates live use of various opt_levels and overrides.
+
+    .. _`Imagenet example`:
+        https://github.com/NVIDIA/apex/tree/master/examples/imagenet
     """
     if not enabled:
         if "hard_override" in kwargs:

@@ -4,7 +4,10 @@
 apex.amp
 ===================================
 
-This page documents the update API for Amp (Automatic Mixed Precision),
+Unified API
+-----------
+
+This page documents the updated API for Amp (Automatic Mixed Precision),
 a tool to enable Tensor Core-accelerated training in only 3 lines of Python.
 
 Amp allows users to easily experiment with different pure and mixed precision modes, including
@@ -23,8 +26,12 @@ Amp can also be disabled, in which case the original script will behave exactly 
 In this way, there's no risk adhering to the Amp API, and a lot of potential performance benefit.
 
 Example::
+
+        # Declare model and optimizer as usual
         model = torch.nn.Linear(D_in, D_out).cuda().half()
         optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+
+        # Allow Amp to perform casts as required by the opt_level
         model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
         ...
         # loss.backward() becomes:
@@ -35,10 +42,17 @@ Example::
 A `runnable, comprehensive Imagenet example`_ demonstrating good practices can be found
 on the Github page.
 
-DCGAN is a tricky case that many people have requested.  A comprehensive example is under construction.
+GANs are a tricky case that many people have requested.  A `comprehensive DCGAN example`_
+is under construction.
+
+``opt_level``\ s and Properties
+-------------------------------
 
 .. _`runnable, comprehensive Imagenet example`:
     https://github.com/NVIDIA/apex/tree/master/examples/imagenet
+
+.. _`comprehensive DCGAN example`:
+    https://github.com/NVIDIA/apex/tree/master/examples/dcgan
 
 .. automodule:: apex.amp
 .. currentmodule:: apex.amp
@@ -47,19 +61,23 @@ DCGAN is a tricky case that many people have requested.  A comprehensive example
 
 .. autofunction:: scale_loss
 
+.. autofunction:: master_params
+
 Advanced use cases
 ------------------
 
 The new Amp API supports gradient accumulation across iterations,
 multiple backward passes per iteration, multiple models/optimizers,
-and forcing layers to a particular type.  Further details can be found here:
+and custom/user-defined autograd functions.  Gradient clipping and GANs also
+require special treatment, but this treatment does not need to change
+for different ``opt_level``\ s.  Further details can be found here:
 
 .. toctree::
    :maxdepth: 1
 
    advanced
 
-Transition Guide for Old API Users
+Transition guide for old API users
 ----------------------------------
 
 We strongly encourage moving to the new Amp API, because it's more versatile, easier to use, and future proof.  The original :class:`FP16_Optimizer` and the old "Amp" API are deprecated, and subject to removal at at any time.
@@ -77,6 +95,7 @@ The functions formerly exposed through ``amp_handle`` are now free
 functions accessible through the ``amp`` module.
 
 The backward context manager must be changed accordingly::
+
     # old API
     with amp_handle.scale_loss(loss, optimizer) as scaled_loss:
         scaled_loss.backward()
@@ -96,6 +115,7 @@ with a particular precision are still honored by the new API.
 
 ``opt-level O2`` is equivalent to :class:`FP16_Optimizer` with ``dynamic_loss_scale=True``.
 Once again, the backward pass must be changed to the unified version::
+
     optimizer.backward(loss)
     ->
     with amp.scale_loss(loss, optimizer) as scaled_loss:
@@ -108,11 +128,11 @@ necessary in the new API.  No matter what --opt-level
 you choose, you can and should simply build your model in the default FP32 format.**  The new Amp
 API will perform the right conversions during
 ``model, optimizer = amp.initialize(model, optimizer, opt_level=....)`` based on the ``--opt-level``
-and any overridden flags.  Floating point input data may be float or half, but you may as well just
-let it be float, because the ``model`` returned by ``amp.initialize`` will have its ``forward``
+and any overridden flags.  Floating point input data may be FP32 or FP16, but you may as well just
+let it be FP16, because the ``model`` returned by ``amp.initialize`` will have its ``forward``
 method patched to cast the input data appropriately.
 
 .. note::
     Aside from the call to ``amp.initialize`` itself, it's never necessary to manually cast
     your model or data with the new API.  Therefore, a script that adheres to the new API
-    can switch between different ``opt-level``s without having to make any other changes.
+    can switch between different ``opt-level``\ s without having to make any other changes.
