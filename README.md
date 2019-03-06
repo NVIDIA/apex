@@ -101,10 +101,31 @@ import apex
 ```
 
 ### CUDA/C++ extension
-Apex contains optional CUDA/C++ extensions, installable via
+Apex contains optional CUDA/C++ extensions, installable via 
+(Note: gcc version not later than 6 is required to install with --cuda_ext --cpp_ext)
 ```
-python setup.py install [--cuda_ext] [--cpp_ext]
+python setup.py install --cuda_ext --cpp_ext
 ```
+
+Install gcc and g++
+```
+sudo apt install g++-5
+sudo apt install gcc-5
+```
+
+Change the symlink to point to gcc 5 and g++ 5
+```
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 10
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 20
+sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 10
+sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 20
+sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc 30
+sudo update-alternatives --set cc /usr/bin/gcc
+sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 30
+sudo update-alternatives --set c++ /usr/bin/g++
+```
+reference: https://askubuntu.com/questions/1087150/install-gcc-5-on-ubuntu-18-04
+
 Currently, `--cuda_ext` enables
 - Fused kernels that improve the performance and numerical stability of `apex.parallel.SyncBatchNorm`.
 - Fused kernels required to use `apex.optimizers.FusedAdam`.
