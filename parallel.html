@@ -41,7 +41,7 @@
         <link rel="search" title="Search" href="search.html"/>
     <link rel="top" title="Apex 0.1.0 documentation" href="index.html"/>
         <link rel="next" title="apex.optimizers" href="optimizers.html"/>
-        <link rel="prev" title="apex.fp16_utils" href="fp16_utils.html"/> 
+        <link rel="prev" title="apex.amp" href="amp.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -126,13 +126,27 @@
             
               <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="amp.html">apex.amp</a></li>
+<li class="toctree-l1"><a class="reference internal" href="amp.html">apex.amp</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="amp.html#opt-levels-and-properties"><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="amp.html#properties">Properties</a></li>
+<li class="toctree-l3"><a class="reference internal" href="amp.html#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o1-conservative-mixed-precision"><code class="docutils literal"><span class="pre">O1</span></code>:  Conservative Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o2-fast-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  Fast Mixed Precision</a></li>
 </ul>
-<p class="caption"><span class="caption-text">FP16/Mixed Precision Utilities</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="fp16_utils.html">apex.fp16_utils</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#automatic-management-of-master-params-loss-scaling">Automatic management of master params + loss scaling</a></li>
-<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="amp.html#module-apex.amp">Unified API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="amp.html#advanced-use-cases">Advanced use cases</a><ul class="simple">
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="amp.html#transition-guide-for-old-api-users">Transition guide for old API users</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="amp.html#for-users-of-the-old-amp-api">For users of the old “Amp” API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="amp.html#for-users-of-the-old-fp16-optimizer">For users of the old FP16_Optimizer</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -283,7 +297,7 @@ It also assumes that your script calls <code class="docutils literal"><span clas
 
 <dl class="class">
 <dt id="apex.parallel.SyncBatchNorm">
-<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">SyncBatchNorm</code><span class="sig-paren">(</span><em>num_features</em>, <em>eps=1e-05</em>, <em>momentum=0.1</em>, <em>affine=True</em>, <em>track_running_stats=True</em>, <em>process_group=None</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.SyncBatchNorm" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">SyncBatchNorm</code><span class="sig-paren">(</span><em>num_features</em>, <em>eps=1e-05</em>, <em>momentum=0.1</em>, <em>affine=True</em>, <em>track_running_stats=True</em>, <em>process_group=None</em>, <em>channel_last=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.SyncBatchNorm" title="Permalink to this definition">¶</a></dt>
 <dd><p>synchronized batch normalization module extented from <code class="docutils literal"><span class="pre">torch.nn.BatchNormNd</span></code>
 with the added stats reduction across multiple processes.
 <a class="reference internal" href="#apex.parallel.SyncBatchNorm" title="apex.parallel.SyncBatchNorm"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.SyncBatchNorm</span></code></a> is designed to work with
@@ -370,7 +384,7 @@ to use sync BN.</p>
         <a href="optimizers.html" class="btn btn-neutral float-right" title="apex.optimizers" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="fp16_utils.html" class="btn btn-neutral" title="apex.fp16_utils" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="amp.html" class="btn btn-neutral" title="apex.amp" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

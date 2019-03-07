@@ -40,7 +40,7 @@
               href="genindex.html"/>
         <link rel="search" title="Search" href="search.html"/>
     <link rel="top" title="Apex 0.1.0 documentation" href="index.html"/>
-        <link rel="next" title="apex.fp16_utils" href="fp16_utils.html"/>
+        <link rel="next" title="apex.parallel" href="parallel.html"/>
         <link rel="prev" title="Apex (A PyTorch Extension)" href="index.html"/> 
 
   
@@ -126,13 +126,27 @@
             
               <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">apex.amp</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">apex.amp</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#opt-levels-and-properties"><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#properties">Properties</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#o1-conservative-mixed-precision"><code class="docutils literal"><span class="pre">O1</span></code>:  Conservative Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#o2-fast-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  Fast Mixed Precision</a></li>
 </ul>
-<p class="caption"><span class="caption-text">FP16/Mixed Precision Utilities</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="fp16_utils.html">apex.fp16_utils</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#automatic-management-of-master-params-loss-scaling">Automatic management of master params + loss scaling</a></li>
-<li class="toctree-l2"><a class="reference internal" href="fp16_utils.html#manual-master-parameter-management">Manual master parameter management</a></li>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-apex.amp">Unified API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#advanced-use-cases">Advanced use cases</a><ul class="simple">
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#transition-guide-for-old-api-users">Transition guide for old API users</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#for-users-of-the-old-amp-api">For users of the old “Amp” API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#for-users-of-the-old-fp16-optimizer">For users of the old FP16_Optimizer</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -215,9 +229,328 @@
             
   <div class="section" id="apex-amp">
 <h1>apex.amp<a class="headerlink" href="#apex-amp" title="Permalink to this headline">¶</a></h1>
-<p>Amp (Automatic Mixed Precision) is a tool designed for ease of use and maximum safety in FP16 training. All potentially unsafe ops are performed in FP32 under the hood, while safe ops are performed using faster, Tensor Core-friendly FP16 math. Amp also automatically implements dynamic loss scaling.</p>
-<p>The intention of Amp is to be the “on-ramp” to easy FP16 training: achieve all the numerical stability of full FP32 training, with most of the performance benefits of full FP16 training.</p>
-<p>Currently, complete API documentation resides on the Github page: <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/apex/amp">https://github.com/NVIDIA/apex/tree/master/apex/amp</a>.</p>
+<p>This page documents the updated API for Amp (Automatic Mixed Precision),
+a tool to enable Tensor Core-accelerated training in only 3 lines of Python.</p>
+<p>Users <strong>should not</strong> manually cast their model or data to <code class="docutils literal"><span class="pre">.half()</span></code>, regardless of what <code class="docutils literal"><span class="pre">opt_level</span></code>
+or properties are chosen.  Amp intends that users start with an existing default (FP32) script,
+add the three lines corresponding to the Amp API, and begin training with mixed precision.
+Amp can also be disabled, in which case the original script will behave exactly as it used to.
+In this way, there’s no risk adhering to the Amp API, and a lot of potential performance benefit.</p>
+<p>Example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># Declare model and optimizer as usual</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">D_in</span><span class="p">,</span> <span class="n">D_out</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span><span class="o">.</span><span class="n">half</span><span class="p">()</span>
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">SGD</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">)</span>
+
+<span class="c1"># Allow Amp to perform casts as required by the opt_level</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O1&quot;</span><span class="p">)</span>
+<span class="o">...</span>
+<span class="c1"># loss.backward() becomes:</span>
+<span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+    <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+<span class="o">...</span>
+</pre></div>
+</div>
+<p>A <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/imagenet">runnable, comprehensive Imagenet example</a> demonstrating good practices can be found
+on the Github page.</p>
+<p>GANs are a tricky case that many people have requested.  A <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/dcgan">comprehensive DCGAN example</a>
+is under construction.</p>
+<div class="section" id="opt-levels-and-properties">
+<h2><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties<a class="headerlink" href="#opt-levels-and-properties" title="Permalink to this headline">¶</a></h2>
+<p>Amp allows users to easily experiment with different pure and mixed precision modes, including
+pure FP16 training and pure FP32 training.  Commonly-used default modes are chosen by
+selecting an “optimization level” or <code class="docutils literal"><span class="pre">opt_level</span></code>; each <code class="docutils literal"><span class="pre">opt_level</span></code> establishes a set of
+properties that govern Amp’s implementation of pure or mixed precision training.
+Finer-grained control of how a given <code class="docutils literal"><span class="pre">opt_level</span></code> behaves can be achieved by passing values for
+particular properties directly to <code class="docutils literal"><span class="pre">amp.initialize</span></code>.  These manually specified values will
+override the defaults established by the <code class="docutils literal"><span class="pre">opt_level</span></code>.</p>
+<div class="section" id="properties">
+<h3>Properties<a class="headerlink" href="#properties" title="Permalink to this headline">¶</a></h3>
+<p>Currently, the under-the-hood properties that govern pure or mixed precision training are the following:</p>
+<ul class="simple">
+<li><code class="docutils literal"><span class="pre">cast_model_type</span></code>:  Casts your model’s parameters and buffers to the desired type.</li>
+<li><code class="docutils literal"><span class="pre">patch_torch_functions</span></code>: Patch all Torch functions and Tensor methods to perform Tensor Core-friendly ops like GEMMs and convolutions in FP16, and any ops that benefit from FP32 precision in FP32.</li>
+<li><code class="docutils literal"><span class="pre">keep_batchnorm_fp32</span></code>:  To enhance precision and enable cudnn batchnorm (which improves performance), it’s often beneficial to keep batchnorms in particular in FP32 even if the rest of the model is FP16.</li>
+<li><code class="docutils literal"><span class="pre">master_weights</span></code>:  Maintain FP32 master weights to accompany any FP16 model weights.  FP32 master weights are stepped by the optimizer to enhance precision and capture small gradients.</li>
+<li><code class="docutils literal"><span class="pre">loss_scale</span></code>:  If <code class="docutils literal"><span class="pre">loss_scale</span></code> is a float value, use this value as the static (fixed) loss scale.  If <code class="docutils literal"><span class="pre">loss_scale</span></code> is the string <code class="docutils literal"><span class="pre">&quot;dynamic&quot;</span></code>, adapatively adjust the loss scale over time.  Dynamic loss scale adjustments are performed by Amp automatically.</li>
+</ul>
+<p>Again, you often don’t need to specify these properties by hand.  Instead, select an <code class="docutils literal"><span class="pre">opt_level</span></code>,
+which will set them up for you.  After selecting an <code class="docutils literal"><span class="pre">opt_level</span></code>, you can optionally pass property
+kwargs as manual overrides.</p>
+<p>If you attempt to override a property that does not make sense for the selected <code class="docutils literal"><span class="pre">opt_level</span></code>,
+Amp will raise an error with an explanation.  For example, selecting <code class="docutils literal"><span class="pre">opt_level=&quot;O1&quot;</span></code> combined with
+the override <code class="docutils literal"><span class="pre">master_weights=True</span></code> does not make sense.  <code class="docutils literal"><span class="pre">O1</span></code> inserts casts
+around Torch functions rather than model weights.  Data, activations, and weights are recast
+out-of-place on the fly as they flow through patched functions.  Therefore, the model weights themselves
+can (and should) remain FP32, and there is no need to maintain separate FP32 master weights.</p>
+</div>
+<div class="section" id="opt-levels">
+<h3><code class="docutils literal"><span class="pre">opt_level</span></code>s<a class="headerlink" href="#opt-levels" title="Permalink to this headline">¶</a></h3>
+<p><code class="docutils literal"><span class="pre">O0</span></code> and <code class="docutils literal"><span class="pre">O3</span></code> are not true mixed precision, but they are useful for establishing baselines.</p>
+<div class="section" id="o0-fp32-training">
+<h4><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training<a class="headerlink" href="#o0-fp32-training" title="Permalink to this headline">¶</a></h4>
+<p>Your incoming model should be FP32 already, so this is likely a no-op.
+<code class="docutils literal"><span class="pre">O0</span></code> can be useful to establish an accuracy baseline.</p>
+<div class="line-block">
+<div class="line">Default properties set by <code class="docutils literal"><span class="pre">O0</span></code>:</div>
+<div class="line"><code class="docutils literal"><span class="pre">cast_model_type=torch.float32</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">patch_torch_functions=False</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=None</span></code> (effectively, “not applicable”)</div>
+<div class="line"><code class="docutils literal"><span class="pre">master_weights=False</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">loss_scale=1.0</span></code></div>
+<div class="line"><br /></div>
+<div class="line"><br /></div>
+</div>
+</div>
+<div class="section" id="o3-fp16-training">
+<h4><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training<a class="headerlink" href="#o3-fp16-training" title="Permalink to this headline">¶</a></h4>
+<p><code class="docutils literal"><span class="pre">O3</span></code> may not achieve the stability of the true mixed precision options <code class="docutils literal"><span class="pre">O1</span></code> and <code class="docutils literal"><span class="pre">O2</span></code>.
+However, it can be useful to establish a speed baseline for your model, against which
+the performance of <code class="docutils literal"><span class="pre">O1</span></code> and <code class="docutils literal"><span class="pre">O2</span></code> can be compared.  If your model uses batch normalization,
+to establish “speed of light” you can try <code class="docutils literal"><span class="pre">O3</span></code> with the additional property override
+<code class="docutils literal"><span class="pre">keep_batchnorm_fp32=True</span></code> (which enables cudnn batchnorm, as stated earlier).</p>
+<div class="line-block">
+<div class="line">Default properties set by <code class="docutils literal"><span class="pre">O3</span></code>:</div>
+<div class="line"><code class="docutils literal"><span class="pre">cast_model_type=torch.float16</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">patch_torch_functions=False</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=False</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">master_weights=False</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">loss_scale=1.0</span></code></div>
+<div class="line"><br /></div>
+<div class="line"><br /></div>
+</div>
+<p><code class="docutils literal"><span class="pre">O1</span></code> and <code class="docutils literal"><span class="pre">O2</span></code> are different implementations of mixed precision.  Try both, and see
+what gives the best speedup and accuracy for your model.</p>
+</div>
+<div class="section" id="o1-conservative-mixed-precision">
+<h4><code class="docutils literal"><span class="pre">O1</span></code>:  Conservative Mixed Precision<a class="headerlink" href="#o1-conservative-mixed-precision" title="Permalink to this headline">¶</a></h4>
+<p>Patch all Torch functions and Tensor methods to cast their inputs according to a whitelist-blacklist
+model.  Whitelist ops (for example, Tensor Core-friendly ops like GEMMs and convolutions) are performed
+in FP16.  Blacklist ops that benefit from FP32 precision (for example, batchnorm and softmax)
+are performed in FP32.  <code class="docutils literal"><span class="pre">O1</span></code> also uses dynamic loss scaling, unless overridden.</p>
+<div class="line-block">
+<div class="line">Default properties set by <code class="docutils literal"><span class="pre">O1</span></code>:</div>
+<div class="line"><code class="docutils literal"><span class="pre">cast_model_type=None</span></code> (not applicable)</div>
+<div class="line"><code class="docutils literal"><span class="pre">patch_torch_functions=True</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=None</span></code> (not necessary to specify True, batchnorm inputs are cast to FP32)</div>
+<div class="line"><code class="docutils literal"><span class="pre">master_weights=None</span></code> (not applicable, model weights remain FP32)</div>
+<div class="line"><code class="docutils literal"><span class="pre">loss_scale=&quot;dynamic&quot;</span></code></div>
+<div class="line"><br /></div>
+<div class="line"><br /></div>
+</div>
+</div>
+<div class="section" id="o2-fast-mixed-precision">
+<h4><code class="docutils literal"><span class="pre">O2</span></code>:  Fast Mixed Precision<a class="headerlink" href="#o2-fast-mixed-precision" title="Permalink to this headline">¶</a></h4>
+<p><code class="docutils literal"><span class="pre">O2</span></code> casts the model to FP16, keeps batchnorms in FP32, maintains master weights in FP32,
+and implements dynamic loss scaling (unless overridden).
+Unlike <code class="docutils literal"><span class="pre">O1</span></code>, <code class="docutils literal"><span class="pre">O2</span></code> does not patch Torch functions or Tensor methods.</p>
+<div class="line-block">
+<div class="line">Default properties set by <code class="docutils literal"><span class="pre">O2</span></code>:</div>
+<div class="line"><code class="docutils literal"><span class="pre">cast_model_type=torch.float16</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">patch_torch_functions=False</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=True</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">master_weights=True</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">loss_scale=&quot;dynamic&quot;</span></code></div>
+<div class="line"><br /></div>
+<div class="line"><br /></div>
+</div>
+</div>
+</div>
+</div>
+<div class="section" id="module-apex.amp">
+<span id="unified-api"></span><h2>Unified API<a class="headerlink" href="#module-apex.amp" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="apex.amp.initialize">
+<code class="descclassname">apex.amp.</code><code class="descname">initialize</code><span class="sig-paren">(</span><em>models</em>, <em>optimizers</em>, <em>enabled=True</em>, <em>opt_level=None</em>, <em>cast_model_type=None</em>, <em>patch_torch_functions=None</em>, <em>keep_batchnorm_fp32=None</em>, <em>master_weights=None</em>, <em>loss_scale=None</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize your models, optimizers, and the Torch tensor and functional namespace according to the
+chosen <code class="docutils literal"><span class="pre">opt_level</span></code> and overridden properties, if any.</p>
+<p><code class="docutils literal"><span class="pre">amp.initialize</span></code> must be called <strong>after</strong> you have finished constructing your model(s) and
+optimizer(s), but <strong>before</strong> you send your model through any DistributedDataParallel wrapper.
+See <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/imagenet#distributed-training">Distributed training</a> in the Imagenet example.</p>
+<p>Any property keyword argument that is not <code class="docutils literal"><span class="pre">None</span></code> will be interpreted as a manual override.</p>
+<p>To prevent having to rewrite anything else in your script, name the returned models/optimizers
+to replace the passed models/optimizers, as in the Usage below.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>models</strong> (<em>torch.nn.Module</em><em> or </em><em>list of torch.nn.Modules</em>) – Models to modify/cast.</li>
+<li><strong>optimizers</strong> (<em>torch.optim.Optimizer</em><em> or </em><em>list of torch.optim.Optimizers</em>) – Optimizers to modify/cast.</li>
+<li><strong>enabled</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=True</em>) – If False, renders all Amp calls no-ops, so your script
+should run as if Amp were not present.</li>
+<li><strong>opt_level</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>required</em>) – Pure or mixed precision optimization level.  Accepted values are
+“O0”, “O1”, “O2”, and “O3”, explained in detail above.</li>
+<li><strong>cast_model_type</strong> (<code class="docutils literal"><span class="pre">torch.dtype</span></code>, optional, default=None) – Optional property override, see
+above.</li>
+<li><strong>patch_torch_functions</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.</li>
+<li><strong>keep_batchnorm_fp32</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.  If
+passed as a string, must be the string “True” or “False”.</li>
+<li><strong>master_weights</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.</li>
+<li><strong>loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>default=None</em>) – Optional property override.  If passed as a string,
+must be a string representing a number, e.g., “128.0”, or the string “dynamic”.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">Model(s) and optimizer(s) modified according to the <code class="docutils literal"><span class="pre">opt_level</span></code>.
+If either the <code class="docutils literal"><span class="pre">models</span></code> or <code class="docutils literal"><span class="pre">optimizers</span></code> args were lists, the corresponding return value will
+also be a list.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p>Usage:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span><span class="o">...</span><span class="p">)</span>
+<span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">],</span><span class="o">...</span><span class="p">)</span>
+<span class="p">[</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="n">optim</span><span class="p">,</span><span class="o">...</span><span class="p">)</span>
+<span class="p">[</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">],</span><span class="o">...</span><span class="p">)</span>
+
+<span class="c1"># This is not an exhaustive list of the cross product of options that are possible,</span>
+<span class="c1"># just a set of examples.</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O0&quot;</span><span class="p">)</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O0&quot;</span><span class="p">,</span> <span class="n">loss_scale</span><span class="o">=</span><span class="s2">&quot;dynamic&quot;</span><span class="o">|</span><span class="mf">128.0</span><span class="o">|</span><span class="s2">&quot;128.0&quot;</span><span class="p">)</span>
+
+<span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O1&quot;</span><span class="p">)</span> <span class="c1"># uses &quot;loss_scale=&quot;dynamic&quot; default</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O1&quot;</span><span class="p">,</span> <span class="n">loss_scale</span><span class="o">=</span><span class="mf">128.0</span><span class="o">|</span><span class="s2">&quot;128.0&quot;</span><span class="p">)</span>
+
+<span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O2&quot;</span><span class="p">)</span> <span class="c1"># uses &quot;loss_scale=&quot;dynamic&quot; default</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O2&quot;</span><span class="p">,</span> <span class="n">loss_scale</span><span class="o">=</span><span class="mf">128.0</span><span class="o">|</span><span class="s2">&quot;128.0&quot;</span><span class="p">)</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O2&quot;</span><span class="p">,</span> <span class="n">keep_batchnorm_fp32</span><span class="o">=</span><span class="kc">True</span><span class="o">|</span><span class="kc">False</span><span class="o">|</span><span class="s2">&quot;True&quot;</span><span class="o">|</span><span class="s2">&quot;False&quot;</span><span class="p">)</span>
+
+<span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O3&quot;</span><span class="p">)</span> <span class="c1"># uses loss_scale=1.0 default</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O3&quot;</span><span class="p">,</span> <span class="n">loss_scale</span><span class="o">=</span><span class="s2">&quot;dynamic&quot;</span><span class="o">|</span><span class="mf">128.0</span><span class="o">|</span><span class="s2">&quot;128.0&quot;</span><span class="p">)</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O3&quot;</span><span class="p">,</span> <span class="n">keep_batchnorm_fp32</span><span class="o">=</span><span class="kc">True</span><span class="o">|</span><span class="kc">False</span><span class="o">|</span><span class="s2">&quot;True&quot;</span><span class="o">|</span><span class="s2">&quot;False&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/imagenet">Imagenet example</a> demonstrates live use of various opt_levels and overrides.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="apex.amp.scale_loss">
+<code class="descclassname">apex.amp.</code><code class="descname">scale_loss</code><span class="sig-paren">(</span><em>loss</em>, <em>optimizer</em>, <em>model=None</em>, <em>delay_unscale=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.scale_loss" title="Permalink to this definition">¶</a></dt>
+<dd><p>On context manager entrance, creates <code class="docutils literal"><span class="pre">scaled_loss</span> <span class="pre">=</span> <span class="pre">(loss.float())*current</span> <span class="pre">loss</span> <span class="pre">scale</span></code>.
+<code class="docutils literal"><span class="pre">scaled_loss</span></code> is yielded so that the user can call <code class="docutils literal"><span class="pre">scaled_loss.backward()</span></code>:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+    <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>On context manager exit (if <code class="docutils literal"><span class="pre">delay_unscale=False</span></code>), the gradients are checked for infs/NaNs
+and unscaled, so that <code class="docutils literal"><span class="pre">optimizer.step()</span></code> can be called.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">If Amp is using explicit FP32 master params (which is the default for <code class="docutils literal"><span class="pre">opt_level=O2</span></code>, and
+can also be manually enabled by supplying <code class="docutils literal"><span class="pre">master_weights=True</span></code> to <code class="docutils literal"><span class="pre">amp.initialize</span></code>)
+any FP16 gradients are copied to FP32 master gradients before being unscaled.
+<code class="docutils literal"><span class="pre">optimizer.step()</span></code> will then apply the unscaled master gradients to the master params.</p>
+</div>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">If Amp is using explicit FP32 master params, only the FP32 master gradients will be
+unscaled.  The direct <code class="docutils literal"><span class="pre">.grad</span></code> attributes of any FP16
+model params will remain scaled after context manager exit.
+This subtlety affects gradient clipping.  See “Gradient clipping” under
+“Advanced use cases” for best practices.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>loss</strong> (<em>Tensor</em>) – Typically a scalar Tensor. The <code class="docutils literal"><span class="pre">scaled_loss</span></code> that the context
+manager yields is simply <code class="docutils literal"><span class="pre">loss.float()*loss_scale</span></code>, so in principle
+<code class="docutils literal"><span class="pre">loss</span></code> could have more than one element, as long as you call
+<code class="docutils literal"><span class="pre">backward()</span></code> on <code class="docutils literal"><span class="pre">scaled_loss</span></code> appropriately within the context manager body.</li>
+<li><strong>optimizer</strong> – Must be an optimizer returned from an earlier call to <code class="docutils literal"><span class="pre">amp.initialize</span></code>.</li>
+<li><strong>model</strong> (<em>torch.nn.Module</em><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Currently unused, reserved to enable future
+optimizations.</li>
+<li><strong>delay_unscale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>default=False</em>) – Don’t unscale the gradients or perform model-&gt;master
+gradient copies on context manager exit.  “Advanced use cases” illustrates
+situations where this is necessary.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="apex.amp.master_params">
+<code class="descclassname">apex.amp.</code><code class="descname">master_params</code><span class="sig-paren">(</span><em>optimizer</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.master_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generator expression that iterates over the params owned by <code class="docutils literal"><span class="pre">optimizer</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>optimizer</strong> – An optimizer previously returned from <code class="docutils literal"><span class="pre">amp.initialize</span></code>.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="advanced-use-cases">
+<h2>Advanced use cases<a class="headerlink" href="#advanced-use-cases" title="Permalink to this headline">¶</a></h2>
+<p>The unified Amp API supports gradient accumulation across iterations,
+multiple backward passes per iteration, multiple models/optimizers,
+and custom/user-defined autograd functions.  Gradient clipping and GANs also
+require special treatment, but this treatment does not need to change
+for different <code class="docutils literal"><span class="pre">opt_level</span></code>s.  Further details can be found here:</p>
+<div class="toctree-wrapper compound">
+</div>
+</div>
+<div class="section" id="transition-guide-for-old-api-users">
+<h2>Transition guide for old API users<a class="headerlink" href="#transition-guide-for-old-api-users" title="Permalink to this headline">¶</a></h2>
+<p>We strongly encourage moving to the new Amp API, because it’s more versatile, easier to use, and future proof.  The original <code class="xref py py-class docutils literal"><span class="pre">FP16_Optimizer</span></code> and the old “Amp” API are deprecated, and subject to removal at at any time.</p>
+<div class="section" id="for-users-of-the-old-amp-api">
+<h3>For users of the old “Amp” API<a class="headerlink" href="#for-users-of-the-old-amp-api" title="Permalink to this headline">¶</a></h3>
+<p>In the new API, <code class="docutils literal"><span class="pre">opt-level</span> <span class="pre">O1</span></code> performs the same patching of the Torch namespace as the old thing
+called “Amp.”
+However, the new API allows static or dynamic loss scaling, while the old API only allowed dynamic loss scaling.</p>
+<p>In the new API, the old call to <code class="docutils literal"><span class="pre">amp_handle</span> <span class="pre">=</span> <span class="pre">amp.init()</span></code>, and the returned <code class="docutils literal"><span class="pre">amp_handle</span></code>, are no
+longer exposed or necessary.  The new <code class="docutils literal"><span class="pre">amp.initialize()</span></code> does the duty of <code class="docutils literal"><span class="pre">amp.init()</span></code> (and more).
+Therefore, any existing calls to <code class="docutils literal"><span class="pre">amp_handle</span> <span class="pre">=</span> <span class="pre">amp.init()</span></code> should be deleted.</p>
+<p>The functions formerly exposed through <code class="docutils literal"><span class="pre">amp_handle</span></code> are now free
+functions accessible through the <code class="docutils literal"><span class="pre">amp</span></code> module.</p>
+<p>The backward context manager must be changed accordingly:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># old API</span>
+<span class="k">with</span> <span class="n">amp_handle</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+    <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+<span class="o">-&gt;</span>
+<span class="c1"># new API</span>
+<span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+    <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>For now, the deprecated “Amp” API documentation can still be found on the Github README:  <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/apex/amp">https://github.com/NVIDIA/apex/tree/master/apex/amp</a>.  The old API calls that <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/apex/amp#annotating-user-functions">annotate user functions</a> to run
+with a particular precision are still honored by the new API.</p>
+</div>
+<div class="section" id="for-users-of-the-old-fp16-optimizer">
+<h3>For users of the old FP16_Optimizer<a class="headerlink" href="#for-users-of-the-old-fp16-optimizer" title="Permalink to this headline">¶</a></h3>
+<p><code class="docutils literal"><span class="pre">opt-level</span> <span class="pre">O2</span></code> is equivalent to <code class="xref py py-class docutils literal"><span class="pre">FP16_Optimizer</span></code> with <code class="docutils literal"><span class="pre">dynamic_loss_scale=True</span></code>.
+Once again, the backward pass must be changed to the unified version:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">optimizer</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span>
+<span class="o">-&gt;</span>
+<span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+    <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>One annoying aspect of FP16_Optimizer was that the user had to manually convert their model to half
+(either by calling <code class="docutils literal"><span class="pre">.half()</span></code> on it, or using a function or module wrapper from
+<code class="docutils literal"><span class="pre">apex.fp16_utils</span></code>), and also manually call <code class="docutils literal"><span class="pre">.half()</span></code> on input data.  <strong>Neither of these are
+necessary in the new API.  No matter what –opt-level
+you choose, you can and should simply build your model in the default FP32 format.</strong>  The new Amp
+API will perform the right conversions during
+<code class="docutils literal"><span class="pre">model,</span> <span class="pre">optimizer</span> <span class="pre">=</span> <span class="pre">amp.initialize(model,</span> <span class="pre">optimizer,</span> <span class="pre">opt_level=....)</span></code> based on the <code class="docutils literal"><span class="pre">--opt-level</span></code>
+and any overridden flags.  Floating point input data may be FP32 or FP16, but you may as well just
+let it be FP16, because the <code class="docutils literal"><span class="pre">model</span></code> returned by <code class="docutils literal"><span class="pre">amp.initialize</span></code> will have its <code class="docutils literal"><span class="pre">forward</span></code>
+method patched to cast the input data appropriately.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Aside from the call to <code class="docutils literal"><span class="pre">amp.initialize</span></code> itself, it’s never necessary to manually cast
+your model or data with the new API.  Therefore, a script that adheres to the new API
+can switch between different <code class="docutils literal"><span class="pre">opt-level</span></code>s without having to make any other changes.</p>
+</div>
+</div>
+</div>
 </div>
 
 
@@ -230,7 +563,7 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="fp16_utils.html" class="btn btn-neutral float-right" title="apex.fp16_utils" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="parallel.html" class="btn btn-neutral float-right" title="apex.parallel" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="index.html" class="btn btn-neutral" title="Apex (A PyTorch Extension)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
