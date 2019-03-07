@@ -58,6 +58,11 @@ do
   do
     for keep_batchnorm in "${keep_batchnorms[@]}"
     do
+      if [ "$opt_level" == "O1" ] && [ -n "${keep_batchnorm}" ]
+      then
+        print_banner "Skipping ${opt_level} ${loss_scale} ${keep_batchnorm}"
+        continue
+      fi
       print_banner "${BASE_CMD} --opt-level ${opt_level} ${loss_scale} ${keep_batchnorm} --has-ext $DATADIR"
       set -x
       ${BASE_CMD} --opt-level ${opt_level} ${loss_scale} ${keep_batchnorm} --has-ext $DATADIR
@@ -90,6 +95,11 @@ do
   do
     for keep_batchnorm in "${keep_batchnorms[@]}"
     do
+      if [ "$opt_level" == "O1" ] && [ -n "${keep_batchnorm}" ]
+      then
+        print_banner "Skipping ${opt_level} ${loss_scale} ${keep_batchnorm}"
+        continue
+      fi
       print_banner "${BASE_CMD} --opt-level ${opt_level} ${loss_scale} ${keep_batchnorm} $DATADIR"
       set -x
       ${BASE_CMD} --opt-level ${opt_level} ${loss_scale} ${keep_batchnorm} $DATADIR
@@ -107,6 +117,11 @@ do
     for keep_batchnorm in "${keep_batchnorms[@]}"
     do
       echo ""
+      if [ "$opt_level" == "O1" ] && [ -n "${keep_batchnorm}" ]
+      then
+        echo "Skipping ${opt_level} ${loss_scale} ${keep_batchnorm}"
+        continue
+      fi
       echo "${BASE_CMD} --opt-level ${opt_level} ${loss_scale} ${keep_batchnorm} [--has-ext] $DATADIR"
       set -x
       python compare.py --opt-level ${opt_level} ${loss_scale} ${keep_batchnorm}

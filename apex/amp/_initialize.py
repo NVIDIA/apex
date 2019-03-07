@@ -163,10 +163,12 @@ def _initialize(models, optimizers, properties):
                 optimizers[i] = wrap_fused_adam(optimizer, properties)
             if properties.loss_scale == "dynamic":
                 optimizers[i] = FP16_Optimizer_general(optimizer,
-                                                       dynamic_loss_scale=True)
+                                                       dynamic_loss_scale=True,
+                                                       verbose=False)
             else:
                 optimizers[i] = FP16_Optimizer_general(optimizer,
-                                                       static_loss_scale=properties.loss_scale)
+                                                       static_loss_scale=properties.loss_scale,
+                                                       verbose=False)
     else:
         for optimizer in optimizers:
             optimizer.loss_scaler = LossScaler(properties.loss_scale)

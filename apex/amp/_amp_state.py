@@ -13,8 +13,10 @@ def warn_or_err(msg):
     if _amp_state.hard_override:
         print("Warning:  " + msg)
     else:
-        raise RuntimeError(msg + "  If you're sure you know what you're doing, supply " +
-                           "hard_override=True to amp.initialize.")
+        raise RuntimeError(msg)
+        # I'm not sure if allowing hard_override is a good idea.
+        # + "  If you're sure you know what you're doing, supply " +
+        #                    "hard_override=True to amp.initialize.")
 
 # def iter_params(param_groups):
 #     for group in param_groups:
