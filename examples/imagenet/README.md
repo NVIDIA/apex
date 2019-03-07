@@ -1,7 +1,7 @@
 # Mixed Precision ImageNet Training in PyTorch
 
 `main_amp.py` is based on [https://github.com/pytorch/examples/tree/master/imagenet](https://github.com/pytorch/examples/tree/master/imagenet).
-It implements Automatic Mixed Precision (Amp) training of popular model architectures, such as ResNet, AlexNet, and VGG, on the ImageNet dataset, and illustrates use of the new Amp API along with command-line flags (forwarded to `amp.initialize`) to easily manipulate and switch between various pure and mixed precision training modes.
+It implements Automatic Mixed Precision (Amp) training of popular model architectures, such as ResNet, AlexNet, and VGG, on the ImageNet dataset.  Command-line flags forwarded to `amp.initialize` are used easily manipulate and switch between various pure and mixed precision training "optimization levels" or `opt_level`s.  For a detailed explanation of `opt_level`s, [refer to the updated API guide](https://nvidia.github.io/apex/amp.html).
 
 Three lines enable Amp:
 ```
