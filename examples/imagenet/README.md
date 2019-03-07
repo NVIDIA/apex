@@ -58,7 +58,7 @@ $ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O2 ./
 $ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O2 --loss-scale 128.0 ./
 $ python -m torch.distributed.launch --nproc_per_node=2 main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O2 ./
 ```
-Options are explained below.
+Options are explained below.  Again, the [updated API guide](https://nvidia.github.io/apex/amp.html) provides more detail.
 
 #### `--opt-level O0` (FP32 training) and `O3` (FP16 training)
 
