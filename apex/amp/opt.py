@@ -13,7 +13,7 @@ class OptimWrapper(object):
         self._num_loss = num_loss
         self._loss_idx = 0
         self._skip_next = [False] * num_loss
-        self._loss_scaler = [LossScaler() for _ in range(num_loss)]
+        self._loss_scaler = [LossScaler('dynamic') for _ in range(num_loss)]
 
     @contextlib.contextmanager
     def scale_loss(self, loss):
