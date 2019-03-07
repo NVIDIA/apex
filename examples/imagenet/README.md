@@ -1,7 +1,7 @@
 # Mixed Precision ImageNet Training in PyTorch
 
 `main_amp.py` is based on [https://github.com/pytorch/examples/tree/master/imagenet](https://github.com/pytorch/examples/tree/master/imagenet).
-It implements Automatic Mixed Precision (Amp) training of popular model architectures, such as ResNet, AlexNet, and VGG, on the ImageNet dataset.  Command-line flags forwarded to `amp.initialize` are used easily manipulate and switch between various pure and mixed precision training "optimization levels" or `opt_level`s.  For a detailed explanation of `opt_level`s, [refer to the updated API guide](https://nvidia.github.io/apex/amp.html).
+It implements Automatic Mixed Precision (Amp) training of popular model architectures, such as ResNet, AlexNet, and VGG, on the ImageNet dataset.  Command-line flags forwarded to `amp.initialize` are used to easily manipulate and switch between various pure and mixed precision "optimization levels" or `opt_level`s.  For a detailed explanation of `opt_level`s, see the [updated API guide](https://nvidia.github.io/apex/amp.html).
 
 Three lines enable Amp:
 ```
@@ -58,7 +58,7 @@ $ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O2 ./
 $ python main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O2 --loss-scale 128.0 ./
 $ python -m torch.distributed.launch --nproc_per_node=2 main_amp.py -a resnet50 --b 224 --workers 4 --opt-level O2 ./
 ```
-Options are broken down in detail below.
+Options are explained below.
 
 #### `--opt-level O0` (FP32 training) and `O3` (FP16 training)
 
