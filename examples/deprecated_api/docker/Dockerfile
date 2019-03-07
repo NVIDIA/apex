@@ -1,5 +1,5 @@
 # Base image must at least have pytorch and CUDA installed.
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:18.12-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:19.01-py3
 FROM $BASE_IMAGE
 ARG BASE_IMAGE
 RUN echo "Installing Apex on top of ${BASE_IMAGE}"
@@ -10,5 +10,5 @@ RUN pip uninstall -y apex || :
 # and therefore force cloning of the latest version of Apex
 RUN SHA=ToUcHMe git clone https://github.com/NVIDIA/apex.git
 WORKDIR /workspace/apex
-RUN python setup.py install
+RUN python setup.py install --cuda_ext --cpp_ext
 WORKDIR /workspace

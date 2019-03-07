@@ -12,13 +12,16 @@ TORCH_MAJOR = int(torch.__version__.split('.')[0])
 TORCH_MINOR = int(torch.__version__.split('.')[1])
 
 if TORCH_MAJOR == 0 and TORCH_MINOR < 4:
-      raise RuntimeError("APEx requires Pytorch 0.4 or newer.\n" +
+      raise RuntimeError("Apex requires Pytorch 0.4 or newer.\n" +
                          "The latest stable release can be obtained from https://pytorch.org/")
 
 cmdclass = {}
 ext_modules = []
 
 if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
+    if TORCH_MAJOR == 0:
+        raise RuntimeError("--cpp_ext requires Pytorch 1.0 or later, "
+                           "found torch.__version__ = {}".format(torch.__version))
     from torch.utils.cpp_extension import BuildExtension
     cmdclass['build_ext'] = BuildExtension
 
@@ -34,12 +37,23 @@ if "--cuda_ext" in sys.argv:
     sys.argv.remove("--cuda_ext")
 
     if torch.utils.cpp_extension.CUDA_HOME is None:
-        print("Warning:  nvcc is not available.  Ignoring --cuda-ext") 
+        raise RuntimeError("--cuda_ext was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
+        # Set up macros for forward/backward compatibility hack around
+        # https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
+        version_ge_1_1 = []
+        if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 0):
+            version_ge_1_1 = ['-DVERSION_GE_1_1']
+
         ext_modules.append(
             CUDAExtension(name='amp_C',
-                          sources=['csrc/scale_check_overflow.cpp',
-                                   'csrc/scale_check_overflow_kernel.cu']))
+                          sources=['csrc/amp_C_frontend.cpp',
+                                   'csrc/scale_check_overflow_kernel.cu',
+                                   'csrc/multi_tensor_scale_kernel.cu'],
+                          extra_compile_args={'cxx': ['-O3'],
+                                              'nvcc':['-lineinfo',
+                                                      '-O3',
+                                                      '--use_fast_math']}))
         ext_modules.append(
             CUDAExtension(name='fused_adam_cuda',
                           sources=['apex/optimizers/csrc/fused_adam_cuda.cpp',
@@ -55,10 +69,10 @@ if "--cuda_ext" in sys.argv:
             CUDAExtension(name='fused_layer_norm_cuda',
                           sources=['apex/normalization/csrc/layer_norm_cuda.cpp',
                                    'apex/normalization/csrc/layer_norm_cuda_kernel.cu'],
-                          extra_compile_args={'cxx': ['-O3',],
+                          extra_compile_args={'cxx': ['-O3'] + version_ge_1_1,
                                               'nvcc':['-maxrregcount=50',
                                                       '-O3', 
-                                                      '--use_fast_math']}))
+                                                      '--use_fast_math'] + version_ge_1_1}))
 
 setup(
     name='apex',

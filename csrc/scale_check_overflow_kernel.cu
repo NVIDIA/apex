@@ -6,14 +6,14 @@
 #include <assert.h>
 #include <cuda_runtime.h>
 
-#define BLOCK_SIZE 1024
-#define NBLOCKS 160
+#define BLOCK_SIZE 256
+#define NBLOCKS 160*4
+#define ILP 4
 
 // It makes sense to lock the output type to fp32 because the downscaled
 // grads should be master grads (and in the case of Amp, the params and their
-// gradients should always be fp32.
+// gradients should always be fp32).
 
-// This can be optimized with ILP but it's fine for now.
 template<typename in_t>
 __global__ void scale_reduce_overflow(in_t* in,
                                       float* out,
@@ -22,12 +22,12 @@ __global__ void scale_reduce_overflow(in_t* in,
                                       volatile int* overflow_global)
 {
   __shared__ int overflow;
-
-  int tid = blockIdx.x*blockDim.x + threadIdx.x;
-  int stride = gridDim.x*blockDim.x;
+  float incoming_vals[4];
 
   // Non-divergent exit condition for the __syncthreads
-  for(int i = tid; i - threadIdx.x < n; i += stride)
+  for(int chunk_start = blockIdx.x*blockDim.x*ILP;
+      chunk_start < n;
+      chunk_start += gridDim.x*blockDim.x*ILP)
   {
     if(threadIdx.x == 0)
       overflow = *overflow_global;
@@ -37,19 +37,27 @@ __global__ void scale_reduce_overflow(in_t* in,
     if(overflow == 1)
       break;
 
-    if(i < n)
+    #pragma unroll
+    for(int ii = 0; ii < ILP; ii++)
     {
-      float incoming_val = static_cast<float>(in[i]);
-      if(isfinite(incoming_val))
-        out[i] = incoming_val*scale;
-      else
-        *overflow_global = 1; // Blindly fire off a write.  These will race but that's ok.
-        // This is NOT guaranteed to be seen immediately by thread 0 on the next iteration.
-        // I wonder if there's a way we can rig the short-circuiting with only one syncthreads.
-        // It's possible we can just lean on the cache (no smem or syncs) and still be fast.
+      incoming_vals[ii] = 0;
+      int i = chunk_start + threadIdx.x + ii*blockDim.x;
+      if(i < n)
+        incoming_vals[ii] = static_cast<float>(in[i]);
     }
-  }
-}
+
+    #pragma unroll
+    for(int ii = 0; ii < ILP; ii++)
+    {
+      int i = chunk_start + threadIdx.x + ii*blockDim.x;
+      if(i < n)
+        if(isfinite(incoming_vals[ii]))
+          out[i] = incoming_vals[ii]*scale;
+        else
+          *overflow_global = 1; // Blindly fire off a write.  These will race but that's ok.
+    }    // This is NOT guaranteed to be seen immediately by thread 0 on the next iteration.
+  }      // I wonder if there's a way we can rig the short-circuiting with only one syncthreads.
+}        // It's possible we can just lean on the cache (no smem or syncs) and still be fast.
 
 
 void scale_check_overflow_cuda

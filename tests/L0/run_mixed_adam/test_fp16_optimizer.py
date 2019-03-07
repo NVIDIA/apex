@@ -51,6 +51,7 @@ class TestFP16Optimizer(unittest.TestCase):
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
+
     def test_loss_scaling(self):
 
         ref_optim = torch.optim.Adam(self.ref_model.parameters())

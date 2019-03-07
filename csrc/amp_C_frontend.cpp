@@ -1,15 +1,23 @@
 #include <torch/extension.h>
 
-void scale_check_overflow_cuda(const at::Tensor& grads,
-                               float scale,
-                               const at::Tensor& d_buf,
-                               const at::Tensor& downscaled_grads);
+void multi_tensor_scale_cuda(
+  int chunk_size,
+  at::Tensor noop_flag,
+  std::vector<std::vector<at::Tensor>> tensor_lists,
+  float scale);
 
-void scale_check_overflow(at::Tensor grads,
-                          float scale,
-                          at::Tensor overflow_buf,
-                          at::Tensor downscaled_grads)
-                          // const at::optional<at::Tensor> downscaled_grads)
+void scale_check_overflow_cuda(
+  const at::Tensor& grads,
+  float scale,
+  const at::Tensor& d_buf,
+  const at::Tensor& downscaled_grads);
+
+void scale_check_overflow(
+  at::Tensor grads,
+  float scale,
+  at::Tensor overflow_buf,
+  at::Tensor downscaled_grads)
+  // const at::optional<at::Tensor> downscaled_grads)
 { 
   AT_CHECK(grads.type().is_cuda(), "grads must be a CUDA tensor");
   AT_CHECK(grads.is_contiguous(), "grads must be contiguous");
@@ -27,4 +35,6 @@ void scale_check_overflow(at::Tensor grads,
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("scale_check_overflow", &scale_check_overflow, "Fused overflow check + scale for FP32 tensors");
+  m.def("multi_tensor_scale", &multi_tensor_scale_cuda,
+        "Fused overflow check + scale for a list of contiguous tensors");
 }

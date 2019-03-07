@@ -7,7 +7,6 @@ try:
     lib = ctypes.cdll.LoadLibrary(None)
     lib.THCudaHalfTensor_normall.argtypes=[ctypes.c_void_p, ctypes.c_void_p]
     lib.THCudaHalfTensor_normall.restype = ctypes.c_float
-
     def fused_norm(input):
         if input.type() == 'torch.cuda.HalfTensor':
             # 16384 is half 2 if you stare at it long enough
@@ -27,7 +26,7 @@ except TypeError as err:
 class FP16_Optimizer(object):
     """
     :class:`FP16_Optimizer` A cutdown version of apex.fp16_utils.FP16_Optimizer.
-    Design to be used in the same way but support only fused optimizers in apex.
+    Designed only to wrap apex.optimizers.FusedAdam.
     Refer to apex.fp16_utils documents for more information.
 
     Example::
@@ -97,7 +96,7 @@ class FP16_Optimizer(object):
             if dynamic_loss_args is not None:
                 raise SystemError("Do not support dynamic loss scale args for now.")
             self.dynamic_loss_scale = True
-            self.cur_scale = 2**32
+            self.cur_scale = 2**16
             self.cur_iter = 0
             self.last_overflow_iter = -1
             self.scale_factor = 2
@@ -180,7 +179,7 @@ class FP16_Optimizer(object):
 
     def backward(self, loss):
         """
-        :attr:`backward` performs the following conceptual steps:
+        :attr:`backward` performs the following steps:
 
         1. fp32_loss = loss.float()
         2. scaled_loss = fp32_loss*loss_scale
