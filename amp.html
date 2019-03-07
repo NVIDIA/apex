@@ -131,9 +131,9 @@
 <li class="toctree-l3"><a class="reference internal" href="#properties">Properties</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#o1-conservative-mixed-precision"><code class="docutils literal"><span class="pre">O1</span></code>:  Conservative Mixed Precision</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#o2-fast-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  Fast Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
 </ul>
 </li>
 </ul>
@@ -301,7 +301,11 @@ can (and should) remain FP32, and there is no need to maintain separate FP32 mas
 </div>
 <div class="section" id="opt-levels">
 <h3><code class="docutils literal"><span class="pre">opt_level</span></code>s<a class="headerlink" href="#opt-levels" title="Permalink to this headline">¶</a></h3>
-<p><code class="docutils literal"><span class="pre">O0</span></code> and <code class="docutils literal"><span class="pre">O3</span></code> are not true mixed precision, but they are useful for establishing baselines.</p>
+<p>Recognized <code class="docutils literal"><span class="pre">opt_level</span></code>s are <code class="docutils literal"><span class="pre">&quot;O0&quot;</span></code>, <code class="docutils literal"><span class="pre">&quot;O1&quot;</span></code>, <code class="docutils literal"><span class="pre">&quot;O2&quot;</span></code>, and <code class="docutils literal"><span class="pre">&quot;O3&quot;</span></code>.</p>
+<p><code class="docutils literal"><span class="pre">O0</span></code> and <code class="docutils literal"><span class="pre">O3</span></code> are not true mixed precision, but they are useful for establishing accuracy and
+speed baselines, respectively.</p>
+<p><code class="docutils literal"><span class="pre">O1</span></code> and <code class="docutils literal"><span class="pre">O2</span></code> are different implementations of mixed precision.  Try both, and see
+what gives the best speedup and accuracy for your model.</p>
 <div class="section" id="o0-fp32-training">
 <h4><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training<a class="headerlink" href="#o0-fp32-training" title="Permalink to this headline">¶</a></h4>
 <p>Your incoming model should be FP32 already, so this is likely a no-op.
@@ -317,26 +321,6 @@ can (and should) remain FP32, and there is no need to maintain separate FP32 mas
 <div class="line"><br /></div>
 </div>
 </div>
-<div class="section" id="o3-fp16-training">
-<h4><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training<a class="headerlink" href="#o3-fp16-training" title="Permalink to this headline">¶</a></h4>
-<p><code class="docutils literal"><span class="pre">O3</span></code> may not achieve the stability of the true mixed precision options <code class="docutils literal"><span class="pre">O1</span></code> and <code class="docutils literal"><span class="pre">O2</span></code>.
-However, it can be useful to establish a speed baseline for your model, against which
-the performance of <code class="docutils literal"><span class="pre">O1</span></code> and <code class="docutils literal"><span class="pre">O2</span></code> can be compared.  If your model uses batch normalization,
-to establish “speed of light” you can try <code class="docutils literal"><span class="pre">O3</span></code> with the additional property override
-<code class="docutils literal"><span class="pre">keep_batchnorm_fp32=True</span></code> (which enables cudnn batchnorm, as stated earlier).</p>
-<div class="line-block">
-<div class="line">Default properties set by <code class="docutils literal"><span class="pre">O3</span></code>:</div>
-<div class="line"><code class="docutils literal"><span class="pre">cast_model_type=torch.float16</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">patch_torch_functions=False</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=False</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">master_weights=False</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">loss_scale=1.0</span></code></div>
-<div class="line"><br /></div>
-<div class="line"><br /></div>
-</div>
-<p><code class="docutils literal"><span class="pre">O1</span></code> and <code class="docutils literal"><span class="pre">O2</span></code> are different implementations of mixed precision.  Try both, and see
-what gives the best speedup and accuracy for your model.</p>
-</div>
 <div class="section" id="o1-conservative-mixed-precision">
 <h4><code class="docutils literal"><span class="pre">O1</span></code>:  Conservative Mixed Precision<a class="headerlink" href="#o1-conservative-mixed-precision" title="Permalink to this headline">¶</a></h4>
 <p>Patch all Torch functions and Tensor methods to cast their inputs according to a whitelist-blacklist
@@ -347,7 +331,7 @@ are performed in FP32.  <code class="docutils literal"><span class="pre">O1</spa
 <div class="line">Default properties set by <code class="docutils literal"><span class="pre">O1</span></code>:</div>
 <div class="line"><code class="docutils literal"><span class="pre">cast_model_type=None</span></code> (not applicable)</div>
 <div class="line"><code class="docutils literal"><span class="pre">patch_torch_functions=True</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=None</span></code> (again, “not applicable,” all model weights remain FP32)</div>
+<div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=None</span></code> (again, not applicable, all model weights remain FP32)</div>
 <div class="line"><code class="docutils literal"><span class="pre">master_weights=None</span></code> (not applicable, model weights remain FP32)</div>
 <div class="line"><code class="docutils literal"><span class="pre">loss_scale=&quot;dynamic&quot;</span></code></div>
 <div class="line"><br /></div>
@@ -368,6 +352,24 @@ Unlike <code class="docutils literal"><span class="pre">O1</span></code>, <code 
 <div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=True</span></code></div>
 <div class="line"><code class="docutils literal"><span class="pre">master_weights=True</span></code></div>
 <div class="line"><code class="docutils literal"><span class="pre">loss_scale=&quot;dynamic&quot;</span></code></div>
+<div class="line"><br /></div>
+<div class="line"><br /></div>
+</div>
+</div>
+<div class="section" id="o3-fp16-training">
+<h4><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training<a class="headerlink" href="#o3-fp16-training" title="Permalink to this headline">¶</a></h4>
+<p><code class="docutils literal"><span class="pre">O3</span></code> may not achieve the stability of the true mixed precision options <code class="docutils literal"><span class="pre">O1</span></code> and <code class="docutils literal"><span class="pre">O2</span></code>.
+However, it can be useful to establish a speed baseline for your model, against which
+the performance of <code class="docutils literal"><span class="pre">O1</span></code> and <code class="docutils literal"><span class="pre">O2</span></code> can be compared.  If your model uses batch normalization,
+to establish “speed of light” you can try <code class="docutils literal"><span class="pre">O3</span></code> with the additional property override
+<code class="docutils literal"><span class="pre">keep_batchnorm_fp32=True</span></code> (which enables cudnn batchnorm, as stated earlier).</p>
+<div class="line-block">
+<div class="line">Default properties set by <code class="docutils literal"><span class="pre">O3</span></code>:</div>
+<div class="line"><code class="docutils literal"><span class="pre">cast_model_type=torch.float16</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">patch_torch_functions=False</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=False</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">master_weights=False</span></code></div>
+<div class="line"><code class="docutils literal"><span class="pre">loss_scale=1.0</span></code></div>
 <div class="line"><br /></div>
 <div class="line"><br /></div>
 </div>
