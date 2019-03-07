@@ -27,7 +27,7 @@ different flags to `amp.initialize`.
 
 [DCGAN example coming soon...](https://github.com/NVIDIA/apex/tree/master/examples/dcgan)
 
-[Moving to the new Amp API](https://nvidia.github.io/apex/amp.html#transition-guide-for-old-api-users) (for users of the deprecated tools formerly called "Amp" and "FP16_Optimizer")
+[Moving to the new Amp API](https://nvidia.github.io/apex/amp.html#transition-guide-for-old-api-users) (for users of the deprecated "Amp" and "FP16_Optimizer" APIs)
 
 ## 2. Distributed Training
 
