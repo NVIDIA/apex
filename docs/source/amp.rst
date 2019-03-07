@@ -4,20 +4,8 @@
 apex.amp
 ===================================
 
-Unified API
------------
-
 This page documents the updated API for Amp (Automatic Mixed Precision),
 a tool to enable Tensor Core-accelerated training in only 3 lines of Python.
-
-Amp allows users to easily experiment with different pure and mixed precision modes, including
-pure FP16 training and pure FP32 training.  Commonly-used default modes are chosen by
-selecting an "optimization level" or ``opt_level``; each ``opt_level`` establishes a set of
-properties that govern Amp's implementation of pure or mixed precision training.
-Finer-grained control of how a given ``opt_level`` behaves can be achieved by passing values for
-particular properties directly to ``amp.initialize``.  These manually specified values will
-override the defaults established by the ``opt_level``.  If you attempt to override a property
-that does not make sense for the current ``opt_level``, Amp will raise an error with an explanation.
 
 Users **should not** manually cast their model or data to ``.half()``, regardless of what ``opt_level``
 or properties are chosen.  Amp intends that users start with an existing default (FP32) script,
@@ -45,14 +33,119 @@ on the Github page.
 GANs are a tricky case that many people have requested.  A `comprehensive DCGAN example`_
 is under construction.
 
-``opt_level``\ s and Properties
--------------------------------
-
 .. _`runnable, comprehensive Imagenet example`:
     https://github.com/NVIDIA/apex/tree/master/examples/imagenet
 
 .. _`comprehensive DCGAN example`:
     https://github.com/NVIDIA/apex/tree/master/examples/dcgan
+
+``opt_level``\ s and Properties
+-------------------------------
+
+Amp allows users to easily experiment with different pure and mixed precision modes, including
+pure FP16 training and pure FP32 training.  Commonly-used default modes are chosen by
+selecting an "optimization level" or ``opt_level``; each ``opt_level`` establishes a set of
+properties that govern Amp's implementation of pure or mixed precision training.
+Finer-grained control of how a given ``opt_level`` behaves can be achieved by passing values for
+particular properties directly to ``amp.initialize``.  These manually specified values will
+override the defaults established by the ``opt_level``.
+
+Properties
+**********
+
+Currently, the under-the-hood properties that govern pure or mixed precision training are the following:
+
+- ``cast_model_type``:  Casts your model's parameters and buffers to the desired type.
+- ``patch_torch_functions``: Patch all Torch functions and Tensor methods to perform Tensor Core-friendly ops like GEMMs and convolutions in FP16, and any ops that benefit from FP32 precision in FP32.
+- ``keep_batchnorm_fp32``:  To enhance precision and enable cudnn batchnorm (which improves performance), it's often beneficial to keep batchnorms in particular in FP32 even if the rest of the model is FP16.
+- ``master_weights``:  Maintain FP32 master weights to accompany any FP16 model weights.  FP32 master weights are stepped by the optimizer to enhance precision and capture small gradients.
+- ``loss_scale``:  If ``loss_scale`` is a float value, use this value as the static (fixed) loss scale.  If ``loss_scale`` is the string ``"dynamic"``, adapatively adjust the loss scale over time.  Dynamic loss scale adjustments are performed by Amp automatically.
+
+Again, you often don't need to specify these properties by hand.  Instead, select an ``opt_level``,
+which will set them up for you.  After selecting an ``opt_level``, you can optionally pass property
+kwargs as manual overrides.
+
+If you attempt to override a property that does not make sense for the selected ``opt_level``,
+Amp will raise an error with an explanation.  For example, selecting ``opt_level="O1"`` combined with
+the override ``master_weights=True`` does not make sense.  ``O1`` inserts casts
+around Torch functions rather than model weights.  Data, activations, and weights are recast
+out-of-place on the fly as they flow through patched functions.  Therefore, the model weights themselves
+can (and should) remain FP32, and there is no need to maintain separate FP32 master weights.
+
+``opt_level``\ s
+****************
+
+``O0`` and ``O3`` are not true mixed precision, but they are useful for establishing baselines.
+
+``O0``:  FP32 training
+^^^^^^^^^^^^^^^^^^^^^^
+Your incoming model should be FP32 already, so this is likely a no-op.
+``O0`` can be useful to establish an accuracy baseline.
+
+| Default properties set by ``O0``:
+| ``cast_model_type=torch.float32``
+| ``patch_torch_functions=False``
+| ``keep_batchnorm_fp32=None`` (effectively, "not applicable")
+| ``master_weights=False``
+| ``loss_scale=1.0``
+|
+|
+
+``O3``:  FP16 training
+^^^^^^^^^^^^^^^^^^^^^^
+``O3`` may not achieve the stability of the true mixed precision options ``O1`` and ``O2``.
+However, it can be useful to establish a speed baseline for your model, against which
+the performance of ``O1`` and ``O2`` can be compared.  If your model uses batch normalization,
+to establish "speed of light" you can try ``O3`` with the additional property override
+``keep_batchnorm_fp32=True`` (which enables cudnn batchnorm, as stated earlier).
+
+| Default properties set by ``O3``:
+| ``cast_model_type=torch.float16``
+| ``patch_torch_functions=False``
+| ``keep_batchnorm_fp32=False``
+| ``master_weights=False``
+| ``loss_scale=1.0``
+|
+|
+
+``O1`` and ``O2`` are different implementations of mixed precision.  Try both, and see
+what gives the best speedup and accuracy for your model.
+
+``O1``:  Conservative Mixed Precision
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Patch all Torch functions and Tensor methods to cast their inputs according to a whitelist-blacklist
+model.  Whitelist ops (for example, Tensor Core-friendly ops like GEMMs and convolutions) are performed
+in FP16.  Blacklist ops that benefit from FP32 precision (for example, batchnorm and softmax)
+are performed in FP32.  ``O1`` also uses dynamic loss scaling, unless overridden.
+
+| Default properties set by ``O1``:
+| ``cast_model_type=None`` (not applicable)
+| ``patch_torch_functions=True``
+| ``keep_batchnorm_fp32=None`` (not necessary to specify True, batchnorm inputs are cast to FP32)
+| ``master_weights=None`` (not applicable, model weights remain FP32)
+| ``loss_scale="dynamic"``
+|
+|
+
+``O2``:  Fast Mixed Precision
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+``O2`` casts the model to FP16, keeps batchnorms in FP32, maintains master weights in FP32,
+and implements dynamic loss scaling (unless overridden).
+Unlike ``O1``, ``O2`` does not patch Torch functions or Tensor methods.
+
+| Default properties set by ``O2``:
+| ``cast_model_type=torch.float16``
+| ``patch_torch_functions=False``
+| ``keep_batchnorm_fp32=True``
+| ``master_weights=True``
+| ``loss_scale="dynamic"``
+|
+|
+
+
+Unified API
+-----------
 
 .. automodule:: apex.amp
 .. currentmodule:: apex.amp
@@ -66,7 +159,7 @@ is under construction.
 Advanced use cases
 ------------------
 
-The new Amp API supports gradient accumulation across iterations,
+The unified Amp API supports gradient accumulation across iterations,
 multiple backward passes per iteration, multiple models/optimizers,
 and custom/user-defined autograd functions.  Gradient clipping and GANs also
 require special treatment, but this treatment does not need to change
@@ -82,10 +175,12 @@ Transition guide for old API users
 
 We strongly encourage moving to the new Amp API, because it's more versatile, easier to use, and future proof.  The original :class:`FP16_Optimizer` and the old "Amp" API are deprecated, and subject to removal at at any time.
 
-**For users of the old "Amp" API**
+For users of the old "Amp" API
+******************************
 
-In the new API, ``opt-level O1`` performs the same patching of the Torch namespace as the old Amp API.
-However, the new API allows choosing static or dynamic loss scaling, while the old API only allowed dynamic loss scaling.
+In the new API, ``opt-level O1`` performs the same patching of the Torch namespace as the old thing
+called "Amp."
+However, the new API allows static or dynamic loss scaling, while the old API only allowed dynamic loss scaling.
 
 In the new API, the old call to ``amp_handle = amp.init()``, and the returned ``amp_handle``, are no
 longer exposed or necessary.  The new ``amp.initialize()`` does the duty of ``amp.init()`` (and more).
@@ -111,7 +206,8 @@ with a particular precision are still honored by the new API.
     https://github.com/NVIDIA/apex/tree/master/apex/amp#annotating-user-functions
 
 
-**For users of the old FP16_Optimizer**
+For users of the old FP16_Optimizer
+***********************************
 
 ``opt-level O2`` is equivalent to :class:`FP16_Optimizer` with ``dynamic_loss_scale=True``.
 Once again, the backward pass must be changed to the unified version::

@@ -205,6 +205,12 @@ def initialize(
     Initialize your models, optimizers, and the Torch tensor and functional namespace according to the
     chosen ``opt_level`` and overridden properties, if any.
 
+    ``amp.initialize`` must be called **after** you have finished constructing your model(s) and
+    optimizer(s), but **before** you send your model through any DistributedDataParallel wrapper.
+    See `Distributed training`_ in the Imagenet example.
+
+    Any property keyword argument that is not ``None`` will be interpreted as a manual override.
+
     To prevent having to rewrite anything else in your script, name the returned models/optimizers
     to replace the passed models/optimizers, as in the Usage below.
 
@@ -214,7 +220,7 @@ def initialize(
         enabled (bool, optional, default=True):  If False, renders all Amp calls no-ops, so your script
             should run as if Amp were not present.
         opt_level(str, required):  Pure or mixed precision optimization level.  Accepted values are
-            "O0", "O1", "O2", and "O3", which are explained in detail above.
+            "O0", "O1", "O2", and "O3", explained in detail above.
         cast_model_type (``torch.dtype``, optional, default=None):  Optional property override, see
             above.
         patch_torch_functions (bool, optional, default=None):  Optional property override.
@@ -253,6 +259,9 @@ def initialize(
         model, optim = amp.initialize(model, optim, opt_level="O3", keep_batchnorm_fp32=True|False|"True"|"False")
 
     The `Imagenet example`_ demonstrates live use of various opt_levels and overrides.
+
+    .. _`Distributed training`:
+        https://github.com/NVIDIA/apex/tree/master/examples/imagenet#distributed-training
 
     .. _`Imagenet example`:
         https://github.com/NVIDIA/apex/tree/master/examples/imagenet

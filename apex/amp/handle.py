@@ -43,9 +43,9 @@ def scale_loss(loss,
     Args:
         loss(Tensor):  Typically a scalar Tensor. The ``scaled_loss`` that the context
             manager yields is simply ``loss.float()*loss_scale``, so in principle
-            `loss` could have more than one element, as long as you call
+            ``loss`` could have more than one element, as long as you call
             ``backward()`` on ``scaled_loss`` appropriately within the context manager body.
-        optimizer:  **Must** be an optimizer returned from an earlier call to ``amp.initialize``.
+        optimizer:  Must be an optimizer returned from an earlier call to ``amp.initialize``.
         model(torch.nn.Module, optional, default=None):  Currently unused, reserved to enable future
             optimizations.
         delay_unscale(bool, default=False):  Don't unscale the gradients or perform model->master
