@@ -1,0 +1,424 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Advanced Amp Usage &mdash; Apex 0.1.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  
+    <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="Apex 0.1.0 documentation" href="index.html"/>
+        <link rel="up" title="apex.amp" href="amp.html"/>
+        <link rel="next" title="apex.parallel" href="parallel.html"/>
+        <link rel="prev" title="apex.amp" href="amp.html"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+           
+
+          
+            <a href="index.html" class="icon icon-home"> Apex
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #76b900;
+    }
+
+    .wy-side-nav-search a:link, .wy-nav-top a:link {
+      color: #fff;
+    }
+    .wy-side-nav-search a:visited, .wy-nav-top a:visited {
+      color: #fff;
+    }
+    .wy-side-nav-search a:hover, .wy-nav-top a:hover {
+      color: #fff;
+    }
+
+    .wy-menu-vertical a:link, .wy-menu-vertical a:visited {
+      color: #d9d9d9
+    }
+
+    .wy-menu-vertical a:active {
+      background-color: #76b900
+    }
+
+    .wy-side-nav-search>div.version {
+      color: rgba(0, 0, 0, 0.3)
+    }
+  </style>
+  
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="amp.html">apex.amp</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="amp.html#opt-levels-and-properties"><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="amp.html#properties">Properties</a></li>
+<li class="toctree-l3"><a class="reference internal" href="amp.html#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o1-conservative-mixed-precision"><code class="docutils literal"><span class="pre">O1</span></code>:  Conservative Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o2-fast-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  Fast Mixed Precision</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="amp.html#module-apex.amp">Unified API</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="amp.html#advanced-use-cases">Advanced use cases</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Advanced Amp Usage</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#gans">GANs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#gradient-clipping">Gradient clipping</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#custom-user-defined-autograd-functions">Custom/user-defined autograd functions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#forcing-particular-layers-functions-to-a-desired-type">Forcing particular layers/functions to a desired type</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#multiple-models-optimizers">Multiple models/optimizers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#multiple-backward-passes-per-iteration">Multiple backward passes per iteration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#gradient-accumulation-across-iterations">Gradient accumulation across iterations</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="amp.html#transition-guide-for-old-api-users">Transition guide for old API users</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="amp.html#for-users-of-the-old-amp-api">For users of the old “Amp” API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="amp.html#for-users-of-the-old-fp16-optimizer">For users of the old FP16_Optimizer</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Distributed Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="parallel.html">apex.parallel</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="parallel.html#utility-functions">Utility functions</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Fused Optimizers</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="optimizers.html">apex.optimizers</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Fused Layer Norm</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="layernorm.html">apex.normalization.fused_layer_norm</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Apex</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="amp.html">apex.amp</a> &raquo;</li>
+        
+      <li>Advanced Amp Usage</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/advanced.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="advanced-amp-usage">
+<h1>Advanced Amp Usage<a class="headerlink" href="#advanced-amp-usage" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="gans">
+<h2>GANs<a class="headerlink" href="#gans" title="Permalink to this headline">¶</a></h2>
+<p>GANs are an interesting synthesis of several topics below.  A <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/dcgan">comprehensive example</a>
+is under construction.</p>
+</div>
+<div class="section" id="gradient-clipping">
+<h2>Gradient clipping<a class="headerlink" href="#gradient-clipping" title="Permalink to this headline">¶</a></h2>
+<p>If Amp uses master params distinct from the model params,
+then the params <code class="docutils literal"><span class="pre">step()</span></code>ed by the optimizer are the master params,
+and it is the master gradients (rather than the model gradients) that must be clipped.</p>
+<p>If Amp is not using master params distinct from the model params, then the optimizer
+directly steps the model params, and the model grads must be clipped.</p>
+<p>In both cases, correct practice is to clip the gradients of the params that are about to be stepped <strong>by the optimizer</strong> (which may be distinct from <code class="docutils literal"><span class="pre">model.parameters()</span></code>).</p>
+<p>Also, if Amp uses loss scaling, gradients must be clipped after they have been unscaled.</p>
+<p>The following pattern accounts for all possibilities, and should be correct for
+any <code class="docutils literal"><span class="pre">opt_level</span></code>:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+    <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+    <span class="c1"># Gradients are unscaled during context manager exit.</span>
+<span class="c1"># Now it&#39;s safe to clip:</span>
+<span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">clip_grad_norm_</span><span class="p">(</span><span class="n">amp</span><span class="o">.</span><span class="n">master_params</span><span class="p">(</span><span class="n">optimizer</span><span class="p">),</span> <span class="n">max_norm</span><span class="p">)</span>
+<span class="c1"># or</span>
+<span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">clip_grad_value_</span><span class="p">(</span><span class="n">amp</span><span class="o">.</span><span class="n">master_params</span><span class="p">(</span><span class="n">optimizer</span><span class="p">),</span> <span class="n">max_</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Note the use of the utility function <code class="docutils literal"><span class="pre">amp.master_params(optimizer)</span></code>,
+which returns a generator-expression that iterates over the
+params that the optimizer steps (master params if enabled, otherwise model params).</p>
+</div>
+<div class="section" id="custom-user-defined-autograd-functions">
+<h2>Custom/user-defined autograd functions<a class="headerlink" href="#custom-user-defined-autograd-functions" title="Permalink to this headline">¶</a></h2>
+<p>The old Amp API for <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/apex/amp#annotating-user-functions">registering user functions</a> is still considered correct.  Functions must
+be registered before calling <code class="docutils literal"><span class="pre">amp.initialize</span></code>.</p>
+</div>
+<div class="section" id="forcing-particular-layers-functions-to-a-desired-type">
+<h2>Forcing particular layers/functions to a desired type<a class="headerlink" href="#forcing-particular-layers-functions-to-a-desired-type" title="Permalink to this headline">¶</a></h2>
+<p>I’m still working on a generalizable exposure for this that won’t require user-side code divergence
+across different <code class="docutils literal"><span class="pre">opt-level</span></code>s.</p>
+</div>
+<div class="section" id="multiple-models-optimizers">
+<h2>Multiple models/optimizers<a class="headerlink" href="#multiple-models-optimizers" title="Permalink to this headline">¶</a></h2>
+<p><code class="docutils literal"><span class="pre">amp.initialize</span></code>’s optimizer argument may be a single optimizer or a list of optimizers,
+as long as the output you accept has the same type.
+Similarly, the <code class="docutils literal"><span class="pre">model</span></code> argument may be a single model or a list of models, as long as the accepted
+output matches.  The following calls are all legal:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span><span class="o">...</span><span class="p">)</span>
+<span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">],</span><span class="o">...</span><span class="p">)</span>
+<span class="p">[</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="n">optim</span><span class="p">,</span><span class="o">...</span><span class="p">)</span>
+<span class="p">[</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">],</span><span class="o">...</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Whenever you invoke a backward pass, the optimizer you should pass to <code class="docutils literal"><span class="pre">amp.scaled_loss</span></code> is whatever
+optimizer owns the parameters for which this particular backward pass is creating gradients.</p>
+</div>
+<div class="section" id="multiple-backward-passes-per-iteration">
+<h2>Multiple backward passes per iteration<a class="headerlink" href="#multiple-backward-passes-per-iteration" title="Permalink to this headline">¶</a></h2>
+<p>If you want to accumulate gradients from multiple losses for the params owned by a given optimizer,
+you must invoke <code class="docutils literal"><span class="pre">with</span> <span class="pre">amp.scale_loss(...,</span> <span class="pre">delay_unscale=True)</span></code> for all backward passes except
+the last:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># delay_unscale=True for the first two losses</span>
+<span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss1</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">delay_unscale</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+    <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+<span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss2</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">delay_unscale</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+    <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+<span class="c1"># Don&#39;t delay_unscale for the final loss</span>
+<span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss3</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+    <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="gradient-accumulation-across-iterations">
+<h2>Gradient accumulation across iterations<a class="headerlink" href="#gradient-accumulation-across-iterations" title="Permalink to this headline">¶</a></h2>
+<p>Pass <code class="docutils literal"><span class="pre">delay_unscale=True</span></code> to <code class="docutils literal"><span class="pre">amp.scale_loss</span></code> until you’re ready to <code class="docutils literal"><span class="pre">step()</span></code>:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="nb">iter</span><span class="o">%</span><span class="n">iters_to_accumulate</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="c1"># Every iters_to_accumulate iterations, unscale and step</span>
+    <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+        <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+    <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+    <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="c1"># Otherwise, just accumulate gradients, don&#39;t unscale or step.</span>
+    <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">delay_unscale</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+        <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="parallel.html" class="btn btn-neutral float-right" title="apex.parallel" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="amp.html" class="btn btn-neutral" title="apex.amp" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'0.1.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+    
+
+  <style>
+  a:link, a:visited {
+    color: #76b900;
+  }
+
+  a:hover {
+    color: #8c0;
+  }
+
+  .rst-content dl:not(.docutils) dt {
+    background: rgba(118, 185, 0, 0.1);
+    color: rgba(59,93,0,1);
+    border-top: solid 3px rgba(59,93,0,1);
+  }
+  </style>
+  
+
+</body>
+</html>

@@ -40,7 +40,7 @@
               href="genindex.html"/>
         <link rel="search" title="Search" href="search.html"/>
     <link rel="top" title="Apex 0.1.0 documentation" href="index.html"/>
-        <link rel="next" title="apex.parallel" href="parallel.html"/>
+        <link rel="next" title="Advanced Amp Usage" href="advanced.html"/>
         <link rel="prev" title="Apex (A PyTorch Extension)" href="index.html"/> 
 
   
@@ -139,7 +139,17 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#module-apex.amp">Unified API</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#advanced-use-cases">Advanced use cases</a><ul class="simple">
+<li class="toctree-l2"><a class="reference internal" href="#advanced-use-cases">Advanced use cases</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="advanced.html">Advanced Amp Usage</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="advanced.html#gans">GANs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="advanced.html#gradient-clipping">Gradient clipping</a></li>
+<li class="toctree-l4"><a class="reference internal" href="advanced.html#custom-user-defined-autograd-functions">Custom/user-defined autograd functions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="advanced.html#forcing-particular-layers-functions-to-a-desired-type">Forcing particular layers/functions to a desired type</a></li>
+<li class="toctree-l4"><a class="reference internal" href="advanced.html#multiple-models-optimizers">Multiple models/optimizers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="advanced.html#multiple-backward-passes-per-iteration">Multiple backward passes per iteration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="advanced.html#gradient-accumulation-across-iterations">Gradient accumulation across iterations</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#transition-guide-for-old-api-users">Transition guide for old API users</a><ul>
@@ -495,6 +505,9 @@ and custom/user-defined autograd functions.  Gradient clipping and GANs also
 require special treatment, but this treatment does not need to change
 for different <code class="docutils literal"><span class="pre">opt_level</span></code>s.  Further details can be found here:</p>
 <div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="advanced.html">Advanced Amp Usage</a></li>
+</ul>
 </div>
 </div>
 <div class="section" id="transition-guide-for-old-api-users">
@@ -563,7 +576,7 @@ can switch between different <code class="docutils literal"><span class="pre">op
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="parallel.html" class="btn btn-neutral float-right" title="apex.parallel" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="advanced.html" class="btn btn-neutral float-right" title="Advanced Amp Usage" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="index.html" class="btn btn-neutral" title="Apex (A PyTorch Extension)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
