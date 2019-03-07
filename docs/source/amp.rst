@@ -80,7 +80,13 @@ can (and should) remain FP32, and there is no need to maintain separate FP32 mas
 ``opt_level``\ s
 ****************
 
-``O0`` and ``O3`` are not true mixed precision, but they are useful for establishing baselines.
+Recognized ``opt_level``\ s are ``"O0"``, ``"O1"``, ``"O2"``, and ``"O3"``.
+
+``O0`` and ``O3`` are not true mixed precision, but they are useful for establishing accuracy and
+speed baselines, respectively.
+
+``O1`` and ``O2`` are different implementations of mixed precision.  Try both, and see
+what gives the best speedup and accuracy for your model.
 
 ``O0``:  FP32 training
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -96,26 +102,6 @@ Your incoming model should be FP32 already, so this is likely a no-op.
 |
 |
 
-``O3``:  FP16 training
-^^^^^^^^^^^^^^^^^^^^^^
-``O3`` may not achieve the stability of the true mixed precision options ``O1`` and ``O2``.
-However, it can be useful to establish a speed baseline for your model, against which
-the performance of ``O1`` and ``O2`` can be compared.  If your model uses batch normalization,
-to establish "speed of light" you can try ``O3`` with the additional property override
-``keep_batchnorm_fp32=True`` (which enables cudnn batchnorm, as stated earlier).
-
-| Default properties set by ``O3``:
-| ``cast_model_type=torch.float16``
-| ``patch_torch_functions=False``
-| ``keep_batchnorm_fp32=False``
-| ``master_weights=False``
-| ``loss_scale=1.0``
-|
-|
-
-``O1`` and ``O2`` are different implementations of mixed precision.  Try both, and see
-what gives the best speedup and accuracy for your model.
-
 ``O1``:  Conservative Mixed Precision
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -127,7 +113,7 @@ are performed in FP32.  ``O1`` also uses dynamic loss scaling, unless overridden
 | Default properties set by ``O1``:
 | ``cast_model_type=None`` (not applicable)
 | ``patch_torch_functions=True``
-| ``keep_batchnorm_fp32=None`` (again, "not applicable," all model weights remain FP32)
+| ``keep_batchnorm_fp32=None`` (again, not applicable, all model weights remain FP32)
 | ``master_weights=None`` (not applicable, model weights remain FP32)
 | ``loss_scale="dynamic"``
 |
@@ -150,6 +136,22 @@ Unlike ``O1``, ``O2`` does not patch Torch functions or Tensor methods.
 |
 |
 
+``O3``:  FP16 training
+^^^^^^^^^^^^^^^^^^^^^^
+``O3`` may not achieve the stability of the true mixed precision options ``O1`` and ``O2``.
+However, it can be useful to establish a speed baseline for your model, against which
+the performance of ``O1`` and ``O2`` can be compared.  If your model uses batch normalization,
+to establish "speed of light" you can try ``O3`` with the additional property override
+``keep_batchnorm_fp32=True`` (which enables cudnn batchnorm, as stated earlier).
+
+| Default properties set by ``O3``:
+| ``cast_model_type=torch.float16``
+| ``patch_torch_functions=False``
+| ``keep_batchnorm_fp32=False``
+| ``master_weights=False``
+| ``loss_scale=1.0``
+|
+|
 
 Unified API
 -----------
