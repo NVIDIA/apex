@@ -12,7 +12,7 @@ users as quickly as possible.
 
 ## 1. Mixed Precision
 
-### amp:  Automatic Mixed Precision
+### Amp:  Automatic Mixed Precision
 
 `apex.amp` is a tool to enable mixed precision training by changing only 3 lines of your script.
 Users can easily experiment with different pure and mixed precision training modes by supplying
@@ -27,7 +27,7 @@ different flags to `amp.initialize`.
 
 [DCGAN example coming soon...](https://github.com/NVIDIA/apex/tree/master/examples/dcgan)
 
-[Moving to the new Amp API] (for users of the deprecated tools formerly called "Amp" and "FP16_Optimizer")
+[Moving to the new Amp API](https://nvidia.github.io/apex/amp.html#transition-guide-for-old-api-users) (for users of the deprecated tools formerly called "Amp" and "FP16_Optimizer")
 
 ## 2. Distributed Training
 
