@@ -3,8 +3,6 @@ from torch.optim.optimizer import Optimizer, required
 
 from apex.multi_tensor_apply import multi_tensor_applier
 
-import amp_C
-
 class SGD(Optimizer):
     r"""Implements stochastic gradient descent (optionally with momentum).
 
@@ -66,8 +64,13 @@ class SGD(Optimizer):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
         super(SGD, self).__init__(params, defaults)
 
-        # Skip buffer
-        self._dummy_overflow_buf = torch.cuda.IntTensor([0])
+        if multi_tensor_applier.available:
+            import amp_C
+            # Skip buffer
+            self._dummy_overflow_buf = torch.cuda.IntTensor([0])
+            self.multi_tensor_sgd = amp_C.multi_tensor_sgd
+        else:
+            raise RuntimeError('apex.optim.SGD requires cuda extensions')
 
     def __setstate__(self, state):
         super(SGD, self).__setstate__(state)
@@ -96,6 +99,9 @@ class SGD(Optimizer):
             momentums = []
             for p in params:
                 param_state = self.state[p]
+                # torch.optim.SGD initializes momentum in the main loop, we have
+                # to do it here, and track whether or not we've done so, so that 
+                # momentum application can be skipped in the main kernel.
                 if 'momentum_buffer' not in param_state:
                     first_run = True
                     buf = param_state['momentum_buffer'] = torch.zeros_like(p.data)
@@ -105,9 +111,10 @@ class SGD(Optimizer):
                     first_run = False
                     momentums.append(param_state['momentum_buffer'])
 
-            # launch update using multi tensor apply
+            # launch update using multi tensor applier
+            # modifies weight and momentum values inplace.
             multi_tensor_applier(
-                amp_C.multi_tensor_sgd,
+                self.multi_tensor_sgd,
                 self._dummy_overflow_buf,
                 [grads, params, momentums],
                 weight_decay,

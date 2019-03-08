@@ -12,9 +12,11 @@
 
 /**
  * Perform fused SGD on multiple buffers
+ * N: number of tensors
  * tl[0] : gradients
  * tl[1] : weights
  * tl[2] : momentum buffers
+ * tl[3] : fp16 weights (if appropriate)
  * wd : weight_decay (scalar)
  * momentum : momentum (scalar)
  * dampening : momentum dampening (scalar)
@@ -22,13 +24,13 @@
  * nesterov : enable nesterov (bool)
  * first run : necessary for proper momentum handling & init
  **/
-template<typename T>
+template<int N, typename T_grad, typename T>
 struct SGDFunctor
 {
    __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorList<3>& tl,
+    TensorList<N>& tl,
     float wd,
     float momentum,
     float dampening,
@@ -48,7 +50,7 @@ struct SGDFunctor
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
-    T* grad_in = (T*)tl.addresses[0][tensor_loc];
+    T_grad* grad_in = (T_grad*)tl.addresses[0][tensor_loc];
     grad_in += chunk_idx*chunk_size;
    
     T* weight_in = (T*)tl.addresses[1][tensor_loc];
@@ -57,12 +59,18 @@ struct SGDFunctor
     T* mom_in = (T*)tl.addresses[2][tensor_loc];
     mom_in += chunk_idx*chunk_size;
 
+    half *model_weights_out = nullptr;
+    if (N == 4) {
+      model_weights_out = (half*)tl.addresses[3][tensor_loc];
+      model_weights_out += chunk_idx*chunk_size;
+    }
+
     n -= chunk_idx*chunk_size;
 
     // Non-divergent exit condition for the __syncthreads
-    float incoming_grads[ILP];
-    float incoming_weights[ILP];
-    float incoming_moms[ILP];
+    T incoming_grads[ILP];
+    T incoming_weights[ILP];
+    T incoming_moms[ILP];
     for(int i_start = 0;
         i_start < n && i_start < chunk_size;
         i_start += blockDim.x*ILP)
@@ -75,9 +83,9 @@ struct SGDFunctor
         incoming_moms[ii] = 0;
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
-          incoming_grads[ii] = static_cast<float>(grad_in[i]);
-          incoming_weights[ii] = static_cast<float>(weight_in[i]);
-          incoming_moms[ii] = static_cast<float>(mom_in[i]);
+          incoming_grads[ii] = static_cast<T>(grad_in[i]);
+          incoming_weights[ii] = static_cast<T>(weight_in[i]);
+          incoming_moms[ii] = static_cast<T>(mom_in[i]);
       }
 
       // note for clarification to future michael:
@@ -106,6 +114,11 @@ struct SGDFunctor
 
           // adjust the weight and write out
           weight_in[i] += (-lr * incoming_grads[ii]);
+
+          // if necessary, write out an fp16 copy of the weights
+          if (N == 4) {
+            model_weights_out[i] = static_cast<at::Half>(weight_in[i]);
+          }
 
           // also write out the new momentum
           if (momentum != 0.f) {
@@ -137,20 +150,79 @@ void multi_tensor_sgd_cuda(
   bool nesterov,
   bool first_run)
 {
-  multi_tensor_apply<3>(
-      BLOCK_SIZE,
-      chunk_size,
-      noop_flag,
-      tensor_lists,
-      SGDFunctor<float>(),
-      wd,
-      momentum,
-      dampening,
-      lr,
-      nesterov,
-      first_run);
+  auto num_tensors = tensor_lists.size();
+
+  switch (num_tensors) {
+   case 3:
+    switch (tensor_lists[0][0].type().scalarType()) {
+     case at::ScalarType::Half:
+      multi_tensor_apply<3>(
+          BLOCK_SIZE,
+          chunk_size,
+          noop_flag,
+          tensor_lists,
+          SGDFunctor<3, at::Half, float>(),
+          wd,
+          momentum,
+          dampening,
+          lr,
+          nesterov,
+          first_run);
+      break;
+     case at::ScalarType::Float:
+      multi_tensor_apply<3>(
+          BLOCK_SIZE,
+          chunk_size,
+          noop_flag,
+          tensor_lists,
+          SGDFunctor<3, float, float>(),
+          wd,
+          momentum,
+          dampening,
+          lr,
+          nesterov,
+          first_run);
+      break;
+     default:
+      AT_ERROR("multi_tensor_sgd only takes Half and Float gradients, given: ", tensor_lists[0][0].type().scalarType());
+    }
+    break;
+   case 4:
+    switch (tensor_lists[0][0].type().scalarType()) {
+     case at::ScalarType::Half:
+      multi_tensor_apply<4>(
+          BLOCK_SIZE,
+          chunk_size,
+          noop_flag,
+          tensor_lists,
+          SGDFunctor<4, at::Half, float>(),
+          wd,
+          momentum,
+          dampening,
+          lr,
+          nesterov,
+          first_run);
+      break;
+     case at::ScalarType::Float:
+      multi_tensor_apply<4>(
+          BLOCK_SIZE,
+          chunk_size,
+          noop_flag,
+          tensor_lists,
+          SGDFunctor<4, float, float>(),
+          wd,
+          momentum,
+          dampening,
+          lr,
+          nesterov,
+          first_run);
+      break;
+     default:
+      AT_ERROR("multi_tensor_sgd only takes Half and Float gradients, given: ", tensor_lists[0][0].type().scalarType());
+    }
+   default:
+    AT_ERROR("multi_tensor_sgd takes either 3 or 4 sets of tensors, given ", num_tensors);
+  }
 
   AT_CUDA_CHECK(cudaGetLastError());
-
-  // AT_CUDA_CHECK(cudaDeviceSynchronize());
 }
