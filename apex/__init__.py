@@ -1,6 +1,6 @@
-from . import fp16_utils
 from . import parallel
 from . import amp
+from . import fp16_utils
 
 # For optimizers and normalization there is no Python fallback.
 # Absence of cuda backend is a hard error.

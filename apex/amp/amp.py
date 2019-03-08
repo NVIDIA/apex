@@ -1,15 +1,19 @@
 from . import compat, rnn_compat, utils, wrap
 from .handle import AmpHandle, NoOpHandle
 from .lists import functional_overrides, torch_overrides, tensor_overrides
+from ._amp_state import _amp_state
+from .frontend import *
 
 import functools
 import itertools
 
 import torch
 
+
 _DECORATOR_HANDLE = None
 _USER_CAST_REGISTRY = set()
 _USER_PROMOTE_REGISTRY = set()
+
 
 def _decorator_helper(orig_fn, cast_fn, wrap_fn):
     def wrapper(*args, **kwargs):
@@ -21,18 +25,22 @@ def _decorator_helper(orig_fn, cast_fn, wrap_fn):
         return wrap_fn(orig_fn, inner_cast_fn, handle)(*args, **kwargs)
     return wrapper
 
+
 # Decorator form
 def half_function(fn):
     wrap_fn = functools.partial(wrap.make_cast_wrapper, try_caching=True)
     return _decorator_helper(fn, utils.maybe_half, wrap_fn)
 
+
 def float_function(fn):
     wrap_fn = functools.partial(wrap.make_cast_wrapper, try_caching=False)
     return _decorator_helper(fn, utils.maybe_float, wrap_fn)
 
+
 def promote_function(fn):
     wrap_fn = functools.partial(wrap.make_promote_wrapper)
     return _decorator_helper(fn, utils.maybe_float, wrap_fn)
+
 
 # Registry form
 def register_half_function(module, name):
@@ -41,11 +49,13 @@ def register_half_function(module, name):
             name, module))
     _USER_CAST_REGISTRY.add((module, name, utils.maybe_half))
 
+
 def register_float_function(module, name):
     if not hasattr(module, name):
         raise ValueError('No function named {} in module {}.'.format(
             name, module))
     _USER_CAST_REGISTRY.add((module, name, utils.maybe_float))
+
 
 def register_promote_function(module, name):
     if not hasattr(module, name):
@@ -53,8 +63,9 @@ def register_promote_function(module, name):
             name, module))
     _USER_PROMOTE_REGISTRY.add((module, name))
 
+
 # Top-level function to insert _all_ the hooks.
-def init(enabled=True, enable_caching=True, verbose=False, allow_banned=False):
+def init(enabled=True, loss_scale="dynamic", enable_caching=True, verbose=False, allow_banned=False):
     global _DECORATOR_HANDLE
 
     if not enabled:
@@ -62,7 +73,7 @@ def init(enabled=True, enable_caching=True, verbose=False, allow_banned=False):
         _DECORATOR_HANDLE = handle
         return handle
 
-    handle = AmpHandle(enable_caching, verbose)
+    handle = AmpHandle(loss_scale, enable_caching, verbose)
 
     # 0) Force-{fp16, fp32} for user-annotated functions
     for mod, fn, cast_fn in _USER_CAST_REGISTRY:
@@ -160,4 +171,7 @@ def init(enabled=True, enable_caching=True, verbose=False, allow_banned=False):
             wrap.err_if_any_half(functional_overrides.MODULE, fn, handle, err_msg)
 
     _DECORATOR_HANDLE = handle
+
+    _amp_state.handle = handle
+
     return handle

@@ -76,7 +76,7 @@ class TestCache(unittest.TestCase):
                 param.grad = None
         
             loss = model(self.x).sum()
-            self.handle._default_scaler._loss_scale = 1.0
+            self.handle._default_scaler._loss_scale = 4.0
             with self.handle.scale_loss(loss, dummy_optimizer) as scaled_loss:
                 scaled_loss.backward()
         

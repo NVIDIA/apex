@@ -11,26 +11,13 @@ Apex (A PyTorch Extension)
 This site contains the API documentation for Apex (https://github.com/nvidia/apex),
 a Pytorch extension with NVIDIA-maintained utilities to streamline mixed precision and distributed training.  Some of the code here will be included in upstream Pytorch eventually. The intention of Apex is to make up-to-date utilities available to users as quickly as possible.
 
-Installation requires CUDA 9 or later, PyTorch 0.4 or later, and Python 3. Install by running
-
-::
-
-   git clone https://www.github.com/nvidia/apex
-   cd apex
-   python setup.py install [--cuda_ext] [--cpp_ext]
-
+Installation instructions can be found here:  https://github.com/NVIDIA/apex#quick-start.
 
 .. toctree::
    :maxdepth: 1
    :caption: AMP:  Automatic Mixed Precision
 
    amp
-
-.. toctree::
-   :maxdepth: 1
-   :caption: FP16/Mixed Precision Utilities
-
-   fp16_utils
 
 .. toctree::
    :maxdepth: 1
@@ -49,6 +36,11 @@ Installation requires CUDA 9 or later, PyTorch 0.4 or later, and Python 3. Insta
    :caption: Fused Layer Norm
 
    layernorm
+
+..   .. toctree::
+     :maxdepth: 1
+     :caption: Deprecated mixed precision API
+     fp16_util
 
 ..   reparameterization
 ..   RNN

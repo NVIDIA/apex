@@ -1,7 +1,11 @@
 # amp: Automatic Mixed Precision
 
+## This README documents the deprecated (pre-unified) API.
+
+## Documentation for the current unified API can be found [here](https://nvidia.github.io/apex/)
+
 amp is an experimental tool to enable mixed precision training in
-PyTorch with _extreme_ simplicity and overall numerical safety. It
+PyTorch with extreme simplicity and overall numerical safety. It
 does so by employing a whitelist / blacklist model:
 - Any function on the whitelist casts its input arguments to
   fp16. These are functions like `torch.conv2d` that can take
