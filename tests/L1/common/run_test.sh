@@ -6,8 +6,14 @@ print_banner() {
 
 print_banner "Distributed status:  $1"
 
-# DATADIR="/home/mcarilli/Desktop/pt18data/apex/examples/imagenet/bare_metal_train_val/"
-DATADIR="/opt/home/apex/examples/imagenet/"
+echo $2
+if [ -n "$2" ]
+then
+  DATADIR="$2"
+else
+  # DATADIR="/home/mcarilli/Desktop/pt18data/apex/examples/imagenet/bare_metal_train_val/"
+  DATADIR="/opt/home/apex/examples/imagenet/"
+fi
 
 if [ "$1" == "single_gpu" ]
 then
@@ -49,7 +55,7 @@ set -e
 print_banner "Installing Apex with --cuda_ext and --cpp_ext"
 
 pushd ../../..
-python setup.py install --cuda_ext --cpp_ext
+pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
 popd
 
 for opt_level in "${opt_levels[@]}"
@@ -86,7 +92,7 @@ done
 print_banner "Reinstalling apex without extensions"
 
 pushd ../../..
-python setup.py install
+pip install -v --no-cache-dir .
 popd
 
 for opt_level in "${opt_levels[@]}"
@@ -133,5 +139,5 @@ done
 print_banner "Reinstalling Apex with --cuda_ext and --cpp_ext"
 
 pushd ../../..
-python setup.py install --cuda_ext --cpp_ext
+pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
 popd

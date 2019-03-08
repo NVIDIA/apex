@@ -4,6 +4,7 @@ from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
+from ..amp._amp_state import _amp_state, maybe_print
 from ..amp.scaler import LossScaler
 from ..multi_tensor_apply import multi_tensor_applier
 from .fp16util import model_grads_to_master_grads, master_params_to_model_params, clip_grad_norm
@@ -193,6 +194,8 @@ class FP16_Optimizer(object):
             self.multi_tensor_scale = amp_C.multi_tensor_scale
             self._dummy_overflow_buf = torch.cuda.IntTensor([0]);
 
+    # Having self.maybe_print distinct from _amp_state.maybe_print is another artifact
+    # of having to support FP16_Optimizer separately, for the time being.
     def maybe_print(self, msg):
         if self.verbose:
             print(msg)
@@ -401,8 +404,9 @@ class FP16_Optimizer(object):
         # self._update_scale(self.overflow)
 
         if self.overflow:
-            print("Gradient overflow.  Skipping step, reducing " +
-                  "loss scale to {}".format(self.loss_scaler.loss_scale()))
+            # Using _amp_state.maybe_print instead of self.print here is intentional.
+            maybe_print("Gradient overflow.  Skipping step, reducing " +
+                "loss scale to {}".format(self.loss_scaler.loss_scale()))
             return
         
         if closure is not None:

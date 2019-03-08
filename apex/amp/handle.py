@@ -1,12 +1,11 @@
 import contextlib
-import logging
 import warnings
 import torch
 
 from . import utils
 from .opt import OptimWrapper
 from .scaler import LossScaler
-from ._amp_state import _amp_state, master_params
+from ._amp_state import _amp_state, master_params, maybe_print
 from ..fp16_utils import FP16_Optimizer as FP16_Optimizer_general
 from ..optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
 
@@ -106,9 +105,8 @@ def scale_loss(loss,
                 if should_skip:
                     optimizer_step = optimizer.step
                     def skip_step():
-                        logger = logging.getLogger('apex.amp')
-                        logger.warning("Gradient overflow.  Skipping step, reducing " +
-                                       "loss scale to {}".format(optimizer.loss_scaler.loss_scale()))
+                        maybe_print("Gradient overflow.  Skipping step, reducing " +
+                                    "loss scale to {}".format(optimizer.loss_scaler.loss_scale()))
                         optimizer.step = optimizer_step
                     optimizer.step = skip_step
     # Probably ok to skip this if not delay_unscale
@@ -171,8 +169,7 @@ class AmpHandle(object):
         if should_skip:
             optimizer_step = optimizer.step
             def skip_step():
-                logger = logging.getLogger('apex.amp')
-                logger.warning('Gradient overflow, skipping update')
+                maybe_print('Gradient overflow, skipping update')
                 optimizer.step = optimizer_step
             optimizer.step = skip_step
 

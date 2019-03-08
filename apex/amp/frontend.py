@@ -1,6 +1,6 @@
 import torch
 from ._initialize import _initialize
-from ._amp_state import _amp_state, warn_or_err
+from ._amp_state import _amp_state, warn_or_err, maybe_print
 
 
 class Properties(object):
@@ -199,7 +199,8 @@ def initialize(
     patch_torch_functions=None,
     keep_batchnorm_fp32=None,
     master_weights=None,
-    loss_scale=None
+    loss_scale=None,
+    verbosity=1,
     ):
     """
     Initialize your models, optimizers, and the Torch tensor and functional namespace according to the
@@ -219,7 +220,7 @@ def initialize(
         optimizers (torch.optim.Optimizer or list of torch.optim.Optimizers):  Optimizers to modify/cast.
         enabled (bool, optional, default=True):  If False, renders all Amp calls no-ops, so your script
             should run as if Amp were not present.
-        opt_level(str, required):  Pure or mixed precision optimization level.  Accepted values are
+        opt_level (str, required):  Pure or mixed precision optimization level.  Accepted values are
             "O0", "O1", "O2", and "O3", explained in detail above.
         cast_model_type (``torch.dtype``, optional, default=None):  Optional property override, see
             above.
@@ -227,8 +228,9 @@ def initialize(
         keep_batchnorm_fp32 (bool or str, optional, default=None):  Optional property override.  If
             passed as a string, must be the string "True" or "False".
         master_weights (bool, optional, default=None):  Optional property override.
-        loss_scale(float or str, default=None):  Optional property override.  If passed as a string,
+        loss_scale (float or str, default=None):  Optional property override.  If passed as a string,
             must be a string representing a number, e.g., "128.0", or the string "dynamic".
+        verbosity (int, default=1):  Set to 0 to suppress Amp-related output.
 
     Returns:
         Model(s) and optimizer(s) modified according to the ``opt_level``.
@@ -266,8 +268,10 @@ def initialize(
     .. _`Imagenet example`:
         https://github.com/NVIDIA/apex/tree/master/examples/imagenet
     """
+    _amp_state.opt_properties = Properties()
+    _amp_state.verbosity = verbosity
+
     if not enabled:
-        _amp_state.opt_properties = Properties()
         return models, optimizers
 
     if opt_level not in opt_levels:
@@ -275,16 +279,15 @@ def initialize(
             "Unexpected optimization level {}. ".format(opt_level) +
             "Options are 'O0', 'O1', 'O2', 'O3'.")
     else:
-        _amp_state.opt_properties = opt_levels[opt_level](Properties())
-        print("Selected optimization level {}".format(opt_levels[opt_level].brief))
-        print("Defaults for this optimization level are:")
-        print(_amp_state.opt_properties.options)
+        _amp_state.opt_properties = opt_levels[opt_level](_amp_state.opt_properties)
+        maybe_print("Selected optimization level {}".format(opt_levels[opt_level].brief), True)
+        maybe_print("Defaults for this optimization level are:", True)
         for k, v in _amp_state.opt_properties.options.items():
-            print("{:22} : {}".format(k, v))
+            maybe_print("{:22} : {}".format(k, v), True)
 
-    print("Processing user overrides (additional kwargs that are not None)...")
-    # I chose to have the keyword arguments listed directly in the argument list, so I
-    # can't use kwargs.items() here.
+    maybe_print("Processing user overrides (additional kwargs that are not None)...", True)
+    # I chose to have the keyword arguments listed directly in the argument list,
+    # instead of **kwargs, so I can't use kwargs.items() here.
     if enabled is not None:
         _amp_state.opt_properties.enabled = enabled
     if opt_level is not None:
@@ -300,9 +303,9 @@ def initialize(
     if loss_scale is not None:
         _amp_state.opt_properties.loss_scale = loss_scale
 
-    print("After processing overrides, optimization options are:")
+    maybe_print("After processing overrides, optimization options are:", True)
     for k, v in _amp_state.opt_properties.options.items():
-        print("{:22} : {}".format(k, v))
+        maybe_print("{:22} : {}".format(k, v), True)
 
     return _initialize(models, optimizers, _amp_state.opt_properties)
 

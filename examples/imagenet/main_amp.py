@@ -334,8 +334,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
         optimizer.step()
         if args.prof: torch.cuda.nvtx.range_pop()
 
-        input, target = prefetcher.next()
-
         if i%args.print_freq == 0:
             # Every print_freq iterations, check the loss accuracy and speed.
             # For best performance, it doesn't make sense to print these metrics every
@@ -373,6 +371,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
                        args.world_size*args.batch_size/batch_time.avg,
                        batch_time=batch_time,
                        loss=losses, top1=top1, top5=top5))
+
+        input, target = prefetcher.next()
 
 
 def validate(val_loader, model, criterion):
