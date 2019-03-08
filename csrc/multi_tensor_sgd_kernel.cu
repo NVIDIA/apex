@@ -38,13 +38,8 @@ struct SGDFunctor
     bool nesterov,
     bool first_run)
   {
-    __shared__ int noop_smem;
-
-    if(threadIdx.x == 0)
-      noop_smem = *noop_gmem;
-    __syncthreads();
-    if(noop_smem == 1)
-      return;
+    // Early exit if we don't need to do anything
+    if (*noop_gmem) return;
 
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
@@ -126,15 +121,6 @@ struct SGDFunctor
           }
         }
       }
-
-      // *noop_gmem = 1 is NOT guaranteed to be seen immediately by thread 0.  I wonder if
-      // we can rig block-wide and grid-wide short-circuiting with only one syncthreads.
-      // It's possible we can just lean on the cache (no smem or syncs) and still be fast.
-      if(threadIdx.x == 0)
-        noop_smem = *noop_gmem;
-      __syncthreads();
-      if(noop_smem == 1)
-        break;
     }
   }
 };
