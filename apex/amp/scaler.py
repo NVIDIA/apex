@@ -1,7 +1,6 @@
 import torch
-import logging
 from ..multi_tensor_apply import multi_tensor_applier
-from ._amp_state import _amp_state, master_params
+from ._amp_state import _amp_state, master_params, maybe_print
 from itertools import product
 
 # from apex_C import scale_check_overflow
@@ -46,10 +45,12 @@ class LossScaler(object):
             LossScaler.multi_tensor_scale_cuda = amp_C.multi_tensor_scale
         else:
             if not LossScaler.warned_no_fused_kernel:
-                print("Warning:  multi_tensor_applier fused unscale kernel is unavailable, "
-                      "possibly because apex was installed without --cuda_ext --cpp_ext. "
-                      "Using Python fallback.  Original ImportError was: ",
-                      multi_tensor_applier.import_err)
+                maybe_print(
+                    "Warning:  multi_tensor_applier fused unscale kernel is unavailable, "
+                    "possibly because apex was installed without --cuda_ext --cpp_ext. "
+                    "Using Python fallback.  Original ImportError was: " +
+                    multi_tensor_applier.import_err,
+                    True)
             LossScaler.has_fused_kernel = False
             LossScaler.warned_no_fused_kernel = True
 
@@ -61,8 +62,7 @@ class LossScaler(object):
             if model is not None:
                 if not LossScaler.warned_unscaling_non_fp32_grad:
                     if master.type() != "torch.cuda.FloatTensor":
-                        logger = logging.getLogger("apex.amp")
-                        logger.warning(
+                        maybe_print(
                             "Attempting to unscale a grad with type {} ".format(master.type()) +
                             "Unscaling non-fp32 grads may indicate an error. "
                             "When using Amp, you don't need to call .half() on your model.")
