@@ -55,7 +55,7 @@ set -e
 print_banner "Installing Apex with --cuda_ext and --cpp_ext"
 
 pushd ../../..
-python setup.py install --cuda_ext --cpp_ext
+pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
 popd
 
 for opt_level in "${opt_levels[@]}"
@@ -92,7 +92,7 @@ done
 print_banner "Reinstalling apex without extensions"
 
 pushd ../../..
-python setup.py install
+pip install -v --no-cache-dir .
 popd
 
 for opt_level in "${opt_levels[@]}"
@@ -139,5 +139,5 @@ done
 print_banner "Reinstalling Apex with --cuda_ext and --cpp_ext"
 
 pushd ../../..
-python setup.py install --cuda_ext --cpp_ext
+pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
 popd

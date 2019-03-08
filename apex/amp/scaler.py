@@ -49,7 +49,7 @@ class LossScaler(object):
                     "Warning:  multi_tensor_applier fused unscale kernel is unavailable, "
                     "possibly because apex was installed without --cuda_ext --cpp_ext. "
                     "Using Python fallback.  Original ImportError was: " +
-                    multi_tensor_applier.import_err,
+                    repr(multi_tensor_applier.import_err),
                     True)
             LossScaler.has_fused_kernel = False
             LossScaler.warned_no_fused_kernel = True

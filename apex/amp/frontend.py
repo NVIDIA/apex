@@ -282,7 +282,6 @@ def initialize(
         _amp_state.opt_properties = opt_levels[opt_level](_amp_state.opt_properties)
         maybe_print("Selected optimization level {}".format(opt_levels[opt_level].brief), True)
         maybe_print("Defaults for this optimization level are:", True)
-        maybe_print(_amp_state.opt_properties.options, True)
         for k, v in _amp_state.opt_properties.options.items():
             maybe_print("{:22} : {}".format(k, v), True)
 
