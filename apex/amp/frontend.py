@@ -269,7 +269,7 @@ def initialize(
         https://github.com/NVIDIA/apex/tree/master/examples/imagenet
     """
     _amp_state.opt_properties = Properties()
-    _amp_state.opt_properties.verbosity = verbosity
+    _amp_state.verbosity = verbosity
 
     if not enabled:
         return models, optimizers
