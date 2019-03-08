@@ -49,7 +49,8 @@ if "--cuda_ext" in sys.argv:
             CUDAExtension(name='amp_C',
                           sources=['csrc/amp_C_frontend.cpp',
                                    'csrc/scale_check_overflow_kernel.cu',
-                                   'csrc/multi_tensor_scale_kernel.cu'],
+                                   'csrc/multi_tensor_scale_kernel.cu',
+                                   'csrc/multi_tensor_sgd_kernel.cu'],
                           extra_compile_args={'cxx': ['-O3'],
                                               'nvcc':['-lineinfo',
                                                       '-O3',
@@ -73,6 +74,7 @@ if "--cuda_ext" in sys.argv:
                                               'nvcc':['-maxrregcount=50',
                                                       '-O3', 
                                                       '--use_fast_math'] + version_ge_1_1}))
+print(ext_modules)
 
 setup(
     name='apex',

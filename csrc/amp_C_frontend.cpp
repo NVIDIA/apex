@@ -6,6 +6,17 @@ void multi_tensor_scale_cuda(
   std::vector<std::vector<at::Tensor>> tensor_lists,
   float scale);
 
+void multi_tensor_sgd_cuda(
+  int chunk_size,
+  at::Tensor noop_flag,
+  std::vector<std::vector<at::Tensor>> tensor_lists,
+  float wd,
+  float momentum,
+  float dampening,
+  float lr,
+  bool nesterov,
+  bool first_run);
+
 void scale_check_overflow_cuda(
   const at::Tensor& grads,
   float scale,
@@ -37,4 +48,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("scale_check_overflow", &scale_check_overflow, "Fused overflow check + scale for FP32 tensors");
   m.def("multi_tensor_scale", &multi_tensor_scale_cuda,
         "Fused overflow check + scale for a list of contiguous tensors");
+  m.def("multi_tensor_sgd", &multi_tensor_sgd_cuda,
+        "Fused SGD optimizer for list of contiguous tensors");
 }
