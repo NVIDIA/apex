@@ -104,6 +104,8 @@ struct SGDFunctor
 
             if (nesterov) {
               incoming_grads[ii] += momentum * incoming_moms[ii];
+            } else {
+              incoming_grads[ii] = incoming_moms[ii];
             }
           }
 
