@@ -5,7 +5,6 @@
 #include "multi_tensor_apply.cuh"
 
 #include <assert.h>
-#include <cuda_runtime.h>
 
 #define BLOCK_SIZE 512
 #define ILP 4
