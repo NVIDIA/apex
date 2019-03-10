@@ -3,8 +3,6 @@ from ..multi_tensor_apply import multi_tensor_applier
 from ._amp_state import _amp_state, master_params, maybe_print
 from itertools import product
 
-# from apex_C import scale_check_overflow
-
 def scale_check_overflow_python(model_grad, scale, master_grad, check_overflow=False):
     # Exception handling for 18.04 compatibility
     if check_overflow:
