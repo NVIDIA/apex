@@ -1,11 +1,9 @@
-#include <torch/extension.h>
 #include <ATen/ATen.h>
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
 
 #include <assert.h>
-#include <cuda_runtime.h>
 
 // #include <iostream>
 
