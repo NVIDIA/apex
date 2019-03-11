@@ -15,7 +15,8 @@ void multi_tensor_sgd_cuda(
   float dampening,
   float lr,
   bool nesterov,
-  bool first_run);
+  bool first_run,
+  bool wd_after_momentum);
 
 void scale_check_overflow_cuda(
   const at::Tensor& grads,

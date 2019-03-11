@@ -50,7 +50,8 @@ class SGD(Optimizer):
     """
 
     def __init__(self, params, lr=required, momentum=0, dampening=0,
-                 weight_decay=0, nesterov=False):
+                 weight_decay=0, nesterov=False,
+                 wd_after_momentum=False):
         if lr is not required and lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if momentum < 0.0:
@@ -63,6 +64,8 @@ class SGD(Optimizer):
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
         super(SGD, self).__init__(params, defaults)
+
+        self.wd_after_momentum = wd_after_momentum
 
         if multi_tensor_applier.available:
             import amp_C
@@ -111,17 +114,62 @@ class SGD(Optimizer):
                     first_run = False
                     momentums.append(param_state['momentum_buffer'])
 
-            # launch update using multi tensor applier
-            # modifies weight and momentum values inplace.
-            multi_tensor_applier(
-                self.multi_tensor_sgd,
-                self._dummy_overflow_buf,
-                [grads, params, momentums],
-                weight_decay,
-                momentum,
-                dampening,
-                group['lr'],
-                nesterov,
-                first_run)
+            # We have all parameters now, split them into appropriate groups for 
+            # parallel execution, following the 4 possible combos that the underlying
+            # kernels support:
+            # grad_type, param_type, momentum_type, requires_fp16_copy
+            # 1. fp16, fp16, fp16, No
+            # 2. fp16, fp32, fp32, No
+            # 3. fp16, fp32, fp32, Yes
+            # 4. fp32, fp32, fp32, No
+            # As in the kernel, easier to hardcode these options
+
+            # Store only indices into the weight / grad / momentum lists
+            # { gradient-type : { param-type : List } | List }
+            param_sets = { 'fp16' : { 'fp16' : [], 'fp32' : [] }, 'fp32' : [] }
+
+            for i, (g, p) in enumerate(zip(grads, params)):
+                if g.dtype == torch.float16:
+                    # fp16 grads, fp16 params
+                    if p.dtype == torch.float16:
+                        param_sets['fp16']['fp16'].append(i)
+                    # fp16 grads, fp32 params
+                    elif p.dtype == torch.float32:
+                        param_sets['fp16']['fp32'].append(i)
+                    else:
+                        raise RuntimeError('fp16 gradients need either fp16 or fp32 weights')
+                # fp32 grads, fp32 params
+                elif g.dtype == torch.float32:
+                    param_sets['fp32'].append(i)
+                else:
+                    raise RuntimeError('gradients must either be fp16 or fp32')
+
+            def launch_sgd_set(param_set):
+                local_params, local_grads, local_momentums = [], [], []
+                if len(param_set) == 0:
+                    return
+
+                # launch update using multi tensor applier
+                # modifies weight and momentum values inplace.
+                multi_tensor_applier(
+                    self.multi_tensor_sgd,
+                    self._dummy_overflow_buf,
+                    # Note: Need to do this as list comprehensions otherwise
+                    # things don't seem to update properly.
+                    [[grads[i] for i in param_set],
+                     [params[i] for i in param_set],
+                     [momentums[i] for i in param_set]],
+                    weight_decay,
+                    momentum,
+                    dampening,
+                    group['lr'],
+                    nesterov,
+                    first_run,
+                    self.wd_after_momentum)
+
+            # Explicitly go over the cases
+            launch_sgd_set(param_sets['fp16']['fp16'])
+            launch_sgd_set(param_sets['fp16']['fp32'])
+            launch_sgd_set(param_sets['fp32'])
 
         return loss

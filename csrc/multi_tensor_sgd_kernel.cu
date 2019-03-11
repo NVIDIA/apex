@@ -23,6 +23,7 @@
  * lr : learning rate (scalar)
  * nesterov : enable nesterov (bool)
  * first run : necessary for proper momentum handling & init
+ * wd_after_momentum : apply weight decay _after_ momentum instead of before
  **/
 template<int N, typename T_grad, typename T_weight>
 struct SGDFunctor
@@ -36,7 +37,8 @@ struct SGDFunctor
     float dampening,
     float lr,
     bool nesterov,
-    bool first_run)
+    bool first_run,
+    bool wd_after_momentum)
   {
     // Early exit if we don't need to do anything
     if (*noop_gmem) return;
@@ -93,8 +95,8 @@ struct SGDFunctor
       {
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size) {
-          // apply weight decay
-          if (wd != 0.f) {
+          // apply weight decay before momentum if necessary
+          if (wd != 0.f && !wd_after_momentum) {
             incoming_grads[ii] += wd * incoming_weights[ii];
           }
           if (momentum != 0.f) {
@@ -107,6 +109,11 @@ struct SGDFunctor
             } else {
               incoming_grads[ii] = incoming_moms[ii];
             }
+          }
+
+          // Apply WD after momentum if desired
+          if (wd != 0.f && wd_after_momentum) {
+            incoming_grads[ii] += wd * incoming_weights[ii];
           }
 
           // adjust the weight and write out
@@ -136,7 +143,8 @@ void multi_tensor_sgd_cuda(
   float dampening,
   float lr,
   bool nesterov,
-  bool first_run)
+  bool first_run,
+  bool wd_after_momentum)
 {
   auto num_tensors = tensor_lists.size();
   auto grad_type = tensor_lists[0][0].type().scalarType();
@@ -167,7 +175,8 @@ void multi_tensor_sgd_cuda(
         dampening,
         lr,
         nesterov,
-        first_run);
+        first_run,
+        wd_after_momentum);
   }
   // Case 2. fp16, fp32, fp32, No
   else if (grad_type == at::ScalarType::Half &&
@@ -184,7 +193,8 @@ void multi_tensor_sgd_cuda(
         dampening,
         lr,
         nesterov,
-        first_run);
+        first_run,
+        wd_after_momentum);
   }
   // Case 3. fp16, fp32, fp32, Yes
   else if (grad_type == at::ScalarType::Half &&
@@ -201,7 +211,8 @@ void multi_tensor_sgd_cuda(
         dampening,
         lr,
         nesterov,
-        first_run);
+        first_run,
+        wd_after_momentum);
   }
   // Case 4. fp32, fp32, fp32, No
   else if (grad_type == at::ScalarType::Float &&
@@ -218,7 +229,8 @@ void multi_tensor_sgd_cuda(
         dampening,
         lr,
         nesterov,
-        first_run);
+        first_run,
+        wd_after_momentum);
   }
   else {
     AT_ERROR("multi_tensor_sgd only supports some combinations of gradient & weight types. Given: ",
