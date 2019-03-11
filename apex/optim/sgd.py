@@ -108,7 +108,6 @@ class SGD(Optimizer):
                 if 'momentum_buffer' not in param_state:
                     first_run = True
                     buf = param_state['momentum_buffer'] = torch.zeros_like(p.data)
-                    buf.mul_(momentum).add_(p.grad.data)
                     momentums.append(buf)
                 else:
                     first_run = False

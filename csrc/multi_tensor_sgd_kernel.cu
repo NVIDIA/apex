@@ -102,6 +102,9 @@ struct SGDFunctor
           if (momentum != 0.f) {
             if (!first_run) {
               incoming_moms[ii] = incoming_moms[ii] * momentum + (1.f - dampening) * incoming_grads[ii];
+            } else {
+              // initialize momentume to current incoming grads
+              incoming_moms[ii] = incoming_grads[ii];
             }
 
             if (nesterov) {
