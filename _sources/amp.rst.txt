@@ -27,7 +27,7 @@ override the defaults established by the ``opt_level``.
 Example::
 
         # Declare model and optimizer as usual
-        model = torch.nn.Linear(D_in, D_out).cuda().half()
+        model = torch.nn.Linear(D_in, D_out).cuda()
         optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 
         # Allow Amp to perform casts as required by the opt_level

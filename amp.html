@@ -256,7 +256,7 @@ particular properties directly to <code class="docutils literal"><span class="pr
 override the defaults established by the <code class="docutils literal"><span class="pre">opt_level</span></code>.</p>
 <p>Example:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># Declare model and optimizer as usual</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">D_in</span><span class="p">,</span> <span class="n">D_out</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span><span class="o">.</span><span class="n">half</span><span class="p">()</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">D_in</span><span class="p">,</span> <span class="n">D_out</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
 <span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">SGD</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">)</span>
 
 <span class="c1"># Allow Amp to perform casts as required by the opt_level</span>
@@ -380,7 +380,7 @@ to establish “speed of light” you can try <code class="docutils literal"><sp
 <span id="unified-api"></span><h2>Unified API<a class="headerlink" href="#module-apex.amp" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="apex.amp.initialize">
-<code class="descclassname">apex.amp.</code><code class="descname">initialize</code><span class="sig-paren">(</span><em>models</em>, <em>optimizers</em>, <em>enabled=True</em>, <em>opt_level=None</em>, <em>cast_model_type=None</em>, <em>patch_torch_functions=None</em>, <em>keep_batchnorm_fp32=None</em>, <em>master_weights=None</em>, <em>loss_scale=None</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.initialize" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">apex.amp.</code><code class="descname">initialize</code><span class="sig-paren">(</span><em>models</em>, <em>optimizers</em>, <em>enabled=True</em>, <em>opt_level=None</em>, <em>cast_model_type=None</em>, <em>patch_torch_functions=None</em>, <em>keep_batchnorm_fp32=None</em>, <em>master_weights=None</em>, <em>loss_scale=None</em>, <em>verbosity=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/amp/frontend.html#initialize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.amp.initialize" title="Permalink to this definition">¶</a></dt>
 <dd><p>Initialize your models, optimizers, and the Torch tensor and functional namespace according to the
 chosen <code class="docutils literal"><span class="pre">opt_level</span></code> and overridden properties, if any.</p>
 <p><code class="docutils literal"><span class="pre">amp.initialize</span></code> must be called <strong>after</strong> you have finished constructing your model(s) and
@@ -408,6 +408,7 @@ passed as a string, must be the string “True” or “False”.</li>
 <li><strong>master_weights</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.</li>
 <li><strong>loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>default=None</em>) – Optional property override.  If passed as a string,
 must be a string representing a number, e.g., “128.0”, or the string “dynamic”.</li>
+<li><strong>verbosity</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>default=1</em>) – Set to 0 to suppress Amp-related output.</li>
 </ul>
 </td>
 </tr>
@@ -446,7 +447,7 @@ also be a list.</p>
 
 <dl class="function">
 <dt id="apex.amp.scale_loss">
-<code class="descclassname">apex.amp.</code><code class="descname">scale_loss</code><span class="sig-paren">(</span><em>loss</em>, <em>optimizer</em>, <em>model=None</em>, <em>delay_unscale=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.scale_loss" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">apex.amp.</code><code class="descname">scale_loss</code><span class="sig-paren">(</span><em>loss</em>, <em>optimizer</em>, <em>model=None</em>, <em>delay_unscale=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/amp/handle.html#scale_loss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.amp.scale_loss" title="Permalink to this definition">¶</a></dt>
 <dd><p>On context manager entrance, creates <code class="docutils literal"><span class="pre">scaled_loss</span> <span class="pre">=</span> <span class="pre">(loss.float())*current</span> <span class="pre">loss</span> <span class="pre">scale</span></code>.
 <code class="docutils literal"><span class="pre">scaled_loss</span></code> is yielded so that the user can call <code class="docutils literal"><span class="pre">scaled_loss.backward()</span></code>:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
@@ -494,7 +495,7 @@ situations where this is necessary.</li>
 
 <dl class="function">
 <dt id="apex.amp.master_params">
-<code class="descclassname">apex.amp.</code><code class="descname">master_params</code><span class="sig-paren">(</span><em>optimizer</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.master_params" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">apex.amp.</code><code class="descname">master_params</code><span class="sig-paren">(</span><em>optimizer</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/amp/_amp_state.html#master_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.amp.master_params" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generator expression that iterates over the params owned by <code class="docutils literal"><span class="pre">optimizer</span></code>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
