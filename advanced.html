@@ -249,19 +249,24 @@ is under construction.</p>
 </div>
 <div class="section" id="gradient-clipping">
 <h2>Gradient clipping<a class="headerlink" href="#gradient-clipping" title="Permalink to this headline">¶</a></h2>
-<p>If Amp uses master params distinct from the model params,
-then the params <code class="docutils literal"><span class="pre">step()</span></code>ed by the optimizer are the master params,
-and it is the master gradients (rather than the model gradients) that must be clipped.</p>
-<p>If Amp is not using master params distinct from the model params, then the optimizer
-directly steps the model params, and the model grads must be clipped.</p>
-<p>In both cases, correct practice is to clip the gradients of the params that are about to be stepped <strong>by the optimizer</strong> (which may be distinct from <code class="docutils literal"><span class="pre">model.parameters()</span></code>).</p>
-<p>Also, if Amp uses loss scaling, gradients must be clipped after they have been unscaled.</p>
-<p>The following pattern accounts for all possibilities, and should be correct for
-any <code class="docutils literal"><span class="pre">opt_level</span></code>:</p>
+<p>Amp calls the params owned directly by the optimizer’s <code class="docutils literal"><span class="pre">param_groups</span></code> the “master params.”</p>
+<p>These master params may be fully or partially distinct from <code class="docutils literal"><span class="pre">model.parameters()</span></code>.
+For example, with <a class="reference external" href="https://nvidia.github.io/apex/amp.html#o2-fast-mixed-precision">opt_level=”O2”</a>, <code class="docutils literal"><span class="pre">amp.initialize</span></code> casts most model params to FP16,
+creates an FP32 master param outside the model for each newly-FP16 model param,
+and updates the optimizer’s <code class="docutils literal"><span class="pre">param_groups</span></code> to point to these FP32 params.</p>
+<p>The master params owned by the optimizer’s <code class="docutils literal"><span class="pre">param_groups</span></code> may also fully coincide with the
+model params, which is typically true for <code class="docutils literal"><span class="pre">opt_level</span></code>s <code class="docutils literal"><span class="pre">O0</span></code>, <code class="docutils literal"><span class="pre">O1</span></code>, and <code class="docutils literal"><span class="pre">O3</span></code>.</p>
+<p>In all cases, correct practice is to clip the gradients of the params that are guaranteed to be
+owned <strong>by the optimizer’s</strong> <code class="docutils literal"><span class="pre">param_groups</span></code>, instead of those retrieved via <code class="docutils literal"><span class="pre">model.parameters()</span></code>.</p>
+<p>Also, if Amp uses loss scaling, gradients must be clipped after they have been unscaled
+(which occurs during exit from the <code class="docutils literal"><span class="pre">amp.scale_loss</span></code> context manager).</p>
+<p>The following pattern should be correct for any <code class="docutils literal"><span class="pre">opt_level</span></code>:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
     <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
     <span class="c1"># Gradients are unscaled during context manager exit.</span>
-<span class="c1"># Now it&#39;s safe to clip:</span>
+<span class="c1"># Now it&#39;s safe to clip.  Replace</span>
+<span class="c1"># torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)</span>
+<span class="c1"># with</span>
 <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">clip_grad_norm_</span><span class="p">(</span><span class="n">amp</span><span class="o">.</span><span class="n">master_params</span><span class="p">(</span><span class="n">optimizer</span><span class="p">),</span> <span class="n">max_norm</span><span class="p">)</span>
 <span class="c1"># or</span>
 <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">clip_grad_value_</span><span class="p">(</span><span class="n">amp</span><span class="o">.</span><span class="n">master_params</span><span class="p">(</span><span class="n">optimizer</span><span class="p">),</span> <span class="n">max_</span><span class="p">)</span>
@@ -269,7 +274,9 @@ any <code class="docutils literal"><span class="pre">opt_level</span></code>:</p
 </div>
 <p>Note the use of the utility function <code class="docutils literal"><span class="pre">amp.master_params(optimizer)</span></code>,
 which returns a generator-expression that iterates over the
-params that the optimizer steps (master params if enabled, otherwise model params).</p>
+params in the optimizer’s <code class="docutils literal"><span class="pre">param_groups</span></code>.</p>
+<p>Also note that <code class="docutils literal"><span class="pre">clip_grad_norm_(amp.master_params(optimizer),</span> <span class="pre">max_norm)</span></code> is invoked
+<em>instead of</em>, not <em>in addition to</em>, <code class="docutils literal"><span class="pre">clip_grad_norm_(model.parameters(),</span> <span class="pre">max_norm)</span></code>.</p>
 </div>
 <div class="section" id="custom-user-defined-autograd-functions">
 <h2>Custom/user-defined autograd functions<a class="headerlink" href="#custom-user-defined-autograd-functions" title="Permalink to this headline">¶</a></h2>

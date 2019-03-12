@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>apex.parallel.optimized_sync_batchnorm &mdash; Apex 0.1.0 documentation</title>
+  <title>apex.parallel.sync_batchnorm &mdash; Apex 0.1.0 documentation</title>
   
 
   
@@ -221,7 +221,7 @@
         
           <li><a href="../parallel.html">apex.parallel</a> &raquo;</li>
         
-      <li>apex.parallel.optimized_sync_batchnorm</li>
+      <li>apex.parallel.sync_batchnorm</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -238,30 +238,30 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <h1>Source code for apex.parallel.optimized_sync_batchnorm</h1><div class="highlight"><pre>
+  <h1>Source code for apex.parallel.sync_batchnorm</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">torch.nn.modules.batchnorm</span> <span class="k">import</span> <span class="n">_BatchNorm</span>
 <span class="kn">from</span> <span class="nn">torch.nn</span> <span class="k">import</span> <span class="n">functional</span> <span class="k">as</span> <span class="n">F</span>
 
-<span class="kn">import</span> <span class="nn">syncbn</span>
-<span class="kn">from</span> <span class="nn">.optimized_sync_batchnorm_kernel</span> <span class="k">import</span> <span class="n">SyncBatchnormFunction</span>
+<span class="kn">from</span> <span class="nn">.sync_batchnorm_kernel</span> <span class="k">import</span> <span class="n">SyncBatchnormFunction</span>
+<span class="kn">from</span> <span class="nn">apex.parallel</span> <span class="k">import</span> <span class="n">ReduceOp</span>
 
 
 <div class="viewcode-block" id="SyncBatchNorm"><a class="viewcode-back" href="../../../parallel.html#apex.parallel.SyncBatchNorm">[docs]</a><span class="k">class</span> <span class="nc">SyncBatchNorm</span><span class="p">(</span><span class="n">_BatchNorm</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    synchronized batch normalization module extented from `torch.nn.BatchNormNd`</span>
+<span class="sd">    synchronized batch normalization module extented from ``torch.nn.BatchNormNd``</span>
 <span class="sd">    with the added stats reduction across multiple processes.</span>
 <span class="sd">    :class:`apex.parallel.SyncBatchNorm` is designed to work with</span>
-<span class="sd">    `DistributedDataParallel`.</span>
+<span class="sd">    ``DistributedDataParallel``.</span>
 
 <span class="sd">    When running in training mode, the layer reduces stats across all processes</span>
 <span class="sd">    to increase the effective batchsize for normalization layer. This is useful</span>
 <span class="sd">    in applications where batch size is small on a given process that would</span>
 <span class="sd">    diminish converged accuracy of the model. The model uses collective</span>
-<span class="sd">    communication package from `torch.distributed`.</span>
+<span class="sd">    communication package from ``torch.distributed``.</span>
 
 <span class="sd">    When running in evaluation mode, the layer falls back to</span>
-<span class="sd">    `torch.nn.functional.batch_norm`</span>
+<span class="sd">    ``torch.nn.functional.batch_norm``.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        num_features: :math:`C` from an expected input of size</span>
@@ -277,49 +277,85 @@
 <span class="sd">            module tracks the running mean and variance, and when set to ``False``,</span>
 <span class="sd">            this module does not track such statistics and always uses batch</span>
 <span class="sd">            statistics in both training and eval modes. Default: ``True``</span>
-<span class="sd">        process_group: pass in a process group within which the stats of the</span>
-<span class="sd">            mini-batch is being synchronized. ``None`` for using default process</span>
-<span class="sd">            group</span>
-<span class="sd">        channel_last: a boolean value that when set to ``True``, this module</span>
-<span class="sd">            take the last dimension of the input tensor to be the channel</span>
-<span class="sd">            dimension. Default: False</span>
 
-<span class="sd">    Examples::</span>
-<span class="sd">        &gt;&gt;&gt; # channel first tensor</span>
+<span class="sd">    Example::</span>
+
 <span class="sd">        &gt;&gt;&gt; sbn = apex.parallel.SyncBatchNorm(100).cuda()</span>
 <span class="sd">        &gt;&gt;&gt; inp = torch.randn(10, 100, 14, 14).cuda()</span>
 <span class="sd">        &gt;&gt;&gt; out = sbn(inp)</span>
 <span class="sd">        &gt;&gt;&gt; inp = torch.randn(3, 100, 20).cuda()</span>
 <span class="sd">        &gt;&gt;&gt; out = sbn(inp)</span>
-<span class="sd">        &gt;&gt;&gt; # channel last tensor</span>
-<span class="sd">        &gt;&gt;&gt; sbn = apex.parallel.SyncBatchNorm(100, channel_last=True).cuda()</span>
-<span class="sd">        &gt;&gt;&gt; inp = torch.randn(10, 14, 14, 100).cuda()</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">warned</span> <span class="o">=</span> <span class="kc">False</span>
+
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_features</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">,</span> <span class="n">momentum</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">affine</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">track_running_stats</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">process_group</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">channel_last</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">channel_last</span> <span class="o">==</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s2">&quot;channel_last is not supported by primitive SyncBatchNorm implementation. Try install apex with `--cuda_ext` if channel_last is desired.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">SyncBatchNorm</span><span class="o">.</span><span class="n">warned</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Warning:  using Python fallback for SyncBatchNorm, possibly because apex was installed without --cuda_ext.  The exception raised when attempting to import the cuda backend was: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">syncbn_import_error</span><span class="p">)</span>
+            <span class="n">SyncBatchNorm</span><span class="o">.</span><span class="n">warned</span> <span class="o">=</span> <span class="kc">True</span>
+
         <span class="nb">super</span><span class="p">(</span><span class="n">SyncBatchNorm</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">num_features</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="n">eps</span><span class="p">,</span> <span class="n">momentum</span><span class="o">=</span><span class="n">momentum</span><span class="p">,</span> <span class="n">affine</span><span class="o">=</span><span class="n">affine</span><span class="p">,</span> <span class="n">track_running_stats</span><span class="o">=</span><span class="n">track_running_stats</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">process_group</span> <span class="o">=</span> <span class="n">process_group</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">channel_last</span> <span class="o">=</span> <span class="n">channel_last</span>
 
     <span class="k">def</span> <span class="nf">_specify_process_group</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">process_group</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">process_group</span> <span class="o">=</span> <span class="n">process_group</span>
 
-    <span class="k">def</span> <span class="nf">_specify_channel_last</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel_last</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">channel_last</span> <span class="o">=</span> <span class="n">channel_last</span>
-
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">track_running_stats</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">channel_last</span><span class="p">:</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">nvtx</span><span class="o">.</span><span class="n">range_push</span><span class="p">(</span><span class="s2">&quot;sync_bn_fw_with_mean_var&quot;</span><span class="p">)</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">var</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">track_running_stats</span><span class="p">:</span>
             <span class="c1"># fall back to pytorch implementation for inference</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">nvtx</span><span class="o">.</span><span class="n">range_pop</span><span class="p">()</span>
             <span class="k">return</span> <span class="n">F</span><span class="o">.</span><span class="n">batch_norm</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">running_mean</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">running_var</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">exponential_average_factor</span> <span class="o">=</span> <span class="mf">0.0</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">track_running_stats</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">num_batches_tracked</span> <span class="o">+=</span> <span class="mi">1</span>
-                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">momentum</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">exponential_average_factor</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_batches_tracked</span><span class="p">)</span>
+            <span class="n">process_group</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_group</span>
+            <span class="n">world_size</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_group</span><span class="p">:</span>
+                <span class="n">process_group</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">group</span><span class="o">.</span><span class="n">WORLD</span>
+            <span class="n">world_size</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">get_world_size</span><span class="p">(</span><span class="n">process_group</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_batches_tracked</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+                <span class="n">channel_first_input</span> <span class="o">=</span> <span class="nb">input</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+                <span class="n">squashed_input_tensor_view</span> <span class="o">=</span> <span class="n">channel_first_input</span><span class="o">.</span><span class="n">view</span><span class="p">(</span>
+                    <span class="n">channel_first_input</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="c1"># total number of data points for each variance entry. Used to calculate unbiased variance estimate</span>
+                <span class="n">m</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="n">local_m</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">squashed_input_tensor_view</span><span class="o">.</span><span class="n">size</span><span class="p">()[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="n">local_mean</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">squashed_input_tensor_view</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="n">local_sqr_mean</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span>
+                    <span class="n">squashed_input_tensor_view</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">is_initialized</span><span class="p">():</span>
+                    <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">all_reduce</span><span class="p">(</span>
+                        <span class="n">local_mean</span><span class="p">,</span> <span class="n">ReduceOp</span><span class="o">.</span><span class="n">SUM</span><span class="p">,</span> <span class="n">process_group</span><span class="p">)</span>
+                    <span class="n">mean</span> <span class="o">=</span> <span class="n">local_mean</span> <span class="o">/</span> <span class="n">world_size</span>
+                    <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">all_reduce</span><span class="p">(</span>
+                        <span class="n">local_sqr_mean</span><span class="p">,</span> <span class="n">ReduceOp</span><span class="o">.</span><span class="n">SUM</span><span class="p">,</span> <span class="n">process_group</span><span class="p">)</span>
+                    <span class="n">sqr_mean</span> <span class="o">=</span> <span class="n">local_sqr_mean</span> <span class="o">/</span> <span class="n">world_size</span>
+                    <span class="n">m</span> <span class="o">=</span> <span class="n">local_m</span> <span class="o">*</span> <span class="n">world_size</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">exponential_average_factor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">momentum</span>
-            <span class="k">return</span> <span class="n">SyncBatchnormFunction</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">running_mean</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">running_var</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">eps</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">track_running_stats</span><span class="p">,</span> <span class="n">exponential_average_factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_group</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">channel_last</span><span class="p">)</span></div>
+                    <span class="n">m</span> <span class="o">=</span> <span class="n">local_m</span>
+                    <span class="n">mean</span> <span class="o">=</span> <span class="n">local_mean</span>
+                    <span class="n">sqr_mean</span> <span class="o">=</span> <span class="n">local_sqr_mean</span>
+                <span class="c1"># var(x) = E (( x - mean_x ) ** 2)</span>
+                <span class="c1">#        = 1 / N * sum ( x - mean_x ) ** 2</span>
+                <span class="c1">#        = 1 / N * sum (x**2) - mean_x**2</span>
+                <span class="n">var</span> <span class="o">=</span> <span class="n">sqr_mean</span> <span class="o">-</span> <span class="n">mean</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">running_mean</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">running_mean</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">momentum</span> <span class="o">*</span> <span class="n">mean</span> <span class="o">+</span> \
+                        <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">momentum</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">running_mean</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">running_var</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="c1"># as noted by the paper, we used unbiased variance estimate of the mini-batch</span>
+                    <span class="c1"># Var[x] = m / (m-1) * Eb (sample_variance)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">running_var</span> <span class="o">=</span> <span class="n">m</span> <span class="o">/</span> \
+                        <span class="p">(</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">momentum</span> <span class="o">*</span> <span class="n">var</span> <span class="o">+</span> \
+                        <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">momentum</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">running_var</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">nvtx</span><span class="o">.</span><span class="n">range_pop</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">SyncBatchnormFunction</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="n">mean</span><span class="p">,</span> <span class="n">var</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">eps</span><span class="p">,</span> <span class="n">process_group</span><span class="p">,</span> <span class="n">world_size</span><span class="p">)</span></div>
 </pre></div>
 
            </div>

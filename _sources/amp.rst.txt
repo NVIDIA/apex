@@ -124,6 +124,9 @@ are performed in FP32.  ``O1`` also uses dynamic loss scaling, unless overridden
 ``O2`` casts the model weights to FP16,
 patches the model's ``forward`` method to cast input
 data to FP16, keeps batchnorms in FP32, maintains FP32 master weights,
+updates the optimizer's ``param_groups`` so that the ``optimizer.step()``
+acts directly on the FP32 weights (followed by FP32 master weight->FP16 model weight
+copies if necessary),
 and implements dynamic loss scaling (unless overridden).
 Unlike ``O1``, ``O2`` does not patch Torch functions or Tensor methods.
 

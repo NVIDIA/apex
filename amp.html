@@ -343,6 +343,9 @@ are performed in FP32.  <code class="docutils literal"><span class="pre">O1</spa
 <p><code class="docutils literal"><span class="pre">O2</span></code> casts the model weights to FP16,
 patches the model’s <code class="docutils literal"><span class="pre">forward</span></code> method to cast input
 data to FP16, keeps batchnorms in FP32, maintains FP32 master weights,
+updates the optimizer’s <code class="docutils literal"><span class="pre">param_groups</span></code> so that the <code class="docutils literal"><span class="pre">optimizer.step()</span></code>
+acts directly on the FP32 weights (followed by FP32 master weight-&gt;FP16 model weight
+copies if necessary),
 and implements dynamic loss scaling (unless overridden).
 Unlike <code class="docutils literal"><span class="pre">O1</span></code>, <code class="docutils literal"><span class="pre">O2</span></code> does not patch Torch functions or Tensor methods.</p>
 <div class="line-block">

@@ -15,31 +15,43 @@ is under construction.
 
 Gradient clipping
 -----------------
-If Amp uses master params distinct from the model params,
-then the params ``step()``\ ed by the optimizer are the master params,
-and it is the master gradients (rather than the model gradients) that must be clipped.
+Amp calls the params owned directly by the optimizer's ``param_groups`` the "master params."
 
-If Amp is not using master params distinct from the model params, then the optimizer
-directly steps the model params, and the model grads must be clipped.
+These master params may be fully or partially distinct from ``model.parameters()``.
+For example, with `opt_level="O2"`_, ``amp.initialize`` casts most model params to FP16,
+creates an FP32 master param outside the model for each newly-FP16 model param,
+and updates the optimizer's ``param_groups`` to point to these FP32 params.
 
-In both cases, correct practice is to clip the gradients of the params that are about to be stepped **by the optimizer** (which may be distinct from ``model.parameters()``).
+The master params owned by the optimizer's ``param_groups`` may also fully coincide with the
+model params, which is typically true for ``opt_level``\s ``O0``, ``O1``, and ``O3``.
 
-Also, if Amp uses loss scaling, gradients must be clipped after they have been unscaled.
+In all cases, correct practice is to clip the gradients of the params that are guaranteed to be
+owned **by the optimizer's** ``param_groups``, instead of those retrieved via ``model.parameters()``.
 
-The following pattern accounts for all possibilities, and should be correct for
-any ``opt_level``::
+Also, if Amp uses loss scaling, gradients must be clipped after they have been unscaled
+(which occurs during exit from the ``amp.scale_loss`` context manager).
+
+The following pattern should be correct for any ``opt_level``::
 
     with amp.scale_loss(loss, optimizer) as scaled_loss:
         scaled_loss.backward()
         # Gradients are unscaled during context manager exit.
-    # Now it's safe to clip:
+    # Now it's safe to clip.  Replace
+    # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+    # with
     torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), max_norm)
     # or
     torch.nn.utils.clip_grad_value_(amp.master_params(optimizer), max_)
 
 Note the use of the utility function ``amp.master_params(optimizer)``,
 which returns a generator-expression that iterates over the
-params that the optimizer steps (master params if enabled, otherwise model params).
+params in the optimizer's ``param_groups``.
+
+Also note that ``clip_grad_norm_(amp.master_params(optimizer), max_norm)`` is invoked
+*instead of*, not *in addition to*, ``clip_grad_norm_(model.parameters(), max_norm)``.
+
+.. _`opt_level="O2"`:
+    https://nvidia.github.io/apex/amp.html#o2-fast-mixed-precision
 
 Custom/user-defined autograd functions
 --------------------------------------
