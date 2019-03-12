@@ -26,7 +26,7 @@ override the defaults established by the ``opt_level``.
 
 Example::
 
-        # Declare model and optimizer as usual
+        # Declare model and optimizer as usual, with default (FP32) precision
         model = torch.nn.Linear(D_in, D_out).cuda()
         optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 

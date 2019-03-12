@@ -255,7 +255,7 @@ Finer-grained control of how a given <code class="docutils literal"><span class=
 particular properties directly to <code class="docutils literal"><span class="pre">amp.initialize</span></code>.  These manually specified values
 override the defaults established by the <code class="docutils literal"><span class="pre">opt_level</span></code>.</p>
 <p>Example:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># Declare model and optimizer as usual</span>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># Declare model and optimizer as usual, with default (FP32) precision</span>
 <span class="n">model</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">D_in</span><span class="p">,</span> <span class="n">D_out</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
 <span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">SGD</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">)</span>
 
