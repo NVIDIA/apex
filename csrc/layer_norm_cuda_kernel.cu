@@ -6,6 +6,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+#include "type_shim.h"
+
 template<typename U> __device__
 void cuWelfordOnlineSum(
   const U curr,
@@ -675,7 +677,8 @@ void cuda_layer_norm(
     at::Tensor* beta,
     double epsilon)
 {
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input->type(), "layer_norm_cuda_kernel", ([&] {
+    using namespace at;
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(TypeShim(input->type()), "layer_norm_cuda_kernel", ([&] {
         using accscalar_t = at::acc_type<scalar_t, true>;
         HostApplyLayerNorm(
             output->data<scalar_t>(),
@@ -772,7 +775,8 @@ void cuda_layer_norm_gradient(
     at::Tensor* grad_gamma,
     at::Tensor* grad_beta)
 {
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input->type(), "cuComputeGradInput", ([&] {
+    using namespace at;
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(TypeShim(input->type()), "cuComputeGradInput", ([&] {
         using accscalar_t = at::acc_type<scalar_t, true>;
         HostLayerNormGradient(
 	    dout->data<scalar_t>(),

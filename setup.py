@@ -55,8 +55,8 @@ if "--cuda_ext" in sys.argv:
                                                       '--use_fast_math']}))
         ext_modules.append(
             CUDAExtension(name='fused_adam_cuda',
-                          sources=['apex/optimizers/csrc/fused_adam_cuda.cpp',
-                                   'apex/optimizers/csrc/fused_adam_cuda_kernel.cu'],
+                          sources=['csrc/fused_adam_cuda.cpp',
+                                   'csrc/fused_adam_cuda_kernel.cu'],
                           extra_compile_args={'cxx': ['-O3',],
                                               'nvcc':['-O3', 
                                                       '--use_fast_math']}))
@@ -66,8 +66,8 @@ if "--cuda_ext" in sys.argv:
                                    'csrc/welford.cu']))
         ext_modules.append(
             CUDAExtension(name='fused_layer_norm_cuda',
-                          sources=['apex/normalization/csrc/layer_norm_cuda.cpp',
-                                   'apex/normalization/csrc/layer_norm_cuda_kernel.cu'],
+                          sources=['csrc/layer_norm_cuda.cpp',
+                                   'csrc/layer_norm_cuda_kernel.cu'],
                           extra_compile_args={'cxx': ['-O3'] + version_ge_1_1,
                                               'nvcc':['-maxrregcount=50',
                                                       '-O3', 

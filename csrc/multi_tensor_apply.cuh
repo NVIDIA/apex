@@ -14,7 +14,7 @@
 constexpr int depth_to_max_tensors[5] = {110, 64, 48, 36, 30};
 constexpr int depth_to_max_blocks[5] = {320, 320, 320, 320, 320};
 
-template<int n> struct TensorList
+template<int n> struct TensorListMetadata
 {
   void* addresses[n][depth_to_max_tensors[n-1]];
   int sizes[depth_to_max_tensors[n-1]];
@@ -62,7 +62,7 @@ void multi_tensor_apply(
 
   int ntensors = tensor_lists[0].size();
 
-  TensorList<depth> tl;
+  TensorListMetadata<depth> tl;
 
   auto stream = at::cuda::getCurrentCUDAStream();
   

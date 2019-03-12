@@ -10,6 +10,8 @@
 #include "ATen/AccumulateType.h"
 #include <THC/THCGeneral.h>
 
+#include "type_shim.h"
+
 typedef enum{
     ADAM_MODE_0   =0, // eps under square root
     ADAM_MODE_1   =1  // eps outside square root
@@ -29,8 +31,8 @@ __global__ void adam_cuda_kernel(
         const float step_size,
         const size_t tsize,
         adamMode_t mode,
-        const float decay) {
-
+        const float decay)
+{
         //Assuming 2D grids and 2D blocks
         const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
         const int threadsPerBlock = blockDim.x * blockDim.y;
@@ -67,7 +69,9 @@ void fused_adam_cuda(
         int step,
         int mode,
         int bias_correction,
-        float decay) {
+        float decay)
+{
+//        using namespace at;
 
         //Get tensor size
         int tsize = p.numel();
@@ -91,7 +95,8 @@ void fused_adam_cuda(
 //all other values should be fp32 for half gradients
             AT_ASSERTM(p.type().scalarType() == at::ScalarType::Float, "expected parameter to be of float type");
 //dispatch is done on the gradient type
-            AT_DISPATCH_FLOATING_TYPES_AND_HALF(g.type(), "adam_cuda_kernel", ([&] {
+            using namespace at; // prevents "toString is undefined" errors
+            AT_DISPATCH_FLOATING_TYPES_AND_HALF(TypeShim(g.type()), "adam_cuda_kernel", ([&] {
                 using accscalar_t = at::acc_type<scalar_t, true>;
                 adam_cuda_kernel<accscalar_t, scalar_t><<<blocks,threadsPerBlock, 0, stream>>>(
                         p.data<accscalar_t>(),
@@ -109,7 +114,8 @@ void fused_adam_cuda(
                         decay);
             }));
       } else {
-            AT_DISPATCH_FLOATING_TYPES(g.type(), "adam_cuda_kernel", ([&] {
+            using namespace at;
+            AT_DISPATCH_FLOATING_TYPES(TypeShim(g.type()), "adam_cuda_kernel", ([&] {
                 adam_cuda_kernel<scalar_t, scalar_t><<<blocks,threadsPerBlock, 0, stream>>>(
                         p.data<scalar_t>(),
                         NULL, //don't output p_copy for fp32, it's wasted write
