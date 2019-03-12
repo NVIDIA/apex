@@ -10,9 +10,7 @@ users as quickly as possible.
 
 # Contents
 
-## 1. Mixed Precision
-
-### Amp:  Automatic Mixed Precision
+## 1. Amp:  Automatic Mixed Precision
 
 `apex.amp` is a tool to enable mixed precision training by changing only 3 lines of your script.
 Users can easily experiment with different pure and mixed precision training modes by supplying
@@ -95,6 +93,5 @@ A Python-only build omits:
 `DistributedDataParallel`, `amp`, and `SyncBatchNorm` will still be usable, but they may be slower.
 
 ### Windows support
-Windows support is experimental, and Linux is recommended.  `python setup.py install --cpp_ext --cuda_ext` may work if you were able to build Pytorch from source
-on your system.  `python setup.py install` (without CUDA/C++ extensions) is more likely to work.  If you installed Pytorch in a Conda environment,
-make sure to install Apex in that same environment.
+Windows support is experimental, and Linux is recommended.  `pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .` may work if you were able to build Pytorch from source
+on your system.  `pip install -v --no-cache-dir .` (without CUDA/C++ extensions) is more likely to work.  If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
