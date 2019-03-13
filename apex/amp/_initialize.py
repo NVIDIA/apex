@@ -1,7 +1,7 @@
 import torch
-from torch._six import container_abcs, string_classes
+from torch._six import string_classes
 import functools
-from ._amp_state import _amp_state, warn_or_err
+from ._amp_state import _amp_state, warn_or_err, container_abcs
 from .handle import disable_casts
 from .scaler import LossScaler
 from apex.fp16_utils import convert_network
