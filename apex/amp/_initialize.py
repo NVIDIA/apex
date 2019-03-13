@@ -16,10 +16,10 @@ def to_type(dtype, t):
         if not t.is_cuda:
             # This should not be a hard error, since it may be legitimate.
             print("Warning:  An input tensor was not cuda. ")
-        if t.requires_grad:
-            # This should be a hard-ish error.
-            warn_or_err("input data requires grad.  Since input data is not a model parameter,\n"
-                "its gradients will not be properly allreduced by DDP.")
+        # GANs require this.
+        # if t.requires_grad:
+        #     warn_or_err("input data requires grad.  Since input data is not a model parameter,\n"
+        #         "its gradients will not be properly allreduced by DDP.")
         if t.is_floating_point():
             return t.to(dtype)
         return t
@@ -155,17 +155,21 @@ def _initialize(models, optimizers, properties):
             for model in models:
                 model.to(properties.cast_model_type)
 
-        caster = functools.partial(to_type, properties.cast_model_type)
+        input_caster = functools.partial(to_type, properties.cast_model_type)
+        output_caster = functools.partial(to_type, torch.float32)
 
-        # Patch the forward method to cast incoming data to the correct type.
-        # I like writing things explicitly more than decorators.
-        def patch_forward(old_fwd):
-            def new_fwd(*args, **kwargs):
-                return old_fwd(*applier(args, caster),
-                               **applier(kwargs, caster))
-            return new_fwd
+        for model in models:
+            # Patch the forward method to cast incoming data to the correct type, and
+            # outgoing data to float32, so "the user never needs to call .half()."
+            # I like writing things explicitly more than decorators.
+            def patch_forward(old_fwd):
+                def new_fwd(*args, **kwargs):
+                    output = old_fwd(*applier(args, input_caster),
+                                     **applier(kwargs, input_caster))
+                    return applier(output, output_caster)
+                return new_fwd
 
-        model.forward = patch_forward(model.forward)
+            model.forward = patch_forward(model.forward)
 
         # State dict trick to recast any preexisting per-param state tensors 
         for optimizer in optimizers:

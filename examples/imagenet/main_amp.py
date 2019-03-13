@@ -68,7 +68,6 @@ parser.add_argument("--local_rank", default=0, type=int)
 parser.add_argument('--sync_bn', action='store_true',
                     help='enabling apex sync BN.')
 
-parser.add_argument('--has-ext', action='store_true')
 parser.add_argument('--opt-level', type=str)
 parser.add_argument('--keep-batchnorm-fp32', type=str, default=None)
 parser.add_argument('--loss-scale', type=str, default=None)
