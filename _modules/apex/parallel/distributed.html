@@ -247,6 +247,7 @@
 <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">chain</span>
 <span class="kn">import</span> <span class="nn">copy</span>
 <span class="kn">import</span> <span class="nn">importlib</span>
+<span class="kn">from</span> <span class="nn">..multi_tensor_apply</span> <span class="k">import</span> <span class="n">multi_tensor_applier</span>
 
 <span class="n">imported_flatten_impl</span> <span class="o">=</span> <span class="kc">False</span>
 
@@ -467,6 +468,12 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">param_type_to_tmp_i</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;torch.cuda.HalfTensor&quot;</span> <span class="p">:</span> <span class="mi">0</span><span class="p">,</span> 
                                     <span class="s2">&quot;torch.cuda.FloatTensor&quot;</span> <span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
                                     <span class="s2">&quot;torch.cuda.DoubleTensor&quot;</span> <span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+
+        <span class="k">if</span> <span class="n">multi_tensor_applier</span><span class="o">.</span><span class="n">available</span><span class="p">:</span>
+            <span class="c1"># TODO:  I really need to centralize the C++ backed imports</span>
+            <span class="kn">import</span> <span class="nn">amp_C</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">multi_tensor_scale</span> <span class="o">=</span> <span class="n">amp_C</span><span class="o">.</span><span class="n">multi_tensor_scale</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_overflow_buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">IntTensor</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span>
                  
         <span class="bp">self</span><span class="o">.</span><span class="n">create_hooks</span><span class="p">()</span>
 
@@ -637,8 +644,15 @@
                                    <span class="s2">&quot;allreduce buffer.  This is almost certainly an error.&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">allreduce_buffers</span><span class="p">[</span><span class="n">bucket_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">allreduced</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">buf</span><span class="p">,</span> <span class="n">synced</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="n">unflatten</span><span class="p">(</span><span class="n">allreduced</span><span class="p">,</span> <span class="n">bucket</span><span class="p">)):</span>
-                <span class="n">buf</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">synced</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">multi_tensor_applier</span><span class="o">.</span><span class="n">available</span><span class="p">:</span>
+                <span class="n">multi_tensor_applier</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">multi_tensor_scale</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_overflow_buf</span><span class="p">,</span>
+                    <span class="p">[</span><span class="n">unflatten</span><span class="p">(</span><span class="n">allreduced</span><span class="p">,</span> <span class="n">bucket</span><span class="p">),</span> <span class="n">bucket</span><span class="p">],</span>
+                    <span class="mf">1.0</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">buf</span><span class="p">,</span> <span class="n">synced</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="n">unflatten</span><span class="p">(</span><span class="n">allreduced</span><span class="p">,</span> <span class="n">bucket</span><span class="p">)):</span>
+                    <span class="n">buf</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">synced</span><span class="p">)</span>
 
 
     <span class="k">def</span> <span class="nf">allreduce_fallback</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

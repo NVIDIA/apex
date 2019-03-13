@@ -13,6 +13,10 @@ on the Github page.
 GANs are a tricky case that many people have requested.  A `comprehensive DCGAN example`_
 is under construction.
 
+If you already implemented Amp based on the instructions below, but it isn't behaving as expected,
+please review `Advanced Amp Usage`_ to see if any topics match your use case.  If that doesn't help,
+file an issue.
+
 ``opt_level``\ s and Properties
 -------------------------------
 
@@ -54,6 +58,9 @@ In this way, there's no risk adhering to the Amp API, and a lot of potential per
 
 .. _`comprehensive DCGAN example`:
     https://github.com/NVIDIA/apex/tree/master/examples/dcgan
+
+.. _`Advanced Amp Usage`:
+    https://nvidia.github.io/apex/advanced.html
 
 Properties
 **********
