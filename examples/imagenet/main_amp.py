@@ -117,7 +117,7 @@ def main():
     args.world_size = 1
 
     if args.distributed:
-        args.gpu = args.local_rank % torch.cuda.device_count()
+        args.gpu = args.local_rank
         torch.cuda.set_device(args.gpu)
         torch.distributed.init_process_group(backend='nccl',
                                              init_method='env://')
@@ -334,7 +334,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         if args.prof: torch.cuda.nvtx.range_pop()
 
         if i%args.print_freq == 0:
-            # Every print_freq iterations, check the loss accuracy and speed.
+            # Every print_freq iterations, check the loss, accuracy, and speed.
             # For best performance, it doesn't make sense to print these metrics every
             # iteration, since they incur an allreduce and some host<->device syncs.
 
