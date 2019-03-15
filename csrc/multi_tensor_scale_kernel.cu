@@ -98,7 +98,7 @@ void multi_tensor_scale_cuda(
   // If build times suffer, think about where to put this dispatch,
   // and what logic should be moved out of multi_tensor_apply.
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(TypeShim(tensor_lists[0][0].type()),
+  AT_DISPATCH_FLOATING_TYPES_AND_HALF(tensor_lists[0][0].type(),
      "multi_tensor_scale_cuda",
      [&]
      {
