@@ -24,13 +24,9 @@ struct ScaleFunctor
     TensorListMetadata<2>& tl,
     float scale)
   {
-    __shared__ int noop_smem;
-
-    if(threadIdx.x == 0)
-      noop_smem = *noop_gmem;
-    __syncthreads();
-    if(noop_smem == 1)
-      return;
+    // I'd like this kernel to propagate infs/nans.
+    // if(*noop_gmem == 1)
+    //   return;
 
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
@@ -44,7 +40,7 @@ struct ScaleFunctor
 
     n -= chunk_idx*chunk_size;
 
-    // Non-divergent exit condition for the __syncthreads
+    // Non-divergent exit condition for __syncthreads, not necessary here
     float incoming_vals[ILP];
     for(int i_start = 0;
         i_start < n && i_start < chunk_size;
@@ -72,17 +68,11 @@ struct ScaleFunctor
           if(isfinite(incoming_vals[ii]))
             out[i] = static_cast<out_t>(incoming_vals[ii]*scale);
           else
+          {
+            out[i] = static_cast<out_t>(incoming_vals[ii]*scale);
             *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
+          }
       }
-
-      // *noop_gmem = 1 is NOT guaranteed to be seen immediately by thread 0.  I wonder if
-      // we can rig block-wide and grid-wide short-circuiting with only one syncthreads.
-      // It's possible we can just lean on the cache (no smem or syncs) and still be fast.
-      if(threadIdx.x == 0)
-        noop_smem = *noop_gmem;
-      __syncthreads();
-      if(noop_smem == 1)
-        break;
     }
   }
 };
