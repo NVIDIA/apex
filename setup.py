@@ -48,10 +48,12 @@ if "--cuda_ext" in sys.argv:
         ext_modules.append(
             CUDAExtension(name='amp_C',
                           sources=['csrc/amp_C_frontend.cpp',
-                                   'csrc/multi_tensor_scale_kernel.cu'],
+                                   'csrc/multi_tensor_scale_kernel.cu',
+                                   'csrc/multi_tensor_axpby_kernel.cu'],
                           extra_compile_args={'cxx': ['-O3'],
                                               'nvcc':['-lineinfo',
                                                       '-O3',
+                                                      # '--resource-usage',
                                                       '--use_fast_math']}))
         ext_modules.append(
             CUDAExtension(name='fused_adam_cuda',

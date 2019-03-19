@@ -12,3 +12,22 @@ struct TypeShim
   // Enable dispatch switch statements to take *this directly for  post-3aeb78
   operator at::ScalarType(){ return payload.scalarType(); };
 };
+
+#define DISPATCH_FLOAT_AND_HALF(TYPE, LEVEL, NAME, ...) \
+  switch(TYPE) \
+  { \
+    case at::ScalarType::Float: \
+    { \
+      using scalar_t_##LEVEL = float; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::Half: \
+    { \
+      using scalar_t_##LEVEL = at::Half; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    default: \
+      AT_ERROR(#NAME, " not implemented for '", toString(TYPE), "'");  \
+  }
