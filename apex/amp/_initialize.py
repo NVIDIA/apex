@@ -129,6 +129,8 @@ def _initialize(models, optimizers, properties):
     if isinstance(optimizers, torch.optim.Optimizer):
         optimizers_was_list = False
         optimizers = [optimizers]
+    elif optimizers is None:
+        optimizers = []
     elif isinstance(optimizers, list):
         optimizers_was_list = True
     else:
@@ -145,7 +147,7 @@ def _initialize(models, optimizers, properties):
     check_models(models)
 
     check_params_fp32(models)
-
+    
     check_optimizers(optimizers)
 
     # In the future, when FP16_Optimizer can be deprecated and master weights can
@@ -217,6 +219,12 @@ def _initialize(models, optimizers, properties):
             return models[0], optimizers
     else:
         if models_was_list:
-            return models, optimizers[0]
+            if len(optimizers) == 0:
+                return models
+            else:
+                return models, optimizers[0]
         else:
-            return models[0], optimizers[0]
+            if len(optimizers) == 0:
+                return models[0]
+            else:
+                return models[0], optimizers[0]
