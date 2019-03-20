@@ -180,7 +180,7 @@ Advanced use cases
 
 The unified Amp API supports gradient accumulation across iterations,
 multiple backward passes per iteration, multiple models/optimizers,
-and custom/user-defined autograd functions.  Gradient clipping and GANs also
+custom/user-defined autograd functions, and custom data batch classes.  Gradient clipping and GANs also
 require special treatment, but this treatment does not need to change
 for different ``opt_level``\ s.  Further details can be found here:
 
