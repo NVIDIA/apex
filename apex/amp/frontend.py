@@ -192,7 +192,7 @@ opt_levels = {"O3": O3(),
 # allow user to directly pass Properties struct as well?
 def initialize(
     models,
-    optimizers,
+    optimizers=None,
     enabled=True,
     opt_level=None,
     cast_model_type=None,
@@ -217,7 +217,8 @@ def initialize(
 
     Args:
         models (torch.nn.Module or list of torch.nn.Modules):  Models to modify/cast.
-        optimizers (torch.optim.Optimizer or list of torch.optim.Optimizers):  Optimizers to modify/cast.
+        optimizers (optional, torch.optim.Optimizer or list of torch.optim.Optimizers):  Optimizers to modify/cast.
+            REQUIRED for training, optional for inference.
         enabled (bool, optional, default=True):  If False, renders all Amp calls no-ops, so your script
             should run as if Amp were not present.
         opt_level (str, required):  Pure or mixed precision optimization level.  Accepted values are
