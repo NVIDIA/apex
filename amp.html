@@ -148,6 +148,7 @@
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#multiple-models-optimizers">Multiple models/optimizers</a></li>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#multiple-backward-passes-per-iteration">Multiple backward passes per iteration</a></li>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#gradient-accumulation-across-iterations">Gradient accumulation across iterations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="advanced.html#custom-data-batch-types">Custom data batch types</a></li>
 </ul>
 </li>
 </ul>
@@ -386,7 +387,7 @@ to establish “speed of light” you can try <code class="docutils literal"><sp
 <span id="unified-api"></span><h2>Unified API<a class="headerlink" href="#module-apex.amp" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="apex.amp.initialize">
-<code class="descclassname">apex.amp.</code><code class="descname">initialize</code><span class="sig-paren">(</span><em>models</em>, <em>optimizers</em>, <em>enabled=True</em>, <em>opt_level=None</em>, <em>cast_model_type=None</em>, <em>patch_torch_functions=None</em>, <em>keep_batchnorm_fp32=None</em>, <em>master_weights=None</em>, <em>loss_scale=None</em>, <em>verbosity=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/amp/frontend.html#initialize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.amp.initialize" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">apex.amp.</code><code class="descname">initialize</code><span class="sig-paren">(</span><em>models</em>, <em>optimizers</em>, <em>enabled=True</em>, <em>opt_level=None</em>, <em>cast_model_type=None</em>, <em>patch_torch_functions=None</em>, <em>keep_batchnorm_fp32=None</em>, <em>master_weights=None</em>, <em>loss_scale=None</em>, <em>verbosity=1</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.initialize" title="Permalink to this definition">¶</a></dt>
 <dd><p>Initialize your models, optimizers, and the Torch tensor and functional namespace according to the
 chosen <code class="docutils literal"><span class="pre">opt_level</span></code> and overridden properties, if any.</p>
 <p><code class="docutils literal"><span class="pre">amp.initialize</span></code> must be called <strong>after</strong> you have finished constructing your model(s) and
@@ -453,7 +454,7 @@ also be a list.</p>
 
 <dl class="function">
 <dt id="apex.amp.scale_loss">
-<code class="descclassname">apex.amp.</code><code class="descname">scale_loss</code><span class="sig-paren">(</span><em>loss</em>, <em>optimizer</em>, <em>model=None</em>, <em>delay_unscale=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/amp/handle.html#scale_loss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.amp.scale_loss" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">apex.amp.</code><code class="descname">scale_loss</code><span class="sig-paren">(</span><em>loss</em>, <em>optimizer</em>, <em>model=None</em>, <em>delay_unscale=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.scale_loss" title="Permalink to this definition">¶</a></dt>
 <dd><p>On context manager entrance, creates <code class="docutils literal"><span class="pre">scaled_loss</span> <span class="pre">=</span> <span class="pre">(loss.float())*current</span> <span class="pre">loss</span> <span class="pre">scale</span></code>.
 <code class="docutils literal"><span class="pre">scaled_loss</span></code> is yielded so that the user can call <code class="docutils literal"><span class="pre">scaled_loss.backward()</span></code>:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
@@ -501,7 +502,7 @@ situations where this is necessary.</li>
 
 <dl class="function">
 <dt id="apex.amp.master_params">
-<code class="descclassname">apex.amp.</code><code class="descname">master_params</code><span class="sig-paren">(</span><em>optimizer</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/amp/_amp_state.html#master_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.amp.master_params" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">apex.amp.</code><code class="descname">master_params</code><span class="sig-paren">(</span><em>optimizer</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.master_params" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generator expression that iterates over the params owned by <code class="docutils literal"><span class="pre">optimizer</span></code>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -518,7 +519,7 @@ situations where this is necessary.</li>
 <h2>Advanced use cases<a class="headerlink" href="#advanced-use-cases" title="Permalink to this headline">¶</a></h2>
 <p>The unified Amp API supports gradient accumulation across iterations,
 multiple backward passes per iteration, multiple models/optimizers,
-and custom/user-defined autograd functions.  Gradient clipping and GANs also
+custom/user-defined autograd functions, and custom data batch classes.  Gradient clipping and GANs also
 require special treatment, but this treatment does not need to change
 for different <code class="docutils literal"><span class="pre">opt_level</span></code>s.  Further details can be found here:</p>
 <div class="toctree-wrapper compound">

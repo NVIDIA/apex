@@ -149,6 +149,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#multiple-models-optimizers">Multiple models/optimizers</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#multiple-backward-passes-per-iteration">Multiple backward passes per iteration</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradient-accumulation-across-iterations">Gradient accumulation across iterations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#custom-data-batch-types">Custom data batch types</a></li>
 </ul>
 </li>
 </ul>
@@ -334,6 +335,44 @@ the last:</p>
     <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">delay_unscale</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
         <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 </pre></div>
+</div>
+</div>
+<div class="section" id="custom-data-batch-types">
+<h2>Custom data batch types<a class="headerlink" href="#custom-data-batch-types" title="Permalink to this headline">¶</a></h2>
+<p>The intention of Amp is that you never need to cast your input data manually, regardless of
+<code class="docutils literal"><span class="pre">opt_level</span></code>.  Amp accomplishes this by patching any models’ <code class="docutils literal"><span class="pre">forward</span></code> methods to cast
+incoming data appropriately for the <code class="docutils literal"><span class="pre">opt_level</span></code>.  But to cast incoming data,
+Amp needs to know how.  The patched <code class="docutils literal"><span class="pre">forward</span></code> will recognize and cast floating-point Tensors
+(non-floating-point Tensors like IntTensors are not touched) and
+Python containers of floating-point Tensors.  However, if you wrap your Tensors in a custom class,
+the casting logic doesn’t know how to drill
+through the tough custom shell to access and cast the juicy Tensor meat within.  You need to tell
+Amp how to cast your custom batch class, by assigning it a <code class="docutils literal"><span class="pre">to</span></code> method that accepts a <code class="docutils literal"><span class="pre">torch.dtype</span></code>
+(e.g., <code class="docutils literal"><span class="pre">torch.float16</span></code> or <code class="docutils literal"><span class="pre">torch.float32</span></code>) and returns an instance of the custom batch cast to
+<code class="docutils literal"><span class="pre">dtype</span></code>.  The patched <code class="docutils literal"><span class="pre">forward</span></code> checks for the presence of your <code class="docutils literal"><span class="pre">to</span></code> method, and will
+invoke it with the correct type for the <code class="docutils literal"><span class="pre">opt_level</span></code>.</p>
+<p>Example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CustomData</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">FloatTensor</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tensor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">Amp also forwards numpy ndarrays without casting them.  If you send input data as a raw, unwrapped
+ndarray, then later use it to create a Tensor within your <code class="docutils literal"><span class="pre">model.forward</span></code>, this Tensor’s type will
+not depend on the <code class="docutils literal"><span class="pre">opt_level</span></code>, and may or may not be correct.  Users are encouraged to pass
+castable data inputs (Tensors, collections of Tensors, or custom classes with a <code class="docutils literal"><span class="pre">to</span></code> method)
+wherever possible.</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Amp does not call <code class="docutils literal"><span class="pre">.cuda()</span></code> on any Tensors for you.  Amp assumes that your original script
+is already set up to move Tensors from the host to the device as needed.</p>
 </div>
 </div>
 </div>
