@@ -12,7 +12,6 @@ FP16_FUNCS = [
     'conv_transpose2d',
     'conv_transpose3d',
     'conv_tbc',
-    'prelu',
 
     # BLAS
     'addmm',
@@ -71,6 +70,7 @@ CASTS = [
     'addcmul',
     'atan2',
     'cross',
+    'prelu',
 
     # Element-wise _or_ tensor-wise math
     'add',
