@@ -126,8 +126,8 @@ def _initialize(models, optimizers, properties):
     from apex.parallel import DistributedDataParallel as apex_DDP
     from .amp import init as amp_init
 
+    optimizers_was_list = False
     if isinstance(optimizers, torch.optim.Optimizer):
-        optimizers_was_list = False
         optimizers = [optimizers]
     elif optimizers is None:
         optimizers = []
