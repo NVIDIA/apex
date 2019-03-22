@@ -15,8 +15,6 @@
 #define BLOCK_SIZE 512
 #define ILP 4
 
-fdsafdsa
-
 template<typename in_t, typename out_t>
 struct ScaleFunctor
 {
