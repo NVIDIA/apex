@@ -33,7 +33,8 @@ do
   print_banner "$image"
   set -x
   docker pull $image
-  docker run --runtime=nvidia --rm $image /bin/bash -c 'yes | pip uninstall apex; yes | pip uninstall apex; git clone https://github.com/NVIDIA/apex.git; cd apex; git checkout check_cuda_version; set -e; pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .'
+  # Trying python setup.py install instead of pip install to provide more direct access to error codes
+  docker run --runtime=nvidia --rm $image /bin/bash -c 'yes | pip uninstall apex; yes | pip uninstall apex; git clone https://github.com/NVIDIA/apex.git; cd apex; git checkout check_cuda_version; set -e;  python setup.py install --cuda_ext --cpp_ext'
   set +x
   exit_code=$?
   if [ $exit_code != 0 ]
