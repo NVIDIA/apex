@@ -2,6 +2,7 @@
 #include <ATen/ATen.h>
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
+#include <torch/extension.h>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
