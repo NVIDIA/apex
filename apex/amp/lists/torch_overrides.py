@@ -12,6 +12,7 @@ FP16_FUNCS = [
     'conv_transpose2d',
     'conv_transpose3d',
     'conv_tbc',
+    'prelu',
 
     # BLAS
     'addmm',
