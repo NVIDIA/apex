@@ -33,10 +33,11 @@ do
   print_banner "$image"
   set -x
   docker pull $image
-  # Trying python setup.py install instead of pip install to provide more direct access to error codes
+  # Trying python setup.py install instead of pip install to ensure direct access to error codes.
+  # Maybe pip install would be ok too but this works.
   docker run --runtime=nvidia --rm $image /bin/bash -c 'yes | pip uninstall apex; yes | pip uninstall apex; git clone https://github.com/NVIDIA/apex.git; cd apex; git checkout check_cuda_version; set -e;  python setup.py install --cuda_ext --cpp_ext'
-  set +x
   exit_code=$?
+  set +x
   if [ $exit_code != 0 ]
   then
     print_red "Exit code: $exit_code"
