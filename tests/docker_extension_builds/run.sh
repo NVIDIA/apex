@@ -21,6 +21,8 @@ images=(
 "pytorch/pytorch:nightly-devel-cuda9.2-cudnn7"
 )
 
+branch="master"
+
 # Associative array for exit codes
 declare -A exit_codes
 for image in images
@@ -35,7 +37,7 @@ do
   docker pull $image
   # Trying python setup.py install instead of pip install to ensure direct access to error codes.
   # Maybe pip install would be ok too but this works.
-  docker run --runtime=nvidia --rm $image /bin/bash -c 'yes | pip uninstall apex; yes | pip uninstall apex; git clone https://github.com/NVIDIA/apex.git; cd apex; git checkout check_cuda_version; set -e;  python setup.py install --cuda_ext --cpp_ext'
+  docker run --runtime=nvidia --rm $image /bin/bash -c "yes | pip uninstall apex; yes | pip uninstall apex; git clone https://github.com/NVIDIA/apex.git; cd apex; git checkout $branch; set -e;  python setup.py install --cuda_ext --cpp_ext"
   exit_code=$?
   set +x
   if [ $exit_code != 0 ]
