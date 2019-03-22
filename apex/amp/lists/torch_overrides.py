@@ -70,6 +70,7 @@ CASTS = [
     'addcmul',
     'atan2',
     'cross',
+    'prelu',
 
     # Element-wise _or_ tensor-wise math
     'add',
