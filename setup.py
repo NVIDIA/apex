@@ -22,7 +22,7 @@ ext_modules = []
 if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
     if TORCH_MAJOR == 0:
         raise RuntimeError("--cpp_ext requires Pytorch 1.0 or later, "
-                           "found torch.__version__ = {}".format(torch.__version))
+                           "found torch.__version__ = {}".format(torch.__version__))
     from torch.utils.cpp_extension import BuildExtension
     cmdclass['build_ext'] = BuildExtension
 
