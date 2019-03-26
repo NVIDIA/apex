@@ -37,7 +37,7 @@ def scale_loss(loss,
         unscaled.  The direct ``.grad`` attributes of any FP16
         model params will remain scaled after context manager exit.
         This subtlety affects gradient clipping.  See "Gradient clipping" under
-        `Advanced use cases`_ for best practices.
+        `Advanced Amp Usage`_ for best practices.
 
     Args:
         loss(Tensor):  Typically a scalar Tensor. The ``scaled_loss`` that the context
@@ -48,16 +48,17 @@ def scale_loss(loss,
         model(torch.nn.Module, optional, default=None):  Currently unused, reserved to enable future
             optimizations.
         delay_unscale(bool, default=False):  Don't unscale the gradients or perform model->master
-            gradient copies on context manager exit.  "Advanced use cases" illustrates
+            gradient copies on context manager exit.  `Advanced Amp Usage`_ illustrates
             situations where this is necessary.
 
-    .. warning::If ``True``, ``optimizer.step()`` cannot be
-            called yet after context manager exit, and must wait for another, later backward context
-            manager invocation with ``delay_unscale`` left to False.
-            See `Advanced use cases`_ for examples.
+    .. warning::
+        If ``delay_unscale`` is ``True`` for a given backward pass, ``optimizer.step()`` cannot be
+        called yet after context manager exit, and must wait for another, later backward context
+        manager invocation with ``delay_unscale`` left to False.
+        See `Advanced Amp Usage`_ for examples.
 
-    .. _`Advanced use cases`:
-        https://nvidia.github.io/apex/amp.html#advanced-use-cases
+    .. _`Advanced Amp Usage`:
+        https://nvidia.github.io/apex/advanced.html
     """
     if not _amp_state.opt_properties.enabled:
         yield loss
