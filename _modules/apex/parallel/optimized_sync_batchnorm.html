@@ -1,0 +1,406 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>apex.parallel.optimized_sync_batchnorm &mdash; Apex 0.1.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  
+    <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Apex 0.1.0 documentation" href="../../../index.html"/>
+        <link rel="up" title="apex.parallel" href="../parallel.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+           
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Apex
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #76b900;
+    }
+
+    .wy-side-nav-search a:link, .wy-nav-top a:link {
+      color: #fff;
+    }
+    .wy-side-nav-search a:visited, .wy-nav-top a:visited {
+      color: #fff;
+    }
+    .wy-side-nav-search a:hover, .wy-nav-top a:hover {
+      color: #fff;
+    }
+
+    .wy-menu-vertical a:link, .wy-menu-vertical a:visited {
+      color: #d9d9d9
+    }
+
+    .wy-menu-vertical a:active {
+      background-color: #76b900
+    }
+
+    .wy-side-nav-search>div.version {
+      color: rgba(0, 0, 0, 0.3)
+    }
+  </style>
+  
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../amp.html">apex.amp</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#opt-levels-and-properties"><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#properties">Properties</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o1-conservative-mixed-precision"><code class="docutils literal"><span class="pre">O1</span></code>:  Conservative Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o2-fast-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  Fast Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#module-apex.amp">Unified API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#advanced-use-cases">Advanced use cases</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../advanced.html">Advanced Amp Usage</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gans">GANs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gradient-clipping">Gradient clipping</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#custom-user-defined-autograd-functions">Custom/user-defined autograd functions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#forcing-particular-layers-functions-to-a-desired-type">Forcing particular layers/functions to a desired type</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#multiple-models-optimizers">Multiple models/optimizers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#multiple-backward-passes-per-iteration">Multiple backward passes per iteration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gradient-accumulation-across-iterations">Gradient accumulation across iterations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#custom-data-batch-types">Custom data batch types</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#transition-guide-for-old-api-users">Transition guide for old API users</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#for-users-of-the-old-amp-api">For users of the old “Amp” API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#for-users-of-the-old-fp16-optimizer">For users of the old FP16_Optimizer</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Distributed Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../parallel.html#utility-functions">Utility functions</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Fused Optimizers</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../optimizers.html">apex.optimizers</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Fused Layer Norm</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../layernorm.html">apex.normalization.fused_layer_norm</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Apex</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../parallel.html">apex.parallel</a> &raquo;</li>
+        
+      <li>apex.parallel.optimized_sync_batchnorm</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for apex.parallel.optimized_sync_batchnorm</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch.nn.modules.batchnorm</span> <span class="k">import</span> <span class="n">_BatchNorm</span>
+<span class="kn">from</span> <span class="nn">torch.nn</span> <span class="k">import</span> <span class="n">functional</span> <span class="k">as</span> <span class="n">F</span>
+
+<span class="kn">import</span> <span class="nn">syncbn</span>
+<span class="kn">from</span> <span class="nn">.optimized_sync_batchnorm_kernel</span> <span class="k">import</span> <span class="n">SyncBatchnormFunction</span>
+
+
+<div class="viewcode-block" id="SyncBatchNorm"><a class="viewcode-back" href="../../../parallel.html#apex.parallel.SyncBatchNorm">[docs]</a><span class="k">class</span> <span class="nc">SyncBatchNorm</span><span class="p">(</span><span class="n">_BatchNorm</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    synchronized batch normalization module extented from `torch.nn.BatchNormNd`</span>
+<span class="sd">    with the added stats reduction across multiple processes.</span>
+<span class="sd">    :class:`apex.parallel.SyncBatchNorm` is designed to work with</span>
+<span class="sd">    `DistributedDataParallel`.</span>
+
+<span class="sd">    When running in training mode, the layer reduces stats across all processes</span>
+<span class="sd">    to increase the effective batchsize for normalization layer. This is useful</span>
+<span class="sd">    in applications where batch size is small on a given process that would</span>
+<span class="sd">    diminish converged accuracy of the model. The model uses collective</span>
+<span class="sd">    communication package from `torch.distributed`.</span>
+
+<span class="sd">    When running in evaluation mode, the layer falls back to</span>
+<span class="sd">    `torch.nn.functional.batch_norm`</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        num_features: :math:`C` from an expected input of size</span>
+<span class="sd">            :math:`(N, C, L)` or :math:`L` from input of size :math:`(N, L)`</span>
+<span class="sd">        eps: a value added to the denominator for numerical stability.</span>
+<span class="sd">            Default: 1e-5</span>
+<span class="sd">        momentum: the value used for the running_mean and running_var</span>
+<span class="sd">            computation. Can be set to ``None`` for cumulative moving average</span>
+<span class="sd">            (i.e. simple average). Default: 0.1</span>
+<span class="sd">        affine: a boolean value that when set to ``True``, this module has</span>
+<span class="sd">            learnable affine parameters. Default: ``True``</span>
+<span class="sd">        track_running_stats: a boolean value that when set to ``True``, this</span>
+<span class="sd">            module tracks the running mean and variance, and when set to ``False``,</span>
+<span class="sd">            this module does not track such statistics and always uses batch</span>
+<span class="sd">            statistics in both training and eval modes. Default: ``True``</span>
+<span class="sd">        process_group: pass in a process group within which the stats of the</span>
+<span class="sd">            mini-batch is being synchronized. ``None`` for using default process</span>
+<span class="sd">            group</span>
+<span class="sd">        channel_last: a boolean value that when set to ``True``, this module</span>
+<span class="sd">            take the last dimension of the input tensor to be the channel</span>
+<span class="sd">            dimension. Default: False</span>
+
+<span class="sd">    Examples::</span>
+<span class="sd">        &gt;&gt;&gt; # channel first tensor</span>
+<span class="sd">        &gt;&gt;&gt; sbn = apex.parallel.SyncBatchNorm(100).cuda()</span>
+<span class="sd">        &gt;&gt;&gt; inp = torch.randn(10, 100, 14, 14).cuda()</span>
+<span class="sd">        &gt;&gt;&gt; out = sbn(inp)</span>
+<span class="sd">        &gt;&gt;&gt; inp = torch.randn(3, 100, 20).cuda()</span>
+<span class="sd">        &gt;&gt;&gt; out = sbn(inp)</span>
+<span class="sd">        &gt;&gt;&gt; # channel last tensor</span>
+<span class="sd">        &gt;&gt;&gt; sbn = apex.parallel.SyncBatchNorm(100, channel_last=True).cuda()</span>
+<span class="sd">        &gt;&gt;&gt; inp = torch.randn(10, 14, 14, 100).cuda()</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_features</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">,</span> <span class="n">momentum</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">affine</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">track_running_stats</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">process_group</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">channel_last</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SyncBatchNorm</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">num_features</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="n">eps</span><span class="p">,</span> <span class="n">momentum</span><span class="o">=</span><span class="n">momentum</span><span class="p">,</span> <span class="n">affine</span><span class="o">=</span><span class="n">affine</span><span class="p">,</span> <span class="n">track_running_stats</span><span class="o">=</span><span class="n">track_running_stats</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process_group</span> <span class="o">=</span> <span class="n">process_group</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">channel_last</span> <span class="o">=</span> <span class="n">channel_last</span>
+
+    <span class="k">def</span> <span class="nf">_specify_process_group</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">process_group</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process_group</span> <span class="o">=</span> <span class="n">process_group</span>
+
+    <span class="k">def</span> <span class="nf">_specify_channel_last</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel_last</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">channel_last</span> <span class="o">=</span> <span class="n">channel_last</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">track_running_stats</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">channel_last</span><span class="p">:</span>
+            <span class="c1"># fall back to pytorch implementation for inference</span>
+            <span class="k">return</span> <span class="n">F</span><span class="o">.</span><span class="n">batch_norm</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">running_mean</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">running_var</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">exponential_average_factor</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">track_running_stats</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">num_batches_tracked</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">momentum</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">exponential_average_factor</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_batches_tracked</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">exponential_average_factor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">momentum</span>
+            <span class="k">return</span> <span class="n">SyncBatchnormFunction</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">running_mean</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">running_var</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">eps</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">track_running_stats</span><span class="p">,</span> <span class="n">exponential_average_factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_group</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">channel_last</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.1.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+    
+
+  <style>
+  a:link, a:visited {
+    color: #76b900;
+  }
+
+  a:hover {
+    color: #8c0;
+  }
+
+  .rst-content dl:not(.docutils) dt {
+    background: rgba(118, 185, 0, 0.1);
+    color: rgba(59,93,0,1);
+    border-top: solid 3px rgba(59,93,0,1);
+  }
+  </style>
+  
+
+</body>
+</html>

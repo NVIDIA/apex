@@ -1,0 +1,556 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>apex.amp.handle &mdash; Apex 0.1.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  
+    <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Apex 0.1.0 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+           
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Apex
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #76b900;
+    }
+
+    .wy-side-nav-search a:link, .wy-nav-top a:link {
+      color: #fff;
+    }
+    .wy-side-nav-search a:visited, .wy-nav-top a:visited {
+      color: #fff;
+    }
+    .wy-side-nav-search a:hover, .wy-nav-top a:hover {
+      color: #fff;
+    }
+
+    .wy-menu-vertical a:link, .wy-menu-vertical a:visited {
+      color: #d9d9d9
+    }
+
+    .wy-menu-vertical a:active {
+      background-color: #76b900
+    }
+
+    .wy-side-nav-search>div.version {
+      color: rgba(0, 0, 0, 0.3)
+    }
+  </style>
+  
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../amp.html">apex.amp</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#opt-levels-and-properties"><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#properties">Properties</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o1-conservative-mixed-precision"><code class="docutils literal"><span class="pre">O1</span></code>:  Conservative Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o2-fast-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  Fast Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#module-apex.amp">Unified API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#advanced-use-cases">Advanced use cases</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../advanced.html">Advanced Amp Usage</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gans">GANs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gradient-clipping">Gradient clipping</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#custom-user-defined-autograd-functions">Custom/user-defined autograd functions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#forcing-particular-layers-functions-to-a-desired-type">Forcing particular layers/functions to a desired type</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#multiple-models-optimizers">Multiple models/optimizers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#multiple-backward-passes-per-iteration">Multiple backward passes per iteration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gradient-accumulation-across-iterations">Gradient accumulation across iterations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#custom-data-batch-types">Custom data batch types</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#transition-guide-for-old-api-users">Transition guide for old API users</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#for-users-of-the-old-amp-api">For users of the old “Amp” API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#for-users-of-the-old-fp16-optimizer">For users of the old FP16_Optimizer</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Distributed Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../parallel.html#utility-functions">Utility functions</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Fused Optimizers</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../optimizers.html">apex.optimizers</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Fused Layer Norm</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../layernorm.html">apex.normalization.fused_layer_norm</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Apex</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>apex.amp.handle</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for apex.amp.handle</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">contextlib</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">utils</span>
+<span class="kn">from</span> <span class="nn">.opt</span> <span class="k">import</span> <span class="n">OptimWrapper</span>
+<span class="kn">from</span> <span class="nn">.scaler</span> <span class="k">import</span> <span class="n">LossScaler</span>
+<span class="kn">from</span> <span class="nn">._amp_state</span> <span class="k">import</span> <span class="n">_amp_state</span><span class="p">,</span> <span class="n">master_params</span><span class="p">,</span> <span class="n">maybe_print</span>
+<span class="kn">from</span> <span class="nn">..fp16_utils</span> <span class="k">import</span> <span class="n">FP16_Optimizer</span> <span class="k">as</span> <span class="n">FP16_Optimizer_general</span>
+<span class="kn">from</span> <span class="nn">..optimizers</span> <span class="k">import</span> <span class="n">FP16_Optimizer</span> <span class="k">as</span> <span class="n">FP16_Optimizer_for_fused</span>
+
+
+<span class="c1"># There&#39;s no reason to expose the notion of a &quot;handle&quot;. Everything can happen through amp.* calls.</span>
+<div class="viewcode-block" id="scale_loss"><a class="viewcode-back" href="../../../amp.html#apex.amp.scale_loss">[docs]</a><span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+<span class="k">def</span> <span class="nf">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span>
+               <span class="n">optimizer</span><span class="p">,</span>
+               <span class="n">model</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+               <span class="n">delay_unscale</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    On context manager entrance, creates ``scaled_loss = (loss.float())*current loss scale``.</span>
+<span class="sd">    ``scaled_loss`` is yielded so that the user can call ``scaled_loss.backward()``::</span>
+
+<span class="sd">        with amp.scale_loss(loss, optimizer) as scaled_loss:</span>
+<span class="sd">            scaled_loss.backward()</span>
+
+<span class="sd">    On context manager exit (if ``delay_unscale=False``), the gradients are checked for infs/NaNs</span>
+<span class="sd">    and unscaled, so that ``optimizer.step()`` can be called.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        If Amp is using explicit FP32 master params (which is the default for ``opt_level=O2``, and</span>
+<span class="sd">        can also be manually enabled by supplying ``master_weights=True`` to ``amp.initialize``)</span>
+<span class="sd">        any FP16 gradients are copied to FP32 master gradients before being unscaled.</span>
+<span class="sd">        ``optimizer.step()`` will then apply the unscaled master gradients to the master params.</span>
+
+<span class="sd">    .. warning::</span>
+<span class="sd">        If Amp is using explicit FP32 master params, only the FP32 master gradients will be</span>
+<span class="sd">        unscaled.  The direct ``.grad`` attributes of any FP16</span>
+<span class="sd">        model params will remain scaled after context manager exit.</span>
+<span class="sd">        This subtlety affects gradient clipping.  See &quot;Gradient clipping&quot; under</span>
+<span class="sd">        &quot;Advanced use cases&quot; for best practices.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        loss(Tensor):  Typically a scalar Tensor. The ``scaled_loss`` that the context</span>
+<span class="sd">            manager yields is simply ``loss.float()*loss_scale``, so in principle</span>
+<span class="sd">            ``loss`` could have more than one element, as long as you call</span>
+<span class="sd">            ``backward()`` on ``scaled_loss`` appropriately within the context manager body.</span>
+<span class="sd">        optimizer:  Must be an optimizer returned from an earlier call to ``amp.initialize``.</span>
+<span class="sd">        model(torch.nn.Module, optional, default=None):  Currently unused, reserved to enable future</span>
+<span class="sd">            optimizations.</span>
+<span class="sd">        delay_unscale(bool, default=False):  Don&#39;t unscale the gradients or perform model-&gt;master</span>
+<span class="sd">            gradient copies on context manager exit.  &quot;Advanced use cases&quot; illustrates</span>
+<span class="sd">            situations where this is necessary.</span>
+
+<span class="sd">    .. warning::If ``True``, ``optimizer.step()`` cannot be</span>
+<span class="sd">            called yet after context manager exit, and must wait for another, later backward context</span>
+<span class="sd">            manager invocation with ``delay_unscale`` left to False.</span>
+<span class="sd">            See &quot;Advanced use cases&quot; for examples.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">enabled</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">loss</span>
+        <span class="k">return</span>
+
+    <span class="k">if</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">loss_scaler</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;optimizer passed to scale_loss does not have a loss_scaler.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># this is what happens when i have to support tools from different sources under the same API...</span>
+    <span class="c1"># TODO:  Rewrite FusedAdam to use multi-tensor apply and the same loss scaler.</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="n">FP16_Optimizer_for_fused</span><span class="p">):</span>
+        <span class="n">loss_scale</span> <span class="o">=</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">cur_scale</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">loss_scale</span> <span class="o">=</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">loss_scale</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="p">((</span><span class="ow">not</span> <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">master_weights</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">dynamic</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="n">loss_scale</span> <span class="o">==</span> <span class="mf">1.0</span><span class="p">):</span>
+        <span class="k">yield</span> <span class="n">loss</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
+        <span class="c1"># Needing to drop the cache here as well is an ugly gotcha.</span>
+        <span class="c1"># But for now I think it&#39;s necessary to short-circuit.</span>
+        <span class="c1"># Probably ok to skip this if not delay_unscale</span>
+        <span class="k">if</span> <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">patch_torch_functions</span><span class="p">:</span>
+            <span class="n">_amp_state</span><span class="o">.</span><span class="n">handle</span><span class="o">.</span><span class="n">_clear_cache</span><span class="p">()</span>
+        <span class="k">return</span>
+
+    <span class="k">yield</span> <span class="p">(</span><span class="n">loss</span><span class="o">.</span><span class="n">float</span><span class="p">())</span><span class="o">*</span><span class="n">loss_scale</span>
+
+    <span class="c1"># this isn&#39;t pretty but it unifies things.  Once I deprecate the old API entirely,</span>
+    <span class="c1"># I will have freedom to clean this up.  Maybe instead of wrapping optimizers,</span>
+    <span class="c1"># I can simply construct a set of attributes (e.g. master params) and assign them</span>
+    <span class="c1"># directly to optimizer instances.</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">delay_unscale</span><span class="p">:</span>
+        <span class="c1"># The FP16_Optimizer for FusedAdam will take care of unscaling as part of</span>
+        <span class="c1"># its step() method.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="n">FP16_Optimizer_for_fused</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="n">FP16_Optimizer_general</span><span class="p">):</span>
+                <span class="n">optimizer</span><span class="o">.</span><span class="n">update_master_grads</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">optimizer</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">clear_overflow_state</span><span class="p">()</span>
+                <span class="n">optimizer</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">unscale</span><span class="p">(</span>
+                    <span class="n">master_params</span><span class="p">(</span><span class="n">optimizer</span><span class="p">),</span>
+                    <span class="n">master_params</span><span class="p">(</span><span class="n">optimizer</span><span class="p">),</span>
+                    <span class="n">loss_scale</span><span class="p">)</span>
+                <span class="c1"># For future fused optimizers that enable sync-free dynamic loss scaling,</span>
+                <span class="c1"># should_skip will always be False.</span>
+                <span class="n">should_skip</span> <span class="o">=</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">update_scale</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">should_skip</span><span class="p">:</span>
+                    <span class="n">optimizer_step</span> <span class="o">=</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span>
+                    <span class="k">def</span> <span class="nf">skip_step</span><span class="p">():</span>
+                        <span class="n">maybe_print</span><span class="p">(</span><span class="s2">&quot;Gradient overflow.  Skipping step, reducing &quot;</span> <span class="o">+</span>
+                                    <span class="s2">&quot;loss scale to </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">optimizer</span><span class="o">.</span><span class="n">loss_scaler</span><span class="o">.</span><span class="n">loss_scale</span><span class="p">()))</span>
+                        <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="n">optimizer_step</span>
+                    <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="n">skip_step</span>
+    <span class="c1"># Probably ok to skip this if not delay_unscale</span>
+    <span class="k">if</span> <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">patch_torch_functions</span><span class="p">:</span>
+        <span class="n">_amp_state</span><span class="o">.</span><span class="n">handle</span><span class="o">.</span><span class="n">_clear_cache</span><span class="p">()</span></div>
+
+
+<span class="c1"># Free function version of AmpHandle.disable_casts, another step on the</span>
+<span class="c1"># path to removing the concept of &quot;AmpHandle&quot;</span>
+<span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+<span class="k">def</span> <span class="nf">disable_casts</span><span class="p">():</span>
+    <span class="n">_amp_state</span><span class="o">.</span><span class="n">handle</span><span class="o">.</span><span class="n">_is_active</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">yield</span>
+    <span class="n">_amp_state</span><span class="o">.</span><span class="n">handle</span><span class="o">.</span><span class="n">_is_active</span> <span class="o">=</span> <span class="kc">True</span>
+
+
+<span class="k">class</span> <span class="nc">AmpHandle</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss_scale</span><span class="o">=</span><span class="s2">&quot;dynamic&quot;</span><span class="p">,</span> <span class="n">enable_caching</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_enable_caching</span> <span class="o">=</span> <span class="n">enable_caching</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_verbose</span> <span class="o">=</span> <span class="n">verbose</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default_scaler</span> <span class="o">=</span> <span class="n">LossScaler</span><span class="p">(</span><span class="n">loss_scale</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_active</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_all_wrappers</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">is_active</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_active</span>
+
+    <span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+    <span class="k">def</span> <span class="nf">_disable_casts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_active</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">yield</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_active</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">wrap_optimizer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">num_loss</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default_scaler</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">OptimWrapper</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">num_loss</span><span class="p">)</span>
+
+    <span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+    <span class="k">def</span> <span class="nf">scale_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_active</span><span class="p">():</span>
+            <span class="k">yield</span> <span class="n">loss</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_scaler</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s1">&#39;After calling `handle.wrap_optimizer()`, you must explicitly &#39;</span> <span class="o">+</span>
+                <span class="s1">&#39;use `optimizer.scale_loss(loss)`.&#39;</span><span class="p">)</span>
+
+        <span class="c1"># TODO: this code block is duplicated here and `opt.py`. Unify.</span>
+        <span class="n">loss_scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_scaler</span><span class="o">.</span><span class="n">loss_scale</span><span class="p">()</span>
+        <span class="k">yield</span> <span class="n">loss</span> <span class="o">*</span> <span class="n">loss_scale</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default_scaler</span><span class="o">.</span><span class="n">clear_overflow_state</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default_scaler</span><span class="o">.</span><span class="n">unscale</span><span class="p">(</span>
+            <span class="n">master_params</span><span class="p">(</span><span class="n">optimizer</span><span class="p">),</span>
+            <span class="n">master_params</span><span class="p">(</span><span class="n">optimizer</span><span class="p">),</span>
+            <span class="n">loss_scale</span><span class="p">)</span>
+        <span class="n">should_skip</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_scaler</span><span class="o">.</span><span class="n">update_scale</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">should_skip</span><span class="p">:</span>
+            <span class="n">optimizer_step</span> <span class="o">=</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span>
+            <span class="k">def</span> <span class="nf">skip_step</span><span class="p">():</span>
+                <span class="n">maybe_print</span><span class="p">(</span><span class="s1">&#39;Gradient overflow, skipping update&#39;</span><span class="p">)</span>
+                <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="n">optimizer_step</span>
+            <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="n">skip_step</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_clear_cache</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_clear_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+    <span class="c1"># Experimental support for saving / restoring uncasted versions of functions</span>
+    <span class="k">def</span> <span class="nf">_save_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mod</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_all_wrappers</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">mod</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">func</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_deactivate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">mod</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">func</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_all_wrappers</span><span class="p">:</span>
+            <span class="n">utils</span><span class="o">.</span><span class="n">set_func</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_all_wrappers</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">has_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_caching</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">cache</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span>
+
+    <span class="k">def</span> <span class="nf">remove_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">param</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_cache</span> <span class="ow">and</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="n">param</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">verbose</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_verbose</span>
+
+<span class="k">class</span> <span class="nc">NoOpHandle</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">is_active</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+    <span class="k">def</span> <span class="nf">_disable_casts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">yield</span>
+
+    <span class="k">def</span> <span class="nf">wrap_optimizer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">num_loss</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">OptimWrapper</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">num_loss</span><span class="p">)</span>
+
+    <span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+    <span class="k">def</span> <span class="nf">scale_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">):</span>
+        <span class="k">yield</span> <span class="n">loss</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">has_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">verbose</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">_clear_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">_deactivate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.1.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+    
+
+  <style>
+  a:link, a:visited {
+    color: #76b900;
+  }
+
+  a:hover {
+    color: #8c0;
+  }
+
+  .rst-content dl:not(.docutils) dt {
+    background: rgba(118, 185, 0, 0.1);
+    color: rgba(59,93,0,1);
+    border-top: solid 3px rgba(59,93,0,1);
+  }
+  </style>
+  
+
+</body>
+</html>

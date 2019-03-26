@@ -242,7 +242,7 @@
 <span id="apex-optimizers"></span><h1>apex.optimizers<a class="headerlink" href="#module-apex.optimizers" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="apex.optimizers.FusedAdam">
-<em class="property">class </em><code class="descclassname">apex.optimizers.</code><code class="descname">FusedAdam</code><span class="sig-paren">(</span><em>params</em>, <em>lr=0.001</em>, <em>bias_correction=True</em>, <em>betas=(0.9</em>, <em>0.999)</em>, <em>eps=1e-08</em>, <em>eps_inside_sqrt=False</em>, <em>weight_decay=0.0</em>, <em>max_grad_norm=0.0</em>, <em>amsgrad=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.optimizers.FusedAdam" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">apex.optimizers.</code><code class="descname">FusedAdam</code><span class="sig-paren">(</span><em>params</em>, <em>lr=0.001</em>, <em>bias_correction=True</em>, <em>betas=(0.9</em>, <em>0.999)</em>, <em>eps=1e-08</em>, <em>eps_inside_sqrt=False</em>, <em>weight_decay=0.0</em>, <em>max_grad_norm=0.0</em>, <em>amsgrad=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_adam.html#FusedAdam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedAdam" title="Permalink to this definition">¶</a></dt>
 <dd><p>Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
 <code class="docutils literal"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span> <span class="pre">--cuda_ext</span> <span class="pre">--cpp_ext</span></code>.</p>
 <p>It has been proposed in <a class="reference external" href="https://arxiv.org/abs/1412.6980">Adam: A Method for Stochastic Optimization</a>.</p>
@@ -273,7 +273,7 @@ second moment estimate as in the original paper. (default: False)</li>
 </table>
 <dl class="method">
 <dt id="apex.optimizers.FusedAdam.step">
-<code class="descname">step</code><span class="sig-paren">(</span><em>closure=None</em>, <em>grads=None</em>, <em>output_params=None</em>, <em>scale=1.0</em>, <em>grad_norms=None</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.optimizers.FusedAdam.step" title="Permalink to this definition">¶</a></dt>
+<code class="descname">step</code><span class="sig-paren">(</span><em>closure=None</em>, <em>grads=None</em>, <em>output_params=None</em>, <em>scale=1.0</em>, <em>grad_norms=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_adam.html#FusedAdam.step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedAdam.step" title="Permalink to this definition">¶</a></dt>
 <dd><p>Performs a single optimization step.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
