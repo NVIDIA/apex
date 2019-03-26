@@ -37,7 +37,7 @@ def scale_loss(loss,
         unscaled.  The direct ``.grad`` attributes of any FP16
         model params will remain scaled after context manager exit.
         This subtlety affects gradient clipping.  See "Gradient clipping" under
-        "Advanced use cases" for best practices.
+        `Advanced use cases`_ for best practices.
 
     Args:
         loss(Tensor):  Typically a scalar Tensor. The ``scaled_loss`` that the context
@@ -54,7 +54,10 @@ def scale_loss(loss,
     .. warning::If ``True``, ``optimizer.step()`` cannot be
             called yet after context manager exit, and must wait for another, later backward context
             manager invocation with ``delay_unscale`` left to False.
-            See "Advanced use cases" for examples.
+            See `Advanced use cases`_ for examples.
+
+    .. _`Advanced use cases`:
+        https://nvidia.github.io/apex/amp.html#advanced-use-cases
     """
     if not _amp_state.opt_properties.enabled:
         yield loss
