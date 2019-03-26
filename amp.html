@@ -139,7 +139,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#module-apex.amp">Unified API</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#id1">Advanced use cases</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#advanced-use-cases">Advanced use cases</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="advanced.html">Advanced Amp Usage</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#gans">GANs</a></li>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#gradient-clipping">Gradient clipping</a></li>
@@ -477,7 +477,7 @@ any FP16 gradients are copied to FP32 master gradients before being unscaled.
 unscaled.  The direct <code class="docutils literal"><span class="pre">.grad</span></code> attributes of any FP16
 model params will remain scaled after context manager exit.
 This subtlety affects gradient clipping.  See “Gradient clipping” under
-<a class="reference external" href="https://nvidia.github.io/apex/amp.html#advanced-use-cases">Advanced use cases</a> for best practices.</p>
+<a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> for best practices.</p>
 </div>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -492,13 +492,20 @@ manager yields is simply <code class="docutils literal"><span class="pre">loss.f
 <li><strong>model</strong> (<em>torch.nn.Module</em><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Currently unused, reserved to enable future
 optimizations.</li>
 <li><strong>delay_unscale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>default=False</em>) – Don’t unscale the gradients or perform model-&gt;master
-gradient copies on context manager exit.  “Advanced use cases” illustrates
+gradient copies on context manager exit.  <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> illustrates
 situations where this is necessary.</li>
 </ul>
 </td>
 </tr>
 </tbody>
 </table>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">If <code class="docutils literal"><span class="pre">delay_unscale</span></code> is <code class="docutils literal"><span class="pre">True</span></code> for a given backward pass, <code class="docutils literal"><span class="pre">optimizer.step()</span></code> cannot be
+called yet after context manager exit, and must wait for another, later backward context
+manager invocation with <code class="docutils literal"><span class="pre">delay_unscale</span></code> left to False.
+See <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> for examples.</p>
+</div>
 </dd></dl>
 
 <dl class="function">
@@ -516,8 +523,8 @@ situations where this is necessary.</li>
 </dd></dl>
 
 </div>
-<div class="section" id="id1">
-<h2>Advanced use cases<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="advanced-use-cases">
+<h2>Advanced use cases<a class="headerlink" href="#advanced-use-cases" title="Permalink to this headline">¶</a></h2>
 <p>The unified Amp API supports gradient accumulation across iterations,
 multiple backward passes per iteration, multiple models/optimizers,
 custom/user-defined autograd functions, and custom data batch classes.  Gradient clipping and GANs also
