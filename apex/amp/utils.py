@@ -17,6 +17,13 @@ def is_fp_tensor(x):
 def is_nested(x):
     return isinstance(x, tuple) or isinstance(x, list)
 
+def as_iterable(x):
+    try:
+        iter(x)
+        return x
+    except TypeError:
+        return [x]
+
 def should_cache(x):
     if is_nested(x):
         # Fast-fail version of all(should_cache)
