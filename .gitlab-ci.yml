@@ -11,7 +11,7 @@ stages:
 
 before_script:
     - echo "${CI_BUILD_NAME}" | grep -Eq "(^|-)py2($|-)" && export PYVER=2.7 || export PYVER=3.6   && echo "${PYVER}"
-    - echo "${NV_DOCKER_ARGS}"
+    - export NV_DOCKER_ARGS="curl -s http://localhost:${DOCKER_PORT}/docker/cli?dev=${RUNNER_GPUS//,/+}"     && echo "${NV_DOCKER_ARGS}"
     - export RELEASE_BRANCH_IN_IMAGE=${CI_COMMIT_REF_SLUG%%}                                       && echo "${RELEASE_BRANCH_IN_IMAGE}"
     - export IMAGE_NAME_ROOT="${CI_REGISTRY_IMAGE}:${RELEASE_BRANCH_IN_IMAGE}-py${PYVER%.*}"       && echo "${IMAGE_NAME_ROOT}"
     - export MASTER_BASE_IMAGE_NAME="${CI_REGISTRY_IMAGE}:master-py${PYVER%.*}"                    && echo "${MASTER_BASE_IMAGE_NAME}"
@@ -168,25 +168,25 @@ tests_L0--TU102_R410_2GPU--torch-nightly:
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1--TU102_R410_2GPU--torch-nightly 1/2:
+tests_L1_cross_product--TU102_R410_2GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT
     <<: *TU102_R410_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1--TU102_R410_2GPU--torch-nightly 2/2:
+tests_L1_cross_product_distributed--TU102_R410_2GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *TU102_R410_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed--TU102_R410_2GPU--torch-nightly 1/2:
+tests_distributed_ddp--TU102_R410_2GPU--torch-nightly:
     <<: *DISTRIBUTED_DDP
     <<: *TU102_R410_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed--TU102_R410_2GPU--torch-nightly 2/2:
+tests_distributed_synced_batchnorm--TU102_R410_2GPU--torch-nightly:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *TU102_R410_2GPU
     variables:
@@ -200,25 +200,25 @@ tests_L0--TU104_R418_2GPU--torch-nightly:
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1--TU104_R418_2GPU--torch-nightly 1/2:
+tests_L1_cross_product--TU104_R418_2GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT
     <<: *TU104_R418_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1--TU104_R418_2GPU--torch-nightly 2/2:
+tests_L1_cross_product_distributed--TU104_R418_2GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *TU104_R418_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed--TU104_R418_2GPU--torch-nightly 1/2:
+tests_distributed_ddp--TU104_R418_2GPU--torch-nightly:
     <<: *DISTRIBUTED_DDP
     <<: *TU104_R418_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed--TU104_R418_2GPU--torch-nightly 2/2:
+tests_distributed_synced_batchnorm--TU104_R418_2GPU--torch-nightly:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *TU104_R418_2GPU
     variables:
@@ -232,25 +232,25 @@ tests_L0--V100_R410_8GPU--torch-nightly:
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1--V100_R410_8GPU--torch-nightly 1/2:
+tests_L1_cross_product--V100_R410_8GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT
     <<: *V100_R410_8GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1--V100_R410_8GPU--torch-nightly 2/2:
+tests_L1_cross_product_distributed--V100_R410_8GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *V100_R410_8GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed--V100_R410_8GPU--torch-nightly 1/2:
+tests_distributed_ddp--V100_R410_8GPU--torch-nightly:
     <<: *DISTRIBUTED_DDP
     <<: *V100_R410_8GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed--V100_R410_8GPU--torch-nightly 2/2:
+tests_distributed_synced_batchnorm--V100_R410_8GPU--torch-nightly:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *V100_R410_8GPU
     variables:
@@ -263,25 +263,25 @@ tests_L0--P100_R384_4GPU--torch-nightly:
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1--P100_R384_4GPU--torch-nightly 1/2:
+tests_L1_cross_product--P100_R384_4GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT
     <<: *P100_R384_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1--P100_R384_4GPU--torch-nightly 2/2:
+tests_L1_cross_product_distributed--P100_R384_4GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *P100_R384_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed--P100_R384_4GPU--torch-nightly 1/2:
+tests_distributed_ddp--P100_R384_4GPU--torch-nightly:
     <<: *DISTRIBUTED_DDP
     <<: *P100_R384_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed--P100_R384_4GPU--torch-nightly 2/2:
+tests_distributed_synced_batchnorm--P100_R384_4GPU--torch-nightly:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *P100_R384_4GPU
     variables:
@@ -294,25 +294,25 @@ tests_L0--P40_R384_2GPU--torch-nightly:
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1--P40_R384_2GPU--torch-nightly 1/2:
+tests_L1_cross_product--P40_R384_2GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT
     <<: *P40_R384_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1--P40_R384_2GPU--torch-nightly 2/2:
+tests_L1_cross_product_distributed--P40_R384_2GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *P40_R384_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed--P40_R384_2GPU--torch-nightly 1/2:
+tests_distributed_ddp--P40_R384_2GPU--torch-nightly:
     <<: *DISTRIBUTED_DDP
     <<: *P40_R384_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed--P40_R384_2GPU--torch-nightly 2/2:
+tests_distributed_synced_batchnorm--P40_R384_2GPU--torch-nightly:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *P40_R384_2GPU
     variables:
@@ -326,25 +326,25 @@ tests_L0--M40_R384_2GPU--torch-nightly:
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1--M40_R384_2GPU--torch-nightly 1/2:
+tests_L1_cross_product--M40_R384_2GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT
     <<: *M40_R384_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1--M40_R384_2GPU--torch-nightly 2/2:
+tests_L1_cross_product_distributed--M40_R384_2GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *M40_R384_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed--M40_R384_2GPU--torch-nightly 1/2:
+tests_distributed_ddp--M40_R384_2GPU--torch-nightly:
     <<: *DISTRIBUTED_DDP
     <<: *M40_R384_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed--M40_R384_2GPU--torch-nightly 2/2:
+tests_distributed_synced_batchnorm--M40_R384_2GPU--torch-nightly:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *M40_R384_2GPU
     variables:
@@ -360,25 +360,25 @@ tests_L0--TU102_R410_2GPU--torch-1-0:
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1--TU102_R410_2GPU--torch-1-0 1/2:
+tests_L1_cross_product--TU102_R410_2GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT
     <<: *TU102_R410_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1--TU102_R410_2GPU--torch-1-0 2/2:
+tests_L1_cross_product_distributed--TU102_R410_2GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *TU102_R410_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed--TU102_R410_2GPU--torch-1-0 1/2:
+tests_distributed_ddp--TU102_R410_2GPU--torch-1-0:
     <<: *DISTRIBUTED_DDP
     <<: *TU102_R410_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed--TU102_R410_2GPU--torch-1-0 2/2:
+tests_distributed_synced_batchnorm--TU102_R410_2GPU--torch-1-0:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *TU102_R410_2GPU
     variables:
@@ -392,25 +392,25 @@ tests_L0--TU104_R418_2GPU--torch-1-0:
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1--TU104_R418_2GPU--torch-1-0 1/2:
+tests_L1_cross_product--TU104_R418_2GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT
     <<: *TU104_R418_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1--TU104_R418_2GPU--torch-1-0 2/2:
+tests_L1_cross_product_distributed--TU104_R418_2GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *TU104_R418_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed--TU104_R418_2GPU--torch-1-0 1/2:
+tests_distributed_ddp--TU104_R418_2GPU--torch-1-0:
     <<: *DISTRIBUTED_DDP
     <<: *TU104_R418_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed--TU104_R418_2GPU--torch-1-0 2/2:
+tests_distributed_synced_batchnorm--TU104_R418_2GPU--torch-1-0:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *TU104_R418_2GPU
     variables:
@@ -424,25 +424,25 @@ tests_L0--V100_R410_8GPU--torch-1-0:
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1--V100_R410_8GPU--torch-1-0 1/2:
+tests_L1_cross_product--V100_R410_8GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT
     <<: *V100_R410_8GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1--V100_R410_8GPU--torch-1-0 2/2:
+tests_L1_cross_product_distributed--V100_R410_8GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *V100_R410_8GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed--V100_R410_8GPU--torch-1-0 1/2:
+tests_distributed_ddp--V100_R410_8GPU--torch-1-0:
     <<: *DISTRIBUTED_DDP
     <<: *V100_R410_8GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed--V100_R410_8GPU--torch-1-0 2/2:
+tests_distributed_synced_batchnorm--V100_R410_8GPU--torch-1-0:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *V100_R410_8GPU
     variables:
@@ -455,25 +455,25 @@ tests_L0--P100_R384_4GPU--torch-1-0:
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1--P100_R384_4GPU--torch-1-0 1/2:
+tests_L1_cross_product--P100_R384_4GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT
     <<: *P100_R384_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1--P100_R384_4GPU--torch-1-0 2/2:
+tests_L1_cross_product_distributed--P100_R384_4GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *P100_R384_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed--P100_R384_4GPU--torch-1-0 1/2:
+tests_distributed_ddp--P100_R384_4GPU--torch-1-0:
     <<: *DISTRIBUTED_DDP
     <<: *P100_R384_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed--P100_R384_4GPU--torch-1-0 2/2:
+tests_distributed_synced_batchnorm--P100_R384_4GPU--torch-1-0:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *P100_R384_4GPU
     variables:
@@ -486,25 +486,25 @@ tests_L0--P40_R384_2GPU--torch-1-0:
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1--P40_R384_2GPU--torch-1-0 1/2:
+tests_L1_cross_product--P40_R384_2GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT
     <<: *P40_R384_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1--P40_R384_2GPU--torch-1-0 2/2:
+tests_L1_cross_product_distributed--P40_R384_2GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *P40_R384_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed--P40_R384_2GPU--torch-1-0 1/2:
+tests_distributed_ddp--P40_R384_2GPU--torch-1-0:
     <<: *DISTRIBUTED_DDP
     <<: *P40_R384_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed--P40_R384_2GPU--torch-1-0 2/2:
+tests_distributed_synced_batchnorm--P40_R384_2GPU--torch-1-0:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *P40_R384_2GPU
     variables:
@@ -518,25 +518,25 @@ tests_L0--M40_R384_2GPU--torch-1-0:
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1--M40_R384_2GPU--torch-1-0 1/2:
+tests_L1_cross_product--M40_R384_2GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT
     <<: *M40_R384_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1--M40_R384_2GPU--torch-1-0 2/2:
+tests_L1_cross_product_distributed--M40_R384_2GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *M40_R384_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed--M40_R384_2GPU--torch-1-0 1/2:
+tests_distributed_ddp--M40_R384_2GPU--torch-1-0:
     <<: *DISTRIBUTED_DDP
     <<: *M40_R384_2GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed--M40_R384_2GPU--torch-1-0 2/2:
+tests_distributed_synced_batchnorm--M40_R384_2GPU--torch-1-0:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *M40_R384_2GPU
     variables:
