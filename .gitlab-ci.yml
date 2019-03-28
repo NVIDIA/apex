@@ -1,0 +1,56 @@
+variables:
+    EXTRA_DOCKER_RUN_ARGS: "--ipc=host --ulimit memlock=-1 --ulimit stack=$$((1024*65536))"
+
+    GIT_STRATEGY: none
+    GIT_SUBMODULE_STRATEGY: none
+
+stages:
+    - build
+
+before_script:
+    - echo "${CI_BUILD_NAME}" | grep -Eq "(^|-)py2($|-)" && export PYVER=2.7 || export PYVER=3.6   && echo "${PYVER}"
+    - export RELEASE_BRANCH_IN_IMAGE=${CI_COMMIT_REF_SLUG%%}                                       && echo "${RELEASE_BRANCH_IN_IMAGE}"
+    - export IMAGE_NAME_ROOT="${CI_REGISTRY_IMAGE}:${RELEASE_BRANCH_IN_IMAGE}-py${PYVER%.*}"       && echo "${IMAGE_NAME_ROOT}"
+    - export MASTER_BASE_IMAGE_NAME="${CI_REGISTRY_IMAGE}:master-py${PYVER%.*}"                    && echo "${MASTER_BASE_IMAGE_NAME}"
+    - export BASE_IMAGE_NAME="${IMAGE_NAME_ROOT}"                                                  && echo "${BASE_IMAGE_NAME}"
+    - export BASE_IMAGE_NAME_VERSIONED="${IMAGE_NAME_ROOT}.${CI_PIPELINE_ID}"                      && echo "${BASE_IMAGE_NAME_VERSIONED}"
+    - docker login -u gitlab-ci-token -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
+
+.base_template : &BASE
+    variables:
+      GIT_STRATEGY: fetch
+      GIT_SUBMODULE_STRATEGY: recursive
+      GET_SOURCES_ATTEMPTS: 3
+    script:
+    - echo -e "FROM pytorch/pytorch:${PYTORCH_UPSTREAM_CONTAINER_TAG}\n"
+              "WORKDIR /opt/apex\n"
+              "COPY . .\n"
+              "RUN pip install -v --no-cache-dir --global-option=\"--cpp_ext\" --global-option=\"--cuda_ext\" .\n"
+              "WORKDIR /workspace\n"
+        > Dockerfile.${CI_PROJECT_NAME}.${CI_COMMIT_REF_SLUG}
+    - docker pull "${BASE_IMAGE_NAME}" ||
+      docker pull "${MASTER_BASE_IMAGE_NAME}" || true
+    - docker build --pull
+                   --cache-from "${BASE_IMAGE_NAME}"
+                   --cache-from "${MASTER_BASE_IMAGE_NAME}"
+                   -t "${BASE_IMAGE_NAME}-${APEX_CONTAINER_TAG}"
+                   -t "${BASE_IMAGE_NAME_VERSIONED}-${APEX_CONTAINER_TAG}"
+                   -f Dockerfile.${CI_PROJECT_NAME}.${CI_COMMIT_REF_SLUG} .
+    - docker push "${BASE_IMAGE_NAME}"
+    - docker push "${BASE_IMAGE_NAME_VERSIONED}"
+    except:
+    - tags
+
+py3-pytorch-nightly:
+    stage: build
+    variables:
+      PYTORCH_UPSTREAM_CONTAINER_TAG: nightly-runtime-cuda10.0-cudnn7
+      APEX_CONTAINER_TAG: torch-nightly
+    <<: *BASE
+
+py3-pytorch-1-0:
+    stage: build
+    variables:
+      PYTORCH_UPSTREAM_CONTAINER_TAG: 1.0-cuda10.0-cudnn7-devel
+      APEX_CONTAINER_TAG: torch-1-0
+    <<: *BASE
