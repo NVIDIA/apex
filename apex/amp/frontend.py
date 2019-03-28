@@ -200,6 +200,7 @@ def initialize(
     keep_batchnorm_fp32=None,
     master_weights=None,
     loss_scale=None,
+    num_losses=1,
     verbosity=1,
     ):
     """
@@ -229,8 +230,14 @@ def initialize(
         keep_batchnorm_fp32 (bool or str, optional, default=None):  Optional property override.  If
             passed as a string, must be the string "True" or "False".
         master_weights (bool, optional, default=None):  Optional property override.
-        loss_scale (float or str, default=None):  Optional property override.  If passed as a string,
+        loss_scale (float or str, optional, default=None):  Optional property override.  If passed as a string,
             must be a string representing a number, e.g., "128.0", or the string "dynamic".
+        num_losses (int, optional, default=1):  Option to tell Amp in advance how many losses/backward
+            passes you plan to use.  When used in conjunction with the ``loss_id`` argument to
+            ``amp.scale_loss``, enables Amp to use a different loss scale per loss/backward pass,
+            which can improve stability.  If ``num_losses`` is left to 1, Amp will still
+            support multiple losses/backward passes, but use a single global loss scale
+            for all of them.
         verbosity (int, default=1):  Set to 0 to suppress Amp-related output.
 
     Returns:
@@ -308,7 +315,7 @@ def initialize(
     for k, v in _amp_state.opt_properties.options.items():
         maybe_print("{:22} : {}".format(k, v), True)
 
-    return _initialize(models, optimizers, _amp_state.opt_properties)
+    return _initialize(models, optimizers, _amp_state.opt_properties, num_losses)
 
 
 # TODO:  is this necessary/useful?

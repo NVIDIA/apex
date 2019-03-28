@@ -4,6 +4,7 @@ import functools as ft
 import itertools as it
 
 from apex import amp
+from apex.amp import _amp_state
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -60,24 +61,27 @@ class PromoteModule(torch.nn.Module):
 
 class TestCache(unittest.TestCase):
     def setUp(self):
-        self.handle = amp.init(enabled=True)
         self.x = torch.ones((2, 8), device='cuda', dtype=torch.float32)
         common_init(self)
 
     def tearDown(self):
-        self.handle._deactivate()
+        pass
 
     def train_eval_train_test(self, module, t):
         model = module(t).cuda()
-        dummy_optimizer = torch.optim.SGD(model.parameters(), lr=1.0)
+        optimizer = torch.optim.SGD(model.parameters(), lr=1.0)
+
+        _amp_state.allow_incoming_model_not_fp32 = True
+        model, optimizer = amp.initialize(model, optimizer, opt_level="O1", verbosity=0)
+        _amp_state.allow_incoming_model_not_fp32 = False
         
         def training_step():
             for param in model.parameters():
                 param.grad = None
         
             loss = model(self.x).sum()
-            self.handle._default_scaler._loss_scale = 4.0
-            with self.handle.scale_loss(loss, dummy_optimizer) as scaled_loss:
+            _amp_state.loss_scalers[0]._loss_scale = 4.0
+            with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
         
             self.assertEqual(len([p.grad for p in model.parameters() if p.grad is not None]), 1)
@@ -105,6 +109,8 @@ class TestCache(unittest.TestCase):
         
         # Simulates resuming training after eval
         training_step()
+
+        _amp_state.handle._deactivate()
    
     # I could easily have these as a set of for loops in a single test,
     # instead of going for granularity.

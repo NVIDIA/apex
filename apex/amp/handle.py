@@ -13,7 +13,8 @@ from ..optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
 # There's no reason to expose the notion of a "handle". Everything can happen through amp.* calls.
 @contextlib.contextmanager
 def scale_loss(loss,
-               optimizer,
+               optimizers,
+               loss_id=0,
                model=None,
                delay_unscale=False):
     """
@@ -44,12 +45,18 @@ def scale_loss(loss,
             manager yields is simply ``loss.float()*loss_scale``, so in principle
             ``loss`` could have more than one element, as long as you call
             ``backward()`` on ``scaled_loss`` appropriately within the context manager body.
-        optimizer:  Must be an optimizer returned from an earlier call to ``amp.initialize``.
+        optimizer:  Must be an optimizer or list of optimizers returned from an earlier call
+            to ``amp.initialize``.
+        loss_id(int, optional, default=0):  When used in conjunction with the ``num_losses`` argument
+            to ``amp.initialize``, enables Amp to use a different loss scale per loss.  ``loss_id``
+            must be an integer between 0 and ``num_losses`` that tells Amp which loss is
+            being used for the current backward pass.  See "Multiple backward
+            passes per iteration" under `Advanced Amp Usage`_ for examples.
         model(torch.nn.Module, optional, default=None):  Currently unused, reserved to enable future
             optimizations.
-        delay_unscale(bool, default=False):  Don't unscale the gradients or perform model->master
-            gradient copies on context manager exit.  `Advanced Amp Usage`_ illustrates
-            situations where this is necessary.
+        delay_unscale(bool, optional, default=False):  Don't unscale the gradients or
+            perform model->master gradient copies on context manager exit.
+            `Advanced Amp Usage`_ illustrates situations where this is necessary.
 
     .. warning::
         If ``delay_unscale`` is ``True`` for a given backward pass, ``optimizer.step()`` cannot be
@@ -64,18 +71,19 @@ def scale_loss(loss,
         yield loss
         return
 
-    if optimizer.loss_scaler is None:
-        raise RuntimeError("optimizer passed to scale_loss does not have a loss_scaler.")
+    if isinstance(optimizers, torch.optim.Optimizer):
+        optimizers = [optimizers]
 
     # this is what happens when i have to support tools from different sources under the same API...
     # TODO:  Rewrite FusedAdam to use multi-tensor apply and the same loss scaler.
-    if isinstance(optimizer, FP16_Optimizer_for_fused):
-        loss_scale = optimizer.cur_scale
+    if isinstance(optimizers, FP16_Optimizer_for_fused):
+        loss_scale = optimizers.cur_scale
     else:
-        loss_scale = optimizer.loss_scaler.loss_scale()
+        loss_scaler = _amp_state.loss_scalers[loss_id]
+        loss_scale = loss_scaler.loss_scale()
 
     if ((not _amp_state.opt_properties.master_weights)
-        and (not optimizer.loss_scaler.dynamic)
+        and (not loss_scaler.dynamic)
         and loss_scale == 1.0):
         yield loss.float()
         # Needing to drop the cache here as well is an ugly gotcha.
@@ -84,6 +92,10 @@ def scale_loss(loss,
         if _amp_state.opt_properties.patch_torch_functions:
             _amp_state.handle._clear_cache()
         return
+
+    if isinstance(optimizers, list):
+        for optimizer in optimizers:
+            optimizer._prepare_amp_backward()
 
     yield (loss.float())*loss_scale
 
@@ -94,25 +106,21 @@ def scale_loss(loss,
     if not delay_unscale:
         # The FP16_Optimizer for FusedAdam will take care of unscaling as part of
         # its step() method.
-        if not isinstance(optimizer, FP16_Optimizer_for_fused):
-            if isinstance(optimizer, FP16_Optimizer_general):
-                optimizer.update_master_grads()
-            else:
-                optimizer.loss_scaler.clear_overflow_state()
-                optimizer.loss_scaler.unscale(
-                    master_params(optimizer),
-                    master_params(optimizer),
-                    loss_scale)
-                # For future fused optimizers that enable sync-free dynamic loss scaling,
-                # should_skip will always be False.
-                should_skip = optimizer.loss_scaler.update_scale()
-                if should_skip:
-                    optimizer_step = optimizer.step
-                    def skip_step():
-                        maybe_print("Gradient overflow.  Skipping step, reducing " +
-                                    "loss scale to {}".format(optimizer.loss_scaler.loss_scale()))
-                        optimizer.step = optimizer_step
-                    optimizer.step = skip_step
+        if not isinstance(optimizers, FP16_Optimizer_for_fused):
+            loss_scaler.clear_overflow_state()
+            for optimizer in optimizers:
+                optimizer._post_amp_backward(loss_scaler)
+            # For future fused optimizers that enable sync-free dynamic loss scaling,
+            # should_skip will always be False.
+            should_skip = loss_scaler.update_scale()
+            if should_skip:
+                optimizer_step = optimizer.step
+                def skip_step():
+                    maybe_print("Gradient overflow.  Skipping step, reducing " +
+                                "loss scale to {}".format(loss_scaler.loss_scale()))
+                    optimizer.step = optimizer_step
+                optimizer.step = skip_step
+
     # Probably ok to skip this if not delay_unscale
     if _amp_state.opt_properties.patch_torch_functions:
         _amp_state.handle._clear_cache()
@@ -151,6 +159,10 @@ class AmpHandle(object):
 
     @contextlib.contextmanager
     def scale_loss(self, loss, optimizer):
+        raise RuntimeError("The old Amp API is no longer supported.  Please move to the new API, "
+            "documented here:  https://nvidia.github.io/apex/amp.html.  Transition guide:  "
+            "https://nvidia.github.io/apex/amp.html#transition-guide-for-old-api-users")
+
         if not self.is_active():
             yield loss
             return

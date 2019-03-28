@@ -6,6 +6,7 @@ import warnings
 from ._amp_state import _amp_state, warn_or_err, container_abcs
 from .handle import disable_casts
 from .scaler import LossScaler
+from ._process_optimizer import _process_optimizer
 from apex.fp16_utils import convert_network
 from ..fp16_utils import FP16_Optimizer as FP16_Optimizer_general
 from ..optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
@@ -122,7 +123,7 @@ def wrap_fused_adam(optimizer, properties):
         return FP16_Optimizer_for_fused(optimizer, static_loss_scale=properties.loss_scale)
 
 
-def _initialize(models, optimizers, properties):
+def _initialize(models, optimizers, properties, num_losses=1):
     from apex.parallel import DistributedDataParallel as apex_DDP
     from .amp import init as amp_init
 
@@ -146,7 +147,8 @@ def _initialize(models, optimizers, properties):
 
     check_models(models)
 
-    check_params_fp32(models)
+    if not _amp_state.allow_incoming_model_not_fp32:
+        check_params_fp32(models)
     
     check_optimizers(optimizers)
 
@@ -181,21 +183,16 @@ def _initialize(models, optimizers, properties):
         for optimizer in optimizers:
             optimizer.load_state_dict(optimizer.state_dict())
 
-    if properties.master_weights:
-        for i, optimizer in enumerate(optimizers):
-            if isinstance(optimizer, FusedAdam):
-                optimizers[i] = wrap_fused_adam(optimizer, properties)
-            if properties.loss_scale == "dynamic":
-                optimizers[i] = FP16_Optimizer_general(optimizer,
-                                                       dynamic_loss_scale=True,
-                                                       verbose=False)
-            else:
-                optimizers[i] = FP16_Optimizer_general(optimizer,
-                                                       static_loss_scale=properties.loss_scale,
-                                                       verbose=False)
-    else:
-        for optimizer in optimizers:
-            optimizer.loss_scaler = LossScaler(properties.loss_scale)
+    for i, optimizer in enumerate(optimizers):
+        # Still need to special case this for the first pass
+        if isinstance(optimizer, FusedAdam):
+            optimizers[i] = wrap_fused_adam(optimizer, properties)
+        else:
+            optimizers[i] = _process_optimizer(optimizer, properties)
+
+    _amp_state.loss_scalers = []
+    for _ in range(num_losses):
+        _amp_state.loss_scalers.append(LossScaler(properties.loss_scale))
 
     if properties.patch_torch_functions:
         # handle is unused here. It's accessible later through a global value anyway.
