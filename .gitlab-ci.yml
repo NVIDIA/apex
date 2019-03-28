@@ -131,40 +131,40 @@ py3-pytorch-1-0:
 .L0_test: &L0_TEST
     <<: *TEST_TEMPLATE
 
-.L0_test_variables: &L0_TEST_VARIABLES
-    variables:
+.L0_test_variables:
+    variables: &L0_TEST_VARIABLES
       TEST_WORK_DIR: /opt/apex/tests/L0/
       TEST_COMMAND: python run_test.py
 
 .L1_cross_product_test: &L1_CROSS_PRODUCT
     <<: *TEST_TEMPLATE
 
-.L1_cross_product_test_variables: &L1_CROSS_PRODUCT_TEST_VARIABLES
-    variables:
+.L1_cross_product_test_variables:
+    variables: &L1_CROSS_PRODUCT_TEST_VARIABLES
       TEST_WORK_DIR: /opt/apex/tests/L1/cross_product/
       TEST_COMMAND: ./run.sh
 
 .L1_cross_product_distributed_test: &L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *TEST_TEMPLATE
 
-.L1_cross_product_distributed_test_variables: &L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
-    variables:
+.L1_cross_product_distributed_test_variables:
+    variables: &L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
       TEST_WORK_DIR: /opt/apex/tests/L1/cross_product_distributed/
       TEST_COMMAND: ./run.sh
 
 .distributed_ddp_test: &DISTRIBUTED_DDP
     <<: *TEST_TEMPLATE
 
-.distributed_ddp_test_variables: &DISTRIBUTED_DDP_TEST_VARIABLES
-    variables:
+.distributed_ddp_test_variables:
+    variables: &DISTRIBUTED_DDP_TEST_VARIABLES
       TEST_WORK_DIR: /opt/apex/tests/distributed/DDP/
       TEST_COMMAND: ./run_race_test.sh
 
 .distributed_synced_batchnorm_test: &DISTRIBUTED_SYNCED_BATCHNORM
     <<: *TEST_TEMPLATE
 
-.distributed_synced_batchnorm_test_variables: &DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
-    variables:
+.distributed_synced_batchnorm_test_variables:
+    variables: &DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
       TEST_WORK_DIR: /opt/apex/tests/distributed/synced_batchnorm/
       TEST_COMMAND: ./unit_test.sh
 
