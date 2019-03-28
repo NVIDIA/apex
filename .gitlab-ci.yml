@@ -103,11 +103,11 @@ py3-pytorch-1-0:
     - R418
     - 2GPU
 
-.V100_R410_8GPU: &V100_R410_8GPU
+.V100_R410_4GPU: &V100_R410_4GPU
     tags:
     - V100
     - R410
-    - 8GPU
+    - 4GPU
 
 .P100_R384_4GPU: &P100_R384_4GPU
     tags:
@@ -226,33 +226,33 @@ tests_distributed_synced_batchnorm--TU104_R418_2GPU--torch-nightly:
       TEST_COMMAND: python single_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py --fp64
 
 #### Volta runs ####
-tests_L0--V100_R410_8GPU--torch-nightly:
+tests_L0--V100_R410_4GPU--torch-nightly:
     <<: *L0_TEST
-    <<: *V100_R410_8GPU
+    <<: *V100_R410_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1_cross_product--V100_R410_8GPU--torch-nightly:
+tests_L1_cross_product--V100_R410_4GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT
-    <<: *V100_R410_8GPU
+    <<: *V100_R410_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_L1_cross_product_distributed--V100_R410_8GPU--torch-nightly:
+tests_L1_cross_product_distributed--V100_R410_4GPU--torch-nightly:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
-    <<: *V100_R410_8GPU
+    <<: *V100_R410_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed_ddp--V100_R410_8GPU--torch-nightly:
+tests_distributed_ddp--V100_R410_4GPU--torch-nightly:
     <<: *DISTRIBUTED_DDP
-    <<: *V100_R410_8GPU
+    <<: *V100_R410_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
-tests_distributed_synced_batchnorm--V100_R410_8GPU--torch-nightly:
+tests_distributed_synced_batchnorm--V100_R410_4GPU--torch-nightly:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
-    <<: *V100_R410_8GPU
+    <<: *V100_R410_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-nightly
 
@@ -418,33 +418,33 @@ tests_distributed_synced_batchnorm--TU104_R418_2GPU--torch-1-0:
       TEST_COMMAND: python single_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py --fp64
 
 #### Volta runs ####
-tests_L0--V100_R410_8GPU--torch-1-0:
+tests_L0--V100_R410_4GPU--torch-1-0:
     <<: *L0_TEST
-    <<: *V100_R410_8GPU
+    <<: *V100_R410_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1_cross_product--V100_R410_8GPU--torch-1-0:
+tests_L1_cross_product--V100_R410_4GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT
-    <<: *V100_R410_8GPU
+    <<: *V100_R410_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_L1_cross_product_distributed--V100_R410_8GPU--torch-1-0:
+tests_L1_cross_product_distributed--V100_R410_4GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
-    <<: *V100_R410_8GPU
+    <<: *V100_R410_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed_ddp--V100_R410_8GPU--torch-1-0:
+tests_distributed_ddp--V100_R410_4GPU--torch-1-0:
     <<: *DISTRIBUTED_DDP
-    <<: *V100_R410_8GPU
+    <<: *V100_R410_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
-tests_distributed_synced_batchnorm--V100_R410_8GPU--torch-1-0:
+tests_distributed_synced_batchnorm--V100_R410_4GPU--torch-1-0:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
-    <<: *V100_R410_8GPU
+    <<: *V100_R410_4GPU
     variables:
       APEX_CONTAINER_TAG: torch-1-0
 
