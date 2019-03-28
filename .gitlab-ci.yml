@@ -1,8 +1,9 @@
 variables:
     EXTRA_DOCKER_RUN_ARGS: "--ipc=host --ulimit memlock=-1 --ulimit stack=$$((1024*65536))"
 
-    GIT_STRATEGY: none
-    GIT_SUBMODULE_STRATEGY: none
+    GIT_STRATEGY: fetch
+    GIT_SUBMODULE_STRATEGY: recursive
+    GET_SOURCES_ATTEMPTS: 3
 
 stages:
     - build
@@ -17,10 +18,7 @@ before_script:
     - docker login -u gitlab-ci-token -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
 
 .base_template : &BASE
-    variables:
-      GIT_STRATEGY: fetch
-      GIT_SUBMODULE_STRATEGY: recursive
-      GET_SOURCES_ATTEMPTS: 3
+    stage: build
     script:
     - echo -e "FROM pytorch/pytorch:${PYTORCH_UPSTREAM_CONTAINER_TAG}\n"
               "WORKDIR /opt/apex\n"
@@ -42,15 +40,13 @@ before_script:
     - tags
 
 py3-pytorch-nightly:
-    stage: build
+    <<: *BASE
     variables:
       PYTORCH_UPSTREAM_CONTAINER_TAG: nightly-runtime-cuda10.0-cudnn7
       APEX_CONTAINER_TAG: torch-nightly
-    <<: *BASE
 
 py3-pytorch-1-0:
-    stage: build
+    <<: *BASE
     variables:
       PYTORCH_UPSTREAM_CONTAINER_TAG: 1.0-cuda10.0-cudnn7-devel
       APEX_CONTAINER_TAG: torch-1-0
-    <<: *BASE
