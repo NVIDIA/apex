@@ -34,15 +34,15 @@ before_script:
                    -t "${BASE_IMAGE_NAME}-${APEX_CONTAINER_TAG}"
                    -t "${BASE_IMAGE_NAME_VERSIONED}-${APEX_CONTAINER_TAG}"
                    -f Dockerfile.${CI_PROJECT_NAME}.${CI_COMMIT_REF_SLUG} .
-    - docker push "${BASE_IMAGE_NAME}"
-    - docker push "${BASE_IMAGE_NAME_VERSIONED}"
+    - docker push "${BASE_IMAGE_NAME}-${APEX_CONTAINER_TAG}"
+    - docker push "${BASE_IMAGE_NAME_VERSIONED}-${APEX_CONTAINER_TAG}"
     except:
     - tags
 
 py3-pytorch-nightly:
     <<: *BASE
     variables:
-      PYTORCH_UPSTREAM_CONTAINER_TAG: nightly-runtime-cuda10.0-cudnn7
+      PYTORCH_UPSTREAM_CONTAINER_TAG: nightly-devel-cuda10.0-cudnn7
       APEX_CONTAINER_TAG: torch-nightly
 
 py3-pytorch-1-0:
