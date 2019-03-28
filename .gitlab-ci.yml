@@ -142,7 +142,7 @@ py3-pytorch-1-0:
 .L1_cross_product_test_variables:
     variables: &L1_CROSS_PRODUCT_TEST_VARIABLES
       TEST_WORK_DIR: /opt/apex/tests/L1/cross_product/
-      TEST_COMMAND: ./run.sh
+      TEST_COMMAND: bash -ex run.sh
 
 .L1_cross_product_distributed_test: &L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *TEST_TEMPLATE
@@ -150,7 +150,7 @@ py3-pytorch-1-0:
 .L1_cross_product_distributed_test_variables:
     variables: &L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
       TEST_WORK_DIR: /opt/apex/tests/L1/cross_product_distributed/
-      TEST_COMMAND: ./run.sh
+      TEST_COMMAND: bash -ex run.sh
 
 .distributed_ddp_test: &DISTRIBUTED_DDP
     <<: *TEST_TEMPLATE
@@ -158,7 +158,7 @@ py3-pytorch-1-0:
 .distributed_ddp_test_variables:
     variables: &DISTRIBUTED_DDP_TEST_VARIABLES
       TEST_WORK_DIR: /opt/apex/tests/distributed/DDP/
-      TEST_COMMAND: ./run_race_test.sh
+      TEST_COMMAND: bash -ex run_race_test.sh
 
 .distributed_synced_batchnorm_test: &DISTRIBUTED_SYNCED_BATCHNORM
     <<: *TEST_TEMPLATE
@@ -166,7 +166,7 @@ py3-pytorch-1-0:
 .distributed_synced_batchnorm_test_variables:
     variables: &DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
       TEST_WORK_DIR: /opt/apex/tests/distributed/synced_batchnorm/
-      TEST_COMMAND: ./unit_test.sh
+      TEST_COMMAND: bash -ex unit_test.sh
 
 ##########################
 # Test runs for nightlies
