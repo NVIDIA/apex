@@ -54,9 +54,11 @@ def scale_loss(loss,
             passes per iteration" under `Advanced Amp Usage`_ for examples.
         model(torch.nn.Module, optional, default=None):  Currently unused, reserved to enable future
             optimizations.
-        delay_unscale(bool, optional, default=False):  Don't unscale the gradients or
-            perform model->master gradient copies on context manager exit.
-            `Advanced Amp Usage`_ illustrates situations where this is necessary.
+        delay_unscale(bool, optional, default=False):  ``delay_unscale`` is a ninja option that only
+            serves as a minor performance optimization, so only use it if you know what you're doing.
+            If ``True``, Amp will not unscale the gradients or perform model->master
+            gradient copies on context manager exit.
+            `Advanced Amp Usage`_ illustrates situations where this CAN be used.
 
     .. warning::
         If ``delay_unscale`` is ``True`` for a given backward pass, ``optimizer.step()`` cannot be
@@ -116,8 +118,8 @@ def scale_loss(loss,
             if should_skip:
                 optimizer_step = optimizer.step
                 def skip_step():
-                    maybe_print("Gradient overflow.  Skipping step, reducing " +
-                                "loss scale to {}".format(loss_scaler.loss_scale()))
+                    maybe_print("Gradient overflow.  Skipping step, loss scaler {} reducing " +
+                                "loss scale to {}".format(loss_id, loss_scaler.loss_scale()))
                     optimizer.step = optimizer_step
                 optimizer.step = skip_step
 

@@ -53,12 +53,13 @@ class Properties(object):
                 # print("setting {} {}".format(name, value))
                 if name == "cast_model_type":
                     if self.opt_level == "O1" and value is not None:
-                        if value is not torch.float32:
-                            warn_or_err("O1 inserts casts around Torch functions rather than "
-                                        "model weights, so with O1, the model weights themselves "
-                                        "should remain FP32. If you wish to cast the model to a "
-                                        "different type, use opt_level='O2' or 'O3'. " +
-                                        "cast_model_type was {}".format(value))
+                        if value is not False:
+                            if value is not torch.float32:
+                                warn_or_err("O1 inserts casts around Torch functions rather than "
+                                            "model weights, so with O1, the model weights themselves "
+                                            "should remain FP32. If you wish to cast the model to a "
+                                            "different type, use opt_level='O2' or 'O3'. " +
+                                            "cast_model_type was {}".format(value))
                     self.options[name] = value
                 elif name == "patch_torch_functions":
                     if self.opt_level != "O1" and value:

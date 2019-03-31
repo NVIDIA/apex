@@ -71,11 +71,11 @@ class LossScaler(object):
     def loss_scale(self):
         return self._loss_scale
 
-    def unscale_grads_python(self, model_grads, master_grads, scale):
+    def unscale_python(self, model_grads, master_grads, scale):
         for model, master in zip(model_grads, master_grads):
             if model is not None:
                 if not LossScaler.warned_unscaling_non_fp32_grad:
-                    if master.dtype() != torch.float32:
+                    if master.dtype != torch.float32:
                         maybe_print(
                             "Attempting to unscale a grad with type {} ".format(master.type()) +
                             "Unscaling non-fp32 grads may indicate an error. "
@@ -128,7 +128,7 @@ class LossScaler(object):
                 continue
             else:
                 if not LossScaler.warned_unscaling_non_fp32_grad:
-                    if master.dtype() != torch.float32:
+                    if master.dtype != torch.float32:
                         maybe_print(
                             "Attempting to unscale a grad with type {} ".format(master.type()) +
                             "Unscaling non-fp32 grads may indicate an error. "

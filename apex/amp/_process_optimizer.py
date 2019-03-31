@@ -15,7 +15,7 @@ def lazy_init_with_master_weights(self):
         stash.fp16_groups = []
         stash.fp32_from_fp16_groups = []
         stash.fp32_from_fp32_groups = []
-        for i, param_group in enumerate(optimizer.param_groups):
+        for i, param_group in enumerate(self.param_groups):
             # maybe_print("FP16_Optimizer processing param group {}:".format(i))
             fp16_params_this_group = []
             fp32_params_this_group = []
@@ -32,8 +32,8 @@ def lazy_init_with_master_weights(self):
                         fp32_from_fp16_params_this_group.append(master_param)
                         # Reset existing state dict key to the new master param.
                         # We still need to recast per-param state tensors, if any, to FP32.
-                        if param in optimizer.state:
-                           optimizer.state[master_param] = optimizer.state.pop(param)
+                        if param in self.state:
+                           self.state[master_param] = self.state.pop(param)
                     elif param.type() == 'torch.cuda.FloatTensor':
                         # maybe_print("FP16_Optimizer received torch.cuda.FloatTensor with {}"
                         #             .format(param.size()))
@@ -70,7 +70,7 @@ def lazy_init_with_master_weights(self):
             param.grad = None
 
         # Leverage state_dict() and load_state_dict() to recast preexisting per-param state tensors
-        optimizer.load_state_dict(optimizer.state_dict())
+        self.load_state_dict(self.state_dict())
 
 
 def prepare_backward_with_master_weights(self):
@@ -103,17 +103,17 @@ def post_backward_with_master_weights(self, scaler):
     preexisting_fp32_grads = []
     for fp16_param, fp32_param in zip(stash.all_fp16_params,
                                       stash.all_fp32_from_fp16_params):
-        if fp16_param.grad is None and fp32_param.grad is None:
-            continue
         if fp16_param.grad is None and fp32_param.grad is not None:
             continue
-        if fp16_param.grad is not None and fp32_param.grad is None:
+        elif fp16_param.grad is not None and fp32_param.grad is None:
             fp32_param.grad = torch.empty_like(fp32_param) 
             fp16_grads_needing_unscale.append(fp16_param.grad)
             new_fp32_grads.append(fp32_param.grad)
-        if fp16_param.grad is not None and fp32_param.grad is not None:
-            fp16_grads_needing_unscale_with_stash.append(param.grad)
+        elif fp16_param.grad is not None and fp32_param.grad is not None:
+            fp16_grads_needing_unscale_with_stash.append(fp16_param.grad)
             preexisting_fp32_grads.append(fp32_param.grad)
+        else: # fp16_param.grad is None and fp32_param.grad is None:
+            continue
 
     if len(fp16_grads_needing_unscale) > 0:
         scaler.unscale(
@@ -126,8 +126,7 @@ def post_backward_with_master_weights(self, scaler):
         scaler.unscale_with_stashed(
             fp16_grads_needing_unscale_with_stash,
             preexisting_fp32_grads,
-            preexisting_fp32_grads,
-            scaler.loss_scale())
+            preexisting_fp32_grads)
 
     # fp32 params can be treated as they would be in the "no_master_weights" case.
     grads_needing_unscale = []
@@ -135,15 +134,15 @@ def post_backward_with_master_weights(self, scaler):
     stashed = []
     for param, stashed_grad in zip(stash.all_fp32_from_fp32_params,
                                    stash.all_fp32_from_fp32_grad_stash):
-        if param.grad is None and stashed_grad is None:
-            continue
         if param.grad is None and stashed_grad is not None:
             param.grad = stashed_grad
-        if param.grad is not None and stashed_grad is None:
+        elif param.grad is not None and stashed_grad is None:
             grads_needing_unscale.append(param.grad)
-        if param.grad is not None and stashed_grad is not None:
+        elif param.grad is not None and stashed_grad is not None:
             grads_needing_unscale_with_stash.append(param.grad)
             stashed.append(stashed_grad)
+        else: # param.grad is None and stashed_grad is None:
+            continue
 
     if len(grads_needing_unscale) > 0:
         scaler.unscale(
@@ -152,12 +151,11 @@ def post_backward_with_master_weights(self, scaler):
             scaler.loss_scale(),
             models_are_masters=True)
 
-    if len(grads_needing_unscale_with_stashed) > 0:
+    if len(grads_needing_unscale_with_stash) > 0:
         scaler.unscale_with_stashed(
             grads_needing_unscale_with_stash,
             stashed,
-            grads_needing_unscale_with_stash,
-            scaler.loss_scale())
+            grads_needing_unscale_with_stash)
 
     # Clear the stash.
     for i in range(len(stash.all_fp32_from_fp32_grad_stash)):
@@ -213,15 +211,15 @@ def post_backward_no_master_weights(self, scaler):
         grads_needing_unscale_with_stash = []
         stashed = []
         for param, stashed_grad in zip(params, stashed_grads):
-            if param.grad is None and stashed_grad is None:
-                continue
             if param.grad is None and stashed_grad is not None:
                 param.grad = stashed_grad
-            if param.grad is not None and stashed_grad is None:
+            elif param.grad is not None and stashed_grad is None:
                 grads_needing_unscale.append(param.grad)
-            if param.grad is not None and stashed_grad is not None:
+            elif param.grad is not None and stashed_grad is not None:
                 grads_needing_unscale_with_stash.append(param.grad)
                 stashed.append(stashed_grad)
+            else: # param.grad is None and stashed_grad is None
+                continue
 
         if len(grads_needing_unscale) > 0:
             scaler.unscale(
@@ -234,8 +232,7 @@ def post_backward_no_master_weights(self, scaler):
             scaler.unscale_with_stashed(
                 grads_needing_unscale_with_stash,
                 stashed,
-                grads_needing_unscale_with_stash,
-                scaler.loss_scale())
+                grads_needing_unscale_with_stash)
 
         # Clear the stash.
         for i in range(len(stashed_grads)):
@@ -297,6 +294,9 @@ def _process_optimizer(optimizer, properties):
         old_zero_grad = optimizer.zero_grad
         def new_zero_grad(self):
             stash = self._amp_stash
+            if not stash.lazy_init_called:
+                self._lazy_init_maybe_master_weights()
+                stash.lazy_init_called = True
             # Zero the model grads.
             for param in stash.all_fp16_params:
                 if param.grad is not None:
