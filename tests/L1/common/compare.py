@@ -56,9 +56,9 @@ else:
         assert loss_e == loss_b, "Iteration {}, loss_e = {}, loss_b = {}".format(i_e, loss_e, loss_b)
         print("{:4} {:15.10f} {:15.10f} {:15.10f} {:15.10f} {:15.10f} {:15.10f}".format(
               i_e,
+              loss_b,
               loss_e,
               loss_p,
-              loss_b,
+              dict_b["Speed"][n],
               dict_e["Speed"][n],
-              dict_p["Speed"][n],
-              dict_b["Speed"][n]))
+              dict_p["Speed"][n]))
