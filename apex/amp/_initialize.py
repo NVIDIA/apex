@@ -199,7 +199,7 @@ def _initialize(models, optimizers, properties):
 
     if properties.patch_torch_functions:
         # handle is unused here. It's accessible later through a global value anyway.
-        handle = amp_init(loss_scale=properties.loss_scale)
+        handle = amp_init(loss_scale=properties.loss_scale, verbose=(_amp_state.verbosity == 2))
         for optimizer in optimizers:
             # Disable Amp casting for the optimizer step, because it should only be
             # applied to FP32 master params anyway.
