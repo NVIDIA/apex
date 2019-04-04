@@ -130,8 +130,8 @@
 <li class="toctree-l3"><a class="reference internal" href="amp.html#properties">Properties</a></li>
 <li class="toctree-l3"><a class="reference internal" href="amp.html#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="amp.html#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o1-conservative-mixed-precision"><code class="docutils literal"><span class="pre">O1</span></code>:  Conservative Mixed Precision</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o2-fast-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  Fast Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o2-almost-fp16-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
 <li class="toctree-l4"><a class="reference internal" href="amp.html#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
 </ul>
 </li>
@@ -144,8 +144,7 @@
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#gradient-clipping">Gradient clipping</a></li>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#custom-user-defined-autograd-functions">Custom/user-defined autograd functions</a></li>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#forcing-particular-layers-functions-to-a-desired-type">Forcing particular layers/functions to a desired type</a></li>
-<li class="toctree-l4"><a class="reference internal" href="advanced.html#multiple-models-optimizers">Multiple models/optimizers</a></li>
-<li class="toctree-l4"><a class="reference internal" href="advanced.html#multiple-backward-passes-per-iteration">Multiple backward passes per iteration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="advanced.html#multiple-models-optimizers-losses">Multiple models/optimizers/losses</a></li>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#gradient-accumulation-across-iterations">Gradient accumulation across iterations</a></li>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#custom-data-batch-types">Custom data batch types</a></li>
 </ul>
@@ -241,7 +240,7 @@
 <span id="apex-normalization-fused-layer-norm"></span><h1>apex.normalization.fused_layer_norm<a class="headerlink" href="#module-apex.normalization" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="apex.normalization.FusedLayerNorm">
-<em class="property">class </em><code class="descclassname">apex.normalization.</code><code class="descname">FusedLayerNorm</code><span class="sig-paren">(</span><em>normalized_shape</em>, <em>eps=1e-05</em>, <em>elementwise_affine=True</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.normalization.FusedLayerNorm" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">apex.normalization.</code><code class="descname">FusedLayerNorm</code><span class="sig-paren">(</span><em>normalized_shape</em>, <em>eps=1e-05</em>, <em>elementwise_affine=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/normalization/fused_layer_norm.html#FusedLayerNorm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.normalization.FusedLayerNorm" title="Permalink to this definition">¶</a></dt>
 <dd><p>Applies Layer Normalization over a mini-batch of inputs as described in
 the paper <a class="reference external" href="https://arxiv.org/abs/1607.06450">Layer Normalization</a> .</p>
 <p>Currently only runs on cuda() tensors.</p>

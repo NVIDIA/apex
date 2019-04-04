@@ -131,8 +131,8 @@
 <li class="toctree-l3"><a class="reference internal" href="#properties">Properties</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#o1-conservative-mixed-precision"><code class="docutils literal"><span class="pre">O1</span></code>:  Conservative Mixed Precision</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#o2-fast-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  Fast Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#o2-almost-fp16-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
 </ul>
 </li>
@@ -145,8 +145,7 @@
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#gradient-clipping">Gradient clipping</a></li>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#custom-user-defined-autograd-functions">Custom/user-defined autograd functions</a></li>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#forcing-particular-layers-functions-to-a-desired-type">Forcing particular layers/functions to a desired type</a></li>
-<li class="toctree-l4"><a class="reference internal" href="advanced.html#multiple-models-optimizers">Multiple models/optimizers</a></li>
-<li class="toctree-l4"><a class="reference internal" href="advanced.html#multiple-backward-passes-per-iteration">Multiple backward passes per iteration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="advanced.html#multiple-models-optimizers-losses">Multiple models/optimizers/losses</a></li>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#gradient-accumulation-across-iterations">Gradient accumulation across iterations</a></li>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#custom-data-batch-types">Custom data batch types</a></li>
 </ul>
@@ -248,7 +247,7 @@ on the Github page.</p>
 is under construction.</p>
 <p>If you already implemented Amp based on the instructions below, but it isn’t behaving as expected,
 please review <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> to see if any topics match your use case.  If that doesn’t help,
-file an issue.</p>
+<a class="reference external" href="https://github.com/NVIDIA/apex/issues">file an issue</a>.</p>
 <div class="section" id="opt-levels-and-properties">
 <h2><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties<a class="headerlink" href="#opt-levels-and-properties" title="Permalink to this headline">¶</a></h2>
 <p>Amp allows users to easily experiment with different pure and mixed precision modes.
@@ -325,8 +324,8 @@ what gives the best speedup and accuracy for your model.</p>
 <div class="line"><br /></div>
 </div>
 </div>
-<div class="section" id="o1-conservative-mixed-precision">
-<h4><code class="docutils literal"><span class="pre">O1</span></code>:  Conservative Mixed Precision<a class="headerlink" href="#o1-conservative-mixed-precision" title="Permalink to this headline">¶</a></h4>
+<div class="section" id="o1-mixed-precision-recommended-for-typical-use">
+<h4><code class="docutils literal"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)<a class="headerlink" href="#o1-mixed-precision-recommended-for-typical-use" title="Permalink to this headline">¶</a></h4>
 <p>Patch all Torch functions and Tensor methods to cast their inputs according to a whitelist-blacklist
 model.  Whitelist ops (for example, Tensor Core-friendly ops like GEMMs and convolutions) are performed
 in FP16.  Blacklist ops that benefit from FP32 precision (for example, softmax)
@@ -342,8 +341,8 @@ are performed in FP32.  <code class="docutils literal"><span class="pre">O1</spa
 <div class="line"><br /></div>
 </div>
 </div>
-<div class="section" id="o2-fast-mixed-precision">
-<h4><code class="docutils literal"><span class="pre">O2</span></code>:  Fast Mixed Precision<a class="headerlink" href="#o2-fast-mixed-precision" title="Permalink to this headline">¶</a></h4>
+<div class="section" id="o2-almost-fp16-mixed-precision">
+<h4><code class="docutils literal"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision<a class="headerlink" href="#o2-almost-fp16-mixed-precision" title="Permalink to this headline">¶</a></h4>
 <p><code class="docutils literal"><span class="pre">O2</span></code> casts the model weights to FP16,
 patches the model’s <code class="docutils literal"><span class="pre">forward</span></code> method to cast input
 data to FP16, keeps batchnorms in FP32, maintains FP32 master weights,
@@ -387,15 +386,21 @@ to establish “speed of light” you can try <code class="docutils literal"><sp
 <span id="unified-api"></span><h2>Unified API<a class="headerlink" href="#module-apex.amp" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="apex.amp.initialize">
-<code class="descclassname">apex.amp.</code><code class="descname">initialize</code><span class="sig-paren">(</span><em>models</em>, <em>optimizers=None</em>, <em>enabled=True</em>, <em>opt_level=None</em>, <em>cast_model_type=None</em>, <em>patch_torch_functions=None</em>, <em>keep_batchnorm_fp32=None</em>, <em>master_weights=None</em>, <em>loss_scale=None</em>, <em>verbosity=1</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.initialize" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">apex.amp.</code><code class="descname">initialize</code><span class="sig-paren">(</span><em>models</em>, <em>optimizers=None</em>, <em>enabled=True</em>, <em>opt_level=None</em>, <em>cast_model_type=None</em>, <em>patch_torch_functions=None</em>, <em>keep_batchnorm_fp32=None</em>, <em>master_weights=None</em>, <em>loss_scale=None</em>, <em>num_losses=1</em>, <em>verbosity=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/amp/frontend.html#initialize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.amp.initialize" title="Permalink to this definition">¶</a></dt>
 <dd><p>Initialize your models, optimizers, and the Torch tensor and functional namespace according to the
 chosen <code class="docutils literal"><span class="pre">opt_level</span></code> and overridden properties, if any.</p>
-<p><code class="docutils literal"><span class="pre">amp.initialize</span></code> must be called <strong>after</strong> you have finished constructing your model(s) and
+<p><code class="docutils literal"><span class="pre">amp.initialize</span></code> should be called <strong>after</strong> you have finished
+constructing your model(s) and
 optimizer(s), but <strong>before</strong> you send your model through any DistributedDataParallel wrapper.
 See <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/imagenet#distributed-training">Distributed training</a> in the Imagenet example.</p>
+<p>Currently, <code class="docutils literal"><span class="pre">amp.initialize</span></code> should only be called <strong>once</strong>,
+although it can process an arbitrary number of
+models and optimizers (see the corresponding <a class="reference external" href="https://nvidia.github.io/apex/advanced.html#multiple-models-optimizers-losses">Advanced Amp Usage topic</a>).
+If you think your use case requires <code class="docutils literal"><span class="pre">amp.initialize</span></code> to be called more than once,
+<a class="reference external" href="https://github.com/NVIDIA/apex/issues">let us know</a>.</p>
 <p>Any property keyword argument that is not <code class="docutils literal"><span class="pre">None</span></code> will be interpreted as a manual override.</p>
 <p>To prevent having to rewrite anything else in your script, name the returned models/optimizers
-to replace the passed models/optimizers, as in the Usage below.</p>
+to replace the passed models/optimizers, as in the code sample below.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -414,8 +419,15 @@ above.</li>
 <li><strong>keep_batchnorm_fp32</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.  If
 passed as a string, must be the string “True” or “False”.</li>
 <li><strong>master_weights</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.</li>
-<li><strong>loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>default=None</em>) – Optional property override.  If passed as a string,
+<li><strong>loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.  If passed as a string,
 must be a string representing a number, e.g., “128.0”, or the string “dynamic”.</li>
+<li><strong>num_losses</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>optional</em><em>, </em><em>default=1</em>) – Option to tell Amp in advance how many losses/backward
+passes you plan to use.  When used in conjunction with the <code class="docutils literal"><span class="pre">loss_id</span></code> argument to
+<code class="docutils literal"><span class="pre">amp.scale_loss</span></code>, enables Amp to use a different loss scale per loss/backward pass,
+which can improve stability.  See “Multiple models/optimizers/losses”
+under <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> for examples.  If <code class="docutils literal"><span class="pre">num_losses</span></code> is left to 1, Amp will still
+support multiple losses/backward passes, but use a single global loss scale
+for all of them.</li>
 <li><strong>verbosity</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>default=1</em>) – Set to 0 to suppress Amp-related output.</li>
 </ul>
 </td>
@@ -427,7 +439,7 @@ also be a list.</p>
 </tr>
 </tbody>
 </table>
-<p>Usage:</p>
+<p>Permissible invocations:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span><span class="o">...</span><span class="p">)</span>
 <span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">],</span><span class="o">...</span><span class="p">)</span>
 <span class="p">[</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="n">optim</span><span class="p">,</span><span class="o">...</span><span class="p">)</span>
@@ -455,7 +467,7 @@ also be a list.</p>
 
 <dl class="function">
 <dt id="apex.amp.scale_loss">
-<code class="descclassname">apex.amp.</code><code class="descname">scale_loss</code><span class="sig-paren">(</span><em>loss</em>, <em>optimizer</em>, <em>model=None</em>, <em>delay_unscale=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.scale_loss" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">apex.amp.</code><code class="descname">scale_loss</code><span class="sig-paren">(</span><em>loss</em>, <em>optimizers</em>, <em>loss_id=0</em>, <em>model=None</em>, <em>delay_unscale=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/amp/handle.html#scale_loss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.amp.scale_loss" title="Permalink to this definition">¶</a></dt>
 <dd><p>On context manager entrance, creates <code class="docutils literal"><span class="pre">scaled_loss</span> <span class="pre">=</span> <span class="pre">(loss.float())*current</span> <span class="pre">loss</span> <span class="pre">scale</span></code>.
 <code class="docutils literal"><span class="pre">scaled_loss</span></code> is yielded so that the user can call <code class="docutils literal"><span class="pre">scaled_loss.backward()</span></code>:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
@@ -488,12 +500,24 @@ This subtlety affects gradient clipping.  See “Gradient clipping” under
 manager yields is simply <code class="docutils literal"><span class="pre">loss.float()*loss_scale</span></code>, so in principle
 <code class="docutils literal"><span class="pre">loss</span></code> could have more than one element, as long as you call
 <code class="docutils literal"><span class="pre">backward()</span></code> on <code class="docutils literal"><span class="pre">scaled_loss</span></code> appropriately within the context manager body.</li>
-<li><strong>optimizer</strong> – Must be an optimizer returned from an earlier call to <code class="docutils literal"><span class="pre">amp.initialize</span></code>.</li>
+<li><strong>optimizers</strong> – All optimizer(s) for which the current backward pass is creating gradients.
+Must be an optimizer or list of optimizers returned from an earlier call
+to <code class="docutils literal"><span class="pre">amp.initialize</span></code>.  For example use with multiple optimizers, see
+“Multiple models/optimizers/losses” under <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a>.</li>
+<li><strong>loss_id</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>optional</em><em>, </em><em>default=0</em>) – When used in conjunction with the <code class="docutils literal"><span class="pre">num_losses</span></code> argument
+to <code class="docutils literal"><span class="pre">amp.initialize</span></code>, enables Amp to use a different loss scale per loss.  <code class="docutils literal"><span class="pre">loss_id</span></code>
+must be an integer between 0 and <code class="docutils literal"><span class="pre">num_losses</span></code> that tells Amp which loss is
+being used for the current backward pass.  See “Multiple models/optimizers/losses”
+under <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> for examples.  If <code class="docutils literal"><span class="pre">loss_id</span></code> is left unspecified, Amp
+will use the default global loss scaler for this backward pass.</li>
 <li><strong>model</strong> (<em>torch.nn.Module</em><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Currently unused, reserved to enable future
 optimizations.</li>
-<li><strong>delay_unscale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>default=False</em>) – Don’t unscale the gradients or perform model-&gt;master
-gradient copies on context manager exit.  <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> illustrates
-situations where this is necessary.</li>
+<li><strong>delay_unscale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=False</em>) – <code class="docutils literal"><span class="pre">delay_unscale</span></code> is a ninja option that only
+serves as a minor performance optimization, so only use it if you know what you’re doing.
+If <code class="docutils literal"><span class="pre">True</span></code>, Amp will not unscale the gradients or perform model-&gt;master
+gradient copies on context manager exit.
+“Gradient accumulation across iterations” under <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a>
+illustrates a situation where this CAN (but does not need to) be used.</li>
 </ul>
 </td>
 </tr>
@@ -503,14 +527,13 @@ situations where this is necessary.</li>
 <p class="first admonition-title">Warning</p>
 <p class="last">If <code class="docutils literal"><span class="pre">delay_unscale</span></code> is <code class="docutils literal"><span class="pre">True</span></code> for a given backward pass, <code class="docutils literal"><span class="pre">optimizer.step()</span></code> cannot be
 called yet after context manager exit, and must wait for another, later backward context
-manager invocation with <code class="docutils literal"><span class="pre">delay_unscale</span></code> left to False.
-See <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> for examples.</p>
+manager invocation with <code class="docutils literal"><span class="pre">delay_unscale</span></code> left to False.</p>
 </div>
 </dd></dl>
 
 <dl class="function">
 <dt id="apex.amp.master_params">
-<code class="descclassname">apex.amp.</code><code class="descname">master_params</code><span class="sig-paren">(</span><em>optimizer</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.master_params" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">apex.amp.</code><code class="descname">master_params</code><span class="sig-paren">(</span><em>optimizer</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/amp/_amp_state.html#master_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.amp.master_params" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generator expression that iterates over the params owned by <code class="docutils literal"><span class="pre">optimizer</span></code>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />

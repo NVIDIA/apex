@@ -68,8 +68,11 @@ Forcing particular layers/functions to a desired type
 I'm still working on a generalizable exposure for this that won't require user-side code divergence
 across different ``opt-level``\ s.
 
-Multiple models/optimizers
---------------------------
+Multiple models/optimizers/losses
+---------------------------------
+
+Initialization with multiple models/optimizers
+**********************************************
 
 ``amp.initialize``'s optimizer argument may be a single optimizer or a list of optimizers,
 as long as the output you accept has the same type.
@@ -77,35 +80,88 @@ Similarly, the ``model`` argument may be a single model or a list of models, as 
 output matches.  The following calls are all legal::
 
     model, optim = amp.initialize(model, optim,...)
-    model, [optim1, optim2] = amp.initialize(model, [optim1, optim2],...)
-    [model1, model2], optim = amp.initialize([model1, model2], optim,...)
-    [model1, model2], [optim1, optim2] = amp.initialize([model1, model2], [optim1, optim2],...)
+    model, [optim0, optim1] = amp.initialize(model, [optim0, optim1],...)
+    [model0, model1], optim = amp.initialize([model0, model1], optim,...)
+    [model0, model1], [optim0, optim1] = amp.initialize([model0, model1], [optim0, optim1],...)
 
-Whenever you invoke a backward pass, the optimizer you should pass to ``amp.scaled_loss`` is whatever
-optimizer owns the parameters for which this particular backward pass is creating gradients.
+Backward passes with multiple optimizers
+****************************************
 
-Multiple backward passes per iteration
---------------------------------------
+Whenever you invoke a backward pass, the ``amp.scale_loss`` context manager must receive
+**all the optimizers that own any params for which the current backward pass is creating gradients.**
+This is true even if each optimizer owns only some, but not all, of the params that are about to
+receive gradients.
 
-If you want to accumulate gradients from multiple losses for the params owned by a given optimizer,
-you must invoke ``with amp.scale_loss(..., delay_unscale=True)`` for all backward passes except
-the last::
+If, for a given backward pass, there's only one optimizer whose params are about to receive gradients,
+you may pass that optimizer directly to ``amp.scale_loss``.  Otherwise, you must pass the
+list of optimizers whose params are about to receive gradients::
 
-    # delay_unscale=True for the first two losses
-    with amp.scale_loss(loss1, optimizer, delay_unscale=True) as scaled_loss:
+    # loss0 accumulates gradients only into params owned by optim0:
+    with amp.scale_loss(loss0, optim0) as scaled_loss:
         scaled_loss.backward()
-    with amp.scale_loss(loss2, optimizer, delay_unscale=True) as scaled_loss:
-        scaled_loss.backward()
-    # Don't delay_unscale for the final loss 
-    with amp.scale_loss(loss3, optimizer) as scaled_loss:
-        scaled_loss.backward()
-    optimizer.step()
 
+    # loss1 accumulates gradients only into params owned by optim1:
+    with amp.scale_loss(loss1, optim1) as scaled_loss:
+        scaled_loss.backward()
+
+    # loss2 accumulates gradients into some params owned by optim0
+    # and some params owned by optim1
+    with amp.scale_loss(loss2, [optim0, optim1]) as scaled_loss:
+        scaled_loss.backward()
+
+Optionally have Amp use a different loss scaler per-loss
+********************************************************
+
+By default, Amp maintains a single global loss scaler that will be used for all backward passes
+(all invocations of ``with amp.scale_loss(...)``).  No additional arguments to ``amp.initialize``
+or ``amp.scale_loss`` are required to use the global loss scaler.  The code snippets above with
+multiple optimizers/backward passes use the single global loss scaler under the hood,
+and they should "just work."
+
+However, you can optionally tell Amp to maintain a loss scaler per-loss, which gives Amp increased
+numerical flexibility.  This is accomplished by supplying the ``num_losses`` argument to
+``amp.initialize`` (which tells Amp how many backward passes you plan to invoke, and therefore
+how many loss scalers Amp should create), then supplying the ``loss_id`` argument to each of your
+backward passes (which tells Amp the loss scaler to use for this particular backward pass)::
+
+    model, [optim0, optim1] = amp.initialize(model, [optim0, optim1], ..., num_losses=3)
+
+    with amp.scale_loss(loss0, optim0, loss_id=0) as scaled_loss:
+        scaled_loss.backward()
+
+    with amp.scale_loss(loss1, optim1, loss_id=1) as scaled_loss:
+        scaled_loss.backward()
+
+    with amp.scale_loss(loss2, [optim0, optim1], loss_id=2) as scaled_loss:
+        scaled_loss.backward()
+
+``num_losses`` and ``loss_id``\ s should be specified purely based on the set of
+losses/backward passes.  The use of multiple optimizers, or association of single or
+multiple optimizers with each backward pass, is unrelated.
 
 Gradient accumulation across iterations
 ---------------------------------------
 
-Pass ``delay_unscale=True`` to ``amp.scale_loss`` until you're ready to ``step()``::
+The following should "just work," and properly accommodate multiple models/optimizers/losses, as well as
+gradient clipping via the `instructions above`_::
+
+    if iter%iters_to_accumulate == 0:
+        # Every iters_to_accumulate iterations, unscale and step
+        with amp.scale_loss(loss, optimizer) as scaled_loss:
+            scaled_loss.backward()
+        # Gradient clipping if desired:
+        # torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), max_norm)
+        optimizer.step()
+        optimizer.zero_grad()
+    else:
+        # Otherwise, accumulate gradients, don't unscale or step.
+        with amp.scale_loss(loss, optimizer) as scaled_loss:
+            scaled_loss.backward()
+
+As a minor performance optimization, you can pass ``delay_unscale=True``
+to ``amp.scale_loss`` until you're ready to ``step()``.  You should only attempt ``delay_unscale=True``
+if you're sure you know what you're doing, because the interaction with gradient clipping and
+multiple models/optimizers/losses can become tricky.::
 
     if iter%iters_to_accumulate == 0:
         # Every iters_to_accumulate iterations, unscale and step
@@ -114,10 +170,12 @@ Pass ``delay_unscale=True`` to ``amp.scale_loss`` until you're ready to ``step()
         optimizer.step()
         optimizer.zero_grad()
     else:
-        # Otherwise, just accumulate gradients, don't unscale or step. 
+        # Otherwise, accumulate gradients, don't unscale or step.
         with amp.scale_loss(loss, optimizer, delay_unscale=True) as scaled_loss:
             scaled_loss.backward()
 
+.. _`instructions above`:
+    https://nvidia.github.io/apex/advanced.html#gradient-clipping
 
 Custom data batch types
 -----------------------

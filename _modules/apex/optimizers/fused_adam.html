@@ -1,0 +1,469 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>apex.optimizers.fused_adam &mdash; Apex 0.1.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  
+    <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Apex 0.1.0 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+           
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Apex
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #76b900;
+    }
+
+    .wy-side-nav-search a:link, .wy-nav-top a:link {
+      color: #fff;
+    }
+    .wy-side-nav-search a:visited, .wy-nav-top a:visited {
+      color: #fff;
+    }
+    .wy-side-nav-search a:hover, .wy-nav-top a:hover {
+      color: #fff;
+    }
+
+    .wy-menu-vertical a:link, .wy-menu-vertical a:visited {
+      color: #d9d9d9
+    }
+
+    .wy-menu-vertical a:active {
+      background-color: #76b900
+    }
+
+    .wy-side-nav-search>div.version {
+      color: rgba(0, 0, 0, 0.3)
+    }
+  </style>
+  
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../amp.html">apex.amp</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#opt-levels-and-properties"><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#properties">Properties</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o2-almost-fp16-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#module-apex.amp">Unified API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#advanced-use-cases">Advanced use cases</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../advanced.html">Advanced Amp Usage</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gans">GANs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gradient-clipping">Gradient clipping</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#custom-user-defined-autograd-functions">Custom/user-defined autograd functions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#forcing-particular-layers-functions-to-a-desired-type">Forcing particular layers/functions to a desired type</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#multiple-models-optimizers-losses">Multiple models/optimizers/losses</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gradient-accumulation-across-iterations">Gradient accumulation across iterations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#custom-data-batch-types">Custom data batch types</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#transition-guide-for-old-api-users">Transition guide for old API users</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#for-users-of-the-old-amp-api">For users of the old “Amp” API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#for-users-of-the-old-fp16-optimizer">For users of the old FP16_Optimizer</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Distributed Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../parallel.html#utility-functions">Utility functions</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Fused Optimizers</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../optimizers.html">apex.optimizers</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Fused Layer Norm</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../layernorm.html">apex.normalization.fused_layer_norm</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Apex</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>apex.optimizers.fused_adam</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for apex.optimizers.fused_adam</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">types</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">importlib</span>
+
+<div class="viewcode-block" id="FusedAdam"><a class="viewcode-back" href="../../../optimizers.html#apex.optimizers.FusedAdam">[docs]</a><span class="k">class</span> <span class="nc">FusedAdam</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via</span>
+<span class="sd">    ``python setup.py install --cuda_ext --cpp_ext``.</span>
+
+<span class="sd">    It has been proposed in `Adam: A Method for Stochastic Optimization`_.</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        params (iterable): iterable of parameters to optimize or dicts defining</span>
+<span class="sd">            parameter groups.</span>
+<span class="sd">        lr (float, optional): learning rate. (default: 1e-3)</span>
+<span class="sd">        betas (Tuple[float, float], optional): coefficients used for computing</span>
+<span class="sd">            running averages of gradient and its square. (default: (0.9, 0.999))</span>
+<span class="sd">        eps (float, optional): term added to the denominator to improve</span>
+<span class="sd">            numerical stability. (default: 1e-8)</span>
+<span class="sd">        weight_decay (float, optional): weight decay (L2 penalty) (default: 0)</span>
+<span class="sd">        amsgrad (boolean, optional): whether to use the AMSGrad variant of this</span>
+<span class="sd">            algorithm from the paper `On the Convergence of Adam and Beyond`_</span>
+<span class="sd">            (default: False) NOT SUPPORTED in FusedAdam!</span>
+<span class="sd">        eps_inside_sqrt (boolean, optional): in the &#39;update parameters&#39; step,</span>
+<span class="sd">            adds eps to the bias-corrected second moment estimate before</span>
+<span class="sd">            evaluating square root instead of adding it to the square root of</span>
+<span class="sd">            second moment estimate as in the original paper. (default: False)</span>
+
+<span class="sd">    .. _Adam\: A Method for Stochastic Optimization:</span>
+<span class="sd">        https://arxiv.org/abs/1412.6980</span>
+<span class="sd">    .. _On the Convergence of Adam and Beyond:</span>
+<span class="sd">        https://openreview.net/forum?id=ryQu7f-RZ</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span>
+                 <span class="n">lr</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">,</span> <span class="n">bias_correction</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                 <span class="n">betas</span><span class="o">=</span><span class="p">(</span><span class="mf">0.9</span><span class="p">,</span> <span class="mf">0.999</span><span class="p">),</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">,</span> <span class="n">eps_inside_sqrt</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                 <span class="n">weight_decay</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">max_grad_norm</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">amsgrad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">global</span> <span class="n">fused_adam_cuda</span>
+        <span class="n">fused_adam_cuda</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="s2">&quot;fused_adam_cuda&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">amsgrad</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;FusedAdam does not support the AMSGrad variant.&#39;</span><span class="p">)</span>
+        <span class="n">defaults</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">lr</span><span class="o">=</span><span class="n">lr</span><span class="p">,</span> <span class="n">bias_correction</span><span class="o">=</span><span class="n">bias_correction</span><span class="p">,</span>
+                        <span class="n">betas</span><span class="o">=</span><span class="n">betas</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="n">eps</span><span class="p">,</span> <span class="n">weight_decay</span><span class="o">=</span><span class="n">weight_decay</span><span class="p">,</span>
+                        <span class="n">max_grad_norm</span><span class="o">=</span><span class="n">max_grad_norm</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FusedAdam</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">defaults</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eps_mode</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span>  <span class="n">eps_inside_sqrt</span> <span class="k">else</span> <span class="mi">1</span>
+
+<div class="viewcode-block" id="FusedAdam.step"><a class="viewcode-back" href="../../../optimizers.html#apex.optimizers.FusedAdam.step">[docs]</a>    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">closure</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">grads</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">output_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span> <span class="n">grad_norms</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Performs a single optimization step.</span>
+
+<span class="sd">        Arguments:</span>
+<span class="sd">            closure (callable, optional): A closure that reevaluates the model</span>
+<span class="sd">                and returns the loss.</span>
+<span class="sd">            grads (list of tensors, optional): weight gradient to use for the</span>
+<span class="sd">                optimizer update. If gradients have type torch.half, parameters</span>
+<span class="sd">                are expected to be in type torch.float. (default: None)</span>
+<span class="sd">            output params (list of tensors, optional): A reduced precision copy</span>
+<span class="sd">                of the updated weights written out in addition to the regular</span>
+<span class="sd">                updated weights. Have to be of same type as gradients. (default: None)</span>
+<span class="sd">            scale (float, optional): factor to divide gradient tensor values</span>
+<span class="sd">                by before applying to weights. (default: 1)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">closure</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="n">closure</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">grads</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">grads_group</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">param_groups</span><span class="p">)</span>
+        <span class="c1"># backward compatibility</span>
+        <span class="c1"># assuming a list/generator of parameter means single group</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">grads</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">GeneratorType</span><span class="p">):</span>
+            <span class="n">grads_group</span> <span class="o">=</span> <span class="p">[</span><span class="n">grads</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">grads</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">!=</span><span class="nb">list</span><span class="p">:</span>
+            <span class="n">grads_group</span> <span class="o">=</span> <span class="p">[</span><span class="n">grads</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">grads_group</span> <span class="o">=</span> <span class="n">grads</span>
+
+        <span class="k">if</span> <span class="n">output_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">output_params_group</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">param_groups</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output_params</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">GeneratorType</span><span class="p">):</span>
+            <span class="n">output_params_group</span> <span class="o">=</span> <span class="p">[</span><span class="n">output_params</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">output_params</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">!=</span><span class="nb">list</span><span class="p">:</span>
+            <span class="n">output_params_group</span> <span class="o">=</span> <span class="p">[</span><span class="n">output_params</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">output_params_group</span> <span class="o">=</span> <span class="n">output_params</span>
+
+        <span class="k">if</span> <span class="n">grad_norms</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">grad_norms</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">param_groups</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">group</span><span class="p">,</span> <span class="n">grads_this_group</span><span class="p">,</span> <span class="n">output_params_this_group</span><span class="p">,</span> <span class="n">grad_norm</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">param_groups</span><span class="p">,</span> <span class="n">grads_group</span><span class="p">,</span> <span class="n">output_params_group</span><span class="p">,</span> <span class="n">grad_norms</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">grads_this_group</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+               <span class="n">grads_this_group</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">group</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">output_params_this_group</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+               <span class="n">output_params_this_group</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">group</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">])</span>
+
+            <span class="c1"># compute combined scale factor for this group</span>
+            <span class="n">combined_scale</span> <span class="o">=</span> <span class="n">scale</span>
+            <span class="k">if</span> <span class="n">group</span><span class="p">[</span><span class="s1">&#39;max_grad_norm&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># norm is in fact norm*scale</span>
+                <span class="n">clip</span> <span class="o">=</span> <span class="p">((</span><span class="n">grad_norm</span> <span class="o">/</span> <span class="n">scale</span><span class="p">)</span> <span class="o">+</span> <span class="mf">1e-6</span><span class="p">)</span> <span class="o">/</span> <span class="n">group</span><span class="p">[</span><span class="s1">&#39;max_grad_norm&#39;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">clip</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">combined_scale</span> <span class="o">=</span> <span class="n">clip</span> <span class="o">*</span> <span class="n">scale</span>
+
+            <span class="n">bias_correction</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">group</span><span class="p">[</span><span class="s1">&#39;bias_correction&#39;</span><span class="p">]</span> <span class="k">else</span> <span class="mi">0</span>
+
+            <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">grad</span><span class="p">,</span> <span class="n">output_param</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">group</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">],</span> <span class="n">grads_this_group</span><span class="p">,</span> <span class="n">output_params_this_group</span><span class="p">):</span>
+                <span class="c1">#note: p.grad should not ever be set for correct operation of mixed precision optimizer that sometimes sends None gradients</span>
+                <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">grad</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">grad</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">grad</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span>
+                <span class="k">if</span> <span class="n">grad</span><span class="o">.</span><span class="n">is_sparse</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;FusedAdam does not support sparse gradients, please consider SparseAdam instead&#39;</span><span class="p">)</span>
+
+                <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+
+                <span class="c1"># State initialization</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">state</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">state</span><span class="p">[</span><span class="s1">&#39;step&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="c1"># Exponential moving average of gradient values</span>
+                    <span class="n">state</span><span class="p">[</span><span class="s1">&#39;exp_avg&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+                    <span class="c1"># Exponential moving average of squared gradient values</span>
+                    <span class="n">state</span><span class="p">[</span><span class="s1">&#39;exp_avg_sq&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+                <span class="n">exp_avg</span><span class="p">,</span> <span class="n">exp_avg_sq</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s1">&#39;exp_avg&#39;</span><span class="p">],</span> <span class="n">state</span><span class="p">[</span><span class="s1">&#39;exp_avg_sq&#39;</span><span class="p">]</span>
+                <span class="n">beta1</span><span class="p">,</span> <span class="n">beta2</span> <span class="o">=</span> <span class="n">group</span><span class="p">[</span><span class="s1">&#39;betas&#39;</span><span class="p">]</span>
+
+                <span class="n">state</span><span class="p">[</span><span class="s1">&#39;step&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+                <span class="n">out_p</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([],</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">)</span> <span class="k">if</span> <span class="n">output_param</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">output_param</span>
+                <span class="n">fused_adam_cuda</span><span class="o">.</span><span class="n">adam</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                                     <span class="n">out_p</span><span class="p">,</span>
+                                     <span class="n">exp_avg</span><span class="p">,</span>
+                                     <span class="n">exp_avg_sq</span><span class="p">,</span>
+                                     <span class="n">grad</span><span class="p">,</span>
+                                     <span class="n">group</span><span class="p">[</span><span class="s1">&#39;lr&#39;</span><span class="p">],</span>
+                                     <span class="n">beta1</span><span class="p">,</span>
+                                     <span class="n">beta2</span><span class="p">,</span>
+                                     <span class="n">group</span><span class="p">[</span><span class="s1">&#39;eps&#39;</span><span class="p">],</span>
+                                     <span class="n">combined_scale</span><span class="p">,</span>
+                                     <span class="n">state</span><span class="p">[</span><span class="s1">&#39;step&#39;</span><span class="p">],</span>
+                                     <span class="bp">self</span><span class="o">.</span><span class="n">eps_mode</span><span class="p">,</span>
+                                     <span class="n">bias_correction</span><span class="p">,</span>
+                                     <span class="n">group</span><span class="p">[</span><span class="s1">&#39;weight_decay&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">loss</span></div></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.1.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+    
+
+  <style>
+  a:link, a:visited {
+    color: #76b900;
+  }
+
+  a:hover {
+    color: #8c0;
+  }
+
+  .rst-content dl:not(.docutils) dt {
+    background: rgba(118, 185, 0, 0.1);
+    color: rgba(59,93,0,1);
+    border-top: solid 3px rgba(59,93,0,1);
+  }
+  </style>
+  
+
+</body>
+</html>
