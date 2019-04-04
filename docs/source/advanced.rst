@@ -99,9 +99,11 @@ list of optimizers whose params are about to receive gradients::
     # loss0 accumulates gradients only into params owned by optim0:
     with amp.scale_loss(loss0, optim0) as scaled_loss:
         scaled_loss.backward()
+
     # loss1 accumulates gradients only into params owned by optim1:
     with amp.scale_loss(loss1, optim1) as scaled_loss:
         scaled_loss.backward()
+
     # loss2 accumulates gradients into some params owned by optim0
     # and some params owned by optim1
     with amp.scale_loss(loss2, [optim0, optim1]) as scaled_loss:
@@ -111,7 +113,7 @@ Optionally have Amp use a different loss scaler per-loss
 ********************************************************
 
 By default, Amp maintains a single global loss scaler that will be used for all backward passes
-(all invocations of ``with amp.scale_loss(...)``.  No additional arguments to ``amp.initialize``
+(all invocations of ``with amp.scale_loss(...)``).  No additional arguments to ``amp.initialize``
 or ``amp.scale_loss`` are required to use the global loss scaler.  The code snippets above with
 multiple optimizers/backward passes use the single global loss scaler under the hood,
 and they should "just work."
@@ -120,22 +122,20 @@ However, you can optionally tell Amp to maintain a loss scaler per-loss, which g
 numerical flexibility.  This is accomplished by supplying the ``num_losses`` argument to
 ``amp.initialize`` (which tells Amp how many backward passes you plan to invoke, and therefore
 how many loss scalers Amp should create), then supplying the ``loss_id`` argument to each of your
-backward passes, which tells Amp which loss scaler to use for this particular backward pass::
+backward passes (which tells Amp the loss scaler to use for this particular backward pass)::
 
     model, [optim0, optim1] = amp.initialize(model, [optim0, optim1], ..., num_losses=3)
 
-    # loss0 accumulates gradients only into params owned by optim0:
-    with amp.scale_loss(loss0, optim0) as scaled_loss:
-        scaled_loss.backward()
-    # loss1 accumulates gradients only into params owned by optim1:
-    with amp.scale_loss(loss1, optim1) as scaled_loss:
-        scaled_loss.backward()
-    # loss2 accumulates gradients into some params owned by optim0
-    # and some params owned by optim1
-    with amp.scale_loss(loss2, [optim0, optim1]) as scaled_loss:
+    with amp.scale_loss(loss0, optim0, loss_id=0) as scaled_loss:
         scaled_loss.backward()
 
-``num_losses`` and ``loss_id``\ s should be specified purely based on the number of
+    with amp.scale_loss(loss1, optim1, loss_id=1) as scaled_loss:
+        scaled_loss.backward()
+
+    with amp.scale_loss(loss2, [optim0, optim1], loss_id=2) as scaled_loss:
+        scaled_loss.backward()
+
+``num_losses`` and ``loss_id``\ s should be specified purely based on the set of
 losses/backward passes.  The use of multiple optimizers, or association of single or
 multiple optimizers with each backward pass, is unrelated.
 
@@ -154,14 +154,14 @@ gradient clipping via the `instructions above`_::
         optimizer.step()
         optimizer.zero_grad()
     else:
-        # Otherwise, just accumulate gradients, don't unscale or step.
+        # Otherwise, accumulate gradients, don't unscale or step.
         with amp.scale_loss(loss, optimizer) as scaled_loss:
             scaled_loss.backward()
 
 As a minor performance optimization, you can pass ``delay_unscale=True``
 to ``amp.scale_loss`` until you're ready to ``step()``.  You should only attempt ``delay_unscale=True``
 if you're sure you know what you're doing, because the interaction with gradient clipping and
-multiple optimizers/models/losses can become tricky.::
+multiple models/optimizers/losses can become tricky.::
 
     if iter%iters_to_accumulate == 0:
         # Every iters_to_accumulate iterations, unscale and step
@@ -170,7 +170,7 @@ multiple optimizers/models/losses can become tricky.::
         optimizer.step()
         optimizer.zero_grad()
     else:
-        # Otherwise, just accumulate gradients, don't unscale or step.
+        # Otherwise, accumulate gradients, don't unscale or step.
         with amp.scale_loss(loss, optimizer, delay_unscale=True) as scaled_loss:
             scaled_loss.backward()
 
