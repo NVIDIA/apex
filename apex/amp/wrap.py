@@ -158,6 +158,8 @@ def rnn_cast(backend, fn, handle, verbose=False):
     orig_rnn = utils.get_func(backend, fn)
     @functools.wraps(orig_rnn)
     def rnn_wrapper(*args, **kwargs):
+        if not _amp_state.handle.is_active():
+            return orig_rnn(*args, **kwargs)
         flat_weight = kwargs.get('flat_weight')
         if flat_weight is not None:
             # We replace `flat_weight` with an uninitialized fp16
