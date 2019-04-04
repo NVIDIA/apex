@@ -208,14 +208,21 @@ def initialize(
     Initialize your models, optimizers, and the Torch tensor and functional namespace according to the
     chosen ``opt_level`` and overridden properties, if any.
 
-    ``amp.initialize`` must be called **after** you have finished constructing your model(s) and
+    ``amp.initialize`` should be called **after** you have finished
+    constructing your model(s) and
     optimizer(s), but **before** you send your model through any DistributedDataParallel wrapper.
     See `Distributed training`_ in the Imagenet example.
+
+    Currently, ``amp.initialize`` should only be called **once**,
+    although it can process an arbitrary number of
+    models and optimizers (see the corresponding `Advanced Amp Usage topic`_).
+    If you think your use case requires ``amp.initialize`` to be called more than once,
+    `let us know`_.
 
     Any property keyword argument that is not ``None`` will be interpreted as a manual override.
 
     To prevent having to rewrite anything else in your script, name the returned models/optimizers
-    to replace the passed models/optimizers, as in the Usage below.
+    to replace the passed models/optimizers, as in the code sample below.
 
     Args:
         models (torch.nn.Module or list of torch.nn.Modules):  Models to modify/cast.
@@ -247,7 +254,7 @@ def initialize(
         If either the ``models`` or ``optimizers`` args were lists, the corresponding return value will
         also be a list.
 
-    Usage::
+    Permissible invocations::
 
         model, optim = amp.initialize(model, optim,...)
         model, [optim1, optim2] = amp.initialize(model, [optim1, optim2],...)
@@ -277,6 +284,15 @@ def initialize(
 
     .. _`Imagenet example`:
         https://github.com/NVIDIA/apex/tree/master/examples/imagenet
+
+    .. _`Advanced Amp Usage`:
+        https://nvidia.github.io/apex/advanced.html
+
+    .. _`Advanced Amp Usage topic`:
+        https://nvidia.github.io/apex/advanced.html#multiple-models-optimizers-losses
+
+    .. _`let us know`:
+        https://github.com/NVIDIA/apex/issues
     """
     _amp_state.opt_properties = Properties()
     _amp_state.verbosity = verbosity
