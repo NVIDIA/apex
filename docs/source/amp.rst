@@ -15,7 +15,10 @@ is under construction.
 
 If you already implemented Amp based on the instructions below, but it isn't behaving as expected,
 please review `Advanced Amp Usage`_ to see if any topics match your use case.  If that doesn't help,
-file an issue.
+`file an issue`_.
+
+.. _`file an issue`:
+    https://github.com/NVIDIA/apex/issues
 
 ``opt_level``\ s and Properties
 -------------------------------
@@ -109,9 +112,8 @@ Your incoming model should be FP32 already, so this is likely a no-op.
 |
 |
 
-``O1``:  Conservative Mixed Precision
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
+``O1``:  Mixed Precision (recommended for typical use)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Patch all Torch functions and Tensor methods to cast their inputs according to a whitelist-blacklist
 model.  Whitelist ops (for example, Tensor Core-friendly ops like GEMMs and convolutions) are performed
 in FP16.  Blacklist ops that benefit from FP32 precision (for example, softmax)
@@ -126,8 +128,8 @@ are performed in FP32.  ``O1`` also uses dynamic loss scaling, unless overridden
 |
 |
 
-``O2``:  Fast Mixed Precision
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+``O2``:  "Almost FP16" Mixed Precision
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ``O2`` casts the model weights to FP16,
 patches the model's ``forward`` method to cast input
 data to FP16, keeps batchnorms in FP32, maintains FP32 master weights,

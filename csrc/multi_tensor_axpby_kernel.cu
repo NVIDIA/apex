@@ -21,7 +21,8 @@ struct AxpbyFunctor
     volatile int* noop_gmem,
     TensorListMetadata<3>& tl,
     float a,
-    float b)
+    float b,
+    int arg_to_check)
   {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
@@ -68,13 +69,18 @@ struct AxpbyFunctor
       {
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
-          if(isfinite(xs[ii]) && isfinite(ys[ii]))
-            out[i] = static_cast<out_t>(a*xs[ii] + b*ys[ii]);
-          else
-          {
-            out[i] = static_cast<out_t>(a*xs[ii] + b*ys[ii]);
+        {
+          out[i] = static_cast<out_t>(a*xs[ii] + b*ys[ii]);
+          bool finite = true;
+          if(arg_to_check == -1)
+            finite = (isfinite(xs[ii]) && isfinite(ys[ii]));
+          if(arg_to_check == 0)
+            finite = isfinite(xs[ii]);
+          if(arg_to_check == 1)
+            finite = isfinite(ys[ii]);
+          if(!finite)
             *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
-          }
+        }
       }
     }
   }
@@ -85,7 +91,8 @@ void multi_tensor_axpby_cuda(
   at::Tensor noop_flag,
   std::vector<std::vector<at::Tensor>> tensor_lists,
   float a,
-  float b)
+  float b,
+  int arg_to_check)
 {
   using namespace at;
   // The output (downscaled) type is always float.
@@ -102,7 +109,8 @@ void multi_tensor_axpby_cuda(
              tensor_lists,
              AxpbyFunctor<scalar_t_0, scalar_t_1, scalar_t_2>(),
              a,
-             b); )))
+             b,
+             arg_to_check); )))
 
   AT_CUDA_CHECK(cudaGetLastError());
 

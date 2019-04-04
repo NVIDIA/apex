@@ -11,7 +11,8 @@ void multi_tensor_axpby_cuda(
   at::Tensor noop_flag,
   std::vector<std::vector<at::Tensor>> tensor_lists,
   float a,
-  float b);
+  float b,
+  int arg_to_check);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("multi_tensor_scale", &multi_tensor_scale_cuda,

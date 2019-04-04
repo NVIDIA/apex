@@ -540,18 +540,37 @@ class FP16_Optimizer(object):
         if len(self.all_fp16_params) > 0:
             # print("Model grads before")
             # print([param.grad.data for param in self.all_fp16_params])
+            # I'm ONLY writing this as an incremental way to make some tests pass until
+            # I can refactor the tests as well.
+            # FP16_Optimizer should not be used by anyone.
+            model_grads = []
+            master_grads = []
+            for model_param, master_param in zip(self.all_fp16_params,
+                                                 self.all_fp32_from_fp16_params):
+                if model_param.grad is not None:
+                    model_grads.append(model_param.grad)
+                    if master_param.grad is None:
+                        master_param.grad = torch.empty_like(master_param)
+                    master_grads.append(master_param.grad)
             self.loss_scaler.unscale(
-                self.all_fp16_params,
-                self.all_fp32_from_fp16_params,
+                model_grads,
+                master_grads,
                 self.loss_scaler.loss_scale())
             # print("Master grads after")
             # print([param.grad.data for param in self.all_fp32_from_fp16_params])
         if len(self.all_fp32_from_fp32_params) > 0:
+            model_grads = []
+            master_grads = []
+            for model_param, master_param in zip(self.all_fp32_from_fp32_params,
+                                                 self.all_fp32_from_fp32_params):
+                if model_param.grad is not None:
+                    model_grads.append(model_param.grad)
+                    master_grads.append(master_param.grad)
             # print("Model grads before")
             # print([param.grad.data for param in self.all_fp32_from_fp32_params])
             self.loss_scaler.unscale(
-                self.all_fp32_from_fp32_params,
-                self.all_fp32_from_fp32_params,
+                model_grads,
+                master_grads,
                 self.loss_scaler.loss_scale())
             # print("Master grads after")
             # print([param.grad.data for param in self.all_fp32_from_fp32_params])

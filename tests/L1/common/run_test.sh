@@ -7,12 +7,13 @@ print_banner() {
 print_banner "Distributed status:  $1"
 
 echo $2
-if [ -n "$2" ]
+DATADIR=$2
+
+if [ -n "$3" ]
 then
-  DATADIR="$2"
+  USE_BASELINE=""
 else
-  # DATADIR="/home/mcarilli/Desktop/pt18data/apex/examples/imagenet/bare_metal_train_val/"
-  DATADIR="/opt/home/apex/examples/imagenet/"
+  USE_BASELINE="--use_baseline"
 fi
 
 if [ "$1" == "single_gpu" ]
@@ -130,7 +131,7 @@ do
       fi
       echo "${BASE_CMD} --opt-level ${opt_level} ${loss_scale} ${keep_batchnorm} [--has-ext] $DATADIR"
       set -x
-      python compare.py --opt-level ${opt_level} ${loss_scale} ${keep_batchnorm}
+      python compare.py --opt-level ${opt_level} ${loss_scale} ${keep_batchnorm} --use_baseline
       set +x
     done
   done

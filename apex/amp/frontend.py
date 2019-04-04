@@ -53,12 +53,13 @@ class Properties(object):
                 # print("setting {} {}".format(name, value))
                 if name == "cast_model_type":
                     if self.opt_level == "O1" and value is not None:
-                        if value is not torch.float32:
-                            warn_or_err("O1 inserts casts around Torch functions rather than "
-                                        "model weights, so with O1, the model weights themselves "
-                                        "should remain FP32. If you wish to cast the model to a "
-                                        "different type, use opt_level='O2' or 'O3'. " +
-                                        "cast_model_type was {}".format(value))
+                        if value is not False:
+                            if value is not torch.float32:
+                                warn_or_err("O1 inserts casts around Torch functions rather than "
+                                            "model weights, so with O1, the model weights themselves "
+                                            "should remain FP32. If you wish to cast the model to a "
+                                            "different type, use opt_level='O2' or 'O3'. " +
+                                            "cast_model_type was {}".format(value))
                     self.options[name] = value
                 elif name == "patch_torch_functions":
                     if self.opt_level != "O1" and value:
@@ -200,20 +201,28 @@ def initialize(
     keep_batchnorm_fp32=None,
     master_weights=None,
     loss_scale=None,
+    num_losses=1,
     verbosity=1,
     ):
     """
     Initialize your models, optimizers, and the Torch tensor and functional namespace according to the
     chosen ``opt_level`` and overridden properties, if any.
 
-    ``amp.initialize`` must be called **after** you have finished constructing your model(s) and
+    ``amp.initialize`` should be called **after** you have finished
+    constructing your model(s) and
     optimizer(s), but **before** you send your model through any DistributedDataParallel wrapper.
     See `Distributed training`_ in the Imagenet example.
+
+    Currently, ``amp.initialize`` should only be called **once**,
+    although it can process an arbitrary number of
+    models and optimizers (see the corresponding `Advanced Amp Usage topic`_).
+    If you think your use case requires ``amp.initialize`` to be called more than once,
+    `let us know`_.
 
     Any property keyword argument that is not ``None`` will be interpreted as a manual override.
 
     To prevent having to rewrite anything else in your script, name the returned models/optimizers
-    to replace the passed models/optimizers, as in the Usage below.
+    to replace the passed models/optimizers, as in the code sample below.
 
     Args:
         models (torch.nn.Module or list of torch.nn.Modules):  Models to modify/cast.
@@ -229,8 +238,15 @@ def initialize(
         keep_batchnorm_fp32 (bool or str, optional, default=None):  Optional property override.  If
             passed as a string, must be the string "True" or "False".
         master_weights (bool, optional, default=None):  Optional property override.
-        loss_scale (float or str, default=None):  Optional property override.  If passed as a string,
+        loss_scale (float or str, optional, default=None):  Optional property override.  If passed as a string,
             must be a string representing a number, e.g., "128.0", or the string "dynamic".
+        num_losses (int, optional, default=1):  Option to tell Amp in advance how many losses/backward
+            passes you plan to use.  When used in conjunction with the ``loss_id`` argument to
+            ``amp.scale_loss``, enables Amp to use a different loss scale per loss/backward pass,
+            which can improve stability.  See "Multiple models/optimizers/losses"
+            under `Advanced Amp Usage`_ for examples.  If ``num_losses`` is left to 1, Amp will still
+            support multiple losses/backward passes, but use a single global loss scale
+            for all of them.
         verbosity (int, default=1):  Set to 0 to suppress Amp-related output.
 
     Returns:
@@ -238,7 +254,7 @@ def initialize(
         If either the ``models`` or ``optimizers`` args were lists, the corresponding return value will
         also be a list.
 
-    Usage::
+    Permissible invocations::
 
         model, optim = amp.initialize(model, optim,...)
         model, [optim1, optim2] = amp.initialize(model, [optim1, optim2],...)
@@ -268,6 +284,15 @@ def initialize(
 
     .. _`Imagenet example`:
         https://github.com/NVIDIA/apex/tree/master/examples/imagenet
+
+    .. _`Advanced Amp Usage`:
+        https://nvidia.github.io/apex/advanced.html
+
+    .. _`Advanced Amp Usage topic`:
+        https://nvidia.github.io/apex/advanced.html#multiple-models-optimizers-losses
+
+    .. _`let us know`:
+        https://github.com/NVIDIA/apex/issues
     """
     _amp_state.opt_properties = Properties()
     _amp_state.verbosity = verbosity
@@ -308,7 +333,7 @@ def initialize(
     for k, v in _amp_state.opt_properties.options.items():
         maybe_print("{:22} : {}".format(k, v), True)
 
-    return _initialize(models, optimizers, _amp_state.opt_properties)
+    return _initialize(models, optimizers, _amp_state.opt_properties, num_losses)
 
 
 # TODO:  is this necessary/useful?
