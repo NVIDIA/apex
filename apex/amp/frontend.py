@@ -236,7 +236,8 @@ def initialize(
         num_losses (int, optional, default=1):  Option to tell Amp in advance how many losses/backward
             passes you plan to use.  When used in conjunction with the ``loss_id`` argument to
             ``amp.scale_loss``, enables Amp to use a different loss scale per loss/backward pass,
-            which can improve stability.  If ``num_losses`` is left to 1, Amp will still
+            which can improve stability.  See "Multiple models/optimizers/losses"
+            under `Advanced Amp Usage`_ for examples.  If ``num_losses`` is left to 1, Amp will still
             support multiple losses/backward passes, but use a single global loss scale
             for all of them.
         verbosity (int, default=1):  Set to 0 to suppress Amp-related output.

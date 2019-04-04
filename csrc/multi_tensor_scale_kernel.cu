@@ -65,13 +65,11 @@ struct ScaleFunctor
       {
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
-          if(isfinite(incoming_vals[ii]))
-            out[i] = static_cast<out_t>(incoming_vals[ii]*scale);
-          else
-          {
-            out[i] = static_cast<out_t>(incoming_vals[ii]*scale);
+        {
+          out[i] = static_cast<out_t>(incoming_vals[ii]*scale);
+          if(!isfinite(incoming_vals[ii]))
             *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
-          }
+        }
       }
     }
   }

@@ -54,7 +54,7 @@ class TestMultiTensorAxpby(unittest.TestCase):
         else:
             out_list = [out.clone().to(out_type)*3.0 for out in y_list]
 
-        applier(multi_tensor_axpby, self.overflow_buf, [x_list, y_list, out_list], self.a, self.b)
+        applier(multi_tensor_axpby, self.overflow_buf, [x_list, y_list, out_list], self.a, self.b, -1)
 
         self.assertTrue(all([torch.allclose(out, self.ref.to(out_type)) for out in out_list]),
                         msg="{} {} {} {} {} {} {}".format(sizea, sizeb, repeat_tensors,

@@ -260,6 +260,7 @@ def _process_optimizer(optimizer, properties):
         optimizer._amp_stash = AmpOptimizerState()
 
     optimizer._amp_stash.lazy_init_called = False
+    optimizer._amp_stash.already_patched = False
 
     for name in ("_lazy_init_maybe_master_weights",
                  "_master_params_to_model_params",

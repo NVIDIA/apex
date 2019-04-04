@@ -114,9 +114,10 @@ class LossScaler(object):
         else:
             self.unscale_python(model_grads, master_grads, scale)
 
+        # Defer to update_scale
         # If the fused kernel is available, we only need one D2H memcopy and sync.
-        if LossScaler.has_fused_kernel and self.dynamic and not self._has_overflow:
-            self._has_overflow = self._overflow_buf.item()
+        # if LossScaler.has_fused_kernel and self.dynamic and not self._has_overflow:
+        #     self._has_overflow = self._overflow_buf.item()
 
     def unscale_with_stashed_python(self,
                                     model_grads,
@@ -164,16 +165,18 @@ class LossScaler(object):
                                  self._overflow_buf,
                                  [model_grads, stashed_master_grads, master_grads],
                                  1./scale,
-                                 1.0)
+                                 1.0,
+                                 0) # check only arg 0, aka the incoming model grads, for infs
         else:
             self.unscale_with_stashed_python(model_grads,
                                              stashed_master_grads,
                                              master_grads,
                                              scale)
 
+        # Defer to update_scale
         # If the fused kernel is available, we only need one D2H memcopy and sync.
-        if LossScaler.has_fused_kernel and self.dynamic and not self._has_overflow:
-            self._has_overflow = self._overflow_buf.item()
+        # if LossScaler.has_fused_kernel and self.dynamic and not self._has_overflow:
+        #     self._has_overflow = self._overflow_buf.item()
 
     def clear_overflow_state(self):
         self._has_overflow = False
@@ -182,6 +185,10 @@ class LossScaler(object):
 
     # Separate so unscale() can be called more that once before updating.
     def update_scale(self):
+        # If the fused kernel is available, we only need one D2H memcopy and sync.
+        if LossScaler.has_fused_kernel and self.dynamic and not self._has_overflow:
+            self._has_overflow = self._overflow_buf.item()
+
         if self._has_overflow and self.dynamic:
             should_skip = True
             self._loss_scale /= 2.
