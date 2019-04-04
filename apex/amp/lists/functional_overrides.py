@@ -27,6 +27,10 @@ FP16_FUNCS = [
 ]
 
 FP32_FUNCS = [
+
+    # Interpolation/Upsampling
+    'interpolate',
+
     # Pointwise
     'softplus',
     'softmin',
