@@ -57,8 +57,9 @@ def scale_loss(loss,
             will use the default global loss scaler for this backward pass.
         model(torch.nn.Module, optional, default=None):  Currently unused, reserved to enable future
             optimizations.
-        delay_unscale(bool, optional, default=False):  ``delay_unscale`` is a ninja option that only
-            serves as a minor performance optimization, so only use it if you know what you're doing.
+        delay_unscale(bool, optional, default=False):  ``delay_unscale`` is never necessary.
+            It's a minor ninja performance optimization and can result in weird gotchas (especially
+            with multiple models/optimzers/losses), so only use it if you know what you're doing.
             If ``True``, Amp will not unscale the gradients or perform model->master
             gradient copies on context manager exit.
             "Gradient accumulation across iterations" under `Advanced Amp Usage`_
@@ -98,18 +99,24 @@ def scale_loss(loss,
             _amp_state.handle._clear_cache()
         return
 
-    if isinstance(optimizers, list):
-        for optimizer in optimizers:
-            optimizer._prepare_amp_backward()
+    if not delay_unscale:
+        if isinstance(optimizers, list):
+            for optimizer in optimizers:
+                if not optimizer._amp_stash.params_have_scaled_gradients:
+                    optimizer._prepare_amp_backward()
 
     yield (loss.float())*loss_scale
 
-    if not delay_unscale:
+    if delay_unscale:
+        for optimizer in optimizers:
+            optimizer._amp_stash.params_have_scaled_gradients = True
+    else:
         # FusedAdam and FusedSGD will take care of unscaling as part of their step() methods.
         if not isinstance(optimizers, FP16_Optimizer_for_fused):
             loss_scaler.clear_overflow_state()
             for optimizer in optimizers:
                 optimizer._post_amp_backward(loss_scaler)
+                optimizer._amp_stash.params_have_scaled_gradients = False
             # For future fused optimizers that enable sync-free dynamic loss scaling,
             # should_skip will always be False.
             should_skip = loss_scaler.update_scale()
