@@ -296,10 +296,13 @@
 <span class="sd">            will use the default global loss scaler for this backward pass.</span>
 <span class="sd">        model(torch.nn.Module, optional, default=None):  Currently unused, reserved to enable future</span>
 <span class="sd">            optimizations.</span>
-<span class="sd">        delay_unscale(bool, optional, default=False):  ``delay_unscale`` is a ninja option that only</span>
-<span class="sd">            serves as a minor performance optimization, so only use it if you know what you&#39;re doing.</span>
+<span class="sd">        delay_unscale(bool, optional, default=False):  ``delay_unscale`` is never necessary, and</span>
+<span class="sd">            the default value of ``False`` is strongly recommended.</span>
 <span class="sd">            If ``True``, Amp will not unscale the gradients or perform model-&gt;master</span>
 <span class="sd">            gradient copies on context manager exit.</span>
+<span class="sd">            ``delay_unscale=True`` is a minor ninja performance optimization and can result</span>
+<span class="sd">            in weird gotchas (especially with multiple models/optimizers/losses),</span>
+<span class="sd">            so only use it if you know what you&#39;re doing.</span>
 <span class="sd">            &quot;Gradient accumulation across iterations&quot; under `Advanced Amp Usage`_</span>
 <span class="sd">            illustrates a situation where this CAN (but does not need to) be used.</span>
 
@@ -337,18 +340,24 @@
             <span class="n">_amp_state</span><span class="o">.</span><span class="n">handle</span><span class="o">.</span><span class="n">_clear_cache</span><span class="p">()</span>
         <span class="k">return</span>
 
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">optimizers</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">optimizer</span> <span class="ow">in</span> <span class="n">optimizers</span><span class="p">:</span>
-            <span class="n">optimizer</span><span class="o">.</span><span class="n">_prepare_amp_backward</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">delay_unscale</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">optimizers</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">optimizer</span> <span class="ow">in</span> <span class="n">optimizers</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">_amp_stash</span><span class="o">.</span><span class="n">params_have_scaled_gradients</span><span class="p">:</span>
+                    <span class="n">optimizer</span><span class="o">.</span><span class="n">_prepare_amp_backward</span><span class="p">()</span>
 
     <span class="k">yield</span> <span class="p">(</span><span class="n">loss</span><span class="o">.</span><span class="n">float</span><span class="p">())</span><span class="o">*</span><span class="n">loss_scale</span>
 
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">delay_unscale</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">delay_unscale</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">optimizer</span> <span class="ow">in</span> <span class="n">optimizers</span><span class="p">:</span>
+            <span class="n">optimizer</span><span class="o">.</span><span class="n">_amp_stash</span><span class="o">.</span><span class="n">params_have_scaled_gradients</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">else</span><span class="p">:</span>
         <span class="c1"># FusedAdam and FusedSGD will take care of unscaling as part of their step() methods.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">optimizers</span><span class="p">,</span> <span class="n">FP16_Optimizer_for_fused</span><span class="p">):</span>
             <span class="n">loss_scaler</span><span class="o">.</span><span class="n">clear_overflow_state</span><span class="p">()</span>
             <span class="k">for</span> <span class="n">optimizer</span> <span class="ow">in</span> <span class="n">optimizers</span><span class="p">:</span>
                 <span class="n">optimizer</span><span class="o">.</span><span class="n">_post_amp_backward</span><span class="p">(</span><span class="n">loss_scaler</span><span class="p">)</span>
+                <span class="n">optimizer</span><span class="o">.</span><span class="n">_amp_stash</span><span class="o">.</span><span class="n">params_have_scaled_gradients</span> <span class="o">=</span> <span class="kc">False</span>
             <span class="c1"># For future fused optimizers that enable sync-free dynamic loss scaling,</span>
             <span class="c1"># should_skip will always be False.</span>
             <span class="n">should_skip</span> <span class="o">=</span> <span class="n">loss_scaler</span><span class="o">.</span><span class="n">update_scale</span><span class="p">()</span>

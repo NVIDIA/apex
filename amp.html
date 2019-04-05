@@ -512,10 +512,13 @@ under <a class="reference external" href="https://nvidia.github.io/apex/advanced
 will use the default global loss scaler for this backward pass.</li>
 <li><strong>model</strong> (<em>torch.nn.Module</em><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Currently unused, reserved to enable future
 optimizations.</li>
-<li><strong>delay_unscale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=False</em>) – <code class="docutils literal"><span class="pre">delay_unscale</span></code> is a ninja option that only
-serves as a minor performance optimization, so only use it if you know what you’re doing.
+<li><strong>delay_unscale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=False</em>) – <code class="docutils literal"><span class="pre">delay_unscale</span></code> is never necessary, and
+the default value of <code class="docutils literal"><span class="pre">False</span></code> is strongly recommended.
 If <code class="docutils literal"><span class="pre">True</span></code>, Amp will not unscale the gradients or perform model-&gt;master
 gradient copies on context manager exit.
+<code class="docutils literal"><span class="pre">delay_unscale=True</span></code> is a minor ninja performance optimization and can result
+in weird gotchas (especially with multiple models/optimizers/losses),
+so only use it if you know what you’re doing.
 “Gradient accumulation across iterations” under <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a>
 illustrates a situation where this CAN (but does not need to) be used.</li>
 </ul>
