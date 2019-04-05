@@ -57,11 +57,13 @@ def scale_loss(loss,
             will use the default global loss scaler for this backward pass.
         model(torch.nn.Module, optional, default=None):  Currently unused, reserved to enable future
             optimizations.
-        delay_unscale(bool, optional, default=False):  ``delay_unscale`` is never necessary.
-            It's a minor ninja performance optimization and can result in weird gotchas (especially
-            with multiple models/optimzers/losses), so only use it if you know what you're doing.
+        delay_unscale(bool, optional, default=False):  ``delay_unscale`` is never necessary, and
+            the default value of ``False`` is strongly recommended.
             If ``True``, Amp will not unscale the gradients or perform model->master
             gradient copies on context manager exit.
+            ``delay_unscale=True`` is a minor ninja performance optimization and can result
+            in weird gotchas (especially with multiple models/optimizers/losses),
+            so only use it if you know what you're doing.
             "Gradient accumulation across iterations" under `Advanced Amp Usage`_
             illustrates a situation where this CAN (but does not need to) be used.
 
