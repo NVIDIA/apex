@@ -240,17 +240,20 @@ template<> double rsqrt(double v) {
 namespace {
 // This is the un-specialized struct.  Note that we prevent instantiation of this
 // struct by putting an undefined symbol in the function body so it won't compile.
+//  template <typename T>
+//  struct SharedMemory
+//  {
+//      // Ensure that we won't compile any un-specialized types
+//      __device__ T *getPointer()
+//      {
+//          extern __device__ void error(void);
+//          error();
+//          return NULL;
+//      }
+//  };
+// https://github.com/NVIDIA/apex/issues/246
 template <typename T>
-struct SharedMemory
-{
-    // Ensure that we won't compile any un-specialized types
-    __device__ T *getPointer()
-    {
-        extern __device__ void error(void);
-        error();
-        return NULL;
-    }
-};
+struct SharedMemory;
 
 template <>
 struct SharedMemory <float>
