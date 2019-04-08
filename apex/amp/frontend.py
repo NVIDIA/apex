@@ -18,6 +18,7 @@ class Properties(object):
             "keep_batchnorm_fp32" : None,
             "master_weights" : None,
             "loss_scale" : 1.0,
+            "all_reduce_overflow" : False,
             # Reserved for future functionality
             # "fused_optimizer" : False,
             # "enable_ddp_interop" : False,
@@ -115,6 +116,7 @@ class O3:
         properties.keep_batchnorm_fp32 = False
         properties.master_weights = False
         properties.loss_scale = 1.0
+        properties.all_reduce_overflow = False
         # properties.fused_optimizer = False
         # properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
@@ -138,6 +140,7 @@ class O2:
         properties.keep_batchnorm_fp32 = True
         properties.master_weights = True
         properties.loss_scale = "dynamic"
+        properties.all_reduce_overflow = False
         # properties.fused_optimizer = False
         # properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
@@ -160,6 +163,7 @@ class O1:
         properties.keep_batchnorm_fp32 = None
         properties.master_weights = None
         properties.loss_scale = "dynamic"
+        properties.all_reduce_overflow = False
         # properties.fused_optimizer = False
         # properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
@@ -179,6 +183,7 @@ class O0:
         properties.keep_batchnorm_fp32 = None
         properties.master_weights = False
         properties.loss_scale = 1.0
+        properties.all_reduce_overflow = False
         # properties.fused_optimizer = False
         # properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
@@ -201,6 +206,7 @@ def initialize(
     keep_batchnorm_fp32=None,
     master_weights=None,
     loss_scale=None,
+    all_reduce_overflow=None,
     num_losses=1,
     verbosity=1,
     ):
@@ -240,6 +246,7 @@ def initialize(
         master_weights (bool, optional, default=None):  Optional property override.
         loss_scale (float or str, optional, default=None):  Optional property override.  If passed as a string,
             must be a string representing a number, e.g., "128.0", or the string "dynamic".
+        all_reduce_overflow (bool, optional, default=None): Optional property override.
         num_losses (int, optional, default=1):  Option to tell Amp in advance how many losses/backward
             passes you plan to use.  When used in conjunction with the ``loss_id`` argument to
             ``amp.scale_loss``, enables Amp to use a different loss scale per loss/backward pass,
@@ -328,6 +335,8 @@ def initialize(
         _amp_state.opt_properties.master_weights = master_weights
     if loss_scale is not None:
         _amp_state.opt_properties.loss_scale = loss_scale
+    if all_reduce_overflow is not None:
+        _amp_state.opt_properties.all_reduce_overflow = all_reduce_overflow
 
     maybe_print("After processing overrides, optimization options are:", True)
     for k, v in _amp_state.opt_properties.options.items():
