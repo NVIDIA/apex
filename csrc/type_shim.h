@@ -33,12 +33,12 @@ struct TypeShim
   }
 
 
-template<typename T, typename ReduceOp>
+template<typename T>
 __device__ __forceinline__ T reduce_block_into_lanes
   (T *x,
    T val,
-   int lanes,
-   bool share_result) // lanes is intended to be <= 32.
+   int lanes=1,
+   bool share_result=false) // lanes is intended to be <= 32.
 {
   int tid = threadIdx.x + threadIdx.y*blockDim.x;
   int blockSize = blockDim.x*blockDim.y; // blockSize is intended to be a multiple of 32.
