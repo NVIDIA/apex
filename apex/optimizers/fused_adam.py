@@ -2,6 +2,8 @@ import types
 import torch
 import importlib
 
+from ..multi_tensor_apply import multi_tensor_applier
+
 class FusedAdam(torch.optim.Optimizer):
 
     """Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
@@ -25,6 +27,8 @@ class FusedAdam(torch.optim.Optimizer):
             adds eps to the bias-corrected second moment estimate before
             evaluating square root instead of adding it to the square root of
             second moment estimate as in the original paper. (default: False)
+        use_mt (boolean, optional): use multi tensor apply for lower launch
+            latency. (default: False)
 
     .. _Adam\: A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
@@ -35,9 +39,17 @@ class FusedAdam(torch.optim.Optimizer):
     def __init__(self, params,
                  lr=1e-3, bias_correction = True,
                  betas=(0.9, 0.999), eps=1e-8, eps_inside_sqrt = False,
-                 weight_decay=0., max_grad_norm=0., amsgrad=False):
+                 weight_decay=0., max_grad_norm=0., amsgrad=False, use_mt=False):
         global fused_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
+
+        self._use_multi_tensor = False
+        if use_mt:
+            if not multi_tensor_applier.available:
+                print("Warning:  multi_tensor_applier is unavailable")
+            else:
+                self._use_multi_tensor = True
+                self._overflow_buf = torch.cuda.IntTensor([0])
 
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
@@ -105,6 +117,12 @@ class FusedAdam(torch.optim.Optimizer):
 
             bias_correction = 1 if group['bias_correction'] else 0
 
+            if self._use_multi_tensor:
+                if output_params:
+                    tensorlists = [[],[],[],[],[]]
+                else:
+                    tensorlists = [[],[],[],[]]
+
             for p, grad, output_param in zip(group['params'], grads_this_group, output_params_this_group):
                 #note: p.grad should not ever be set for correct operation of mixed precision optimizer that sometimes sends None gradients
                 if p.grad is None and grad is None:
@@ -130,18 +148,43 @@ class FusedAdam(torch.optim.Optimizer):
                 state['step'] += 1
 
                 out_p = torch.tensor([], dtype = torch.float) if output_param is None else output_param
-                fused_adam_cuda.adam(p.data,
-                                     out_p,
-                                     exp_avg,
-                                     exp_avg_sq,
-                                     grad,
-                                     group['lr'],
-                                     beta1,
-                                     beta2,
-                                     group['eps'],
-                                     combined_scale,
-                                     state['step'],
-                                     self.eps_mode,
-                                     bias_correction,
-                                     group['weight_decay'])
+                if self._use_multi_tensor:
+                    pl = [p.data, exp_avg, exp_avg_sq, grad]
+                    if output_param is not None:
+                        pl.append(out_p)
+
+                    for tl, t in zip(tensorlists, pl):
+                        tl.append(t)
+                else:
+                    fused_adam_cuda.adam(p.data,
+                                         out_p,
+                                         exp_avg,
+                                         exp_avg_sq,
+                                         grad,
+                                         group['lr'],
+                                         beta1,
+                                         beta2,
+                                         group['eps'],
+                                         combined_scale,
+                                         state['step'],
+                                         self.eps_mode,
+                                         bias_correction,
+                                         group['weight_decay'])
+
+            if self._use_multi_tensor:
+                multi_tensor_applier(
+                    fused_adam_cuda.adam_mt,
+                    self._overflow_buf,
+                    tensorlists,
+                    group['lr'],
+                    beta1,
+                    beta2,
+                    group['eps'],
+                    combined_scale,
+                    state['step'],
+                    self.eps_mode,
+                    bias_correction,
+                    group['weight_decay'])
+
         return loss
+
