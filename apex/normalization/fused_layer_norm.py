@@ -3,6 +3,7 @@ import torch
 import numbers
 from torch.nn.parameter import Parameter
 from torch.nn import init
+from torch.nn import functional as F
 import importlib
 
 class FusedLayerNormAffineFunction(torch.autograd.Function):
@@ -144,6 +145,9 @@ class FusedLayerNorm(torch.nn.Module):
             init.zeros_(self.bias)
 
     def forward(self, input):
+        if not input.is_cuda:
+            return  F.layer_norm(
+                input, self.normalized_shape, self.weight, self.bias, self.eps)
         if self.elementwise_affine:
           return FusedLayerNormAffineFunction(self.normalized_shape,self.eps)(
               input, self.weight, self.bias)
