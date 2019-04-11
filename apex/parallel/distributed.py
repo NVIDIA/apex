@@ -411,7 +411,7 @@ class DistributedDataParallel(Module):
             return self.bucket_events[0]
 
 
-    def allreduce_bucket(self, bucket):
+    def allreduce_bucket(self, bucket, bucket_idx):
         tensor = flatten(bucket)
 
         tensor_to_allreduce = tensor
