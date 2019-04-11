@@ -78,6 +78,11 @@ class FusedAdam(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
+        grads = self._amp_stash.grads
+        output_params = self._amp_stash.output_params
+        scale = self._amp_stash.scale
+        grad_norms = self._amp_stash.grad_norms
+
         if grads is None:
             grads_group = [None]*len(self.param_groups)
         # backward compatibility
