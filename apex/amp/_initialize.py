@@ -133,7 +133,7 @@ def _initialize(models, optimizers, properties, num_losses=1):
 
     if not _amp_state.allow_incoming_model_not_fp32:
         check_params_fp32(models)
-    
+
     check_optimizers(optimizers)
 
     # In the future, when FP16_Optimizer can be deprecated and master weights can
@@ -163,7 +163,7 @@ def _initialize(models, optimizers, properties, num_losses=1):
 
             model.forward = patch_forward(model.forward)
 
-        # State dict trick to recast any preexisting per-param state tensors 
+        # State dict trick to recast any preexisting per-param state tensors
         for optimizer in optimizers:
             optimizer.load_state_dict(optimizer.state_dict())
 
