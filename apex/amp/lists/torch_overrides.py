@@ -5,8 +5,9 @@ from .. import utils
 MODULE = torch
 
 FP16_FUNCS = [
-    # Math
-    # TODO: why are these in top-level torch namespace?
+    # Low level functions wrapped by torch.nn layers.
+    # The wrapper layers contain the weights which are then passed in as a parameter
+    # to these functions.
     'conv1d',
     'conv2d',
     'conv3d',
@@ -14,6 +15,7 @@ FP16_FUNCS = [
     'conv_transpose2d',
     'conv_transpose3d',
     'conv_tbc',
+    'prelu',
 
     # BLAS
     'addmm',
@@ -76,7 +78,6 @@ CASTS = [
     'addcmul',
     'atan2',
     'cross',
-    'prelu',
 
     # Element-wise _or_ tensor-wise math
     'add',
