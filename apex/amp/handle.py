@@ -6,8 +6,6 @@ from . import utils
 from .opt import OptimWrapper
 from .scaler import LossScaler
 from ._amp_state import _amp_state, master_params, maybe_print
-from ..fp16_utils import FP16_Optimizer as FP16_Optimizer_general
-from ..optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
 
 
 # There's no reason to expose the notion of a "handle". Everything can happen through amp.* calls.
@@ -82,13 +80,8 @@ def scale_loss(loss,
     if isinstance(optimizers, torch.optim.Optimizer):
         optimizers = [optimizers]
 
-    # this is what happens when i have to support tools from different sources under the same API...
-    # TODO:  Rewrite FusedAdam to use multi-tensor apply and the same loss scaler.
-    if isinstance(optimizers, FP16_Optimizer_for_fused):
-        loss_scale = optimizers.cur_scale
-    else:
-        loss_scaler = _amp_state.loss_scalers[loss_id]
-        loss_scale = loss_scaler.loss_scale()
+    loss_scaler = _amp_state.loss_scalers[loss_id]
+    loss_scale = loss_scaler.loss_scale()
 
     if ((not _amp_state.opt_properties.master_weights)
         and (not loss_scaler.dynamic)
@@ -113,8 +106,8 @@ def scale_loss(loss,
         for optimizer in optimizers:
             optimizer._amp_stash.params_have_scaled_gradients = True
     else:
-        # FusedAdam and FusedSGD will take care of unscaling as part of their step() methods.
-        if not isinstance(optimizers, FP16_Optimizer_for_fused):
+        # FusedAdam and FusedSGD may take care of unscaling as part of their step() methods.
+        # if not isinstance(optimizers, FP16_Optimizer_for_fused):
             loss_scaler.clear_overflow_state()
             for optimizer in optimizers:
                 optimizer._post_amp_backward(loss_scaler)
