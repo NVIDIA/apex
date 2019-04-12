@@ -65,7 +65,7 @@ struct AdamFunctor
     __device__ __forceinline__ void operator()(
         int chunk_size,
         volatile int* noop_gmem,
-        TensorList<DEPTH>& tl,
+        TensorListMetadata<DEPTH>& tl,
         const float b1,
         const float b2,
         const float eps,
