@@ -75,15 +75,17 @@ def check_models(models):
 def check_params_fp32(models):
     for model in models:
         for name, param in model.named_parameters():
-            if param.is_floating_point() and param.type() != "torch.cuda.FloatTensor":
-                warn_or_err("Found param {} with type {}, expected torch.cuda.FloatTensor.\n"
+            if param.is_floating_point() and (
+                            param.type() != "torch.cuda.FloatTensor" and param.type() != 'torch.FloatTensor'):
+                warn_or_err("Found param {} with type {}, expected torch.cuda.FloatTensor or torch.FloatTensor.\n"
                     "When using amp.initialize, you do not need to call .half() on your model\n"
                     "before passing it, no matter what optimization level you choose.".format(
                     name, param.type()))
 
         for name, buf in model.named_buffers():
-            if buf.is_floating_point() and buf.type() != "torch.cuda.FloatTensor":
-                warn_or_err("Found buffer {} with type {}, expected torch.cuda.FloatTensor.\n"
+            if buf.is_floating_point() and (
+                            buf.type() != "torch.cuda.FloatTensor" and buf.type() != 'torch.FloatTensor'):
+                warn_or_err("Found buffer {} with type {}, expected torch.cuda.FloatTensor or torch.FloatTensor.\n"
                     "When using amp.initialize, you do not need to call .half() on your model\n"
                     "before passing it, no matter what optimization level you choose.".format(
                     name, buf.type()))
@@ -192,7 +194,8 @@ def _initialize(models, optimizers, properties, num_losses=1):
 
     _amp_state.loss_scalers = []
     for _ in range(num_losses):
-        _amp_state.loss_scalers.append(LossScaler(properties.loss_scale))
+        _amp_state.loss_scalers.append(LossScaler(properties.loss_scale,
+                                                  all_reduce_overflow=properties.all_reduce_overflow))
 
     if properties.patch_torch_functions:
         # handle is unused here. It's accessible later through a global value anyway.

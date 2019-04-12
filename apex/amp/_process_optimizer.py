@@ -22,9 +22,7 @@ def lazy_init_with_master_weights(self):
             fp32_from_fp16_params_this_group = []
             for i, param in enumerate(param_group['params']):
                 if param.requires_grad:
-                    if param.type() == 'torch.cuda.HalfTensor':
-                        # maybe_print("FP16_Optimizer received torch.cuda.HalfTensor with {}"
-                        #             .format(param.size()))
+                    if param.type() == 'torch.cuda.HalfTensor' or param.type() == 'torch.HalfTensor':
                         fp16_params_this_group.append(param)
                         master_param = param.detach().clone().float()
                         master_param.requires_grad = True
@@ -34,14 +32,13 @@ def lazy_init_with_master_weights(self):
                         # We still need to recast per-param state tensors, if any, to FP32.
                         if param in self.state:
                            self.state[master_param] = self.state.pop(param)
-                    elif param.type() == 'torch.cuda.FloatTensor':
-                        # maybe_print("FP16_Optimizer received torch.cuda.FloatTensor with {}"
-                        #             .format(param.size()))
+                    elif param.type() == 'torch.cuda.FloatTensor' or param.type() == 'torch.FloatTensor':
                         fp32_params_this_group.append(param)
                         param_group['params'][i] = param
                     else:
                         raise TypeError("Optimizer's parameters must be either "
-                                        "torch.cuda.FloatTensor or torch.cuda.HalfTensor. "
+                                        "torch.cuda.FloatTensor or torch.FloatTensor or "
+                                        "torch.cuda.HalfTensor or torch.HalfTensor. "
                                         "Received {}".format(param.type()))
 
             stash.fp16_groups.append(fp16_params_this_group)
@@ -168,9 +165,9 @@ def lazy_init_no_master_weights(self):
     stash.all_fp32_params = []
     for i, param_group in enumerate(self.param_groups):
         for i, param in enumerate(param_group['params']):
-            if param.type() == 'torch.cuda.HalfTensor':
+            if param.type() == 'torch.cuda.HalfTensor' or param.type() == 'torch.HalfTensor':
                 stash.all_fp16_params.append(param)
-            elif param.type() == 'torch.cuda.FloatTensor':
+            elif param.type() == 'torch.cuda.FloatTensor' or param.type() == 'torch.FloatTensor':
                 stash.all_fp32_params.append(param)
             else:
                 raise TypeError("Optimizer's parameters must be either "

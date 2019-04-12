@@ -1,4 +1,6 @@
 import torch
+from torch.distributed import get_rank
+
 from ..multi_tensor_apply import multi_tensor_applier
 from ._amp_state import _amp_state, master_params, maybe_print
 from itertools import product
@@ -6,12 +8,16 @@ from itertools import product
 def scale_check_overflow_python(model_grad, master_grad, scale, check_overflow=False):
     # Exception handling for 18.04 compatibility
     if check_overflow:
-        cpu_sum = float(model_grad.float().sum())
+        if model_grad.is_sparse:
+            cpu_sum = float(model_grad.float()._values().sum())
+        else:
+            cpu_sum = float(model_grad.float().sum())
         if cpu_sum == float('inf') or cpu_sum == -float('inf') or cpu_sum != cpu_sum:
             return True
 
     if master_grad is not model_grad: # copy_ probably internally short-circuits this
         master_grad.copy_(model_grad)
+
     if scale != 1.0:
         master_grad.mul_(scale)
     return False
@@ -19,7 +25,10 @@ def scale_check_overflow_python(model_grad, master_grad, scale, check_overflow=F
 def axpby_check_overflow_python(model_grad, stashed_grad, master_grad, scale, check_overflow=False):
     # Exception handling for 18.04 compatibility
     if check_overflow:
-        cpu_sum = float(model_grad.float().sum())
+        if model_grad.is_sparse:
+            cpu_sum = float(model_grad.float()._values().sum())
+        else:
+            cpu_sum = float(model_grad.float().sum())
         if cpu_sum == float('inf') or cpu_sum == -float('inf') or cpu_sum != cpu_sum:
             return True
 
@@ -38,6 +47,7 @@ class LossScaler(object):
 
     def __init__(self,
                  loss_scale,
+                 all_reduce_overflow=False,
                  init_scale=2.**16,
                  scale_factor=2.,
                  scale_window=2000):
@@ -52,6 +62,7 @@ class LossScaler(object):
         self._unskipped = 0
         self._has_overflow = False
         self._overflow_buf = torch.cuda.IntTensor([0])
+        self._all_reduce_overflow = all_reduce_overflow
         if multi_tensor_applier.available:
             import amp_C
             LossScaler.has_fused_kernel = multi_tensor_applier.available
@@ -188,6 +199,13 @@ class LossScaler(object):
         # If the fused kernel is available, we only need one D2H memcopy and sync.
         if LossScaler.has_fused_kernel and self.dynamic and not self._has_overflow:
             self._has_overflow = self._overflow_buf.item()
+
+        # If there is no guarantee each process's overflow is the same (e.g. some parameters not distributed),
+        # you want to explicitly ensure overflows are synced with.
+        if self._all_reduce_overflow:
+            overflow_result = torch.LongTensor([int(self._has_overflow)]).cuda(torch.cuda.current_device())
+            torch.distributed.all_reduce(overflow_result)
+            self._has_overflow = bool(overflow_result.cpu().item())
 
         if self._has_overflow and self.dynamic:
             should_skip = True
