@@ -228,8 +228,8 @@ def prepare_backward_with_master_weights_fused(self):
 def post_backward_with_master_weights_fused(self, scaler):
     stash = self._amp_stash
     stash.scale = scaler.loss_scale()
-    stash.grads = [[param.grad.data for param in group] for group in self.fp16_groups]
-    stash.output_params = [[param for param in group] for group in self.fp16_groups]
+    stash.grads = [[param.grad.data for param in group] for group in stash.fp16_groups]
+    stash.output_params = [[param for param in group] for group in stash.fp16_groups]
 
     norm_groups = []
     skip = False
@@ -247,7 +247,7 @@ def post_backward_with_master_weights_fused(self, scaler):
         scaler._overflow_buf.fill_(1.)
         scaler._has_overflow = True
 
-    self._amp_stash.grad_norms = norm_groups
+    stash.grad_norms = norm_groups
 
 
 def prepare_backward_no_master_weights_fused(self):
