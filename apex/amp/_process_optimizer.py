@@ -217,7 +217,7 @@ def post_backward_no_master_weights(self, scaler):
         post_backward_models_are_masters(scaler, params, stashed_grads)
 
 
-def prepare_backward_with_master_weights_fused(self, scaler):
+def prepare_backward_with_master_weights_fused(self):
     stash = self._amp_stash
 
     if not stash.lazy_init_called:
@@ -250,7 +250,7 @@ def post_backward_with_master_weights_fused(self, scaler):
     self._amp_stash.grad_norms = norm_groups
 
 
-def prepare_backward_no_master_weights_fused(self, scaler):
+def prepare_backward_no_master_weights_fused(self):
     stash = self._amp_stash
 
     if not stash.lazy_init_called:
