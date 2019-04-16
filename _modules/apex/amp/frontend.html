@@ -440,6 +440,7 @@
     <span class="n">keep_batchnorm_fp32</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="n">master_weights</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="n">loss_scale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">cast_model_outputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="n">num_losses</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
     <span class="n">verbosity</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
     <span class="p">):</span>
@@ -479,6 +480,8 @@
 <span class="sd">        master_weights (bool, optional, default=None):  Optional property override.</span>
 <span class="sd">        loss_scale (float or str, optional, default=None):  Optional property override.  If passed as a string,</span>
 <span class="sd">            must be a string representing a number, e.g., &quot;128.0&quot;, or the string &quot;dynamic&quot;.</span>
+<span class="sd">        cast_model_outputs (torch.dtype, optional, default=None):  Option to ensure that the outputs</span>
+<span class="sd">            of your model(s) are always cast to a particular type regardless of ``opt_level``.</span>
 <span class="sd">        num_losses (int, optional, default=1):  Option to tell Amp in advance how many losses/backward</span>
 <span class="sd">            passes you plan to use.  When used in conjunction with the ``loss_id`` argument to</span>
 <span class="sd">            ``amp.scale_loss``, enables Amp to use a different loss scale per loss/backward pass,</span>
@@ -572,7 +575,7 @@
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">maybe_print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{:22}</span><span class="s2"> : </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span> <span class="kc">True</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">_initialize</span><span class="p">(</span><span class="n">models</span><span class="p">,</span> <span class="n">optimizers</span><span class="p">,</span> <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="p">,</span> <span class="n">num_losses</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">_initialize</span><span class="p">(</span><span class="n">models</span><span class="p">,</span> <span class="n">optimizers</span><span class="p">,</span> <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="p">,</span> <span class="n">num_losses</span><span class="p">,</span> <span class="n">cast_model_outputs</span><span class="p">)</span></div>
 
 
 <span class="c1"># TODO:  is this necessary/useful?</span>
