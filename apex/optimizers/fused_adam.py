@@ -39,7 +39,8 @@ class FusedAdam(torch.optim.Optimizer):
     def __init__(self, params,
                  lr=1e-3, bias_correction = True,
                  betas=(0.9, 0.999), eps=1e-8, eps_inside_sqrt = False,
-                 weight_decay=0., max_grad_norm=0., amsgrad=False, use_mt=False):
+                 weight_decay=0., max_grad_norm=0., amsgrad=False, use_mt=False,
+                 amp_scale_adjustment=1.0):
         global fused_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
 
@@ -50,6 +51,8 @@ class FusedAdam(torch.optim.Optimizer):
             else:
                 self._use_multi_tensor = True
                 self._overflow_buf = torch.cuda.IntTensor([0])
+
+        self._amp_scale_adjustment = amp_scale_adjustment
 
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
@@ -81,7 +84,7 @@ class FusedAdam(torch.optim.Optimizer):
         if hasattr(self, "_amp_stash"):
             grads = self._amp_stash.grads
             output_params = self._amp_stash.output_params
-            scale = self._amp_stash.scale*scale
+            scale = self._amp_stash.scale*self._amp_scale_adjustment
             grad_norms = self._amp_stash.grad_norms
 
         if grads is None:
