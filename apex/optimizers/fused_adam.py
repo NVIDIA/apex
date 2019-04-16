@@ -81,7 +81,7 @@ class FusedAdam(torch.optim.Optimizer):
         if hasattr(self, "_amp_stash"):
             grads = self._amp_stash.grads
             output_params = self._amp_stash.output_params
-            scale = self._amp_stash.scale
+            scale = self._amp_stash.scale*scale
             grad_norms = self._amp_stash.grad_norms
 
         if grads is None:
