@@ -107,7 +107,7 @@ def check_optimizers(optimizers):
                                "on the specified opt_level (and optional overridden properties).")
 
 
-def _initialize(models, optimizers, properties, num_losses=1):
+def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs=None):
     from apex.parallel import DistributedDataParallel as apex_DDP
     from .amp import init as amp_init
 
@@ -148,7 +148,10 @@ def _initialize(models, optimizers, properties, num_losses=1):
                 model.to(properties.cast_model_type)
 
         input_caster = functools.partial(to_type, properties.cast_model_type)
-        output_caster = functools.partial(to_type, torch.float32)
+        if cast_model_outputs is not None:
+            output_caster = functools.partial(to_type, cast_model_outputs)
+        else:
+            output_caster = functools.partial(to_type, torch.float32)
 
         for model in models:
             # Patch the forward method to cast incoming data to the correct type, and
@@ -166,6 +169,17 @@ def _initialize(models, optimizers, properties, num_losses=1):
         # State dict trick to recast any preexisting per-param state tensors
         for optimizer in optimizers:
             optimizer.load_state_dict(optimizer.state_dict())
+    elif cast_model_outputs is not None:
+        output_caster = functools.partial(to_type, cast_model_outputs)
+
+        for model in models:
+            def patch_forward(old_fwd):
+                def new_fwd(*args, **kwargs):
+                    output = old_fwd(*args, **kwargs)
+                    return applier(output, output_caster)
+                return new_fwd
+
+            model.forward = patch_forward(model.forward)
 
     for i, optimizer in enumerate(optimizers):
         optimizers[i] = _process_optimizer(optimizer, properties)
