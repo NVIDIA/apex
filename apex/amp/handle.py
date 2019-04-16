@@ -122,7 +122,7 @@ def scale_loss(loss,
                         # necessary because amp.scale_loss is already creating a temporary scope.
                         def patch_step(opt, loss_scaler, loss_id):
                             opt_step = opt.step
-                            def skip_step():
+                            def skip_step(scale=None):
                                 maybe_print(("Gradient overflow.  Skipping step, loss scaler " +
                                              "{} reducing loss scale to {}").format(loss_id,
                                              loss_scaler.loss_scale()))
