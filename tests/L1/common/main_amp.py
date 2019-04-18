@@ -365,6 +365,9 @@ def train(train_loader, model, criterion, optimizer, epoch):
         batch_time.update(time.time() - end)
 
         end = time.time()
+
+        # If you decide to refactor this test, like examples/imagenet, to sample the loss every
+        # print_freq iterations, make sure to move this prefetching below the accuracy calculation.
         input, target = prefetcher.next()
 
         if i % args.print_freq == 0 and i > 1:

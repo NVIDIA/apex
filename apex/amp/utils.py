@@ -5,6 +5,9 @@ import itertools
 
 import torch
 
+def get_cuda_version():
+    return tuple(int(x) for x in torch.version.cuda.split('.'))
+
 def is_fp_tensor(x):
     if is_nested(x):
         # Fast-fail version of all(is_fp_tensor)

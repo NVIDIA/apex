@@ -13,6 +13,13 @@ on the Github page.
 GANs are a tricky case that many people have requested.  A `comprehensive DCGAN example`_
 is under construction.
 
+If you already implemented Amp based on the instructions below, but it isn't behaving as expected,
+please review `Advanced Amp Usage`_ to see if any topics match your use case.  If that doesn't help,
+`file an issue`_.
+
+.. _`file an issue`:
+    https://github.com/NVIDIA/apex/issues
+
 ``opt_level``\ s and Properties
 -------------------------------
 
@@ -26,8 +33,8 @@ override the defaults established by the ``opt_level``.
 
 Example::
 
-        # Declare model and optimizer as usual
-        model = torch.nn.Linear(D_in, D_out).cuda().half()
+        # Declare model and optimizer as usual, with default (FP32) precision
+        model = torch.nn.Linear(D_in, D_out).cuda()
         optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 
         # Allow Amp to perform casts as required by the opt_level
@@ -54,6 +61,9 @@ In this way, there's no risk adhering to the Amp API, and a lot of potential per
 
 .. _`comprehensive DCGAN example`:
     https://github.com/NVIDIA/apex/tree/master/examples/dcgan
+
+.. _`Advanced Amp Usage`:
+    https://nvidia.github.io/apex/advanced.html
 
 Properties
 **********
@@ -102,9 +112,8 @@ Your incoming model should be FP32 already, so this is likely a no-op.
 |
 |
 
-``O1``:  Conservative Mixed Precision
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
+``O1``:  Mixed Precision (recommended for typical use)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Patch all Torch functions and Tensor methods to cast their inputs according to a whitelist-blacklist
 model.  Whitelist ops (for example, Tensor Core-friendly ops like GEMMs and convolutions) are performed
 in FP16.  Blacklist ops that benefit from FP32 precision (for example, softmax)
@@ -119,11 +128,14 @@ are performed in FP32.  ``O1`` also uses dynamic loss scaling, unless overridden
 |
 |
 
-``O2``:  Fast Mixed Precision
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+``O2``:  "Almost FP16" Mixed Precision
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ``O2`` casts the model weights to FP16,
 patches the model's ``forward`` method to cast input
 data to FP16, keeps batchnorms in FP32, maintains FP32 master weights,
+updates the optimizer's ``param_groups`` so that the ``optimizer.step()``
+acts directly on the FP32 weights (followed by FP32 master weight->FP16 model weight
+copies if necessary),
 and implements dynamic loss scaling (unless overridden).
 Unlike ``O1``, ``O2`` does not patch Torch functions or Tensor methods.
 
@@ -170,7 +182,7 @@ Advanced use cases
 
 The unified Amp API supports gradient accumulation across iterations,
 multiple backward passes per iteration, multiple models/optimizers,
-and custom/user-defined autograd functions.  Gradient clipping and GANs also
+custom/user-defined autograd functions, and custom data batch classes.  Gradient clipping and GANs also
 require special treatment, but this treatment does not need to change
 for different ``opt_level``\ s.  Further details can be found here:
 

@@ -1,8 +1,8 @@
 import contextlib
-import logging
 import warnings
 
 from .scaler import LossScaler, master_params
+from ._amp_state import maybe_print
 
 import numpy as np
 
@@ -71,8 +71,7 @@ class OptimWrapper(object):
                 'The `closure` argument is unsupported by the amp ' +
                 'optimizer wrapper.')
         if any(self._skip_next):
-            logger = logging.getLogger('apex.amp')
-            logger.info('Gradient overflow, skipping update')
+            maybe_print('Gradient overflow, skipping update')
             self._skip_next = [False] * self._num_loss
         else:
             return self._optimizer.step(closure=closure)

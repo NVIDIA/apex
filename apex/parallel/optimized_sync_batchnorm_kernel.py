@@ -22,9 +22,12 @@ class SyncBatchnormFunction(Function):
             if channel_last:
                 count = int(input.numel()/input.size(-1))
                 mean, var_biased = syncbn.welford_mean_var_c_last(input)
-            else :
+            else:
                 count = int(input.numel()/input.size(1))
                 mean, var_biased = syncbn.welford_mean_var(input)
+
+            if count == 1:
+                raise ValueError('Expected more than 1 value per channel when training, got input size{}'.format(input.size()))
 
             if torch.distributed.is_initialized():
                 if not process_group:
@@ -48,7 +51,7 @@ class SyncBatchnormFunction(Function):
             running_variance.data = running_variance.data * (1-momentum) + momentum*r_v_inc
         else:
             mean = running_mean.data
-            inv_std = 1.0 / torch.sqrt(running_var.data + eps)
+            inv_std = 1.0 / torch.sqrt(running_variance.data + eps)
 
         ctx.save_for_backward(input, weight, mean, inv_std)
         ctx.process_group = process_group

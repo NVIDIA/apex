@@ -1,12 +1,11 @@
 import contextlib
-import logging
 import warnings
 import torch
 
 from . import utils
 from .opt import OptimWrapper
 from .scaler import LossScaler
-from ._amp_state import _amp_state, master_params
+from ._amp_state import _amp_state, master_params, maybe_print
 from ..fp16_utils import FP16_Optimizer as FP16_Optimizer_general
 from ..optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
 
@@ -14,7 +13,8 @@ from ..optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
 # There's no reason to expose the notion of a "handle". Everything can happen through amp.* calls.
 @contextlib.contextmanager
 def scale_loss(loss,
-               optimizer,
+               optimizers,
+               loss_id=0,
                model=None,
                delay_unscale=False):
     """
@@ -38,41 +38,60 @@ def scale_loss(loss,
         unscaled.  The direct ``.grad`` attributes of any FP16
         model params will remain scaled after context manager exit.
         This subtlety affects gradient clipping.  See "Gradient clipping" under
-        "Advanced use cases" for best practices.
+        `Advanced Amp Usage`_ for best practices.
 
     Args:
         loss(Tensor):  Typically a scalar Tensor. The ``scaled_loss`` that the context
             manager yields is simply ``loss.float()*loss_scale``, so in principle
             ``loss`` could have more than one element, as long as you call
             ``backward()`` on ``scaled_loss`` appropriately within the context manager body.
-        optimizer:  Must be an optimizer returned from an earlier call to ``amp.initialize``.
+        optimizers:  All optimizer(s) for which the current backward pass is creating gradients.
+            Must be an optimizer or list of optimizers returned from an earlier call
+            to ``amp.initialize``.  For example use with multiple optimizers, see
+            "Multiple models/optimizers/losses" under `Advanced Amp Usage`_.
+        loss_id(int, optional, default=0):  When used in conjunction with the ``num_losses`` argument
+            to ``amp.initialize``, enables Amp to use a different loss scale per loss.  ``loss_id``
+            must be an integer between 0 and ``num_losses`` that tells Amp which loss is
+            being used for the current backward pass.  See "Multiple models/optimizers/losses"
+            under `Advanced Amp Usage`_ for examples.  If ``loss_id`` is left unspecified, Amp
+            will use the default global loss scaler for this backward pass.
         model(torch.nn.Module, optional, default=None):  Currently unused, reserved to enable future
             optimizations.
-        delay_unscale(bool, default=False):  Don't unscale the gradients or perform model->master
-            gradient copies on context manager exit.  "Advanced use cases" illustrates
-            situations where this is necessary.
+        delay_unscale(bool, optional, default=False):  ``delay_unscale`` is never necessary, and
+            the default value of ``False`` is strongly recommended.
+            If ``True``, Amp will not unscale the gradients or perform model->master
+            gradient copies on context manager exit.
+            ``delay_unscale=True`` is a minor ninja performance optimization and can result
+            in weird gotchas (especially with multiple models/optimizers/losses),
+            so only use it if you know what you're doing.
+            "Gradient accumulation across iterations" under `Advanced Amp Usage`_
+            illustrates a situation where this CAN (but does not need to) be used.
 
-    .. warning::If ``True``, ``optimizer.step()`` cannot be
-            called yet after context manager exit, and must wait for another, later backward context
-            manager invocation with ``delay_unscale`` left to False.
-            See "Advanced use cases" for examples.
+    .. warning::
+        If ``delay_unscale`` is ``True`` for a given backward pass, ``optimizer.step()`` cannot be
+        called yet after context manager exit, and must wait for another, later backward context
+        manager invocation with ``delay_unscale`` left to False.
+
+    .. _`Advanced Amp Usage`:
+        https://nvidia.github.io/apex/advanced.html
     """
     if not _amp_state.opt_properties.enabled:
         yield loss
         return
 
-    if optimizer.loss_scaler is None:
-        raise RuntimeError("optimizer passed to scale_loss does not have a loss_scaler.")
+    if isinstance(optimizers, torch.optim.Optimizer):
+        optimizers = [optimizers]
 
     # this is what happens when i have to support tools from different sources under the same API...
     # TODO:  Rewrite FusedAdam to use multi-tensor apply and the same loss scaler.
-    if isinstance(optimizer, FP16_Optimizer_for_fused):
-        loss_scale = optimizer.cur_scale
+    if isinstance(optimizers, FP16_Optimizer_for_fused):
+        loss_scale = optimizers.cur_scale
     else:
-        loss_scale = optimizer.loss_scaler.loss_scale()
+        loss_scaler = _amp_state.loss_scalers[loss_id]
+        loss_scale = loss_scaler.loss_scale()
 
     if ((not _amp_state.opt_properties.master_weights)
-        and (not optimizer.loss_scaler.dynamic)
+        and (not loss_scaler.dynamic)
         and loss_scale == 1.0):
         yield loss.float()
         # Needing to drop the cache here as well is an ugly gotcha.
@@ -82,35 +101,48 @@ def scale_loss(loss,
             _amp_state.handle._clear_cache()
         return
 
+    if not delay_unscale:
+        if isinstance(optimizers, list):
+            for optimizer in optimizers:
+                if not optimizer._amp_stash.params_have_scaled_gradients:
+                    optimizer._prepare_amp_backward()
+
     yield (loss.float())*loss_scale
 
-    # this isn't pretty but it unifies things.  Once I deprecate the old API entirely,
-    # I will have freedom to clean this up.  Maybe instead of wrapping optimizers,
-    # I can simply construct a set of attributes (e.g. master params) and assign them
-    # directly to optimizer instances.
-    if not delay_unscale:
-        # The FP16_Optimizer for FusedAdam will take care of unscaling as part of
-        # its step() method.
-        if not isinstance(optimizer, FP16_Optimizer_for_fused):
-            if isinstance(optimizer, FP16_Optimizer_general):
-                optimizer.update_master_grads()
-            else:
-                optimizer.loss_scaler.clear_overflow_state()
-                optimizer.loss_scaler.unscale(
-                    master_params(optimizer),
-                    master_params(optimizer),
-                    loss_scale)
-                # For future fused optimizers that enable sync-free dynamic loss scaling,
-                # should_skip will always be False.
-                should_skip = optimizer.loss_scaler.update_scale()
-                if should_skip:
-                    optimizer_step = optimizer.step
-                    def skip_step():
-                        logger = logging.getLogger('apex.amp')
-                        logger.warning("Gradient overflow.  Skipping step, reducing " +
-                                       "loss scale to {}".format(optimizer.loss_scaler.loss_scale()))
-                        optimizer.step = optimizer_step
-                    optimizer.step = skip_step
+    if delay_unscale:
+        for optimizer in optimizers:
+            optimizer._amp_stash.params_have_scaled_gradients = True
+    else:
+        # FusedAdam and FusedSGD will take care of unscaling as part of their step() methods.
+        if not isinstance(optimizers, FP16_Optimizer_for_fused):
+            loss_scaler.clear_overflow_state()
+            for optimizer in optimizers:
+                optimizer._post_amp_backward(loss_scaler)
+                optimizer._amp_stash.params_have_scaled_gradients = False
+            # For future fused optimizers that enable sync-free dynamic loss scaling,
+            # should_skip will always be False.
+            should_skip = loss_scaler.update_scale()
+            if should_skip:
+                for optimizer in optimizers:
+                    if not optimizer._amp_stash.already_patched:
+                        # Close on loss_scaler and loss_id as well, to be safe.  Probably not
+                        # necessary because amp.scale_loss is already creating a temporary scope.
+                        def patch_step(opt, loss_scaler, loss_id):
+                            opt_step = opt.step
+                            def skip_step():
+                                maybe_print(("Gradient overflow.  Skipping step, loss scaler " +
+                                             "{} reducing loss scale to {}").format(loss_id,
+                                             loss_scaler.loss_scale()))
+                                if hasattr(opt._amp_stash, "all_fp32_from_fp16_params"):
+                                    # Clear the master grads that wouldn't be zeroed by model.zero_grad()
+                                    for param in opt._amp_stash.all_fp32_from_fp16_params:
+                                        param.grad = None
+                                opt.step = opt_step
+                                opt._amp_stash.already_patched = False
+                            return skip_step
+                        optimizer.step = patch_step(optimizer, loss_scaler, loss_id)
+                        optimizer._amp_stash.already_patched = True
+
     # Probably ok to skip this if not delay_unscale
     if _amp_state.opt_properties.patch_torch_functions:
         _amp_state.handle._clear_cache()
@@ -149,6 +181,10 @@ class AmpHandle(object):
 
     @contextlib.contextmanager
     def scale_loss(self, loss, optimizer):
+        raise RuntimeError("The old Amp API is no longer supported.  Please move to the new API, "
+            "documented here:  https://nvidia.github.io/apex/amp.html.  Transition guide:  "
+            "https://nvidia.github.io/apex/amp.html#transition-guide-for-old-api-users")
+
         if not self.is_active():
             yield loss
             return
@@ -171,8 +207,7 @@ class AmpHandle(object):
         if should_skip:
             optimizer_step = optimizer.step
             def skip_step():
-                logger = logging.getLogger('apex.amp')
-                logger.warning('Gradient overflow, skipping update')
+                maybe_print('Gradient overflow, skipping update')
                 optimizer.step = optimizer_step
             optimizer.step = skip_step
 

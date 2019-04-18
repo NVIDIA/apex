@@ -68,7 +68,6 @@ parser.add_argument("--local_rank", default=0, type=int)
 parser.add_argument('--sync_bn', action='store_true',
                     help='enabling apex sync BN.')
 
-parser.add_argument('--has-ext', action='store_true')
 parser.add_argument('--opt-level', type=str)
 parser.add_argument('--keep-batchnorm-fp32', type=str, default=None)
 parser.add_argument('--loss-scale', type=str, default=None)
@@ -118,7 +117,7 @@ def main():
     args.world_size = 1
 
     if args.distributed:
-        args.gpu = args.local_rank % torch.cuda.device_count()
+        args.gpu = args.local_rank
         torch.cuda.set_device(args.gpu)
         torch.distributed.init_process_group(backend='nccl',
                                              init_method='env://')
@@ -334,10 +333,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
         optimizer.step()
         if args.prof: torch.cuda.nvtx.range_pop()
 
-        input, target = prefetcher.next()
-
         if i%args.print_freq == 0:
-            # Every print_freq iterations, check the loss accuracy and speed.
+            # Every print_freq iterations, check the loss, accuracy, and speed.
             # For best performance, it doesn't make sense to print these metrics every
             # iteration, since they incur an allreduce and some host<->device syncs.
 
@@ -373,6 +370,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
                        args.world_size*args.batch_size/batch_time.avg,
                        batch_time=batch_time,
                        loss=losses, top1=top1, top5=top5))
+
+        input, target = prefetcher.next()
 
 
 def validate(val_loader, model, criterion):

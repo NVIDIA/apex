@@ -4,6 +4,7 @@ from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
+from ..amp._amp_state import _amp_state, maybe_print
 from ..amp.scaler import LossScaler
 from ..multi_tensor_apply import multi_tensor_applier
 from .fp16util import model_grads_to_master_grads, master_params_to_model_params, clip_grad_norm
@@ -193,6 +194,8 @@ class FP16_Optimizer(object):
             self.multi_tensor_scale = amp_C.multi_tensor_scale
             self._dummy_overflow_buf = torch.cuda.IntTensor([0]);
 
+    # Having self.maybe_print distinct from _amp_state.maybe_print is another artifact
+    # of having to support FP16_Optimizer separately, for the time being.
     def maybe_print(self, msg):
         if self.verbose:
             print(msg)
@@ -401,8 +404,9 @@ class FP16_Optimizer(object):
         # self._update_scale(self.overflow)
 
         if self.overflow:
-            print("Gradient overflow.  Skipping step, reducing " +
-                  "loss scale to {}".format(self.loss_scaler.loss_scale()))
+            # Using _amp_state.maybe_print instead of self.print here is intentional.
+            maybe_print("Gradient overflow.  Skipping step, reducing " +
+                "loss scale to {}".format(self.loss_scaler.loss_scale()))
             return
         
         if closure is not None:
@@ -536,18 +540,37 @@ class FP16_Optimizer(object):
         if len(self.all_fp16_params) > 0:
             # print("Model grads before")
             # print([param.grad.data for param in self.all_fp16_params])
+            # I'm ONLY writing this as an incremental way to make some tests pass until
+            # I can refactor the tests as well.
+            # FP16_Optimizer should not be used by anyone.
+            model_grads = []
+            master_grads = []
+            for model_param, master_param in zip(self.all_fp16_params,
+                                                 self.all_fp32_from_fp16_params):
+                if model_param.grad is not None:
+                    model_grads.append(model_param.grad)
+                    if master_param.grad is None:
+                        master_param.grad = torch.empty_like(master_param)
+                    master_grads.append(master_param.grad)
             self.loss_scaler.unscale(
-                self.all_fp16_params,
-                self.all_fp32_from_fp16_params,
+                model_grads,
+                master_grads,
                 self.loss_scaler.loss_scale())
             # print("Master grads after")
             # print([param.grad.data for param in self.all_fp32_from_fp16_params])
         if len(self.all_fp32_from_fp32_params) > 0:
+            model_grads = []
+            master_grads = []
+            for model_param, master_param in zip(self.all_fp32_from_fp32_params,
+                                                 self.all_fp32_from_fp32_params):
+                if model_param.grad is not None:
+                    model_grads.append(model_param.grad)
+                    master_grads.append(master_param.grad)
             # print("Model grads before")
             # print([param.grad.data for param in self.all_fp32_from_fp32_params])
             self.loss_scaler.unscale(
-                self.all_fp32_from_fp32_params,
-                self.all_fp32_from_fp32_params,
+                model_grads,
+                master_grads,
                 self.loss_scaler.loss_scale())
             # print("Master grads after")
             # print([param.grad.data for param in self.all_fp32_from_fp32_params])

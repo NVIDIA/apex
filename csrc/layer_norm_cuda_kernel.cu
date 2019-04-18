@@ -6,6 +6,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+#include "type_shim.h"
+
 template<typename U> __device__
 void cuWelfordOnlineSum(
   const U curr,
@@ -238,17 +240,20 @@ template<> double rsqrt(double v) {
 namespace {
 // This is the un-specialized struct.  Note that we prevent instantiation of this
 // struct by putting an undefined symbol in the function body so it won't compile.
+//  template <typename T>
+//  struct SharedMemory
+//  {
+//      // Ensure that we won't compile any un-specialized types
+//      __device__ T *getPointer()
+//      {
+//          extern __device__ void error(void);
+//          error();
+//          return NULL;
+//      }
+//  };
+// https://github.com/NVIDIA/apex/issues/246
 template <typename T>
-struct SharedMemory
-{
-    // Ensure that we won't compile any un-specialized types
-    __device__ T *getPointer()
-    {
-        extern __device__ void error(void);
-        error();
-        return NULL;
-    }
-};
+struct SharedMemory;
 
 template <>
 struct SharedMemory <float>
@@ -670,11 +675,16 @@ void cuda_layer_norm(
     at::Tensor* input,
     int n1,
     int n2,
+    #ifdef VERSION_GE_1_1
+    at::IntArrayRef normalized_shape,
+    #else
     at::IntList normalized_shape,
+    #endif
     at::Tensor* gamma,
     at::Tensor* beta,
     double epsilon)
 {
+    using namespace at;
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input->type(), "layer_norm_cuda_kernel", ([&] {
         using accscalar_t = at::acc_type<scalar_t, true>;
         HostApplyLayerNorm(
@@ -764,7 +774,11 @@ void cuda_layer_norm_gradient(
     at::Tensor* input,
     int n1,
     int n2,
+    #ifdef VERSION_GE_1_1
+    at::IntArrayRef normalized_shape,
+    #else
     at::IntList normalized_shape,
+    #endif
     at::Tensor* gamma,
     at::Tensor* beta,
     double epsilon,
@@ -772,6 +786,7 @@ void cuda_layer_norm_gradient(
     at::Tensor* grad_gamma,
     at::Tensor* grad_beta)
 {
+    using namespace at;
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input->type(), "cuComputeGradInput", ([&] {
         using accscalar_t = at::acc_type<scalar_t, true>;
         HostLayerNormGradient(

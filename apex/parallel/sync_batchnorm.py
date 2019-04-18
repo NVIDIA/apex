@@ -72,10 +72,9 @@ class SyncBatchNorm(_BatchNorm):
             return F.batch_norm(input, self.running_mean, self.running_var, self.weight, self.bias, False, 0.0, self.eps)
         else:
             process_group = self.process_group
-            world_size = 0
+            world_size = 1
             if not self.process_group:
                 process_group = torch.distributed.group.WORLD
-            world_size = torch.distributed.get_world_size(process_group)
             self.num_batches_tracked += 1
             with torch.no_grad():
                 channel_first_input = input.transpose(0, 1).contiguous()
@@ -88,6 +87,7 @@ class SyncBatchNorm(_BatchNorm):
                 local_sqr_mean = torch.pow(
                     squashed_input_tensor_view, 2).mean(1)
                 if torch.distributed.is_initialized():
+                    world_size = torch.distributed.get_world_size(process_group)
                     torch.distributed.all_reduce(
                         local_mean, ReduceOp.SUM, process_group)
                     mean = local_mean / world_size
