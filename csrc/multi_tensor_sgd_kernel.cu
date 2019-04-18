@@ -49,7 +49,7 @@ struct SGDFunctor
 
     T_grad* grad_in = (T_grad*)tl.addresses[0][tensor_loc];
     grad_in += chunk_idx*chunk_size;
-   
+
     T_weight* weight_in = (T_weight*)tl.addresses[1][tensor_loc];
     weight_in += chunk_idx*chunk_size;
 

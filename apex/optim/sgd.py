@@ -103,7 +103,7 @@ class SGD(Optimizer):
             for p in params:
                 param_state = self.state[p]
                 # torch.optim.SGD initializes momentum in the main loop, we have
-                # to do it here, and track whether or not we've done so, so that 
+                # to do it here, and track whether or not we've done so, so that
                 # momentum application can be skipped in the main kernel.
                 if 'momentum_buffer' not in param_state:
                     first_run = True
@@ -113,7 +113,7 @@ class SGD(Optimizer):
                     first_run = False
                     momentums.append(param_state['momentum_buffer'])
 
-            # We have all parameters now, split them into appropriate groups for 
+            # We have all parameters now, split them into appropriate groups for
             # parallel execution, following the 4 possible combos that the underlying
             # kernels support:
             # grad_type, param_type, momentum_type, requires_fp16_copy

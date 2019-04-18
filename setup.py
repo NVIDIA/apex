@@ -98,7 +98,6 @@ if "--cuda_ext" in sys.argv:
                                               'nvcc':['-maxrregcount=50',
                                                       '-O3',
                                                       '--use_fast_math'] + version_ge_1_1}))
-print(ext_modules)
 
 setup(
     name='apex',
