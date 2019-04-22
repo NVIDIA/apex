@@ -31,7 +31,7 @@ struct SGDFunctor
    __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorList<N>& tl,
+    TensorListMetadata<N>& tl,
     float wd,
     float momentum,
     float dampening,
