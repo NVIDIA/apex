@@ -91,12 +91,13 @@ void fused_adam_cuda(
         }
         cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
-        if (g.type().scalarType() == at::ScalarType::Half) {
+        //if (g.type().scalarType() == at::ScalarType::Half) {
+        if (g.scalar_type() == at::kHalf) {
 //all other values should be fp32 for half gradients
-            AT_ASSERTM(p.type().scalarType() == at::ScalarType::Float, "expected parameter to be of float type");
+            AT_ASSERTM(p.scalar_type() == at::kFloat, "expected parameter to be of float type");
 //dispatch is done on the gradient type
             using namespace at; // prevents "toString is undefined" errors
-            AT_DISPATCH_FLOATING_TYPES_AND_HALF(g.type(), "adam_cuda_kernel", ([&] {
+            AT_DISPATCH_FLOATING_TYPES_AND_HALF(g.scalar_type(), "adam_cuda_kernel", ([&] {
                 using accscalar_t = at::acc_type<scalar_t, true>;
                 adam_cuda_kernel<accscalar_t, scalar_t><<<blocks,threadsPerBlock, 0, stream>>>(
                         p.data<accscalar_t>(),
@@ -115,7 +116,7 @@ void fused_adam_cuda(
             }));
       } else {
             using namespace at;
-            AT_DISPATCH_FLOATING_TYPES(g.type(), "adam_cuda_kernel", ([&] {
+            AT_DISPATCH_FLOATING_TYPES(g.scalar_type(), "adam_cuda_kernel", ([&] {
                 adam_cuda_kernel<scalar_t, scalar_t><<<blocks,threadsPerBlock, 0, stream>>>(
                         p.data<scalar_t>(),
                         NULL, //don't output p_copy for fp32, it's wasted write

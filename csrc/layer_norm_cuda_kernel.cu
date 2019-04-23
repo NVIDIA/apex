@@ -685,7 +685,7 @@ void cuda_layer_norm(
     double epsilon)
 {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input->type(), "layer_norm_cuda_kernel", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input->scalar_type(), "layer_norm_cuda_kernel", ([&] {
         using accscalar_t = at::acc_type<scalar_t, true>;
         HostApplyLayerNorm(
             output->data<scalar_t>(),
@@ -725,7 +725,7 @@ void HostLayerNormGradient(
       const int nshared2_a = 2 * sizeof(U) * threads2.y * threads2.y * (threads2.x + 1);
       const int nshared2_b = threads2.x * threads2.y * sizeof(U);
       const int nshared2 = nshared2_a > nshared2_b ? nshared2_a : nshared2_b;
-      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input->options().dtype(input->type().scalarType()==at::ScalarType::Half ? at::ScalarType::Float : input->type().scalarType()));
+      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input->options().dtype(input->scalar_type()==at::kHalf ? at::kFloat : input->scalar_type()));
       at::Tensor part_grad_beta = at::empty_like(part_grad_gamma);
       cuComputePartGradGammaBeta<<<blocks2, threads2, nshared2, stream>>>(
 		      dout,
@@ -787,7 +787,7 @@ void cuda_layer_norm_gradient(
     at::Tensor* grad_beta)
 {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input->type(), "cuComputeGradInput", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input->scalar_type(), "cuComputeGradInput", ([&] {
         using accscalar_t = at::acc_type<scalar_t, true>;
         HostLayerNormGradient(
 	    dout->data<scalar_t>(),

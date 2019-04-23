@@ -182,14 +182,14 @@ __host__ int get_tensor_spatial_size(const at::Tensor& input)
 // promote accumulation scalar type. promote half to float.
 __host__ at::ScalarType promote_scalartype(const at::Tensor& input)
 {
-  return input.type().scalarType() == at::ScalarType::Half ?
-           at::ScalarType::Float : input.type().scalarType();
+  return input.scalar_type() == at::kHalf ?
+           at::kFloat : input.scalar_type();
 }
 
 // return single element size, optional accumulation type promotion.
 __host__ size_t get_element_data_size(const at::Tensor& input, bool accumulation = false)
 {
-  auto scalar_type = accumulation ? promote_scalartype(input) : input.type().scalarType();
+  auto scalar_type = accumulation ? promote_scalartype(input) : input.scalar_type();
   return at::elementSize(scalar_type);
 }
 
@@ -846,7 +846,7 @@ std::vector<at::Tensor> welford_mean_var_CUDA(const at::Tensor input) {
 
   {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "welford_mean_var_kernel", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "welford_mean_var_kernel", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       welford_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block, 0, stream>>>(
           input.data<scalar_t>(),
@@ -881,11 +881,11 @@ at::Tensor batchnorm_forward_CUDA(
   const dim3 grid(feature_size, batch_group_size, grid_z);
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.type().scalarType() == at::ScalarType::Half
+  if (input.scalar_type() == at::kHalf
       && weight.has_value() &&
-      weight.value().type().scalarType() == at::ScalarType::Float) {
+      weight.value().scalar_type() == at::kFloat) {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "batchnorm_forward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       batchnorm_forward_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block, 0, stream>>>(
           input.data<scalar_t>(),
@@ -899,11 +899,11 @@ at::Tensor batchnorm_forward_CUDA(
     }));
   } else {
     if (weight.has_value()) {
-      AT_CHECK(input.type().scalarType() == weight.value().type().scalarType(),
-          "input.type().scalarType() is not supported with weight.type().scalarType()");
+      AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+          "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "batchnorm_forward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       batchnorm_forward_kernel<scalar_t, accscalar_t, scalar_t><<<grid, block, 0, stream>>>(
           input.data<scalar_t>(),
@@ -952,11 +952,11 @@ std::vector<at::Tensor> reduce_bn_CUDA(
   const dim3 grid(feature_size);
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.type().scalarType() == at::ScalarType::Half
+  if (input.scalar_type() == at::kHalf
       && weight.has_value() &&
-      weight.value().type().scalarType() == at::ScalarType::Float) {
+      weight.value().scalar_type() == at::kFloat) {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward_reduce", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "batchnorm_backward_reduce", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       reduce_bn_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block, 0, stream>>>(
           input.data<scalar_t>(),
@@ -973,11 +973,11 @@ std::vector<at::Tensor> reduce_bn_CUDA(
     }));
   } else {
     if (weight.has_value()) {
-        AT_CHECK(input.type().scalarType() == weight.value().type().scalarType(),
-            "input.type().scalarType() is not supported with weight.type().scalarType()");
+        AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+            "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward_reduce", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "batchnorm_backward_reduce", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       reduce_bn_kernel<scalar_t, accscalar_t, scalar_t><<<grid, block, 0, stream>>>(
           input.data<scalar_t>(),
@@ -1021,11 +1021,11 @@ at::Tensor batchnorm_backward_CUDA(
 
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.type().scalarType() == at::ScalarType::Half
+  if (input.scalar_type() == at::kHalf
       && weight.has_value() &&
-      weight.value().type().scalarType() == at::ScalarType::Float) {
+      weight.value().scalar_type() == at::kFloat) {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "batchnorm_backward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       batchnorm_backward_kernel<scalar_t, accscalar_t, accscalar_t><<<grid, block, 0, stream>>>(
           grad_output.data<scalar_t>(),
@@ -1041,11 +1041,11 @@ at::Tensor batchnorm_backward_CUDA(
     }));
   } else {
     if (weight.has_value()) {
-      AT_CHECK(input.type().scalarType() == weight.value().type().scalarType(),
-          "input.type().scalarType() is not supported with weight.type().scalarType()");
+      AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+          "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "batchnorm_backward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       batchnorm_backward_kernel<scalar_t, accscalar_t, scalar_t><<<grid, block, 0, stream>>>(
           grad_output.data<scalar_t>(),
@@ -1083,7 +1083,7 @@ std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_node
 
   {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(mean_feature_nodes.type(), "welford_parallel_kernel", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(mean_feature_nodes.scalar_type(), "welford_parallel_kernel", ([&] {
       welford_kernel_parallel<scalar_t><<<grid, block, 0, stream>>>(
           mean_feature_nodes.data<scalar_t>(),
           var_biased.data<scalar_t>(),
@@ -1118,14 +1118,14 @@ std::vector<at::Tensor> welford_mean_var_c_last_CUDA(const at::Tensor input) {
   at::Tensor semaphores;
   if (grid.y > 1) {
     staging_data = at::empty({4*stride*grid.y}, option);
-    semaphores = at::zeros({grid.x}, input.options().dtype(at::ScalarType::Int));
+    semaphores = at::zeros({grid.x}, input.options().dtype(at::kInt));
   }
 
   auto stream = at::cuda::getCurrentCUDAStream();
 
   {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "welford_mean_var_c_last", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "welford_mean_var_c_last", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       accscalar_t* staging_data_ptr = grid.y > 1 ? staging_data.data<accscalar_t>() : nullptr;
       int* semaphores_ptr = grid.y > 1 ? semaphores.data<int>() : nullptr;
@@ -1161,10 +1161,10 @@ at::Tensor batchnorm_forward_c_last_CUDA(
 
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.type().scalarType() == at::ScalarType::Half
-      && weight.has_value() && weight.value().type().scalarType() == at::ScalarType::Float) {
+  if (input.scalar_type() == at::kHalf
+      && weight.has_value() && weight.value().scalar_type() == at::kFloat) {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "batchnorm_forward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       batchnorm_forward_c_last_kernel<scalar_t, accscalar_t, accscalar_t, ELEMENTS_PER_ITER>
           <<<grid, block, 0, stream>>>(
@@ -1179,11 +1179,11 @@ at::Tensor batchnorm_forward_c_last_CUDA(
     }));
   } else {
     if (weight.has_value()) {
-      AT_CHECK(input.type().scalarType() == weight.value().type().scalarType(),
-          "input.type().scalarType() is not supported with weight.type().scalarType()");
+      AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+          "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "batchnorm_forward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       batchnorm_forward_c_last_kernel<scalar_t, accscalar_t, scalar_t, ELEMENTS_PER_ITER>
           <<<grid, block, 0, stream>>>(
@@ -1231,15 +1231,15 @@ std::vector<at::Tensor> reduce_bn_c_last_CUDA(
   at::Tensor semaphores;
   if (grid.y > 1) {
     staging_data = at::empty({2*stride*grid.y}, mean.options());
-    semaphores = at::zeros({grid.x}, input.options().dtype(at::ScalarType::Int));
+    semaphores = at::zeros({grid.x}, input.options().dtype(at::kInt));
   }
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.type().scalarType() == at::ScalarType::Half
+  if (input.scalar_type() == at::kHalf
       && weight.has_value()
-      && weight.value().type().scalarType() == at::ScalarType::Float) {
+      && weight.value().scalar_type() == at::kFloat) {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward_reduce", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "batchnorm_backward_reduce", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       accscalar_t* staging_data_ptr = grid.y > 1 ? staging_data.data<accscalar_t>() : nullptr;
       int* semaphores_ptr = grid.y > 1 ? semaphores.data<int>() : nullptr;
@@ -1260,11 +1260,11 @@ std::vector<at::Tensor> reduce_bn_c_last_CUDA(
     }));
   } else {
     if (weight.has_value()) {
-      AT_CHECK(input.type().scalarType() == weight.value().type().scalarType(),
-          "input.type().scalarType() is not supported with weight.type().scalarType()");
+      AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+          "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward_reduce", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "batchnorm_backward_reduce", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       accscalar_t* staging_data_ptr = grid.y > 1 ? staging_data.data<accscalar_t>() : nullptr;
       int* semaphores_ptr = grid.y > 1 ? semaphores.data<int>() : nullptr;
@@ -1307,10 +1307,10 @@ at::Tensor batchnorm_backward_c_last_CUDA(
 
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.type().scalarType() == at::ScalarType::Half
-      && weight.has_value() && weight.value().type().scalarType() == at::ScalarType::Float) {
+  if (input.scalar_type() == at::kHalf
+      && weight.has_value() && weight.value().scalar_type() == at::kFloat) {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "batchnorm_forward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       batchnorm_backward_c_last_kernel<scalar_t, accscalar_t, accscalar_t, ELEMENTS_PER_ITER>
           <<<grid, block, 0, stream>>>(
@@ -1327,11 +1327,11 @@ at::Tensor batchnorm_backward_c_last_CUDA(
     }));
   } else {
     if (weight.has_value()) {
-      AT_CHECK(input.type().scalarType() == weight.value().type().scalarType(),
-          "input.type().scalarType() is not supported with weight.type().scalarType()");
+      AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+          "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "batchnorm_forward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
       batchnorm_backward_c_last_kernel<scalar_t, accscalar_t, scalar_t, ELEMENTS_PER_ITER>
           <<<grid, block, 0, stream>>>(
