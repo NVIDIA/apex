@@ -458,10 +458,9 @@ class DistributedDataParallel(Module):
                     for buf, synced in zip(bucket, unflatten(tensor, bucket)):
                         buf.copy_(synced)
 
-            # Any subsequent operations that we do on tensor after allreduce_bucket returns must
-            # be synced on bucket_stream anyway.
-            # Also, we maintain a live reference to the returned tensor in allreduce_buffers.
-            # But this doesn't hurt.
+            # I think we actually do need this here.  After allreduce_bucket returns, tensor will
+            # eventually go out of scope and die, at which point it could otherwise be freed for
+            # further reuse by the main stream while the allreduce/div/unflatten are underway in bucket_stream.
             tensor.record_stream(bucket_stream)
 
             # torch.cuda.synchronize()
