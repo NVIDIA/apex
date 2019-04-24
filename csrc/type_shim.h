@@ -16,13 +16,13 @@
 #define DISPATCH_FLOAT_AND_HALF(TYPE, LEVEL, NAME, ...) \
   switch(TYPE) \
   { \
-    case at::kFloat: \
+    case at::ScalarType::Float: \
     { \
       using scalar_t_##LEVEL = float; \
       __VA_ARGS__; \
       break; \
     } \
-    case at::kHalf: \
+    case at::ScalarType::Half: \
     { \
       using scalar_t_##LEVEL = at::Half; \
       __VA_ARGS__; \

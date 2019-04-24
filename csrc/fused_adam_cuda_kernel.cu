@@ -91,9 +91,9 @@ void fused_adam_cuda(
         }
         cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
-        if (g.scalar_type() == at::kHalf) {
+        if (g.scalar_type() == at::ScalarType::Half) {
 //all other values should be fp32 for half gradients
-            AT_ASSERTM(p.scalar_type() == at::kFloat, "expected parameter to be of float type");
+            AT_ASSERTM(p.scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
 //dispatch is done on the gradient type
             using namespace at; // prevents "toString is undefined" errors
             AT_DISPATCH_FLOATING_TYPES_AND_HALF(g.type(), "adam_cuda_kernel", ([&] {

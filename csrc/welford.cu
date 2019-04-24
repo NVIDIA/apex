@@ -182,8 +182,8 @@ __host__ int get_tensor_spatial_size(const at::Tensor& input)
 // promote accumulation scalar type. promote half to float.
 __host__ at::ScalarType promote_scalartype(const at::Tensor& input)
 {
-  return input.scalar_type() == at::kHalf ?
-           at::kFloat : input.scalar_type();
+  return input.scalar_type() == at::ScalarType::Half ?
+           at::ScalarType::Float : input.scalar_type();
 }
 
 // return single element size, optional accumulation type promotion.
@@ -881,9 +881,9 @@ at::Tensor batchnorm_forward_CUDA(
   const dim3 grid(feature_size, batch_group_size, grid_z);
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.scalar_type() == at::kHalf
+  if (input.scalar_type() == at::ScalarType::Half
       && weight.has_value() &&
-      weight.value().scalar_type() == at::kFloat) {
+      weight.value().scalar_type() == at::ScalarType::Float) {
     using namespace at;
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
@@ -952,9 +952,9 @@ std::vector<at::Tensor> reduce_bn_CUDA(
   const dim3 grid(feature_size);
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.scalar_type() == at::kHalf
+  if (input.scalar_type() == at::ScalarType::Half
       && weight.has_value() &&
-      weight.value().scalar_type() == at::kFloat) {
+      weight.value().scalar_type() == at::ScalarType::Float) {
     using namespace at;
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward_reduce", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
@@ -1021,9 +1021,9 @@ at::Tensor batchnorm_backward_CUDA(
 
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.scalar_type() == at::kHalf
+  if (input.scalar_type() == at::ScalarType::Half
       && weight.has_value() &&
-      weight.value().scalar_type() == at::kFloat) {
+      weight.value().scalar_type() == at::ScalarType::Float) {
     using namespace at;
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
@@ -1161,8 +1161,8 @@ at::Tensor batchnorm_forward_c_last_CUDA(
 
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.scalar_type() == at::kHalf
-      && weight.has_value() && weight.value().scalar_type() == at::kFloat) {
+  if (input.scalar_type() == at::ScalarType::Half
+      && weight.has_value() && weight.value().scalar_type() == at::ScalarType::Float) {
     using namespace at;
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
@@ -1235,9 +1235,9 @@ std::vector<at::Tensor> reduce_bn_c_last_CUDA(
   }
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.scalar_type() == at::kHalf
+  if (input.scalar_type() == at::ScalarType::Half
       && weight.has_value()
-      && weight.value().scalar_type() == at::kFloat) {
+      && weight.value().scalar_type() == at::ScalarType::Float) {
     using namespace at;
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_backward_reduce", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;
@@ -1307,8 +1307,8 @@ at::Tensor batchnorm_backward_c_last_CUDA(
 
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.scalar_type() == at::kHalf
-      && weight.has_value() && weight.value().scalar_type() == at::kFloat) {
+  if (input.scalar_type() == at::ScalarType::Half
+      && weight.has_value() && weight.value().scalar_type() == at::ScalarType::Float) {
     using namespace at;
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "batchnorm_forward", ([&] {
       using accscalar_t = at::acc_type<scalar_t, true>;

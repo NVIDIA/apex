@@ -93,7 +93,7 @@ void multi_tensor_scale_cuda(
        // using accscalar_t = acc_type<scalar_t, true>;
        switch(tensor_lists[1][0].scalar_type())
        {
-         case at::kHalf:
+         case at::ScalarType::Half:
            multi_tensor_apply<2>(
              BLOCK_SIZE,
              chunk_size,
@@ -102,7 +102,7 @@ void multi_tensor_scale_cuda(
              ScaleFunctor<scalar_t, at::Half>(),
              scale);
            break;
-         case at::kFloat:
+         case at::ScalarType::Float:
            multi_tensor_apply<2>(
              BLOCK_SIZE,
              chunk_size,

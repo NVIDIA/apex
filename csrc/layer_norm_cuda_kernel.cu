@@ -725,7 +725,7 @@ void HostLayerNormGradient(
       const int nshared2_a = 2 * sizeof(U) * threads2.y * threads2.y * (threads2.x + 1);
       const int nshared2_b = threads2.x * threads2.y * sizeof(U);
       const int nshared2 = nshared2_a > nshared2_b ? nshared2_a : nshared2_b;
-      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input->options().dtype(input->scalar_type()==at::kHalf ? at::kFloat : input->scalar_type()));
+      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input->options().dtype(input->scalar_type()==at::ScalarType::Half ? at::ScalarType::Float : input->scalar_type()));
       at::Tensor part_grad_beta = at::empty_like(part_grad_gamma);
       cuComputePartGradGammaBeta<<<blocks2, threads2, nshared2, stream>>>(
 		      dout,
