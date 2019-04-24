@@ -461,7 +461,7 @@ class DistributedDataParallel(Module):
             # I think we actually do need this here.  After allreduce_bucket returns, tensor will
             # eventually go out of scope and die, at which point it could otherwise be freed for
             # further reuse by the main stream while the allreduce/div/unflatten are underway in bucket_stream.
-            tensor.record_stream(bucket_stream)
+            # tensor.record_stream(bucket_stream)
 
             # torch.cuda.synchronize()
 
