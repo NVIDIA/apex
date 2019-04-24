@@ -3,6 +3,7 @@ from ..fp16_utils import master_params_to_model_params
 from ..multi_tensor_apply import multi_tensor_applier
 from ._amp_state import maybe_print
 import torch
+from ..optimizers import FusedAdam
 
 
 class AmpOptimizerState(object):
@@ -73,6 +74,40 @@ def lazy_init_with_master_weights(self):
         self.load_state_dict(self.state_dict())
 
 
+def post_backward_models_are_masters(scaler, params, stashed_grads):
+        # This is a lot of python overhead...
+        grads_needing_unscale = []
+        grads_needing_unscale_with_stash = []
+        stashed = []
+        for param, stashed_grad in zip(params, stashed_grads):
+            if param.grad is None and stashed_grad is not None:
+                param.grad = stashed_grad
+            elif param.grad is not None and stashed_grad is None:
+                grads_needing_unscale.append(param.grad)
+            elif param.grad is not None and stashed_grad is not None:
+                grads_needing_unscale_with_stash.append(param.grad)
+                stashed.append(stashed_grad)
+            else: # param.grad is None and stashed_grad is None
+                continue
+
+        if len(grads_needing_unscale) > 0:
+            scaler.unscale(
+                grads_needing_unscale,
+                grads_needing_unscale,
+                scaler.loss_scale(),
+                models_are_masters=True)
+
+        if len(grads_needing_unscale_with_stash) > 0:
+            scaler.unscale_with_stashed(
+                grads_needing_unscale_with_stash,
+                stashed,
+                grads_needing_unscale_with_stash)
+
+        # Clear the stash.
+        for i in range(len(stashed_grads)):
+            stashed_grads[i] = None
+
+
 def prepare_backward_with_master_weights(self):
     stash = self._amp_stash
 
@@ -106,7 +141,7 @@ def post_backward_with_master_weights(self, scaler):
         if fp16_param.grad is None and fp32_param.grad is not None:
             continue
         elif fp16_param.grad is not None and fp32_param.grad is None:
-            fp32_param.grad = torch.empty_like(fp32_param) 
+            fp32_param.grad = torch.empty_like(fp32_param)
             fp16_grads_needing_unscale.append(fp16_param.grad)
             new_fp32_grads.append(fp32_param.grad)
         elif fp16_param.grad is not None and fp32_param.grad is not None:
@@ -129,37 +164,10 @@ def post_backward_with_master_weights(self, scaler):
             preexisting_fp32_grads)
 
     # fp32 params can be treated as they would be in the "no_master_weights" case.
-    grads_needing_unscale = []
-    grads_needing_unscale_with_stash = []
-    stashed = []
-    for param, stashed_grad in zip(stash.all_fp32_from_fp32_params,
-                                   stash.all_fp32_from_fp32_grad_stash):
-        if param.grad is None and stashed_grad is not None:
-            param.grad = stashed_grad
-        elif param.grad is not None and stashed_grad is None:
-            grads_needing_unscale.append(param.grad)
-        elif param.grad is not None and stashed_grad is not None:
-            grads_needing_unscale_with_stash.append(param.grad)
-            stashed.append(stashed_grad)
-        else: # param.grad is None and stashed_grad is None:
-            continue
-
-    if len(grads_needing_unscale) > 0:
-        scaler.unscale(
-            grads_needing_unscale,
-            grads_needing_unscale,
-            scaler.loss_scale(),
-            models_are_masters=True)
-
-    if len(grads_needing_unscale_with_stash) > 0:
-        scaler.unscale_with_stashed(
-            grads_needing_unscale_with_stash,
-            stashed,
-            grads_needing_unscale_with_stash)
-
-    # Clear the stash.
-    for i in range(len(stash.all_fp32_from_fp32_grad_stash)):
-        stash.all_fp32_from_fp32_grad_stash[i] = None
+    post_backward_models_are_masters(
+        scaler,
+        stash.all_fp32_from_fp32_params,
+        stash.all_fp32_from_fp32_grad_stash)
 
 
 def lazy_init_no_master_weights(self):
@@ -176,7 +184,7 @@ def lazy_init_no_master_weights(self):
                 raise TypeError("Optimizer's parameters must be either "
                                 "torch.cuda.FloatTensor or torch.cuda.HalfTensor. "
                                 "Received {}".format(param.type()))
-    
+
     stash.all_fp16_grad_stash = [None for _ in stash.all_fp16_params]
     stash.all_fp32_grad_stash = [None for _ in stash.all_fp32_params]
 
@@ -206,37 +214,56 @@ def post_backward_no_master_weights(self, scaler):
              (stash.all_fp32_params, stash.all_fp32_grad_stash))
 
     for params, stashed_grads in split_types:
-        # This is a lot of python overhead...
-        grads_needing_unscale = []
-        grads_needing_unscale_with_stash = []
-        stashed = []
-        for param, stashed_grad in zip(params, stashed_grads):
-            if param.grad is None and stashed_grad is not None:
-                param.grad = stashed_grad
-            elif param.grad is not None and stashed_grad is None:
-                grads_needing_unscale.append(param.grad)
-            elif param.grad is not None and stashed_grad is not None:
-                grads_needing_unscale_with_stash.append(param.grad)
-                stashed.append(stashed_grad)
-            else: # param.grad is None and stashed_grad is None
-                continue
+        post_backward_models_are_masters(scaler, params, stashed_grads)
 
-        if len(grads_needing_unscale) > 0:
-            scaler.unscale(
-                grads_needing_unscale,
-                grads_needing_unscale,
-                scaler.loss_scale(),
-                models_are_masters=True)
 
-        if len(grads_needing_unscale_with_stash) > 0:
-            scaler.unscale_with_stashed(
-                grads_needing_unscale_with_stash,
-                stashed,
-                grads_needing_unscale_with_stash)
+def prepare_backward_with_master_weights_fused(self):
+    stash = self._amp_stash
 
-        # Clear the stash.
-        for i in range(len(stashed_grads)):
-            stashed_grads[i] = None
+    if not stash.lazy_init_called:
+        self._lazy_init_maybe_master_weights()
+        stash.lazy_init_called = True
+
+
+def post_backward_with_master_weights_fused(self, scaler):
+    stash = self._amp_stash
+    stash.scale = scaler.loss_scale()
+    stash.grads = [[param.grad.data for param in group] for group in stash.fp16_groups]
+    stash.output_params = [[param for param in group] for group in stash.fp16_groups]
+
+    norm_groups = []
+    skip = False
+    for grad_group in stash.grads:
+        norm = multi_tensor_applier(
+            stash.multi_tensor_l2norm,
+            stash.dummy_overflow_buf,
+            [grad_group])
+        # Still syncing here for now.
+        norm = float(norm)
+        norm_groups.append(norm)
+        if norm == float('inf') or norm == -float('inf') or norm != norm:
+            skip = True
+    if skip:
+        scaler._overflow_buf.fill_(1.)
+        scaler._has_overflow = True
+
+    stash.grad_norms = norm_groups
+
+
+def prepare_backward_no_master_weights_fused(self):
+    stash = self._amp_stash
+
+    if not stash.lazy_init_called:
+        self._lazy_init_maybe_master_weights()
+        stash.lazy_init_called = True
+
+
+def post_backward_no_master_weights_fused(self, scaler):
+    stash = self._amp_stash
+    stash.scale = scaler.loss_scale()
+    stash.grads = None
+    stash.output_params = None
+    stash.grad_norms = None
 
 
 def _master_params_to_model_params(self):
@@ -274,6 +301,7 @@ def _process_optimizer(optimizer, properties):
     if multi_tensor_applier.available:
         import amp_C
         optimizer._amp_stash.multi_tensor_scale = amp_C.multi_tensor_scale
+        optimizer._amp_stash.multi_tensor_l2norm = amp_C.multi_tensor_l2norm
         optimizer._amp_stash.dummy_overflow_buf = torch.cuda.IntTensor([0]);
 
     if properties.master_weights:
@@ -286,7 +314,8 @@ def _process_optimizer(optimizer, properties):
         old_step = optimizer.step
         def new_step(self):
             retval = old_step()
-            self._master_params_to_model_params()
+            if not isinstance(self, FusedAdam):
+                self._master_params_to_model_params()
             # Clear the master grads that wouldn't be zeroed by model.zero_grad()
             for param in self._amp_stash.all_fp32_from_fp16_params:
                 param.grad = None
@@ -313,19 +342,29 @@ def _process_optimizer(optimizer, properties):
                 param.grad = None
         optimizer.zero_grad = types.MethodType(new_zero_grad, optimizer)
 
-        optimizer._prepare_amp_backward = types.MethodType(
-            prepare_backward_with_master_weights, optimizer)
-
-        optimizer._post_amp_backward = types.MethodType(
-            post_backward_with_master_weights, optimizer)
+        if isinstance(optimizer, FusedAdam):
+            optimizer._prepare_amp_backward = types.MethodType(
+                prepare_backward_with_master_weights_fused, optimizer)
+            optimizer._post_amp_backward = types.MethodType(
+                post_backward_with_master_weights_fused, optimizer)
+        else:
+            optimizer._prepare_amp_backward = types.MethodType(
+                prepare_backward_with_master_weights, optimizer)
+            optimizer._post_amp_backward = types.MethodType(
+                post_backward_with_master_weights, optimizer)
     else:
         optimizer._lazy_init_maybe_master_weights = types.MethodType(
             lazy_init_no_master_weights, optimizer)
 
-        optimizer._prepare_amp_backward = types.MethodType(
-            prepare_backward_no_master_weights, optimizer)
-
-        optimizer._post_amp_backward = types.MethodType(
-            post_backward_no_master_weights, optimizer)
+        if isinstance(optimizer, FusedAdam):
+            optimizer._prepare_amp_backward = types.MethodType(
+                prepare_backward_no_master_weights_fused, optimizer)
+            optimizer._post_amp_backward = types.MethodType(
+                post_backward_no_master_weights_fused, optimizer)
+        else:
+            optimizer._prepare_amp_backward = types.MethodType(
+                prepare_backward_no_master_weights, optimizer)
+            optimizer._post_amp_backward = types.MethodType(
+                post_backward_no_master_weights, optimizer)
 
     return optimizer
