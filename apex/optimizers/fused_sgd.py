@@ -154,18 +154,19 @@ class FusedSGD(Optimizer):
                                [fp32_grads, fp32_params, fp32_momentums]]
 
             for launch_set, first_run in zip(launch_sets, first_runs):
-                multi_tensor_applier(
-                    self.multi_tensor_sgd,
-                    self._dummy_overflow_buf,
-                    # Note: Need to do this as list comprehensions otherwise
-                    # things don't seem to update properly.
-                    launch_set,
-                    weight_decay,
-                    momentum,
-                    dampening,
-                    group['lr'],
-                    nesterov,
-                    first_run,
-                    self.wd_after_momentum)
+                assert len(launch_set[0]) == len(launch_set[1])
+                assert len(launch_set[0]) == len(launch_set[2])
+                if len(launch_set[0]) > 0:
+                    multi_tensor_applier(
+                        self.multi_tensor_sgd,
+                        self._dummy_overflow_buf,
+                        launch_set,
+                        weight_decay,
+                        momentum,
+                        dampening,
+                        group['lr'],
+                        nesterov,
+                        first_run,
+                        self.wd_after_momentum)
 
         return loss
