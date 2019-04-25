@@ -150,23 +150,23 @@ void multi_tensor_sgd_cuda(
   bool wd_after_momentum)
 {
   auto num_tensors = tensor_lists.size();
-  auto grad_type = tensor_lists[0][0].type().scalarType();
-  auto weight_type = tensor_lists[0][0].type().scalarType();
+  auto grad_type = tensor_lists[0][0].scalar_type();
+  auto weight_type = tensor_lists[1][0].scalar_type();
 
-  // We have 4 potentials to handle here, in terms of
+  // We have 3 possibilities to handle here, in terms of
   // grad_type, param_type, momentum_type, requires_fp16_copy
   // 1. fp16, fp16, fp16, No
-  // 2. fp16, fp32, fp32, No
+  // 2. fp32, fp32, fp32, No
   // 3. fp16, fp32, fp32, Yes
-  // 4. fp32, fp32, fp32, No
   // It's easier to hardcode these possibilities than to use
   // switches etc. to handle the cross-product of cases where
   // we don't want the majority of them.
 
   // Case 1. fp16, fp16, fp16, No
-  if (grad_type == at::ScalarType::Half &&
-      weight_type == at::ScalarType::Half &&
-      num_tensors == 3) {
+  if(grad_type == at::ScalarType::Half &&
+     weight_type == at::ScalarType::Half &&
+     num_tensors == 3)
+  {
     multi_tensor_apply<3>(
         BLOCK_SIZE,
         chunk_size,
@@ -182,45 +182,28 @@ void multi_tensor_sgd_cuda(
         wd_after_momentum);
   }
   // Case 2. fp16, fp32, fp32, No
-  else if (grad_type == at::ScalarType::Half &&
-           weight_type == at::ScalarType::Float &&
-           num_tensors == 3) {
-    multi_tensor_apply<3>(
-        BLOCK_SIZE,
-        chunk_size,
-        noop_flag,
-        tensor_lists,
-        SGDFunctor<3, at::Half, float>(),
-        wd,
-        momentum,
-        dampening,
-        lr,
-        nesterov,
-        first_run,
-        wd_after_momentum);
-  }
-  // Case 3. fp16, fp32, fp32, Yes
-  else if (grad_type == at::ScalarType::Half &&
-           weight_type == at::ScalarType::Float &&
-           num_tensors == 4) {
-    multi_tensor_apply<4>(
-        BLOCK_SIZE,
-        chunk_size,
-        noop_flag,
-        tensor_lists,
-        SGDFunctor<4, at::Half, float>(),
-        wd,
-        momentum,
-        dampening,
-        lr,
-        nesterov,
-        first_run,
-        wd_after_momentum);
-  }
-  // Case 4. fp32, fp32, fp32, No
-  else if (grad_type == at::ScalarType::Float &&
-      weight_type == at::ScalarType::Float &&
-      num_tensors == 3) {
+  // else if (grad_type == at::ScalarType::Half &&
+  //          weight_type == at::ScalarType::Float &&
+  //          num_tensors == 3) {
+  //   multi_tensor_apply<3>(
+  //       BLOCK_SIZE,
+  //       chunk_size,
+  //       noop_flag,
+  //       tensor_lists,
+  //       SGDFunctor<3, at::Half, float>(),
+  //       wd,
+  //       momentum,
+  //       dampening,
+  //       lr,
+  //       nesterov,
+  //       first_run,
+  //       wd_after_momentum);
+  // }
+  // Case 2. fp32, fp32, fp32, No
+  else if(grad_type == at::ScalarType::Float &&
+          weight_type == at::ScalarType::Float &&
+          num_tensors == 3)
+  {
     multi_tensor_apply<3>(
         BLOCK_SIZE,
         chunk_size,
@@ -235,7 +218,27 @@ void multi_tensor_sgd_cuda(
         first_run,
         wd_after_momentum);
   }
-  else {
+  // Case 3. fp16, fp32, fp32, Yes
+  else if(grad_type == at::ScalarType::Half &&
+          weight_type == at::ScalarType::Float &&
+          num_tensors == 4)
+  {
+    multi_tensor_apply<4>(
+        BLOCK_SIZE,
+        chunk_size,
+        noop_flag,
+        tensor_lists,
+        SGDFunctor<4, at::Half, float>(),
+        wd,
+        momentum,
+        dampening,
+        lr,
+        nesterov,
+        first_run,
+        wd_after_momentum);
+  }
+  else
+  {
     AT_ERROR("multi_tensor_sgd only supports some combinations of gradient & weight types. Given: ",
              "gradient: ", grad_type, ", weight: ", weight_type, ", num_lists: ", num_tensors);
   }

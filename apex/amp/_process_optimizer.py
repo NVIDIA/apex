@@ -11,6 +11,20 @@ class AmpOptimizerState(object):
         pass
 
 
+def _master_params_to_model_params(self):
+    stash = self._amp_stash
+    if multi_tensor_applier.available:
+        if len(stash.all_fp16_params) > 0:
+            multi_tensor_applier(
+                stash.multi_tensor_scale,
+                stash.dummy_overflow_buf,
+                [stash.all_fp32_from_fp16_params, stash.all_fp16_params],
+                1.0)
+    else:
+        for fp16_group, fp32_from_fp16_group in zip(stash.fp16_groups, stash.fp32_from_fp16_groups):
+            master_params_to_model_params(fp16_group, fp32_from_fp16_group)
+
+
 def lazy_init_with_master_weights(self):
         stash = self._amp_stash
         stash.fp16_groups = []
@@ -277,6 +291,8 @@ def post_backward_no_master_weights_FusedAdam(self, scaler):
 # implementations until I have them both working.
 #####################################################################################
 
+# FusedSGD never explicitly materializes the fp32 gradients for "fp32 from fp16" master params
+# outside the kernel, so we must accumulate directly into the model grads.
 def prepare_backward_with_master_weights_FusedSGD(self):
     stash = self._amp_stash
 
@@ -284,60 +300,33 @@ def prepare_backward_with_master_weights_FusedSGD(self):
         self._lazy_init_maybe_master_weights()
         stash.lazy_init_called = True
 
+    for i, param in enumerate(stash.all_fp16_params):
+        stash.all_fp16_grad_stash[i] = param.grad
+        # Set up to leverage grad copy elision:
+        param.grad = None
+
+    for i, param in enumerate(stash.all_fp32_from_fp32_params):
+        stash.all_fp32_from_fp32_grad_stash[i] = param.grad
+        # Set up to leverage grad copy elision:
+        param.grad = None
+
 
 def post_backward_with_master_weights_FusedSGD(self, scaler):
     stash = self._amp_stash
-    stash.scale = scaler.loss_scale()
-    stash.grads = [[param.grad.data for param in group] for group in stash.fp16_groups]
-    stash.output_params = [[param for param in group] for group in stash.fp16_groups]
 
-    norm_groups = []
-    skip = False
-    for grad_group in stash.grads:
-        norm = multi_tensor_applier(
-            stash.multi_tensor_l2norm,
-            stash.dummy_overflow_buf,
-            [grad_group])
-        # Still syncing here for now.
-        norm = float(norm)
-        norm_groups.append(norm)
-        if norm == float('inf') or norm == -float('inf') or norm != norm:
-            skip = True
-    if skip:
-        scaler._overflow_buf.fill_(1.)
-        scaler._has_overflow = True
+    split_types = ((stash.all_fp16_params, stash.all_fp16_grad_stash),
+             (stash.all_fp32_from_fp32_params, stash.all_fp32_from_fp32_grad_stash))
 
-    stash.grad_norms = norm_groups
+    for params, stashed_grads in split_types:
+        post_backward_models_are_masters(scaler, params, stashed_grads)
 
 
 def prepare_backward_no_master_weights_FusedSGD(self):
-    stash = self._amp_stash
-
-    if not stash.lazy_init_called:
-        self._lazy_init_maybe_master_weights()
-        stash.lazy_init_called = True
+    prepare_backward_no_master_weights(self)
 
 
 def post_backward_no_master_weights_FusedSGD(self, scaler):
-    stash = self._amp_stash
-    stash.scale = scaler.loss_scale()
-    stash.grads = None
-    stash.output_params = None
-    stash.grad_norms = None
-
-
-def _master_params_to_model_params(self):
-    stash = self._amp_stash
-    if multi_tensor_applier.available:
-        if len(stash.all_fp16_params) > 0:
-            multi_tensor_applier(
-                stash.multi_tensor_scale,
-                stash.dummy_overflow_buf,
-                [stash.all_fp32_from_fp16_params, stash.all_fp16_params],
-                1.0)
-    else:
-        for fp16_group, fp32_from_fp16_group in zip(stash.fp16_groups, stash.fp32_from_fp16_groups):
-            master_params_to_model_params(fp16_group, fp32_from_fp16_group)
+    post_backward_no_master_weights(self, scaler)
 
 
 def _process_optimizer(optimizer, properties):

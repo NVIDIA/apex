@@ -80,6 +80,22 @@ class FusedSGD(Optimizer):
         for group in self.param_groups:
             group.setdefault('nesterov', False)
 
+    def get_momentums(params):
+        momentums = []
+        for p in params:
+            param_state = self.state[p]
+            # torch.optim.SGD initializes momentum in the main loop, we have
+            # to do it here, and track whether or not we've done so, so that
+            # momentum application can be skipped in the main kernel.
+            if 'momentum_buffer' not in param_state:
+                first_run = True
+                buf = param_state['momentum_buffer'] = torch.zeros_like(p.data)
+                momentums.append(buf)
+            else:
+                first_run = False
+                momentums.append(param_state['momentum_buffer'])
+        return momentums, first_run
+
     def step(self, closure=None):
         """Performs a single optimization step.
 
@@ -91,73 +107,59 @@ class FusedSGD(Optimizer):
         if closure is not None:
             loss = closure()
 
-        for group in self.param_groups:
+        explicit_master_params = (hasattr(self, "_amp_stash") and
+                                  hasattr(self._amp_stash, "fp32_from_fp16_groups"))
+
+        for gid, group in enumerate(self.param_groups):
             weight_decay = group['weight_decay']
             momentum = group['momentum']
             dampening = group['dampening']
             nesterov = group['nesterov']
 
-            params = [p for p in group['params'] if p is not None]
-            grads = [p.grad for p in params]
-            momentums = []
-            for p in params:
-                param_state = self.state[p]
-                # torch.optim.SGD initializes momentum in the main loop, we have
-                # to do it here, and track whether or not we've done so, so that
-                # momentum application can be skipped in the main kernel.
-                if 'momentum_buffer' not in param_state:
-                    first_run = True
-                    buf = param_state['momentum_buffer'] = torch.zeros_like(p.data)
-                    momentums.append(buf)
-                else:
-                    first_run = False
-                    momentums.append(param_state['momentum_buffer'])
 
-            # We have all parameters now, split them into appropriate groups for
-            # parallel execution, following the 4 possible combos that the underlying
-            # kernels support:
-            # grad_type, param_type, momentum_type, requires_fp16_copy
+            # For each group, there are 3 possible combinations we need to consider:
+            # grad_type, param_to_update_type, momentum_type, requires_fp16_model_copy
             # 1. fp16, fp16, fp16, No
-            # 2. fp16, fp32, fp32, No
+            # 2. fp32, fp32, fp32, No
             # 3. fp16, fp32, fp32, Yes
-            # 4. fp32, fp32, fp32, No
-            # As in the kernel, easier to hardcode these options
 
-            # Store only indices into the weight / grad / momentum lists
-            # { gradient-type : { param-type : List } | List }
-            param_sets = { 'fp16' : { 'fp16' : [], 'fp32' : [] }, 'fp32' : [] }
+            first_runs = [True, True]
 
-            for i, (g, p) in enumerate(zip(grads, params)):
-                if g.dtype == torch.float16:
-                    # fp16 grads, fp16 params
-                    if p.dtype == torch.float16:
-                        param_sets['fp16']['fp16'].append(i)
-                    # fp16 grads, fp32 params
-                    elif p.dtype == torch.float32:
-                        param_sets['fp16']['fp32'].append(i)
-                    else:
-                        raise RuntimeError('fp16 gradients need either fp16 or fp32 weights')
-                # fp32 grads, fp32 params
-                elif g.dtype == torch.float32:
-                    param_sets['fp32'].append(i)
-                else:
-                    raise RuntimeError('gradients must either be fp16 or fp32')
+            # I think a bit of code divergence in exchange for naming clarity is worthwhile
+            if explicit_master_params
+                stash = self._amp_stash
 
-            def launch_sgd_set(param_set):
-                local_params, local_grads, local_momentums = [], [], []
-                if len(param_set) == 0:
-                    return
+                fp16_model_params = [p for p in stash.fp16_groups[gid] if p.grad is not None]
+                fp16_model_grads = [p.grad for p in stash.fp16_groups[gid] if p.grad is not None]
+                fp32_from_fp16_params = [p for i, p in enumerate(
+                    stash.fp32_from_fp16_groups[gid]) if stash.fp16_groups[gid][i].grad is not None]
+                fp32_from_fp16_momentums, first_runs[0] = self.get_momentums(fp32_from_fp16_params)
 
-                # launch update using multi tensor applier
-                # modifies weight and momentum values inplace.
+                fp32_params = [p for p in stash.fp32_from_fp32_groups[gid] if p.grad is not None]
+                fp32_grads = [p.grad for p in stash.fp32_from_fp32_groups[gid] if p.grad is not None)]
+                fp32_momentums, first_runs[1] = self.get_momentums(fp32_params)
+
+                launch_sets= [[fp16_model_grads, fp32_from_fp16_params, fp32_from_fp16_momentums, fp16_model_params],
+                              [fp32_grads, fp32_params, fp32_momentums]]
+            else:
+                fp16_params = [p for p in group['params'] if (p.dtype == torch.float16 and p.grad is not None)]
+                fp16_grads = [p.grad for p in group['params'] if (p.dtype == torch.float16 and p.grad is not None)]
+                fp16_momentums, first_runs[0] = self.get_momentums(fp16_params)
+
+                fp32_params = [p for p in group['params'] if (p.dtype == torch.float32 and p.grad is not None)]
+                fp32_grads = [p.grad for p in group['params'] if (p.dtype == torch.float32 and p.grad is not None)]
+                fp32_momentums, first_runs[1] = self.get_momentums(fp32_params)
+
+                launch_sets = [[fp16_grads, fp16_params, fp16_momentums],
+                               [fp32_grads, fp32_params, fp32_momentums]]
+
+            for launch_set, first_run in zip(launch_sets, first_runs):
                 multi_tensor_applier(
                     self.multi_tensor_sgd,
                     self._dummy_overflow_buf,
                     # Note: Need to do this as list comprehensions otherwise
                     # things don't seem to update properly.
-                    [[grads[i] for i in param_set],
-                     [params[i] for i in param_set],
-                     [momentums[i] for i in param_set]],
+                    launch_set,
                     weight_decay,
                     momentum,
                     dampening,
@@ -165,10 +167,5 @@ class FusedSGD(Optimizer):
                     nesterov,
                     first_run,
                     self.wd_after_momentum)
-
-            # Explicitly go over the cases
-            launch_sgd_set(param_sets['fp16']['fp16'])
-            launch_sgd_set(param_sets['fp16']['fp32'])
-            launch_sgd_set(param_sets['fp32'])
 
         return loss
