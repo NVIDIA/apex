@@ -126,7 +126,7 @@ class FusedSGD(Optimizer):
             first_runs = [True, True]
 
             # I think a bit of code divergence in exchange for naming clarity is worthwhile
-            if explicit_master_params
+            if explicit_master_params:
                 stash = self._amp_stash
 
                 fp16_model_params = [p for p in stash.fp16_groups[gid] if p.grad is not None]
@@ -136,7 +136,7 @@ class FusedSGD(Optimizer):
                 fp32_from_fp16_momentums, first_runs[0] = self.get_momentums(fp32_from_fp16_params)
 
                 fp32_params = [p for p in stash.fp32_from_fp32_groups[gid] if p.grad is not None]
-                fp32_grads = [p.grad for p in stash.fp32_from_fp32_groups[gid] if p.grad is not None)]
+                fp32_grads = [p.grad for p in stash.fp32_from_fp32_groups[gid] if p.grad is not None]
                 fp32_momentums, first_runs[1] = self.get_momentums(fp32_params)
 
                 launch_sets= [[fp16_model_grads, fp32_from_fp16_params, fp32_from_fp16_momentums, fp16_model_params],
