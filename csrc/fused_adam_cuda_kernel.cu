@@ -115,13 +115,13 @@ void fused_adam_cuda(
                 )
       } else {
             using namespace at;
-            AT_DISPATCH_FLOATING_TYPES(g.type(), "adam_cuda_kernel", ([&] {
-                adam_cuda_kernel<scalar_t, scalar_t><<<blocks,threadsPerBlock, 0, stream>>>(
-                        p.data<scalar_t>(),
+            DISPATCH_DOUBLE_AND_FLOAT(g.scalar_type(), 0, "adam_cuda_kernel",
+                adam_cuda_kernel<scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+                        p.data<scalar_t_0>(),
                         NULL, //don't output p_copy for fp32, it's wasted write
-                        m.data<scalar_t>(),
-                        v.data<scalar_t>(),
-                        g.data<scalar_t>(),
+                        m.data<scalar_t_0>(),
+                        v.data<scalar_t_0>(),
+                        g.data<scalar_t_0>(),
                         beta1,
                         beta2,
                         eps,
@@ -130,7 +130,7 @@ void fused_adam_cuda(
                         tsize,
                         (adamMode_t) mode,
                         decay);
-            }));
+            );
       }
       THCudaCheck(cudaGetLastError());
 

@@ -33,6 +33,52 @@
   }
 
 
+#define DISPATCH_DOUBLE_FLOAT_AND_HALF(TYPE, LEVEL, NAME, ...) \
+  switch(TYPE) \
+  { \
+    case at::ScalarType::Double: \
+    { \
+      using scalar_t_##LEVEL = double; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::Float: \
+    { \
+      using scalar_t_##LEVEL = float; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::Half: \
+    { \
+      using scalar_t_##LEVEL = at::Half; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    default: \
+      AT_ERROR(#NAME, " not implemented for '", toString(TYPE), "'");  \
+  }
+
+
+  #define DISPATCH_DOUBLE_AND_FLOAT(TYPE, LEVEL, NAME, ...) \
+  switch(TYPE) \
+  { \
+    case at::ScalarType::Double: \
+    { \
+      using scalar_t_##LEVEL = double; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::Float: \
+    { \
+      using scalar_t_##LEVEL = float; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    default: \
+      AT_ERROR(#NAME, " not implemented for '", toString(TYPE), "'");  \
+  }
+
+
 template<typename T>
 __device__ __forceinline__ T reduce_block_into_lanes
   (T *x,

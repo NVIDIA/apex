@@ -685,7 +685,7 @@ void cuda_layer_norm(
     double epsilon)
 {
     using namespace at;
-    DISPATCH_FLOAT_AND_HALF(input->scalar_type(), 0, "layer_norm_cuda_kernel",
+    DISPATCH_DOUBLE_FLOAT_AND_HALF(input->scalar_type(), 0, "layer_norm_cuda_kernel",
         using accscalar_t = at::acc_type<scalar_t_0, true>;
         HostApplyLayerNorm(
             output->data<scalar_t_0>(),
