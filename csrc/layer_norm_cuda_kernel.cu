@@ -685,18 +685,18 @@ void cuda_layer_norm(
     double epsilon)
 {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input->type(), "layer_norm_cuda_kernel", ([&] {
-        using accscalar_t = at::acc_type<scalar_t, true>;
+    DISPATCH_FLOAT_AND_HALF(input->scalar_type(), 0, "layer_norm_cuda_kernel",
+        using accscalar_t = at::acc_type<scalar_t_0, true>;
         HostApplyLayerNorm(
-            output->data<scalar_t>(),
+            output->data<scalar_t_0>(),
 	    mean->data<accscalar_t>(),
 	    invvar->data<accscalar_t>(),
-	    input->data<scalar_t>(),
+	    input->data<scalar_t_0>(),
 	    n1,n2,
 	    epsilon,
-	    gamma != NULL ? gamma->data<scalar_t>() : NULL,
-	    beta != NULL ? beta->data<scalar_t>() : NULL);
-      }));
+	    gamma != NULL ? gamma->data<scalar_t_0>() : NULL,
+	    beta != NULL ? beta->data<scalar_t_0>() : NULL);
+      )
 }
 
 template<typename T, typename U> 
@@ -787,19 +787,19 @@ void cuda_layer_norm_gradient(
     at::Tensor* grad_beta)
 {
     using namespace at;
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input->type(), "cuComputeGradInput", ([&] {
-        using accscalar_t = at::acc_type<scalar_t, true>;
+    DISPATCH_FLOAT_AND_HALF(input->scalar_type(), 0, "cuComputeGradInput",
+        using accscalar_t = at::acc_type<scalar_t_0, true>;
         HostLayerNormGradient(
-	    dout->data<scalar_t>(),
+	    dout->data<scalar_t_0>(),
 	    mean->data<accscalar_t>(),
 	    invvar->data<accscalar_t>(),
 	    input,
 	    n1,n2,
-	    gamma->data<scalar_t>(),
-	    beta->data<scalar_t>(),
+	    gamma->data<scalar_t_0>(),
+	    beta->data<scalar_t_0>(),
 	    epsilon,
-	    grad_input->data<scalar_t>(),
-	    grad_gamma->data<scalar_t>(),
-	    grad_beta->data<scalar_t>());
-      }));
+	    grad_input->data<scalar_t_0>(),
+	    grad_gamma->data<scalar_t_0>(),
+	    grad_beta->data<scalar_t_0>());
+      )
 }

@@ -86,39 +86,15 @@ void multi_tensor_scale_cuda(
   // If build times suffer, think about where to put this dispatch,
   // and what logic should be moved out of multi_tensor_apply.
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(tensor_lists[0][0].type(),
-     "multi_tensor_scale_cuda",
-     [&]
-     {
-       // using accscalar_t = acc_type<scalar_t, true>;
-       switch(tensor_lists[1][0].scalar_type())
-       {
-         case at::ScalarType::Half:
-           multi_tensor_apply<2>(
-             BLOCK_SIZE,
-             chunk_size,
-             noop_flag,
-             tensor_lists,
-             ScaleFunctor<scalar_t, at::Half>(),
-             scale);
-           break;
-         case at::ScalarType::Float:
-           multi_tensor_apply<2>(
-             BLOCK_SIZE,
-             chunk_size,
-             noop_flag,
-             tensor_lists,
-             ScaleFunctor<scalar_t, float>(),
-             scale);
-           break;
-         default:
-           std::stringstream ss;
-           ss << "multi_tensor_scale_cuda not implemented for output type = "
-              << tensor_lists[1][0].dtype();
-           AT_ERROR(ss.str().c_str());
-       }
-     });
-
+  DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_scale_cuda",
+    DISPATCH_FLOAT_AND_HALF(tensor_lists[1][0].scalar_type(), 1, "multi_tensor_scale_cuda",
+      multi_tensor_apply<2>(
+        BLOCK_SIZE,
+        chunk_size,
+        noop_flag,
+        tensor_lists,
+        ScaleFunctor<scalar_t_0, scalar_t_1>(),
+        scale); ))
   AT_CUDA_CHECK(cudaGetLastError());
 
   // AT_CUDA_CHECK(cudaDeviceSynchronize());
