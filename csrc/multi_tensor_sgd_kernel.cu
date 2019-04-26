@@ -57,7 +57,8 @@ struct SGDFunctor
     mom_in += chunk_idx*chunk_size;
 
     at::Half *model_weights_out = nullptr;
-    if (N == 4) {
+    if(N == 4)
+    {
       model_weights_out = (at::Half*)tl.addresses[3][tensor_loc];
       model_weights_out += chunk_idx*chunk_size;
     }
@@ -80,9 +81,11 @@ struct SGDFunctor
         incoming_moms[ii] = 0;
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
+        {
           incoming_grads[ii] = static_cast<float>(grad_in[i]);
           incoming_weights[ii] = static_cast<float>(weight_in[i]);
           incoming_moms[ii] = static_cast<float>(mom_in[i]);
+        }
       }
 
       // note for clarification to future michael:
@@ -94,43 +97,40 @@ struct SGDFunctor
       for(int ii = 0; ii < ILP; ii++)
       {
         int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n && i < chunk_size) {
+        if(i < n && i < chunk_size)
+        {
           // apply weight decay before momentum if necessary
-          if (wd != 0.f && !wd_after_momentum) {
+          if(wd != 0.f && !wd_after_momentum)
             incoming_grads[ii] += wd * incoming_weights[ii];
-          }
-          if (momentum != 0.f) {
-            if (!first_run) {
+
+          if(momentum != 0.f)
+          {
+            if(!first_run)
               incoming_moms[ii] = incoming_moms[ii] * momentum + (1.f - dampening) * incoming_grads[ii];
-            } else {
+            else
               // initialize momentume to current incoming grads
               incoming_moms[ii] = incoming_grads[ii];
-            }
 
-            if (nesterov) {
+            if(nesterov)
               incoming_grads[ii] += momentum * incoming_moms[ii];
-            } else {
+            else
               incoming_grads[ii] = incoming_moms[ii];
-            }
           }
 
           // Apply WD after momentum if desired
-          if (wd != 0.f && wd_after_momentum) {
+          if(wd != 0.f && wd_after_momentum)
             incoming_grads[ii] += wd * incoming_weights[ii];
-          }
 
           // adjust the weight and write out
           weight_in[i] += (-lr * incoming_grads[ii]);
 
           // if necessary, write out an fp16 copy of the weights
-          if (N == 4) {
+          if(N == 4)
             model_weights_out[i] = static_cast<at::Half>(weight_in[i]);
-          }
 
           // also write out the new momentum
-          if (momentum != 0.f) {
+          if(momentum != 0.f)
             mom_in[i] = incoming_moms[ii];
-          }
         }
       }
     }

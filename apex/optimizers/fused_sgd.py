@@ -63,7 +63,7 @@ class FusedSGD(Optimizer):
                         weight_decay=weight_decay, nesterov=nesterov)
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
-        super(SGD, self).__init__(params, defaults)
+        super(FusedSGD, self).__init__(params, defaults)
 
         self.wd_after_momentum = wd_after_momentum
 
@@ -80,8 +80,9 @@ class FusedSGD(Optimizer):
         for group in self.param_groups:
             group.setdefault('nesterov', False)
 
-    def get_momentums(params):
+    def get_momentums(self, params):
         momentums = []
+        first_run = True
         for p in params:
             param_state = self.state[p]
             # torch.optim.SGD initializes momentum in the main loop, we have
@@ -153,7 +154,7 @@ class FusedSGD(Optimizer):
                 launch_sets = [[fp16_grads, fp16_params, fp16_momentums],
                                [fp32_grads, fp32_params, fp32_momentums]]
 
-            for launch_set, first_run in zip(launch_sets, first_runs):
+            for s, (launch_set, first_run) in enumerate(zip(launch_sets, first_runs)):
                 assert len(launch_set[0]) == len(launch_set[1])
                 assert len(launch_set[0]) == len(launch_set[2])
                 if len(launch_set[0]) > 0:
