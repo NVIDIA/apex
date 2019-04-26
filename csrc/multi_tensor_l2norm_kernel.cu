@@ -75,7 +75,7 @@ at::Tensor multi_tensor_l2norm_cuda(
   at::Tensor noop_flag,
   std::vector<std::vector<at::Tensor>> tensor_lists)
 {
-  auto output = at::zeros({320}, tensor_lists[0][0].options().dtype(at::ScalarType::Float));
+  auto output = at::zeros({320}, tensor_lists[0][0].options().dtype(at::kFloat));
 
   DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_l2norm_cuda",
     multi_tensor_apply<1>(
