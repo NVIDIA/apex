@@ -98,18 +98,18 @@ struct AdamFunctor
         T incoming_m[ILP];
         T incoming_v[ILP];
         T incoming_g[ILP];
-        
+
         for(int i_start = 0;
             i_start < n && i_start < chunk_size;
             i_start += blockDim.x*ILP) {
-            
+
             #pragma unroll
             for(int ii = 0; ii < ILP; ii++) {
                 incoming_p[ii] = 0;
                 incoming_m[ii] = 0;
                 incoming_v[ii] = 0;
                 incoming_g[ii] = 0;
-                
+
                 int i = i_start + threadIdx.x + ii*blockDim.x;
                 if (i < n && i < chunk_size) {
                     incoming_p[ii] = p[i];
@@ -296,7 +296,7 @@ void fused_adam_cuda_mt(
             }));
         }
     } else {
-        if (tl_sz == 5) { 
+        if (tl_sz == 5) {
             AT_DISPATCH_FLOATING_TYPES(tensor_lists[3][0].type(), "adam_cuda_mt_kernel", ([&] {
                 multi_tensor_apply<5>(
                     BLOCK_SIZE,

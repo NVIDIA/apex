@@ -584,8 +584,8 @@ class DistributedDataParallel(Module):
                 # self.buckets = [[None for _ in range(self.bucket_sizes[i])]
                 #                 for i in range(self.num_buckets)]
                 if not self.buckets:
-                    self.buckets = [[None for _ in range(self.bucket_sizes[i])] 
-                                    for i in range(self.num_buckets)] 
+                    self.buckets = [[None for _ in range(self.bucket_sizes[i])]
+                                    for i in range(self.num_buckets)]
                 else:
                     assert len(self.buckets) == self.num_buckets, "len(buckets) = {}, expected {}".format(
                         len(self.buckets), self.num_buckets)
