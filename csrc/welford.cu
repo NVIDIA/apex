@@ -1431,10 +1431,10 @@ at::Tensor relu_backward_c_last_CUDA(
 
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  if (input.type().scalarType() == at::ScalarType::Half
-      && weight.has_value() && weight.value().type().scalarType() == at::ScalarType::Float) {
+  if (input.scalar_type() == at::ScalarType::Half
+      && weight.has_value() && weight.value().scalar_type() == at::ScalarType::Float) {
     using namespace at;
-    DISPATCH_FLOAT_AND_HALF(input.type(), 0, "batchnorm_forward",
+    DISPATCH_FLOAT_AND_HALF(input.scalar_type(), 0, "batchnorm_forward",
       using accscalar_t = at::acc_type<scalar_t_0, true>;
       relu_backward_c_last_kernel<scalar_t_0, accscalar_t, accscalar_t, ELEMENTS_PER_ITER>
           <<<grid, block, 0, stream>>>(
@@ -1451,11 +1451,11 @@ at::Tensor relu_backward_c_last_CUDA(
     );
   } else {
     if (weight.has_value()) {
-      AT_CHECK(input.type().scalarType() == weight.value().type().scalarType(),
-          "input.type().scalarType() is not supported with weight.type().scalarType()");
+      AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+          "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
-    DISPATCH_FLOAT_AND_HALF(input.type(), 0, "batchnorm_forward",
+    DISPATCH_FLOAT_AND_HALF(input.scalar_type(), 0, "batchnorm_forward",
       using accscalar_t = at::acc_type<scalar_t_0, true>;
       relu_backward_c_last_kernel<scalar_t_0, accscalar_t, scalar_t_0, ELEMENTS_PER_ITER>
           <<<grid, block, 0, stream>>>(
