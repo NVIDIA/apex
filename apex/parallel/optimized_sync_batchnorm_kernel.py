@@ -7,7 +7,7 @@ from apex.parallel import ReduceOp
 class SyncBatchnormFunction(Function):
 
     @staticmethod
-    def forward(ctx, input, weight, bias, running_mean, running_variance, eps, track_running_stats = True, momentum = 1.0, process_group = None, channel_last = False):
+    def forward(ctx, input, z, weight, bias, running_mean, running_variance, eps, track_running_stats = True, momentum = 1.0, process_group = None, channel_last = False, fuse_relu = False):
         torch.cuda.nvtx.range_push("sync_BN_fw")
         input = input.contiguous()
         world_size = 0
@@ -53,13 +53,14 @@ class SyncBatchnormFunction(Function):
             mean = running_mean.data
             inv_std = 1.0 / torch.sqrt(running_variance.data + eps)
 
-        ctx.save_for_backward(input, weight, mean, inv_std)
+        ctx.save_for_backward(input, weight, mean, inv_std, z, bias)
         ctx.process_group = process_group
         ctx.channel_last = channel_last
         ctx.world_size = world_size
+        ctx.fuse_relu = fuse_relu
 
         if channel_last:
-            out = syncbn.batchnorm_forward_c_last(input, mean, inv_std, weight, bias)
+            out = syncbn.batchnorm_forward_c_last(input, z, mean, inv_std, weight, bias, fuse_relu)
         else:
             out = syncbn.batchnorm_forward(input, mean, inv_std, weight, bias)
 
@@ -73,11 +74,17 @@ class SyncBatchnormFunction(Function):
         # mini batch mean & var are calculated by forward path.
         # mu = 1./N*np.sum(h, axis = 0)
         # var = 1./N*np.sum((h-mu)**2, axis = 0)
-        saved_input, weight, mean, inv_std = ctx.saved_tensors
+        saved_input, weight, mean, inv_std, z, bias = ctx.saved_tensors
         process_group = ctx.process_group
         channel_last = ctx.channel_last
         world_size = ctx.world_size
-        grad_input = grad_weight = grad_bias = None
+        fuse_relu = ctx.fuse_relu
+        grad_input = grad_z = grad_weight = grad_bias = None
+
+        if fuse_relu:
+            grad_output = syncbn.relu_bw_c_last(grad_output, saved_input, z, mean, inv_std, weight, bias)
+        if isinstance(z, torch.Tensor) and ctx.needs_input_grad[1]:
+            grad_z = grad_output.clone()
 
         # TODO(jie): why do I have to clone here? life time of grad_output?
         if channel_last:
@@ -100,11 +107,11 @@ class SyncBatchnormFunction(Function):
             else:
                 grad_input = syncbn.batchnorm_backward(grad_output, saved_input, mean, inv_std, weight, mean_dy, mean_dy_xmu)
 
-        if weight is None or not ctx.needs_input_grad[1]:
+        if weight is None or not ctx.needs_input_grad[2]:
             grad_weight = None
 
-        if weight is None or not ctx.needs_input_grad[2]:
+        if weight is None or not ctx.needs_input_grad[3]:
             grad_bias = None
 
         torch.cuda.nvtx.range_pop()
-        return grad_input, grad_weight, grad_bias, None, None, None, None, None, None, None
+        return grad_input, grad_z, grad_weight, grad_bias, None, None, None, None, None, None, None, None
