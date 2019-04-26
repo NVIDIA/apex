@@ -43,7 +43,9 @@ at::Tensor nhwc_bn_fwd_train(
                        void* pair_data,
                        void* pair_data2,
                        const int bn_group,
-                       const at::Tensor& magic_tensor);
+                       const at::Tensor& magic_tensor,
+                       const int max_cta_per_sm,
+                       const int cta_launch_margin);
 
 at::Tensor nhwc_bn_fwd_eval(
                        const at::Tensor& x,
@@ -72,7 +74,9 @@ std::vector<at::Tensor> nhwc_bn_bwd(
                        void* pair_data,
                        void* pair_data2,
                        const int bn_group,
-                       const at::Tensor& magic_tensor);
+                       const at::Tensor& magic_tensor,
+                       const int max_cta_per_sm,
+                       const int cta_launch_margin);
 
 at::Tensor nhwc_bn_addrelu_fwd_train(
                        const at::Tensor& x,
@@ -90,7 +94,9 @@ at::Tensor nhwc_bn_addrelu_fwd_train(
                        void* pair_data,
                        void* pair_data2,
                        const int bn_group,
-                       const at::Tensor& magic_tensor);
+                       const at::Tensor& magic_tensor,
+                       const int max_cta_per_sm,
+                       const int cta_launch_margin);
 
 at::Tensor nhwc_bn_addrelu_fwd_eval(
                        const at::Tensor& x,
@@ -119,7 +125,9 @@ std::vector<at::Tensor> nhwc_bn_addrelu_bwd(
                        void* pair_data,
                        void* pair_data2,
                        const int bn_group,
-                       const at::Tensor& magic_tensor);
+                       const at::Tensor& magic_tensor,
+                       const int max_cta_per_sm,
+                       const int cta_launch_margin);
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {

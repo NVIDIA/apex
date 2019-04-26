@@ -56,11 +56,11 @@ class NhwcBatchNormAddRelu {
     exit(-1);
   }
 
-  void fwd(cudaStream_t stream, int device_id, void* my_data, void* pair_data, void* pair_data2, const int bn_group, const int magic);
-  void dgrad(cudaStream_t stream, int device_id, void* my_data, void* pair_data, void* pair_data2, const int bn_group, const int magic);
+  void fwd(cudaStream_t stream, int device_id, void* my_data, void* pair_data, void* pair_data2, const int bn_group, const int magic, const int max_cta_per_sm, const int cta_launch_margin);
+  void dgrad(cudaStream_t stream, int device_id, void* my_data, void* pair_data, void* pair_data2, const int bn_group, const int magic, const int max_cta_per_sm, const int cta_launch_margin);
   void fwdInference(cudaStream_t stream);
-  dim3 calc_fwd_grid(int device_id, int *loop);
-  dim3 calc_bwd_grid(int device_id, int *loop);
+  dim3 calc_fwd_grid(int device_id, int *loop, const int max_cta_per_sm, const int cta_launch_margin);
+  dim3 calc_bwd_grid(int device_id, int *loop, const int max_cta_per_sm, const int cta_launch_margin);
 
   void setInputDescriptor(const cudnnTensorFormat_t format,
                                   const cudnnDataType_t     data_type,
@@ -251,9 +251,6 @@ class NhwcBatchNormAddRelu {
   static const int PIXELS_PER_CTA_FWD_INFERENCE = THREADS_PER_CTA/THREADS_PER_PIXEL * \
       PIXELS_PER_THREAD_FWD_INFERENCE;
 
-  // Required CTA margin for cooperative kernel launch on cuda arch 70 and later.
-  static const size_t LAUNCH_MARGIN;
-
   // max grid.y in case of group bn is limited by exchange buffer size
   static const int MAX_GBN_BLOCK_Y = 256;
 
@@ -263,7 +260,7 @@ class NhwcBatchNormAddRelu {
   // version that was compiled with that occupancy in its launch bounds.  This way, we avoid
   // needless register spills.
   void _fwdKernelLauncher(cudaStream_t stream, NhwcBatchNormFwdParams params,
-                                dim3 grid_dim, int outer_loops, int device_id) {
+                                dim3 grid_dim, int outer_loops, int device_id, const int max_cta_per_sm) {
 #define LAUNCH_FWD_KERNEL(OUTER_LOOPS, USE_RELU, USE_ADD_RELU, COMPILED_FOR_OCCUPANCY) \
     do { \
         CHECK(SMEM_SIZE_FWD <= MAX_SMEM_WITHOUT_OPT_IN) << \
@@ -280,8 +277,10 @@ class NhwcBatchNormAddRelu {
                         USE_RELU, \
                         USE_ADD_RELU, \
                         COMPILED_FOR_OCCUPANCY>; \
-        cudaFuncSetAttribute(fwd_func, cudaFuncAttributePreferredSharedMemoryCarveout, 100); \
-        checkCudaStatus(name_ + " fwd ser coop kernel (cudaFuncSetAttribute carveout)"); \
+        if (COMPILED_FOR_OCCUPANCY > 1) { \
+            cudaFuncSetAttribute(fwd_func, cudaFuncAttributePreferredSharedMemoryCarveout, 100); \
+            checkCudaStatus(name_ + " fwd ser coop kernel (cudaFuncSetAttribute carveout)"); \
+        } \
         void *params_ptr = static_cast<void*>(&params); \
         using FWD_FUNC = decltype(nhwc_batch_norm_fwd< \
                         StorageType, \
@@ -305,7 +304,7 @@ class NhwcBatchNormAddRelu {
     } while (0)
 
     // Don't try for an occupancy > 2 as this will squeeze register use and create spills.
-    int occupancy = smem_driven_fwd_occupancy(device_id);
+    int occupancy = smem_driven_fwd_occupancy(device_id, max_cta_per_sm);
     if (outer_loops == 1) {
       if (occupancy >= 2)
         LAUNCH_FWD_KERNEL(1, false, true, 2);
@@ -323,7 +322,7 @@ class NhwcBatchNormAddRelu {
   // Helper function to launch the backward kernel.
 
   void _bwdKernelLauncher(cudaStream_t stream, NhwcBatchNormBwdParams params,
-                                dim3 grid_dim, int outer_loops, int device_id) {
+                                dim3 grid_dim, int outer_loops, int device_id, const int max_cta_per_sm) {
 #define LAUNCH_BWD_ADD_RELU_KERNEL(OUTER_LOOPS, COMPILED_FOR_OCCUPANCY) \
     do { \
         CHECK(SMEM_SIZE_BWD <= MAX_SMEM_WITHOUT_OPT_IN) << \
@@ -338,10 +337,12 @@ class NhwcBatchNormAddRelu {
                         USE_ONLINE_APPROACH, \
                         OUTER_LOOPS, \
                         COMPILED_FOR_OCCUPANCY>; \
-        cudaFuncSetAttribute(bwd_add_relu_func, \
+        if (COMPILED_FOR_OCCUPANCY > 1) { \
+            cudaFuncSetAttribute(bwd_add_relu_func, \
                              cudaFuncAttributePreferredSharedMemoryCarveout, 100); \
-        checkCudaStatus(name_ + \
-            " bwd-add-relu coop serial kernel (cudaFuncSetAttribute carveout)"); \
+            checkCudaStatus(name_ + \
+                " bwd-add-relu coop serial kernel (cudaFuncSetAttribute carveout)"); \
+        } \
         void *params_ptr = static_cast<void*>(&params); \
         using BWD_ADD_RELU_FUNC = decltype(nhwc_batch_norm_bwd_add_relu< \
                         StorageType, \
@@ -363,7 +364,7 @@ class NhwcBatchNormAddRelu {
   } while (0)
 
     // Don't try for an occupancy > 2 as this will squeeze register use and create spills.
-    int occupancy = smem_driven_bwd_occupancy(device_id);
+    int occupancy = smem_driven_bwd_occupancy(device_id, max_cta_per_sm);
     if (outer_loops == 1) {
       if (occupancy >= 2)
         LAUNCH_BWD_ADD_RELU_KERNEL(1, 2);
@@ -380,39 +381,41 @@ class NhwcBatchNormAddRelu {
 
  private:
   // Calculate the max number of CTAs allowed in the grid for the fwd kernel.
-  static size_t max_fwd_grid_x(int device_id) {
+  static size_t max_fwd_grid_x(int device_id, const int max_cta_per_sm, const int cta_launch_margin) {
     using namespace at::cuda::utils;
-    int answer = MultiprocessorCount(device_id) * smem_driven_fwd_occupancy(device_id);
+    int answer = MultiprocessorCount(device_id) * smem_driven_fwd_occupancy(device_id, max_cta_per_sm);
     if (SMArch(device_id) >= 70)
-      answer -= LAUNCH_MARGIN;
+      answer -= cta_launch_margin;
+    answer = std::min(1, answer); // we need at least one CTA to operate
     return static_cast<size_t>(answer);
   }
 
   // Calculate the max number of CTAs allowed in the grid for the bwd kernel.
-  static size_t max_bwd_grid_x(int device_id) {
+  static size_t max_bwd_grid_x(int device_id, const int max_cta_per_sm, const int cta_launch_margin) {
     using namespace at::cuda::utils;
-    int answer = MultiprocessorCount(device_id) * smem_driven_bwd_occupancy(device_id);
+    int answer = MultiprocessorCount(device_id) * smem_driven_bwd_occupancy(device_id, max_cta_per_sm);
     if (SMArch(device_id) >= 70)
-      answer -= LAUNCH_MARGIN;
+      answer -= cta_launch_margin;
+    answer = std::min(1, answer); // we need at least one CTA to operate
     return static_cast<size_t>(answer);
   }
 
   // Calculate the expected fwd kernel occupancy, as dictated by shared memory usage.
-  static int smem_driven_fwd_occupancy(int device_id) {
+  static int smem_driven_fwd_occupancy(int device_id, const int max_cta_per_sm) {
     using namespace at::cuda::utils;
     int fwd_reduction_bytes = THREADS_PER_PIXEL*(THREADS_PER_CTA/32)*ELEMENTS_PER_LDG*sizeof(float);
     int fwd_smem_bytes = SMEM_SIZE_FWD + fwd_reduction_bytes;
     int occupancy = MaxSharedMemoryPerMultiprocessor(device_id) / fwd_smem_bytes;
-    return occupancy;
+    return std::min(max_cta_per_sm, occupancy);
   }
 
   // Calculate the expected bwd kernel occupancy, as dictated by shared memory usage.
-  static int smem_driven_bwd_occupancy(int device_id) {
+  static int smem_driven_bwd_occupancy(int device_id, const int max_cta_per_sm) {
     using namespace at::cuda::utils;
     int bwd_reduction_bytes = THREADS_PER_PIXEL*(THREADS_PER_CTA/32)*ELEMENTS_PER_LDG*sizeof(float);
     int bwd_smem_bytes = SMEM_SIZE_BWD + bwd_reduction_bytes;
     int occupancy = MaxSharedMemoryPerMultiprocessor(device_id) / bwd_smem_bytes;
-    return occupancy;
+    return std::min(max_cta_per_sm, occupancy);
   }
 };
 
@@ -550,11 +553,11 @@ void NhwcBatchNormAddRelu::fwdInference(cudaStream_t stream) {
   checkCudaStatus(name_ + " fwd_inference-relu kernel");
 }
 
-dim3 NhwcBatchNormAddRelu::calc_fwd_grid(int device_id, int *loop) {
+dim3 NhwcBatchNormAddRelu::calc_fwd_grid(int device_id, int *loop, const int max_cta_per_sm, const int cta_launch_margin) {
   dim3 grid_dim;
   grid_dim.x = div_up(m_, PIXELS_PER_CTA_FWD);
   int c_blks = div_up(c_, C_ELEMENTS_PER_CTA);
-  unsigned int max_grid_x = max_fwd_grid_x(device_id);
+  unsigned int max_grid_x = max_fwd_grid_x(device_id, max_cta_per_sm, cta_launch_margin);
   if (grid_dim.x <= max_grid_x) {
     *loop = 1;
     if (max_grid_x / grid_dim.x > 1) {
@@ -573,11 +576,11 @@ dim3 NhwcBatchNormAddRelu::calc_fwd_grid(int device_id, int *loop) {
   return grid_dim;
 }
 
-dim3 NhwcBatchNormAddRelu::calc_bwd_grid(int device_id, int *loop) {
+dim3 NhwcBatchNormAddRelu::calc_bwd_grid(int device_id, int *loop, const int max_cta_per_sm, const int cta_launch_margin) {
   dim3 grid_dim;
   grid_dim.x = div_up(m_, PIXELS_PER_CTA_BWD);
   int c_blks = div_up(c_, C_ELEMENTS_PER_CTA);
-  unsigned int max_grid_x = max_bwd_grid_x(device_id);
+  unsigned int max_grid_x = max_bwd_grid_x(device_id, max_cta_per_sm, cta_launch_margin);
   if (grid_dim.x <= max_grid_x) {
     *loop = 1;
     if (max_grid_x / grid_dim.x > 1) {
@@ -596,7 +599,7 @@ dim3 NhwcBatchNormAddRelu::calc_bwd_grid(int device_id, int *loop) {
   return grid_dim;
 }
 
-void NhwcBatchNormAddRelu::fwd(cudaStream_t stream, int device_id, void* my_data, void* pair_data, void* pair_data2, const int bn_group, const int magic) {
+void NhwcBatchNormAddRelu::fwd(cudaStream_t stream, int device_id, void* my_data, void* pair_data, void* pair_data2, const int bn_group, const int magic, const int max_cta_per_sm, const int cta_launch_margin) {
   bool ptrs_are_set =
       X_tensor_desc_ != nullptr
       && Y_tensor_desc_ != nullptr
@@ -632,11 +635,11 @@ void NhwcBatchNormAddRelu::fwd(cudaStream_t stream, int device_id, void* my_data
   params.magic = magic;
   params.sync_iters = bn_group >> 1;
 
-  dim3 grid_dim = calc_fwd_grid(device_id, &params.outer_loops);
-  _fwdKernelLauncher(stream, params, grid_dim, params.outer_loops, device_id);
+  dim3 grid_dim = calc_fwd_grid(device_id, &params.outer_loops, max_cta_per_sm, cta_launch_margin);
+  _fwdKernelLauncher(stream, params, grid_dim, params.outer_loops, device_id, max_cta_per_sm);
 }
 
-void NhwcBatchNormAddRelu::dgrad(cudaStream_t stream, int device_id, void* my_data, void* pair_data, void* pair_data2, const int bn_group, const int magic) {
+void NhwcBatchNormAddRelu::dgrad(cudaStream_t stream, int device_id, void* my_data, void* pair_data, void* pair_data2, const int bn_group, const int magic, const int max_cta_per_sm, const int cta_launch_margin) {
   bool ptrs_are_set =
       X_tensor_desc_ != nullptr
       && Y_tensor_desc_ != nullptr
@@ -671,8 +674,8 @@ void NhwcBatchNormAddRelu::dgrad(cudaStream_t stream, int device_id, void* my_da
   params.sync_iters = bn_group >> 1;
   params.wgrad_coeff = 1.0 / bn_group;
 
-  dim3 grid_dim = calc_bwd_grid(device_id, &params.outer_loops);
-  _bwdKernelLauncher(stream, params, grid_dim, params.outer_loops, device_id);
+  dim3 grid_dim = calc_bwd_grid(device_id, &params.outer_loops, max_cta_per_sm, cta_launch_margin);
+  _bwdKernelLauncher(stream, params, grid_dim, params.outer_loops, device_id, max_cta_per_sm);
 }
 
 #endif  // MXNET_OPERATOR_NN_CUDNN_NHWC_BATCH_NORM_ADD_RELU_H_

@@ -8,12 +8,6 @@
 
 #include <cuda.h>
 
-namespace {
-const char* env = std::getenv("LAUNCH_MARGIN");
-char* pEnd;
-}
-const size_t NhwcBatchNormAddRelu::LAUNCH_MARGIN = env ? std::strtol(env, &pEnd, 10) : 12;
-
 //FIXME move the common stuff to common h file
 #define cudaCheckErrors(msg) \
     do { \
@@ -67,7 +61,9 @@ at::Tensor nhwc_bn_addrelu_fwd_train(
                        void * pair_data,
                        void * pair_data2,
                        const int bn_group,
-                       const at::Tensor& magic_tensor) {
+                       const at::Tensor& magic_tensor,
+                       const int max_cta_per_sm,
+                       const int cta_launch_margin) {
 
   const int N = x.size(0);
   const int H = x.size(1);
@@ -137,7 +133,7 @@ at::Tensor nhwc_bn_addrelu_fwd_train(
 
   int device_id = 0; //FIXME when resource query is replaced with real functions
   // Don't fuse in ReLU for now at least
-  bn->fwd(at::cuda::getCurrentCUDAStream().stream(), device_id, my_data, pair_data, pair_data2, bn_group, *magic);
+  bn->fwd(at::cuda::getCurrentCUDAStream().stream(), device_id, my_data, pair_data, pair_data2, bn_group, *magic, max_cta_per_sm, cta_launch_margin);
 
   THCudaFree(at::globalContext().lazyInitCUDA(), retired_ctas);
   return y;
@@ -240,7 +236,9 @@ std::vector<at::Tensor> nhwc_bn_addrelu_bwd(
                        void * pair_data, 
                        void * pair_data2, 
                        const int bn_group,
-                       const at::Tensor& magic_tensor) {
+                       const at::Tensor& magic_tensor,
+                       const int max_cta_per_sm,
+                       const int cta_launch_margin) {
   // shape
   const int N = x.size(0);
   const int H = x.size(1);
@@ -315,7 +313,7 @@ std::vector<at::Tensor> nhwc_bn_addrelu_bwd(
   bn->setWorkspacePointers(workspace, workspace_bytes);
 
   int device_id = 0; //FIXME when resource query is replaced with real functions
-  bn->dgrad(at::cuda::getCurrentCUDAStream().stream(), device_id, my_data, pair_data, pair_data2, bn_group, *magic);
+  bn->dgrad(at::cuda::getCurrentCUDAStream().stream(), device_id, my_data, pair_data, pair_data2, bn_group, *magic, max_cta_per_sm, cta_launch_margin);
 
   THCudaFree(at::globalContext().lazyInitCUDA(), retired_ctas);
   return std::vector<at::Tensor>{x_grad, z_grad, scale_grad, bias_grad};

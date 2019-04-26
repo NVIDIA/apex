@@ -6,7 +6,7 @@ import bnp
 
 class bn_NHWC_impl(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x, s, b, rm, riv, mini_m, mini_riv, mom, epsilon, fuse_relu=False, is_train=True, bn_group=1, my_data=None, pair_data=None, magic=1, pair_data2=None):
+    def forward(ctx, x, s, b, rm, riv, mini_m, mini_riv, mom, epsilon, fuse_relu=False, is_train=True, bn_group=1, my_data=None, pair_data=None, magic=1, pair_data2=None, max_cta_per_sm=2, cta_launch_margin=12):
         if is_train:
             ctx.save_for_backward(x, s, b, rm, riv, mini_m, mini_riv)
             ctx.epsilon = epsilon
@@ -17,8 +17,10 @@ class bn_NHWC_impl(torch.autograd.Function):
             ctx.magic = magic
             ctx.pair_data2 = pair_data2
             ctx.bn_group = bn_group
+            ctx.max_cta_per_sm = max_cta_per_sm
+            ctx.cta_launch_margin = cta_launch_margin
 
-            res =  bnp.bn_fwd_nhwc(x, s, b, rm, riv, mini_m, mini_riv, mom, epsilon, fuse_relu, my_data, pair_data, pair_data2, bn_group, magic)
+            res =  bnp.bn_fwd_nhwc(x, s, b, rm, riv, mini_m, mini_riv, mom, epsilon, fuse_relu, my_data, pair_data, pair_data2, bn_group, magic, max_cta_per_sm, cta_launch_margin)
             return res
         else:
             return bnp.bn_fwd_eval_nhwc(x, s, b, rm, riv, bn_group, mom, epsilon, fuse_relu)
@@ -34,15 +36,17 @@ class bn_NHWC_impl(torch.autograd.Function):
         magic = ctx.magic
         pair_data2 = ctx.pair_data2
         bn_group = ctx.bn_group
+        max_cta_per_sm = ctx.max_cta_per_sm
+        cta_launch_margin = ctx.cta_launch_margin
 
-        dx, dscale, dbias = bnp.bn_bwd_nhwc(x, grad_y, s, b, rm, riv, mini_m, mini_riv, mom, epsilon, fuse_relu, my_data, pair_data, pair_data2, bn_group, magic)
+        dx, dscale, dbias = bnp.bn_bwd_nhwc(x, grad_y, s, b, rm, riv, mini_m, mini_riv, mom, epsilon, fuse_relu, my_data, pair_data, pair_data2, bn_group, magic, max_cta_per_sm, cta_launch_margin)
 
-        return dx, dscale, dbias, None, None, None, None, None, None, None, None, None, None, None, None, None
+        return dx, dscale, dbias, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None
 
 
 class bn_addrelu_NHWC_impl(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x, z, s, b, rm, riv, mini_m, mini_riv, mom, epsilon, is_train=True, bn_group=1, my_data=None, pair_data=None, magic=1, pair_data2=None):
+    def forward(ctx, x, z, s, b, rm, riv, mini_m, mini_riv, mom, epsilon, is_train=True, bn_group=1, my_data=None, pair_data=None, magic=1, pair_data2=None, max_cta_per_sm=2, cta_launch_margin=12):
         if is_train:
             bitmask = torch.cuda.IntTensor(x.numel()//32)
             ctx.save_for_backward(x, s, b, rm, riv, mini_m, mini_riv, bitmask)
@@ -53,8 +57,10 @@ class bn_addrelu_NHWC_impl(torch.autograd.Function):
             ctx.magic = magic
             ctx.pair_data2 = pair_data2
             ctx.bn_group = bn_group
+            ctx.max_cta_per_sm = max_cta_per_sm
+            ctx.cta_launch_margin = cta_launch_margin
 
-            res =  bnp.bn_addrelu_fwd_nhwc(x, z, s, b, rm, riv, mini_m, mini_riv, bitmask, mom, epsilon, my_data, pair_data, pair_data2, bn_group, magic)
+            res =  bnp.bn_addrelu_fwd_nhwc(x, z, s, b, rm, riv, mini_m, mini_riv, bitmask, mom, epsilon, my_data, pair_data, pair_data2, bn_group, magic, max_cta_per_sm, cta_launch_margin)
             return res
         else:
             return bnp.bn_addrelu_fwd_eval_nhwc(x, z, s, b, rm, riv, bn_group, mom, epsilon)
@@ -69,17 +75,19 @@ class bn_addrelu_NHWC_impl(torch.autograd.Function):
         magic = ctx.magic
         pair_data2 = ctx.pair_data2
         bn_group = ctx.bn_group
+        max_cta_per_sm = ctx.max_cta_per_sm
+        cta_launch_margin = ctx.cta_launch_margin
 
-        dx, dz, dscale, dbias = bnp.bn_addrelu_bwd_nhwc(x, grad_y, s, b, rm, riv, mini_m, mini_riv, bitmask, mom, epsilon, my_data, pair_data, pair_data2, bn_group, magic)
+        dx, dz, dscale, dbias = bnp.bn_addrelu_bwd_nhwc(x, grad_y, s, b, rm, riv, mini_m, mini_riv, bitmask, mom, epsilon, my_data, pair_data, pair_data2, bn_group, magic, max_cta_per_sm, cta_launch_margin)
 
-        return dx, dz, dscale, dbias, None, None, None, None, None, None, None, None, None, None, None, None
+        return dx, dz, dscale, dbias, None, None, None, None, None, None, None, None, None, None, None, None, None, None
 
 
 
 
 
 class BatchNorm2d_NHWC(_BatchNorm):
-    def __init__(self, num_features, fuse_relu=False, bn_group=1):
+    def __init__(self, num_features, fuse_relu=False, bn_group=1, max_cta_per_sm=2, cta_launch_margin=12):
         super(BatchNorm2d_NHWC, self).__init__(num_features)
 
         self.fuse_relu = fuse_relu
@@ -89,11 +97,15 @@ class BatchNorm2d_NHWC(_BatchNorm):
 
         #defaut to distributed bn disabled
         self.bn_group = bn_group
+        self.max_cta_per_sm = max_cta_per_sm        #used only in training fwd and bwd
+        self.cta_launch_margin = cta_launch_margin  #used only in training fwd and bwd
         self.my_data = None
         self.pair_data = None
         self.pair_data2 = None
         self.local_rank = 0
         self.magic = torch.IntTensor([0])
+
+        assert(max_cta_per_sm>0) # won't be able to do much with 0 CTAs :)
 
         #FIXME: turn pair handles into an array
 
@@ -149,14 +161,16 @@ class BatchNorm2d_NHWC(_BatchNorm):
                                   self.running_mean, self.running_var,
                                   self.minibatch_mean, self.minibatch_riv,
                                   self.momentum,
-                                  self.eps, self.training, self.bn_group, self.my_data, self.pair_data, (self.magic), self.pair_data2)
+                                  self.eps, self.training, self.bn_group, self.my_data, self.pair_data, (self.magic), self.pair_data2,
+                                  self.max_cta_per_sm, self.cta_launch_margin)
         else:
             return bn_NHWC_impl.apply(x,
                                   self.weight, self.bias,
                                   self.running_mean, self.running_var,
                                   self.minibatch_mean, self.minibatch_riv,
                                   self.momentum,
-                                  self.eps, self.fuse_relu, self.training, self.bn_group, self.my_data, self.pair_data, (self.magic), self.pair_data2)
+                                  self.eps, self.fuse_relu, self.training, self.bn_group, self.my_data, self.pair_data, (self.magic), self.pair_data2,
+                                  self.max_cta_per_sm, self.cta_launch_margin)
 
     def __del__(self):
         if self.bn_group>1:
