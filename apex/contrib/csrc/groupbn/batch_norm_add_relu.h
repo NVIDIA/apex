@@ -386,7 +386,7 @@ class NhwcBatchNormAddRelu {
     int answer = MultiprocessorCount(device_id) * smem_driven_fwd_occupancy(device_id, max_cta_per_sm);
     if (SMArch(device_id) >= 70)
       answer -= cta_launch_margin;
-    answer = std::min(1, answer); // we need at least one CTA to operate
+    answer = std::max(1, answer); // we need at least one CTA to operate
     return static_cast<size_t>(answer);
   }
 
@@ -396,7 +396,7 @@ class NhwcBatchNormAddRelu {
     int answer = MultiprocessorCount(device_id) * smem_driven_bwd_occupancy(device_id, max_cta_per_sm);
     if (SMArch(device_id) >= 70)
       answer -= cta_launch_margin;
-    answer = std::min(1, answer); // we need at least one CTA to operate
+    answer = std::max(1, answer); // we need at least one CTA to operate
     return static_cast<size_t>(answer);
   }
 
