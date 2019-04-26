@@ -182,19 +182,19 @@ void fused_adam_cuda(
         }
         cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
-        if (g.type().scalarType() == at::ScalarType::Half) {
+        if (g.scalar_type() == at::ScalarType::Half) {
 //all other values should be fp32 for half gradients
-            AT_ASSERTM(p.type().scalarType() == at::ScalarType::Float, "expected parameter to be of float type");
+            AT_ASSERTM(p.scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
 //dispatch is done on the gradient type
             using namespace at; // prevents "toString is undefined" errors
-            AT_DISPATCH_FLOATING_TYPES_AND_HALF(g.type(), "adam_cuda_kernel", ([&] {
-                using accscalar_t = at::acc_type<scalar_t, true>;
-                adam_cuda_kernel<accscalar_t, scalar_t><<<blocks,threadsPerBlock, 0, stream>>>(
+            DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel", 
+                using accscalar_t = at::acc_type<scalar_t_0, true>;
+                adam_cuda_kernel<accscalar_t, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
                         p.data<accscalar_t>(),
-                        p_copy.numel() ? p_copy.data<scalar_t>() : NULL,
+                        p_copy.numel() ? p_copy.data<scalar_t_0>() : NULL,
                         m.data<accscalar_t>(),
                         v.data<accscalar_t>(),
-                        g.data<scalar_t>(),
+                        g.data<scalar_t_0>(),
                         beta1,
                         beta2,
                         eps,
@@ -203,16 +203,16 @@ void fused_adam_cuda(
                         tsize,
                         (adamMode_t) mode,
                         decay);
-            }));
+                )
       } else {
             using namespace at;
-            AT_DISPATCH_FLOATING_TYPES(g.type(), "adam_cuda_kernel", ([&] {
-                adam_cuda_kernel<scalar_t, scalar_t><<<blocks,threadsPerBlock, 0, stream>>>(
-                        p.data<scalar_t>(),
+            DISPATCH_DOUBLE_AND_FLOAT(g.scalar_type(), 0, "adam_cuda_kernel",
+                adam_cuda_kernel<scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+                        p.data<scalar_t_0>(),
                         NULL, //don't output p_copy for fp32, it's wasted write
-                        m.data<scalar_t>(),
-                        v.data<scalar_t>(),
-                        g.data<scalar_t>(),
+                        m.data<scalar_t_0>(),
+                        v.data<scalar_t_0>(),
+                        g.data<scalar_t_0>(),
                         beta1,
                         beta2,
                         eps,
@@ -221,7 +221,7 @@ void fused_adam_cuda(
                         tsize,
                         (adamMode_t) mode,
                         decay);
-            }));
+            );
       }
       THCudaCheck(cudaGetLastError());
 
