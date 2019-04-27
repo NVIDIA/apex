@@ -119,9 +119,10 @@ at::Tensor nhwc_bn_addrelu_fwd_train(
   workspace.push_back(minibatch_inv_var.data<float>());
   workspace.push_back(bitmask.data<int32_t>());
 
+  auto stream = at::cuda::getCurrentCUDAStream().stream();
   const int retired_cta_bytes = workspace_bytes[3];
   void* retired_ctas = THCudaMalloc(at::globalContext().lazyInitCUDA(), retired_cta_bytes); 
-  cudaMemset(retired_ctas, 0, retired_cta_bytes); //FIXME: is this legit?
+  cudaMemsetAsync(retired_ctas, 0, retired_cta_bytes, stream); //FIXME: is this legit?
   workspace.push_back(retired_ctas);
 
   for (auto index = 4; index < workspace_bytes.size(); ++index) {
@@ -131,9 +132,10 @@ at::Tensor nhwc_bn_addrelu_fwd_train(
 
   bn->setWorkspacePointers(workspace, workspace_bytes);
 
-  int device_id = 0; //FIXME when resource query is replaced with real functions
+  int device_id;
+  cudaGetDevice(&device_id);
   // Don't fuse in ReLU for now at least
-  bn->fwd(at::cuda::getCurrentCUDAStream().stream(), device_id, my_data, pair_data, pair_data2, bn_group, *magic, max_cta_per_sm, cta_launch_margin);
+  bn->fwd(stream, device_id, my_data, pair_data, pair_data2, bn_group, *magic, max_cta_per_sm, cta_launch_margin);
 
   THCudaFree(at::globalContext().lazyInitCUDA(), retired_ctas);
   return y;
@@ -200,9 +202,10 @@ at::Tensor nhwc_bn_addrelu_fwd_eval(
   workspace.push_back(nullptr);
   workspace.push_back(nullptr);
 
+  auto stream = at::cuda::getCurrentCUDAStream().stream();
   const int retired_cta_bytes = workspace_bytes[3];
   void* retired_ctas = THCudaMalloc(at::globalContext().lazyInitCUDA(), retired_cta_bytes);
-  cudaMemset(retired_ctas, 0, retired_cta_bytes); //FIXME: is this legit?
+  cudaMemsetAsync(retired_ctas, 0, retired_cta_bytes, stream); //FIXME: is this legit?
   workspace.push_back(retired_ctas);
 
   for (auto index = 4; index < workspace_bytes.size(); ++index) {
@@ -213,7 +216,7 @@ at::Tensor nhwc_bn_addrelu_fwd_eval(
   bn->setWorkspacePointers(workspace, workspace_bytes);
 
   // Don't fuse in ReLU for now at least
-  bn->fwdInference(at::cuda::getCurrentCUDAStream().stream());
+  bn->fwdInference(stream);
 
   THCudaFree(at::globalContext().lazyInitCUDA(), retired_ctas);
   return y;
@@ -300,9 +303,10 @@ std::vector<at::Tensor> nhwc_bn_addrelu_bwd(
   workspace.push_back(minibatch_inv_var.data<float>());
   workspace.push_back(bitmask.data<int32_t>());
 
+  auto stream = at::cuda::getCurrentCUDAStream().stream();
   const int retired_cta_bytes = workspace_bytes[3];
   void* retired_ctas = THCudaMalloc(at::globalContext().lazyInitCUDA(), retired_cta_bytes);
-  cudaMemset(retired_ctas, 0, retired_cta_bytes); //FIXME: is this legit?
+  cudaMemsetAsync(retired_ctas, 0, retired_cta_bytes, stream); //FIXME: is this legit?
   workspace.push_back(retired_ctas);
 
   for (auto index = 4; index < workspace_bytes.size(); ++index) {
@@ -312,8 +316,9 @@ std::vector<at::Tensor> nhwc_bn_addrelu_bwd(
 
   bn->setWorkspacePointers(workspace, workspace_bytes);
 
-  int device_id = 0; //FIXME when resource query is replaced with real functions
-  bn->dgrad(at::cuda::getCurrentCUDAStream().stream(), device_id, my_data, pair_data, pair_data2, bn_group, *magic, max_cta_per_sm, cta_launch_margin);
+  int device_id;
+  cudaGetDevice(&device_id);
+  bn->dgrad(stream, device_id, my_data, pair_data, pair_data2, bn_group, *magic, max_cta_per_sm, cta_launch_margin);
 
   THCudaFree(at::globalContext().lazyInitCUDA(), retired_ctas);
   return std::vector<at::Tensor>{x_grad, z_grad, scale_grad, bias_grad};

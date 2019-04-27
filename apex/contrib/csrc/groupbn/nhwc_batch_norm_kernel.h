@@ -451,7 +451,7 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw, voi
                     asm volatile ("st.global.wt.v4.f32 [%0], {%1,%2,%3,%4};"
         :: "l"((float4 *)write_data) , "f"(x[0]), "f"( x[1]), "f"(x[2]), "f"( x[3]));
 
-                __threadfence();
+                __threadfence_system();
 
                 //write the magic value to indicate data readiness
                 write_flag[threadIdx.x] = magic; //or can sync and set only one flag
