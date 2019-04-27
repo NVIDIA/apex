@@ -99,6 +99,35 @@ if "--cuda_ext" in sys.argv:
                                                       '-O3',
                                                       '--use_fast_math'] + version_ge_1_1}))
 
+if "--bnp" in sys.argv:
+    from torch.utils.cpp_extension import CUDAExtension
+    sys.argv.remove("--bnp")
+
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension
+
+    if torch.utils.cpp_extension.CUDA_HOME is None:
+        raise RuntimeError("--cuda_ext was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        # Set up macros for forward/backward compatibility hack around
+        # https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
+        version_ge_1_1 = []
+        if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 0):
+            version_ge_1_1 = ['-DVERSION_GE_1_1']
+        ext_modules.append(
+            CUDAExtension(name='bnp',
+                          sources=['apex/contrib/csrc/groupbn/batch_norm.cu',
+                                   'apex/contrib/csrc/groupbn/ipc.cu',
+                                   'apex/contrib/csrc/groupbn/interface.cpp',
+                                   'apex/contrib/csrc/groupbn/batch_norm_add_relu.cu'],
+                          extra_compile_args={'cxx': [] + version_ge_1_1,
+                                              'nvcc':['-DCUDA_HAS_FP16=1',
+                                                      '-D__CUDA_NO_HALF_OPERATORS__',
+                                                      '-D__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '-D__CUDA_NO_HALF2_OPERATORS__',
+                                                      '-gencode',
+                                                      'arch=compute_70,code=sm_70'] + version_ge_1_1}))
+
 setup(
     name='apex',
     version='0.1',
