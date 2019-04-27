@@ -603,7 +603,7 @@ class DistributedDataParallel(Module):
                 if self.allreduce_different_streams:
                     if not self.bucket_streams:
                         self.bucket_streams = [torch.cuda.Stream() for _ in range(self.num_allreduce_streams)]
-                        sele.bucket_events = [torch.cuda.Event(enable_timing=False,
+                        self.bucket_events = [torch.cuda.Event(enable_timing=False,
                                               blocking=False) for _ in range(self.num_allreduce_streams)]
                 else:
                     if not self.bucket_streams:
