@@ -75,6 +75,11 @@ def scale_loss(loss,
     .. _`Advanced Amp Usage`:
         https://nvidia.github.io/apex/advanced.html
     """
+    if not hasattr(_amp_state, "opt_properties"):
+        raise RuntimeError("Invoked 'with amp.scale_loss`, but internal Amp state has not been initialized.  "
+                           "model, optimizer = amp.initialize(model, optimizer, opt_level=...) must be called "
+                           "before `with amp.scale_loss`.")
+
     if not _amp_state.opt_properties.enabled:
         yield loss
         return
