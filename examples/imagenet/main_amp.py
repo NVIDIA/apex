@@ -190,8 +190,9 @@ def main():
     valdir = os.path.join(args.data, 'val')
 
     if(args.arch == "inception_v3"):
-        crop_size = 299
-        val_size = 320 # I chose this value arbitrarily, we can adjust.
+        raise RuntimeError("Currently, inception_v3 is not supported by this example.")
+        # crop_size = 299
+        # val_size = 320 # I chose this value arbitrarily, we can adjust.
     else:
         crop_size = 224
         val_size = 256
