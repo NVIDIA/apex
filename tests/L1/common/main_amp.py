@@ -86,7 +86,6 @@ def fast_collate(batch):
     tensor = torch.zeros( (len(imgs), 3, h, w), dtype=torch.uint8 )
     for i, img in enumerate(imgs):
         nump_array = np.asarray(img, dtype=np.uint8)
-        tens = torch.from_numpy(nump_array)
         if(nump_array.ndim < 3):
             nump_array = np.expand_dims(nump_array, axis=-1)
         nump_array = np.rollaxis(nump_array, 2)
