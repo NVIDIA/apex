@@ -21,6 +21,13 @@ If you want to rebuild your image, and force the latest Apex to be cloned and in
 Currently, the non-`-devel` images on Pytorch Dockerhub do not contain the Cuda compiler `nvcc`.  Therefore,
 images whose name does not contain `-devel` are not eligible candidates for `BASE_IMAGE`.
 
+### Running your Apex container
+
+Like any Cuda-enabled Pytorch container, a container with Apex should be run via [nvidia-docker](https://github.com/NVIDIA/nvidia-docker), for example:
+```
+docker run --runtime=nvidia -it --rm --ipc=host new_image_with_apex
+```
+
 ## Option 2:  Install Apex in a running container
 
 Instead of building a new container, it is also a viable option to `git clone https://github.com/NVIDIA/apex.git` on bare metal, mount the Apex repo into your container at launch by running, for example,
