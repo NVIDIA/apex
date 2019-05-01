@@ -194,9 +194,6 @@ class DistributedDataParallel(Module):
 
         self.prof = prof
 
-        if allreduce_different_streams and delay_allreduce:
-            raise ValueError("allreduce_different_streams may only be used if delay_allreduce=False.")
-
         self.allreduce_different_streams = (num_allreduce_streams > 1)
         self.num_allreduce_streams = num_allreduce_streams
         self.allreduce_communicators = allreduce_communicators
@@ -204,6 +201,9 @@ class DistributedDataParallel(Module):
             assert len(allreduce_communicators[0]) == num_allreduce_streams
             assert len(allreduce_communicators[0]) == len(allreduce_communicators[1])
             assert allreduce_different_streams
+
+        if self.allreduce_different_streams and delay_allreduce:
+            raise ValueError("allreduce_different_streams may only be used if delay_allreduce=False.")
 
         if shared_param is not None:
             raise ValueError("shared_param is no longer supported as an option.  It was misleadingly named from the start.  It turns out overlapping communication with computation should work fine with shared parameters.  If you still wish to delay communication to the end of the backward pass, use delay_allreduce=True|False instead.")
