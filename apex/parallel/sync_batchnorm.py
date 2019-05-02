@@ -66,10 +66,23 @@ class SyncBatchNorm(_BatchNorm):
         torch.cuda.nvtx.range_push("sync_bn_fw_with_mean_var")
         mean = None
         var = None
+        cast = None
+        out = None
+
+        # casting to handle mismatch input type to layer type
+        if self.running_mean is not None:
+            if self.running_mean.dtype != input.dtype:
+                input = input.to(self.running_mean.dtype)
+                cast = input.dtype
+        elif self.weight is not None:
+            if self.weight.dtype != input.dtype:
+                input = input.to(self.weight.dtype)
+                cast = input.dtype
+
         if not self.training and self.track_running_stats:
             # fall back to pytorch implementation for inference
             torch.cuda.nvtx.range_pop()
-            return F.batch_norm(input, self.running_mean, self.running_var, self.weight, self.bias, False, 0.0, self.eps)
+            out = F.batch_norm(input, self.running_mean, self.running_var, self.weight, self.bias, False, 0.0, self.eps)
         else:
             process_group = self.process_group
             world_size = 1
@@ -114,4 +127,5 @@ class SyncBatchNorm(_BatchNorm):
                         (m-1) * self.momentum * var + \
                         (1 - self.momentum) * self.running_var
             torch.cuda.nvtx.range_pop()
-            return SyncBatchnormFunction.apply(input, self.weight, self.bias, mean, var, self.eps, process_group, world_size)
+            out = SyncBatchnormFunction.apply(input, self.weight, self.bias, mean, var, self.eps, process_group, world_size)
+        out = out.to(cast)
