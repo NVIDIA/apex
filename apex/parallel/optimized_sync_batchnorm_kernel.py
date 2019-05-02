@@ -26,9 +26,6 @@ class SyncBatchnormFunction(Function):
                 count = int(input.numel()/input.size(1))
                 mean, var_biased = syncbn.welford_mean_var(input)
 
-            if count == 1:
-                raise ValueError('Expected more than 1 value per channel when training, got input size{}'.format(input.size()))
-
             if torch.distributed.is_initialized():
                 if not process_group:
                     process_group = torch.distributed.group.WORLD
@@ -44,6 +41,9 @@ class SyncBatchnormFunction(Function):
             else:
                 inv_std = 1.0 / torch.sqrt(var_biased + eps)
                 var = var_biased * (count) / (count-1) 
+
+            if count == 1 and world_size < 2:
+                raise ValueError('Expected more than 1 value per channel when training, got input size{}'.format(input.size()))
 
             r_m_inc = mean if running_mean.dtype != torch.float16 else mean.half()
             r_v_inc = var if running_variance.dtype != torch.float16 else var.half()
