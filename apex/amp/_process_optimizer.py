@@ -75,6 +75,8 @@ def lazy_init_with_master_weights(self):
         for group in stash.fp32_from_fp32_groups:
             stash.all_fp32_from_fp32_params += group
 
+        # all_fp16_grad_stash is only needed for fused optimizers.
+        stash.all_fp16_grad_stash = [None for _ in stash.all_fp16_params]
         # stash.all_fp32_from_fp16_grad_stash = [None for _ in stash.all_fp32_from_fp16_params]
         stash.all_fp32_from_fp32_grad_stash = [None for _ in stash.all_fp32_from_fp32_params]
 
@@ -125,9 +127,7 @@ def post_backward_models_are_masters(scaler, params, stashed_grads):
 def prepare_backward_with_master_weights(self):
     stash = self._amp_stash
 
-    if not stash.lazy_init_called:
-        self._lazy_init_maybe_master_weights()
-        stash.lazy_init_called = True
+    self._amp_lazy_init()
 
     for i, param in enumerate(stash.all_fp16_params):
         # Set up to leverage grad copy elision:
@@ -144,6 +144,8 @@ def prepare_backward_with_master_weights(self):
 
 def post_backward_with_master_weights(self, scaler):
     stash = self._amp_stash
+
+    self._amp_lazy_init()
 
     # This is a lot of python overhead...
     fp16_grads_needing_unscale = []
@@ -206,9 +208,7 @@ def lazy_init_no_master_weights(self):
 def prepare_backward_no_master_weights(self):
     stash = self._amp_stash
 
-    if not stash.lazy_init_called:
-        self._lazy_init_maybe_master_weights()
-        stash.lazy_init_called = True
+    self._amp_lazy_init()
 
     for i, param in enumerate(stash.all_fp16_params):
         stash.all_fp16_grad_stash[i] = param.grad
@@ -224,6 +224,8 @@ def prepare_backward_no_master_weights(self):
 def post_backward_no_master_weights(self, scaler):
     stash = self._amp_stash
 
+    self._amp_lazy_init()
+
     split_types = ((stash.all_fp16_params, stash.all_fp16_grad_stash),
              (stash.all_fp32_params, stash.all_fp32_grad_stash))
 
@@ -238,13 +240,14 @@ def post_backward_no_master_weights(self, scaler):
 def prepare_backward_with_master_weights_FusedAdam(self):
     stash = self._amp_stash
 
-    if not stash.lazy_init_called:
-        self._lazy_init_maybe_master_weights()
-        stash.lazy_init_called = True
+    self._amp_lazy_init()
 
 
 def post_backward_with_master_weights_FusedAdam(self, scaler):
     stash = self._amp_stash
+
+    self._amp_lazy_init()
+
     stash.scale = scaler.loss_scale()
     stash.grads = [[param.grad.data for param in group] for group in stash.fp16_groups]
     stash.output_params = [[param for param in group] for group in stash.fp16_groups]
@@ -271,13 +274,14 @@ def post_backward_with_master_weights_FusedAdam(self, scaler):
 def prepare_backward_no_master_weights_FusedAdam(self):
     stash = self._amp_stash
 
-    if not stash.lazy_init_called:
-        self._lazy_init_maybe_master_weights()
-        stash.lazy_init_called = True
+    self._amp_lazy_init()
 
 
 def post_backward_no_master_weights_FusedAdam(self, scaler):
     stash = self._amp_stash
+
+    self._amp_lazy_init()
+
     stash.scale = scaler.loss_scale()
     stash.grads = None
     stash.output_params = None
@@ -296,9 +300,7 @@ def post_backward_no_master_weights_FusedAdam(self, scaler):
 def prepare_backward_with_master_weights_FusedSGD(self):
     stash = self._amp_stash
 
-    if not stash.lazy_init_called:
-        self._lazy_init_maybe_master_weights()
-        stash.lazy_init_called = True
+    self._amp_lazy_init()
 
     for i, param in enumerate(stash.all_fp16_params):
         stash.all_fp16_grad_stash[i] = param.grad
@@ -313,6 +315,8 @@ def prepare_backward_with_master_weights_FusedSGD(self):
 
 def post_backward_with_master_weights_FusedSGD(self, scaler):
     stash = self._amp_stash
+
+    self._amp_lazy_init()
 
     split_types = ((stash.all_fp16_params, stash.all_fp16_grad_stash),
              (stash.all_fp32_from_fp32_params, stash.all_fp32_from_fp32_grad_stash))
@@ -329,6 +333,14 @@ def post_backward_no_master_weights_FusedSGD(self, scaler):
     post_backward_no_master_weights(self, scaler)
 
 
+def _amp_lazy_init(self):
+    stash = self._amp_stash
+
+    if not stash.lazy_init_called:
+        self._lazy_init_maybe_master_weights()
+        stash.lazy_init_called = True
+
+
 def _process_optimizer(optimizer, properties):
     if hasattr(optimizer, "_amp_stash"):
         raise RuntimeError("A given optimizer should only be passed through amp.initialize once.")
@@ -342,7 +354,8 @@ def _process_optimizer(optimizer, properties):
     for name in ("_lazy_init_maybe_master_weights",
                  "_master_params_to_model_params",
                  "_prepare_amp_backward",
-                 "_post_amp_backward"):
+                 "_post_amp_backward",
+                 "_amp_lazy_init"):
         if hasattr(optimizer, name):
             raise RuntimeError("Incoming optimizer already has {} defined.".format(name))
 
@@ -374,9 +387,7 @@ def _process_optimizer(optimizer, properties):
         old_zero_grad = optimizer.zero_grad
         def new_zero_grad(self):
             stash = self._amp_stash
-            if not stash.lazy_init_called:
-                self._lazy_init_maybe_master_weights()
-                stash.lazy_init_called = True
+            self._amp_lazy_init()
             # Zero the model grads.
             for param in stash.all_fp16_params:
                 if param.grad is not None:
@@ -425,5 +436,7 @@ def _process_optimizer(optimizer, properties):
                 prepare_backward_no_master_weights, optimizer)
             optimizer._post_amp_backward = types.MethodType(
                 post_backward_no_master_weights, optimizer)
+
+    optimizer._amp_lazy_init = types.MethodType(_amp_lazy_init, optimizer)
 
     return optimizer
