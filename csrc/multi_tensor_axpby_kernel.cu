@@ -70,15 +70,9 @@ struct AxpbyFunctor
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
         {
-          out[i] = static_cast<out_t>(a*xs[ii] + b*ys[ii]);
-          bool finite = true;
-          if(arg_to_check == -1)
-            finite = (isfinite(xs[ii]) && isfinite(ys[ii]));
-          if(arg_to_check == 0)
-            finite = isfinite(xs[ii]);
-          if(arg_to_check == 1)
-            finite = isfinite(ys[ii]);
-          if(!finite)
+          out_t out_val = static_cast<out_t>(a*xs[ii] + b*ys[ii]);
+          out[i] = out_val;
+          if(!isfinite(out_val))
             *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
         }
       }
