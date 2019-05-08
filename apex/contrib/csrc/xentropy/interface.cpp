@@ -43,6 +43,7 @@ at::Tensor softmax_xentropy_backward(
     const at::Tensor &labels,
     const float smoothing)  {
     CHECK_INPUT(grad_loss);
+    CHECK_INPUT(logits);
     CHECK_INPUT(max_log_sum_exp);
     CHECK_INPUT(labels);
 

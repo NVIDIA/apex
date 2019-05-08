@@ -107,7 +107,7 @@ if "--bnp" in sys.argv:
     cmdclass['build_ext'] = BuildExtension
 
     if torch.utils.cpp_extension.CUDA_HOME is None:
-        raise RuntimeError("--cuda_ext was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+        raise RuntimeError("--bnp was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
         # Set up macros for forward/backward compatibility hack around
         # https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
@@ -136,7 +136,7 @@ if "--xentropy" in sys.argv:
     cmdclass['build_ext'] = BuildExtension
 
     if torch.utils.cpp_extension.CUDA_HOME is None:
-        raise RuntimeError("--cuda_ext was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+        raise RuntimeError("--xentropy was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
         # Set up macros for forward/backward compatibility hack around
         # https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
@@ -147,6 +147,7 @@ if "--xentropy" in sys.argv:
             CUDAExtension(name='xentropy_cuda',
                           sources=['apex/contrib/csrc/xentropy/interface.cpp',
                                    'apex/contrib/csrc/xentropy/xentropy_kernel.cu'],
+                          include_dirs=['csrc'],
                           extra_compile_args={'cxx': ['-O3'] + version_ge_1_1,
                                               'nvcc':['-O3',
                                                       '-gencode',

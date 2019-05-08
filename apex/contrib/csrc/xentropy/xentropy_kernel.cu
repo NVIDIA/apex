@@ -8,6 +8,8 @@
 #include <THC/THCGeneral.h>
 #include <THC/THCThrustAllocator.cuh>
 
+#include "type_shim.h"
+
 using Tensor = at::Tensor;
 using TensorList = at::TensorList;
 using ScalarType = at::ScalarType;
@@ -23,7 +25,7 @@ struct LogSoftMaxForwardEpilogue {
 
   __device__ __forceinline__ OutT operator()(T input) const {
     return static_cast<OutT>(input - logsum);
-}
+  }
 
   const AccumT logsum;
 };
@@ -446,24 +448,26 @@ std::vector<Tensor> host_softmax_xentropy(
     const int ILP = 2;
     dim3 grid(outer_size);
     dim3 block = SoftMax_getBlockSize(ILP, dim_size);
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "host_softmax_xentropy", [&] {
-    using accscalar_t = acc_type<scalar_t, true>;
-    if (!half_to_float) {
-        cunn_SoftMaxXEntropyForward<ILP, scalar_t, accscalar_t, scalar_t, Epilogue>
+   
+    using namespace at;
+    DISPATCH_FLOAT_AND_HALF(input.scalar_type(), 0, "host_softmax_xentropy",
+      using accscalar_t = at::acc_type<scalar_t_0, true>;
+      if (!half_to_float) {
+        cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, scalar_t_0, Epilogue>
           <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
-            losses.data<accscalar_t>(), max_log_sum_exp.data<scalar_t>(),
-            input.data<scalar_t>(), labels_.data<int64_t>(),
+            losses.data<accscalar_t>(), max_log_sum_exp.data<scalar_t_0>(),
+            input.data<scalar_t_0>(), labels_.data<int64_t>(),
             dim_size, smoothing
         );
-    } else {
-        cunn_SoftMaxXEntropyForward<ILP, scalar_t, accscalar_t, accscalar_t, Epilogue>
+      } else {
+        cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, accscalar_t, Epilogue>
           <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
             losses.data<accscalar_t>(), max_log_sum_exp.data<accscalar_t>(),
-            input.data<scalar_t>(), labels_.data<int64_t>(),
+            input.data<scalar_t_0>(), labels_.data<int64_t>(),
             dim_size, smoothing
         );
-    }
-    });
+      }
+    );
 
     THCudaCheck(cudaGetLastError());
   }
@@ -504,26 +508,27 @@ Tensor host_softmax_xentropy_backward(
   const int ILP = 2;
   dim3 grid(outer_size);
   dim3 block = SoftMax_getBlockSize(ILP, dim_size);
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(gI.type(), "host_softmax_xentropy_backward", [&] {
-  using accscalar_t = acc_type<scalar_t, true>;
-  if (!half_to_float) {
-      cunn_SoftMaxXEntropyBackward<ILP, scalar_t, accscalar_t, scalar_t, Epilogue>
+
+  DISPATCH_FLOAT_AND_HALF(gI.scalar_type(), 0, "host_softmax_xentropy_backward",
+    using accscalar_t = acc_type<scalar_t_0, true>;
+    if (!half_to_float) {
+      cunn_SoftMaxXEntropyBackward<ILP, scalar_t_0, accscalar_t, scalar_t_0, Epilogue>
        <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
-          gI.data<scalar_t>(), logits.data<scalar_t>(),
-          max_log_sum_exp.data<scalar_t>(),
-          grad.data<scalar_t>(), labels.data<int64_t>(),
+          gI.data<scalar_t_0>(), logits.data<scalar_t_0>(),
+          max_log_sum_exp.data<scalar_t_0>(),
+          grad.data<scalar_t_0>(), labels.data<int64_t>(),
           smoothing, dim_size
-  );
-  } else {
-      cunn_SoftMaxXEntropyBackward<ILP, scalar_t, accscalar_t, accscalar_t, Epilogue>
+      );
+    } else {
+      cunn_SoftMaxXEntropyBackward<ILP, scalar_t_0, accscalar_t, accscalar_t, Epilogue>
        <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
-          gI.data<scalar_t>(), logits.data<scalar_t>(),
+          gI.data<scalar_t_0>(), logits.data<scalar_t_0>(),
           max_log_sum_exp.data<accscalar_t>(),
           grad.data<accscalar_t>(), labels.data<int64_t>(),
           smoothing, dim_size
+      );
+    }
   );
-  }
-  });
 
   THCudaCheck(cudaGetLastError());
   return gI;
