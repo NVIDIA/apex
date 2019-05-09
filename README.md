@@ -37,7 +37,7 @@ optimized for NVIDIA's NCCL communication library.
 
 [Python Source](https://github.com/NVIDIA/apex/tree/master/apex/parallel)
 
-[Example/Walkthrough](https://github.com/NVIDIA/apex/tree/master/examples/distributed)
+[Example/Walkthrough](https://github.com/NVIDIA/apex/tree/master/examples/simple/distributed)
 
 The [Imagenet example](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
 shows use of `apex.parallel.DistributedDataParallel` along with `apex.amp`.
