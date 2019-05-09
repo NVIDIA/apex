@@ -149,9 +149,7 @@ if "--xentropy" in sys.argv:
                                    'apex/contrib/csrc/xentropy/xentropy_kernel.cu'],
                           include_dirs=['csrc'],
                           extra_compile_args={'cxx': ['-O3'] + version_ge_1_1,
-                                              'nvcc':['-O3',
-                                                      '-gencode',
-                                                      'arch=compute_70,code=sm_70'] + version_ge_1_1}))
+                                              'nvcc':['-O3'] + version_ge_1_1}))
 
 setup(
     name='apex',
