@@ -42,34 +42,6 @@ struct LogSoftMaxBackwardEpilogue {
   const AccumT sum;
 };
 
-template<typename T, typename AccumT, typename OutT>
-struct SoftMaxForwardEpilogue {
-  __device__ __forceinline__ SoftMaxForwardEpilogue(AccumT max_input, AccumT sum)
-    : max_input(max_input)
-    , sum(sum) {}
-
-  __device__ __forceinline__ OutT operator()(T input) const {
-    return static_cast<OutT>(std::exp(input - max_input) / sum);
-  }
-
-  const AccumT max_input;
-  const AccumT sum;
-};
-
-template<typename T, typename AccumT, typename OutT>
-struct SoftMaxBackwardEpilogue {
-  __device__ __forceinline__ SoftMaxBackwardEpilogue(AccumT sum)
-    : sum(sum) {}
-
-  // XXX: gradOutput that we get here is really gradOutput * output
-  // Look for cmul in SoftMax_updateGradInput
-  __device__ __forceinline__ T operator()(OutT gradOutput, OutT output) const {
-    return static_cast<T>(gradOutput - output * sum);
-  }
-
-  const AccumT sum;
-};
-
 
 
 const int max_threads = 1024;
@@ -379,11 +351,11 @@ cunn_SoftMaxXEntropyBackward(
   gradInput += blockIdx.x * classes;
   logits += blockIdx.x * classes;
 
-  float smooth_positives = 1.0 - smoothing;
-  float smooth_negatives = smoothing / classes;
-  outscalar_t tmpGradOutput = gradOutput[blockIdx.x];
+  accscalar_t smooth_positives = 1.0 - smoothing;
+  accscalar_t smooth_negatives = smoothing / classes;
+  accscalar_t tmpGradOutput = gradOutput[blockIdx.x];
   int64_t label = labels[blockIdx.x];
-  outscalar_t coeff = max_log_sum_exp[blockIdx.x];
+  accscalar_t coeff = max_log_sum_exp[blockIdx.x];
 
   int offset = threadIdx.x;
   int last = classes % (ILP * blockDim.x);
@@ -398,7 +370,7 @@ cunn_SoftMaxXEntropyBackward(
 #pragma unroll
     for (int j = 0; j < ILP; ++j)
       gradInput[offset + j * blockDim.x] = tmpGradOutput * (
-         std::exp(tmpLogits[j] - coeff) - static_cast<outscalar_t>(
+         std::exp(tmpLogits[j] - coeff) - static_cast<accscalar_t>(
          (offset + j * blockDim.x == label) ? 1 : 0) *
          smooth_positives - smooth_negatives);
   }
@@ -406,7 +378,7 @@ cunn_SoftMaxXEntropyBackward(
   for (; offset < classes; offset += blockDim.x)
     gradInput[offset] = tmpGradOutput * (std::exp(
         static_cast<accscalar_t>(logits[offset]) - coeff) - 
-        static_cast<outscalar_t>((offset == label) ? 1 : 0) *
+        static_cast<accscalar_t>((offset == label) ? 1 : 0) *
         smooth_positives - smooth_negatives);
 }
 
@@ -423,54 +395,58 @@ std::vector<Tensor> host_softmax_xentropy(
         const bool half_to_float){
   if (half_to_float) AT_ASSERTM(input_.type().scalarType() == ScalarType::Half,"conversion is supported for Half type only");
   AT_ASSERTM(labels_.type().scalarType() == ScalarType::Long,"Label type should be CUDA Long");
+
   auto input = input_.contiguous();
   Tensor max_log_sum_exp = at::empty_like(labels_, half_to_float ? input.options().dtype(ScalarType::Float) : input.options());
-  static_assert(std::is_same<acc_type<at::Half, true>, float>::value, "accscalar_t for half should be float");
   Tensor losses = at::empty_like(labels_, input_.options().dtype(ScalarType::Float));
-  if (input.dim() == 0) input = input.view(1);
-  int64_t dim = 1;
+
+  static_assert(std::is_same<acc_type<at::Half, true>, float>::value ||
+    std::is_same<acc_type<at::Half, true>, double>::value,
+    "accscalar_t for half should be float or double");
   AT_ASSERTM(input.dim() == 2, "Currently only 2 dim input supported");
-  AT_CHECK(dim >=0 && dim < input.dim(), "dim must be non-negative and less than input dimensions");
+  AT_ASSERTM(labels_.dim() == 1, "Labels should be 1 dimensional");
+  AT_ASSERTM(input.size(0) == labels_.size(0), "Input and label should have same number of examples");
+  AT_ASSERTM(input.numel() > 0, "Number of classes in input should not be 0");
+
+  const int64_t dim = 1;
   int64_t outer_size = 1;
   int64_t dim_size = input.size(dim);
+  int64_t inner_size = 1;
+  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  for (int64_t i = 0; i < dim; ++i)
+    outer_size *= input.size(i);
+  for (int64_t i = dim + 1; i < input.dim(); ++i)
+    inner_size *= input.size(i);
+  // This kernel spawns a block per each element in the batch.
+  // XXX: it assumes that inner_size == 1
+  AT_CHECK(inner_size == 1, "Currently only inner size 1 supported");
 
-  if (input.numel() > 0) {
-    int64_t inner_size = 1;
-    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-    for (int64_t i = 0; i < dim; ++i)
-      outer_size *= input.size(i);
-    for (int64_t i = dim + 1; i < input.dim(); ++i)
-      inner_size *= input.size(i);
-    // This kernel spawns a block per each element in the batch.
-    // XXX: it assumes that inner_size == 1
-    AT_CHECK(inner_size == 1, "Currently only inner size 1 supported");
+  const int ILP = 2;
+  dim3 grid(outer_size);
+  dim3 block = SoftMax_getBlockSize(ILP, dim_size);
+  
+  using namespace at;
+  DISPATCH_FLOAT_AND_HALF(input.scalar_type(), 0, "host_softmax_xentropy",
+    using accscalar_t = at::acc_type<scalar_t_0, true>;
+    if (!half_to_float) {
+      cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, scalar_t_0, Epilogue>
+        <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
+          losses.data<accscalar_t>(), max_log_sum_exp.data<scalar_t_0>(),
+          input.data<scalar_t_0>(), labels_.data<int64_t>(),
+          dim_size, smoothing
+      );
+    } else {
+      cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, accscalar_t, Epilogue>
+        <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
+          losses.data<accscalar_t>(), max_log_sum_exp.data<accscalar_t>(),
+          input.data<scalar_t_0>(), labels_.data<int64_t>(),
+          dim_size, smoothing
+      );
+    }
+  );
 
-    const int ILP = 2;
-    dim3 grid(outer_size);
-    dim3 block = SoftMax_getBlockSize(ILP, dim_size);
-   
-    using namespace at;
-    DISPATCH_FLOAT_AND_HALF(input.scalar_type(), 0, "host_softmax_xentropy",
-      using accscalar_t = at::acc_type<scalar_t_0, true>;
-      if (!half_to_float) {
-        cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, scalar_t_0, Epilogue>
-          <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
-            losses.data<accscalar_t>(), max_log_sum_exp.data<scalar_t_0>(),
-            input.data<scalar_t_0>(), labels_.data<int64_t>(),
-            dim_size, smoothing
-        );
-      } else {
-        cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, accscalar_t, Epilogue>
-          <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
-            losses.data<accscalar_t>(), max_log_sum_exp.data<accscalar_t>(),
-            input.data<scalar_t_0>(), labels_.data<int64_t>(),
-            dim_size, smoothing
-        );
-      }
-    );
+  THCudaCheck(cudaGetLastError());
 
-    THCudaCheck(cudaGetLastError());
-  }
   std::vector<at::Tensor> ret = {losses, max_log_sum_exp};
   return ret;
 }
@@ -483,17 +459,26 @@ Tensor host_softmax_xentropy_backward(
     const at::Tensor &labels,
     const float smoothing,
     bool half_to_float) {
-  int64_t dim = 1;
+  const int64_t dim = 1;
   Tensor gI = at::empty_like(logits_);
   if (grad_loss.numel() == 0) {
     return gI;
   }
+
   auto grad = grad_loss.contiguous();
-  static_assert(std::is_same<acc_type<at::Half, true>, float>::value, "accscalar_t for half should be float");
-  if (grad.dim() == 0) grad = grad.view(1);
-  AT_CHECK(dim >=0 && dim < logits_.dim(), "dim must be non-negative and less than input dimensions");
   auto logits = logits_.contiguous();
-  if (logits.dim() == 0) logits = logits.view(1);
+
+  static_assert(std::is_same<acc_type<at::Half, true>, float>::value ||
+    std::is_same<acc_type<at::Half, true>, double>::value,
+    "accscalar_t for half should be float or double");
+  if (grad.dim() == 0) grad = grad.view(1);
+
+  AT_ASSERTM(logits_.dim() == 2, "Currently only 2 dim input supported");
+  AT_ASSERTM(labels.dim() == 1, "Labels should be 1 dimensional");
+  AT_ASSERTM(logits_.numel() > 0, "Number of classes in input should not be 0");
+  AT_ASSERTM(logits_.size(0) == labels.size(0), "Input and label should have same number of examples");
+  AT_ASSERTM(labels.size(0) == grad.size(0), "Label and loss should have same number of examples");
+
   int64_t outer_size = 1;
   int64_t dim_size = logits.size(dim);
   int64_t inner_size = 1;
@@ -501,7 +486,7 @@ Tensor host_softmax_xentropy_backward(
     outer_size *= logits.size(i);
   for (int64_t i = dim + 1; i < logits.dim(); ++i)
     inner_size *= logits.size(i);
-// See descriptions of kernels above.
+  // See descriptions of kernels above.
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
   AT_CHECK(inner_size == 1, "Currently only inner size 1 supported");
 

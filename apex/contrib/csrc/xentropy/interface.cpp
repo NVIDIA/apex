@@ -1,7 +1,3 @@
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
-
 #include <torch/extension.h>
 
 // CUDA forward declarations
@@ -30,7 +26,7 @@ std::vector<at::Tensor> softmax_xentropy_forward(
     const at::Tensor &labels,
     const float smoothing,
     const bool half_to_float) {
-    CHECK_INPUT(input);
+    CHECK_CUDA(input);
     CHECK_INPUT(labels);
 
     return softmax_xentropy_cuda(input, labels, smoothing, half_to_float);
@@ -42,8 +38,8 @@ at::Tensor softmax_xentropy_backward(
     const at::Tensor &max_log_sum_exp,
     const at::Tensor &labels,
     const float smoothing)  {
-    CHECK_INPUT(grad_loss);
-    CHECK_INPUT(logits);
+    CHECK_CUDA(grad_loss);
+    CHECK_CUDA(logits);
     CHECK_INPUT(max_log_sum_exp);
     CHECK_INPUT(labels);
 
