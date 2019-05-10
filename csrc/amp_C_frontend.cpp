@@ -16,7 +16,8 @@ void multi_tensor_sgd_cuda(
   float lr,
   bool nesterov,
   bool first_run,
-  bool wd_after_momentum);
+  bool wd_after_momentum,
+  float scale);
 
 void multi_tensor_axpby_cuda(
   int chunk_size,

@@ -130,7 +130,8 @@ def prepare_backward_with_master_weights(self):
     self._amp_lazy_init()
 
     for i, param in enumerate(stash.all_fp16_params):
-        # Set up to leverage grad copy elision:
+        # Set up to leverage grad copy elision.
+        # This may behave differently from an unpatched optimizer if zero_grad is used and the param is unused.
         param.grad = None
 
     # for i, param in enumerate(stash.all_fp32_from_fp16_params):
@@ -298,31 +299,38 @@ def post_backward_no_master_weights_FusedAdam(self, scaler):
 # FusedSGD never explicitly materializes the fp32 gradients for "fp32 from fp16" master params
 # outside the kernel, so we must accumulate directly into the model grads.
 def prepare_backward_with_master_weights_FusedSGD(self):
-    stash = self._amp_stash
+    if self.materialize_master_grads:
+        prepare_backward_with_master_weights(self)
+    else:
+        stash = self._amp_stash
 
-    self._amp_lazy_init()
+        self._amp_lazy_init()
 
-    for i, param in enumerate(stash.all_fp16_params):
-        stash.all_fp16_grad_stash[i] = param.grad
-        # Set up to leverage grad copy elision:
-        param.grad = None
+        for i, param in enumerate(stash.all_fp16_params):
+            stash.all_fp16_grad_stash[i] = param.grad
+            # Set up to leverage grad copy elision:
+            param.grad = None
 
-    for i, param in enumerate(stash.all_fp32_from_fp32_params):
-        stash.all_fp32_from_fp32_grad_stash[i] = param.grad
-        # Set up to leverage grad copy elision:
-        param.grad = None
+        for i, param in enumerate(stash.all_fp32_from_fp32_params):
+            stash.all_fp32_from_fp32_grad_stash[i] = param.grad
+            # Set up to leverage grad copy elision:
+            param.grad = None
 
 
 def post_backward_with_master_weights_FusedSGD(self, scaler):
-    stash = self._amp_stash
+    if self.materialize_master_grads:
+        post_backward_with_master_weights(self, scaler)
+    else:
+        # TODO:  handle gradient clipping and removal of any lingering scale here.
+        stash = self._amp_stash
 
-    self._amp_lazy_init()
+        self._amp_lazy_init()
 
-    split_types = ((stash.all_fp16_params, stash.all_fp16_grad_stash),
-             (stash.all_fp32_from_fp32_params, stash.all_fp32_from_fp32_grad_stash))
+        split_types = ((stash.all_fp16_params, stash.all_fp16_grad_stash),
+                 (stash.all_fp32_from_fp32_params, stash.all_fp32_from_fp32_grad_stash))
 
-    for params, stashed_grads in split_types:
-        post_backward_models_are_masters(scaler, params, stashed_grads)
+        for params, stashed_grads in split_types:
+            post_backward_models_are_masters(scaler, params, stashed_grads)
 
 
 def prepare_backward_no_master_weights_FusedSGD(self):

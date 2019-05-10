@@ -38,7 +38,8 @@ struct SGDFunctor
     float lr,
     bool nesterov,
     bool first_run,
-    bool wd_after_momentum)
+    bool wd_after_momentum,
+    float scale)
   {
     // Early exit if we don't need to do anything
     if (*noop_gmem) return;
@@ -82,7 +83,7 @@ struct SGDFunctor
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
         {
-          incoming_grads[ii] = static_cast<float>(grad_in[i]);
+          incoming_grads[ii] = static_cast<float>(grad_in[i])*scale;
           incoming_weights[ii] = static_cast<float>(weight_in[i]);
           incoming_moms[ii] = static_cast<float>(mom_in[i]);
         }
@@ -146,7 +147,8 @@ void multi_tensor_sgd_cuda(
   float lr,
   bool nesterov,
   bool first_run,
-  bool wd_after_momentum)
+  bool wd_after_momentum,
+  float scale)
 {
   auto num_tensors = tensor_lists.size();
   auto grad_type = tensor_lists[0][0].scalar_type();
@@ -178,7 +180,8 @@ void multi_tensor_sgd_cuda(
         lr,
         nesterov,
         first_run,
-        wd_after_momentum);
+        wd_after_momentum,
+        scale);
   }
   // Case 2. fp16, fp32, fp32, No
   // else if (grad_type == at::ScalarType::Half &&
@@ -215,7 +218,8 @@ void multi_tensor_sgd_cuda(
         lr,
         nesterov,
         first_run,
-        wd_after_momentum);
+        wd_after_momentum,
+        scale);
   }
   // Case 3. fp16, fp32, fp32, Yes
   else if(grad_type == at::ScalarType::Half &&
@@ -234,7 +238,8 @@ void multi_tensor_sgd_cuda(
         lr,
         nesterov,
         first_run,
-        wd_after_momentum);
+        wd_after_momentum,
+        scale);
   }
   else
   {
