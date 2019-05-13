@@ -89,11 +89,13 @@ class LossScaler(object):
                     break
 
     # unused_scale keeps some of the old API alive for hopefully a short time.
-    def unscale(self, model_grads, master_grads, unused_scale, models_are_masters=False):
+    def unscale(self, model_grads, master_grads, unused_scale, models_are_masters=False, scale_override=None):
         if self._has_overflow:
             return
 
         scale = self._loss_scale
+        if scale_override is not None:
+            scale = scale_override
 
         if scale == 1.0 and models_are_masters and not self.dynamic:
             return
@@ -146,11 +148,14 @@ class LossScaler(object):
     def unscale_with_stashed(self,
                              model_grads,
                              stashed_master_grads,
-                             master_grads):
+                             master_grads,
+                             scale_override=None):
         if self._has_overflow:
             return
 
         scale = self._loss_scale
+        if scale_override is not None:
+            scale = scale_override
 
         if LossScaler.has_fused_kernel:
             if (not LossScaler.warned_unscaling_non_fp32_grad

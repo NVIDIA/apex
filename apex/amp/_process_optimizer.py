@@ -90,7 +90,7 @@ def lazy_init_with_master_weights(self):
         self.load_state_dict(self.state_dict())
 
 
-def post_backward_models_are_masters(scaler, params, stashed_grads):
+def post_backward_models_are_masters(scaler, params, stashed_grads, scale_override=None):
         # This is a lot of python overhead...
         grads_needing_unscale = []
         grads_needing_unscale_with_stash = []
@@ -111,13 +111,15 @@ def post_backward_models_are_masters(scaler, params, stashed_grads):
                 grads_needing_unscale,
                 grads_needing_unscale,
                 scaler.loss_scale(),
-                models_are_masters=True)
+                models_are_masters=True,
+                scale_override=scale_override)
 
         if len(grads_needing_unscale_with_stash) > 0:
             scaler.unscale_with_stashed(
                 grads_needing_unscale_with_stash,
                 stashed,
-                grads_needing_unscale_with_stash)
+                grads_needing_unscale_with_stash,
+                scale_override=scale_override)
 
         # Clear the stash.
         for i in range(len(stashed_grads)):
@@ -326,11 +328,25 @@ def post_backward_with_master_weights_FusedSGD(self, scaler):
 
         self._amp_lazy_init()
 
+        current_scale = scaler.loss_scale()
+        out_scale = current_scale
+        if self.scale_set_by_backward:
+            out_scale = min(current_scale, self.most_recent_scale)
+        scale_adjustment = out_scale/current_scale
+
         split_types = ((stash.all_fp16_params, stash.all_fp16_grad_stash),
                  (stash.all_fp32_from_fp32_params, stash.all_fp32_from_fp32_grad_stash))
 
+        # Grads created by this backward pass have been scaled by current_scale.
+        # unscale() implements grads*1/scale, so "scale" should be current_scale/out_scale
+
+        # unscale_with_stashed() implements grads*1/scale + stashed_grads*1.
+        # stashed_grads are scaled by self.most_recent_scale.
         for params, stashed_grads in split_types:
             post_backward_models_are_masters(scaler, params, stashed_grads)
+
+        self.most_recent_scale = out_scale
+        self.scale_set_by_backward = True
 
 
 def prepare_backward_no_master_weights_FusedSGD(self):
