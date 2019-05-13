@@ -78,6 +78,7 @@ CASTS = [
     'addcmul',
     'atan2',
     'cross',
+    'bilinear',
 
     # Element-wise _or_ tensor-wise math
     'add',
