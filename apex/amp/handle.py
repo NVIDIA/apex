@@ -85,7 +85,7 @@ def scale_loss(loss,
         yield loss
         return
 
-    if isinstance(optimizers, torch.optim.Optimizer) or isinstance(optimizers, LARC)::
+    if isinstance(optimizers, torch.optim.Optimizer) or isinstance(optimizers, LARC):
         optimizers = [optimizers]
 
     # this is what happens when i have to support tools from different sources under the same API...
