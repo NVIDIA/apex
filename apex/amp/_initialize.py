@@ -12,6 +12,7 @@ from ..fp16_utils import FP16_Optimizer as FP16_Optimizer_general
 from ..optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
 from ..optimizers import FusedAdam
 from ..parallel import DistributedDataParallel as apex_DDP
+from ..parallel.LARC import LARC
 
 
 def to_type(dtype, t):
@@ -142,7 +143,7 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
     from .amp import init as amp_init
 
     optimizers_was_list = False
-    if isinstance(optimizers, torch.optim.Optimizer):
+    if isinstance(optimizers, torch.optim.Optimizer) or isinstance(optimizers, LARC):
         optimizers = [optimizers]
     elif optimizers is None:
         optimizers = []
