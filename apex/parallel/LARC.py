@@ -35,11 +35,13 @@ class LARC(object):
         trust_coefficient: Trust coefficient for calculating the lr. See https://arxiv.org/abs/1708.03888
         clip: Decides between clipping or scaling mode of LARC. If `clip=True` the learning rate is set to `min(optimizer_lr, local_lr)` for each parameter. If `clip=False` the learning rate is set to `local_lr*optimizer_lr`.
         eps: epsilon kludge to help with numerical stability while calculating adaptive_lr
-        norm_weight_decay: whether to take include weight decay in the gradient norm
+        norm_weight_decay: If True (default), weight decay is handled by LARC instead of the optimizer.
+            It is added to the gradient and the gradient norm included weight decay.
+            If False, weight decay is handled by the optimizer instead
     """
 
     def __init__(self, optimizer, trust_coefficient=0.02, clip=True, eps=1e-8,
-                 norm_weight_decay=False):
+                 norm_weight_decay=True):
         self.param_groups = optimizer.param_groups
         self.optim = optimizer
         self.trust_coefficient = trust_coefficient
