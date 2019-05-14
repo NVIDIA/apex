@@ -35,19 +35,14 @@ class LARC(object):
         trust_coefficient: Trust coefficient for calculating the lr. See https://arxiv.org/abs/1708.03888
         clip: Decides between clipping or scaling mode of LARC. If `clip=True` the learning rate is set to `min(optimizer_lr, local_lr)` for each parameter. If `clip=False` the learning rate is set to `local_lr*optimizer_lr`.
         eps: epsilon kludge to help with numerical stability while calculating adaptive_lr
-        norm_weight_decay: If True (default), weight decay is handled by LARC instead of the optimizer.
-            It is added to the gradient and the gradient norm included weight decay.
-            If False, weight decay is handled by the optimizer instead
     """
 
-    def __init__(self, optimizer, trust_coefficient=0.02, clip=True, eps=1e-8,
-                 norm_weight_decay=True):
+    def __init__(self, optimizer, trust_coefficient=0.02, clip=True, eps=1e-8):
         self.param_groups = optimizer.param_groups
         self.optim = optimizer
         self.trust_coefficient = trust_coefficient
         self.eps = eps
         self.clip = clip
-        self.norm_weight_decay = norm_weight_decay
 
     def __getstate__(self):
         return self.optim.__getstate__()
@@ -75,11 +70,9 @@ class LARC(object):
             weight_decays = []
             for group in self.optim.param_groups:
                 # absorb weight decay control from optimizer
-                weight_decay = 0
-                if self.norm_weight_decay:
-                    weight_decay = group['weight_decay'] if 'weight_decay' in group else 0
-                    weight_decays.append(weight_decay)
-                    group['weight_decay'] = 0
+                weight_decay = group['weight_decay'] if 'weight_decay' in group else 0
+                weight_decays.append(weight_decay)
+                group['weight_decay'] = 0
                 for p in group['params']:
                     if p.grad is None:
                         continue
@@ -99,7 +92,6 @@ class LARC(object):
                         p.grad.data *= adaptive_lr
 
         self.optim.step()
-        if self.norm_weight_decay:
-            # return weight decay control to optimizer
-            for i, group in enumerate(self.optim.param_groups):
-                group['weight_decay'] = weight_decays[i]
+        # return weight decay control to optimizer
+        for i, group in enumerate(self.optim.param_groups):
+            group['weight_decay'] = weight_decays[i]
