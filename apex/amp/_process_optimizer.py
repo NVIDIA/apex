@@ -106,7 +106,7 @@ def post_backward_with_master_weights(self, scaler):
         if fp16_param.grad is None and fp32_param.grad is not None:
             continue
         elif fp16_param.grad is not None and fp32_param.grad is None:
-            fp32_param.grad = torch.empty_like(fp32_param) 
+            fp32_param.grad = torch.empty_like(fp32_param)
             fp16_grads_needing_unscale.append(fp16_param.grad)
             new_fp32_grads.append(fp32_param.grad)
         elif fp16_param.grad is not None and fp32_param.grad is not None:
@@ -176,7 +176,7 @@ def lazy_init_no_master_weights(self):
                 raise TypeError("Optimizer's parameters must be either "
                                 "torch.cuda.FloatTensor or torch.cuda.HalfTensor. "
                                 "Received {}".format(param.type()))
-    
+
     stash.all_fp16_grad_stash = [None for _ in stash.all_fp16_params]
     stash.all_fp32_grad_stash = [None for _ in stash.all_fp32_params]
 
@@ -327,5 +327,13 @@ def _process_optimizer(optimizer, properties):
 
         optimizer._post_amp_backward = types.MethodType(
             post_backward_no_master_weights, optimizer)
+
+    old_add_param_group = optimizer.add_param_group
+    def new_add_param_group(self, new_group):
+        old_add_param_group(new_group)
+        self._amp_stash._lazy_init_called = False
+        self._lazy_init_maybe_master_weights
+        self._amp_stash._lazy_init_called = True
+    optimizer.add_param_group = types.MethodType(new_add_param_group, optimizer)
 
     return optimizer
