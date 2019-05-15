@@ -332,7 +332,7 @@ def _process_optimizer(optimizer, properties):
     def new_add_param_group(self, new_group):
         old_add_param_group(new_group)
         self._amp_stash._lazy_init_called = False
-        self._lazy_init_maybe_master_weights
+        self._lazy_init_maybe_master_weights()
         self._amp_stash._lazy_init_called = True
     optimizer.add_param_group = types.MethodType(new_add_param_group, optimizer)
 
