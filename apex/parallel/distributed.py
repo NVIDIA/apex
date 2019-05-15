@@ -104,8 +104,6 @@ class Reducer(object):
     When used with this launcher, :class:`Reducer` assumes 1:1 mapping of processes to GPUs.
     It also assumes that your script calls ``torch.cuda.set_device(args.rank)`` before creating the model.
 
-    main_amp.py in https://github.com/NVIDIA/apex/tree/master/examples/imagenet shows example usage.
-
     Args:
         module_or_grads_list: Either a network definition (module) being run in multi-gpu/distributed mode, or an iterable of gradients to be reduced.  If a module is passed in, the Reducer constructor will sync the parameters across processes (broadcasting from rank 0) to make sure they're all initialized with the same values.  If a list of gradients (that came from some module) is passed in, the user is responsible for manually syncing that module's parameters at the beginning of training.
     """
