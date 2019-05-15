@@ -303,6 +303,10 @@ def initialize(
     if not enabled:
         return models, optimizers
 
+    if not torch.backends.cudnn.enabled:
+        raise RuntimeError(
+            "Amp requires torch.backends.cudnn.enabled = True")
+
     if opt_level not in opt_levels:
         raise RuntimeError(
             "Unexpected optimization level {}. ".format(opt_level) +
