@@ -83,6 +83,7 @@ class FP16_Optimizer(object):
             self.dynamic_loss_scale = False
             self.cur_iter = 0
             self.cur_scale = static_loss_scale
+        self.verbose = verbose
 
     def zero_grad(self, set_grads_to_None=True):
         """
@@ -173,8 +174,9 @@ class FP16_Optimizer(object):
     def _update_scale(self, skip):
         if self.dynamic_loss_scale:
             if skip:
-                print("\nGrad overflow on iteration", self.cur_iter)
-                print("Using dynamic loss scale of", self.cur_scale)
+                if self.verbose:
+                    print("\nGrad overflow on iteration", self.cur_iter)
+                    print("Using dynamic loss scale of", self.cur_scale)
                 self.cur_scale = max(self.cur_scale/self.scale_factor, 1)
                 self.last_overflow_iter = self.cur_iter
             else:
