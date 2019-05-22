@@ -70,7 +70,7 @@ class Properties(object):
                     if self.opt_level == "O1" and value is not None:
                         warn_or_err("With opt_level O1, batchnorm functions are automatically patched "
                                     "to run in FP32, so keep_batchnorm_fp32 should be None." +
-                                    "keep_batchnorm_fp32 was {}".format(keep_batchnorm_fp32))
+                                    " keep_batchnorm_fp32 was {}".format(value))
                     if value == "False":
                         self.options[name] = False
                     elif value == "True":
