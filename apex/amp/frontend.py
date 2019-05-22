@@ -78,7 +78,7 @@ class Properties(object):
                     else:
                         assert (value is True or value is False or value is None),\
                             "keep_batchnorm_fp32 must be a boolean, the string 'True' or 'False', "\
-                            "or None, found keep_batchnorm_fp32={}".format(keep_batchnorm_fp32)
+                            "or None, found keep_batchnorm_fp32={}".format(value)
                         self.options[name] = value
                 elif name == "master_weights":
                     if self.opt_level == "O1" and value is not None:
