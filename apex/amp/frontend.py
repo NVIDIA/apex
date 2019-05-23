@@ -70,7 +70,7 @@ class Properties(object):
                     if self.opt_level == "O1" and value is not None:
                         warn_or_err("With opt_level O1, batchnorm functions are automatically patched "
                                     "to run in FP32, so keep_batchnorm_fp32 should be None." +
-                                    "keep_batchnorm_fp32 was {}".format(keep_batchnorm_fp32))
+                                    " keep_batchnorm_fp32 was {}".format(value))
                     if value == "False":
                         self.options[name] = False
                     elif value == "True":
@@ -78,7 +78,7 @@ class Properties(object):
                     else:
                         assert (value is True or value is False or value is None),\
                             "keep_batchnorm_fp32 must be a boolean, the string 'True' or 'False', "\
-                            "or None, found keep_batchnorm_fp32={}".format(keep_batchnorm_fp32)
+                            "or None, found keep_batchnorm_fp32={}".format(value)
                         self.options[name] = value
                 elif name == "master_weights":
                     if self.opt_level == "O1" and value is not None:
@@ -302,6 +302,10 @@ def initialize(
 
     if not enabled:
         return models, optimizers
+
+    if not torch.backends.cudnn.enabled:
+        raise RuntimeError(
+            "Amp requires torch.backends.cudnn.enabled = True")
 
     if opt_level not in opt_levels:
         raise RuntimeError(

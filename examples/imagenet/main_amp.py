@@ -82,7 +82,6 @@ def fast_collate(batch):
     tensor = torch.zeros( (len(imgs), 3, h, w), dtype=torch.uint8 )
     for i, img in enumerate(imgs):
         nump_array = np.asarray(img, dtype=np.uint8)
-        tens = torch.from_numpy(nump_array)
         if(nump_array.ndim < 3):
             nump_array = np.expand_dims(nump_array, axis=-1)
         nump_array = np.rollaxis(nump_array, 2)
@@ -190,8 +189,9 @@ def main():
     valdir = os.path.join(args.data, 'val')
 
     if(args.arch == "inception_v3"):
-        crop_size = 299
-        val_size = 320 # I chose this value arbitrarily, we can adjust.
+        raise RuntimeError("Currently, inception_v3 is not supported by this example.")
+        # crop_size = 299
+        # val_size = 320 # I chose this value arbitrarily, we can adjust.
     else:
         crop_size = 224
         val_size = 256

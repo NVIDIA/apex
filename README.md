@@ -37,7 +37,7 @@ optimized for NVIDIA's NCCL communication library.
 
 [Python Source](https://github.com/NVIDIA/apex/tree/master/apex/parallel)
 
-[Example/Walkthrough](https://github.com/NVIDIA/apex/tree/master/examples/distributed)
+[Example/Walkthrough](https://github.com/NVIDIA/apex/tree/master/examples/simple/distributed)
 
 The [Imagenet example](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
 shows use of `apex.parallel.DistributedDataParallel` along with `apex.amp`.
@@ -68,6 +68,8 @@ We recommend the latest stable release, obtainable from
 It's often convenient to use Apex in Docker containers.  Compatible options include:
 * [NVIDIA Pytorch containers from NGC](https://ngc.nvidia.com/catalog/containers/nvidia%2Fpytorch), which come with Apex preinstalled.  To use the latest Amp API, you may need to `pip uninstall apex` then reinstall Apex using the **Quick Start** commands below.
 * [official Pytorch -devel Dockerfiles](https://hub.docker.com/r/pytorch/pytorch/tags), e.g. `docker pull pytorch/pytorch:nightly-devel-cuda10.0-cudnn7`, in which you can install Apex using the **Quick Start** commands.
+
+See the [Docker example folder](https://github.com/NVIDIA/apex/tree/master/examples/docker) for details.
 
 # Quick Start
 
