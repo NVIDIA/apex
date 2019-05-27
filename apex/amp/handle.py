@@ -132,10 +132,15 @@ def scale_loss(loss,
                                 maybe_print(("Gradient overflow.  Skipping step, loss scaler " +
                                              "{} reducing loss scale to {}").format(loss_id,
                                              loss_scaler.loss_scale()))
+                                # TODO:  I don't like the special casing for different optimizer implementations.
+                                # Maybe skip should delegate to a method owned by the optimizers themselves.
                                 if hasattr(opt._amp_stash, "all_fp32_from_fp16_params"):
                                     # Clear the master grads that wouldn't be zeroed by model.zero_grad()
                                     for param in opt._amp_stash.all_fp32_from_fp16_params:
                                         param.grad = None
+                                if hasattr(opt, "most_recent_scale"):
+                                    opt.most_recent_scale = 1.0
+                                    opt.scale_set_by_backward = False
                                 opt.step = opt_step
                                 opt._amp_stash.already_patched = False
                             return skip_step

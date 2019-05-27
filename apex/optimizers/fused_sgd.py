@@ -67,7 +67,7 @@ class FusedSGD(Optimizer):
         super(FusedSGD, self).__init__(params, defaults)
 
         self.wd_after_momentum = wd_after_momentum
-
+        self.materialize_master_grads = materialize_master_grads
         self.most_recent_scale = 1.0
         self.scale_set_by_backward = False
 
@@ -138,8 +138,8 @@ class FusedSGD(Optimizer):
                 fp32_grads = [p.grad for p in stash.fp32_from_fp32_groups[gid] if p.grad is not None]
                 fp32_momentums, first_runs[1] = self.get_momentums(fp32_params)
 
-                if materialize_master_grads:
-                    fp16_params = [p for i, p in enumerate(
+                if self.materialize_master_grads:
+                    fp16_model_params = [p for i, p in enumerate(
                         stash.fp16_groups[gid]) if stash.fp32_from_fp16_groups[gid][i].grad is not None]
                     fp32_from_fp16_grads = [p.grad for p in stash.fp32_from_fp16_groups[gid] if p.grad is not None]
                     fp32_from_fp16_params = [p for p in stash.fp32_from_fp16_groups[gid] if p.grad is not None]

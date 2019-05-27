@@ -154,11 +154,17 @@ void multi_tensor_sgd_cuda(
   auto grad_type = tensor_lists[0][0].scalar_type();
   auto weight_type = tensor_lists[1][0].scalar_type();
 
+  if(num_tensors == 4)
+    for(int i = 0; i < tensor_lists[3].size(); i++)
+        AT_CHECK(tensor_lists[3][i].scalar_type() == at::ScalarType::Half,
+                 "Additional output tensors should always be fp16.");
+
   // We have 3 possibilities to handle here, in terms of
   // grad_type, param_type, momentum_type, requires_fp16_copy
   // 1. fp16, fp16, fp16, No
   // 2. fp32, fp32, fp32, No
   // 3. fp16, fp32, fp32, Yes
+  // 4. fp32, fp32, fp32, Yes // this is the materialize_master_grads=True case
   // It's easier to hardcode these possibilities than to use
   // switches etc. to handle the cross-product of cases where
   // we don't want the majority of them.
@@ -232,6 +238,26 @@ void multi_tensor_sgd_cuda(
         noop_flag,
         tensor_lists,
         SGDFunctor<4, at::Half, float>(),
+        wd,
+        momentum,
+        dampening,
+        lr,
+        nesterov,
+        first_run,
+        wd_after_momentum,
+        scale);
+  }
+  // Case 4. fp32, fp32, fp32, Yes
+  else if(grad_type == at::ScalarType::Float &&
+          weight_type == at::ScalarType::Float &&
+          num_tensors == 4)
+  {
+    multi_tensor_apply<4>(
+        BLOCK_SIZE,
+        chunk_size,
+        noop_flag,
+        tensor_lists,
+        SGDFunctor<4, float, float>(),
         wd,
         momentum,
         dampening,

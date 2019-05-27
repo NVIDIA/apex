@@ -91,6 +91,10 @@ def lazy_init_with_master_weights(self):
 
 
 def post_backward_models_are_masters(scaler, params, stashed_grads, scale_override=None):
+        grads_have_scale, stashed_have_scale, out_scale = scaler.loss_scale(), 1.0, 1.0
+        if scale_override is not None:
+            grads_have_scale, stashed_have_scale, out_scale = scale_override
+
         # This is a lot of python overhead...
         grads_needing_unscale = []
         grads_needing_unscale_with_stash = []
@@ -106,20 +110,21 @@ def post_backward_models_are_masters(scaler, params, stashed_grads, scale_overri
             else: # param.grad is None and stashed_grad is None
                 continue
 
+        # unscale() implements grads*(1/scale), so "scale" should be grads_have_scale/out_scale.
         if len(grads_needing_unscale) > 0:
             scaler.unscale(
                 grads_needing_unscale,
                 grads_needing_unscale,
-                scaler.loss_scale(),
+                None, # unused_scale, currently present to avoid API breakage elsewhere
                 models_are_masters=True,
-                scale_override=scale_override)
+                scale_override=grads_have_scale/out_scale)
 
         if len(grads_needing_unscale_with_stash) > 0:
             scaler.unscale_with_stashed(
                 grads_needing_unscale_with_stash,
                 stashed,
                 grads_needing_unscale_with_stash,
-                scale_override=scale_override)
+                scale_override=(grads_have_scale, stashed_have_scale, out_scale))
 
         # Clear the stash.
         for i in range(len(stashed_grads)):
@@ -323,27 +328,25 @@ def post_backward_with_master_weights_FusedSGD(self, scaler):
     if self.materialize_master_grads:
         post_backward_with_master_weights(self, scaler)
     else:
-        # TODO:  handle gradient clipping and removal of any lingering scale here.
         stash = self._amp_stash
 
         self._amp_lazy_init()
 
-        current_scale = scaler.loss_scale()
-        out_scale = current_scale
+        grads_have_scale = scaler.loss_scale()
+        stashed_have_scale = self.most_recent_scale
+        out_scale = grads_have_scale
         if self.scale_set_by_backward:
-            out_scale = min(current_scale, self.most_recent_scale)
-        scale_adjustment = out_scale/current_scale
+            out_scale = min(grads_have_scale, self.most_recent_scale)
 
         split_types = ((stash.all_fp16_params, stash.all_fp16_grad_stash),
                  (stash.all_fp32_from_fp32_params, stash.all_fp32_from_fp32_grad_stash))
 
-        # Grads created by this backward pass have been scaled by current_scale.
-        # unscale() implements grads*1/scale, so "scale" should be current_scale/out_scale
 
         # unscale_with_stashed() implements grads*1/scale + stashed_grads*1.
         # stashed_grads are scaled by self.most_recent_scale.
         for params, stashed_grads in split_types:
-            post_backward_models_are_masters(scaler, params, stashed_grads)
+            post_backward_models_are_masters(scaler, params, stashed_grads,
+                                             (grads_have_scale, stashed_have_scale, out_scale))
 
         self.most_recent_scale = out_scale
         self.scale_set_by_backward = True
