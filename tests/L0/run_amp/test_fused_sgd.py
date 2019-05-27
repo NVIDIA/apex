@@ -758,13 +758,8 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                           inj_model.weight1.grad[0] = float('inf')
 
                               if i != inject_inf:
-                                  if opt_level == "O2" and not materialize_master_grads:
-                                      master_params = list(model0.parameters()) + \
-                                                      list(model1.parameters()) + \
-                                                      list(model2.parameters())
-                                  else:
-                                      master_params = list(amp.master_params(optimizer0)) + \
-                                                      list(amp.master_params(optimizer1))
+                                  master_params = list(amp.master_params(optimizer0)) + \
+                                                  list(amp.master_params(optimizer1))
                                   for param, reference_grad in zip(master_params,
                                         reference_grads[what_got_skipped(inject_inf,
                                             which_backward, which_model)][unskipped]):
