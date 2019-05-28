@@ -332,6 +332,11 @@ def _process_optimizer(optimizer, properties):
 
     def new_add_param_group(self, new_group):
         stash = self._amp_stash
+
+        if not stash.lazy_init_called:
+            self._lazy_init_maybe_master_weights()
+            stash.lazy_init_called = True
+
         assert isinstance(new_group, dict), "param group must be a dict"
 
         new_params = new_group['params']
