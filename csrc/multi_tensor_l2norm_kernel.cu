@@ -16,11 +16,14 @@
 template<typename x_t>
 struct L2NormFunctor
 {
-   __device__ __forceinline__ void operator()(
+  __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
     TensorListMetadata<1>& tl,
-    float* output)
+    float* output,
+    float* output_per_tensor,
+    bool per_tensor,
+    int max_chunks_per_tensor)
   {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
@@ -52,30 +55,83 @@ struct L2NormFunctor
       if(!isfinite(final))
         *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
       output[blockIdx.x] += final;
+      if(per_tensor)
+        output_per_tensor[(tl.start_tensor_this_launch + tensor_loc)*max_chunks_per_tensor + chunk_idx] = final;
     }
   }
 };
 
-__global__ void cleanup(float* x, float* ret)
+
+__global__ void cleanup(
+  float* output,
+  float* output_per_tensor,
+  float* ret,
+  float* ret_per_tensor,
+  bool per_tensor,
+  int max_chunks_per_tensor)
 {
   __shared__ float vals[512];
 
-  float val = 0;
-  if(threadIdx.x < 320)
-    val = x[threadIdx.x];
+  if(blockIdx.x == 0)
+  {
+    float val = 0;
+    if(threadIdx.x < 320)
+      val = output[threadIdx.x];
 
-  float final = reduce_block_into_lanes(vals, val);
+    float final = reduce_block_into_lanes(vals, val);
 
-  if(threadIdx.x == 0)
-    *ret = sqrt(final);
+    if(threadIdx.x == 0)
+      *ret = sqrt(final);
+  }
+
+  if(per_tensor)
+  {
+    float* output_this_tensor = output_per_tensor + blockIdx.x*max_chunks_per_tensor;
+
+    float val = 0;
+    for(int i = threadIdx.x; i < max_chunks_per_tensor; i += blockDim.x)
+      val += output_this_tensor[i];
+
+    float final = reduce_block_into_lanes(vals, val);
+
+    if(threadIdx.x == 0)
+      ret_per_tensor[blockIdx.x] = sqrt(final);
+  }
 }
 
-at::Tensor multi_tensor_l2norm_cuda(
+
+std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
   int chunk_size,
   at::Tensor noop_flag,
-  std::vector<std::vector<at::Tensor>> tensor_lists)
+  std::vector<std::vector<at::Tensor>> tensor_lists,
+  at::optional<bool> per_tensor_python)
 {
-  auto output = at::zeros({320}, tensor_lists[0][0].options().dtype(at::kFloat));
+  bool per_tensor = per_tensor_python.has_value() ? per_tensor_python.value() : false;
+
+  auto float_options = tensor_lists[0][0].options().dtype(at::kFloat);
+  auto output = at::zeros({320}, float_options);
+
+  at::Tensor output_per_tensor;
+  at::Tensor ret_per_tensor;
+
+  int ntensors = tensor_lists[0].size();
+  int max_chunks_per_tensor = -1;
+
+  if(per_tensor)
+  {
+    for(int t = 0; t < ntensors; t++)
+    {
+      int max_chunks_this_tensor = (tensor_lists[0][t].numel() + chunk_size - 1)/chunk_size;
+      if(max_chunks_this_tensor > max_chunks_per_tensor)
+        max_chunks_per_tensor = max_chunks_this_tensor;
+    }
+    output_per_tensor = at::zeros({ntensors*max_chunks_per_tensor}, float_options);
+    ret_per_tensor = at::empty({ntensors}, float_options);
+  }
+  else
+  {
+    ret_per_tensor = at::empty({0}, float_options);
+  }
 
   DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_l2norm_cuda",
     multi_tensor_apply<1>(
@@ -84,7 +140,10 @@ at::Tensor multi_tensor_l2norm_cuda(
       noop_flag,
       tensor_lists,
       L2NormFunctor<scalar_t_0>(),
-      output.data<float>());)
+      output.data<float>(),
+      per_tensor ? output_per_tensor.data<float>() : nullptr,
+      per_tensor,
+      max_chunks_per_tensor);)
 
   AT_CUDA_CHECK(cudaGetLastError());
 
@@ -95,6 +154,13 @@ at::Tensor multi_tensor_l2norm_cuda(
   // logic, but keeping it simple for now
   auto ret = at::empty({1}, output.options());
   auto stream = at::cuda::getCurrentCUDAStream();
-  cleanup<<<1, 512, 0, stream>>>(output.data<float>(), ret.data<float>());
-  return ret;
+  cleanup<<<per_tensor ? ntensors : 1, 512, 0, stream>>>(
+    output.data<float>(),
+    per_tensor ? output_per_tensor.data<float>() : nullptr,
+    ret.data<float>(),
+    per_tensor ? ret_per_tensor.data<float>() : nullptr,
+    per_tensor,
+    max_chunks_per_tensor);
+
+  return std::tuple<at::Tensor, at::Tensor>(ret, ret_per_tensor);
 }
