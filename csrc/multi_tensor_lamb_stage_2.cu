@@ -47,14 +47,19 @@ struct LAMBStage2Functor
 
     n -= chunk_idx*chunk_size;
 
-    // see note in multi_tensor_scale_kernel.cu
-#pragma unroll
-    for(int ii = 0; ii < ILP; ii++)
+    for(int i_start = 0;
+            i_start < n && i_start < chunk_size;
+            i_start += blockDim.x*ILP)
     {
-      int i = i_start + threadIdx.x + ii*blockDim.x;
-      if(i < n && i < chunk_size)
+      // see note in multi_tensor_scale_kernel.cu
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++)
       {
-        p[i] = p[i] - (ratio*update[i]);
+        int i = i_start + threadIdx.x + ii*blockDim.x;
+        if(i < n && i < chunk_size)
+        {
+          p[i] = p[i] - (ratio*update[i]);
+        }
       }
     }
   }

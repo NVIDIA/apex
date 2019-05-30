@@ -58,19 +58,24 @@ struct LAMBStage1Functor
     n -= chunk_idx*chunk_size;
 
     // see note in multi_tensor_scale_kernel.cu
-#pragma unroll
-    for(int ii = 0; ii < ILP; ii++)
+    for(int i_start = 0;
+            i_start < n && i_start < chunk_size;
+            i_start += blockDim.x*ILP)
     {
-      int i = i_start + threadIdx.x + ii*blockDim.x;
-      if(i < n && i < chunk_size)
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++)
       {
-        T scaled_grad = g[i] / clipped_global_grad_norm;
-        m[i] = m[i] * b1 + (1-b1) * scaled_grad;
-        v[i] = v[i] * b2 + (1-b2) * scaled_grad * scaled_grad;
-        next_m_unbiased = m[i] / beta1_correction;
-        next_v_unbiased = v[i] / beta2_correction;
-        T denom = std::sqrt(next_v_unbiased) + eps;
-        update[i] = (next_m_unbiased/denom) + (decay*p[i]);
+        int i = i_start + threadIdx.x + ii*blockDim.x;
+        if(i < n && i < chunk_size)
+        {
+          T scaled_grad = g[i] / clipped_global_grad_norm;
+          m[i] = m[i] * b1 + (1-b1) * scaled_grad;
+          v[i] = v[i] * b2 + (1-b2) * scaled_grad * scaled_grad;
+          next_m_unbiased = m[i] / beta1_correction;
+          next_v_unbiased = v[i] / beta2_correction;
+          T denom = std::sqrt(next_v_unbiased) + eps;
+          update[i] = (next_m_unbiased/denom) + (decay*p[i]);
+        }
       }
     }
   }
