@@ -24,7 +24,7 @@ struct LAMBStage2Functor
     TensorListMetadata<2>& tl,
     const float* per_tensor_param_norm,
     const float* per_tensor_update_norm,
-    const float step_size)
+    const float learning_rate)
   {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
@@ -37,7 +37,7 @@ struct LAMBStage2Functor
 
     float param_norm = per_tensor_param_norm[tensor_num];
     float update_norm = per_tensor_update_norm[tensor_num];
-    T ratio = (update_norm != 0.0f && param_norm != 0.0f) ? step_size * (param_norm / update_norm) : step_size;
+    T ratio = (update_norm != 0.0f && param_norm != 0.0f) ? learning_rate * (param_norm / update_norm) : learning_rate;
 
     T* p = (T*)tl.addresses[0][tensor_loc];
     p += chunk_idx*chunk_size;
@@ -71,7 +71,7 @@ void multi_tensor_lamb_stage2_cuda(
   std::vector<std::vector<at::Tensor>> tensor_lists,
   at::Tensor per_tensor_param_norm,
   at::Tensor per_tensor_update_norm,
-  const float step_size)
+  const float learning_rate)
 {
   using namespace at;
 
@@ -84,7 +84,7 @@ void multi_tensor_lamb_stage2_cuda(
         LAMBStage2Functor<scalar_t_0>(),
         per_tensor_param_norm.data<float>(),
         per_tensor_update_norm.data<float>(),
-        step_size); )
+        learning_rate); )
 
   AT_CUDA_CHECK(cudaGetLastError());
 
