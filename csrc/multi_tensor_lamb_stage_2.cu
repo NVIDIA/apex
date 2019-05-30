@@ -35,8 +35,8 @@ struct LAMBStage2Functor
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
-    float grad_norm = per_tensor_grad_norm[tensor_num];
-    float update_norm = per_tensor_decay[tensor_num];
+    float param_norm = per_tensor_param_norm[tensor_num];
+    float update_norm = per_tensor_update_norm[tensor_num];
     T ratio = (update_norm != 0.0f) ? step_size * (param_norm / update_norm) : 0;
 
     T* p = (T*)tl.addresses[0][tensor_loc];
@@ -83,7 +83,7 @@ void multi_tensor_lamb_stage2_cuda(
         tensor_lists,
         LAMBStage2Functor<scalar_t_0>(),
         per_tensor_param_norm.data<float>(),
-        per_tensor_grad_norm.data<float>(),
+        per_tensor_update_norm.data<float>(),
         step_size); )
 
   AT_CUDA_CHECK(cudaGetLastError());
