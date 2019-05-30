@@ -69,11 +69,11 @@ struct LAMBStage1Functor
         if(i < n && i < chunk_size)
         {
           T scaled_grad = g[i] / clipped_global_grad_norm;
-          m[i] = m[i] * b1 + (1-b1) * scaled_grad;
-          v[i] = v[i] * b2 + (1-b2) * scaled_grad * scaled_grad;
-          next_m_unbiased = m[i] / beta1_correction;
-          next_v_unbiased = v[i] / beta2_correction;
-          T denom = std::sqrt(next_v_unbiased) + eps;
+          m[i] = m[i] * beta1 + (1-beta1) * scaled_grad;
+          v[i] = v[i] * beta2 + (1-beta2) * scaled_grad * scaled_grad;
+          T next_m_unbiased = m[i] / beta1_correction;
+          T next_v_unbiased = v[i] / beta2_correction;
+          T denom = std::sqrt(next_v_unbiased) + epsilon;
           update[i] = (next_m_unbiased/denom) + (decay*p[i]);
         }
       }
@@ -99,22 +99,21 @@ void multi_tensor_lamb_stage1_cuda(
   float next_step = float(step+1);
   float beta1_correction = 1.0f - std::pow(beta1, next_step);
   float beta2_correction = 1.0f - std::pow(beta2, next_step);
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(tensor_lists[0][0].scalar_type(), "lamb_stage_1", [&] {
-      using accscalar_t = acc_type<scalar_t, true>;
+  DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
+      using accscalar_t_0 = acc_type<scalar_t_0, true>;
       multi_tensor_apply<5>(
         BLOCK_SIZE,
         chunk_size,
         noop_flag,
         tensor_lists,
-        LAMBStage1Functor<scalar_t, accscalar_t>(),
+        LAMBStage1Functor<scalar_t_0, accscalar_t_0>(),
         per_tensor_decay.data<float>(),
         beta1,
         beta2,
         beta1_correction,
         beta2_correction,
         epsilon,
-        clipped_global_grad_norm,
-        mode); )
+        clipped_global_grad_norm); )
 
   AT_CUDA_CHECK(cudaGetLastError());
 
