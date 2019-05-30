@@ -21,13 +21,13 @@ struct LAMBStage1Functor
     int chunk_size,
     volatile int* noop_gmem,
     TensorListMetadata<5>& tl,
-    const float* per_tensor_grad_norm,
     const float* per_tensor_decay,
-    const float b1,
-    const float b2,
-    const float eps,
-    const float grad_global_scale,
-    adamMode_t mode)
+    const float beta1,
+    const float beta2,
+    const float beta1_correction,
+    const float beta2_correction,
+    const float epsilon,
+    const float clipped_global_grad_norm)
   {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
@@ -38,23 +38,22 @@ struct LAMBStage1Functor
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
-    float grad_scale = per_tensor_grad_norm[tensor_num];
     float decay = per_tensor_decay[tensor_num];
 
     GRAD_T* g = (GRAD_T*)tl.addresses[0][tensor_loc];
     g += chunk_idx*chunk_size;
 
-    float* p = (float*)tl.addresses[1][tensor_loc];
+    T* p = (T*)tl.addresses[1][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    float* m = (float*)tl.addresses[2][tensor_loc];
+    T* m = (T*)tl.addresses[2][tensor_loc];
     m += chunk_idx*chunk_size;
 
-    float* v = (float*)tl.addresses[3][tensor_loc];
+    T* v = (T*)tl.addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
 
-    float* out = (float*)tl.addresses[4][tensor_loc];
-    out += chunk_idx*chunk_size;
+    T* update = (T*)tl.addresses[4][tensor_loc];
+    update += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
 
@@ -65,16 +64,13 @@ struct LAMBStage1Functor
       int i = i_start + threadIdx.x + ii*blockDim.x;
       if(i < n && i < chunk_size)
       {
-        T scaled_grad = g[i]/grad_scale;
-        m[i] = b1*m[i] + (1-b1)*scaled_grad;
-        v[i] = b2*v[i] + (1-b2)*scaled_grad*scaled_grad;
-        float denom;
-        if (mode == ADAM_MODE_0)
-          denom = sqrtf(v[i] + eps);
-        else // Mode 1
-          denom = sqrtf(v[i]) + eps;
-        float update = (m[i]/denom) + (decay*p[i]);
-        out[i] = update;
+        T scaled_grad = g[i] / clipped_global_grad_norm;
+        m[i] = m[i] * b1 + (1-b1) * scaled_grad;
+        v[i] = v[i] * b2 + (1-b2) * scaled_grad * scaled_grad;
+        next_m_unbiased = m[i] / beta1_correction;
+        next_v_unbiased = v[i] / beta2_correction;
+        T denom = std::sqrt(next_v_unbiased) + eps;
+        update[i] = (next_m_unbiased/denom) + (decay*p[i]);
       }
     }
   }
@@ -84,30 +80,35 @@ void multi_tensor_lamb_stage1_cuda(
   int chunk_size,
   at::Tensor noop_flag,
   std::vector<std::vector<at::Tensor>> tensor_lists,
-  at::Tensor per_tensor_grad_norm,
   at::Tensor per_tensor_decay,
-  const float b1,
-  const float b2,
-  const float eps,
-  const float grad_global_scale,
+  const int step,
+  const float beta1,
+  const float beta2,
+  const float epsilon,
+  const float global_grad_norm,
   adamMode_t mode)
 {
   using namespace at;
 
+  float clipped_global_grad_norm = global_grad_norm > 1.0f ? global_grad_norm : 1.0f;
+  float next_step = float(step+1);
+  float beta1_correction = 1.0f - std::pow(beta1, next_step);
+  float beta2_correction = 1.0f - std::pow(beta2, next_step);
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(tensor_lists[0][0].scalar_type(), "lamb_stage_1", [&] {
-      using accscalar_t = acc_type<scalar_t_0, true>;
+      using accscalar_t = acc_type<scalar_t, true>;
       multi_tensor_apply<5>(
         BLOCK_SIZE,
         chunk_size,
         noop_flag,
         tensor_lists,
-        LAMBStage1Functor<scalar_t_0, accscalar_t>(),
-        per_tensor_grad_norm.data<float>(),
+        LAMBStage1Functor<scalar_t, accscalar_t>(),
         per_tensor_decay.data<float>(),
-        b1,
-        b2,
-        eps,
-        grad_global_scale,
+        beta1,
+        beta2,
+        beta1_correction,
+        beta2_correction,
+        epsilon,
+        clipped_global_grad_norm,
         mode); )
 
   AT_CUDA_CHECK(cudaGetLastError());

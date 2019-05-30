@@ -13,7 +13,7 @@
 #define BLOCK_SIZE 512
 #define ILP 4
 
-// Step 2 reads in 'update' value and per-tensor grad_norm and update_norm.
+// Step 2 reads in 'update' value and per-tensor param_norm and update_norm.
 // It computes new parameter value.
 template<T>
 struct LAMBStage2Functor
@@ -22,7 +22,7 @@ struct LAMBStage2Functor
     int chunk_size,
     volatile int* noop_gmem,
     TensorListMetadata<2>& tl,
-    const float* per_tensor_grad_norm,
+    const float* per_tensor_param_norm,
     const float* per_tensor_update_norm,
     const float step_size)
   {
@@ -37,7 +37,7 @@ struct LAMBStage2Functor
 
     float grad_norm = per_tensor_grad_norm[tensor_num];
     float update_norm = per_tensor_decay[tensor_num];
-    T ratio = step_size * (grad_norm / update_norm);
+    T ratio = (update_norm != 0.0f) ? step_size * (param_norm / update_norm) : 0;
 
     T* p = (T*)tl.addresses[0][tensor_loc];
     p += chunk_idx*chunk_size;
@@ -64,7 +64,7 @@ void multi_tensor_lamb_stage2_cuda(
   int chunk_size,
   at::Tensor noop_flag,
   std::vector<std::vector<at::Tensor>> tensor_lists,
-  at::Tensor per_tensor_grad_norm,
+  at::Tensor per_tensor_param_norm,
   at::Tensor per_tensor_update_norm,
   const float step_size)
 {
@@ -77,8 +77,8 @@ void multi_tensor_lamb_stage2_cuda(
         noop_flag,
         tensor_lists,
         LAMBStage2Functor<scalar_t_0>(),
+        per_tensor_param_norm.data<float>(),
         per_tensor_grad_norm.data<float>(),
-        per_tensor_decay.data<float>(),
         step_size); )
 
   AT_CUDA_CHECK(cudaGetLastError());
