@@ -37,7 +37,7 @@ struct LAMBStage2Functor
 
     float param_norm = per_tensor_param_norm[tensor_num];
     float update_norm = per_tensor_update_norm[tensor_num];
-    T ratio = (update_norm != 0.0f) ? step_size * (param_norm / update_norm) : 0;
+    T ratio = (update_norm != 0.0f) ? step_size * (param_norm / update_norm) : 1;
 
     T* p = (T*)tl.addresses[0][tensor_loc];
     p += chunk_idx*chunk_size;
