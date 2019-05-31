@@ -38,17 +38,31 @@ struct L2NormFunctor
 
     n -= chunk_idx*chunk_size;
 
-    __shared__ float vals[512];
+    __shared__ float s_vals[512];
 
-    // Non-divergent exit condition for __syncthreads, not necessary here
-    float val = 0;
-    for(int i = threadIdx.x; i < n && i < chunk_size; i += blockDim.x)
+    float vals[ILP]; // = {0}; // this probably works too but I want to be sure...
+    for(int i = 0; i < ILP; i++)
+      vals[i] = 0.f;
+
+    for(int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x*ILP)
     {
-      float next = static_cast<float>(x[i]);
-      val += next*next;
+      #pragma unroll
+      for(int ii = 0; ii < ILP; ii++)
+      {
+        int i = i_start + threadIdx.x + ii*blockDim.x;
+        if(i < n && i < chunk_size)
+        {
+          float next = static_cast<float>(x[i]);
+          vals[ii] += next*next;
+        }
+      }
     }
 
-    float final = reduce_block_into_lanes(vals, val);
+    float val = 0.f;
+    for(int i = 0; i < ILP; i++)
+        val += vals[i];
+
+    float final = reduce_block_into_lanes(s_vals, val);
 
     if(threadIdx.x == 0)
     {

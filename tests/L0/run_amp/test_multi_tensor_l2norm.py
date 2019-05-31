@@ -52,7 +52,6 @@ class TestMultiTensorL2Norm(unittest.TestCase):
 
         self.assertTrue(torch.allclose(norm, reference))
         if per_tensor:
-          print(norm_per_tensor)
           self.assertTrue(torch.allclose(norm_per_tensor, normab))
         self.assertTrue(self.overflow_buf.item() == 0)
 
