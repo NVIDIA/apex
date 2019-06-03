@@ -1,6 +1,7 @@
 import torch
 from ._initialize import _initialize
 from ._amp_state import _amp_state, warn_or_err, maybe_print
+from collections import OrderedDict
 
 
 class Properties(object):
@@ -355,6 +356,48 @@ def initialize(
         maybe_print("{:22} : {}".format(k, v), True)
 
     return _initialize(models, optimizers, _amp_state.opt_properties, num_losses, cast_model_outputs)
+
+
+def state_dict(destination=None):
+    if destination is None:
+        destination = OrderedDict()
+
+    for idx, loss_scaler in enumerate(_amp_state.loss_scalers):
+        destination['loss_scaler%d' % idx] = {
+            'loss_scale': loss_scaler.loss_scale(),
+            'unskipped': loss_scaler._unskipped,
+        }
+    return destination
+
+
+def load_state_dict(state_dict):
+    # Check if state_dict containes the same number of loss_scalers as current setup
+    if len(state_dict) != len(_amp_state.loss_scalers):
+        print('Warning: state_dict contains {} entries, while {} loss_scalers are used'.format(
+            len(state_dict), len(_amp_state.loss_scalers)))
+
+    state_dict = state_dict.copy()
+    
+    nb_loss_scalers = len(_amp_state.loss_scalers)
+    unexpected_keys = []
+    # Initialize idx outside, since unexpected_keys will increase it if enumerate is used
+    idx = 0
+    for key in state_dict:
+        if 'loss_scaler' not in key:
+            unexpected_keys.append(key)
+        else:
+            if idx > (nb_loss_scalers - 1):
+                print('Skipping loss_scaler[{}], since num_losses was set to {}'.format(
+                    idx, nb_loss_scalers))
+                break
+            _amp_state.loss_scalers[idx]._loss_scale = state_dict[key]['loss_scale']
+            _amp_state.loss_scalers[idx]._unskipped = state_dict[key]['unskipped']
+            idx += 1
+
+    if len(unexpected_keys) > 0:
+        raise RuntimeError(
+            'Error(s) in loading state_dict. Unexpected key(s) in state_dict: {}. '.format(
+                ', '.join('"{}"'.format(k) for k in unexpected_keys)))
 
 
 # TODO:  is this necessary/useful?
