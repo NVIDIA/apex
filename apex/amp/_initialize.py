@@ -231,7 +231,9 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
 
     _amp_state.loss_scalers = []
     for _ in range(num_losses):
-        _amp_state.loss_scalers.append(LossScaler(properties.loss_scale))
+        _amp_state.loss_scalers.append(LossScaler(properties.loss_scale,
+                                                  min_loss_scale=_amp_state.min_loss_scale,
+                                                  max_loss_scale=_amp_state.max_loss_scale))
 
     if properties.patch_torch_functions:
         # handle is unused here. It's accessible later through a global value anyway.
