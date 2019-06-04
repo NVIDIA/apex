@@ -241,7 +241,7 @@
 <span id="apex-parallel"></span><h1>apex.parallel<a class="headerlink" href="#module-apex.parallel" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="apex.parallel.DistributedDataParallel">
-<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">DistributedDataParallel</code><span class="sig-paren">(</span><em>module</em>, <em>message_size=10000000</em>, <em>delay_allreduce=False</em>, <em>shared_param=None</em>, <em>allreduce_trigger_params=None</em>, <em>retain_allreduce_buffers=False</em>, <em>allreduce_always_fp32=False</em>, <em>gradient_average=True</em>, <em>gradient_predivide_factor=1.0</em>, <em>gradient_average_split_factor=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/distributed.html#DistributedDataParallel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.DistributedDataParallel" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">DistributedDataParallel</code><span class="sig-paren">(</span><em>module</em>, <em>message_size=10000000</em>, <em>delay_allreduce=False</em>, <em>shared_param=None</em>, <em>allreduce_trigger_params=None</em>, <em>retain_allreduce_buffers=False</em>, <em>allreduce_always_fp32=False</em>, <em>gradient_average=True</em>, <em>gradient_predivide_factor=1.0</em>, <em>gradient_average_split_factor=None</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.DistributedDataParallel" title="Permalink to this definition">¶</a></dt>
 <dd><p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.DistributedDataParallel</span></code></a> is a module wrapper that enables
 easy multiprocess distributed data parallel training, similar to <code class="docutils literal"><span class="pre">torch.nn.parallel.DistributedDataParallel</span></code>.  Parameters are broadcast across participating processes on initialization, and gradients are
 allreduced and averaged over processes during <code class="docutils literal"><span class="pre">backward()</span></code>.</p>
@@ -252,7 +252,7 @@ transfers to reduce the total number of transfers required.</p>
 <code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> with <code class="docutils literal"><span class="pre">--nproc_per_node</span> <span class="pre">&lt;=</span> <span class="pre">number</span> <span class="pre">of</span> <span class="pre">gpus</span> <span class="pre">per</span> <span class="pre">node</span></code>.
 When used with this launcher, <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> assumes 1:1 mapping of processes to GPUs.
 It also assumes that your script calls <code class="docutils literal"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.</p>
-<p><a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/distributed">https://github.com/NVIDIA/apex/tree/master/examples/distributed</a> shows detailed usage.
+<p><a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/simple/distributed">https://github.com/NVIDIA/apex/tree/master/examples/simple/distributed</a> shows detailed usage.
 <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/imagenet">https://github.com/NVIDIA/apex/tree/master/examples/imagenet</a> shows another example
 that combines <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> with mixed precision training.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -280,7 +280,7 @@ that combines <a class="reference internal" href="#apex.parallel.DistributedData
 
 <dl class="class">
 <dt id="apex.parallel.Reducer">
-<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">Reducer</code><span class="sig-paren">(</span><em>module_or_grads_list</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/distributed.html#Reducer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.Reducer" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">Reducer</code><span class="sig-paren">(</span><em>module_or_grads_list</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.Reducer" title="Permalink to this definition">¶</a></dt>
 <dd><p><a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.Reducer</span></code></a> is a simple class that helps allreduce a module’s parameters
 across processes.  <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> is intended to give the user additional control:
 Unlike <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a>, <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> will not automatically allreduce
@@ -294,7 +294,6 @@ over the number of participating processes.</p>
 <code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> with <code class="docutils literal"><span class="pre">--nproc_per_node</span> <span class="pre">&lt;=</span> <span class="pre">number</span> <span class="pre">of</span> <span class="pre">gpus</span> <span class="pre">per</span> <span class="pre">node</span></code>.
 When used with this launcher, <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> assumes 1:1 mapping of processes to GPUs.
 It also assumes that your script calls <code class="docutils literal"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.</p>
-<p>main_reducer.py in <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/imagenet">https://github.com/NVIDIA/apex/tree/master/examples/imagenet</a> shows example usage.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -307,18 +306,18 @@ It also assumes that your script calls <code class="docutils literal"><span clas
 
 <dl class="class">
 <dt id="apex.parallel.SyncBatchNorm">
-<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">SyncBatchNorm</code><span class="sig-paren">(</span><em>num_features</em>, <em>eps=1e-05</em>, <em>momentum=0.1</em>, <em>affine=True</em>, <em>track_running_stats=True</em>, <em>process_group=None</em>, <em>channel_last=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/optimized_sync_batchnorm.html#SyncBatchNorm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.SyncBatchNorm" title="Permalink to this definition">¶</a></dt>
-<dd><p>synchronized batch normalization module extented from <cite>torch.nn.BatchNormNd</cite>
+<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">SyncBatchNorm</code><span class="sig-paren">(</span><em>num_features</em>, <em>eps=1e-05</em>, <em>momentum=0.1</em>, <em>affine=True</em>, <em>track_running_stats=True</em>, <em>process_group=None</em>, <em>channel_last=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.SyncBatchNorm" title="Permalink to this definition">¶</a></dt>
+<dd><p>synchronized batch normalization module extented from <code class="docutils literal"><span class="pre">torch.nn.BatchNormNd</span></code>
 with the added stats reduction across multiple processes.
 <a class="reference internal" href="#apex.parallel.SyncBatchNorm" title="apex.parallel.SyncBatchNorm"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.SyncBatchNorm</span></code></a> is designed to work with
-<cite>DistributedDataParallel</cite>.</p>
+<code class="docutils literal"><span class="pre">DistributedDataParallel</span></code>.</p>
 <p>When running in training mode, the layer reduces stats across all processes
 to increase the effective batchsize for normalization layer. This is useful
 in applications where batch size is small on a given process that would
 diminish converged accuracy of the model. The model uses collective
-communication package from <cite>torch.distributed</cite>.</p>
+communication package from <code class="docutils literal"><span class="pre">torch.distributed</span></code>.</p>
 <p>When running in evaluation mode, the layer falls back to
-<cite>torch.nn.functional.batch_norm</cite></p>
+<code class="docutils literal"><span class="pre">torch.nn.functional.batch_norm</span></code>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -337,39 +336,26 @@ learnable affine parameters. Default: <code class="docutils literal"><span class
 module tracks the running mean and variance, and when set to <code class="docutils literal"><span class="pre">False</span></code>,
 this module does not track such statistics and always uses batch
 statistics in both training and eval modes. Default: <code class="docutils literal"><span class="pre">True</span></code></li>
-<li><strong>process_group</strong> – pass in a process group within which the stats of the
-mini-batch is being synchronized. <code class="docutils literal"><span class="pre">None</span></code> for using default process
-group</li>
-<li><strong>channel_last</strong> – a boolean value that when set to <code class="docutils literal"><span class="pre">True</span></code>, this module
-take the last dimension of the input tensor to be the channel
-dimension. Default: False</li>
 </ul>
 </td>
 </tr>
 </tbody>
 </table>
-<dl class="docutils">
-<dt>Examples::</dt>
-<dd><div class="first last highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># channel first tensor</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">sbn</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">parallel</span><span class="o">.</span><span class="n">SyncBatchNorm</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
+<p>Example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">sbn</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">parallel</span><span class="o">.</span><span class="n">SyncBatchNorm</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">inp</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">14</span><span class="p">,</span> <span class="mi">14</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">out</span> <span class="o">=</span> <span class="n">sbn</span><span class="p">(</span><span class="n">inp</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">inp</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">out</span> <span class="o">=</span> <span class="n">sbn</span><span class="p">(</span><span class="n">inp</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># channel last tensor</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">sbn</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">parallel</span><span class="o">.</span><span class="n">SyncBatchNorm</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="n">channel_last</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">inp</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">14</span><span class="p">,</span> <span class="mi">14</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
 </pre></div>
 </div>
-</dd>
-</dl>
 </dd></dl>
 
 <div class="section" id="utility-functions">
 <h2>Utility functions<a class="headerlink" href="#utility-functions" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="apex.parallel.convert_syncbn_model">
-<code class="descclassname">apex.parallel.</code><code class="descname">convert_syncbn_model</code><span class="sig-paren">(</span><em>module</em>, <em>process_group=None</em>, <em>channel_last=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel.html#convert_syncbn_model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.convert_syncbn_model" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">apex.parallel.</code><code class="descname">convert_syncbn_model</code><span class="sig-paren">(</span><em>module</em>, <em>process_group=None</em>, <em>channel_last=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.convert_syncbn_model" title="Permalink to this definition">¶</a></dt>
 <dd><p>Recursively traverse module and its children to replace all instances of
 <code class="docutils literal"><span class="pre">torch.nn.modules.batchnorm._BatchNorm</span></code> with <a class="reference internal" href="#apex.parallel.SyncBatchNorm" title="apex.parallel.SyncBatchNorm"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.SyncBatchNorm</span></code></a>.</p>
 <p>All <code class="docutils literal"><span class="pre">torch.nn.BatchNorm*N*d</span></code> wrap around
