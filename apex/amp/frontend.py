@@ -195,7 +195,7 @@ def initialize(
     models,
     optimizers=None,
     enabled=True,
-    opt_level=None,
+    opt_level="O1",
     cast_model_type=None,
     patch_torch_functions=None,
     keep_batchnorm_fp32=None,
@@ -233,7 +233,7 @@ def initialize(
             REQUIRED for training, optional for inference.
         enabled (bool, optional, default=True):  If False, renders all Amp calls no-ops, so your script
             should run as if Amp were not present.
-        opt_level (str, required):  Pure or mixed precision optimization level.  Accepted values are
+        opt_level (str, optional, default="O1"):  Pure or mixed precision optimization level.  Accepted values are
             "O0", "O1", "O2", and "O3", explained in detail above.
         cast_model_type (``torch.dtype``, optional, default=None):  Optional property override, see
             above.
