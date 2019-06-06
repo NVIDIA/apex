@@ -386,7 +386,7 @@ to establish “speed of light” you can try <code class="docutils literal"><sp
 <span id="unified-api"></span><h2>Unified API<a class="headerlink" href="#module-apex.amp" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="apex.amp.initialize">
-<code class="descclassname">apex.amp.</code><code class="descname">initialize</code><span class="sig-paren">(</span><em>models</em>, <em>optimizers=None</em>, <em>enabled=True</em>, <em>opt_level=None</em>, <em>cast_model_type=None</em>, <em>patch_torch_functions=None</em>, <em>keep_batchnorm_fp32=None</em>, <em>master_weights=None</em>, <em>loss_scale=None</em>, <em>cast_model_outputs=None</em>, <em>num_losses=1</em>, <em>verbosity=1</em>, <em>min_loss_scale=None</em>, <em>max_loss_scale=16777216.0</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.initialize" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">apex.amp.</code><code class="descname">initialize</code><span class="sig-paren">(</span><em>models</em>, <em>optimizers=None</em>, <em>enabled=True</em>, <em>opt_level='O1'</em>, <em>cast_model_type=None</em>, <em>patch_torch_functions=None</em>, <em>keep_batchnorm_fp32=None</em>, <em>master_weights=None</em>, <em>loss_scale=None</em>, <em>cast_model_outputs=None</em>, <em>num_losses=1</em>, <em>verbosity=1</em>, <em>min_loss_scale=None</em>, <em>max_loss_scale=16777216.0</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.initialize" title="Permalink to this definition">¶</a></dt>
 <dd><p>Initialize your models, optimizers, and the Torch tensor and functional namespace according to the
 chosen <code class="docutils literal"><span class="pre">opt_level</span></code> and overridden properties, if any.</p>
 <p><code class="docutils literal"><span class="pre">amp.initialize</span></code> should be called <strong>after</strong> you have finished
@@ -411,7 +411,7 @@ to replace the passed models/optimizers, as in the code sample below.</p>
 REQUIRED for training, optional for inference.</li>
 <li><strong>enabled</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=True</em>) – If False, renders all Amp calls no-ops, so your script
 should run as if Amp were not present.</li>
-<li><strong>opt_level</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>required</em>) – Pure or mixed precision optimization level.  Accepted values are
+<li><strong>opt_level</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>optional</em><em>, </em><em>default=&quot;O1&quot;</em>) – Pure or mixed precision optimization level.  Accepted values are
 “O0”, “O1”, “O2”, and “O3”, explained in detail above.</li>
 <li><strong>cast_model_type</strong> (<code class="docutils literal"><span class="pre">torch.dtype</span></code>, optional, default=None) – Optional property override, see
 above.</li>
