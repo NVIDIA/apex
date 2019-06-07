@@ -96,7 +96,8 @@ class TestCheckpointing(unittest.TestCase):
                                               lr=self.initial_lr)
 
                         model, optimizer = amp.initialize(
-                            model, optimizer, opt_level=opt_level, num_losses=num_losses)
+                            model, optimizer, opt_level=opt_level, num_losses=num_losses,
+                            verbosity=0)
 
                         # train for nb_epochs and restore after nb_epochs_restore
                         for epoch in range(nb_epochs):
@@ -128,7 +129,8 @@ class TestCheckpointing(unittest.TestCase):
                                             restore_model,
                                             restore_optimizer,
                                             opt_level=res_opt_level,
-                                            num_losses=num_losses)
+                                            num_losses=num_losses,
+                                            verbosity=0)
 
                                     restore_model.load_state_dict(checkpoint['model'])
                                     restore_optimizer.load_state_dict(checkpoint['optimizer'])
@@ -140,7 +142,8 @@ class TestCheckpointing(unittest.TestCase):
                                             restore_model,
                                             restore_optimizer,
                                             opt_level=res_opt_level,
-                                            num_losses=num_losses)
+                                            num_losses=num_losses,
+                                            verbosity=0)
 
                                 elif epoch >= nb_epochs_restore:
                                     restore_output = self.train_step(
@@ -172,7 +175,8 @@ class TestCheckpointing(unittest.TestCase):
                                   lr=1e-3)#self.initial_lr)
         
             model, optimizer = amp.initialize(
-                model, optimizer, opt_level=opt_level, num_losses=num_losses)
+                model, optimizer, opt_level=opt_level, num_losses=num_losses,
+                verbosity=0)
 
             if amp._amp_state.opt_properties.loss_scale != 'dynamic':
                 print('Static loss scale set. Skipping opt_level.')
