@@ -308,7 +308,10 @@ def initialize(
     _amp_state.verbosity = verbosity
 
     if not enabled:
-        return models, optimizers
+        if optimizers is None:
+            return models
+        else:
+            return models, optimizers
 
     if not torch.backends.cudnn.enabled:
         raise RuntimeError(
