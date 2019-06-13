@@ -216,7 +216,7 @@ class DistributedDataParallel(Module):
         
         self.module = module
 
-        self.disable_allreduce = False
+        self._disable_allreduce = False
         
         if self._backend == self.backend_enum_holder.NCCL:
             for param in self.module.parameters():
@@ -252,11 +252,11 @@ class DistributedDataParallel(Module):
             del attrs['self.reduction_event']
             return attrs
 
-    def turn_on_allreduce(self):
-        self.disable_allreduce = False
+    def enable_allreduce(self):
+        self._disable_allreduce = False
 
-    def turn_off_allreduce(self):
-        self.disable_allreduce = True
+    def disable_allreduce(self):
+        self._disable_allreduce = True
       
     # Broadcast rank 0's bucket structure across all processes, and have all processes 
     # regenerate their bucket structures to match. 
@@ -335,7 +335,7 @@ class DistributedDataParallel(Module):
                     grad_acc = param_tmp.grad_fn.next_functions[0][0]
 
                     def allreduce_hook(*unused):
-                        if not self.disable_allreduce:
+                        if not self._disable_allreduce:
                             if self.delay_allreduce or self.needs_refresh:
                                 # TODO:  How do we want to handle multiple backward passes between
                                 # each forward, e.g., backward passes with retain_graph=True?
@@ -479,7 +479,7 @@ class DistributedDataParallel(Module):
     def forward(self, *inputs, **kwargs):
         result = self.module(*inputs, **kwargs)
        
-        if not self.disable_allreduce: 
+        if not self._disable_allreduce:
             if not self.delay_allreduce:
                 param_list = [param for param in self.module.parameters() if param.requires_grad]
 
