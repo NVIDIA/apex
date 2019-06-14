@@ -80,11 +80,11 @@ class TestCheckpointing(unittest.TestCase):
             for res_opt_level in self.test_opt_levels:
                 for amp_before_load in [True, False]:
                     for num_losses in range(1, 3):
-                        print('#' * 75 + '\n' + \
-                              f'opt_level {opt_level}\n' + \
-                              f'restore_opt_level {res_opt_level}\n' + \
-                              f'amp_before_load {amp_before_load}\n' + \
-                              f'num_losses {num_losses}\n')
+#                        print('#' * 75 + '\n' + \
+#                              f'opt_level {opt_level}\n' + \
+#                              f'restore_opt_level {res_opt_level}\n' + \
+#                              f'amp_before_load {amp_before_load}\n' + \
+#                              f'num_losses {num_losses}\n')
 
                         self.seed()
                         restore_model_initialized = False
@@ -165,7 +165,7 @@ class TestCheckpointing(unittest.TestCase):
         num_losses = 3
         nb_decrease_loss_scales = [0, 1, 2]
         for opt_level in self.test_opt_levels:
-            print('#' * 75 + f'\n opt_level {opt_level}\n')
+            #print('#' * 75 + f'\n opt_level {opt_level}\n')
             # Create new tmp copy for this run
             nb_decrease_loss_scales_tmp = list(nb_decrease_loss_scales)
 
@@ -179,7 +179,7 @@ class TestCheckpointing(unittest.TestCase):
                 verbosity=0)
 
             if amp._amp_state.opt_properties.loss_scale != 'dynamic':
-                print('Static loss scale set. Skipping opt_level.')
+                #print('Static loss scale set. Skipping opt_level.')
                 continue
         
             # force to skip some updates to decrease the loss_scale
@@ -211,8 +211,19 @@ class TestCheckpointing(unittest.TestCase):
             for factor, update_ls, init_ls in zip(nb_decrease_loss_scales,
                                                   updated_loss_scales,
                                                   initial_loss_scales):
-                print(update_ls == init_ls / 2**factor)
                 self.assertEqual(update_ls, init_ls / 2**factor)
+
+            # Check state dict
+            amp_state_dict = amp.state_dict()
+            max_decrease_loss_scale = max(nb_decrease_loss_scales)
+            for scaler_idx, factor, init_ls in zip(amp_state_dict,
+                                                   nb_decrease_loss_scales,
+                                                   initial_loss_scales):
+                scaler = amp_state_dict[scaler_idx]
+                self.assertEqual(scaler['loss_scale'], init_ls / 2**factor)
+                unskipped_target = max_decrease_loss_scale - factor
+                self.assertEqual(scaler['unskipped'], unskipped_target)
+                
 
 if __name__=='__main__':
     unittest.main()
