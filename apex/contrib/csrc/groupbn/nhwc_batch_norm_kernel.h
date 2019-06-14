@@ -364,7 +364,121 @@ DEVICE_FUNCTION void relu_activation(float (&x)[N]) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+template< int THREADS_PER_CTA >
+DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw,
+                                        void* params_my_data, void** params_pair_datas, int off,
+                                        const int magic,
+                                        const int sync_iters) {
+    // The size of a warp.
+    const int THREADS_PER_WARP = 32;
+    // The number of warps in a CTA.
+    const int WARPS_PER_CTA = THREADS_PER_CTA / THREADS_PER_WARP;
+    // The number of threads per pixel.
+    const int THREADS_PER_PIXEL = 16;
+    // The number of elements per ldg.
+    const int ELEMENTS_PER_LDG = 4;
+    // The number of reducing ops, each uses its own space : mean, var, dscale, dbias
+    const int REDUCE_OPS = 4;
+    // Maximum block.y supported - limited due to buffer allocation
+    const int MAX_BLOCK_Y = 256;
+    const int MAX_OFFSET = REDUCE_OPS*MAX_BLOCK_Y;
+    // The warp decomposition.
+    const int warp_id = threadIdx.x / THREADS_PER_WARP;
+    const int lane_id = threadIdx.x % THREADS_PER_WARP;
+    // total size of data per sync iter
+    const int data_total = MAX_OFFSET*THREADS_PER_PIXEL*ELEMENTS_PER_LDG*2;
 
+    #pragma unroll
+    for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
+        x[i] += __shfl_sync(0xffffffffU, x[i], THREADS_PER_PIXEL+lane_id);
+    }
+
+    // The warp leaders, write to SMEM.
+    if (lane_id < THREADS_PER_PIXEL) {
+        write_to_smem(smem, warp_id*THREADS_PER_PIXEL + lane_id, x);
+    }
+
+    // The data is in SMEM. Do the final reduction.
+    __syncthreads();
+
+    // The 1st warp does all the work.
+    // We do the final reduction each half-warp sequentially reduces the final values.
+    if (warp_id == 0) {
+        read_from_smem(x, smem, threadIdx.x);
+
+        #pragma unroll
+        for (int offset = 1;
+             offset < WARPS_PER_CTA/(THREADS_PER_WARP / THREADS_PER_PIXEL); ++offset) {
+            float y[ELEMENTS_PER_LDG];
+            // Read the mean and variance from the other pixel.
+            read_from_smem(y, smem, threadIdx.x + offset*THREADS_PER_WARP);
+            // Compute the updated sum.
+            add(x, y);
+        }
+
+        for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
+            x[i] += __shfl_sync(0xffffffffU, x[i], THREADS_PER_PIXEL+lane_id);
+        }
+
+        // Make sure the data was read from SMEM.
+        __syncwarp();
+
+        // Store the final values.
+        if (threadIdx.x < THREADS_PER_PIXEL) {
+        // probably could do it earlier, before sync
+
+        for (int sync_iter=0; sync_iter < sync_iters; ++sync_iter) {
+            //float* params_pair_data = (reinterpret_cast<float**>(params_pair_datas))[sync_iter];
+            void* params_pair_data = params_pair_datas[sync_iter];
+
+            // skip the space consumed by previous sync iterations
+            const int xbuf_offset = sync_iter*data_total;
+            // data starts after flags, but have to skip previous
+            const int data_offset = xbuf_offset
+                                    + off*ELEMENTS_PER_LDG*THREADS_PER_PIXEL*2
+                                    + ELEMENTS_PER_LDG*threadIdx.x*2;
+
+            // after sums for this GPU were computed, let CTA0 broadcast the sum to over GPU
+            if (blockIdx.x == 0) {
+                volatile float * write_data =
+                    &((reinterpret_cast<float*>(params_pair_data))[data_offset]);
+
+                // write the data to memory region to be reflected to other GPU
+                asm volatile ("st.global.wt.v4.b32 [%0], {%1,%2,%3,%4};"
+                    :: "l"(write_data) , "f"(x[0]), "r"(magic), "f"(x[2]), "r"(magic));
+
+                asm volatile ("st.global.wt.v4.b32 [%0], {%1,%2,%3,%4};"
+                    :: "l"(write_data+4) , "f"(x[1]), "r"(magic), "f"(x[3]), "r"(magic));
+            }
+
+            // now each CTA (on each GPU) reads the data written by CTA 0 of the other GPU
+            volatile float * read_data =
+                &((reinterpret_cast<float*>(params_my_data))[data_offset]);
+
+            float other[4];
+            uint32_t other_flag_a, other_flag_b;
+            do {
+                asm volatile ("ld.volatile.global.v4.b32 {%0, %1, %2, %3}, [%4];"
+                    : "=f"(other[0]), "=r"(other_flag_a), "=f"(other[2]), "=r"(other_flag_b) : "l"(read_data));
+            } while ((other_flag_a != magic) || (other_flag_b != magic));
+
+            do {
+                asm volatile ("ld.volatile.global.v4.b32 {%0, %1, %2, %3}, [%4];"
+                    : "=f"(other[1]), "=r"(other_flag_a), "=f"(other[3]), "=r"(other_flag_b) : "l"(read_data+4));
+            } while ((other_flag_a != magic) || (other_flag_b != magic));
+
+            add(x, other);
+        }
+        // finally, after syncing up and accounting for partial sums from
+        // other GPUs as required, write the result
+
+
+            write_to_smem(smem, threadIdx.x, x);
+        }
+    }
+}
+
+#ifdef OLD_STUFF
 template< int THREADS_PER_CTA >
 DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw, void* params_my_data, void* params_pair_data, int off, const int magic, void* params_pair_data2, const unsigned int& sync_iters) {
     // The size of a warp.
@@ -495,6 +609,7 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw, voi
         }
     }
 }
+#endif //OLD_STUFF
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -655,12 +770,12 @@ template<>
 struct ParallelSums<16, 4> {
     template< int THREADS_PER_CTA >
     DEVICE_FUNCTION void dispatch(float *smem, float (&x)[4], int nhw) {
-        parallel_sums_16x2<THREADS_PER_CTA>(smem, x, nhw, 0, 0, 0, 0, 0, 0);
+        parallel_sums_16x2<THREADS_PER_CTA>(smem, x, nhw, 0, 0, 0, 0, 0);
     }
 
     template< int THREADS_PER_CTA >
-    DEVICE_FUNCTION void dispatchX(float *smem, float (&x)[4], int nhw, void* params_my_data, void* params_pair_data, int off, const int magic, void* params_pair_data2, const unsigned int& sync_iters) {
-        parallel_sums_16x2<THREADS_PER_CTA>(smem, x, nhw, params_my_data, params_pair_data, off, magic, params_pair_data2, sync_iters);
+    DEVICE_FUNCTION void dispatchX(float *smem, float (&x)[4], int nhw, void* params_my_data, void** params_pair_datas, int off, const int magic, const unsigned int& sync_iters) {
+        parallel_sums_16x2<THREADS_PER_CTA>(smem, x, nhw, params_my_data, params_pair_datas, off, magic, sync_iters);
     }
 };
 
@@ -858,8 +973,7 @@ struct NhwcBatchNormFwdParams {
     int c_blks;
 
     void* my_data;
-    void* pair_data;
-    void* pair_data2;
+    void* pair_datas[4];
     int magic;
     int sync_iters;
 };
@@ -1185,7 +1299,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         if (params.sync_iters>0)
         {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, m1, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+3, params.magic, params.pair_data2, params.sync_iters);
+                smem, m1, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+3, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, m1, thread_in_cta_nhw);
@@ -1242,7 +1356,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         if (params.sync_iters>0)
         {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, m2, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+2, params.magic, params.pair_data2, params.sync_iters);
+                smem, m2, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+2, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, m2, thread_in_cta_nhw);
@@ -1440,8 +1554,7 @@ struct NhwcBatchNormBwdParams {
     int c_blks;
 
     void* my_data;
-    void* pair_data;
-    void* pair_data2;
+    void* pair_datas[4];
     int magic;
     int sync_iters;
     float wgrad_coeff;
@@ -1778,7 +1891,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // dscale parallel sum
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+1, params.magic, params.pair_data2, params.sync_iters);
+                smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+1, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, dscale, thread_in_cta_nhw);
@@ -1792,7 +1905,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // dbias parallel sum
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+0, params.magic, params.pair_data2, params.sync_iters);
+                smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+0, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, dbias, thread_in_cta_nhw);
@@ -2172,7 +2285,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // dscale parallel sum
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+1, params.magic, params.pair_data2, params.sync_iters);
+                smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+1, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, dscale, thread_in_cta_nhw);
@@ -2186,7 +2299,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // dbias parallel sum
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+0, params.magic, params.pair_data2, params.sync_iters);
+                smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+0, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, dbias, thread_in_cta_nhw);
@@ -2595,7 +2708,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // dscale parallel sum
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+1, params.magic, params.pair_data2, params.sync_iters);
+                smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+1, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, dscale, thread_in_cta_nhw);
@@ -2609,7 +2722,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // dbias parallel sum
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+0, params.magic, params.pair_data2, params.sync_iters);
+                smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+0, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, dbias, thread_in_cta_nhw);
