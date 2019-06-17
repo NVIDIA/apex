@@ -136,6 +136,9 @@ class BatchNorm2d_NHWC(_BatchNorm):
         self.grid_dim_y = (num_features + 63) // 64
 
         # allocate scratch space used by implementation
+        # TODO: scratch space that is not supposed to be exposed at user code. We only need one time initialization, the
+        # same buffer could be reused in future iterations. Currently we exposed it here instead of requesting new
+        # buffer from cache allocator to avoid unnecessary initialization at future iterations.
         self.ret_cta = torch.cuda.ByteTensor(8192).fill_(0)
 
         #FIXME: turn pair handles into an array
