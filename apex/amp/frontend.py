@@ -320,7 +320,8 @@ def initialize(
     if opt_level not in opt_levels:
         raise RuntimeError(
             "Unexpected optimization level {}. ".format(opt_level) +
-            "Options are 'O0', 'O1', 'O2', 'O3'.")
+            "Options are 'O0', 'O1', 'O2', 'O3'.  Note that in `O0`, `O1`, etc., the prefix O is the letter O, " +
+            "not the number zero.")
     else:
         _amp_state.opt_properties = opt_levels[opt_level](_amp_state.opt_properties)
         maybe_print("Selected optimization level {}".format(opt_levels[opt_level].brief), True)
