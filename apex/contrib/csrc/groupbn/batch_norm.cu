@@ -52,16 +52,19 @@ at::Tensor nhwc_bn_fwd_train(
                        const at::Tensor& running_inv_var,
                        const at::Tensor& minibatch_mean,
                        const at::Tensor& minibatch_inv_var,
+                       const at::Tensor& ret_cta,
                        const float momentum,
                        const float epsilon,
                        const bool fuse_relu,
                        void * my_data,
                        void * pair_data,
                        void * pair_data2,
+                       void * pair_data3,
                        const int bn_group,
                        const at::Tensor& magic_tensor,
-                       const int max_cta_per_sm,
-                       const int cta_launch_margin) {
+                       const int occupancy,
+                       const int grid_dim_x,
+                       const bool coop) {
 
   const int N = x.size(0);
   const int H = x.size(1);
@@ -116,8 +119,8 @@ at::Tensor nhwc_bn_fwd_train(
 
   auto stream = at::cuda::getCurrentCUDAStream().stream();
   const int retired_cta_bytes = workspace_bytes[2];
-  void* retired_ctas = THCudaMalloc(at::globalContext().lazyInitCUDA(), retired_cta_bytes); 
-  cudaMemsetAsync(retired_ctas, 0, retired_cta_bytes, stream); //FIXME: is this legit?
+  void* retired_ctas = ret_cta.data<uint8_t>();
+  assert(ret_cta.size(0)>=retired_cta_bytes);
   workspace.push_back(retired_ctas);
 
   for (auto index = 3; index < workspace_bytes.size(); ++index) {
@@ -127,12 +130,9 @@ at::Tensor nhwc_bn_fwd_train(
 
   bn->setWorkspacePointers(workspace, workspace_bytes);
 
-  int device_id;
-  cudaGetDevice(&device_id);
   // Don't fuse in ReLU for now at least
-  bn->fwd(stream, fuse_relu, device_id, my_data, pair_data, pair_data2, bn_group, *magic, max_cta_per_sm, cta_launch_margin);
+  bn->fwd(stream, fuse_relu, my_data, pair_data, pair_data2, pair_data3, bn_group, *magic, occupancy, grid_dim_x, coop);
 
-  THCudaFree(at::globalContext().lazyInitCUDA(), retired_ctas);
   return y;
 }
 
@@ -142,6 +142,7 @@ at::Tensor nhwc_bn_fwd_eval(
                        const at::Tensor& bias,
                        const at::Tensor& running_mean,
                        const at::Tensor& running_inv_var,
+                       const at::Tensor& ret_cta,
                        const int bn_group,
                        const float momentum,
                        const float epsilon,
@@ -196,8 +197,8 @@ at::Tensor nhwc_bn_fwd_eval(
 
   auto stream = at::cuda::getCurrentCUDAStream().stream();
   const int retired_cta_bytes = workspace_bytes[2];
-  void* retired_ctas = THCudaMalloc(at::globalContext().lazyInitCUDA(), retired_cta_bytes);
-  cudaMemsetAsync(retired_ctas, 0, retired_cta_bytes, stream); //FIXME: is this legit?
+  void* retired_ctas = ret_cta.data<uint8_t>();
+  assert(ret_cta.size(0)>=retired_cta_bytes);
   workspace.push_back(retired_ctas);
 
   for (auto index = 3; index < workspace_bytes.size(); ++index) {
@@ -210,7 +211,6 @@ at::Tensor nhwc_bn_fwd_eval(
   // Don't fuse in ReLU for now at least
   bn->fwdInference(stream, fuse_relu);
 
-  THCudaFree(at::globalContext().lazyInitCUDA(), retired_ctas);
   return y;
 
 }
@@ -224,16 +224,19 @@ std::vector<at::Tensor> nhwc_bn_bwd(
                        const at::Tensor& running_inv_var,
                        const at::Tensor& minibatch_mean,
                        const at::Tensor& minibatch_inv_var,
+                       const at::Tensor& ret_cta,
                        const float momentum,
                        const float epsilon,
                        const bool fuse_relu,
                        void * my_data,
                        void * pair_data, 
                        void * pair_data2, 
+                       void * pair_data3, 
                        const int bn_group,
                        const at::Tensor& magic_tensor,
-                       const int max_cta_per_sm,
-                       const int cta_launch_margin) {
+                       const int occupancy,
+                       const int grid_dim_x,
+                       const bool coop) {
   // shape
   const int N = x.size(0);
   const int H = x.size(1);
@@ -293,8 +296,8 @@ std::vector<at::Tensor> nhwc_bn_bwd(
 
   auto stream = at::cuda::getCurrentCUDAStream().stream();
   const int retired_cta_bytes = workspace_bytes[2];
-  void* retired_ctas = THCudaMalloc(at::globalContext().lazyInitCUDA(), retired_cta_bytes);
-  cudaMemsetAsync(retired_ctas, 0, retired_cta_bytes, stream); //FIXME: is this legit?
+  void* retired_ctas = ret_cta.data<uint8_t>();
+  assert(ret_cta.size(0)>=retired_cta_bytes);
   workspace.push_back(retired_ctas);
 
   for (auto index = 3; index < workspace_bytes.size(); ++index) {
@@ -304,10 +307,25 @@ std::vector<at::Tensor> nhwc_bn_bwd(
 
   bn->setWorkspacePointers(workspace, workspace_bytes);
 
-  int device_id;
-  cudaGetDevice(&device_id);
-  bn->dgrad(stream, fuse_relu, device_id, my_data, pair_data, pair_data2, bn_group, *magic, max_cta_per_sm, cta_launch_margin);
+  bn->dgrad(stream, fuse_relu, my_data, pair_data, pair_data2, pair_data3, bn_group, *magic, occupancy, grid_dim_x, coop);
 
-  THCudaFree(at::globalContext().lazyInitCUDA(), retired_ctas);
   return std::vector<at::Tensor>{x_grad, scale_grad, bias_grad};
 }
+
+int nhwc_bn_fwd_occupancy() {
+    int device_id=-1;
+    cudaGetDevice(&device_id);
+
+    //max occupancy supported by the code is 2
+    return NhwcBatchNorm::smem_driven_fwd_occupancy(device_id, 2);
+}
+
+int nhwc_bn_bwd_occupancy() {
+    int device_id=-1;
+    cudaGetDevice(&device_id);
+    
+    //max occupancy supported by the code is 2
+    return NhwcBatchNorm::smem_driven_bwd_occupancy(device_id, 2);
+}
+
+

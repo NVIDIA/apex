@@ -36,16 +36,19 @@ at::Tensor nhwc_bn_fwd_train(
                        const at::Tensor& running_inv_var,
                        const at::Tensor& minibatch_mean,
                        const at::Tensor& minibatch_inv_var,
+                       const at::Tensor& ret_cta,
                        const float momentum,
                        const float epsilon,
                        const bool fuse_relu,
                        void* my_data,
                        void* pair_data,
                        void* pair_data2,
+                       void* pair_data3,
                        const int bn_group,
                        const at::Tensor& magic_tensor,
-                       const int max_cta_per_sm,
-                       const int cta_launch_margin);
+                       const int occupancy,
+                       const int grid_dim_x,
+                       const bool coop);
 
 at::Tensor nhwc_bn_fwd_eval(
                        const at::Tensor& x,
@@ -53,6 +56,7 @@ at::Tensor nhwc_bn_fwd_eval(
                        const at::Tensor& bias,
                        const at::Tensor& running_mean,
                        const at::Tensor& running_inv_var,
+                       const at::Tensor& ret_cta,
                        const int bn_group,
                        const float momentum,
                        const float epsilon,
@@ -67,16 +71,19 @@ std::vector<at::Tensor> nhwc_bn_bwd(
                        const at::Tensor& running_inv_var,
                        const at::Tensor& minibatch_mean,
                        const at::Tensor& minibatch_inv_var,
+                       const at::Tensor& ret_cta,
                        const float momentum,
                        const float epsilon,
                        const bool fuse_relu,
                        void* my_data,
                        void* pair_data,
                        void* pair_data2,
+                       void* pair_data3,
                        const int bn_group,
                        const at::Tensor& magic_tensor,
-                       const int max_cta_per_sm,
-                       const int cta_launch_margin);
+                       const int occupancy,
+                       const int grid_dim_x,
+                       const bool coop);
 
 at::Tensor nhwc_bn_addrelu_fwd_train(
                        const at::Tensor& x,
@@ -88,15 +95,18 @@ at::Tensor nhwc_bn_addrelu_fwd_train(
                        const at::Tensor& minibatch_mean,
                        const at::Tensor& minibatch_inv_var,
                        const at::Tensor& bitmask,
+                       const at::Tensor& ret_cta,
                        const float momentum,
                        const float epsilon,
                        void* my_data,
                        void* pair_data,
                        void* pair_data2,
+                       void* pair_data3,
                        const int bn_group,
                        const at::Tensor& magic_tensor,
-                       const int max_cta_per_sm,
-                       const int cta_launch_margin);
+                       const int occupancy,
+                       const int grid_dim_x,
+                       const bool coop);
 
 at::Tensor nhwc_bn_addrelu_fwd_eval(
                        const at::Tensor& x,
@@ -105,6 +115,7 @@ at::Tensor nhwc_bn_addrelu_fwd_eval(
                        const at::Tensor& bias,
                        const at::Tensor& running_mean,
                        const at::Tensor& running_inv_var,
+                       const at::Tensor& ret_cta,
                        const int bn_group,
                        const float momentum,
                        const float epsilon);
@@ -119,16 +130,24 @@ std::vector<at::Tensor> nhwc_bn_addrelu_bwd(
                        const at::Tensor& minibatch_mean,
                        const at::Tensor& minibatch_inv_var,
                        const at::Tensor& bitmask,
+                       const at::Tensor& ret_cta,
                        const float momentum,
                        const float epsilon,
                        void* my_data,
                        void* pair_data,
                        void* pair_data2,
+                       void* pair_data3,
                        const int bn_group,
                        const at::Tensor& magic_tensor,
-                       const int max_cta_per_sm,
-                       const int cta_launch_margin);
+                       const int occupancy,
+                       const int grid_dim_x,
+                       const bool coop);
 
+int nhwc_bn_fwd_occupancy();
+int nhwc_bn_bwd_occupancy();
+
+int nhwc_bn_addrelu_fwd_occupancy();
+int nhwc_bn_addrelu_bwd_occupancy();
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 
@@ -141,8 +160,14 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("bn_fwd_eval_nhwc", &nhwc_bn_fwd_eval, "bn_fwd_eval_nhwc");
   m.def("bn_bwd_nhwc", &nhwc_bn_bwd, "bn_bwd_nhwc");
 
+  m.def("bn_fwd_nhwc_occupancy", &nhwc_bn_fwd_occupancy, "bn_fwd_nhwc_occupancy");
+  m.def("bn_bwd_nhwc_occupancy", &nhwc_bn_bwd_occupancy, "bn_bwd_nhwc_occupancy");
+
   m.def("bn_addrelu_fwd_nhwc", &nhwc_bn_addrelu_fwd_train, "bn_addrelu_fwd_nhwc");
   m.def("bn_addrelu_fwd_eval_nhwc", &nhwc_bn_addrelu_fwd_eval, "bn_addrelu_fwd_eval_nhwc");
   m.def("bn_addrelu_bwd_nhwc", &nhwc_bn_addrelu_bwd, "bn_addrelu_bwd_nhwc");
+
+  m.def("bn_addrelu_fwd_nhwc_occupancy", &nhwc_bn_addrelu_fwd_occupancy, "bn_addrelu_fwd_nhwc_occupancy");
+  m.def("bn_addrelu_bwd_nhwc_occupancy", &nhwc_bn_addrelu_bwd_occupancy, "bn_addrelu_bwd_nhwc_occupancy");
 }
 

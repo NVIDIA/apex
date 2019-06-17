@@ -364,9 +364,11 @@ DEVICE_FUNCTION void relu_activation(float (&x)[N]) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-
 template< int THREADS_PER_CTA >
-DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw, void* params_my_data, void* params_pair_data, int off, const int magic, void* params_pair_data2, const unsigned int& sync_iters) {
+DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw,
+                                        void* params_my_data, void** params_pair_datas, int off,
+                                        const int magic,
+                                        const int sync_iters) {
     // The size of a warp.
     const int THREADS_PER_WARP = 32;
     // The number of warps in a CTA.
@@ -383,11 +385,8 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw, voi
     // The warp decomposition.
     const int warp_id = threadIdx.x / THREADS_PER_WARP;
     const int lane_id = threadIdx.x % THREADS_PER_WARP;
-#ifdef BNDEBUGX
-       if (threadIdx.x==0)
-                printf("start parallel_sums_16x2 off=%d magic=%d sync_iters=%d thread%d block %d , %d\n", off, magic, sync_iters, threadIdx.x, blockIdx.x, blockIdx.y);
-#endif
-
+    // total size of data per sync iter
+    const int data_total = MAX_OFFSET*THREADS_PER_PIXEL*ELEMENTS_PER_LDG*2;
 
     #pragma unroll
     for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
@@ -426,69 +425,52 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw, voi
 
         // Store the final values.
         if (threadIdx.x < THREADS_PER_PIXEL) {
-        //probably could do it earlier, before sync
+        // probably could do it earlier, before sync
 
-        for (int sync_iter=0; sync_iter<sync_iters; ++sync_iter)
-        {
-            // total size of flags per sync iter, to be skiped for data
-            const int flags_total = MAX_OFFSET*THREADS_PER_PIXEL;
-            // total size of data per sync iter
-            const int data_total = MAX_OFFSET*THREADS_PER_PIXEL*ELEMENTS_PER_LDG;
-            //skip the space consumed by previous sync iterations
-            const int xbuf_offset = sync_iter*(flags_total+data_total);
-            // flags are at the begining of the buffer, one per thread
-            const int flags_offset = xbuf_offset + off*THREADS_PER_PIXEL;
-            // data starts after flags, but have to skip previous 
-            const int data_offset = xbuf_offset + flags_total + off*ELEMENTS_PER_LDG*THREADS_PER_PIXEL + ELEMENTS_PER_LDG*threadIdx.x;
+        for (int sync_iter=0; sync_iter < sync_iters; ++sync_iter) {
+            //float* params_pair_data = (reinterpret_cast<float**>(params_pair_datas))[sync_iter];
+            void* params_pair_data = params_pair_datas[sync_iter];
 
-            //after sums for this GPU were computed, let CTA0 broadcast the sum to over GPU
-            if (blockIdx.x==0)
-            {
-                volatile float * write_data = &(((float*)params_pair_data)[data_offset]);
-                volatile int32_t * write_flag = &(((int32_t*)((params_pair_data)))[flags_offset]);
+            // skip the space consumed by previous sync iterations
+            const int xbuf_offset = sync_iter*data_total;
+            // data starts after flags, but have to skip previous
+            const int data_offset = xbuf_offset
+                                    + off*ELEMENTS_PER_LDG*THREADS_PER_PIXEL*2
+                                    + ELEMENTS_PER_LDG*threadIdx.x*2;
 
-                //write the data to memory region to be reflected to other GPU
-                    asm volatile ("st.global.wt.v4.f32 [%0], {%1,%2,%3,%4};"
-        :: "l"((float4 *)write_data) , "f"(x[0]), "f"( x[1]), "f"(x[2]), "f"( x[3]));
+            // after sums for this GPU were computed, let CTA0 broadcast the sum to over GPU
+            if (blockIdx.x == 0) {
+                volatile float * write_data =
+                    &((reinterpret_cast<float*>(params_pair_data))[data_offset]);
 
-                __threadfence_system();
+                // write the data to memory region to be reflected to other GPU
+                asm volatile ("st.global.wt.v4.b32 [%0], {%1,%2,%3,%4};"
+                    :: "l"(write_data) , "f"(x[0]), "r"(magic), "f"(x[2]), "r"(magic));
 
-                //write the magic value to indicate data readiness
-                write_flag[threadIdx.x] = magic; //or can sync and set only one flag
-
-#ifdef BNDEBUG
-                printf("writing buddy flag, thread %d myvalue %d data offset %d flag offset %d\n", threadIdx.x, magic, 4*THREADS_PER_PIXEL+off*ELEMENTS_PER_LDG*THREADS_PER_PIXEL + ELEMENTS_PER_LDG*threadIdx.x, off*THREADS_PER_PIXEL);
-#endif
+                asm volatile ("st.global.wt.v4.b32 [%0], {%1,%2,%3,%4};"
+                    :: "l"(write_data+4) , "f"(x[1]), "r"(magic), "f"(x[3]), "r"(magic));
             }
 
-            //now each CTA (on each GPU) reads the data written by CTA 0 of the other GPU
-            volatile float * read_data_ = &(((float*)params_my_data)[data_offset]);
-            volatile int32_t * read_flag = &(((int32_t*)((params_my_data)))[flags_offset]);
-
-            //check if other side has written
-#ifdef BNDEBUG
-            unsigned int safety=0;
-            
-            while ((read_flag[threadIdx.x] % 1000000) != (magic % 1000000) )
-            {
-                ++safety;
-                if (safety>99999) {
-                    printf("stuck waiting for my buddy, thread %d myvalue %d data offset %d flag offset %d read value %d\n", threadIdx.x, magic, 4*THREADS_PER_PIXEL+off*ELEMENTS_PER_LDG*THREADS_PER_PIXEL + ELEMENTS_PER_LDG*threadIdx.x, off*THREADS_PER_PIXEL, read_flag[threadIdx.x]);
-                    safety=0;
-                }
-            }
-#else
-            while ((read_flag[threadIdx.x] ) != (magic ) ) ;
-#endif
+            // now each CTA (on each GPU) reads the data written by CTA 0 of the other GPU
+            volatile float * read_data =
+                &((reinterpret_cast<float*>(params_my_data))[data_offset]);
 
             float other[4];
-                    asm volatile ("ld.global.cv.v4.f32 {%0, %1, %2, %3}, [%4];" 
-        : "=f"(other[0]), "=f"(other[1]), "=f"(other[2]), "=f"(other[3]) : "l"(read_data_));
+            uint32_t other_flag_a, other_flag_b;
+            do {
+                asm volatile ("ld.volatile.global.v4.b32 {%0, %1, %2, %3}, [%4];"
+                    : "=f"(other[0]), "=r"(other_flag_a), "=f"(other[2]), "=r"(other_flag_b) : "l"(read_data));
+            } while ((other_flag_a != magic) || (other_flag_b != magic));
+
+            do {
+                asm volatile ("ld.volatile.global.v4.b32 {%0, %1, %2, %3}, [%4];"
+                    : "=f"(other[1]), "=r"(other_flag_a), "=f"(other[3]), "=r"(other_flag_b) : "l"(read_data+4));
+            } while ((other_flag_a != magic) || (other_flag_b != magic));
 
             add(x, other);
-            params_pair_data = params_pair_data2; //FIXME use an array 
         }
-        // finally, after syncing up and accounting for partial sums from other GPUs as required, write the result
+        // finally, after syncing up and accounting for partial sums from
+        // other GPUs as required, write the result
 
 
             write_to_smem(smem, threadIdx.x, x);
@@ -655,12 +637,12 @@ template<>
 struct ParallelSums<16, 4> {
     template< int THREADS_PER_CTA >
     DEVICE_FUNCTION void dispatch(float *smem, float (&x)[4], int nhw) {
-        parallel_sums_16x2<THREADS_PER_CTA>(smem, x, nhw, 0, 0, 0, 0, 0, 0);
+        parallel_sums_16x2<THREADS_PER_CTA>(smem, x, nhw, 0, 0, 0, 0, 0);
     }
 
     template< int THREADS_PER_CTA >
-    DEVICE_FUNCTION void dispatchX(float *smem, float (&x)[4], int nhw, void* params_my_data, void* params_pair_data, int off, const int magic, void* params_pair_data2, const unsigned int& sync_iters) {
-        parallel_sums_16x2<THREADS_PER_CTA>(smem, x, nhw, params_my_data, params_pair_data, off, magic, params_pair_data2, sync_iters);
+    DEVICE_FUNCTION void dispatchX(float *smem, float (&x)[4], int nhw, void* params_my_data, void** params_pair_datas, int off, const int magic, const unsigned int& sync_iters) {
+        parallel_sums_16x2<THREADS_PER_CTA>(smem, x, nhw, params_my_data, params_pair_datas, off, magic, sync_iters);
     }
 };
 
@@ -668,9 +650,6 @@ template<>
 struct ParallelSums<8, 4> {
     template< int THREADS_PER_CTA >
     DEVICE_FUNCTION void dispatch(float *smem, float (&x)[4], int nhw) {
-#ifdef BNDEBUGX
-        assert(0);
-#endif
         parallel_sums_8x4<THREADS_PER_CTA>(smem, x, nhw);
     }
 };
@@ -687,10 +666,6 @@ static inline int div_up(int m, int n) {
 
 // It is expected that all threads in the CTA enter this function!
 DEVICE_FUNCTION void inter_block_sync(int* gmem_retired_ctas, int expected_count, bool master) {
-#ifdef BNDEBUGX
-       if (threadIdx.x==0)
-                printf("start inter_block_sync thread%d block %d , %d  grid.X %d\n", threadIdx.x, blockIdx.x, blockIdx.y, gridDim.x);
-#endif
 
     // Register the CTA.
     if (threadIdx.x == 0) {
@@ -714,10 +689,6 @@ DEVICE_FUNCTION void inter_block_sync(int* gmem_retired_ctas, int expected_count
         } while (retired_ctas != 0);
     }
     __syncthreads();
-#ifdef BNDEBUGX
-       if (threadIdx.x==0)
-                printf("finish inter_block_sync thread%d block %d , %d\n", threadIdx.x, blockIdx.x, blockIdx.y);
-#endif
 
 }
 
@@ -858,8 +829,7 @@ struct NhwcBatchNormFwdParams {
     int c_blks;
 
     void* my_data;
-    void* pair_data;
-    void* pair_data2;
+    void* pair_datas[4];
     int magic;
     int sync_iters;
 };
@@ -1185,7 +1155,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         if (params.sync_iters>0)
         {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, m1, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+3, params.magic, params.pair_data2, params.sync_iters);
+                smem, m1, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+3, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, m1, thread_in_cta_nhw);
@@ -1242,7 +1212,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         if (params.sync_iters>0)
         {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, m2, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+2, params.magic, params.pair_data2, params.sync_iters);
+                smem, m2, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+2, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, m2, thread_in_cta_nhw);
@@ -1440,8 +1410,7 @@ struct NhwcBatchNormBwdParams {
     int c_blks;
 
     void* my_data;
-    void* pair_data;
-    void* pair_data2;
+    void* pair_datas[4];
     int magic;
     int sync_iters;
     float wgrad_coeff;
@@ -1581,11 +1550,6 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
 
     // Shared memory buffer to store the extra pixels.
     extern __shared__ PackedStorageType smem_storage_packed[];
-
-#ifdef BNDEBUGX
-       if (threadIdx.x==0)              
-                printf("starting nhwc_batch_norm_bwd\n");
-#endif
 
     for (int c_blk_index = blockIdx.y; c_blk_index < params.c_blks; c_blk_index += gridDim.y) {
         // The position in the NHW dimension where the CTA starts.
@@ -1778,7 +1742,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // dscale parallel sum
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+1, params.magic, params.pair_data2, params.sync_iters);
+                smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+1, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, dscale, thread_in_cta_nhw);
@@ -1792,7 +1756,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // dbias parallel sum
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+0, params.magic, params.pair_data2, params.sync_iters);
+                smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+0, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, dbias, thread_in_cta_nhw);
@@ -1950,10 +1914,6 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
 
     // Shared memory buffer to store the extra pixels.
     extern __shared__ PackedStorageType smem_storage_packed[];
-#ifdef BNDEBUGX
-       if (threadIdx.x==0)              
-                printf("starting nhwc_batch_norm_bwd_relu\n");
-#endif
 
     for (int c_blk_index = blockIdx.y; c_blk_index < params.c_blks; c_blk_index += gridDim.y) {
         // The position in the NHW dimension where the CTA starts.
@@ -2172,7 +2132,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // dscale parallel sum
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+1, params.magic, params.pair_data2, params.sync_iters);
+                smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+1, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, dscale, thread_in_cta_nhw);
@@ -2186,7 +2146,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // dbias parallel sum
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+0, params.magic, params.pair_data2, params.sync_iters);
+                smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+0, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, dbias, thread_in_cta_nhw);
@@ -2342,11 +2302,6 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
 
     // Shared memory buffer to store the extra pixels.
     extern __shared__ PackedStorageType smem_storage_packed[];
-
-#ifdef BNDEBUGX
-       if (threadIdx.x==0)              
-                printf("starting nhwc_batch_norm_bwd_add_relu\n");
-#endif
 
     for (int c_blk_index = blockIdx.y; c_blk_index < params.c_blks; c_blk_index += gridDim.y) {
         // The position in the NHW dimension where the CTA starts.
@@ -2595,7 +2550,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // dscale parallel sum
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+1, params.magic, params.pair_data2, params.sync_iters);
+                smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+1, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, dscale, thread_in_cta_nhw);
@@ -2609,7 +2564,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // dbias parallel sum
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
-                smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_data, 4*c_blk_index+0, params.magic, params.pair_data2, params.sync_iters);
+                smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+0, params.magic, params.sync_iters);
         } else {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
                 smem, dbias, thread_in_cta_nhw);
