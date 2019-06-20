@@ -300,8 +300,10 @@ class data_prefetcher():
         torch.cuda.current_stream().wait_stream(self.stream)
         input = self.next_input
         target = self.next_target
-        input.record_stream(torch.cuda.current_stream())
-        target.record_stream(torch.cuda.current_stream())
+        if input is not None:
+            input.record_stream(torch.cuda.current_stream())
+        if target is not None:
+            target.record_stream(torch.cuda.current_stream())
         self.preload()
         return input, target
 
