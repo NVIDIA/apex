@@ -360,7 +360,12 @@ multiple optimizers with each backward pass, is unrelated.</p>
 <h2>Gradient accumulation across iterations<a class="headerlink" href="#gradient-accumulation-across-iterations" title="Permalink to this headline">¶</a></h2>
 <p>The following should “just work,” and properly accommodate multiple models/optimizers/losses, as well as
 gradient clipping via the <a class="reference external" href="https://nvidia.github.io/apex/advanced.html#gradient-clipping">instructions above</a>:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="nb">iter</span><span class="o">%</span><span class="n">iters_to_accumulate</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># If your intent is to simulate a larger batch size using gradient accumulation,</span>
+<span class="c1"># you can divide the loss by the number of accumulation iterations (so that gradients</span>
+<span class="c1"># will be averaged over that many iterations):</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">loss</span><span class="o">/</span><span class="n">iters_to_accumulate</span>
+
+<span class="k">if</span> <span class="nb">iter</span><span class="o">%</span><span class="n">iters_to_accumulate</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
     <span class="c1"># Every iters_to_accumulate iterations, unscale and step</span>
     <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
         <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
