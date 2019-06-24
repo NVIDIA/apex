@@ -474,7 +474,7 @@ also be a list.</p>
 
 <dl class="function">
 <dt id="apex.amp.scale_loss">
-<code class="descclassname">apex.amp.</code><code class="descname">scale_loss</code><span class="sig-paren">(</span><em>loss</em>, <em>optimizers</em>, <em>loss_id=0</em>, <em>model=None</em>, <em>delay_unscale=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.scale_loss" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">apex.amp.</code><code class="descname">scale_loss</code><span class="sig-paren">(</span><em>loss</em>, <em>optimizers</em>, <em>loss_id=0</em>, <em>model=None</em>, <em>delay_unscale=False</em>, <em>delay_overflow_check=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.scale_loss" title="Permalink to this definition">¶</a></dt>
 <dd><p>On context manager entrance, creates <code class="docutils literal"><span class="pre">scaled_loss</span> <span class="pre">=</span> <span class="pre">(loss.float())*current</span> <span class="pre">loss</span> <span class="pre">scale</span></code>.
 <code class="docutils literal"><span class="pre">scaled_loss</span></code> is yielded so that the user can call <code class="docutils literal"><span class="pre">scaled_loss.backward()</span></code>:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
