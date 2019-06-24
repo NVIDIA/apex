@@ -145,6 +145,11 @@ Gradient accumulation across iterations
 The following should "just work," and properly accommodate multiple models/optimizers/losses, as well as
 gradient clipping via the `instructions above`_::
 
+    # If your intent is to simulate a larger batch size using gradient accumulation,
+    # you can divide the loss by the number of accumulation iterations (so that gradients
+    # will be averaged over that many iterations):
+    loss = loss/iters_to_accumulate
+
     if iter%iters_to_accumulate == 0:
         # Every iters_to_accumulate iterations, unscale and step
         with amp.scale_loss(loss, optimizer) as scaled_loss:
