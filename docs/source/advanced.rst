@@ -94,7 +94,7 @@ receive gradients.
 
 If, for a given backward pass, there's only one optimizer whose params are about to receive gradients,
 you may pass that optimizer directly to ``amp.scale_loss``.  Otherwise, you must pass the
-list of optimizers whose params are about to receive gradients::
+list of optimizers whose params are about to receive gradients.  Example with 3 losses and 2 optimizers::
 
     # loss0 accumulates gradients only into params owned by optim0:
     with amp.scale_loss(loss0, optim0) as scaled_loss:
