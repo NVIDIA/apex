@@ -311,7 +311,7 @@ This is true even if each optimizer owns only some, but not all, of the params t
 receive gradients.</p>
 <p>If, for a given backward pass, there’s only one optimizer whose params are about to receive gradients,
 you may pass that optimizer directly to <code class="docutils literal"><span class="pre">amp.scale_loss</span></code>.  Otherwise, you must pass the
-list of optimizers whose params are about to receive gradients:</p>
+list of optimizers whose params are about to receive gradients.  Example with 3 losses and 2 optimizers:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># loss0 accumulates gradients only into params owned by optim0:</span>
 <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss0</span><span class="p">,</span> <span class="n">optim0</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
     <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
