@@ -365,18 +365,15 @@ gradient clipping via the <a class="reference external" href="https://nvidia.git
 <span class="c1"># will be averaged over that many iterations):</span>
 <span class="n">loss</span> <span class="o">=</span> <span class="n">loss</span><span class="o">/</span><span class="n">iters_to_accumulate</span>
 
+<span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+    <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+
+<span class="c1"># Every iters_to_accumulate iterations, call step() and reset gradients:</span>
 <span class="k">if</span> <span class="nb">iter</span><span class="o">%</span><span class="n">iters_to_accumulate</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-    <span class="c1"># Every iters_to_accumulate iterations, unscale and step</span>
-    <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
-        <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
     <span class="c1"># Gradient clipping if desired:</span>
     <span class="c1"># torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), max_norm)</span>
     <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
     <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
-<span class="k">else</span><span class="p">:</span>
-    <span class="c1"># Otherwise, accumulate gradients, don&#39;t unscale or step.</span>
-    <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
-        <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 </pre></div>
 </div>
 <p>As a minor performance optimization, you can pass <code class="docutils literal"><span class="pre">delay_unscale=True</span></code>
