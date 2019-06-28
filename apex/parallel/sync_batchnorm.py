@@ -53,7 +53,10 @@ class SyncBatchNorm(_BatchNorm):
             raise AttributeError("channel_last is not supported by primitive SyncBatchNorm implementation. Try install apex with `--cuda_ext` if channel_last is desired.")
 
         if not SyncBatchNorm.warned:
-            print("Warning:  using Python fallback for SyncBatchNorm, possibly because apex was installed without --cuda_ext.  The exception raised when attempting to import the cuda backend was: ", self.syncbn_import_error)
+            if hasattr(self, "syncbn_import_error"):
+                print("Warning:  using Python fallback for SyncBatchNorm, possibly because apex was installed without --cuda_ext.  The exception raised when attempting to import the cuda backend was: ", self.syncbn_import_error)
+            else:
+                print("Warning:  using Python fallback for SyncBatchNorm")
             SyncBatchNorm.warned = True
 
         super(SyncBatchNorm, self).__init__(num_features, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
@@ -128,4 +131,4 @@ class SyncBatchNorm(_BatchNorm):
                         (1 - self.momentum) * self.running_var
             torch.cuda.nvtx.range_pop()
             out = SyncBatchnormFunction.apply(input, self.weight, self.bias, mean, var, self.eps, process_group, world_size)
-        out = out.to(cast)
+        return out.to(cast)
