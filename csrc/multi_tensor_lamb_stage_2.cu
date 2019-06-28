@@ -15,7 +15,7 @@
 
 // Step 2 reads in 'update' value and per-tensor param_norm and update_norm.
 // It computes new parameter value.
-template<typename T>
+template<typename T, typename UPD_T>
 struct LAMBStage2Functor
 {
    __device__ __forceinline__ void operator()(
@@ -42,7 +42,7 @@ struct LAMBStage2Functor
     T* p = (T*)tl.addresses[0][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    T* update = (T*)tl.addresses[1][tensor_loc];
+    UPD_T* update = (UPD_T*)tl.addresses[1][tensor_loc];
     update += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -52,7 +52,7 @@ struct LAMBStage2Functor
             i_start += blockDim.x*ILP)
     {
       T r_p[ILP];
-      T r_update[ILP];
+      UPD_T r_update[ILP];
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
@@ -66,7 +66,7 @@ struct LAMBStage2Functor
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
-        r_p[ii] = r_p[ii] - (ratio*r_update[ii]);
+        r_p[ii] = r_p[ii] - (ratio*(T)r_update[ii]);
       }
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
@@ -92,15 +92,16 @@ void multi_tensor_lamb_stage2_cuda(
   using namespace at;
 
   DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
+    DISPATCH_FLOAT_AND_HALF(tensor_lists[1][0].scalar_type(), 1, "lamb_stage_2",
       multi_tensor_apply<2>(
         BLOCK_SIZE,
         chunk_size,
         noop_flag,
         tensor_lists,
-        LAMBStage2Functor<scalar_t_0>(),
+        LAMBStage2Functor<scalar_t_0, scalar_t_1>(),
         per_tensor_param_norm.data<float>(),
         per_tensor_update_norm.data<float>(),
-        learning_rate); )
+        learning_rate); ))
 
   AT_CUDA_CHECK(cudaGetLastError());
 
