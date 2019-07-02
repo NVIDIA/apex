@@ -5,10 +5,10 @@ import importlib
 
 import torch
 
-if compat.variable_is_tensor() and not compat.tensor_is_variable():
-    MODULE = torch.Tensor
-else:
-    MODULE = torch.autograd.Variable
+# if compat.variable_is_tensor() and not compat.tensor_is_variable():
+MODULE = torch.Tensor
+# else:
+#     MODULE = torch.autograd.Variable
 
 
 FP16_FUNCS = [

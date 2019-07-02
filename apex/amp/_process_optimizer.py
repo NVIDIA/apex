@@ -401,7 +401,9 @@ def _process_optimizer(optimizer, properties):
             _master_params_to_model_params, optimizer)
 
         old_step = optimizer.step
-        def new_step(self):
+        def new_step(self, closure=None):
+            if closure is not None:
+                raise RuntimeError("Currently, Amp does not support closure use with optimizers.")
             retval = old_step()
             if not (isinstance(self, FusedAdam) or isinstance(self, FusedSGD)):
                 self._master_params_to_model_params()
@@ -470,6 +472,11 @@ def _process_optimizer(optimizer, properties):
 
     def new_add_param_group(self, new_group):
         stash = self._amp_stash
+
+        if not stash.lazy_init_called:
+            self._lazy_init_maybe_master_weights()
+            stash.lazy_init_called = True
+
         assert isinstance(new_group, dict), "param group must be a dict"
 
         new_params = new_group['params']

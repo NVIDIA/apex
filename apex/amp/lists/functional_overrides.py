@@ -28,8 +28,9 @@ FP16_FUNCS = [
 
 FP32_FUNCS = [
 
-    # Interpolation/Upsampling
+    # Interpolation/Upsampling TODO:  Remove for 1.2
     'interpolate',
+    'grid_sample',
 
     # Pointwise
     'softplus',

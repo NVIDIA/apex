@@ -32,7 +32,7 @@ class TestMultiTensorL2Norm(unittest.TestCase):
         pass
 
     # The tensor creation here is written for convenience, not speed.
-    def l2norm(self, sizea, sizeb, applier, repeat_tensors, in_type):
+    def l2norm(self, sizea, sizeb, applier, repeat_tensors, in_type, per_tensor):
         self.overflow_buf.zero_()
         a = torch.cuda.FloatTensor(sizea).fill_(self.val)
         b = torch.cuda.FloatTensor(sizeb).fill_(self.val)
@@ -41,12 +41,18 @@ class TestMultiTensorL2Norm(unittest.TestCase):
         for i in range(repeat_tensors):
             in_list += [a.clone().to(in_type), b.clone().to(in_type)]
 
-
-        norm = applier(multi_tensor_l2norm, self.overflow_buf, [in_list])
+        if per_tensor:
+            norm, norm_per_tensor = applier(multi_tensor_l2norm, self.overflow_buf, [in_list], True)
+            normab = torch.cat((a.norm().view(1), b.norm().view(1)))
+            norm_per_tensor = norm_per_tensor.view(-1, 2)
+        else:
+            norm, _ = applier(multi_tensor_l2norm, self.overflow_buf, [in_list], True)
 
         reference = torch.cuda.FloatTensor((sizea + sizeb)*repeat_tensors).fill_(self.val).norm()
 
         self.assertTrue(torch.allclose(norm, reference))
+        if per_tensor:
+          self.assertTrue(torch.allclose(norm_per_tensor, normab))
         self.assertTrue(self.overflow_buf.item() == 0)
 
     @unittest.skipIf(disabled, "amp_C is unavailable")
@@ -72,7 +78,8 @@ class TestMultiTensorL2Norm(unittest.TestCase):
           for applier in appliers:
             for repeat in repeat_tensors:
               for in_type in (torch.float32, torch.float16):
-                self.l2norm(sizea, sizeb, applier, repeat, in_type, )
+                for per_tensor in (False, True):
+                  self.l2norm(sizea, sizeb, applier, repeat, in_type, per_tensor)
 
 
 

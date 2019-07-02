@@ -15,7 +15,8 @@ def scale_loss(loss,
                optimizers,
                loss_id=0,
                model=None,
-               delay_unscale=False):
+               delay_unscale=False,
+               delay_overflow_check=False):
     """
     On context manager entrance, creates ``scaled_loss = (loss.float())*current loss scale``.
     ``scaled_loss`` is yielded so that the user can call ``scaled_loss.backward()``::
@@ -120,7 +121,7 @@ def scale_loss(loss,
                 optimizer._amp_stash.params_have_scaled_gradients = False
             # For future fused optimizers that enable sync-free dynamic loss scaling,
             # should_skip will always be False.
-            should_skip = loss_scaler.update_scale()
+            should_skip = False if delay_overflow_check else loss_scaler.update_scale()
             if should_skip:
                 for optimizer in optimizers:
                     if not optimizer._amp_stash.already_patched:
@@ -128,7 +129,9 @@ def scale_loss(loss,
                         # necessary because amp.scale_loss is already creating a temporary scope.
                         def patch_step(opt, loss_scaler, loss_id):
                             opt_step = opt.step
-                            def skip_step():
+                            def skip_step(closure=None):
+                                if closure is not None:
+                                    raise RuntimeError("Currently, Amp does not support closure use with optimizers.")
                                 maybe_print(("Gradient overflow.  Skipping step, loss scaler " +
                                              "{} reducing loss scale to {}").format(loss_id,
                                              loss_scaler.loss_scale()))

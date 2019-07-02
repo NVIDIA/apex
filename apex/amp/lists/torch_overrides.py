@@ -49,7 +49,7 @@ FP32_FUNCS = [
     'cumprod',
     'cumsum',
     'dist',
-    'mean',
+    # 'mean',
     'norm',
     'prod',
     'std',
@@ -59,6 +59,14 @@ FP32_FUNCS = [
     # Misc
     'renorm'
 ]
+
+version_strings = torch.__version__.split('.')
+version_major = version_strings[0]
+version_minor = version_strings[1]
+version_num = float(version_major + "." + version_minor)
+# Before torch 1.1, mean must be blacklisted.
+if version_num < 1.1:
+    FP32_FUNCS.append('mean')
 
 # Before CUDA 9.1, batched matmul was missing fast FP16 kernels. We
 # check the CUDA version -- if at least 9.1, then put the bmm

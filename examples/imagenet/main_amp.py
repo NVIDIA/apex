@@ -60,7 +60,7 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
 parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                     help='use pre-trained model')
 
-parser.add_argument('--prof', dest='prof', action='store_true',
+parser.add_argument('--prof', default=-1, type=int,
                     help='Only run 10 iterations for profiling.')
 parser.add_argument('--deterministic', action='store_true')
 
@@ -236,8 +236,7 @@ def main():
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch)
-        if args.prof:
-            break
+
         # evaluate on validation set
         prec1 = validate(val_loader, model, criterion)
 
@@ -272,9 +271,23 @@ class data_prefetcher():
             self.next_input = None
             self.next_target = None
             return
+        # if record_stream() doesn't work, another option is to make sure device inputs are created
+        # on the main stream.
+        # self.next_input_gpu = torch.empty_like(self.next_input, device='cuda')
+        # self.next_target_gpu = torch.empty_like(self.next_target, device='cuda')
+        # Need to make sure the memory allocated for next_* is not still in use by the main stream
+        # at the time we start copying to next_*:
+        # self.stream.wait_stream(torch.cuda.current_stream())
         with torch.cuda.stream(self.stream):
             self.next_input = self.next_input.cuda(non_blocking=True)
             self.next_target = self.next_target.cuda(non_blocking=True)
+            # more code for the alternative if record_stream() doesn't work:
+            # copy_ will record the use of the pinned source tensor in this side stream.
+            # self.next_input_gpu.copy_(self.next_input, non_blocking=True)
+            # self.next_target_gpu.copy_(self.next_target, non_blocking=True)
+            # self.next_input = self.next_input_gpu
+            # self.next_target = self.next_target_gpu
+
             # With Amp, it isn't necessary to manually convert data to half.
             # if args.fp16:
             #     self.next_input = self.next_input.half()
@@ -286,6 +299,10 @@ class data_prefetcher():
         torch.cuda.current_stream().wait_stream(self.stream)
         input = self.next_input
         target = self.next_target
+        if input is not None:
+            input.record_stream(torch.cuda.current_stream())
+        if target is not None:
+            target.record_stream(torch.cuda.current_stream())
         self.preload()
         return input, target
 
@@ -305,33 +322,34 @@ def train(train_loader, model, criterion, optimizer, epoch):
     i = 0
     while input is not None:
         i += 1
+        if args.prof >= 0 and i == args.prof:
+            print("Profiling begun at iteration {}".format(i))
+            torch.cuda.cudart().cudaProfilerStart()
+
+        if args.prof >= 0: torch.cuda.nvtx.range_push("Body of iteration {}".format(i))
 
         adjust_learning_rate(optimizer, epoch, i, len(train_loader))
 
-        if args.prof:
-            if i > 10:
-                break
-
         # compute output
-        if args.prof: torch.cuda.nvtx.range_push("forward")
+        if args.prof >= 0: torch.cuda.nvtx.range_push("forward")
         output = model(input)
-        if args.prof: torch.cuda.nvtx.range_pop()
+        if args.prof >= 0: torch.cuda.nvtx.range_pop()
         loss = criterion(output, target)
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
 
-        if args.prof: torch.cuda.nvtx.range_push("backward")
+        if args.prof >= 0: torch.cuda.nvtx.range_push("backward")
         with amp.scale_loss(loss, optimizer) as scaled_loss:
             scaled_loss.backward()
-        if args.prof: torch.cuda.nvtx.range_pop()
+        if args.prof >= 0: torch.cuda.nvtx.range_pop()
 
         # for param in model.parameters():
         #     print(param.data.double().sum().item(), param.grad.data.double().sum().item())
 
-        if args.prof: torch.cuda.nvtx.range_push("step")
+        if args.prof >= 0: torch.cuda.nvtx.range_push("optimizer.step()")
         optimizer.step()
-        if args.prof: torch.cuda.nvtx.range_pop()
+        if args.prof >= 0: torch.cuda.nvtx.range_pop()
 
         if i%args.print_freq == 0:
             # Every print_freq iterations, check the loss, accuracy, and speed.
@@ -370,8 +388,17 @@ def train(train_loader, model, criterion, optimizer, epoch):
                        args.world_size*args.batch_size/batch_time.avg,
                        batch_time=batch_time,
                        loss=losses, top1=top1, top5=top5))
-
+        if args.prof >= 0: torch.cuda.nvtx.range_push("prefetcher.next()")
         input, target = prefetcher.next()
+        if args.prof >= 0: torch.cuda.nvtx.range_pop()
+
+        # Pop range "Body of iteration {}".format(i)
+        if args.prof >= 0: torch.cuda.nvtx.range_pop()
+
+        if args.prof >= 0 and i == args.prof + 10:
+            print("Profiling ended at iteration {}".format(i))
+            torch.cuda.cudart().cudaProfilerStop()
+            quit()
 
 
 def validate(val_loader, model, criterion):

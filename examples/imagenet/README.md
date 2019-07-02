@@ -173,3 +173,9 @@ Running with the `--deterministic` flag should produce bitwise identical outputs
 regardless of what other options are used (see [Pytorch docs on reproducibility](https://pytorch.org/docs/stable/notes/randomness.html)).
 Since `--deterministic` disables `torch.backends.cudnn.benchmark`, `--deterministic` may
 cause a modest performance decrease.
+
+## Profiling
+
+If you're curious how the network actually looks on the CPU and GPU timelines (for example, how good is the overall utilization?
+Is the prefetcher really overlapping data transfers?) try profiling `main_amp.py`.
+[Detailed instructions can be found here](https://gist.github.com/mcarilli/213a4e698e4a0ae2234ddee56f4f3f95).

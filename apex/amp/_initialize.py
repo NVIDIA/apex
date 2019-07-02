@@ -40,12 +40,12 @@ def applier(value, fn):
         return value
     elif isinstance(value, np.ndarray):
         return value
+    elif hasattr(value, "to"): # Allow handling of custom batch classes
+        return fn(value)
     elif isinstance(value, container_abcs.Mapping):
         return {applier(k, fn) : applier(v, fn) for k, v in value.items()}
     elif isinstance(value, container_abcs.Iterable):
         return type(value)(applier(v, fn) for v in value)
-    elif hasattr(value, "to"): # Allow handling of custom batch classes
-        return fn(value)
     else:
         # Do I want this to fire off even if someone chooses to pass something ordinary like
         # an int or float?  May be more annoying than it's worth.
@@ -89,7 +89,16 @@ def check_params_fp32(models):
                         "you chose. Use model.to('cuda') to use the default device.".format(
                         name, param.type()))
 
-        for name, buf in model.named_buffers():
+        # Backward compatibility for PyTorch 0.4
+        if hasattr(model, 'named_buffers'):
+            buf_iter = model.named_buffers()
+        else:
+            buf_iter = model._buffers
+        for obj in buf_iter:
+            if type(obj)==tuple:
+                name, buf = obj
+            else:
+                name, buf = obj, buf_iter[obj]
             if buf.is_floating_point():
                 if 'Half' in buf.type():
                     warn_or_err("Found buffer {} with type {}, expected torch.cuda.FloatTensor.\n"
@@ -201,7 +210,9 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
 
     _amp_state.loss_scalers = []
     for _ in range(num_losses):
-        _amp_state.loss_scalers.append(LossScaler(properties.loss_scale))
+        _amp_state.loss_scalers.append(LossScaler(properties.loss_scale,
+                                                  min_loss_scale=_amp_state.min_loss_scale,
+                                                  max_loss_scale=_amp_state.max_loss_scale))
 
     if properties.patch_torch_functions:
         # handle is unused here. It's accessible later through a global value anyway.

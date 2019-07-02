@@ -195,7 +195,7 @@ def initialize(
     models,
     optimizers=None,
     enabled=True,
-    opt_level=None,
+    opt_level="O1",
     cast_model_type=None,
     patch_torch_functions=None,
     keep_batchnorm_fp32=None,
@@ -204,6 +204,8 @@ def initialize(
     cast_model_outputs=None,
     num_losses=1,
     verbosity=1,
+    min_loss_scale=None,
+    max_loss_scale=2.**24
     ):
     """
     Initialize your models, optimizers, and the Torch tensor and functional namespace according to the
@@ -231,7 +233,7 @@ def initialize(
             REQUIRED for training, optional for inference.
         enabled (bool, optional, default=True):  If False, renders all Amp calls no-ops, so your script
             should run as if Amp were not present.
-        opt_level (str, required):  Pure or mixed precision optimization level.  Accepted values are
+        opt_level (str, optional, default="O1"):  Pure or mixed precision optimization level.  Accepted values are
             "O0", "O1", "O2", and "O3", explained in detail above.
         cast_model_type (``torch.dtype``, optional, default=None):  Optional property override, see
             above.
@@ -251,6 +253,11 @@ def initialize(
             support multiple losses/backward passes, but use a single global loss scale
             for all of them.
         verbosity (int, default=1):  Set to 0 to suppress Amp-related output.
+        min_loss_scale (float, default=None):  Sets a floor for the loss scale values that can be chosen by dynamic
+            loss scaling.  The default value of None means that no floor is imposed.
+            If dynamic loss scaling is not used, `min_loss_scale` is ignored.
+        max_loss_scale (float, default=2.**24):  Sets a ceiling for the loss scale values that can be chosen by
+            dynamic loss scaling.  If dynamic loss scaling is not used, `max_loss_scale` is ignored.
 
     Returns:
         Model(s) and optimizer(s) modified according to the ``opt_level``.
@@ -301,7 +308,10 @@ def initialize(
     _amp_state.verbosity = verbosity
 
     if not enabled:
-        return models, optimizers
+        if optimizers is None:
+            return models
+        else:
+            return models, optimizers
 
     if not torch.backends.cudnn.enabled:
         raise RuntimeError(
@@ -310,13 +320,17 @@ def initialize(
     if opt_level not in opt_levels:
         raise RuntimeError(
             "Unexpected optimization level {}. ".format(opt_level) +
-            "Options are 'O0', 'O1', 'O2', 'O3'.")
+            "Options are 'O0', 'O1', 'O2', 'O3'.  Note that in `O0`, `O1`, etc., the prefix O is the letter O, " +
+            "not the number zero.")
     else:
         _amp_state.opt_properties = opt_levels[opt_level](_amp_state.opt_properties)
         maybe_print("Selected optimization level {}".format(opt_levels[opt_level].brief), True)
         maybe_print("Defaults for this optimization level are:", True)
         for k, v in _amp_state.opt_properties.options.items():
             maybe_print("{:22} : {}".format(k, v), True)
+
+    _amp_state.min_loss_scale = min_loss_scale
+    _amp_state.max_loss_scale = max_loss_scale
 
     maybe_print("Processing user overrides (additional kwargs that are not None)...", True)
     # I chose to have the keyword arguments listed directly in the argument list,
