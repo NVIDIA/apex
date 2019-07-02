@@ -45,7 +45,7 @@ class LossScaler(object):
                  max_loss_scale=2.**24):
         if loss_scale == "dynamic":
             self.dynamic = True
-            self._loss_scale = init_scale
+            self._loss_scale = min(max_loss_scale, init_scale)
         else:
             self.dynamic = False
             self._loss_scale = loss_scale
