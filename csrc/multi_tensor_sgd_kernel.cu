@@ -3,6 +3,7 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
 #include "multi_tensor_apply.cuh"
+#include "compat.h"
 
 #include <assert.h>
 #include <cuda_runtime.h>
@@ -156,7 +157,7 @@ void multi_tensor_sgd_cuda(
 
   if(num_tensors == 4)
     for(int i = 0; i < tensor_lists[3].size(); i++)
-        AT_CHECK(tensor_lists[3][i].scalar_type() == at::ScalarType::Half,
+        TORCH_CHECK(tensor_lists[3][i].scalar_type() == at::ScalarType::Half,
                  "Additional output tensors should always be fp16.");
 
   // We have 3 possibilities to handle here, in terms of

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "type_shim.h"
+#include "compat.h"
 
 
 __device__ __forceinline__ int lastpow2(int n)
@@ -953,7 +954,7 @@ at::Tensor batchnorm_forward_CUDA(
     );
   } else {
     if (weight.has_value()) {
-      AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+      TORCH_CHECK(input.scalar_type() == weight.value().scalar_type(),
           "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
@@ -1027,7 +1028,7 @@ std::vector<at::Tensor> reduce_bn_CUDA(
     );
   } else {
     if (weight.has_value()) {
-        AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+        TORCH_CHECK(input.scalar_type() == weight.value().scalar_type(),
             "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
@@ -1095,7 +1096,7 @@ at::Tensor batchnorm_backward_CUDA(
     );
   } else {
     if (weight.has_value()) {
-      AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+      TORCH_CHECK(input.scalar_type() == weight.value().scalar_type(),
           "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
@@ -1237,7 +1238,7 @@ at::Tensor batchnorm_forward_c_last_CUDA(
     );
   } else {
     if (weight.has_value()) {
-      AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+      TORCH_CHECK(input.scalar_type() == weight.value().scalar_type(),
           "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
@@ -1320,7 +1321,7 @@ std::vector<at::Tensor> reduce_bn_c_last_CUDA(
     );
   } else {
     if (weight.has_value()) {
-      AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+      TORCH_CHECK(input.scalar_type() == weight.value().scalar_type(),
           "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
@@ -1387,7 +1388,7 @@ at::Tensor batchnorm_backward_c_last_CUDA(
     );
   } else {
     if (weight.has_value()) {
-      AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+      TORCH_CHECK(input.scalar_type() == weight.value().scalar_type(),
           "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;
@@ -1451,7 +1452,7 @@ at::Tensor relu_backward_c_last_CUDA(
     );
   } else {
     if (weight.has_value()) {
-      AT_CHECK(input.scalar_type() == weight.value().scalar_type(),
+      TORCH_CHECK(input.scalar_type() == weight.value().scalar_type(),
           "input.scalar_type() is not supported with weight.scalar_type()");
     }
     using namespace at;

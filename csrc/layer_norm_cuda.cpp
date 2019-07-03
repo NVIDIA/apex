@@ -1,6 +1,7 @@
 #include <torch/extension.h>
 #include <vector>
 #include <cassert>
+#include "compat.h"
 
 namespace {
 void compute_n1_n2(
@@ -35,8 +36,8 @@ void check_args(
     at::Tensor beta
     )
 {
-    AT_CHECK(!gamma.defined() || gamma.sizes().equals(normalized_shape));
-    AT_CHECK(!beta.defined() || beta.sizes().equals(normalized_shape));
+    TORCH_CHECK(!gamma.defined() || gamma.sizes().equals(normalized_shape));
+    TORCH_CHECK(!beta.defined() || beta.sizes().equals(normalized_shape));
 }
 
 void check_args(
@@ -113,8 +114,8 @@ void cuda_layer_norm(
     at::Tensor* beta,
     double epsilon);
 
-#define CHECK_CUDA(x) AT_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
-#define CHECK_CONTIGUOUS(x) AT_CHECK(x.is_contiguous(), #x " must be contiguous")
+#define CHECK_CUDA(x) TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 std::vector<at::Tensor> layer_norm(
