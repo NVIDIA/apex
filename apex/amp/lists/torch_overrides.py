@@ -87,6 +87,7 @@ CASTS = [
     'atan2',
     'cross',
     'bilinear',
+    'dot',
 
     # Element-wise _or_ tensor-wise math
     'add',
