@@ -13,7 +13,7 @@ print_red() {
 }
 
 images=(
-"gitlab-master.nvidia.com:5005/dl/dgx/pytorch:19.03-py3-devel"
+"gitlab-master.nvidia.com:5005/dl/dgx/pytorch:19.07-py3-devel"
 "gitlab-master.nvidia.com:5005/dl/dgx/pytorch:master-py3-devel"
 "pytorch/pytorch:nightly-devel-cuda10.0-cudnn7"
 "pytorch/pytorch:1.1.0-cuda10.0-cudnn7.5-devel"
