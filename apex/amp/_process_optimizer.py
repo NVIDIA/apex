@@ -263,10 +263,11 @@ def post_backward_with_master_weights_FusedAdam(self, scaler):
     norm_groups = []
     skip = False
     for grad_group in stash.grads:
-        norm = multi_tensor_applier(
+        norm, _ = multi_tensor_applier(
             stash.multi_tensor_l2norm,
             stash.dummy_overflow_buf,
-            [grad_group])
+            [grad_group],
+            False)
         # Still syncing here for now.
         norm = float(norm)
         norm_groups.append(norm)
