@@ -9,7 +9,7 @@ void fused_adam_cuda(at::Tensor & p, at::Tensor & p_copy, at::Tensor & m, at::Te
 
 // C++ interface
 void adam(at::Tensor & p, at::Tensor & p_copy, at::Tensor & m, at::Tensor & v, at::Tensor & g, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay) {
-        CHECK_INPUT(p)
+        CHECK_INPUT(p);
         if (p_copy.numel() > 0) CHECK_INPUT(p_copy);
         CHECK_INPUT(m);
         CHECK_INPUT(v);
