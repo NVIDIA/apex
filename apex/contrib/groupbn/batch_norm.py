@@ -184,8 +184,8 @@ class BatchNorm2d_NHWC(_BatchNorm):
                 self.pair_data2 = bnp.get_remote_data_ptr(self.pair_handle2, pair_offset2)
 
             if bn_group>4:
-                self.pair_handle3 = handles_l[local_rank ^ 3].cpu().contiguous()
-                pair_offset3 = offsets_l[local_rank ^ 3].cpu()
+                self.pair_handle3 = handles_l[local_rank ^ 4].cpu().contiguous()
+                pair_offset3 = offsets_l[local_rank ^ 4].cpu()
                 self.pair_data3 = bnp.get_remote_data_ptr(self.pair_handle3, pair_offset3)
 
             #FIXME: get magic value into C code and eliminate from here
