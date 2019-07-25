@@ -795,11 +795,13 @@ void cuda_layer_norm_gradient(
 	    invvar->data<accscalar_t>(),
 	    input,
 	    n1,n2,
-	    gamma->data<scalar_t_0>(),
-	    beta->data<scalar_t_0>(),
+            // TMJ pass NULL argument for gamma, beta, grad_gamma and grad_beta
+            // if gamma Tensor is NULL on input.
+	    gamma != NULL ? gamma->data<scalar_t_0>() : NULL,
+	    gamma != NULL ? beta->data<scalar_t_0>() : NULL,
 	    epsilon,
 	    grad_input->data<scalar_t_0>(),
-	    grad_gamma->data<scalar_t_0>(),
-	    grad_beta->data<scalar_t_0>());
+	    gamma != NULL ? grad_gamma->data<scalar_t_0>() : NULL,
+	    gamma != NULL ? grad_beta->data<scalar_t_0>() : NULL);
       )
 }
