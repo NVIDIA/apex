@@ -320,7 +320,7 @@ tests_distributed_amp_master_params--P100_R384_4GPU:
 ###########################
 
 #### Turing (TU104) runs ####
-tests_L0--TU104_R418_2GPU:
+tests_L0--TU104_R418_2GPU--torch-1-0:
     <<: *L0_TEST
     <<: *TU104_R418_2GPU
     stage: test torch 1.0
@@ -328,7 +328,7 @@ tests_L0--TU104_R418_2GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L0_TEST_VARIABLES
 
-tests_L1_cross_product--TU104_R418_2GPU:
+tests_L1_cross_product--TU104_R418_2GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT
     <<: *TU104_R418_2GPU
     stage: test torch 1.0
@@ -336,7 +336,7 @@ tests_L1_cross_product--TU104_R418_2GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
 
-tests_L1_cross_product_distributed--TU104_R418_2GPU:
+tests_L1_cross_product_distributed--TU104_R418_2GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *TU104_R418_2GPU
     stage: test torch 1.0
@@ -344,7 +344,7 @@ tests_L1_cross_product_distributed--TU104_R418_2GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
 
-tests_distributed_ddp--TU104_R418_2GPU:
+tests_distributed_ddp--TU104_R418_2GPU--torch-1-0:
     <<: *DISTRIBUTED_DDP
     <<: *TU104_R418_2GPU
     stage: test torch 1.0
@@ -352,7 +352,7 @@ tests_distributed_ddp--TU104_R418_2GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *DISTRIBUTED_DDP_TEST_VARIABLES
 
-tests_distributed_synced_batchnorm--TU104_R418_2GPU:
+tests_distributed_synced_batchnorm--TU104_R418_2GPU--torch-1-0:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *TU104_R418_2GPU
     stage: test torch 1.0
@@ -361,7 +361,7 @@ tests_distributed_synced_batchnorm--TU104_R418_2GPU:
       <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
       TEST_COMMAND: python single_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py --fp64
 
-tests_distributed_amp_master_params--TU104_R418_2GPU:
+tests_distributed_amp_master_params--TU104_R418_2GPU--torch-1-0:
     <<: *DISTRIBUTED_AMP_MASTER_PARAMS
     <<: *TU104_R418_2GPU
     stage: test torch 1.0
@@ -370,7 +370,7 @@ tests_distributed_amp_master_params--TU104_R418_2GPU:
       <<: *DISTRIBUTED_AMP_MASTER_PARAMS_TEST_VARIABLES
 
 #### Volta runs ####
-tests_L0--V100_R410_4GPU:
+tests_L0--V100_R410_4GPU--torch-1-0:
     <<: *L0_TEST
     <<: *V100_R410_4GPU
     stage: test torch 1.0
@@ -378,7 +378,7 @@ tests_L0--V100_R410_4GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L0_TEST_VARIABLES
 
-tests_L1_cross_product--V100_R410_4GPU:
+tests_L1_cross_product--V100_R410_4GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT
     <<: *V100_R410_4GPU
     stage: test torch 1.0
@@ -386,7 +386,7 @@ tests_L1_cross_product--V100_R410_4GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
 
-tests_L1_cross_product_distributed--V100_R410_4GPU:
+tests_L1_cross_product_distributed--V100_R410_4GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *V100_R410_4GPU
     stage: test torch 1.0
@@ -394,7 +394,7 @@ tests_L1_cross_product_distributed--V100_R410_4GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
 
-tests_distributed_ddp--V100_R410_4GPU:
+tests_distributed_ddp--V100_R410_4GPU--torch-1-0:
     <<: *DISTRIBUTED_DDP
     <<: *V100_R410_4GPU
     stage: test torch 1.0
@@ -402,7 +402,7 @@ tests_distributed_ddp--V100_R410_4GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *DISTRIBUTED_DDP_TEST_VARIABLES
 
-tests_distributed_synced_batchnorm--V100_R410_4GPU:
+tests_distributed_synced_batchnorm--V100_R410_4GPU--torch-1-0:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *V100_R410_4GPU
     stage: test torch 1.0
@@ -410,7 +410,7 @@ tests_distributed_synced_batchnorm--V100_R410_4GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
 
-tests_distributed_amp_master_params--V100_R410_4GPU:
+tests_distributed_amp_master_params--V100_R410_4GPU--torch-1-0:
     <<: *DISTRIBUTED_AMP_MASTER_PARAMS
     <<: *V100_R410_4GPU
     stage: test torch 1.0
@@ -419,7 +419,7 @@ tests_distributed_amp_master_params--V100_R410_4GPU:
       <<: *DISTRIBUTED_AMP_MASTER_PARAMS_TEST_VARIABLES
 
 #### P100 runs ####
-tests_L0--P100_R384_4GPU:
+tests_L0--P100_R384_4GPU--torch-1-0:
     <<: *L0_TEST
     <<: *P100_R384_4GPU
     stage: test torch 1.0
@@ -427,7 +427,7 @@ tests_L0--P100_R384_4GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L0_TEST_VARIABLES
 
-tests_L1_cross_product--P100_R384_4GPU:
+tests_L1_cross_product--P100_R384_4GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT
     <<: *P100_R384_4GPU
     stage: test torch 1.0
@@ -435,7 +435,7 @@ tests_L1_cross_product--P100_R384_4GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
 
-tests_L1_cross_product_distributed--P100_R384_4GPU:
+tests_L1_cross_product_distributed--P100_R384_4GPU--torch-1-0:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *P100_R384_4GPU
     stage: test torch 1.0
@@ -443,7 +443,7 @@ tests_L1_cross_product_distributed--P100_R384_4GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
 
-tests_distributed_ddp--P100_R384_4GPU:
+tests_distributed_ddp--P100_R384_4GPU--torch-1-0:
     <<: *DISTRIBUTED_DDP
     <<: *P100_R384_4GPU
     stage: test torch 1.0
@@ -451,7 +451,7 @@ tests_distributed_ddp--P100_R384_4GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *DISTRIBUTED_DDP_TEST_VARIABLES
 
-tests_distributed_synced_batchnorm--P100_R384_4GPU:
+tests_distributed_synced_batchnorm--P100_R384_4GPU--torch-1-0:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *P100_R384_4GPU
     stage: test torch 1.0
@@ -459,7 +459,7 @@ tests_distributed_synced_batchnorm--P100_R384_4GPU:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
 
-tests_distributed_amp_master_params--P100_R384_4GPU:
+tests_distributed_amp_master_params--P100_R384_4GPU--torch-1-0:
     <<: *DISTRIBUTED_AMP_MASTER_PARAMS
     <<: *P100_R384_4GPU
     stage: test torch 1.0
