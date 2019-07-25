@@ -7,7 +7,8 @@ variables:
 
 stages:
     - build
-    - test
+    - test torch nightly
+    - test torch 1.0
 
 before_script:
     - echo "${CI_BUILD_NAME}" | grep -Eq "(^|-)py2($|-)" && export PYVER=2.7 || export PYVER=3.6   && echo "${PYVER}"
@@ -25,7 +26,7 @@ before_script:
 .base_template : &BASE
     stage: build
     script:
-    - echo -e "FROM pytorch/pytorch:${PYTORCH_UPSTREAM_CONTAINER_TAG}\n"
+    - echo -e "FROM ${PYTORCH_CONTAINER}\n"
               "WORKDIR /opt/apex\n"
               "COPY . .\n"
               "RUN pip install -v --no-cache-dir --global-option=\"--cpp_ext\" --global-option=\"--cuda_ext\" .\n"
@@ -47,13 +48,13 @@ before_script:
 py3-pytorch-nightly:
     <<: *BASE
     variables:
-      PYTORCH_UPSTREAM_CONTAINER_TAG: nightly-devel-cuda10.0-cudnn7
+      PYTORCH_CONTAINER: ${INTERNAL_NIGHTLY_PYTORCH}
       APEX_CONTAINER_TAG: torch-nightly
 
 py3-pytorch-1-0:
     <<: *BASE
     variables:
-      PYTORCH_UPSTREAM_CONTAINER_TAG: 1.0-cuda10.0-cudnn7-devel
+      PYTORCH_CONTAINER: pytorch/pytorch:1.0-cuda10.0-cudnn7-devel
       APEX_CONTAINER_TAG: torch-1-0
 
 ################
@@ -61,7 +62,6 @@ py3-pytorch-1-0:
 ################
 # base test script
 .test_template: &TEST_TEMPLATE
-    stage: test
     script:
     - export TEST_WORK_DIR="${TEST_WORK_DIR%%--*}"
     - export CONTAINER_NAME="${CI_PROJECT_NAME}.${CI_JOB_ID}.${CI_JOB_NAME}"
@@ -115,18 +115,6 @@ py3-pytorch-1-0:
     - R384
     - 4GPU
 
-.P40_R384_2GPU: &P40_R384_2GPU
-    tags:
-    - P40
-    - R384
-    - 2GPU
-
-.M40_R384_2GPU: &M40_R384_2GPU
-    tags:
-    - M40
-    - R384
-    - 2GPU
-
 # defines default test dirs and commands
 .L0_test: &L0_TEST
     <<: *TEST_TEMPLATE
@@ -168,447 +156,313 @@ py3-pytorch-1-0:
       TEST_WORK_DIR: /opt/apex/tests/distributed/synced_batchnorm/
       TEST_COMMAND: bash -ex unit_test.sh
 
+.distributed_amp_master_params_test: &DISTRIBUTED_AMP_MASTER_PARAMS
+    <<: *TEST_TEMPLATE
+
+.distributed_amp_master_params_test_variables:
+    variables: &DISTRIBUTED_AMP_MASTER_PARAMS_TEST_VARIABLES
+      TEST_WORK_DIR: /opt/apex/tests/distributed/amp_master_params/
+      TEST_COMMAND: bash -ex run.sh
+
 ##########################
 # Test runs for nightlies
 ##########################
 #### Turing (TU102) runs ####
-tests_L0--TU102_R410_2GPU--torch-nightly:
+tests_L0--TU102_R410_2GPU:
     <<: *L0_TEST
     <<: *TU102_R410_2GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *L0_TEST_VARIABLES
 
-tests_L1_cross_product--TU102_R410_2GPU--torch-nightly:
+tests_L1_cross_product--TU102_R410_2GPU:
     <<: *L1_CROSS_PRODUCT
     <<: *TU102_R410_2GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
 
-tests_L1_cross_product_distributed--TU102_R410_2GPU--torch-nightly:
+tests_L1_cross_product_distributed--TU102_R410_2GPU:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *TU102_R410_2GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
 
-tests_distributed_ddp--TU102_R410_2GPU--torch-nightly:
+tests_distributed_ddp--TU102_R410_2GPU:
     <<: *DISTRIBUTED_DDP
     <<: *TU102_R410_2GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *DISTRIBUTED_DDP_TEST_VARIABLES
 
-tests_distributed_synced_batchnorm--TU102_R410_2GPU--torch-nightly:
+tests_distributed_synced_batchnorm--TU102_R410_2GPU:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *TU102_R410_2GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
       TEST_COMMAND: python single_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py --fp64
 
-#### Turing (TU104) runs ####
-tests_L0--TU104_R418_2GPU--torch-nightly:
-    <<: *L0_TEST
-    <<: *TU104_R418_2GPU
+tests_distributed_amp_master_params--TU102_R410_2GPU:
+    <<: *DISTRIBUTED_AMP_MASTER_PARAMS
+    <<: *TU102_R410_2GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
-      <<: *L0_TEST_VARIABLES
-
-tests_L1_cross_product--TU104_R418_2GPU--torch-nightly:
-    <<: *L1_CROSS_PRODUCT
-    <<: *TU104_R418_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
-
-tests_L1_cross_product_distributed--TU104_R418_2GPU--torch-nightly:
-    <<: *L1_CROSS_PRODUCT_DISTRIBUTED
-    <<: *TU104_R418_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
-
-tests_distributed_ddp--TU104_R418_2GPU--torch-nightly:
-    <<: *DISTRIBUTED_DDP
-    <<: *TU104_R418_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *DISTRIBUTED_DDP_TEST_VARIABLES
-
-tests_distributed_synced_batchnorm--TU104_R418_2GPU--torch-nightly:
-    <<: *DISTRIBUTED_SYNCED_BATCHNORM
-    <<: *TU104_R418_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
-      TEST_COMMAND: python single_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py --fp64
+      <<: *DISTRIBUTED_AMP_MASTER_PARAMS_TEST_VARIABLES
 
 #### Volta runs ####
-tests_L0--V100_R410_4GPU--torch-nightly:
+tests_L0--V100_R410_4GPU:
     <<: *L0_TEST
     <<: *V100_R410_4GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *L0_TEST_VARIABLES
 
-tests_L1_cross_product--V100_R410_4GPU--torch-nightly:
+tests_L1_cross_product--V100_R410_4GPU:
     <<: *L1_CROSS_PRODUCT
     <<: *V100_R410_4GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
 
-tests_L1_cross_product_distributed--V100_R410_4GPU--torch-nightly:
+tests_L1_cross_product_distributed--V100_R410_4GPU:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *V100_R410_4GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
 
-tests_distributed_ddp--V100_R410_4GPU--torch-nightly:
+tests_distributed_ddp--V100_R410_4GPU:
     <<: *DISTRIBUTED_DDP
     <<: *V100_R410_4GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *DISTRIBUTED_DDP_TEST_VARIABLES
 
-tests_distributed_synced_batchnorm--V100_R410_4GPU--torch-nightly:
+tests_distributed_synced_batchnorm--V100_R410_4GPU:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *V100_R410_4GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
+
+tests_distributed_amp_master_params--V100_R410_4GPU:
+    <<: *DISTRIBUTED_AMP_MASTER_PARAMS
+    <<: *V100_R410_4GPU
+    stage: test torch nightly
+    variables:
+      APEX_CONTAINER_TAG: torch-nightly
+      <<: *DISTRIBUTED_AMP_MASTER_PARAMS_TEST_VARIABLES
 
 #### P100 runs ####
-tests_L0--P100_R384_4GPU--torch-nightly:
+tests_L0--P100_R384_4GPU:
     <<: *L0_TEST
     <<: *P100_R384_4GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *L0_TEST_VARIABLES
 
-tests_L1_cross_product--P100_R384_4GPU--torch-nightly:
+tests_L1_cross_product--P100_R384_4GPU:
     <<: *L1_CROSS_PRODUCT
     <<: *P100_R384_4GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
 
-tests_L1_cross_product_distributed--P100_R384_4GPU--torch-nightly:
+tests_L1_cross_product_distributed--P100_R384_4GPU:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *P100_R384_4GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
 
-tests_distributed_ddp--P100_R384_4GPU--torch-nightly:
+tests_distributed_ddp--P100_R384_4GPU:
     <<: *DISTRIBUTED_DDP
     <<: *P100_R384_4GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *DISTRIBUTED_DDP_TEST_VARIABLES
 
-tests_distributed_synced_batchnorm--P100_R384_4GPU--torch-nightly:
+tests_distributed_synced_batchnorm--P100_R384_4GPU:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *P100_R384_4GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
       <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
 
-#### P40 runs ####
-tests_L0--P40_R384_2GPU--torch-nightly:
-    <<: *L0_TEST
-    <<: *P40_R384_2GPU
+tests_distributed_amp_master_params--P100_R384_4GPU:
+    <<: *DISTRIBUTED_AMP_MASTER_PARAMS
+    <<: *P100_R384_4GPU
+    stage: test torch nightly
     variables:
       APEX_CONTAINER_TAG: torch-nightly
-      <<: *L0_TEST_VARIABLES
-
-tests_L1_cross_product--P40_R384_2GPU--torch-nightly:
-    <<: *L1_CROSS_PRODUCT
-    <<: *P40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
-
-tests_L1_cross_product_distributed--P40_R384_2GPU--torch-nightly:
-    <<: *L1_CROSS_PRODUCT_DISTRIBUTED
-    <<: *P40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
-
-tests_distributed_ddp--P40_R384_2GPU--torch-nightly:
-    <<: *DISTRIBUTED_DDP
-    <<: *P40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *DISTRIBUTED_DDP_TEST_VARIABLES
-
-tests_distributed_synced_batchnorm--P40_R384_2GPU--torch-nightly:
-    <<: *DISTRIBUTED_SYNCED_BATCHNORM
-    <<: *P40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
-      TEST_COMMAND: python single_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py --fp64
-
-#### M40 runs ####
-tests_L0--M40_R384_2GPU--torch-nightly:
-    <<: *L0_TEST
-    <<: *M40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *L0_TEST_VARIABLES
-
-tests_L1_cross_product--M40_R384_2GPU--torch-nightly:
-    <<: *L1_CROSS_PRODUCT
-    <<: *M40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
-
-tests_L1_cross_product_distributed--M40_R384_2GPU--torch-nightly:
-    <<: *L1_CROSS_PRODUCT_DISTRIBUTED
-    <<: *M40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
-
-tests_distributed_ddp--M40_R384_2GPU--torch-nightly:
-    <<: *DISTRIBUTED_DDP
-    <<: *M40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *DISTRIBUTED_DDP_TEST_VARIABLES
-
-tests_distributed_synced_batchnorm--M40_R384_2GPU--torch-nightly:
-    <<: *DISTRIBUTED_SYNCED_BATCHNORM
-    <<: *M40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-nightly
-      <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
-      TEST_COMMAND: python single_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py --fp64
+      <<: *DISTRIBUTED_AMP_MASTER_PARAMS_TEST_VARIABLES
 
 ###########################
 # Test runs for PyTorch 1.0
 ###########################
-tests_L0--TU102_R410_2GPU--torch-1-0:
-    <<: *L0_TEST
-    <<: *TU102_R410_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *L0_TEST_VARIABLES
-
-tests_L1_cross_product--TU102_R410_2GPU--torch-1-0:
-    <<: *L1_CROSS_PRODUCT
-    <<: *TU102_R410_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
-
-tests_L1_cross_product_distributed--TU102_R410_2GPU--torch-1-0:
-    <<: *L1_CROSS_PRODUCT_DISTRIBUTED
-    <<: *TU102_R410_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
-
-tests_distributed_ddp--TU102_R410_2GPU--torch-1-0:
-    <<: *DISTRIBUTED_DDP
-    <<: *TU102_R410_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *DISTRIBUTED_DDP_TEST_VARIABLES
-
-tests_distributed_synced_batchnorm--TU102_R410_2GPU--torch-1-0:
-    <<: *DISTRIBUTED_SYNCED_BATCHNORM
-    <<: *TU102_R410_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
-      TEST_COMMAND: python single_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py --fp64
 
 #### Turing (TU104) runs ####
-tests_L0--TU104_R418_2GPU--torch-1-0:
+tests_L0--TU104_R418_2GPU:
     <<: *L0_TEST
     <<: *TU104_R418_2GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L0_TEST_VARIABLES
 
-tests_L1_cross_product--TU104_R418_2GPU--torch-1-0:
+tests_L1_cross_product--TU104_R418_2GPU:
     <<: *L1_CROSS_PRODUCT
     <<: *TU104_R418_2GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
 
-tests_L1_cross_product_distributed--TU104_R418_2GPU--torch-1-0:
+tests_L1_cross_product_distributed--TU104_R418_2GPU:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *TU104_R418_2GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
 
-tests_distributed_ddp--TU104_R418_2GPU--torch-1-0:
+tests_distributed_ddp--TU104_R418_2GPU:
     <<: *DISTRIBUTED_DDP
     <<: *TU104_R418_2GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *DISTRIBUTED_DDP_TEST_VARIABLES
 
-tests_distributed_synced_batchnorm--TU104_R418_2GPU--torch-1-0:
+tests_distributed_synced_batchnorm--TU104_R418_2GPU:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *TU104_R418_2GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
       TEST_COMMAND: python single_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py --fp64
+
+tests_distributed_amp_master_params--TU104_R418_2GPU:
+    <<: *DISTRIBUTED_AMP_MASTER_PARAMS
+    <<: *TU104_R418_2GPU
+    stage: test torch 1.0
+    variables:
+      APEX_CONTAINER_TAG: torch-1-0
+      <<: *DISTRIBUTED_AMP_MASTER_PARAMS_TEST_VARIABLES
 
 #### Volta runs ####
-tests_L0--V100_R410_4GPU--torch-1-0:
+tests_L0--V100_R410_4GPU:
     <<: *L0_TEST
     <<: *V100_R410_4GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L0_TEST_VARIABLES
 
-tests_L1_cross_product--V100_R410_4GPU--torch-1-0:
+tests_L1_cross_product--V100_R410_4GPU:
     <<: *L1_CROSS_PRODUCT
     <<: *V100_R410_4GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
 
-tests_L1_cross_product_distributed--V100_R410_4GPU--torch-1-0:
+tests_L1_cross_product_distributed--V100_R410_4GPU:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *V100_R410_4GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
 
-tests_distributed_ddp--V100_R410_4GPU--torch-1-0:
+tests_distributed_ddp--V100_R410_4GPU:
     <<: *DISTRIBUTED_DDP
     <<: *V100_R410_4GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *DISTRIBUTED_DDP_TEST_VARIABLES
 
-tests_distributed_synced_batchnorm--V100_R410_4GPU--torch-1-0:
+tests_distributed_synced_batchnorm--V100_R410_4GPU:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *V100_R410_4GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
+
+tests_distributed_amp_master_params--V100_R410_4GPU:
+    <<: *DISTRIBUTED_AMP_MASTER_PARAMS
+    <<: *V100_R410_4GPU
+    stage: test torch 1.0
+    variables:
+      APEX_CONTAINER_TAG: torch-1-0
+      <<: *DISTRIBUTED_AMP_MASTER_PARAMS_TEST_VARIABLES
 
 #### P100 runs ####
-tests_L0--P100_R384_4GPU--torch-1-0:
+tests_L0--P100_R384_4GPU:
     <<: *L0_TEST
     <<: *P100_R384_4GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L0_TEST_VARIABLES
 
-tests_L1_cross_product--P100_R384_4GPU--torch-1-0:
+tests_L1_cross_product--P100_R384_4GPU:
     <<: *L1_CROSS_PRODUCT
     <<: *P100_R384_4GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
 
-tests_L1_cross_product_distributed--P100_R384_4GPU--torch-1-0:
+tests_L1_cross_product_distributed--P100_R384_4GPU:
     <<: *L1_CROSS_PRODUCT_DISTRIBUTED
     <<: *P100_R384_4GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
 
-tests_distributed_ddp--P100_R384_4GPU--torch-1-0:
+tests_distributed_ddp--P100_R384_4GPU:
     <<: *DISTRIBUTED_DDP
     <<: *P100_R384_4GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *DISTRIBUTED_DDP_TEST_VARIABLES
 
-tests_distributed_synced_batchnorm--P100_R384_4GPU--torch-1-0:
+tests_distributed_synced_batchnorm--P100_R384_4GPU:
     <<: *DISTRIBUTED_SYNCED_BATCHNORM
     <<: *P100_R384_4GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
       <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
 
-#### P40 runs ####
-tests_L0--P40_R384_2GPU--torch-1-0:
-    <<: *L0_TEST
-    <<: *P40_R384_2GPU
+tests_distributed_amp_master_params--P100_R384_4GPU:
+    <<: *DISTRIBUTED_AMP_MASTER_PARAMS
+    <<: *P100_R384_4GPU
+    stage: test torch 1.0
     variables:
       APEX_CONTAINER_TAG: torch-1-0
-      <<: *L0_TEST_VARIABLES
-
-tests_L1_cross_product--P40_R384_2GPU--torch-1-0:
-    <<: *L1_CROSS_PRODUCT
-    <<: *P40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
-
-tests_L1_cross_product_distributed--P40_R384_2GPU--torch-1-0:
-    <<: *L1_CROSS_PRODUCT_DISTRIBUTED
-    <<: *P40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
-
-tests_distributed_ddp--P40_R384_2GPU--torch-1-0:
-    <<: *DISTRIBUTED_DDP
-    <<: *P40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *DISTRIBUTED_DDP_TEST_VARIABLES
-
-tests_distributed_synced_batchnorm--P40_R384_2GPU--torch-1-0:
-    <<: *DISTRIBUTED_SYNCED_BATCHNORM
-    <<: *P40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
-      TEST_COMMAND: python single_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py --fp64
-
-#### M40 runs ####
-tests_L0--M40_R384_2GPU--torch-1-0:
-    <<: *L0_TEST
-    <<: *M40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *L0_TEST_VARIABLES
-
-tests_L1_cross_product--M40_R384_2GPU--torch-1-0:
-    <<: *L1_CROSS_PRODUCT
-    <<: *M40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *L1_CROSS_PRODUCT_TEST_VARIABLES
-
-tests_L1_cross_product_distributed--M40_R384_2GPU--torch-1-0:
-    <<: *L1_CROSS_PRODUCT_DISTRIBUTED
-    <<: *M40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *L1_CROSS_PRODUCT_DISTRIBUTED_TEST_VARIABLES
-
-tests_distributed_ddp--M40_R384_2GPU--torch-1-0:
-    <<: *DISTRIBUTED_DDP
-    <<: *M40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *DISTRIBUTED_DDP_TEST_VARIABLES
-
-tests_distributed_synced_batchnorm--M40_R384_2GPU--torch-1-0:
-    <<: *DISTRIBUTED_SYNCED_BATCHNORM
-    <<: *M40_R384_2GPU
-    variables:
-      APEX_CONTAINER_TAG: torch-1-0
-      <<: *DISTRIBUTED_SYNCED_BATCHNORM_TEST_VARIABLES
-      TEST_COMMAND: python single_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py; python -m torch.distributed.launch --nproc_per_node=2 two_gpu_unit_test.py --fp64
+      <<: *DISTRIBUTED_AMP_MASTER_PARAMS_TEST_VARIABLES
