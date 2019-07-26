@@ -71,7 +71,7 @@ py3-pytorch-1-0:
       set -x &&
       docker run $(eval ${NV_DOCKER_ARGS})
              --name "${CONTAINER_NAME}"
-             -v $DATADIR:/opt/home/apex/examples/
+             -v $DATADIR:/data
              $(eval echo ${EXTRA_DOCKER_RUN_ARGS})
              -w ${TEST_WORK_DIR}
              ${BASE_IMAGE_NAME_VERSIONED}-${APEX_CONTAINER_TAG}
