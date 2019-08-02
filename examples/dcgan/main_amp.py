@@ -36,6 +36,7 @@ parser.add_argument('--netD', default='', help="path to netD (to continue traini
 parser.add_argument('--outf', default='.', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--classes', default='bedroom', help='comma separated list of classes for the lsun data set')
+parser.add_argument('--opt_level', default='O1', help='amp opt_level, default="O1"')
 
 opt = parser.parse_args()
 print(opt)
@@ -211,7 +212,7 @@ optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
 [netD, netG], [optimizerD, optimizerG] = amp.initialize(
-    [netD, netG], [optimizerD, optimizerG], opt_level='O1', num_losses=3)
+    [netD, netG], [optimizerD, optimizerG], opt_level=opt.opt_level, num_losses=3)
 
 for epoch in range(opt.niter):
     for i, data in enumerate(dataloader, 0):
