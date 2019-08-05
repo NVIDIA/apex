@@ -9,35 +9,34 @@ from torch.autograd import Variable
         
 class TestFusedLayerNorm(unittest.TestCase):
     def setUp(self):
-        self.module_cpu_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 64], elementwise_affine=False).cpu()
-        self.module_cuda_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 64], elementwise_affine=False).cuda()
-        torch.cuda.manual_seed(42)
-        self.input_ = torch.randn(16, 32, 64)
-        self.loss_ = torch.randn(16, 32, 64)
-        self.input_cpu_ = Variable(self.input_.detach().clone(), requires_grad=True)
-        self.loss_cpu_ = self.loss_.detach().clone()
-        self.input_cuda_ = Variable(self.input_.detach().clone().cuda(), requires_grad=True)
-        self.loss_cuda_ = self.loss_.detach().clone().cuda()
+        # bias and weight are set to 0 and 1 respectively, so no need to copy parameters from cpu module to the gpu one
+        self.module_cpu_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=False).cpu()
+        self.module_cuda_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=False).cuda()
 
-    def test_same_output(self):
-        out_cpu_ = self.module_cpu_(self.input_cpu_)
-        out_cpu_.backward(self.loss_cpu_)
+    def _test_same_output(self, batch_size):
+        torch.cuda.manual_seed(42)
+        self.input_ = torch.randn((batch_size, *self.module_cpu_.normalized_shape), device="cpu").requires_grad_(True)
+        self.input_cuda_ = self.input_.cuda().detach().requires_grad_(True)
+        out_cpu_ = self.module_cpu_(self.input_)
+        gO = torch.rand_like(out_cpu_)
+        out_cpu_.backward(gO)
         out_cuda_ = self.module_cuda_(self.input_cuda_)
-        out_cuda_.backward(self.loss_cuda_)
+        gO = gO.cuda()
+        out_cuda_.backward(gO)
         assert out_cpu_.is_cuda == False
         assert out_cuda_.is_cuda == True
         torch.testing.assert_allclose(out_cpu_, out_cuda_.cpu())
-        torch.testing.assert_allclose(self.input_cpu_.grad, self.input_cuda_.grad.cpu())
+        torch.testing.assert_allclose(self.input_.grad, self.input_cuda_.grad.cpu())
+
+    def test_layer_norm(self):
+        self._test_same_output(16)
+
+    def test_large_batch(self):
+        self._test_same_output(65536)
         
         
 class TestFusedLayerNormElemWise(TestFusedLayerNorm):
     def setUp(self):
-        self.module_cpu_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 64], elementwise_affine=True).cpu()
-        self.module_cuda_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 64], elementwise_affine=True).cuda()
-        torch.cuda.manual_seed(42)
-        self.input_ = torch.randn(16, 32, 64)
-        self.loss_ = torch.randn(16, 32, 64)
-        self.input_cpu_ = Variable(self.input_.detach().clone(), requires_grad=True)
-        self.loss_cpu_ = self.loss_.detach().clone()
-        self.input_cuda_ = Variable(self.input_.detach().clone().cuda(), requires_grad=True)
-        self.loss_cuda_ = self.loss_.detach().clone().cuda()
+        self.module_cpu_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=True).cpu()
+        self.module_cuda_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=True).cuda()
+
