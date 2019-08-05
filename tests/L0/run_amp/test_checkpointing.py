@@ -188,20 +188,18 @@ class TestCheckpointing(unittest.TestCase):
                 initial_loss_scales.append(
                     amp._amp_state.loss_scalers[idx].loss_scale())
             
-            for _ in range(max(nb_decrease_loss_scales)):
-                optimizer.zero_grad()
+            for _ in range(len(nb_decrease_loss_scales)):
                 x = torch.randn(16, 3, 24, 24, device='cuda')
                 for idx in range(num_losses):
-                    if nb_decrease_loss_scales_tmp[idx] > 0:
+                    while nb_decrease_loss_scales_tmp[idx] > 0:
+                        optimizer.zero_grad()
                         output = model(x * 2**17)
-                        nb_decrease_loss_scales_tmp[idx] -= 1
-                    else:
-                        output = model(x)
-                    loss = output.mean()            
+                        loss = output.mean()            
                     
-                    with amp.scale_loss(loss, optimizer, loss_id=idx) as scaled_loss:
-                        scaled_loss.backward(retain_graph=True)
-                optimizer.step()
+                        with amp.scale_loss(loss, optimizer, loss_id=idx) as scaled_loss:
+                            scaled_loss.backward(retain_graph=True)
+                        optimizer.step()
+                        nb_decrease_loss_scales_tmp[idx] -= 1
                 
             # Check loss scales afterwards
             updated_loss_scales = []
@@ -215,15 +213,54 @@ class TestCheckpointing(unittest.TestCase):
 
             # Check state dict
             amp_state_dict = amp.state_dict()
-            max_decrease_loss_scale = max(nb_decrease_loss_scales)
             for scaler_idx, factor, init_ls in zip(amp_state_dict,
                                                    nb_decrease_loss_scales,
                                                    initial_loss_scales):
                 scaler = amp_state_dict[scaler_idx]
                 self.assertEqual(scaler['loss_scale'], init_ls / 2**factor)
-                unskipped_target = max_decrease_loss_scale - factor
+                unskipped_target = 0
                 self.assertEqual(scaler['unskipped'], unskipped_target)
-                
+
+    def test_state_dict(self):
+        for opt_level in self.test_opt_levels:
+            # Skip O3
+            if opt_level == 'O3':
+                continue
+
+            model = MyModel().to('cuda')
+            optimizer = optim.Adam(model.parameters(), lr=1e-3)
+            model, optimizer = amp.initialize(
+                model, optimizer, opt_level=opt_level, verbosity=0)
+
+            # Export state_dict and check for Half
+            state_dict = model.state_dict()
+            for key in state_dict:
+                self.assertFalse('Half' in state_dict[key].type())
+
+            # Check, if model is still trainable
+            # Create dummy data
+            data = torch.randn(10, 3, 4, 4, device='cuda')
+            target = torch.randn(10, 6, 4, 4, device='cuda')
+            
+            # Get initnial loss
+            optimizer.zero_grad()
+            output = model(data)
+            loss = F.mse_loss(output, target)
+            with amp.scale_loss(loss, optimizer) as scaled_loss:
+                scaled_loss.backward()
+            optimizer.step()
+            last_loss = loss.item()
+
+            # train for some epochs
+            for epoch in range(10):
+                optimizer.zero_grad()
+                output = model(data)
+                loss = F.mse_loss(output, target)
+                with amp.scale_loss(loss, optimizer) as scaled_loss:
+                    scaled_loss.backward()
+                optimizer.step()
+                self.assertTrue(loss.item() < last_loss)
+                last_loss = loss.item()
 
 if __name__=='__main__':
     unittest.main()
