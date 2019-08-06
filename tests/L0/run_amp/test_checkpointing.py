@@ -43,21 +43,16 @@ class TestCheckpointing(unittest.TestCase):
             self.assertEqual(param.type(), FLOAT,
                              'Parameter in state_dict not FLOAT')
 
-    def train_step(self, model, optimizer, data, num_losses):
+    def train_step(self, model, optimizer, data, loss_ids):
         optimizer.zero_grad()        
 
         output = model(data)
 
         # Call backward for num_losses-1
-        for idx in range(1, num_losses):
-            loss = output.mean() * float(idx)
-            with amp.scale_loss(loss, optimizer) as scaled_loss:
+        for idx in loss_ids:
+            loss = output.mean()
+            with amp.scale_loss(loss, optimizer, loss_id=idx) as scaled_loss:
                 scaled_loss.backward(retain_graph=True)
-
-        # Final backward
-        loss = output.mean() * float(num_losses)
-        with amp.scale_loss(loss, optimizer) as scaled_loss:
-            scaled_loss.backward()
 
         optimizer.step()
         return output
@@ -70,8 +65,10 @@ class TestCheckpointing(unittest.TestCase):
         for key in state_dictA:
             paramA = state_dictA[key]
             paramB = state_dictB[key]
-            self.assertEqual(paramA, paramB,
-                             'Parameters in state_dicts not equal')
+            self.assertTrue(torch.allclose(paramA.float(), paramB.float(), rtol=0, atol=1e-4),
+                 msg='Parameters in state_dicts not equal.' + 
+                     'key: {}\nparam: {}\nrestored: {}\ndiff: {}'.format(
+                         key, paramA, paramB, paramA - paramB))
 
     def test_restoring(self):
         nb_epochs = 10
@@ -87,7 +84,6 @@ class TestCheckpointing(unittest.TestCase):
 #                              f'num_losses {num_losses}\n')
 
                         self.seed()
-                        restore_model_initialized = False
 
                         # Create reference model
                         model = MyModel().to('cuda')
@@ -95,21 +91,26 @@ class TestCheckpointing(unittest.TestCase):
                         optimizer = optim.SGD(model.parameters(),
                                               lr=self.initial_lr)
 
+                        # Initialize with num_losses*2 for the original model and the restored one
                         model, optimizer = amp.initialize(
-                            model, optimizer, opt_level=opt_level, num_losses=num_losses,
-                            verbosity=0)
+                            model, optimizer, opt_level=opt_level,
+                            num_losses=num_losses*2, verbosity=0)
 
-                        # train for nb_epochs and restore after nb_epochs_restore
-                        for epoch in range(nb_epochs):
-
-                            x = torch.randn(16, 3, 24, 24, device='cuda')
-                            output = self.train_step(model, optimizer, x, num_losses)
-                            # Initialize model one step before comparing.
-                            # Otherwise the batchnorm layers will be updated 
-                            # additionally in restore_model
-                            if epoch == (nb_epochs_restore - 1):
-                                # Load model and optimizer
-                                if not restore_model_initialized:
+                        # Compare training behavior for same restore option
+                        # We cannot really generalize it, since a saved model in O0
+                        # would introduce a skipped step in O1, which will raise an error
+                        if opt_level == res_opt_level:
+                            # train for nb_epochs and restore after nb_epochs_restore
+                            for epoch in range(nb_epochs):
+    
+                                x = torch.randn(16, 3, 24, 24, device='cuda')
+                                output = self.train_step(
+                                    model, optimizer, x, range(num_losses))
+                                # Initialize model one step before comparing.
+                                # Otherwise the batchnorm layers will be updated 
+                                # additionally in restore_model
+                                if epoch == (nb_epochs_restore - 1):
+                                    # Load model and optimizer
                                     checkpoint = {
                                         'model': model.state_dict(),
                                         'optimizer': optimizer.state_dict(),
@@ -129,7 +130,7 @@ class TestCheckpointing(unittest.TestCase):
                                             restore_model,
                                             restore_optimizer,
                                             opt_level=res_opt_level,
-                                            num_losses=num_losses,
+                                            num_losses=num_losses*2,
                                             verbosity=0)
 
                                     restore_model.load_state_dict(checkpoint['model'])
@@ -142,7 +143,7 @@ class TestCheckpointing(unittest.TestCase):
                                             restore_model,
                                             restore_optimizer,
                                             opt_level=res_opt_level,
-                                            num_losses=num_losses,
+                                            num_losses=num_losses*2,
                                             verbosity=0)
 
                                 elif epoch >= nb_epochs_restore:
@@ -150,16 +151,50 @@ class TestCheckpointing(unittest.TestCase):
                                         restore_model,
                                         restore_optimizer,
                                         x,
-                                        num_losses)
-
-                                    self.assertEqual(
-                                        output,
-                                        restore_output,
+                                        range(num_losses, num_losses*2))
+                                    self.assertTrue(
+                                        torch.allclose(output.float(), restore_output.float()),
                                         'Output of reference and restored models differ')
-                                    self.compare_models(
-                                        model,
-                                        restore_model,
-                                        'Parameters of reference and restored models differ')
+                                    self.compare_models(model, restore_model)
+                        # if opt_level != res_opt_level
+                        else:
+                            # Only check state_dict
+                            checkpoint = {
+                                'model': model.state_dict(),
+                                'optimizer': optimizer.state_dict(),
+                                'amp': amp.state_dict()
+                            }
+                            # Check state_dict for FP32 tensors
+                            self.check_state_dict_fp32(checkpoint['model'])
+
+                            # Restore model
+                            restore_model = MyModel().to('cuda')
+                            restore_optimizer = optim.SGD(
+                                restore_model.parameters(),
+                                lr=self.initial_lr)
+
+                            if amp_before_load:
+                                restore_model, restore_optimizer = amp.initialize(
+                                    restore_model,
+                                    restore_optimizer,
+                                    opt_level=res_opt_level,
+                                    num_losses=num_losses,
+                                    verbosity=0)
+
+                            restore_model.load_state_dict(checkpoint['model'])
+                            restore_optimizer.load_state_dict(checkpoint['optimizer'])
+                            # FIXME: We cannot test the amp.state_dict in the same script
+                            # amp.load_state_dict(checkpoint['amp'])
+
+                            if not amp_before_load:
+                                restore_model, restore_optimizer = amp.initialize(
+                                    restore_model,
+                                    restore_optimizer,
+                                    opt_level=res_opt_level,
+                                    num_losses=num_losses,
+                                    verbosity=0)
+                            
+                            self.compare_models(model, restore_model)
 
     def test_loss_scale_decrease(self):
         num_losses = 3

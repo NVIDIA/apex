@@ -225,10 +225,6 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
 
         # patch model.state_dict() to return float32 params
         for model in models:
-#            for param in model.parameters():
-#                print('param type: ', param.type())
-#            for buf in model.buffers():
-#                print('buf type: ', buf.type())
             for module in model.modules():
                 module._register_state_dict_hook(O2StateDictHook(functools.partial(to_type, torch.float32)))
 
