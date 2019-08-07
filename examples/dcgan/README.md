@@ -1,9 +1,9 @@
 # Mixed Precision DCGAN Training in PyTorch
 
 `main_amp.py` is based on [https://github.com/pytorch/examples/tree/master/dcgan](https://github.com/pytorch/examples/tree/master/dcgan).
-It implements Automatic Mixed Precision (Amp) trianing of the DCGAN example for different datasets. Command-line flags forwarded to `amp.initialize` are used to easily manipulate and switch between various pure and mixed precision "optimization levels" or `opt_level`s.  For a detailed explanation of `opt_level`s, see the [updated API guide](https://nvidia.github.io/apex/amp.html).
+It implements Automatic Mixed Precision (Amp) training of the DCGAN example for different datasets. Command-line flags forwarded to `amp.initialize` are used to easily manipulate and switch between various pure and mixed precision "optimization levels" or `opt_level`s.  For a detailed explanation of `opt_level`s, see the [updated API guide](https://nvidia.github.io/apex/amp.html).
 
-We introduce these changes to the PyTorch DCGAN example:
+We introduce these changes to the PyTorch DCGAN example as described in the [Multiple models/optimizers/losses](https://nvidia.github.io/apex/advanced.html#multiple-models-optimizers-losses) section of the documentation::
 ```
 # Added after models and optimizers construction
 [netD, netG], [optimizerD, optimizerG] = amp.initialize(
@@ -21,6 +21,7 @@ with amp.scale_loss(errG, optimizerG, loss_id=2) as errG_scaled:
 ```
 
 Note that we use different `loss_scalers` for each computed loss.
+Using a separate loss scaler per loss is [optional, not required](https://nvidia.github.io/apex/advanced.html#optionally-have-amp-use-a-different-loss-scaler-per-loss).
 
 To improve the numerical stability, we swapped `nn.Sigmoid() + nn.BCELoss()` to `nn.BCEWithLogitsLoss()`.
 
