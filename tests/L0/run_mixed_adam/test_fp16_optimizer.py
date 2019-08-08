@@ -1,6 +1,7 @@
 import unittest
 import torch
 import apex
+import os
 
 class TestFP16Optimizer(unittest.TestCase):
     def setUp(self, max_abs_diff=1e-3, max_rel_diff=1, iters=7):
@@ -35,7 +36,7 @@ class TestFP16Optimizer(unittest.TestCase):
         ref_optim = torch.optim.Adam(self.ref_model.parameters())
         ref_optim = apex.fp16_utils.FP16_Optimizer(ref_optim, verbose=False)
 
-        tst_optim = apex.optimizers.FusedAdam(self.tst_model.parameters())
+        tst_optim = apex.optimizers.FusedAdam_v1(self.tst_model.parameters())
         tst_optim = apex.optimizers.FP16_Optimizer(tst_optim)
 
         for i in range(self.iters):
@@ -57,7 +58,7 @@ class TestFP16Optimizer(unittest.TestCase):
         ref_optim = torch.optim.Adam(self.ref_model.parameters())
         ref_optim = apex.fp16_utils.FP16_Optimizer(ref_optim, static_loss_scale=128.0, verbose=False)
 
-        tst_optim = apex.optimizers.FusedAdam(self.tst_model.parameters())
+        tst_optim = apex.optimizers.FusedAdam_v1(self.tst_model.parameters())
         tst_optim = apex.optimizers.FP16_Optimizer(tst_optim, static_loss_scale=128.0)
 
         for i in range(self.iters):
@@ -80,7 +81,7 @@ class TestFP16Optimizer(unittest.TestCase):
         ref_optim = apex.fp16_utils.FP16_Optimizer(ref_optim, verbose=False)
 
         tst_groups = [{'params': [self.tst_model.weight]},{'params': [self.tst_model.bias]}]
-        tst_optim = apex.optimizers.FusedAdam(tst_groups)
+        tst_optim = apex.optimizers.FusedAdam_v1(tst_groups)
         tst_optim = apex.optimizers.FP16_Optimizer(tst_optim)
 
         for i in range(self.iters):
@@ -100,7 +101,7 @@ class TestFP16Optimizer(unittest.TestCase):
         ref_optim = torch.optim.Adam(self.ref_model.parameters())
         ref_optim = apex.fp16_utils.FP16_Optimizer(ref_optim, verbose=False)
 
-        tst_optim = apex.optimizers.FusedAdam(self.tst_model.parameters(), max_grad_norm=0.01)
+        tst_optim = apex.optimizers.FusedAdam_v1(self.tst_model.parameters(), max_grad_norm=0.01)
         tst_optim = apex.optimizers.FP16_Optimizer(tst_optim)
 
         for i in range(self.iters):

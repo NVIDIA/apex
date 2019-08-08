@@ -23,8 +23,8 @@ class TestFusedAdam(unittest.TestCase):
             tst_param.append(torch.nn.Parameter(tensor.clone()))
 
         ref_optim = torch.optim.Adam(ref_param, **adam_option)
-        tst_optim = apex.optimizers.FusedAdam_v1(tst_param, **adam_option)
-       
+        tst_optim = apex.optimizers.FusedAdam(tst_param, **adam_option)
+
         return (ref_param, tst_param, ref_optim, tst_optim)
 
     def gen_grad(self, ref_param, tst_param):
@@ -75,22 +75,7 @@ class TestFusedAdam(unittest.TestCase):
         self.gen_single_type_test(param_type=torch.float)
 
     def test_half(self):
-        nelem = 278011
-        adam_option = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08,
-            'weight_decay':0, 'amsgrad':False}
-
-        tensor = torch.rand(nelem, dtype=torch.float, device='cuda')
-        ref_param, tst_param, ref_optim, tst_optim = \
-            self.gen_param_optim([tensor], adam_option)
-
-        for i in range(self.iters):
-            half_grads = self.gen_mixed_grad(ref_param, tst_param)
-            ref_optim.step()
-            tst_optim.step(grads=half_grads)
-            max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
-
-            self.assertLessEqual(max_abs_diff, self.max_abs_diff)
-            self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+        self.gen_single_type_test(param_type=torch.float16)
 
     def test_multi_params(self):
         sizes = [[4096, 1024], [4096], [4096, 2048], [32320, 1024], [1]]
@@ -104,13 +89,14 @@ class TestFusedAdam(unittest.TestCase):
             self.gen_param_optim(tensors, adam_option)
 
         for i in range(self.iters):
-            half_grads = self.gen_mixed_grad(ref_param, tst_param)
+            self.gen_grad(ref_param, tst_param)
             ref_optim.step()
-            tst_optim.step(grads=half_grads)
+            tst_optim.step()
             max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
+    @unittest.skip('No longer support fuse scaling')
     def test_scale(self):
         nelem = 278011
         adam_option = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08,
@@ -130,6 +116,7 @@ class TestFusedAdam(unittest.TestCase):
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
+    @unittest.skip('No longer support output fp16 param')
     def test_fp16_output(self):
         nelem = 278011
         adam_option = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08,

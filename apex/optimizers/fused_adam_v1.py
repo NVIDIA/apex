@@ -2,7 +2,7 @@ import types
 import torch
 import importlib
 
-class FusedAdam(torch.optim.Optimizer):
+class FusedAdam_v1(torch.optim.Optimizer):
 
     """Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
     ``python setup.py install --cuda_ext --cpp_ext``.
@@ -44,7 +44,7 @@ class FusedAdam(torch.optim.Optimizer):
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         max_grad_norm=max_grad_norm)
-        super(FusedAdam, self).__init__(params, defaults)
+        super(FusedAdam_v1, self).__init__(params, defaults)
         self.eps_mode = 0 if  eps_inside_sqrt else 1
 
     def step(self, closure=None, grads=None, output_params=None, scale=1., grad_norms=None):
