@@ -1,9 +1,9 @@
 # Introduction
 
-This repository holds NVIDIA-maintained utilities to streamline 
-mixed precision and distributed training in Pytorch. 
+This repository holds NVIDIA-maintained utilities to streamline
+mixed precision and distributed training in Pytorch.
 Some of the code here will be included in upstream Pytorch eventually.
-The intention of Apex is to make up-to-date utilities available to 
+The intention of Apex is to make up-to-date utilities available to
 users as quickly as possible.
 
 ## Full API Documentation: [https://nvidia.github.io/apex](https://nvidia.github.io/apex)
@@ -29,7 +29,7 @@ different flags to `amp.initialize`.
 
 ## 2. Distributed Training
 
-`apex.parallel.DistributedDataParallel` is a module wrapper, similar to 
+`apex.parallel.DistributedDataParallel` is a module wrapper, similar to
 `torch.nn.parallel.DistributedDataParallel`.  It enables convenient multiprocess distributed training,
 optimized for NVIDIA's NCCL communication library.
 

@@ -55,10 +55,12 @@ std::vector<at::Tensor> welford_mean_var_c_last_CUDA(const at::Tensor input);
 // mean/inv_std have promoted data type (dtype==fp16?fp32:dtype)
 // expect data to be in n+c format (channel last) and applies CUDNN_BATCHNORM_SPATIAL
 at::Tensor batchnorm_forward_c_last_CUDA(const at::Tensor input,
+                                         const at::optional<at::Tensor> z,
                                          const at::Tensor mean,
                                          const at::Tensor inv_std,
                                          const at::optional<at::Tensor> weight,
-                                         const at::optional<at::Tensor> shift);
+                                         const at::optional<at::Tensor> shift,
+                                         const bool fuse_relu);
 
 // backward BN operation, returns {mean_dy, mean_dy_xmu, grad_weight, grad_bias}
 // grad_output/input should have identical data type;
@@ -82,6 +84,15 @@ at::Tensor batchnorm_backward_c_last_CUDA(const at::Tensor grad_output,
                                           const at::Tensor mean_dy,
                                           const at::Tensor mean_dy_xmu);
 
+at::Tensor relu_backward_c_last_CUDA(const at::Tensor grad_output,
+                                     const at::Tensor input,
+                                     const at::optional<at::Tensor> z,
+                                     const at::Tensor mean,
+                                     const at::Tensor inv_std,
+                                     const at::optional<at::Tensor> weight,
+                                     const at::optional<at::Tensor> shift);
+
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("welford_mean_var", &welford_mean_var_CUDA, "welford mean variance");
   m.def("welford_parallel", &welford_parallel_CUDA, "welford parallel reduce mean variance");
@@ -92,4 +103,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("batchnorm_forward_c_last", &batchnorm_forward_c_last_CUDA, "batchnorm forward nhwc");
   m.def("reduce_bn_c_last", &reduce_bn_c_last_CUDA, "batchnorm backwards reduce grad sum and bias/weight grad nhwc");
   m.def("batchnorm_backward_c_last", &batchnorm_backward_c_last_CUDA, "batchnorm backward dgrad nhwc");
+  m.def("relu_bw_c_last", &relu_backward_c_last_CUDA, "relu_bw_c_last");
 }

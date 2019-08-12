@@ -6,6 +6,19 @@ void multi_tensor_scale_cuda(
   std::vector<std::vector<at::Tensor>> tensor_lists,
   float scale);
 
+void multi_tensor_sgd_cuda(
+  int chunk_size,
+  at::Tensor noop_flag,
+  std::vector<std::vector<at::Tensor>> tensor_lists,
+  float wd,
+  float momentum,
+  float dampening,
+  float lr,
+  bool nesterov,
+  bool first_run,
+  bool wd_after_momentum,
+  float scale);
+
 void multi_tensor_axpby_cuda(
   int chunk_size,
   at::Tensor noop_flag,
@@ -72,6 +85,8 @@ void multi_tensor_novograd_cuda(
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("multi_tensor_scale", &multi_tensor_scale_cuda,
         "Fused overflow check + scale for a list of contiguous tensors");
+  m.def("multi_tensor_sgd", &multi_tensor_sgd_cuda,
+        "Fused SGD optimizer for list of contiguous tensors");
   m.def("multi_tensor_axpby", &multi_tensor_axpby_cuda,
         "out = a*x + b*y for a list of contiguous tensors");
   m.def("multi_tensor_l2norm", &multi_tensor_l2norm_cuda,

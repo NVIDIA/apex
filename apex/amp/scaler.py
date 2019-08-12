@@ -16,7 +16,7 @@ def scale_check_overflow_python(model_grad, master_grad, scale, check_overflow=F
         master_grad.mul_(scale)
     return False
 
-def axpby_check_overflow_python(model_grad, stashed_grad, master_grad, scale, check_overflow=False):
+def axpby_check_overflow_python(model_grad, stashed_grad, master_grad, a, b, check_overflow=False):
     # Exception handling for 18.04 compatibility
     if check_overflow:
         cpu_sum = float(model_grad.float().sum())
@@ -26,9 +26,8 @@ def axpby_check_overflow_python(model_grad, stashed_grad, master_grad, scale, ch
     # if master_grad is not model_grad: # copy_ probably internally short-circuits this
     #     master_grad.copy_(model_grad)
     assert stashed_grad.dtype == master_grad.dtype
-    converted_model_grad = model_grad.to(master_grad.dtype)
-    stashed_grad.add_(scale, converted_model_grad)
-    master_grad.data = stashed_grad.data
+    converted_model_grad = model_grad.data.to(master_grad.dtype)
+    master_grad.data = a*converted_model_grad.data + b*stashed_grad.data
     return False
 
 class LossScaler(object):
@@ -92,11 +91,13 @@ class LossScaler(object):
                     break
 
     # unused_scale keeps some of the old API alive for hopefully a short time.
-    def unscale(self, model_grads, master_grads, unused_scale, models_are_masters=False):
+    def unscale(self, model_grads, master_grads, unused_scale, models_are_masters=False, scale_override=None):
         if self._has_overflow:
             return
 
         scale = self._loss_scale
+        if scale_override is not None:
+            scale = scale_override
 
         if scale == 1.0 and models_are_masters and not self.dynamic:
             return
@@ -126,7 +127,8 @@ class LossScaler(object):
                                     model_grads,
                                     stashed_master_grads,
                                     master_grads,
-                                    scale):
+                                    a,
+                                    b):
         for model, stashed, master in zip(model_grads, stashed_master_grads, master_grads):
             if model is None and stashed is None:
                 continue
@@ -141,7 +143,8 @@ class LossScaler(object):
                 self._has_overflow = axpby_check_overflow_python(model,
                                                                  stashed,
                                                                  master,
-                                                                 1./scale,
+                                                                 a,
+                                                                 b,
                                                                  self.dynamic)
                 if self._has_overflow and self.dynamic:
                     break
@@ -149,11 +152,14 @@ class LossScaler(object):
     def unscale_with_stashed(self,
                              model_grads,
                              stashed_master_grads,
-                             master_grads):
+                             master_grads,
+                             scale_override=None):
         if self._has_overflow:
             return
 
-        scale = self._loss_scale
+        grads_have_scale, stashed_have_scale, out_scale = self._loss_scale, 1.0, 1.0
+        if scale_override is not None:
+            grads_have_scale, stashed_have_scale, out_scale = scale_override
 
         if LossScaler.has_fused_kernel:
             if (not LossScaler.warned_unscaling_non_fp32_grad
@@ -167,14 +173,15 @@ class LossScaler(object):
             multi_tensor_applier(LossScaler.multi_tensor_axpby_cuda,
                                  self._overflow_buf,
                                  [model_grads, stashed_master_grads, master_grads],
-                                 1./scale,
-                                 1.0,
+                                 out_scale/grads_have_scale,   # 1./scale,
+                                 out_scale/stashed_have_scale, # 1.0,
                                  0) # check only arg 0, aka the incoming model grads, for infs
         else:
             self.unscale_with_stashed_python(model_grads,
                                              stashed_master_grads,
                                              master_grads,
-                                             scale)
+                                             out_scale/grads_have_scale,
+                                             out_scale/stashed_have_scale)
 
         # Defer to update_scale
         # If the fused kernel is available, we only need one D2H memcopy and sync.
