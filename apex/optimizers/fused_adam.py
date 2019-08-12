@@ -2,9 +2,9 @@ import types
 import torch
 import importlib
 
-from ..multi_tensor_apply import multi_tensor_applier
+from apex.multi_tensor_apply import multi_tensor_applier
 
-class FusedAdam_v1(torch.optim.Optimizer):
+class FusedAdam(torch.optim.Optimizer):
     """Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
     ``python setup.py install --cuda_ext --cpp_ext``.
 
@@ -40,6 +40,8 @@ class FusedAdam_v1(torch.optim.Optimizer):
                  betas=(0.9, 0.999), eps=1e-8, eps_inside_sqrt = False,
                  weight_decay=0., max_grad_norm=0., amsgrad=False, use_mt=False,
                  amp_scale_adjustment=1.0):
+        print("\nFusedAdam will be removed in future. To update, use apex.optimizers.Adam with AMP.")
+
         global fused_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
 
@@ -58,7 +60,7 @@ class FusedAdam_v1(torch.optim.Optimizer):
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         max_grad_norm=max_grad_norm)
-        super(FusedAdam_v1, self).__init__(params, defaults)
+        super(FusedAdam, self).__init__(params, defaults)
         self.eps_mode = 0 if  eps_inside_sqrt else 1
 
     def step(self, closure=None, grads=None, output_params=None, scale=1., grad_norms=None):
@@ -195,4 +197,3 @@ class FusedAdam_v1(torch.optim.Optimizer):
                     group['weight_decay'])
 
         return loss
-

@@ -4,7 +4,7 @@ from torch.optim import Optimizer
 from amp_C import multi_tensor_axpby
 from apex.multi_tensor_apply import multi_tensor_applier
 
-class FusedSGD(Optimizer):
+class SGD(Optimizer):
     r"""Implements stochastic gradient descent (optionally with momentum).
     Nesterov momentum is based on the formula from
     `On the importance of initialization and momentum in deep learning`__.
@@ -52,10 +52,10 @@ class FusedSGD(Optimizer):
                         weight_decay=weight_decay, nesterov=nesterov)
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
-        super(FusedSGD, self).__init__(params, defaults)
+        super(SGD, self).__init__(params, defaults)
 
     def __setstate__(self, state):
-        super(FusedSGD, self).__setstate__(state)
+        super(SGD, self).__setstate__(state)
         for group in self.param_groups:
             group.setdefault('nesterov', False)
 

@@ -24,10 +24,10 @@ class TestFusedAdam(unittest.TestCase):
 
         ref_optim = torch.optim.Adam(ref_param, **ref_adam_option)
         if tst_adam_option:
-            tst_optim = apex.optimizers.FusedAdam_v1(tst_param, **tst_adam_option)
+            tst_optim = apex.optimizers.FusedAdam(tst_param, **tst_adam_option)
         else:
-            tst_optim = apex.optimizers.FusedAdam_v1(tst_param, **ref_adam_option)
-       
+            tst_optim = apex.optimizers.FusedAdam(tst_param, **ref_adam_option)
+
         return (ref_param, tst_param, ref_optim, tst_optim)
 
     def gen_grad(self, ref_param, tst_param):

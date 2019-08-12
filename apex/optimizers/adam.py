@@ -2,7 +2,7 @@ import torch
 from apex.multi_tensor_apply import multi_tensor_applier
 from amp_C import multi_tensor_adam
 
-class FusedAdam(torch.optim.Optimizer):
+class Adam(torch.optim.Optimizer):
 
     """Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
     ``python setup.py install --cuda_ext --cpp_ext``.
@@ -45,7 +45,7 @@ class FusedAdam(torch.optim.Optimizer):
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay)
-        super(FusedAdam, self).__init__(params, defaults)
+        super(Adam, self).__init__(params, defaults)
         self.eps_mode = 0 if  eps_inside_sqrt else 1
         self.dummy_overflow_buf = torch.cuda.IntTensor([0])
 
@@ -57,8 +57,8 @@ class FusedAdam(torch.optim.Optimizer):
                 and returns the loss.
         """
         if any(p is not None for p in [grads, output_params, scale, grad_norms]):
-            raise RuntimeError('FusedAdam has been updated, please use with AMP for mixed precision. '
-                               'For legacy code using fp16_optimizer, use FusedAdam_v1.')
+            raise RuntimeError('Adam has been updated, please use with AMP for mixed precision. '
+                               'For legacy code using fp16_optimizer, use FusedAdam.')
         loss = None
         if closure is not None:
             loss = closure()

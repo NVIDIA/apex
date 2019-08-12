@@ -2,7 +2,7 @@ import torch
 from apex.multi_tensor_apply import multi_tensor_applier
 from amp_C import multi_tensor_novograd
 
-class FusedNovoGrad(torch.optim.Optimizer):
+class NovoGrad(torch.optim.Optimizer):
 
     """Implements NovoGrad algorithm. Currently GPU-only.  Requires Apex to be installed via
     ``python setup.py install --cuda_ext --cpp_ext``.
@@ -48,12 +48,12 @@ class FusedNovoGrad(torch.optim.Optimizer):
                  grad_averaging=True, norm_type=2, init_zero=False,
                  set_grad_none=True):
         if amsgrad:
-            raise RuntimeError('FusedNovoGrad does not support the AMSGrad variant.')
+            raise RuntimeError('NovoGrad does not support the AMSGrad variant.')
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         grad_averaging=grad_averaging, norm_type=norm_type,
                         init_zero=init_zero)
-        super(FusedNovoGrad, self).__init__(params, defaults)
+        super(NovoGrad, self).__init__(params, defaults)
         self.moment_mode = 0 if reg_inside_moment else 1
         self.dummy_overflow_buf = torch.cuda.IntTensor([0])
         self.set_grad_none = set_grad_none
@@ -64,7 +64,7 @@ class FusedNovoGrad(torch.optim.Optimizer):
                 for p in group['params']:
                     p.grad = None
         else:
-            super(FusedNovoGrad, self).zero_grad()
+            super(NovoGrad, self).zero_grad()
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -96,7 +96,7 @@ class FusedNovoGrad(torch.optim.Optimizer):
                 if p.grad is None:
                     continue
                 if p.grad.data.is_sparse:
-                    raise RuntimeError('FusedNovoGrad does not support sparse gradients, please consider SparseAdam instead')
+                    raise RuntimeError('NovoGrad does not support sparse gradients, please consider SparseAdam instead')
 
                 state = self.state[p]
                 # State initialization
@@ -119,7 +119,7 @@ class FusedNovoGrad(torch.optim.Optimizer):
                     elif group['norm_type'] == 2:
                         m2 = [torch.sum(torch.pow(g, 2)).sqrt().item() for g in g_list]
                     else:
-                        raise RuntimeError('FusedNovoGrad only support l2/inf norm now.')
+                        raise RuntimeError('NovoGrad only support l2/inf norm now.')
                     group['exp_avg_sq'] = torch.cuda.FloatTensor(m2)
             else:
                 assert(len(g_list) == group['exp_avg_sq'].numel())

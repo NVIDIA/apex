@@ -53,6 +53,9 @@ class FusedSGD(Optimizer):
                  weight_decay=0, nesterov=False,
                  wd_after_momentum=False,
                  materialize_master_grads=True):
+
+        print("\nFusedSGD will be removed in future. To update, use apex.optimizers.SGD with AMP.")
+
         if lr is not required and lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if momentum < 0.0:
