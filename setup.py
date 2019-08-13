@@ -2,7 +2,9 @@ import torch
 from setuptools import setup, find_packages
 import subprocess
 
+from pip._internal import main as pipmain
 import sys
+import warnings
 
 if not torch.cuda.is_available():
     print("\nWarning: Torch did not find available GPUs on this system.\n",
@@ -18,6 +20,17 @@ if TORCH_MAJOR == 0 and TORCH_MINOR < 4:
 
 cmdclass = {}
 ext_modules = []
+
+if "--pyprof" in sys.argv:
+    with open('requirements.txt') as f:
+        required_packages = f.read().splitlines()
+        pipmain(["install"] + required_packages)
+    try:
+        sys.argv.remove("--pyprof")
+    except:
+        pass
+else:
+    warnings.warn("Option --pyprof not specified. Not installing PyProf dependencies!")
 
 if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
     if TORCH_MAJOR == 0:
