@@ -10,7 +10,6 @@ from ._process_optimizer import _process_optimizer
 from apex.fp16_utils import convert_network
 from ..fp16_utils import FP16_Optimizer as FP16_Optimizer_general
 from ..optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
-from ..optimizers import FusedAdam
 from ..parallel import DistributedDataParallel as apex_DDP
 from ..parallel.LARC import LARC
 

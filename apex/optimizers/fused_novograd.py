@@ -1,7 +1,7 @@
 import torch
 from apex.multi_tensor_apply import multi_tensor_applier
 
-class NovoGrad(torch.optim.Optimizer):
+class FusedNovoGrad(torch.optim.Optimizer):
 
     """Implements NovoGrad algorithm. Currently GPU-only.  Requires Apex to be installed via
     ``python setup.py install --cuda_ext --cpp_ext``.
@@ -47,19 +47,19 @@ class NovoGrad(torch.optim.Optimizer):
                  grad_averaging=True, norm_type=2, init_zero=False,
                  set_grad_none=True):
         if amsgrad:
-            raise RuntimeError('NovoGrad does not support the AMSGrad variant.')
+            raise RuntimeError('FusedNovoGrad does not support the AMSGrad variant.')
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         grad_averaging=grad_averaging, norm_type=norm_type,
                         init_zero=init_zero)
-        super(NovoGrad, self).__init__(params, defaults)
+        super(FusedNovoGrad, self).__init__(params, defaults)
         if multi_tensor_applier.available:
             import amp_C
             # Skip buffer
             self._dummy_overflow_buf = torch.cuda.IntTensor([0])
             self.multi_tensor_novograd = amp_C.multi_tensor_novograd
         else:
-            raise RuntimeError('apex.optimizers.NovoGrad requires cuda extensions')
+            raise RuntimeError('apex.optimizers.FusedNovoGrad requires cuda extensions')
 
         self.moment_mode = 0 if reg_inside_moment else 1
         self.set_grad_none = set_grad_none
@@ -70,7 +70,7 @@ class NovoGrad(torch.optim.Optimizer):
                 for p in group['params']:
                     p.grad = None
         else:
-            super(NovoGrad, self).zero_grad()
+            super(FusedNovoGrad, self).zero_grad()
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -103,7 +103,7 @@ class NovoGrad(torch.optim.Optimizer):
                 if p.grad is None:
                     continue
                 if p.grad.data.is_sparse:
-                    raise RuntimeError('NovoGrad does not support sparse gradients, please consider SparseAdam instead')
+                    raise RuntimeError('FusedNovoGrad does not support sparse gradients, please consider SparseAdam instead')
 
                 state = self.state[p]
                 # State initialization
@@ -120,7 +120,7 @@ class NovoGrad(torch.optim.Optimizer):
                     p_32.append(p.data)
                     m_32.append(state['exp_avg'])
                 else:
-                    raise RuntimeError('NovoGrad only support fp16 and fp32.')
+                    raise RuntimeError('FusedNovoGrad only support fp16 and fp32.')
 
             # we store per weight norm as one tensor for one group/precision combination
             # different from optim.Adam, we store norm here(not ^2) so we can unify calculation for norm types
@@ -137,7 +137,7 @@ class NovoGrad(torch.optim.Optimizer):
                         v_16 = [torch.sum(torch.pow(g, 2)).sqrt().item() for g in g_16]
                         v_32 = [torch.sum(torch.pow(g, 2)).sqrt().item() for g in g_32]
                     else:
-                        raise RuntimeError('NovoGrad only support l2/inf norm now.')
+                        raise RuntimeError('FusedNovoGrad only support l2/inf norm now.')
                     group['exp_avg_sq'][0] = torch.cuda.FloatTensor(v_16)
                     group['exp_avg_sq'][1] = torch.cuda.FloatTensor(v_32)
             else:

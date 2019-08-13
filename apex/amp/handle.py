@@ -113,7 +113,7 @@ def scale_loss(loss,
         for optimizer in optimizers:
             optimizer._amp_stash.params_have_scaled_gradients = True
     else:
-        # FusedAdam and FusedSGD may take care of unscaling as part of their step() methods.
+        # FusedSGD may take care of unscaling as part of their step() methods.
         # if not isinstance(optimizers, FP16_Optimizer_for_fused):
             loss_scaler.clear_overflow_state()
             for optimizer in optimizers:
