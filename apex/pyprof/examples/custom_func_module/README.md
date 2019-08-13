@@ -1,0 +1,1 @@
+This directory has examples which show how to intercept (monkey patch) custom functions and modules with `pyprof`. No changes are required in `pyprof/parse`, however, users can add support for bytes and flops calculation for custom functions and modules in `pyprof/prof` by extending the `OperatorLayerBase` class.

@@ -1,7 +1,7 @@
 import unittest
 import sys
 
-test_dirs = ["run_amp", "run_fp16util", "run_fused_layer_norm", "run_optimizers"]
+test_dirs = ["run_amp", "run_fp16util", "run_optimizers", "run_fused_layer_norm", "run_pyprof_nvtx"]
 
 runner = unittest.TextTestRunner(verbosity=2)
 
