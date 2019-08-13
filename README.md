@@ -56,7 +56,7 @@ Synchronous BN has been observed to improve converged accuracy in some of our re
 
 ### Checkpointing
 
-To properly save and load your `amp` training, we introduce the `amp.state_dict()`, which contains all `loss_scalers` as well as their corresponding unskipped steps,
+To properly save and load your `amp` training, we introduce the `amp.state_dict()`, which contains all `loss_scalers` and their corresponding unskipped steps,
 as well as `amp.load_state_dict()` to restore these attributes.
 
 In order to get bitwise accuracy, we recommend the following workflow:
