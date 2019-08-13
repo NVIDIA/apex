@@ -1,9 +1,7 @@
 import torch
-from torch.optim import Optimizer
-
 from apex.multi_tensor_apply import multi_tensor_applier
 
-class SGD(Optimizer):
+class SGD(torch.optim.Optimizer):
     r"""Implements stochastic gradient descent (optionally with momentum).
     Nesterov momentum is based on the formula from
     `On the importance of initialization and momentum in deep learning`__.
@@ -62,7 +60,7 @@ class SGD(Optimizer):
             self.multi_tensor_axpby = amp_C.multi_tensor_axpby
             self.multi_tensor_sgd = amp_C.multi_tensor_sgd
         else:
-            raise RuntimeError('apex.optimizers.FusedSGD requires cuda extensions')
+            raise RuntimeError('apex.optimizers.SGD requires cuda extensions')
 
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")

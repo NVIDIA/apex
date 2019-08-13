@@ -1,6 +1,5 @@
 import torch
 from apex.multi_tensor_apply import multi_tensor_applier
-from amp_C import multi_tensor_novograd
 
 class NovoGrad(torch.optim.Optimizer):
 
@@ -54,8 +53,15 @@ class NovoGrad(torch.optim.Optimizer):
                         grad_averaging=grad_averaging, norm_type=norm_type,
                         init_zero=init_zero)
         super(NovoGrad, self).__init__(params, defaults)
+        if multi_tensor_applier.available:
+            import amp_C
+            # Skip buffer
+            self._dummy_overflow_buf = torch.cuda.IntTensor([0])
+            self.multi_tensor_novograd = amp_C.multi_tensor_novograd
+        else:
+            raise RuntimeError('apex.optimizers.NovoGrad requires cuda extensions')
+
         self.moment_mode = 0 if reg_inside_moment else 1
-        self.dummy_overflow_buf = torch.cuda.IntTensor([0])
         self.set_grad_none = set_grad_none
 
     def zero_grad(self):
@@ -90,7 +96,8 @@ class NovoGrad(torch.optim.Optimizer):
                 group['step'] = 1
 
             # create lists for multi-tensor apply
-            p_list, g_list, m1_list = [], [], []
+            g_16, p_16, m_16 = [], [], []
+            g_32, p_32, m_32 = [], [], []
 
             for p in group['params']:
                 if p.grad is None:
@@ -104,39 +111,69 @@ class NovoGrad(torch.optim.Optimizer):
                     # Exponential moving average of gradient values
                     state['exp_avg'] = torch.zeros_like(p.data)
 
-                p_list.append(p.data)
-                g_list.append(p.grad.data)
-                m1_list.append(state['exp_avg'])
+                if p.dtype == torch.float16:
+                    g_16.append(p.grad.data)
+                    p_16.append(p.data)
+                    m_16.append(state['exp_avg'])
+                elif p.dtype == torch.float32:
+                    g_32.append(p.grad.data)
+                    p_32.append(p.data)
+                    m_32.append(state['exp_avg'])
+                else:
+                    raise RuntimeError('NovoGrad only support fp16 and fp32.')
 
-            # we will store per weight norm as one tensor for a group
-            # different rom optim.Adam, we store norm here(not ^2) so we can unify 2 norm type
+            # we store per weight norm as one tensor for one group/precision combination
+            # different from optim.Adam, we store norm here(not ^2) so we can unify calculation for norm types
             if 'exp_avg_sq' not in group:
+                group['exp_avg_sq'] = [None, None]
                 if group['init_zero']:
-                    group['exp_avg_sq'] = torch.cuda.FloatTensor(len(g_list)).contiguous().fill_(0)
+                    group['exp_avg_sq'][0] = torch.cuda.FloatTensor(len(g_16)).contiguous().fill_(0)
+                    group['exp_avg_sq'][1] = torch.cuda.FloatTensor(len(g_32)).contiguous().fill_(0)
                 else: # init with first step norm, so first blend have no effect
                     if group['norm_type'] == 0:
-                        m2 = [torch.max(torch.abs(g)).item() for g in g_list]
+                        v_16 = [torch.max(torch.abs(g)).item() for g in g_16]
+                        v_32 = [torch.max(torch.abs(g)).item() for g in g_32]
                     elif group['norm_type'] == 2:
-                        m2 = [torch.sum(torch.pow(g, 2)).sqrt().item() for g in g_list]
+                        v_16 = [torch.sum(torch.pow(g, 2)).sqrt().item() for g in g_16]
+                        v_32 = [torch.sum(torch.pow(g, 2)).sqrt().item() for g in g_32]
                     else:
                         raise RuntimeError('NovoGrad only support l2/inf norm now.')
-                    group['exp_avg_sq'] = torch.cuda.FloatTensor(m2)
+                    group['exp_avg_sq'][0] = torch.cuda.FloatTensor(v_16)
+                    group['exp_avg_sq'][1] = torch.cuda.FloatTensor(v_32)
             else:
-                assert(len(g_list) == group['exp_avg_sq'].numel())
+                assert(len(g_16) == group['exp_avg_sq'][0].numel())
+                assert(len(g_32) == group['exp_avg_sq'][1].numel())
 
-            multi_tensor_applier(multi_tensor_novograd,
-                                 self.dummy_overflow_buf,
-                                 [g_list, p_list, m1_list],
-                                 group['exp_avg_sq'],
-                                 group['lr'],
-                                 beta1,
-                                 beta2,
-                                 group['eps'],
-                                 group['step'],
-                                 bias_correction,
-                                 group['weight_decay'],
-                                 grad_averaging,
-                                 self.moment_mode,
-                                 group['norm_type'])
+            if(len(g_16) > 0):
+                multi_tensor_applier(self.multi_tensor_novograd,
+                                     self._dummy_overflow_buf,
+                                     [g_16, p_16, m_16],
+                                     group['exp_avg_sq'][0],
+                                     group['lr'],
+                                     beta1,
+                                     beta2,
+                                     group['eps'],
+                                     group['step'],
+                                     bias_correction,
+                                     group['weight_decay'],
+                                     grad_averaging,
+                                     self.moment_mode,
+                                     group['norm_type'])
+            if(len(g_32) > 0):
+                multi_tensor_applier(self.multi_tensor_novograd,
+                                     self._dummy_overflow_buf,
+                                     [g_32, p_32, m_32],
+                                     group['exp_avg_sq'][1],
+                                     group['lr'],
+                                     beta1,
+                                     beta2,
+                                     group['eps'],
+                                     group['step'],
+                                     bias_correction,
+                                     group['weight_decay'],
+                                     grad_averaging,
+                                     self.moment_mode,
+                                     group['norm_type'])
+
 
         return loss
