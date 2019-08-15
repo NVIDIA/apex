@@ -29,7 +29,7 @@ class Properties(object):
     Currently not intended to be exposed; users are expected to select an opt_level
     and apply consistent modifications.
     """
-    def _update_options_dict(new_options):
+    def _update_options_dict(self, new_options):
         for k, v in new_options:
             if k in self.options:
                 self.options[k] = v
