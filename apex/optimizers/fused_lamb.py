@@ -1,0 +1,149 @@
+import torch
+from apex.multi_tensor_apply import multi_tensor_applier
+
+class FusedLAMB(torch.optim.Optimizer):
+
+    """Implements LAMB algorithm. Currently GPU-only.  Requires Apex to be installed via
+    ``python setup.py install --cuda_ext --cpp_ext``.
+
+    It has been proposed in `Large Batch Optimization for Deep Learning: Training BERT in 76 minutes`_.
+
+    Arguments:
+        params (iterable): iterable of parameters to optimize or dicts defining
+            parameter groups.
+        lr (float, optional): learning rate. (default: 1e-3)
+        betas (Tuple[float, float], optional): coefficients used for computing
+            running averages of gradient and its norm. (default: (0.9, 0.999))
+        eps (float, optional): term added to the denominator to improve
+            numerical stability. (default: 1e-8)
+        weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
+        amsgrad (boolean, optional): whether to use the AMSGrad variant of this
+            algorithm from the paper `On the Convergence of Adam and Beyond`_
+            NOT SUPPORTED now! (default: False)
+        reg_inside_moment (bool, optional): whether do regularization (norm and L2)
+            in momentum calculation. True for include, False for not include and
+            only do it on update term. (default: False)
+        grad_averaging (bool, optional): whether apply (1-beta2) to grad when
+            calculating running averages of gradient. (default: True)
+        set_grad_none (bool, optional): whether set grad to None when zero_grad()
+            method is called. (default: True)
+        max_grad_norm (float, optional): value used to clip global grad norm
+            (default: 1.0)
+
+    """
+
+    def __init__(self, params, lr=1e-3, bias_correction=True,
+                 betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01,
+                 amsgrad=False, reg_inside_moment=False,
+                 grad_averaging=True, set_grad_none=True,
+                 max_grad_norm=1.0):
+        if amsgrad:
+            raise RuntimeError('FusedLAMB does not support the AMSGrad variant.')
+        defaults = dict(lr=lr, bias_correction=bias_correction,
+                        betas=betas, eps=eps, weight_decay=weight_decay,
+                        grad_averaging=grad_averaging,
+                        max_grad_norm=max_grad_norm)
+        super(FusedLAMB, self).__init__(params, defaults)
+        if multi_tensor_applier.available:
+            import amp_C
+            # Skip buffer
+            self._dummy_overflow_buf = torch.cuda.IntTensor([0])
+            self.multi_tensor_lamb = amp_C.multi_tensor_lamb
+        else:
+            raise RuntimeError('apex.optimizers.FusedLAMB requires cuda extensions')
+
+        self.moment_mode = 0 if reg_inside_moment else 1
+        self.set_grad_none = set_grad_none
+
+    def zero_grad(self):
+        if self.set_grad_none:
+            for group in self.param_groups:
+                for p in group['params']:
+                    p.grad = None
+        else:
+            super(FusedLAMB, self).zero_grad()
+
+    def step(self, closure=None):
+        """Performs a single optimization step.
+
+        Arguments:
+            closure (callable, optional): A closure that reevaluates the model
+                and returns the loss.
+        """
+        loss = None
+        if closure is not None:
+            loss = closure()
+
+        for group in self.param_groups:
+            bias_correction = 1 if group['bias_correction'] else 0
+            beta1, beta2 = group['betas']
+            grad_averaging = 1 if group['grad_averaging'] else 0
+
+            # assume same step across group now to simplify things
+            # per parameter step can be easily support by making it tensor, or pass list into kernel
+            if 'step' in group:
+                group['step'] += 1
+            else:
+                group['step'] = 1
+
+            # create lists for multi-tensor apply
+            g_16, p_16, m_16, v_16 = [], [], [], []
+            g_32, p_32, m_32, v_32 = [], [], [], []
+
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                if p.grad.data.is_sparse:
+                    raise RuntimeError('FusedLAMB does not support sparse gradients, please consider SparseAdam instead')
+
+                state = self.state[p]
+                # State initialization
+                if len(state) == 0:
+                    # Exponential moving average of gradient values
+                    state['exp_avg'] = torch.zeros_like(p.data)
+                    # Exponential moving average of gradient values
+                    state['exp_avg_sq'] = torch.zeros_like(p.data)
+
+                if p.dtype == torch.float16:
+                    g_16.append(p.grad.data)
+                    p_16.append(p.data)
+                    m_16.append(state['exp_avg'])
+                    v_16.append(state['exp_avg_sq'])
+                elif p.dtype == torch.float32:
+                    g_32.append(p.grad.data)
+                    p_32.append(p.data)
+                    m_32.append(state['exp_avg'])
+                    v_32.append(state['exp_avg_sq'])
+                else:
+                    raise RuntimeError('FusedLAMB only support fp16 and fp32.')
+
+            if(len(g_16) > 0):
+                multi_tensor_applier(self.multi_tensor_lamb,
+                                     self._dummy_overflow_buf,
+                                     [g_16, p_16, m_16, v_16],
+                                     group['lr'],
+                                     beta1,
+                                     beta2,
+                                     group['eps'],
+                                     group['step'],
+                                     bias_correction,
+                                     group['weight_decay'],
+                                     grad_averaging,
+                                     self.moment_mode,
+                                     group['max_grad_norm'])
+            if(len(g_32) > 0):
+                multi_tensor_applier(self.multi_tensor_lamb,
+                                     self._dummy_overflow_buf,
+                                     [g_32, p_32, m_32, v_32],
+                                     group['lr'],
+                                     beta1,
+                                     beta2,
+                                     group['eps'],
+                                     group['step'],
+                                     bias_correction,
+                                     group['weight_decay'],
+                                     grad_averaging,
+                                     self.moment_mode,
+                                     group['max_grad_norm'])
+
+        return loss
