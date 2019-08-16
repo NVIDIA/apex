@@ -131,10 +131,10 @@ class FusedNovoGrad(torch.optim.Optimizer):
                     group['exp_avg_sq'][1] = torch.cuda.FloatTensor(len(g_32)).contiguous().fill_(0)
                 else: # init with first step norm, so first blend have no effect
                     if group['norm_type'] == 0:
-                        v_16 = [torch.max(torch.abs(g)).item() for g in g_16]
+                        v_16 = [torch.max(torch.abs(g.to(torch.float32))).item() for g in g_16]
                         v_32 = [torch.max(torch.abs(g)).item() for g in g_32]
                     elif group['norm_type'] == 2:
-                        v_16 = [torch.sum(torch.pow(g, 2)).sqrt().item() for g in g_16]
+                        v_16 = [torch.sum(torch.pow(g.to(torch.float32), 2)).sqrt().item() for g in g_16]
                         v_32 = [torch.sum(torch.pow(g, 2)).sqrt().item() for g in g_32]
                     else:
                         raise RuntimeError('FusedNovoGrad only support l2/inf norm now.')
