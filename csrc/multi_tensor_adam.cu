@@ -14,10 +14,11 @@
 #define ILP 4
 
 typedef enum{
-  ADAM_MODE_0   =0, // eps under square root
-  ADAM_MODE_1   =1  // eps outside square root
+  ADAM_MODE_0   =0, // L2 regularization mode
+  ADAM_MODE_1   =1  // Decoupled weight decay mode(AdamW)
 } adamMode_t;
 
+using MATH_T = float;
 
 template<typename T>
 struct AdamFunctor
@@ -28,8 +29,10 @@ struct AdamFunctor
     TensorListMetadata<4>& tl,
     const float beta1,
     const float beta2,
-    const float eps,
-    const float step_size,
+    const float beta1_correction,
+    const float beta2_correction,
+    const float epsilon,
+    const float lr,
     adamMode_t mode,
     const float decay)
   {
@@ -64,10 +67,10 @@ struct AdamFunctor
             i_start < n && i_start < chunk_size;
             i_start += blockDim.x*ILP)
     {
-      T r_g[ILP];
-      T r_p[ILP];
-      T r_m[ILP];
-      T r_v[ILP];
+      MATH_T r_g[ILP];
+      MATH_T r_p[ILP];
+      MATH_T r_m[ILP];
+      MATH_T r_v[ILP];
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
@@ -79,24 +82,34 @@ struct AdamFunctor
           r_m[ii] = m[i];
           r_v[ii] = v[i];
         } else {
-          r_g[ii] = T(0);
-          r_p[ii] = T(0);
-          r_m[ii] = T(0);
-          r_v[ii] = T(0);
+          r_g[ii] = MATH_T(0);
+          r_p[ii] = MATH_T(0);
+          r_m[ii] = MATH_T(0);
+          r_v[ii] = MATH_T(0);
         }
       }
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
-        r_m[ii] = beta1 * r_m[ii] + (1-beta1) * r_g[ii];
-        r_v[ii] = beta2 * r_v[ii] + (1-beta2) * r_g[ii] * r_g[ii];
-        T denom;
-        if (mode == ADAM_MODE_0)
-          denom = sqrtf(r_v[ii] + eps);
-        else // Mode 1
-          denom = sqrtf(r_v[ii]) + eps;
-        T update = (r_m[ii] / denom) + (decay * r_p[ii]);
-        r_p[ii] = r_p[ii] - (step_size * update);
+        if(mode == ADAM_MODE_0) { // L2
+          r_g[ii] = r_g[ii] + (decay * r_p[ii]);
+          r_m[ii] = beta1 * r_m[ii] + (1-beta1) * r_g[ii];
+          r_v[ii] = beta2 * r_v[ii] + (1-beta2) * r_g[ii] * r_g[ii];
+          MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
+          MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
+          MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
+          MATH_T update = next_m_unbiased / denom;
+          r_p[ii] = r_p[ii] - (lr * update);
+        }
+        else { // weight decay
+          r_m[ii] = beta1 * r_m[ii] + (1-beta1) * r_g[ii];
+          r_v[ii] = beta2 * r_v[ii] + (1-beta2) * r_g[ii] * r_g[ii];
+          MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
+          MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
+          MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
+          MATH_T update = (next_m_unbiased / denom) + (decay * r_p[ii]);
+          r_p[ii] = r_p[ii] - (lr * update);
+        }
       }
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
@@ -122,20 +135,17 @@ void multi_tensor_adam_cuda(
   const float beta2,
   const float epsilon,
   const int step,
-  const int eps_mode,
+  const int mode,
   const int bias_correction,
   const float weight_decay)
 {
   using namespace at;
 
-  float step_size = 0;
+  // Handle bias correction mode
+  float bias_correction1 = 1.0f, bias_correction2 = 1.0f;
   if (bias_correction == 1) {
-    const float bias_correction1 = 1 - std::pow(beta1, step);
-    const float bias_correction2 = 1 - std::pow(beta2, step);
-    step_size = lr * std::sqrt(bias_correction2)/bias_correction1;
-  }
-  else {
-    step_size = lr;
+    bias_correction1 = 1 - std::pow(beta1, step);
+    bias_correction2 = 1 - std::pow(beta2, step);
   }
 
   // Assume single type across p,g,m1,m2 now
@@ -149,9 +159,11 @@ void multi_tensor_adam_cuda(
       AdamFunctor<scalar_t_0>(),
       beta1,
       beta2,
+      bias_correction1,
+      bias_correction2,
       epsilon,
-      step_size,
-      (adamMode_t) eps_mode,
+      lr,
+      (adamMode_t) mode,
       weight_decay); )
 
   AT_CUDA_CHECK(cudaGetLastError());

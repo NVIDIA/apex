@@ -14,9 +14,9 @@
 #define ILP 4
 
 typedef enum{
-  MOMENT_MODE_0   =0, // Momentum with denom/decay, optional grad averaging after
-  MOMENT_MODE_1   =1  // Momentum without denom/decay
-} momentMode_t;
+  MOMENT_MODE_0   =0, // L2 regularization mode
+  MOMENT_MODE_1   =1  // Decoupled weight decay mode
+} adamMode_t;
 
 std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
   int chunk_size,
@@ -39,7 +39,7 @@ struct LAMBStage1Functor
     const float beta1_correction,
     const float beta2_correction,
     const float epsilon,
-    momentMode_t m_mode,
+    adamMode_t mode,
     const float decay,
     float* global_grad_norm,
     float max_global_grad_norm)
@@ -103,15 +103,15 @@ struct LAMBStage1Functor
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
-        if (m_mode == MOMENT_MODE_0) {
+        if (mode == MOMENT_MODE_0) {
           MATH_T scaled_grad = r_g[ii] / clipped_global_grad_norm;
-          // L2 on grad
+          // L2 on scaled grad
           scaled_grad = scaled_grad + decay*r_p[ii];
           r_m[ii] = r_m[ii] * beta1 + beta3 * scaled_grad;
           r_v[ii] = r_v[ii] * beta2 + (1-beta2) * scaled_grad * scaled_grad;
           MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
           MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
-          MATH_T denom = std::sqrt(next_v_unbiased) + epsilon;
+          MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
           r_p[ii] = next_m_unbiased / denom;
         }
         else {
@@ -120,7 +120,7 @@ struct LAMBStage1Functor
           r_v[ii] = r_v[ii] * beta2 + (1-beta2) * scaled_grad * scaled_grad;
           MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
           MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
-          MATH_T denom = std::sqrt(next_v_unbiased) + epsilon;
+          MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
           r_p[ii] = (next_m_unbiased/denom) + (decay*r_p[ii]);
         }
       }
@@ -220,7 +220,7 @@ void multi_tensor_lamb_cuda(
   const int bias_correction,
   const float weight_decay,
   const int grad_averaging,
-  const int moment_mode,
+  const int mode,
   const float max_grad_norm)
 {
   using namespace at;
@@ -263,7 +263,7 @@ void multi_tensor_lamb_cuda(
         bias_correction1,
         bias_correction2,
         epsilon,
-        (momentMode_t) moment_mode,
+        (adamMode_t) mode,
         weight_decay,
         std::get<0>(grad_norm_tuple).data<float>(),
         max_grad_norm); )

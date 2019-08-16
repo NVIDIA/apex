@@ -26,10 +26,8 @@ class FusedAdam(torch.optim.Optimizer):
         amsgrad (boolean, optional): whether to use the AMSGrad variant of this
             algorithm from the paper `On the Convergence of Adam and Beyond`_
             (default: False) NOT SUPPORTED in FusedAdam!
-        eps_inside_sqrt (boolean, optional): in the 'update parameters' step,
-            adds eps to the bias-corrected second moment estimate before
-            evaluating square root instead of adding it to the square root of
-            second moment estimate as in the original paper. (default: False)
+        adam_w_mode (boolean, optional): Apply L2 regularization or weight decay
+            True for decoupled weight decay(also known as AdamW) (default: True)
 
     .. _Adam\: A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
@@ -37,8 +35,8 @@ class FusedAdam(torch.optim.Optimizer):
         https://openreview.net/forum?id=ryQu7f-RZ
     """
 
-    def __init__(self, params, lr=1e-3, bias_correction = True,
-                 betas=(0.9, 0.999), eps=1e-8, eps_inside_sqrt = False,
+    def __init__(self, params, lr=1e-3, bias_correction=True,
+                 betas=(0.9, 0.999), eps=1e-8, adam_w_mode=True,
                  weight_decay=0., amsgrad=False):
 
         if amsgrad:
@@ -46,7 +44,7 @@ class FusedAdam(torch.optim.Optimizer):
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay)
         super(FusedAdam, self).__init__(params, defaults)
-        self.eps_mode = 0 if  eps_inside_sqrt else 1
+        self.adam_w_mode = 1 if adam_w_mode else 0
         self.dummy_overflow_buf = torch.cuda.IntTensor([0])
 
     def step(self, closure=None, grads=None, output_params=None, scale=None, grad_norms=None):
@@ -103,7 +101,7 @@ class FusedAdam(torch.optim.Optimizer):
                                  beta2,
                                  group['eps'],
                                  group['step'],
-                                 self.eps_mode,
+                                 self.adam_w_mode,
                                  bias_correction,
                                  group['weight_decay'])
 

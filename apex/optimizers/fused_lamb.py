@@ -20,9 +20,8 @@ class FusedLAMB(torch.optim.Optimizer):
         amsgrad (boolean, optional): whether to use the AMSGrad variant of this
             algorithm from the paper `On the Convergence of Adam and Beyond`_
             NOT SUPPORTED now! (default: False)
-        reg_inside_moment (bool, optional): whether do regularization (norm and L2)
-            in momentum calculation. True for include, False for not include and
-            only do it on update term. (default: False)
+        adam_w_mode (boolean, optional): Apply L2 regularization or weight decay
+            True for decoupled weight decay(also known as AdamW) (default: True)
         grad_averaging (bool, optional): whether apply (1-beta2) to grad when
             calculating running averages of gradient. (default: True)
         set_grad_none (bool, optional): whether set grad to None when zero_grad()
@@ -34,7 +33,7 @@ class FusedLAMB(torch.optim.Optimizer):
 
     def __init__(self, params, lr=1e-3, bias_correction=True,
                  betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01,
-                 amsgrad=False, reg_inside_moment=False,
+                 amsgrad=False, adam_w_mode=True,
                  grad_averaging=True, set_grad_none=True,
                  max_grad_norm=1.0):
         if amsgrad:
@@ -52,7 +51,7 @@ class FusedLAMB(torch.optim.Optimizer):
         else:
             raise RuntimeError('apex.optimizers.FusedLAMB requires cuda extensions')
 
-        self.moment_mode = 0 if reg_inside_moment else 1
+        self.adam_w_mode = 1 if adam_w_mode else 0
         self.set_grad_none = set_grad_none
 
     def zero_grad(self):
@@ -129,7 +128,7 @@ class FusedLAMB(torch.optim.Optimizer):
                                      bias_correction,
                                      group['weight_decay'],
                                      grad_averaging,
-                                     self.moment_mode,
+                                     self.adam_w_mode,
                                      group['max_grad_norm'])
             if(len(g_32) > 0):
                 multi_tensor_applier(self.multi_tensor_lamb,
@@ -143,7 +142,7 @@ class FusedLAMB(torch.optim.Optimizer):
                                      bias_correction,
                                      group['weight_decay'],
                                      grad_averaging,
-                                     self.moment_mode,
+                                     self.adam_w_mode,
                                      group['max_grad_norm'])
 
         return loss

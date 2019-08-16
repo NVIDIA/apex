@@ -14,8 +14,8 @@
 #define ILP 4
 
 typedef enum{
-  MOMENT_MODE_0   =0, // Momentum with denom/decay, optional grad averaging after
-  MOMENT_MODE_1   =1  // Momentum without denom/decay
+  MOMENT_MODE_0   =0, // Novograd paper mode, momentum caculation with denom then decay inside
+  MOMENT_MODE_1   =1  // Decoupled weight decay mode
 } momentMode_t;
 
 void multi_tensor_norm_out_cuda(
@@ -27,6 +27,8 @@ void multi_tensor_norm_out_cuda(
   const float beta,
   const int norm_type);
 
+using MATH_T = float;
+
 template<typename T>
 struct NovoGradFunctor
 {
@@ -37,8 +39,10 @@ struct NovoGradFunctor
     const float beta1,
     const float beta2,
     const float beta3,
-    const float eps,
-    const float step_size,
+    const float beta1_correction,
+    const float beta2_correction,
+    const float epsilon,
+    const float lr,
     momentMode_t m_mode,
     const float decay,
     const float* per_tensor_grad_norm)
@@ -70,9 +74,9 @@ struct NovoGradFunctor
             i_start < n && i_start < chunk_size;
             i_start += blockDim.x*ILP)
     {
-      T r_g[ILP];
-      T r_p[ILP];
-      T r_m[ILP];
+      MATH_T r_g[ILP];
+      MATH_T r_p[ILP];
+      MATH_T r_m[ILP];
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
@@ -83,25 +87,29 @@ struct NovoGradFunctor
           r_p[ii] = p[i];
           r_m[ii] = m[i];
         } else {
-          r_g[ii] = T(0);
-          r_p[ii] = T(0);
-          r_m[ii] = T(0);
+          r_g[ii] = MATH_T(0);
+          r_p[ii] = MATH_T(0);
+          r_m[ii] = MATH_T(0);
         }
       }
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
         if (m_mode == MOMENT_MODE_0) {
-          T denom = grad_norm + eps;
+          MATH_T next_v_unbiased = grad_norm / beta2_correction;
+          MATH_T denom = next_v_unbiased + epsilon;
           r_g[ii] = (r_g[ii] / denom) + (decay * r_p[ii]);
           r_m[ii] = beta1 * r_m[ii] + beta3 * r_g[ii];
-          r_p[ii] = r_p[ii] - (step_size * r_m[ii]);
+          MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
+          r_p[ii] = r_p[ii] - (lr * next_m_unbiased);
         }
         else {
           r_m[ii] = beta1 * r_m[ii] + beta3 * r_g[ii];
-          T denom = grad_norm + eps;
-          T update = (r_m[ii] / denom) + (decay * r_p[ii]);
-          r_p[ii] = r_p[ii] - (step_size * update);
+          MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
+          MATH_T next_v_unbiased = grad_norm / beta2_correction;
+          MATH_T denom = next_v_unbiased + epsilon;
+          MATH_T update = (next_m_unbiased / denom) + (decay * r_p[ii]);
+          r_p[ii] = r_p[ii] - (lr * update);
         }
       }
 #pragma unroll
@@ -137,14 +145,10 @@ void multi_tensor_novograd_cuda(
   using namespace at;
 
   // Handle bias correction mode
-  float step_size = 0;
+  float bias_correction1 = 1.0f, bias_correction2 = 1.0f;
   if (bias_correction == 1) {
-    const float bias_correction1 = 1 - std::pow(beta1, step);
-    const float bias_correction2 = 1 - std::pow(beta2, step);
-    step_size = lr * std::sqrt(bias_correction2)/bias_correction1;
-  }
-  else {
-    step_size = lr;
+    bias_correction1 = 1 - std::pow(beta1, step);
+    bias_correction2 = std::sqrt(1 - std::pow(beta2, step));
   }
 
   // Handle grad averaging mode
@@ -171,8 +175,10 @@ void multi_tensor_novograd_cuda(
       beta1,
       beta2,
       beta3, // 1-beta1 or 1 depends on averaging mode
+      bias_correction1,
+      bias_correction2,
       epsilon,
-      step_size,
+      lr,
       (momentMode_t) moment_mode,
       weight_decay,
       grad_norms.data<float>()); )

@@ -42,7 +42,7 @@ void multi_tensor_adam_cuda(
   const float beta2,
   const float epsilon,
   const int step,
-  const int eps_mode,
+  const int mode,
   const int bias_correction,
   const float weight_decay);
 
@@ -59,7 +59,7 @@ void multi_tensor_novograd_cuda(
   const int bias_correction,
   const float weight_decay,
   const int grad_averaging,
-  const int moment_mode,
+  const int mode,
   const int norm_type);
 
 void multi_tensor_lamb_cuda(
@@ -74,7 +74,7 @@ void multi_tensor_lamb_cuda(
   const int bias_correction,
   const float weight_decay,
   const int grad_averaging,
-  const int moment_mode,
+  const int mode,
   const float max_grad_norm);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
