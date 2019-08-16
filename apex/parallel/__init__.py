@@ -37,6 +37,8 @@ def convert_syncbn_model(module, process_group=None, channel_last=False):
         >>> sync_bn_model = apex.parallel.convert_syncbn_model(model)
     '''
     mod = module
+    if isinstance(module, torch.nn.modules.instancenorm._InstanceNorm):
+        return module
     if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
         mod = SyncBatchNorm(module.num_features, module.eps, module.momentum, module.affine, module.track_running_stats, process_group, channel_last=channel_last)
         mod.running_mean = module.running_mean
