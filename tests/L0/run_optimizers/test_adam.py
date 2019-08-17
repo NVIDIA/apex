@@ -77,6 +77,7 @@ class TestFusedAdam(unittest.TestCase):
     def test_half(self):
         self.gen_single_type_test(param_type=torch.float16)
 
+    @unittest.skip('Disable until 8/1/2019 adam/adamw upstream picked')
     def test_multi_params(self):
         sizes = [[4096, 1024], [4096], [4096, 2048], [32320, 1024], [1]]
         adam_option = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08,
