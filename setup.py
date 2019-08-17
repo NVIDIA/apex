@@ -89,6 +89,8 @@ if "--cuda_ext" in sys.argv:
                                    'csrc/multi_tensor_scale_kernel.cu',
                                    'csrc/multi_tensor_axpby_kernel.cu',
                                    'csrc/multi_tensor_l2norm_kernel.cu',
+                                   'csrc/multi_tensor_lamb_stage_1.cu',
+                                   'csrc/multi_tensor_lamb_stage_2.cu',
                                    'csrc/multi_tensor_adam.cu',
                                    'csrc/multi_tensor_novograd.cu',
                                    'csrc/multi_tensor_lamb.cu'],
