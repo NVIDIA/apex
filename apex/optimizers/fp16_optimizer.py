@@ -35,6 +35,8 @@ class FP16_Optimizer(object):
                  dynamic_loss_args=None,
                  verbose=True):
 
+        print("\nfp16_optimizer is designed to only work with apex.optimizers, and will be removed in future")
+        print("To update, use updated optimizers with AMP.")
         # The fused optimizer does all the work. We need this layer for two reason:
         # 1. maintain same user API from apex.fp16_utils
         # 2. keep common stuff here in case we need to add new fused optimizer later

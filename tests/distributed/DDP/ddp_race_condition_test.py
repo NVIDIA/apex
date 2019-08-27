@@ -35,8 +35,9 @@ class Model(Module):
 
 model = Model()
 # model = DDP(model, message_size=1, gradient_predivide_factor=8.0)
-model = DDP(model, delay_allreduce=True)
+# model = DDP(model, delay_allreduce=True)
 # model = DDP(model, message_size=1, allreduce_trigger_params=[model.b])
+model = DDP(model, message_size=1, allreduce_trigger_params=[model.b], num_allreduce_streams=3)
 
 x = torch.cuda.FloatTensor(4096*4096)
 

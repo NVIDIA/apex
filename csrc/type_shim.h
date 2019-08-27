@@ -128,3 +128,53 @@ __device__ __forceinline__ T reduce_block_into_lanes
 
   return final;
 }
+
+template<typename T>
+__device__ __forceinline__ T reduce_block_into_lanes_max_op
+  (T *x,
+   T val,
+   int lanes=1,
+   bool share_result=false) // lanes is intended to be <= 32.
+{
+  int tid = threadIdx.x + threadIdx.y*blockDim.x;
+  int blockSize = blockDim.x*blockDim.y; // blockSize is intended to be a multiple of 32.
+
+  if(blockSize >= 64)
+  {
+    x[tid] = val;
+    __syncthreads();
+  }
+
+  #pragma unroll
+  for(int i = (blockSize >> 1); i >= 64; i >>= 1)
+  {
+    if(tid < i)
+      x[tid] = fmaxf(fabsf(x[tid]), fabsf(x[tid+i]));
+    __syncthreads();
+  }
+
+  T final;
+
+  if(tid < 32)
+  {
+    if(blockSize >= 64)
+      final = fmaxf(fabsf(x[tid]), fabsf(x[tid+32]));
+    else
+      final = val;
+    // __SYNCWARP();
+
+    #pragma unroll
+    for(int i = 16; i >= lanes; i >>= 1)
+      final = fmaxf(fabsf(final), fabsf(__shfl_down_sync(0xffffffff, final, i)));
+  }
+
+  if(share_result)
+  {
+    if(tid < lanes)
+      x[tid] = final; // EpilogueOp
+    // Make sure the smem result is visible to all warps.
+    __syncthreads();
+  }
+
+  return final;
+}

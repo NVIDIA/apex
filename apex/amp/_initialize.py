@@ -10,7 +10,6 @@ from ._process_optimizer import _process_optimizer
 from apex.fp16_utils import convert_network
 from ..fp16_utils import FP16_Optimizer as FP16_Optimizer_general
 from ..optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
-from ..optimizers import FusedAdam
 from ..parallel import DistributedDataParallel as apex_DDP
 from ..parallel.LARC import LARC
 
@@ -124,27 +123,11 @@ def check_optimizers(optimizers):
             raise RuntimeError("An incoming optimizer is an instance of {}. ".format(bad_optim_type) +
                                "The optimizer(s) passed to amp.initialize() must be bare \n"
                                "instances of either ordinary Pytorch optimizers, or Apex fused \n"
-                               "optimizers (currently just FusedAdam, but FusedSGD will be added \n"
-                               "soon).  You should not manually wrap your optimizer in either \n"
+                               "optimizers (FusedAdam or FusedSGD). \n"
+                               "You should not manually wrap your optimizer in either \n"
                                "apex.fp16_utils.FP16_Optimizer or apex.optimizers.FP16_Optimizer. \n"
                                "amp.initialize will take care of that for you (if necessary) based \n"
                                "on the specified opt_level (and optional overridden properties).")
-
-
-def wrap_fused_adam(optimizer, properties):
-    msg = 'Currently, the usage of FusedAdam is restricted to '\
-          'amp.initialize(..., opt_level="O2", keep_batchnorm_fp32=False, '\
-          'loss_scale=float or "dynamic").  We are working on enabling more general usage.'
-
-    assert properties.master_weights is True, msg
-    assert properties.cast_model_type is torch.float16, msg
-    assert (properties.keep_batchnorm_fp32 is False or
-            properties.keep_batchnorm_fp32 is None), msg
-
-    if properties.loss_scale == "dynamic":
-        return FP16_Optimizer_for_fused(optimizer, dynamic_loss_scale=True)
-    else:
-        return FP16_Optimizer_for_fused(optimizer, static_loss_scale=properties.loss_scale)
 
 
 def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs=None):
@@ -176,7 +159,6 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
     if not _amp_state.allow_incoming_model_not_fp32:
         check_params_fp32(models)
 
-
     # In the future, when FP16_Optimizer can be deprecated and master weights can
     # become an attribute, remember to stash master weights before casting the model.
 
@@ -207,7 +189,7 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
 
             model.forward = patch_forward(model.forward)
 
-        # State dict trick to recast any preexisting per-param state tensors 
+        # State dict trick to recast any preexisting per-param state tensors
         for optimizer in optimizers:
             optimizer.load_state_dict(optimizer.state_dict())
     elif cast_model_outputs is not None:
@@ -223,11 +205,7 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
             model.forward = patch_forward(model.forward)
 
     for i, optimizer in enumerate(optimizers):
-        # Still need to special case this for the first pass
-        if isinstance(optimizer, FusedAdam):
-            optimizers[i] = wrap_fused_adam(optimizer, properties)
-        else:
-            optimizers[i] = _process_optimizer(optimizer, properties)
+        optimizers[i] = _process_optimizer(optimizer, properties)
 
     _amp_state.loss_scalers = []
     for _ in range(num_losses):

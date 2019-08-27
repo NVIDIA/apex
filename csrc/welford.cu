@@ -591,6 +591,58 @@ template <
     int PARALLEL_LOADS>
 __global__ void batchnorm_forward_c_last_kernel(
       const scalar_t* __restrict__ input,
+      const scalar_t* __restrict__ z,
+      const accscalar_t* __restrict__ mean,
+      const accscalar_t* __restrict__ inv_std,
+      const layerscalar_t* __restrict__ weight,
+      const layerscalar_t* __restrict__ shift,
+      scalar_t* __restrict__ out,
+      const int reduction_size,
+      const int stride,
+      const bool fuse_relu) {
+  // tensor dimension (m,c)
+  // loop along m dimension
+  int inner_loop_stride = blockDim.y * gridDim.y;
+
+  // offset along m dimension
+  int m_offset = blockIdx.y * blockDim.y + threadIdx.y;
+  int c_offset = blockIdx.x * blockDim.x + threadIdx.x;
+
+  auto m_c = mean[c_offset];
+  auto inv_std_c = static_cast<accscalar_t>(inv_std[c_offset]);
+  auto w_c = weight == NULL ? accscalar_t(1.0) : static_cast<accscalar_t>(weight[c_offset]);
+  auto s_c = shift == NULL ? accscalar_t(0.0) : static_cast<accscalar_t>(shift[c_offset]);
+
+  int loop_count = 1 + (reduction_size - 1) / (inner_loop_stride * PARALLEL_LOADS);
+  int address_base = m_offset * stride + c_offset;
+  int address_increment = inner_loop_stride * stride;
+
+  for (int i = 0; i < loop_count; i++) {
+#pragma unroll
+    for (int j = 0; j < PARALLEL_LOADS; j++) {
+      if (c_offset < stride && m_offset < reduction_size) {
+        auto tmp = w_c * (static_cast<accscalar_t>(input[address_base]) - m_c ) * inv_std_c + s_c;
+        if (z != NULL) {
+          tmp += z[address_base];
+        }
+        out[address_base] = (fuse_relu && tmp <= accscalar_t(0.0) ? scalar_t(0.0) : static_cast<scalar_t>(tmp));
+      }
+      m_offset += inner_loop_stride;
+      address_base += address_increment;
+    }
+  }
+}
+
+// elementwise BN kernel
+template <
+    typename scalar_t,
+    typename accscalar_t,
+    typename layerscalar_t,
+    int PARALLEL_LOADS>
+__global__ void relu_backward_c_last_kernel(
+      const scalar_t* __restrict__ grad_output,
+      const scalar_t* __restrict__ input,
+      const scalar_t* __restrict__ z,
       const accscalar_t* __restrict__ mean,
       const accscalar_t* __restrict__ inv_std,
       const layerscalar_t* __restrict__ weight,
@@ -619,9 +671,11 @@ __global__ void batchnorm_forward_c_last_kernel(
 #pragma unroll
     for (int j = 0; j < PARALLEL_LOADS; j++) {
       if (c_offset < stride && m_offset < reduction_size) {
-        out[address_base] = static_cast<scalar_t>(
-            w_c * (static_cast<accscalar_t>(input[address_base]) - m_c ) * inv_std_c + s_c
-          );
+        auto tmp = w_c * (static_cast<accscalar_t>(input[address_base]) - m_c ) * inv_std_c + s_c;
+        if (z != NULL) {
+          tmp += z[address_base];
+        }
+        out[address_base] = (tmp <= accscalar_t(0.0) ? scalar_t(0.0) : grad_output[address_base]);
       }
       m_offset += inner_loop_stride;
       address_base += address_increment;
@@ -1147,10 +1201,12 @@ std::vector<at::Tensor> welford_mean_var_c_last_CUDA(const at::Tensor input) {
 
 at::Tensor batchnorm_forward_c_last_CUDA(
     const at::Tensor input,
+    const at::optional<at::Tensor> z,
     const at::Tensor mean,
     const at::Tensor inv_std,
     const at::optional<at::Tensor> weight,
-    const at::optional<at::Tensor> shift) {
+    const at::optional<at::Tensor> shift,
+    const bool fuse_relu) {
   const auto stride = input.size(input.ndimension()-1);
   const auto reduction_size = input.numel() / stride;
 
@@ -1170,13 +1226,15 @@ at::Tensor batchnorm_forward_c_last_CUDA(
       batchnorm_forward_c_last_kernel<scalar_t_0, accscalar_t, accscalar_t, ELEMENTS_PER_ITER>
           <<<grid, block, 0, stream>>>(
           input.data<scalar_t_0>(),
+          z.has_value() ? z.value().data<scalar_t_0>() : NULL,
           mean.data<accscalar_t>(),
           inv_std.data<accscalar_t>(),
           weight.has_value() ? weight.value().data<accscalar_t>() : NULL,
           shift.has_value() ? shift.value().data<accscalar_t>(): NULL,
           out.data<scalar_t_0>(),
           reduction_size,
-          stride);
+          stride,
+          fuse_relu);
     );
   } else {
     if (weight.has_value()) {
@@ -1189,13 +1247,15 @@ at::Tensor batchnorm_forward_c_last_CUDA(
       batchnorm_forward_c_last_kernel<scalar_t_0, accscalar_t, scalar_t_0, ELEMENTS_PER_ITER>
           <<<grid, block, 0, stream>>>(
           input.data<scalar_t_0>(),
+          z.has_value() ? z.value().data<scalar_t_0>() : NULL,
           mean.data<accscalar_t>(),
           inv_std.data<accscalar_t>(),
           weight.has_value() ? weight.value().data<scalar_t_0>() : NULL,
           shift.has_value() ? shift.value().data<scalar_t_0>(): NULL,
           out.data<scalar_t_0>(),
           reduction_size,
-          stride);
+          stride,
+          fuse_relu);
     );
   }
   return out;
@@ -1350,4 +1410,67 @@ at::Tensor batchnorm_backward_c_last_CUDA(
   }
  
   return grad_input;
+}
+
+at::Tensor relu_backward_c_last_CUDA(
+    const at::Tensor grad_output,
+    const at::Tensor input,
+    const at::optional<at::Tensor> z,
+    const at::Tensor mean,
+    const at::Tensor inv_std,
+    const at::optional<at::Tensor> weight,
+    const at::optional<at::Tensor> shift) {
+
+  const auto stride = input.size(input.ndimension()-1);
+  const auto reduction_size = input.numel() / stride;
+
+  at::Tensor out = at::empty_like(input);
+
+  dim3 block;
+  dim3 grid;
+  flexible_launch_configs(reduction_size, stride, block, grid);
+
+  auto stream = at::cuda::getCurrentCUDAStream();
+
+  if (input.scalar_type() == at::ScalarType::Half
+      && weight.has_value() && weight.value().scalar_type() == at::ScalarType::Float) {
+    using namespace at;
+    DISPATCH_FLOAT_AND_HALF(input.scalar_type(), 0, "batchnorm_forward",
+      using accscalar_t = at::acc_type<scalar_t_0, true>;
+      relu_backward_c_last_kernel<scalar_t_0, accscalar_t, accscalar_t, ELEMENTS_PER_ITER>
+          <<<grid, block, 0, stream>>>(
+          grad_output.data<scalar_t_0>(),
+          input.data<scalar_t_0>(),
+          z.has_value() ? z.value().data<scalar_t_0>() : NULL,
+          mean.data<accscalar_t>(),
+          inv_std.data<accscalar_t>(),
+          weight.has_value() ? weight.value().data<accscalar_t>() : NULL,
+          shift.has_value() ? shift.value().data<accscalar_t>(): NULL,
+          out.data<scalar_t_0>(),
+          reduction_size,
+          stride);
+    );
+  } else {
+    if (weight.has_value()) {
+      TORCH_CHECK(input.scalar_type() == weight.value().scalar_type(),
+          "input.scalar_type() is not supported with weight.scalar_type()");
+    }
+    using namespace at;
+    DISPATCH_FLOAT_AND_HALF(input.scalar_type(), 0, "batchnorm_forward",
+      using accscalar_t = at::acc_type<scalar_t_0, true>;
+      relu_backward_c_last_kernel<scalar_t_0, accscalar_t, scalar_t_0, ELEMENTS_PER_ITER>
+          <<<grid, block, 0, stream>>>(
+          grad_output.data<scalar_t_0>(),
+          input.data<scalar_t_0>(),
+          z.has_value() ? z.value().data<scalar_t_0>() : NULL,
+          mean.data<accscalar_t>(),
+          inv_std.data<accscalar_t>(),
+          weight.has_value() ? weight.value().data<scalar_t_0>() : NULL,
+          shift.has_value() ? shift.value().data<scalar_t_0>(): NULL,
+          out.data<scalar_t_0>(),
+          reduction_size,
+          stride);
+    );
+  }
+  return out;
 }

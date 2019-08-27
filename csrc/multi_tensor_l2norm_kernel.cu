@@ -75,6 +75,69 @@ struct L2NormFunctor
   }
 };
 
+// Probably better to template, but since we are not likely to support other norm
+template<typename x_t>
+struct MaxNormFunctor
+{
+  __device__ __forceinline__ void operator()(
+    int chunk_size,
+    volatile int* noop_gmem,
+    TensorListMetadata<1>& tl,
+    float* output,
+    float* output_per_tensor,
+    bool per_tensor,
+    int max_chunks_per_tensor)
+  {
+    // I'd like this kernel to propagate infs/nans.
+    // if(*noop_gmem == 1)
+    //   return;
+
+    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    int chunk_idx = tl.block_to_chunk[blockIdx.x];
+    int n = tl.sizes[tensor_loc];
+
+    x_t* x = (x_t*)tl.addresses[0][tensor_loc];
+    x += chunk_idx*chunk_size;
+
+    n -= chunk_idx*chunk_size;
+
+    __shared__ float s_vals[512];
+
+    float vals[ILP]; // = {0}; // this probably works too but I want to be sure...
+    for(int i = 0; i < ILP; i++)
+      vals[i] = 0.f;
+
+    for(int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x*ILP)
+    {
+      #pragma unroll
+      for(int ii = 0; ii < ILP; ii++)
+      {
+        int i = i_start + threadIdx.x + ii*blockDim.x;
+        if(i < n && i < chunk_size)
+        {
+          float next = static_cast<float>(x[i]);
+          vals[ii] = fmaxf(fabsf(vals[ii]), fabsf(next));
+        }
+      }
+    }
+
+    float val = 0.f;
+    for(int i = 0; i < ILP; i++)
+        val = fmaxf(fabsf(val), fabsf(vals[i]));
+
+    float final = reduce_block_into_lanes_max_op(s_vals, val);
+
+    if(threadIdx.x == 0)
+    {
+      if(!isfinite(final))
+        *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
+      output[blockIdx.x] = fmaxf(fabsf(output[blockIdx.x]), fabsf(final));
+      if(per_tensor)
+        output_per_tensor[(tl.start_tensor_this_launch + tensor_loc)*max_chunks_per_tensor + chunk_idx] = final;
+    }
+  }
+};
+
 
 __global__ void cleanup(
   float* output,
@@ -113,6 +176,63 @@ __global__ void cleanup(
   }
 }
 
+__global__ void cleanup_v2(
+  float* output,
+  float* output_per_tensor,
+  float* ret,
+  float* ret_per_tensor,
+  bool per_tensor,
+  int max_chunks_per_tensor,
+  int norm_type,
+  float alpha,
+  float beta)
+{
+  __shared__ float vals[512];
+
+  if(blockIdx.x == 0)
+  {
+    float val = 0;
+    if(threadIdx.x < 320)
+      val = output[threadIdx.x];
+
+    if (norm_type == 0) {
+      float final = reduce_block_into_lanes_max_op(vals, val);
+      if(threadIdx.x == 0)
+        *ret = alpha * (*ret) + beta * final;
+    }
+    else {
+      float final = reduce_block_into_lanes(vals, val);
+      if(threadIdx.x == 0)
+        *ret = sqrt(alpha * (*ret) * (*ret) + beta * final);
+    }
+  }
+
+  if(per_tensor)
+  {
+    float* output_this_tensor = output_per_tensor + blockIdx.x*max_chunks_per_tensor;
+
+    if (norm_type == 0) {
+      float val = 0;
+      for(int i = threadIdx.x; i < max_chunks_per_tensor; i += blockDim.x)
+        val = fmaxf(fabsf(val), fabsf(output_this_tensor[i]));
+
+      float final = reduce_block_into_lanes_max_op(vals, val);
+
+      if(threadIdx.x == 0)
+        ret_per_tensor[blockIdx.x] = alpha * ret_per_tensor[blockIdx.x] + beta * final;
+    }
+    else {
+      float val = 0;
+      for(int i = threadIdx.x; i < max_chunks_per_tensor; i += blockDim.x)
+        val += output_this_tensor[i];
+
+      float final = reduce_block_into_lanes(vals, val);
+
+      if(threadIdx.x == 0)
+        ret_per_tensor[blockIdx.x] = sqrt(alpha * ret_per_tensor[blockIdx.x] * ret_per_tensor[blockIdx.x] + beta * final);
+    }
+  }
+}
 
 std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
   int chunk_size,
@@ -177,4 +297,91 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
     max_chunks_per_tensor);
 
   return std::tuple<at::Tensor, at::Tensor>(ret, ret_per_tensor);
+}
+
+
+// Compute and update grad norm
+// Here use a per tensor norm, and blend new norm(n) and old norm(gn) by
+// L-2: gn = sqrt(a * gn^2 + b * n^2)
+// L-inf: gn = a * gn + b * n
+void multi_tensor_norm_out_cuda(
+  int chunk_size,
+  at::Tensor noop_flag,
+  std::vector<std::vector<at::Tensor>> tensor_lists,
+  at::Tensor out,
+  const float alpha,
+  const float beta,
+  const int norm_type)
+{
+  auto float_options = tensor_lists[0][0].options().dtype(at::kFloat);
+
+  // we don't need global thus uses empty here
+  auto output = at::empty({320}, float_options);
+
+  at::Tensor output_per_tensor;
+  at::Tensor ret_per_tensor;
+
+  int ntensors = tensor_lists[0].size();
+  int max_chunks_per_tensor = -1;
+
+  for(int t = 0; t < ntensors; t++)
+  {
+    int max_chunks_this_tensor = (tensor_lists[0][t].numel() + chunk_size - 1)/chunk_size;
+    if(max_chunks_this_tensor > max_chunks_per_tensor)
+      max_chunks_per_tensor = max_chunks_this_tensor;
+  }
+
+  // Although it is single write then read, still need to be zero
+  // Since tailing element also participate cleanup
+  output_per_tensor = at::zeros({ntensors*max_chunks_per_tensor}, float_options);
+
+  if (norm_type == 0) {
+    DISPATCH_FLOAT_AND_HALF(
+      tensor_lists[0][0].scalar_type(), 0, "multi_tensor_maxnorm_cuda",
+      multi_tensor_apply<1>(
+        BLOCK_SIZE,
+        chunk_size,
+        noop_flag,
+        tensor_lists,
+        MaxNormFunctor<scalar_t_0>(),
+        output.data<float>(),
+        output_per_tensor.data<float>(),
+        true,
+        max_chunks_per_tensor);)
+  }
+  else {
+    DISPATCH_FLOAT_AND_HALF(
+      tensor_lists[0][0].scalar_type(), 0, "multi_tensor_l2norm_cuda",
+      multi_tensor_apply<1>(
+        BLOCK_SIZE,
+        chunk_size,
+        noop_flag,
+        tensor_lists,
+        L2NormFunctor<scalar_t_0>(),
+        output.data<float>(),
+        output_per_tensor.data<float>(),
+        true,
+        max_chunks_per_tensor);)
+  }
+  AT_CUDA_CHECK(cudaGetLastError());
+
+  // AT_CUDA_CHECK(cudaDeviceSynchronize());
+
+  // This involves one more small kernel launches, but will be negligible end to end.
+  // I could get rid of these by hacking the functor + multi tensor harness with persistence
+  // logic, but keeping it simple for now
+  auto ret = at::empty({1}, output.options());
+  auto stream = at::cuda::getCurrentCUDAStream();
+  cleanup_v2<<<ntensors, 512, 0, stream>>>(
+    output.data<float>(),
+    output_per_tensor.data<float>(),
+    ret.data<float>(),
+    out.data<float>(),
+    true,
+    max_chunks_per_tensor,
+    norm_type,
+    alpha,
+    beta);
+
+  return ;
 }
