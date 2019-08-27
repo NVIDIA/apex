@@ -8,9 +8,10 @@ class FusedLAMB(torch.optim.Optimizer):
     Currently GPU-only.  Requires Apex to be installed via
     ``pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./``.
 
-    This version of fused LAMB implements 2 fusions:
-      - Fusion of the LAMB update's elementwise operations
-      - A multi-tensor apply launch that batches the elementwise updates applied to all the model's parameters into one or a few kernel launches.
+    This version of fused LAMB implements 2 fusions.
+
+      * Fusion of the LAMB update's elementwise operations
+      * A multi-tensor apply launch that batches the elementwise updates applied to all the model's parameters into one or a few kernel launches.
 
     :class:`apex.optimizers.FusedLAMB`'s usage is identical to any ordinary Pytorch optimizer::
 
@@ -20,12 +21,13 @@ class FusedLAMB(torch.optim.Optimizer):
 
     :class:`apex.optimizers.FusedLAMB` may be used with or without Amp.  If you wish to use :class:`FusedLAMB` with Amp,
     you may choose any `opt_level`::
+
         opt = apex.optimizers.FusedLAMB(model.parameters(), lr = ....)
         model, opt = amp.initialize(model, opt, opt_level="O0" or "O1 or "O2")
         ...
         opt.step()
 
-    In general, `opt_level="O1"` is recommended.
+    In general, ``opt_level="O1"`` is recommended.
 
     LAMB was proposed in `Large Batch Optimization for Deep Learning: Training BERT in 76 minutes`_.
 
@@ -50,7 +52,7 @@ class FusedLAMB(torch.optim.Optimizer):
         max_grad_norm (float, optional): value used to clip global grad norm
             (default: 1.0)
 
-    .. _Large Batch Optimization for Deep Learning\: Training BERT in 76 minutes
+    .. _Large Batch Optimization for Deep Learning\: Training BERT in 76 minutes:
         https://arxiv.org/abs/1904.00962
     .. _On the Convergence of Adam and Beyond:
         https://openreview.net/forum?id=ryQu7f-RZ

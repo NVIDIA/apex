@@ -8,9 +8,10 @@ class FusedNovoGrad(torch.optim.Optimizer):
     Currently GPU-only.  Requires Apex to be installed via
     ``pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./``.
 
-    This version of fused NovoGrad implements 2 fusions:
-      - Fusion of the NovoGrad update's elementwise operations
-      - A multi-tensor apply launch that batches the elementwise updates applied to all the model's parameters into one or a few kernel launches.
+    This version of fused NovoGrad implements 2 fusions.
+
+      * Fusion of the NovoGrad update's elementwise operations
+      * A multi-tensor apply launch that batches the elementwise updates applied to all the model's parameters into one or a few kernel launches.
 
     :class:`apex.optimizers.FusedNovoGrad`'s usage is identical to any Pytorch optimizer::
 
@@ -20,12 +21,13 @@ class FusedNovoGrad(torch.optim.Optimizer):
 
     :class:`apex.optimizers.FusedNovoGrad` may be used with or without Amp.  If you wish to use :class:`FusedNovoGrad` with Amp,
     you may choose any `opt_level`::
+
         opt = apex.optimizers.FusedNovoGrad(model.parameters(), lr = ....)
         model, opt = amp.initialize(model, opt, opt_level="O0" or "O1 or "O2")
         ...
         opt.step()
 
-    In general, `opt_level="O1"` is recommended.
+    In general, ``opt_level="O1"`` is recommended.
 
     It has been proposed in `Jasper: An End-to-End Convolutional Neural Acoustic Model`_.
     More info: https://nvidia.github.io/OpenSeq2Seq/html/optimizers.html#novograd
