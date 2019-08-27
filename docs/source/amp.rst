@@ -177,6 +177,44 @@ Unified API
 
 .. autofunction:: master_params
 
+Checkpointing
+-------------
+
+To properly save and load your amp training, we introduce the ``amp.state_dict()``, which contains all ``loss_scaler``\ s and their corresponding unskipped steps, as well as ``amp.load_state_dict()`` to restore these attributes.
+
+In order to get bitwise accuracy, we recommend the following workflow::
+
+        # Initialization
+        opt_level = 'O1'
+        model, optimizer = amp.initialize(model, optimizer, opt_level=opt_level)
+        
+        # Train your model
+        ...
+        
+        # Save checkpoint
+        checkpoint = {
+            'model': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'amp': amp.state_dict()
+        }
+        torch.save(checkpoint, 'amp_checkpoint.pt')
+        ...
+        
+        # Restore
+        model = ...
+        optimizer = ...
+        checkpoint = torch.load('amp_checkpoint.pt')
+        
+        model, optimizer = amp.initialize(model, optimizer, opt_level=opt_level)
+        model.load_state_dict(checkpoint['model'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        amp.load_state_dict(checkpoint['amp'])
+        
+        # Continue training
+        ...
+
+Note that we recommend restoring the model using the same ``opt_level``. Also note that we recommend calling the ``load_state_dict`` methods after ``amp.initialize``.
+
 Advanced use cases
 ------------------
 

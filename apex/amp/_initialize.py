@@ -126,6 +126,18 @@ def check_optimizers(optimizers):
                                "optimizers.\n")
 
 
+class O2StateDictHook(object):
+    def __init__(self, fn):
+        self.fn = fn
+
+    def __call__(self, module, state_dict, prefix, local_metadata):
+        for key in state_dict:
+            param = state_dict[key]
+            if 'Half' in param.type():
+                param = param.to(torch.float32)
+                state_dict[key] = param
+
+
 def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs=None):
     from apex.parallel import DistributedDataParallel as apex_DDP
     from .amp import init as amp_init
@@ -188,6 +200,12 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
         # State dict trick to recast any preexisting per-param state tensors
         for optimizer in optimizers:
             optimizer.load_state_dict(optimizer.state_dict())
+
+        # patch model.state_dict() to return float32 params
+        for model in models:
+            for module in model.modules():
+                module._register_state_dict_hook(O2StateDictHook(functools.partial(to_type, torch.float32)))
+
     elif cast_model_outputs is not None:
         output_caster = functools.partial(to_type, cast_model_outputs)
 
