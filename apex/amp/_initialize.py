@@ -123,11 +123,7 @@ def check_optimizers(optimizers):
             raise RuntimeError("An incoming optimizer is an instance of {}. ".format(bad_optim_type) +
                                "The optimizer(s) passed to amp.initialize() must be bare \n"
                                "instances of either ordinary Pytorch optimizers, or Apex fused \n"
-                               "optimizers (FusedAdam or FusedSGD). \n"
-                               "You should not manually wrap your optimizer in either \n"
-                               "apex.fp16_utils.FP16_Optimizer or apex.optimizers.FP16_Optimizer. \n"
-                               "amp.initialize will take care of that for you (if necessary) based \n"
-                               "on the specified opt_level (and optional overridden properties).")
+                               "optimizers.\n")
 
 
 def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs=None):

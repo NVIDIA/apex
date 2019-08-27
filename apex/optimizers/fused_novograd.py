@@ -3,8 +3,29 @@ from apex.multi_tensor_apply import multi_tensor_applier
 
 class FusedNovoGrad(torch.optim.Optimizer):
 
-    """Implements NovoGrad algorithm. Currently GPU-only.  Requires Apex to be installed via
-    ``python setup.py install --cuda_ext --cpp_ext``.
+    """Implements NovoGrad algorithm.
+
+    Currently GPU-only.  Requires Apex to be installed via
+    ``pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./``.
+
+    This version of fused NovoGrad implements 2 fusions:
+      - Fusion of the NovoGrad update's elementwise operations
+      - A multi-tensor apply launch that batches the elementwise updates applied to all the model's parameters into one or a few kernel launches.
+
+    :class:`apex.optimizers.FusedNovoGrad`'s usage is identical to any Pytorch optimizer::
+
+        opt = apex.optimizers.FusedNovoGrad(model.parameters(), lr = ....)
+        ...
+        opt.step()
+
+    :class:`apex.optimizers.FusedNovoGrad` may be used with or without Amp.  If you wish to use :class:`FusedNovoGrad` with Amp,
+    you may choose any `opt_level`::
+        opt = apex.optimizers.FusedNovoGrad(model.parameters(), lr = ....)
+        model, opt = amp.initialize(model, opt, opt_level="O0" or "O1 or "O2")
+        ...
+        opt.step()
+
+    In general, `opt_level="O1"` is recommended.
 
     It has been proposed in `Jasper: An End-to-End Convolutional Neural Acoustic Model`_.
     More info: https://nvidia.github.io/OpenSeq2Seq/html/optimizers.html#novograd
@@ -35,7 +56,7 @@ class FusedNovoGrad(torch.optim.Optimizer):
         set_grad_none (bool, optional): whether set grad to None when zero_grad()
             method is called. (default: True)
 
-    .. _Jasper\: An End-to-End Convolutional Neural Acoustic Mode:
+    .. _Jasper\: An End-to-End Convolutional Neural Acoustic Model:
         https://arxiv.org/abs/1904.03288
     .. _On the Convergence of Adam and Beyond:
         https://openreview.net/forum?id=ryQu7f-RZ

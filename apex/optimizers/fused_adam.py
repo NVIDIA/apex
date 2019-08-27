@@ -4,15 +4,36 @@ from amp_C import multi_tensor_adam
 
 class FusedAdam(torch.optim.Optimizer):
 
-    """Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
-    ``python setup.py install --cuda_ext --cpp_ext``.
+    """Implements Adam algorithm.
 
-    This version of fused adam implements 2 fusion:
-      - Fusion of operations within adam optimizer
-      - Apply operation on a list of tensor in single multi-tensor kernel by group
-    It is a breaking change over last version, as API changes and it no longer fuse grad norm and loss scaling.
+      Currently GPU-only.  Requires Apex to be installed via
+    ``pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./``.
 
-    It has been proposed in `Adam: A Method for Stochastic Optimization`_.
+    This version of fused Adam implements 2 fusions:
+      - Fusion of the Adam update's elementwise operations
+      - A multi-tensor apply launch that batches the elementwise updates applied to all the model's parameters into one or a few kernel launches.
+
+    :class:`apex.optimizers.FusedAdam` may be used as a drop-in replacement for torch.optim.Adam::
+
+        opt = apex.optimizers.FusedAdam(model.parameters(), lr = ....)
+        ...
+        opt.step()
+
+    :class:`apex.optimizers.FusedAdam` may be used with or without Amp.  If you wish to use :class:`FusedAdam` with Amp,
+    you may choose any `opt_level`::
+        opt = apex.optimizers.FusedAdam(model.parameters(), lr = ....)
+        model, opt = amp.initialize(model, opt, opt_level="O0" or "O1 or "O2")
+        ...
+        opt.step()
+
+    In general, `opt_level="O1"` is recommended.
+
+
+    .. warning::
+        A previous version of :class:`FusedAdam` allowed a number of additional arguments to `step`.  These additional arguments
+        are now deprecated and unnecessary.
+
+    Adam was been proposed in `Adam: A Method for Stochastic Optimization`_.
 
     Arguments:
         params (iterable): iterable of parameters to optimize or dicts defining
@@ -53,9 +74,11 @@ class FusedAdam(torch.optim.Optimizer):
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
+
+        The remaining arguments are deprecated, and are only retained (for the moment) for error-checking purposes.
         """
         if any(p is not None for p in [grads, output_params, scale, grad_norms]):
-            raise RuntimeError('FusedAdam has been updated, please use with AMP for mixed precision.')
+            raise RuntimeError('FusedAdam has been updated.  Simply initialize it identically to torch.optim.Adam, and call step() with no arguments.')
         loss = None
         if closure is not None:
             loss = closure()

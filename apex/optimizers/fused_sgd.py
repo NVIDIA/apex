@@ -6,6 +6,28 @@ from apex.multi_tensor_apply import multi_tensor_applier
 class FusedSGD(Optimizer):
     r"""Implements stochastic gradient descent (optionally with momentum).
 
+      Currently GPU-only.  Requires Apex to be installed via
+    ``pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./``.
+
+    This version of fused SGD implements 2 fusions:
+      - Fusion of the SGD update's elementwise operations
+      - A multi-tensor apply launch that batches the elementwise updates applied to all the model's parameters into one or a few kernel launches.
+
+    :class:`apex.optimizers.FusedSGD` may be used as a drop-in replacement for torch.optim.SGD::
+
+        opt = apex.optimizers.FusedSGD(model.parameters(), lr = ....)
+        ...
+        opt.step()
+
+    :class:`apex.optimizers.FusedSGD` may be used with or without Amp.  If you wish to use :class:`FusedSGD` with Amp,
+    you may choose any `opt_level`::
+        opt = apex.optimizers.FusedSGD(model.parameters(), lr = ....)
+        model, opt = amp.initialize(model, opt, opt_level="O0" or "O1 or "O2")
+        ...
+        opt.step()
+
+    In general, `opt_level="O1"` is recommended.
+
     Nesterov momentum is based on the formula from
     `On the importance of initialization and momentum in deep learning`__.
 
