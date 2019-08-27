@@ -12,3 +12,12 @@ apex.optimizers
 
 .. autoclass:: FusedAdam
     :members:
+
+.. autoclass:: FusedLAMB
+    :members:
+
+.. autoclass:: FusedNovoGrad
+    :members:
+
+.. autoclass:: FusedSGD
+    :members:

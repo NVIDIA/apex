@@ -1,0 +1,688 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>apex.amp.frontend &mdash; Apex 0.1.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../../_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/css/pytorch_theme.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+           
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Apex
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #76b900;
+    }
+
+    .wy-side-nav-search a:link, .wy-nav-top a:link {
+      color: #fff;
+    }
+    .wy-side-nav-search a:visited, .wy-nav-top a:visited {
+      color: #fff;
+    }
+    .wy-side-nav-search a:hover, .wy-nav-top a:hover {
+      color: #fff;
+    }
+
+    .wy-menu-vertical a:link, .wy-menu-vertical a:visited {
+      color: #d9d9d9
+    }
+
+    .wy-menu-vertical a:active {
+      background-color: #76b900
+    }
+
+    .wy-side-nav-search>div.version {
+      color: rgba(0, 0, 0, 0.3)
+    }
+  </style>
+  
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../amp.html">apex.amp</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#opt-levels-and-properties"><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s and Properties</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#properties">Properties</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#opt-levels"><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o0-fp32-training"><code class="docutils literal notranslate"><span class="pre">O0</span></code>:  FP32 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal notranslate"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o2-almost-fp16-mixed-precision"><code class="docutils literal notranslate"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../amp.html#o3-fp16-training"><code class="docutils literal notranslate"><span class="pre">O3</span></code>:  FP16 training</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#module-apex.amp">Unified API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#advanced-use-cases">Advanced use cases</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../advanced.html">Advanced Amp Usage</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gans">GANs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gradient-clipping">Gradient clipping</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#custom-user-defined-autograd-functions">Custom/user-defined autograd functions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#forcing-particular-layers-functions-to-a-desired-type">Forcing particular layers/functions to a desired type</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#multiple-models-optimizers-losses">Multiple models/optimizers/losses</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gradient-accumulation-across-iterations">Gradient accumulation across iterations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#custom-data-batch-types">Custom data batch types</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#transition-guide-for-old-api-users">Transition guide for old API users</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#for-users-of-the-old-amp-api">For users of the old “Amp” API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../amp.html#for-users-of-the-old-fp16-optimizer">For users of the old FP16_Optimizer</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Distributed Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../parallel.html">apex.parallel</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../parallel.html#utility-functions">Utility functions</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Fused Optimizers</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../optimizers.html">apex.optimizers</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Fused Layer Norm</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../layernorm.html">apex.normalization.fused_layer_norm</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Apex</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>apex.amp.frontend</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for apex.amp.frontend</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">._initialize</span> <span class="k">import</span> <span class="n">_initialize</span>
+<span class="kn">from</span> <span class="nn">._amp_state</span> <span class="k">import</span> <span class="n">_amp_state</span><span class="p">,</span> <span class="n">warn_or_err</span><span class="p">,</span> <span class="n">maybe_print</span>
+
+
+<span class="k">class</span> <span class="nc">Properties</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class has two purposes: to establish a set of default properties,</span>
+<span class="sd">    and to route setting of these attributes through __setattr__ so that (in theory)</span>
+<span class="sd">    they can be checked for consistency with other existing args.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">options</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;enabled&quot;</span> <span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">&quot;opt_level&quot;</span> <span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;cast_model_type&quot;</span> <span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;patch_torch_functions&quot;</span> <span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">&quot;keep_batchnorm_fp32&quot;</span> <span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;master_weights&quot;</span> <span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;loss_scale&quot;</span> <span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>
+            <span class="c1"># Reserved for future functionality</span>
+            <span class="c1"># &quot;fused_optimizer&quot; : False,</span>
+            <span class="c1"># &quot;enable_ddp_interop&quot; : False,</span>
+            <span class="p">}</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This function allows updating several options at a time without routing through</span>
+<span class="sd">    __setattr__ checks, to avoid &quot;you can&#39;t get there from here&quot; scenarios.</span>
+<span class="sd">    Currently not intended to be exposed; users are expected to select an opt_level</span>
+<span class="sd">    and apply consistent modifications.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">_update_options_dict</span><span class="p">(</span><span class="n">new_options</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">new_options</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Tried to set unexpected option </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The members of &quot;options&quot; are not direct attributes of self, so access attempts</span>
+<span class="sd">    will roll down to __getattr__.  This borrows from the logic in torch.nn.Module.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s2">&quot;options&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">:</span>
+            <span class="n">options</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">[</span><span class="s2">&quot;options&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">options</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">options</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">&#39; object has no attribute &#39;</span><span class="si">{}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s2">&quot;options&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">:</span>
+                <span class="c1"># print(&quot;setting {} {}&quot;.format(name, value))</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;cast_model_type&quot;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">opt_level</span> <span class="o">==</span> <span class="s2">&quot;O1&quot;</span> <span class="ow">and</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">False</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">:</span>
+                                <span class="n">warn_or_err</span><span class="p">(</span><span class="s2">&quot;O1 inserts casts around Torch functions rather than &quot;</span>
+                                            <span class="s2">&quot;model weights, so with O1, the model weights themselves &quot;</span>
+                                            <span class="s2">&quot;should remain FP32. If you wish to cast the model to a &quot;</span>
+                                            <span class="s2">&quot;different type, use opt_level=&#39;O2&#39; or &#39;O3&#39;. &quot;</span> <span class="o">+</span>
+                                            <span class="s2">&quot;cast_model_type was </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;patch_torch_functions&quot;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">opt_level</span> <span class="o">!=</span> <span class="s2">&quot;O1&quot;</span> <span class="ow">and</span> <span class="n">value</span><span class="p">:</span>
+                        <span class="n">warn_or_err</span><span class="p">(</span><span class="s2">&quot;Currently, patch_torch_functions=True should only be set by &quot;</span>
+                                    <span class="s2">&quot;selecting opt_level=&#39;O1&#39;.&quot;</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;keep_batchnorm_fp32&quot;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">opt_level</span> <span class="o">==</span> <span class="s2">&quot;O1&quot;</span> <span class="ow">and</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">warn_or_err</span><span class="p">(</span><span class="s2">&quot;With opt_level O1, batchnorm functions are automatically patched &quot;</span>
+                                    <span class="s2">&quot;to run in FP32, so keep_batchnorm_fp32 should be None.&quot;</span> <span class="o">+</span>
+                                    <span class="s2">&quot; keep_batchnorm_fp32 was </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">value</span> <span class="o">==</span> <span class="s2">&quot;False&quot;</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="k">elif</span> <span class="n">value</span> <span class="o">==</span> <span class="s2">&quot;True&quot;</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">assert</span> <span class="p">(</span><span class="n">value</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">or</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">False</span> <span class="ow">or</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">),</span>\
+                            <span class="s2">&quot;keep_batchnorm_fp32 must be a boolean, the string &#39;True&#39; or &#39;False&#39;, &quot;</span>\
+                            <span class="s2">&quot;or None, found keep_batchnorm_fp32=</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;master_weights&quot;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">opt_level</span> <span class="o">==</span> <span class="s2">&quot;O1&quot;</span> <span class="ow">and</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">warn_or_err</span><span class="p">(</span><span class="s2">&quot;It doesn&#39;t make sense to use master_weights with O1. &quot;</span>
+                                    <span class="s2">&quot;With O1, your model weights themselves should be FP32.&quot;</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;loss_scale&quot;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">value</span> <span class="o">==</span> <span class="s2">&quot;dynamic&quot;</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">Properties</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+
+<span class="sd">&quot;&quot;&quot; O0-O3 are convenience wrappers to establish defaults for typically used mixed precision options. &quot;&quot;&quot;</span>
+
+<span class="k">class</span> <span class="nc">O3</span><span class="p">:</span>
+    <span class="n">brief</span> <span class="o">=</span> <span class="s2">&quot;O3:  Pure FP16 training.&quot;</span>
+    <span class="n">more</span> <span class="o">=</span> <span class="s2">&quot;Calls .half() on your model, converting the entire model to FP16.</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;A casting operation is also inserted to cast incoming Tensors to FP16,</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;so you don&#39;t need to change your data pipeline.</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;This mode is useful for establishing a performance ceiling.</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;It&#39;s also possible training may &#39;just work&#39; in this mode.</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;If not, try other optimization levels.&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">properties</span><span class="p">):</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">enabled</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">opt_level</span> <span class="o">=</span> <span class="s2">&quot;O3&quot;</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">cast_model_type</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">float16</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">patch_torch_functions</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">keep_batchnorm_fp32</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">master_weights</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">loss_scale</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="c1"># properties.fused_optimizer = False</span>
+        <span class="c1"># properties.enable_ddp_interop = False</span>
+        <span class="k">return</span> <span class="n">properties</span> <span class="c1"># modified in place so this isn&#39;t really necessary</span>
+
+
+<span class="k">class</span> <span class="nc">O2</span><span class="p">:</span>
+    <span class="n">brief</span> <span class="o">=</span> <span class="s2">&quot;O2:  FP16 training with FP32 batchnorm and FP32 master weights.</span><span class="se">\n</span><span class="s2">&quot;</span>
+    <span class="n">more</span> <span class="o">=</span> <span class="s2">&quot;Calls .half() on your model, converting the entire model (except for batchnorms)</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;to FP16.  Batchnorms are retained in FP32 for additional stability.</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;The forward pass is patched to cast incoming Tensors to FP16, so you don&#39;t need to change</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;your data pipeline.</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;O2 creates FP32 master weights outside the model and patches any optimizers to update</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;these master weights, then copy the master weights into the FP16 model weights.</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;Master weights can also improve convergence and stability.&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">properties</span><span class="p">):</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">enabled</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">opt_level</span> <span class="o">=</span> <span class="s2">&quot;O2&quot;</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">cast_model_type</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">float16</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">patch_torch_functions</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">keep_batchnorm_fp32</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">master_weights</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">loss_scale</span> <span class="o">=</span> <span class="s2">&quot;dynamic&quot;</span>
+        <span class="c1"># properties.fused_optimizer = False</span>
+        <span class="c1"># properties.enable_ddp_interop = False</span>
+        <span class="k">return</span> <span class="n">properties</span> <span class="c1"># modified in place so this isn&#39;t really necessary</span>
+
+
+<span class="k">class</span> <span class="nc">O1</span><span class="p">:</span>
+    <span class="n">brief</span> <span class="o">=</span> <span class="s2">&quot;O1:  Insert automatic casts around Pytorch functions and Tensor methods.</span><span class="se">\n</span><span class="s2">&quot;</span>
+    <span class="n">more</span> <span class="o">=</span> <span class="s2">&quot;The type of your model&#39;s weights is not altered.  However, internally,</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;Pytorch functions are patched to cast any Tensor Core-friendly ops to FP16 for speed,</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;while operations that might benefit from the additional stability of FP32 are patched</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;to cast their inputs to fp32.</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;O1 is the safest way to try mixed precision training, and is recommended when</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;trying mixed precision training for the first time.&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">properties</span><span class="p">):</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">enabled</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">opt_level</span> <span class="o">=</span> <span class="s2">&quot;O1&quot;</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">cast_model_type</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">patch_torch_functions</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">keep_batchnorm_fp32</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">master_weights</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">loss_scale</span> <span class="o">=</span> <span class="s2">&quot;dynamic&quot;</span>
+        <span class="c1"># properties.fused_optimizer = False</span>
+        <span class="c1"># properties.enable_ddp_interop = False</span>
+        <span class="k">return</span> <span class="n">properties</span> <span class="c1"># modified in place so this isn&#39;t really necessary</span>
+
+
+<span class="k">class</span> <span class="nc">O0</span><span class="p">:</span>
+    <span class="n">brief</span> <span class="o">=</span> <span class="s2">&quot;O0:  Pure FP32 training.</span><span class="se">\n</span><span class="s2">&quot;</span>
+    <span class="n">more</span> <span class="o">=</span> <span class="s2">&quot;Your models are checked to make sure parameters are FP32, but otherwise the</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;types of weights and internal Pytorch operations are not altered.  This mode disables any</span><span class="se">\n</span><span class="s2">&quot;</span>\
+        <span class="s2">&quot;FP16 arithmetic, although other optimizations like DDP interop may still be requested.</span><span class="se">\n</span><span class="s2">&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">properties</span><span class="p">):</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">enabled</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">opt_level</span> <span class="o">=</span> <span class="s2">&quot;O0&quot;</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">cast_model_type</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">float32</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">patch_torch_functions</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">keep_batchnorm_fp32</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">master_weights</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">properties</span><span class="o">.</span><span class="n">loss_scale</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="c1"># properties.fused_optimizer = False</span>
+        <span class="c1"># properties.enable_ddp_interop = False</span>
+        <span class="k">return</span> <span class="n">properties</span> <span class="c1"># modified in place so this isn&#39;t really necessary</span>
+
+
+<span class="n">opt_levels</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;O3&quot;</span><span class="p">:</span> <span class="n">O3</span><span class="p">(),</span>
+              <span class="s2">&quot;O2&quot;</span><span class="p">:</span> <span class="n">O2</span><span class="p">(),</span>
+              <span class="s2">&quot;O1&quot;</span><span class="p">:</span> <span class="n">O1</span><span class="p">(),</span>
+              <span class="s2">&quot;O0&quot;</span><span class="p">:</span> <span class="n">O0</span><span class="p">()}</span>
+
+
+<span class="c1"># allow user to directly pass Properties struct as well?</span>
+<div class="viewcode-block" id="initialize"><a class="viewcode-back" href="../../../amp.html#apex.amp.initialize">[docs]</a><span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span>
+    <span class="n">models</span><span class="p">,</span>
+    <span class="n">optimizers</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O1&quot;</span><span class="p">,</span>
+    <span class="n">cast_model_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">patch_torch_functions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">keep_batchnorm_fp32</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">master_weights</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">loss_scale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">cast_model_outputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">num_losses</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">verbosity</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">min_loss_scale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_loss_scale</span><span class="o">=</span><span class="mf">2.</span><span class="o">**</span><span class="mi">24</span>
+    <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initialize your models, optimizers, and the Torch tensor and functional namespace according to the</span>
+<span class="sd">    chosen ``opt_level`` and overridden properties, if any.</span>
+
+<span class="sd">    ``amp.initialize`` should be called **after** you have finished</span>
+<span class="sd">    constructing your model(s) and</span>
+<span class="sd">    optimizer(s), but **before** you send your model through any DistributedDataParallel wrapper.</span>
+<span class="sd">    See `Distributed training`_ in the Imagenet example.</span>
+
+<span class="sd">    Currently, ``amp.initialize`` should only be called **once**,</span>
+<span class="sd">    although it can process an arbitrary number of</span>
+<span class="sd">    models and optimizers (see the corresponding `Advanced Amp Usage topic`_).</span>
+<span class="sd">    If you think your use case requires ``amp.initialize`` to be called more than once,</span>
+<span class="sd">    `let us know`_.</span>
+
+<span class="sd">    Any property keyword argument that is not ``None`` will be interpreted as a manual override.</span>
+
+<span class="sd">    To prevent having to rewrite anything else in your script, name the returned models/optimizers</span>
+<span class="sd">    to replace the passed models/optimizers, as in the code sample below.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        models (torch.nn.Module or list of torch.nn.Modules):  Models to modify/cast.</span>
+<span class="sd">        optimizers (optional, torch.optim.Optimizer or list of torch.optim.Optimizers):  Optimizers to modify/cast.</span>
+<span class="sd">            REQUIRED for training, optional for inference.</span>
+<span class="sd">        enabled (bool, optional, default=True):  If False, renders all Amp calls no-ops, so your script</span>
+<span class="sd">            should run as if Amp were not present.</span>
+<span class="sd">        opt_level (str, optional, default=&quot;O1&quot;):  Pure or mixed precision optimization level.  Accepted values are</span>
+<span class="sd">            &quot;O0&quot;, &quot;O1&quot;, &quot;O2&quot;, and &quot;O3&quot;, explained in detail above.</span>
+<span class="sd">        cast_model_type (``torch.dtype``, optional, default=None):  Optional property override, see</span>
+<span class="sd">            above.</span>
+<span class="sd">        patch_torch_functions (bool, optional, default=None):  Optional property override.</span>
+<span class="sd">        keep_batchnorm_fp32 (bool or str, optional, default=None):  Optional property override.  If</span>
+<span class="sd">            passed as a string, must be the string &quot;True&quot; or &quot;False&quot;.</span>
+<span class="sd">        master_weights (bool, optional, default=None):  Optional property override.</span>
+<span class="sd">        loss_scale (float or str, optional, default=None):  Optional property override.  If passed as a string,</span>
+<span class="sd">            must be a string representing a number, e.g., &quot;128.0&quot;, or the string &quot;dynamic&quot;.</span>
+<span class="sd">        cast_model_outputs (torch.dtype, optional, default=None):  Option to ensure that the outputs</span>
+<span class="sd">            of your model(s) are always cast to a particular type regardless of ``opt_level``.</span>
+<span class="sd">        num_losses (int, optional, default=1):  Option to tell Amp in advance how many losses/backward</span>
+<span class="sd">            passes you plan to use.  When used in conjunction with the ``loss_id`` argument to</span>
+<span class="sd">            ``amp.scale_loss``, enables Amp to use a different loss scale per loss/backward pass,</span>
+<span class="sd">            which can improve stability.  See &quot;Multiple models/optimizers/losses&quot;</span>
+<span class="sd">            under `Advanced Amp Usage`_ for examples.  If ``num_losses`` is left to 1, Amp will still</span>
+<span class="sd">            support multiple losses/backward passes, but use a single global loss scale</span>
+<span class="sd">            for all of them.</span>
+<span class="sd">        verbosity (int, default=1):  Set to 0 to suppress Amp-related output.</span>
+<span class="sd">        min_loss_scale (float, default=None):  Sets a floor for the loss scale values that can be chosen by dynamic</span>
+<span class="sd">            loss scaling.  The default value of None means that no floor is imposed.</span>
+<span class="sd">            If dynamic loss scaling is not used, `min_loss_scale` is ignored.</span>
+<span class="sd">        max_loss_scale (float, default=2.**24):  Sets a ceiling for the loss scale values that can be chosen by</span>
+<span class="sd">            dynamic loss scaling.  If dynamic loss scaling is not used, `max_loss_scale` is ignored.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Model(s) and optimizer(s) modified according to the ``opt_level``.</span>
+<span class="sd">        If either the ``models`` or ``optimizers`` args were lists, the corresponding return value will</span>
+<span class="sd">        also be a list.</span>
+
+<span class="sd">    Permissible invocations::</span>
+
+<span class="sd">        model, optim = amp.initialize(model, optim,...)</span>
+<span class="sd">        model, [optim1, optim2] = amp.initialize(model, [optim1, optim2],...)</span>
+<span class="sd">        [model1, model2], optim = amp.initialize([model1, model2], optim,...)</span>
+<span class="sd">        [model1, model2], [optim1, optim2] = amp.initialize([model1, model2], [optim1, optim2],...)</span>
+
+<span class="sd">        # This is not an exhaustive list of the cross product of options that are possible,</span>
+<span class="sd">        # just a set of examples.</span>
+<span class="sd">        model, optim = amp.initialize(model, optim, opt_level=&quot;O0&quot;)</span>
+<span class="sd">        model, optim = amp.initialize(model, optim, opt_level=&quot;O0&quot;, loss_scale=&quot;dynamic&quot;|128.0|&quot;128.0&quot;)</span>
+
+<span class="sd">        model, optim = amp.initialize(model, optim, opt_level=&quot;O1&quot;) # uses &quot;loss_scale=&quot;dynamic&quot; default</span>
+<span class="sd">        model, optim = amp.initialize(model, optim, opt_level=&quot;O1&quot;, loss_scale=128.0|&quot;128.0&quot;)</span>
+
+<span class="sd">        model, optim = amp.initialize(model, optim, opt_level=&quot;O2&quot;) # uses &quot;loss_scale=&quot;dynamic&quot; default</span>
+<span class="sd">        model, optim = amp.initialize(model, optim, opt_level=&quot;O2&quot;, loss_scale=128.0|&quot;128.0&quot;)</span>
+<span class="sd">        model, optim = amp.initialize(model, optim, opt_level=&quot;O2&quot;, keep_batchnorm_fp32=True|False|&quot;True&quot;|&quot;False&quot;)</span>
+
+<span class="sd">        model, optim = amp.initialize(model, optim, opt_level=&quot;O3&quot;) # uses loss_scale=1.0 default</span>
+<span class="sd">        model, optim = amp.initialize(model, optim, opt_level=&quot;O3&quot;, loss_scale=&quot;dynamic&quot;|128.0|&quot;128.0&quot;)</span>
+<span class="sd">        model, optim = amp.initialize(model, optim, opt_level=&quot;O3&quot;, keep_batchnorm_fp32=True|False|&quot;True&quot;|&quot;False&quot;)</span>
+
+<span class="sd">    The `Imagenet example`_ demonstrates live use of various opt_levels and overrides.</span>
+
+<span class="sd">    .. _`Distributed training`:</span>
+<span class="sd">        https://github.com/NVIDIA/apex/tree/master/examples/imagenet#distributed-training</span>
+
+<span class="sd">    .. _`Imagenet example`:</span>
+<span class="sd">        https://github.com/NVIDIA/apex/tree/master/examples/imagenet</span>
+
+<span class="sd">    .. _`Advanced Amp Usage`:</span>
+<span class="sd">        https://nvidia.github.io/apex/advanced.html</span>
+
+<span class="sd">    .. _`Advanced Amp Usage topic`:</span>
+<span class="sd">        https://nvidia.github.io/apex/advanced.html#multiple-models-optimizers-losses</span>
+
+<span class="sd">    .. _`let us know`:</span>
+<span class="sd">        https://github.com/NVIDIA/apex/issues</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span> <span class="o">=</span> <span class="n">Properties</span><span class="p">()</span>
+    <span class="n">_amp_state</span><span class="o">.</span><span class="n">verbosity</span> <span class="o">=</span> <span class="n">verbosity</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">enabled</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">optimizers</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">models</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">models</span><span class="p">,</span> <span class="n">optimizers</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">cudnn</span><span class="o">.</span><span class="n">enabled</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">&quot;Amp requires torch.backends.cudnn.enabled = True&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">opt_level</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">opt_levels</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">&quot;Unexpected optimization level </span><span class="si">{}</span><span class="s2">. &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">opt_level</span><span class="p">)</span> <span class="o">+</span>
+            <span class="s2">&quot;Options are &#39;O0&#39;, &#39;O1&#39;, &#39;O2&#39;, &#39;O3&#39;.  Note that in `O0`, `O1`, etc., the prefix O is the letter O, &quot;</span> <span class="o">+</span>
+            <span class="s2">&quot;not the number zero.&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span> <span class="o">=</span> <span class="n">opt_levels</span><span class="p">[</span><span class="n">opt_level</span><span class="p">](</span><span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="p">)</span>
+        <span class="n">maybe_print</span><span class="p">(</span><span class="s2">&quot;Selected optimization level </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">opt_levels</span><span class="p">[</span><span class="n">opt_level</span><span class="p">]</span><span class="o">.</span><span class="n">brief</span><span class="p">),</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">maybe_print</span><span class="p">(</span><span class="s2">&quot;Defaults for this optimization level are:&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">maybe_print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{:22}</span><span class="s2"> : </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span> <span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">_amp_state</span><span class="o">.</span><span class="n">min_loss_scale</span> <span class="o">=</span> <span class="n">min_loss_scale</span>
+    <span class="n">_amp_state</span><span class="o">.</span><span class="n">max_loss_scale</span> <span class="o">=</span> <span class="n">max_loss_scale</span>
+
+    <span class="n">maybe_print</span><span class="p">(</span><span class="s2">&quot;Processing user overrides (additional kwargs that are not None)...&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># I chose to have the keyword arguments listed directly in the argument list,</span>
+    <span class="c1"># instead of **kwargs, so I can&#39;t use kwargs.items() here.</span>
+    <span class="k">if</span> <span class="n">enabled</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">enabled</span> <span class="o">=</span> <span class="n">enabled</span>
+    <span class="k">if</span> <span class="n">opt_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">opt_level</span> <span class="o">=</span> <span class="n">opt_level</span>
+    <span class="k">if</span> <span class="n">cast_model_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">cast_model_type</span> <span class="o">=</span> <span class="n">cast_model_type</span>
+    <span class="k">if</span> <span class="n">patch_torch_functions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">patch_torch_functions</span> <span class="o">=</span> <span class="n">patch_torch_functions</span>
+    <span class="k">if</span> <span class="n">keep_batchnorm_fp32</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">keep_batchnorm_fp32</span> <span class="o">=</span> <span class="n">keep_batchnorm_fp32</span>
+    <span class="k">if</span> <span class="n">master_weights</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">master_weights</span> <span class="o">=</span> <span class="n">master_weights</span>
+    <span class="k">if</span> <span class="n">loss_scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">loss_scale</span> <span class="o">=</span> <span class="n">loss_scale</span>
+
+    <span class="n">maybe_print</span><span class="p">(</span><span class="s2">&quot;After processing overrides, optimization options are:&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">maybe_print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{:22}</span><span class="s2"> : </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span> <span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">_initialize</span><span class="p">(</span><span class="n">models</span><span class="p">,</span> <span class="n">optimizers</span><span class="p">,</span> <span class="n">_amp_state</span><span class="o">.</span><span class="n">opt_properties</span><span class="p">,</span> <span class="n">num_losses</span><span class="p">,</span> <span class="n">cast_model_outputs</span><span class="p">)</span></div>
+
+
+<span class="c1"># TODO:  is this necessary/useful?</span>
+<span class="c1"># def check_option_consistency(enabled=True,</span>
+<span class="c1">#                              opt_level=None,</span>
+<span class="c1">#                              cast_model_type=None,</span>
+<span class="c1">#                              patch_torch_functions=None,</span>
+<span class="c1">#                              keep_batchnorm_fp32=None,</span>
+<span class="c1">#                              master_weights=None,</span>
+<span class="c1">#                              loss_scale=None,</span>
+<span class="c1">#                              enable_ddp_interop=None,</span>
+<span class="c1">#                              hard_override=False):</span>
+<span class="c1">#     &quot;&quot;&quot;</span>
+<span class="c1">#     Utility function that enables users to quickly check if the option combination they intend</span>
+<span class="c1">#     to use is permitted.  ``check_option_consistency`` does not require models or optimizers</span>
+<span class="c1">#     to be constructed, and can be called at any point in the script.  ``check_option_consistency``</span>
+<span class="c1">#     is totally self-contained; it does not set any amp global state or affect anything outside</span>
+<span class="c1">#     of itself.</span>
+<span class="c1">#     &quot;&quot;&quot;</span>
+<span class="c1">#</span>
+<span class="c1">#     if not enabled:</span>
+<span class="c1">#         return</span>
+<span class="c1">#</span>
+<span class="c1">#     if opt_level not in opt_levels:</span>
+<span class="c1">#         raise RuntimeError(&quot;Unexpected optimization level.  Options are &#39;O0&#39;, &#39;O1&#39;, &#39;O2&#39;, &#39;O3&#39;.&quot;)</span>
+<span class="c1">#     else:</span>
+<span class="c1">#         opt_properties = opt_levels[opt_level](Properties())</span>
+<span class="c1">#         print(&quot;Selected optimization level {}&quot;, opt_levels[opt_level].brief)</span>
+<span class="c1">#         print(&quot;Defaults for this optimization level are:&quot;)</span>
+<span class="c1">#         for k, v in opt_properties.options:</span>
+<span class="c1">#             print(&quot;{:22} : {}&quot;.format(k, v))</span>
+<span class="c1">#</span>
+<span class="c1">#     print(&quot;Processing user overrides (additional kwargs that are not None)...&quot;)</span>
+<span class="c1">#     for k, v in kwargs:</span>
+<span class="c1">#         if k not in _amp_state.opt_properties.options:</span>
+<span class="c1">#             raise RuntimeError(&quot;Unexpected kwarg {}&quot;.format(k))</span>
+<span class="c1">#         if v is not None:</span>
+<span class="c1">#             setattr(opt_properties, k, v)</span>
+<span class="c1">#</span>
+<span class="c1">#     print(&quot;After processing overrides, optimization options are:&quot;)</span>
+<span class="c1">#     for k, v in opt_properties.options:</span>
+<span class="c1">#         print(&quot;{:22} : {}&quot;.format(k, v))</span>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+    
+
+  <style>
+  a:link, a:visited {
+    color: #76b900;
+  }
+
+  a:hover {
+    color: #8c0;
+  }
+
+  .rst-content dl:not(.docutils) dt {
+    background: rgba(118, 185, 0, 0.1);
+    color: rgba(59,93,0,1);
+    border-top: solid 3px rgba(59,93,0,1);
+  }
+  </style>
+  
+
+</body>
+</html>

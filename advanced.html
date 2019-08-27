@@ -17,47 +17,39 @@
   
 
   
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
 
-  
-  
     
 
   
-
-  
-  
-    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  
-
-  
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  
-    <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
-  
-
-  
-        <link rel="index" title="Index"
-              href="genindex.html"/>
-        <link rel="search" title="Search" href="search.html"/>
-    <link rel="top" title="Apex 0.1.0 documentation" href="index.html"/>
-        <link rel="up" title="apex.amp" href="amp.html"/>
-        <link rel="next" title="apex.parallel" href="parallel.html"/>
-        <link rel="prev" title="apex.amp" href="amp.html"/> 
-
-  
-  <script src="_static/js/modernizr.min.js"></script>
-
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="apex.parallel" href="parallel.html" />
+    <link rel="prev" title="apex.amp" href="amp.html" /> 
 </head>
 
-<body class="wy-body-for-nav" role="document">
+<body class="wy-body-for-nav">
 
    
   <div class="wy-grid-for-nav">
-
     
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
-        <div class="wy-side-nav-search">
+        <div class="wy-side-nav-search" >
            
 
           
@@ -128,13 +120,13 @@
               <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="amp.html">apex.amp</a><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="amp.html#opt-levels-and-properties"><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="amp.html#opt-levels-and-properties"><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s and Properties</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="amp.html#properties">Properties</a></li>
-<li class="toctree-l3"><a class="reference internal" href="amp.html#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o2-almost-fp16-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="amp.html#opt-levels"><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o0-fp32-training"><code class="docutils literal notranslate"><span class="pre">O0</span></code>:  FP32 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal notranslate"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o2-almost-fp16-mixed-precision"><code class="docutils literal notranslate"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o3-fp16-training"><code class="docutils literal notranslate"><span class="pre">O3</span></code>:  FP16 training</a></li>
 </ul>
 </li>
 </ul>
@@ -186,7 +178,7 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+      <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="index.html">Apex</a>
@@ -194,9 +186,10 @@
       </nav>
 
 
-      
       <div class="wy-nav-content">
+        
         <div class="rst-content">
+        
           
 
 
@@ -249,19 +242,19 @@ is under construction.</p>
 </div>
 <div class="section" id="gradient-clipping">
 <h2>Gradient clipping<a class="headerlink" href="#gradient-clipping" title="Permalink to this headline">¶</a></h2>
-<p>Amp calls the params owned directly by the optimizer’s <code class="docutils literal"><span class="pre">param_groups</span></code> the “master params.”</p>
-<p>These master params may be fully or partially distinct from <code class="docutils literal"><span class="pre">model.parameters()</span></code>.
-For example, with <a class="reference external" href="https://nvidia.github.io/apex/amp.html#o2-fast-mixed-precision">opt_level=”O2”</a>, <code class="docutils literal"><span class="pre">amp.initialize</span></code> casts most model params to FP16,
+<p>Amp calls the params owned directly by the optimizer’s <code class="docutils literal notranslate"><span class="pre">param_groups</span></code> the “master params.”</p>
+<p>These master params may be fully or partially distinct from <code class="docutils literal notranslate"><span class="pre">model.parameters()</span></code>.
+For example, with <a class="reference external" href="https://nvidia.github.io/apex/amp.html#o2-fast-mixed-precision">opt_level=”O2”</a>, <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code> casts most model params to FP16,
 creates an FP32 master param outside the model for each newly-FP16 model param,
-and updates the optimizer’s <code class="docutils literal"><span class="pre">param_groups</span></code> to point to these FP32 params.</p>
-<p>The master params owned by the optimizer’s <code class="docutils literal"><span class="pre">param_groups</span></code> may also fully coincide with the
-model params, which is typically true for <code class="docutils literal"><span class="pre">opt_level</span></code>s <code class="docutils literal"><span class="pre">O0</span></code>, <code class="docutils literal"><span class="pre">O1</span></code>, and <code class="docutils literal"><span class="pre">O3</span></code>.</p>
+and updates the optimizer’s <code class="docutils literal notranslate"><span class="pre">param_groups</span></code> to point to these FP32 params.</p>
+<p>The master params owned by the optimizer’s <code class="docutils literal notranslate"><span class="pre">param_groups</span></code> may also fully coincide with the
+model params, which is typically true for <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s <code class="docutils literal notranslate"><span class="pre">O0</span></code>, <code class="docutils literal notranslate"><span class="pre">O1</span></code>, and <code class="docutils literal notranslate"><span class="pre">O3</span></code>.</p>
 <p>In all cases, correct practice is to clip the gradients of the params that are guaranteed to be
-owned <strong>by the optimizer’s</strong> <code class="docutils literal"><span class="pre">param_groups</span></code>, instead of those retrieved via <code class="docutils literal"><span class="pre">model.parameters()</span></code>.</p>
+owned <strong>by the optimizer’s</strong> <code class="docutils literal notranslate"><span class="pre">param_groups</span></code>, instead of those retrieved via <code class="docutils literal notranslate"><span class="pre">model.parameters()</span></code>.</p>
 <p>Also, if Amp uses loss scaling, gradients must be clipped after they have been unscaled
-(which occurs during exit from the <code class="docutils literal"><span class="pre">amp.scale_loss</span></code> context manager).</p>
-<p>The following pattern should be correct for any <code class="docutils literal"><span class="pre">opt_level</span></code>:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+(which occurs during exit from the <code class="docutils literal notranslate"><span class="pre">amp.scale_loss</span></code> context manager).</p>
+<p>The following pattern should be correct for any <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
     <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
     <span class="c1"># Gradients are unscaled during context manager exit.</span>
 <span class="c1"># Now it&#39;s safe to clip.  Replace</span>
@@ -272,31 +265,31 @@ owned <strong>by the optimizer’s</strong> <code class="docutils literal"><span
 <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">clip_grad_value_</span><span class="p">(</span><span class="n">amp</span><span class="o">.</span><span class="n">master_params</span><span class="p">(</span><span class="n">optimizer</span><span class="p">),</span> <span class="n">max_</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Note the use of the utility function <code class="docutils literal"><span class="pre">amp.master_params(optimizer)</span></code>,
+<p>Note the use of the utility function <code class="docutils literal notranslate"><span class="pre">amp.master_params(optimizer)</span></code>,
 which returns a generator-expression that iterates over the
-params in the optimizer’s <code class="docutils literal"><span class="pre">param_groups</span></code>.</p>
-<p>Also note that <code class="docutils literal"><span class="pre">clip_grad_norm_(amp.master_params(optimizer),</span> <span class="pre">max_norm)</span></code> is invoked
-<em>instead of</em>, not <em>in addition to</em>, <code class="docutils literal"><span class="pre">clip_grad_norm_(model.parameters(),</span> <span class="pre">max_norm)</span></code>.</p>
+params in the optimizer’s <code class="docutils literal notranslate"><span class="pre">param_groups</span></code>.</p>
+<p>Also note that <code class="docutils literal notranslate"><span class="pre">clip_grad_norm_(amp.master_params(optimizer),</span> <span class="pre">max_norm)</span></code> is invoked
+<em>instead of</em>, not <em>in addition to</em>, <code class="docutils literal notranslate"><span class="pre">clip_grad_norm_(model.parameters(),</span> <span class="pre">max_norm)</span></code>.</p>
 </div>
 <div class="section" id="custom-user-defined-autograd-functions">
 <h2>Custom/user-defined autograd functions<a class="headerlink" href="#custom-user-defined-autograd-functions" title="Permalink to this headline">¶</a></h2>
 <p>The old Amp API for <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/apex/amp#annotating-user-functions">registering user functions</a> is still considered correct.  Functions must
-be registered before calling <code class="docutils literal"><span class="pre">amp.initialize</span></code>.</p>
+be registered before calling <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code>.</p>
 </div>
 <div class="section" id="forcing-particular-layers-functions-to-a-desired-type">
 <h2>Forcing particular layers/functions to a desired type<a class="headerlink" href="#forcing-particular-layers-functions-to-a-desired-type" title="Permalink to this headline">¶</a></h2>
 <p>I’m still working on a generalizable exposure for this that won’t require user-side code divergence
-across different <code class="docutils literal"><span class="pre">opt-level</span></code>s.</p>
+across different <code class="docutils literal notranslate"><span class="pre">opt-level</span></code>s.</p>
 </div>
 <div class="section" id="multiple-models-optimizers-losses">
 <h2>Multiple models/optimizers/losses<a class="headerlink" href="#multiple-models-optimizers-losses" title="Permalink to this headline">¶</a></h2>
 <div class="section" id="initialization-with-multiple-models-optimizers">
 <h3>Initialization with multiple models/optimizers<a class="headerlink" href="#initialization-with-multiple-models-optimizers" title="Permalink to this headline">¶</a></h3>
-<p><code class="docutils literal"><span class="pre">amp.initialize</span></code>’s optimizer argument may be a single optimizer or a list of optimizers,
+<p><code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code>’s optimizer argument may be a single optimizer or a list of optimizers,
 as long as the output you accept has the same type.
-Similarly, the <code class="docutils literal"><span class="pre">model</span></code> argument may be a single model or a list of models, as long as the accepted
+Similarly, the <code class="docutils literal notranslate"><span class="pre">model</span></code> argument may be a single model or a list of models, as long as the accepted
 output matches.  The following calls are all legal:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span><span class="o">...</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span><span class="o">...</span><span class="p">)</span>
 <span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim0</span><span class="p">,</span> <span class="n">optim1</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim0</span><span class="p">,</span> <span class="n">optim1</span><span class="p">],</span><span class="o">...</span><span class="p">)</span>
 <span class="p">[</span><span class="n">model0</span><span class="p">,</span> <span class="n">model1</span><span class="p">],</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="n">model0</span><span class="p">,</span> <span class="n">model1</span><span class="p">],</span> <span class="n">optim</span><span class="p">,</span><span class="o">...</span><span class="p">)</span>
 <span class="p">[</span><span class="n">model0</span><span class="p">,</span> <span class="n">model1</span><span class="p">],</span> <span class="p">[</span><span class="n">optim0</span><span class="p">,</span> <span class="n">optim1</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="n">model0</span><span class="p">,</span> <span class="n">model1</span><span class="p">],</span> <span class="p">[</span><span class="n">optim0</span><span class="p">,</span> <span class="n">optim1</span><span class="p">],</span><span class="o">...</span><span class="p">)</span>
@@ -305,14 +298,14 @@ output matches.  The following calls are all legal:</p>
 </div>
 <div class="section" id="backward-passes-with-multiple-optimizers">
 <h3>Backward passes with multiple optimizers<a class="headerlink" href="#backward-passes-with-multiple-optimizers" title="Permalink to this headline">¶</a></h3>
-<p>Whenever you invoke a backward pass, the <code class="docutils literal"><span class="pre">amp.scale_loss</span></code> context manager must receive
+<p>Whenever you invoke a backward pass, the <code class="docutils literal notranslate"><span class="pre">amp.scale_loss</span></code> context manager must receive
 <strong>all the optimizers that own any params for which the current backward pass is creating gradients.</strong>
 This is true even if each optimizer owns only some, but not all, of the params that are about to
 receive gradients.</p>
 <p>If, for a given backward pass, there’s only one optimizer whose params are about to receive gradients,
-you may pass that optimizer directly to <code class="docutils literal"><span class="pre">amp.scale_loss</span></code>.  Otherwise, you must pass the
+you may pass that optimizer directly to <code class="docutils literal notranslate"><span class="pre">amp.scale_loss</span></code>.  Otherwise, you must pass the
 list of optimizers whose params are about to receive gradients.  Example with 3 losses and 2 optimizers:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># loss0 accumulates gradients only into params owned by optim0:</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># loss0 accumulates gradients only into params owned by optim0:</span>
 <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss0</span><span class="p">,</span> <span class="n">optim0</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
     <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 
@@ -330,16 +323,16 @@ list of optimizers whose params are about to receive gradients.  Example with 3 
 <div class="section" id="optionally-have-amp-use-a-different-loss-scaler-per-loss">
 <h3>Optionally have Amp use a different loss scaler per-loss<a class="headerlink" href="#optionally-have-amp-use-a-different-loss-scaler-per-loss" title="Permalink to this headline">¶</a></h3>
 <p>By default, Amp maintains a single global loss scaler that will be used for all backward passes
-(all invocations of <code class="docutils literal"><span class="pre">with</span> <span class="pre">amp.scale_loss(...)</span></code>).  No additional arguments to <code class="docutils literal"><span class="pre">amp.initialize</span></code>
-or <code class="docutils literal"><span class="pre">amp.scale_loss</span></code> are required to use the global loss scaler.  The code snippets above with
+(all invocations of <code class="docutils literal notranslate"><span class="pre">with</span> <span class="pre">amp.scale_loss(...)</span></code>).  No additional arguments to <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code>
+or <code class="docutils literal notranslate"><span class="pre">amp.scale_loss</span></code> are required to use the global loss scaler.  The code snippets above with
 multiple optimizers/backward passes use the single global loss scaler under the hood,
 and they should “just work.”</p>
 <p>However, you can optionally tell Amp to maintain a loss scaler per-loss, which gives Amp increased
-numerical flexibility.  This is accomplished by supplying the <code class="docutils literal"><span class="pre">num_losses</span></code> argument to
-<code class="docutils literal"><span class="pre">amp.initialize</span></code> (which tells Amp how many backward passes you plan to invoke, and therefore
-how many loss scalers Amp should create), then supplying the <code class="docutils literal"><span class="pre">loss_id</span></code> argument to each of your
+numerical flexibility.  This is accomplished by supplying the <code class="docutils literal notranslate"><span class="pre">num_losses</span></code> argument to
+<code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code> (which tells Amp how many backward passes you plan to invoke, and therefore
+how many loss scalers Amp should create), then supplying the <code class="docutils literal notranslate"><span class="pre">loss_id</span></code> argument to each of your
 backward passes (which tells Amp the loss scaler to use for this particular backward pass):</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim0</span><span class="p">,</span> <span class="n">optim1</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim0</span><span class="p">,</span> <span class="n">optim1</span><span class="p">],</span> <span class="o">...</span><span class="p">,</span> <span class="n">num_losses</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim0</span><span class="p">,</span> <span class="n">optim1</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim0</span><span class="p">,</span> <span class="n">optim1</span><span class="p">],</span> <span class="o">...</span><span class="p">,</span> <span class="n">num_losses</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
 
 <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss0</span><span class="p">,</span> <span class="n">optim0</span><span class="p">,</span> <span class="n">loss_id</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
     <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
@@ -351,7 +344,7 @@ backward passes (which tells Amp the loss scaler to use for this particular back
     <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 </pre></div>
 </div>
-<p><code class="docutils literal"><span class="pre">num_losses</span></code> and <code class="docutils literal"><span class="pre">loss_id</span></code>s should be specified purely based on the set of
+<p><code class="docutils literal notranslate"><span class="pre">num_losses</span></code> and <code class="docutils literal notranslate"><span class="pre">loss_id</span></code>s should be specified purely based on the set of
 losses/backward passes.  The use of multiple optimizers, or association of single or
 multiple optimizers with each backward pass, is unrelated.</p>
 </div>
@@ -360,7 +353,7 @@ multiple optimizers with each backward pass, is unrelated.</p>
 <h2>Gradient accumulation across iterations<a class="headerlink" href="#gradient-accumulation-across-iterations" title="Permalink to this headline">¶</a></h2>
 <p>The following should “just work,” and properly accommodate multiple models/optimizers/losses, as well as
 gradient clipping via the <a class="reference external" href="https://nvidia.github.io/apex/advanced.html#gradient-clipping">instructions above</a>:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># If your intent is to simulate a larger batch size using gradient accumulation,</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># If your intent is to simulate a larger batch size using gradient accumulation,</span>
 <span class="c1"># you can divide the loss by the number of accumulation iterations (so that gradients</span>
 <span class="c1"># will be averaged over that many iterations):</span>
 <span class="n">loss</span> <span class="o">=</span> <span class="n">loss</span><span class="o">/</span><span class="n">iters_to_accumulate</span>
@@ -376,11 +369,11 @@ gradient clipping via the <a class="reference external" href="https://nvidia.git
     <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>As a minor performance optimization, you can pass <code class="docutils literal"><span class="pre">delay_unscale=True</span></code>
-to <code class="docutils literal"><span class="pre">amp.scale_loss</span></code> until you’re ready to <code class="docutils literal"><span class="pre">step()</span></code>.  You should only attempt <code class="docutils literal"><span class="pre">delay_unscale=True</span></code>
+<p>As a minor performance optimization, you can pass <code class="docutils literal notranslate"><span class="pre">delay_unscale=True</span></code>
+to <code class="docutils literal notranslate"><span class="pre">amp.scale_loss</span></code> until you’re ready to <code class="docutils literal notranslate"><span class="pre">step()</span></code>.  You should only attempt <code class="docutils literal notranslate"><span class="pre">delay_unscale=True</span></code>
 if you’re sure you know what you’re doing, because the interaction with gradient clipping and
 multiple models/optimizers/losses can become tricky.:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="nb">iter</span><span class="o">%</span><span class="n">iters_to_accumulate</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="nb">iter</span><span class="o">%</span><span class="n">iters_to_accumulate</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
     <span class="c1"># Every iters_to_accumulate iterations, unscale and step</span>
     <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
         <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
@@ -396,19 +389,19 @@ multiple models/optimizers/losses can become tricky.:</p>
 <div class="section" id="custom-data-batch-types">
 <h2>Custom data batch types<a class="headerlink" href="#custom-data-batch-types" title="Permalink to this headline">¶</a></h2>
 <p>The intention of Amp is that you never need to cast your input data manually, regardless of
-<code class="docutils literal"><span class="pre">opt_level</span></code>.  Amp accomplishes this by patching any models’ <code class="docutils literal"><span class="pre">forward</span></code> methods to cast
-incoming data appropriately for the <code class="docutils literal"><span class="pre">opt_level</span></code>.  But to cast incoming data,
-Amp needs to know how.  The patched <code class="docutils literal"><span class="pre">forward</span></code> will recognize and cast floating-point Tensors
+<code class="docutils literal notranslate"><span class="pre">opt_level</span></code>.  Amp accomplishes this by patching any models’ <code class="docutils literal notranslate"><span class="pre">forward</span></code> methods to cast
+incoming data appropriately for the <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>.  But to cast incoming data,
+Amp needs to know how.  The patched <code class="docutils literal notranslate"><span class="pre">forward</span></code> will recognize and cast floating-point Tensors
 (non-floating-point Tensors like IntTensors are not touched) and
 Python containers of floating-point Tensors.  However, if you wrap your Tensors in a custom class,
 the casting logic doesn’t know how to drill
 through the tough custom shell to access and cast the juicy Tensor meat within.  You need to tell
-Amp how to cast your custom batch class, by assigning it a <code class="docutils literal"><span class="pre">to</span></code> method that accepts a <code class="docutils literal"><span class="pre">torch.dtype</span></code>
-(e.g., <code class="docutils literal"><span class="pre">torch.float16</span></code> or <code class="docutils literal"><span class="pre">torch.float32</span></code>) and returns an instance of the custom batch cast to
-<code class="docutils literal"><span class="pre">dtype</span></code>.  The patched <code class="docutils literal"><span class="pre">forward</span></code> checks for the presence of your <code class="docutils literal"><span class="pre">to</span></code> method, and will
-invoke it with the correct type for the <code class="docutils literal"><span class="pre">opt_level</span></code>.</p>
+Amp how to cast your custom batch class, by assigning it a <code class="docutils literal notranslate"><span class="pre">to</span></code> method that accepts a <code class="docutils literal notranslate"><span class="pre">torch.dtype</span></code>
+(e.g., <code class="docutils literal notranslate"><span class="pre">torch.float16</span></code> or <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>) and returns an instance of the custom batch cast to
+<code class="docutils literal notranslate"><span class="pre">dtype</span></code>.  The patched <code class="docutils literal notranslate"><span class="pre">forward</span></code> checks for the presence of your <code class="docutils literal notranslate"><span class="pre">to</span></code> method, and will
+invoke it with the correct type for the <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>.</p>
 <p>Example:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CustomData</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CustomData</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">FloatTensor</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">])</span>
 
@@ -418,16 +411,16 @@ invoke it with the correct type for the <code class="docutils literal"><span cla
 </pre></div>
 </div>
 <div class="admonition warning">
-<p class="first admonition-title">Warning</p>
-<p class="last">Amp also forwards numpy ndarrays without casting them.  If you send input data as a raw, unwrapped
-ndarray, then later use it to create a Tensor within your <code class="docutils literal"><span class="pre">model.forward</span></code>, this Tensor’s type will
-not depend on the <code class="docutils literal"><span class="pre">opt_level</span></code>, and may or may not be correct.  Users are encouraged to pass
-castable data inputs (Tensors, collections of Tensors, or custom classes with a <code class="docutils literal"><span class="pre">to</span></code> method)
+<p class="admonition-title">Warning</p>
+<p>Amp also forwards numpy ndarrays without casting them.  If you send input data as a raw, unwrapped
+ndarray, then later use it to create a Tensor within your <code class="docutils literal notranslate"><span class="pre">model.forward</span></code>, this Tensor’s type will
+not depend on the <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>, and may or may not be correct.  Users are encouraged to pass
+castable data inputs (Tensors, collections of Tensors, or custom classes with a <code class="docutils literal notranslate"><span class="pre">to</span></code> method)
 wherever possible.</p>
 </div>
 <div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Amp does not call <code class="docutils literal"><span class="pre">.cuda()</span></code> on any Tensors for you.  Amp assumes that your original script
+<p class="admonition-title">Note</p>
+<p>Amp does not call <code class="docutils literal notranslate"><span class="pre">.cuda()</span></code> on any Tensors for you.  Amp assumes that your original script
 is already set up to move Tensors from the host to the device as needed.</p>
 </div>
 </div>
@@ -435,9 +428,7 @@ is already set up to move Tensors from the host to the device as needed.</p>
 
 
            </div>
-           <div class="articleComments">
-            
-           </div>
+           
           </div>
           <footer>
   
@@ -446,7 +437,7 @@ is already set up to move Tensors from the host to the device as needed.</p>
         <a href="parallel.html" class="btn btn-neutral float-right" title="apex.parallel" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="amp.html" class="btn btn-neutral" title="apex.amp" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="amp.html" class="btn btn-neutral float-left" title="apex.amp" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
@@ -455,11 +446,11 @@ is already set up to move Tensors from the host to the device as needed.</p>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018.
+        &copy; Copyright 2018
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -472,37 +463,15 @@ is already set up to move Tensors from the host to the device as needed.</p>
   
 
 
-  
-
-    <script type="text/javascript">
-        var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'./',
-            VERSION:'0.1.0',
-            COLLAPSE_INDEX:false,
-            FILE_SUFFIX:'.html',
-            HAS_SOURCE:  true,
-            SOURCELINK_SUFFIX: '.txt'
-        };
-    </script>
-      <script type="text/javascript" src="_static/jquery.js"></script>
-      <script type="text/javascript" src="_static/underscore.js"></script>
-      <script type="text/javascript" src="_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-
-  
-
-  
-  
-    <script type="text/javascript" src="_static/js/theme.js"></script>
-  
-
-  
-  
   <script type="text/javascript">
       jQuery(function () {
-          SphinxRtdTheme.StickyNav.enable();
+          SphinxRtdTheme.Navigation.enable(true);
       });
   </script>
+
+  
+  
+    
     
 
   <style>

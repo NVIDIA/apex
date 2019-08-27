@@ -17,45 +17,38 @@
   
 
   
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
 
-  
-  
     
 
   
-
-  
-  
-    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  
-
-  
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  
-    <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
-  
-
-  
-        <link rel="index" title="Index"
-              href="genindex.html"/>
-        <link rel="search" title="Search" href="search.html"/>
-    <link rel="top" title="Apex 0.1.0 documentation" href="index.html"/>
-        <link rel="prev" title="apex.optimizers" href="optimizers.html"/> 
-
-  
-  <script src="_static/js/modernizr.min.js"></script>
-
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="apex.optimizers" href="optimizers.html" /> 
 </head>
 
-<body class="wy-body-for-nav" role="document">
+<body class="wy-body-for-nav">
 
    
   <div class="wy-grid-for-nav">
-
     
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
-        <div class="wy-side-nav-search">
+        <div class="wy-side-nav-search" >
            
 
           
@@ -126,13 +119,13 @@
               <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="amp.html">apex.amp</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="amp.html#opt-levels-and-properties"><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="amp.html#opt-levels-and-properties"><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s and Properties</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="amp.html#properties">Properties</a></li>
-<li class="toctree-l3"><a class="reference internal" href="amp.html#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o2-almost-fp16-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="amp.html#opt-levels"><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o0-fp32-training"><code class="docutils literal notranslate"><span class="pre">O0</span></code>:  FP32 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal notranslate"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o2-almost-fp16-mixed-precision"><code class="docutils literal notranslate"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o3-fp16-training"><code class="docutils literal notranslate"><span class="pre">O3</span></code>:  FP16 training</a></li>
 </ul>
 </li>
 </ul>
@@ -184,7 +177,7 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+      <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="index.html">Apex</a>
@@ -192,9 +185,10 @@
       </nav>
 
 
-      
       <div class="wy-nav-content">
+        
         <div class="rst-content">
+        
           
 
 
@@ -240,58 +234,53 @@
 <span id="apex-normalization-fused-layer-norm"></span><h1>apex.normalization.fused_layer_norm<a class="headerlink" href="#module-apex.normalization" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="apex.normalization.FusedLayerNorm">
-<em class="property">class </em><code class="descclassname">apex.normalization.</code><code class="descname">FusedLayerNorm</code><span class="sig-paren">(</span><em>normalized_shape</em>, <em>eps=1e-05</em>, <em>elementwise_affine=True</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.normalization.FusedLayerNorm" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">apex.normalization.</code><code class="sig-name descname">FusedLayerNorm</code><span class="sig-paren">(</span><em class="sig-param">normalized_shape</em>, <em class="sig-param">eps=1e-05</em>, <em class="sig-param">elementwise_affine=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/normalization/fused_layer_norm.html#FusedLayerNorm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.normalization.FusedLayerNorm" title="Permalink to this definition">¶</a></dt>
 <dd><p>Applies Layer Normalization over a mini-batch of inputs as described in
 the paper <a class="reference external" href="https://arxiv.org/abs/1607.06450">Layer Normalization</a> .</p>
 <p>Currently only runs on cuda() tensors.</p>
-<div class="math">
+<div class="math notranslate nohighlight">
 \[y = \frac{x - \mathrm{E}[x]}{ \sqrt{\mathrm{Var}[x] + \epsilon}} * \gamma + \beta\]</div>
 <p>The mean and standard-deviation are calculated separately over the last
 certain number dimensions which have to be of the shape specified by
-<code class="xref py py-attr docutils literal"><span class="pre">normalized_shape</span></code>.
-<span class="math">\(\gamma\)</span> and <span class="math">\(\beta\)</span> are learnable affine transform parameters of
-<code class="xref py py-attr docutils literal"><span class="pre">normalized_shape</span></code> if <code class="xref py py-attr docutils literal"><span class="pre">elementwise_affine</span></code> is <code class="docutils literal"><span class="pre">True</span></code>.</p>
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">normalized_shape</span></code>.
+<span class="math notranslate nohighlight">\(\gamma\)</span> and <span class="math notranslate nohighlight">\(\beta\)</span> are learnable affine transform parameters of
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">normalized_shape</span></code> if <code class="xref py py-attr docutils literal notranslate"><span class="pre">elementwise_affine</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p>
 <div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Unlike Batch Normalization and Instance Normalization, which applies
+<p class="admonition-title">Note</p>
+<p>Unlike Batch Normalization and Instance Normalization, which applies
 scalar scale and bias for each entire channel/plane with the
-<code class="xref py py-attr docutils literal"><span class="pre">affine</span></code> option, Layer Normalization applies per-element scale and
-bias with <code class="xref py py-attr docutils literal"><span class="pre">elementwise_affine</span></code>.</p>
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">affine</span></code> option, Layer Normalization applies per-element scale and
+bias with <code class="xref py py-attr docutils literal notranslate"><span class="pre">elementwise_affine</span></code>.</p>
 </div>
 <p>This layer uses statistics computed from input data in both training and
 evaluation modes.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>normalized_shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a><em> or </em><em>torch.Size</em>) – <p>input shape from an expected input
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>normalized_shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a><em> or </em><em>torch.Size</em>) – <p>input shape from an expected input
 of size</p>
-<div class="math">
+<div class="math notranslate nohighlight">
 \[[* \times \text{normalized}\_\text{shape}[0] \times \text{normalized}\_\text{shape}[1]
     \times \ldots \times \text{normalized}\_\text{shape}[-1]]\]</div>
 <p>If a single integer is used, it is treated as a singleton list, and this module will
 normalize over the last dimension which is expected to be of that specific size.</p>
-</li>
-<li><strong>eps</strong> – a value added to the denominator for numerical stability. Default: 1e-5</li>
-<li><strong>elementwise_affine</strong> – a boolean value that when set to <code class="docutils literal"><span class="pre">True</span></code>, this module
+</p></li>
+<li><p><strong>eps</strong> – a value added to the denominator for numerical stability. Default: 1e-5</p></li>
+<li><p><strong>elementwise_affine</strong> – a boolean value that when set to <code class="docutils literal notranslate"><span class="pre">True</span></code>, this module
 has learnable per-element affine parameters initialized to ones (for weights)
-and zeros (for biases). Default: <code class="docutils literal"><span class="pre">True</span></code>.</li>
+and zeros (for biases). Default: <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
-<dl class="docutils">
-<dt>Shape:</dt>
-<dd><ul class="first last simple">
-<li>Input: <span class="math">\((N, *)\)</span></li>
-<li>Output: <span class="math">\((N, *)\)</span> (same shape as input)</li>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Shape:</dt><dd><ul class="simple">
+<li><p>Input: <span class="math notranslate nohighlight">\((N, *)\)</span></p></li>
+<li><p>Output: <span class="math notranslate nohighlight">\((N, *)\)</span> (same shape as input)</p></li>
 </ul>
 </dd>
 </dl>
 <p>Examples:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nb">input</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nb">input</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># With Learnable Parameters</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">m</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">normalization</span><span class="o">.</span><span class="n">FusedLayerNorm</span><span class="p">(</span><span class="nb">input</span><span class="o">.</span><span class="n">size</span><span class="p">()[</span><span class="mi">1</span><span class="p">:])</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Without Learnable Parameters</span>
@@ -304,22 +293,43 @@ and zeros (for biases). Default: <code class="docutils literal"><span class="pre
 <span class="gp">&gt;&gt;&gt; </span><span class="n">output</span> <span class="o">=</span> <span class="n">m</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span>
 </pre></div>
 </div>
+<dl class="method">
+<dt id="apex.normalization.FusedLayerNorm.extra_repr">
+<code class="sig-name descname">extra_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/normalization/fused_layer_norm.html#FusedLayerNorm.extra_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.normalization.FusedLayerNorm.extra_repr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the extra representation of the module</p>
+<p>To print customized extra information, you should reimplement
+this method in your own modules. Both single-line and multi-line
+strings are acceptable.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.normalization.FusedLayerNorm.forward">
+<code class="sig-name descname">forward</code><span class="sig-paren">(</span><em class="sig-param">input</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/normalization/fused_layer_norm.html#FusedLayerNorm.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.normalization.FusedLayerNorm.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
 </dd></dl>
 
 </div>
 
 
            </div>
-           <div class="articleComments">
-            
-           </div>
+           
           </div>
           <footer>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
       
-        <a href="optimizers.html" class="btn btn-neutral" title="apex.optimizers" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="optimizers.html" class="btn btn-neutral float-left" title="apex.optimizers" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
@@ -328,11 +338,11 @@ and zeros (for biases). Default: <code class="docutils literal"><span class="pre
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018.
+        &copy; Copyright 2018
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -345,37 +355,15 @@ and zeros (for biases). Default: <code class="docutils literal"><span class="pre
   
 
 
-  
-
-    <script type="text/javascript">
-        var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'./',
-            VERSION:'0.1.0',
-            COLLAPSE_INDEX:false,
-            FILE_SUFFIX:'.html',
-            HAS_SOURCE:  true,
-            SOURCELINK_SUFFIX: '.txt'
-        };
-    </script>
-      <script type="text/javascript" src="_static/jquery.js"></script>
-      <script type="text/javascript" src="_static/underscore.js"></script>
-      <script type="text/javascript" src="_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-
-  
-
-  
-  
-    <script type="text/javascript" src="_static/js/theme.js"></script>
-  
-
-  
-  
   <script type="text/javascript">
       jQuery(function () {
-          SphinxRtdTheme.StickyNav.enable();
+          SphinxRtdTheme.Navigation.enable(true);
       });
   </script>
+
+  
+  
+    
     
 
   <style>

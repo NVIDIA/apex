@@ -17,46 +17,39 @@
   
 
   
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
 
-  
-  
     
 
   
-
-  
-  
-    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  
-
-  
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  
-    <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
-  
-
-  
-        <link rel="index" title="Index"
-              href="genindex.html"/>
-        <link rel="search" title="Search" href="search.html"/>
-    <link rel="top" title="Apex 0.1.0 documentation" href="index.html"/>
-        <link rel="next" title="apex.optimizers" href="optimizers.html"/>
-        <link rel="prev" title="Advanced Amp Usage" href="advanced.html"/> 
-
-  
-  <script src="_static/js/modernizr.min.js"></script>
-
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="apex.optimizers" href="optimizers.html" />
+    <link rel="prev" title="Advanced Amp Usage" href="advanced.html" /> 
 </head>
 
-<body class="wy-body-for-nav" role="document">
+<body class="wy-body-for-nav">
 
    
   <div class="wy-grid-for-nav">
-
     
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
-        <div class="wy-side-nav-search">
+        <div class="wy-side-nav-search" >
            
 
           
@@ -127,13 +120,13 @@
               <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="amp.html">apex.amp</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="amp.html#opt-levels-and-properties"><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="amp.html#opt-levels-and-properties"><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s and Properties</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="amp.html#properties">Properties</a></li>
-<li class="toctree-l3"><a class="reference internal" href="amp.html#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o2-almost-fp16-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="amp.html#opt-levels"><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o0-fp32-training"><code class="docutils literal notranslate"><span class="pre">O0</span></code>:  FP32 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal notranslate"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o2-almost-fp16-mixed-precision"><code class="docutils literal notranslate"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o3-fp16-training"><code class="docutils literal notranslate"><span class="pre">O3</span></code>:  FP16 training</a></li>
 </ul>
 </li>
 </ul>
@@ -185,7 +178,7 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+      <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="index.html">Apex</a>
@@ -193,9 +186,10 @@
       </nav>
 
 
-      
       <div class="wy-nav-content">
+        
         <div class="rst-content">
+        
           
 
 
@@ -241,136 +235,162 @@
 <span id="apex-parallel"></span><h1>apex.parallel<a class="headerlink" href="#module-apex.parallel" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="apex.parallel.DistributedDataParallel">
-<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">DistributedDataParallel</code><span class="sig-paren">(</span><em>module</em>, <em>message_size=10000000</em>, <em>delay_allreduce=False</em>, <em>shared_param=None</em>, <em>allreduce_trigger_params=None</em>, <em>retain_allreduce_buffers=False</em>, <em>allreduce_always_fp32=False</em>, <em>gradient_average=True</em>, <em>gradient_predivide_factor=1.0</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.DistributedDataParallel" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.DistributedDataParallel</span></code></a> is a module wrapper that enables
-easy multiprocess distributed data parallel training, similar to <code class="docutils literal"><span class="pre">torch.nn.parallel.DistributedDataParallel</span></code>.  Parameters are broadcast across participating processes on initialization, and gradients are
-allreduced and averaged over processes during <code class="docutils literal"><span class="pre">backward()</span></code>.</p>
-<p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> is optimized for use with NCCL.  It achieves high performance by
-overlapping communication with computation during <code class="docutils literal"><span class="pre">backward()</span></code> and bucketing smaller gradient
+<em class="property">class </em><code class="sig-prename descclassname">apex.parallel.</code><code class="sig-name descname">DistributedDataParallel</code><span class="sig-paren">(</span><em class="sig-param">module</em>, <em class="sig-param">message_size=10000000</em>, <em class="sig-param">delay_allreduce=False</em>, <em class="sig-param">shared_param=None</em>, <em class="sig-param">allreduce_trigger_params=None</em>, <em class="sig-param">retain_allreduce_buffers=False</em>, <em class="sig-param">allreduce_always_fp32=False</em>, <em class="sig-param">num_allreduce_streams=1</em>, <em class="sig-param">allreduce_communicators=None</em>, <em class="sig-param">gradient_average=True</em>, <em class="sig-param">gradient_predivide_factor=1.0</em>, <em class="sig-param">gradient_average_split_factor=None</em>, <em class="sig-param">prof=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/distributed.html#DistributedDataParallel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.DistributedDataParallel" title="Permalink to this definition">¶</a></dt>
+<dd><p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal notranslate"><span class="pre">apex.parallel.DistributedDataParallel</span></code></a> is a module wrapper that enables
+easy multiprocess distributed data parallel training, similar to <code class="docutils literal notranslate"><span class="pre">torch.nn.parallel.DistributedDataParallel</span></code>.  Parameters are broadcast across participating processes on initialization, and gradients are
+allreduced and averaged over processes during <code class="docutils literal notranslate"><span class="pre">backward()</span></code>.</p>
+<p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal notranslate"><span class="pre">DistributedDataParallel</span></code></a> is optimized for use with NCCL.  It achieves high performance by
+overlapping communication with computation during <code class="docutils literal notranslate"><span class="pre">backward()</span></code> and bucketing smaller gradient
 transfers to reduce the total number of transfers required.</p>
-<p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> is designed to work with the upstream launch utility script
-<code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> with <code class="docutils literal"><span class="pre">--nproc_per_node</span> <span class="pre">&lt;=</span> <span class="pre">number</span> <span class="pre">of</span> <span class="pre">gpus</span> <span class="pre">per</span> <span class="pre">node</span></code>.
-When used with this launcher, <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> assumes 1:1 mapping of processes to GPUs.
-It also assumes that your script calls <code class="docutils literal"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.</p>
+<p><a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal notranslate"><span class="pre">DistributedDataParallel</span></code></a> is designed to work with the upstream launch utility script
+<code class="docutils literal notranslate"><span class="pre">torch.distributed.launch</span></code> with <code class="docutils literal notranslate"><span class="pre">--nproc_per_node</span> <span class="pre">&lt;=</span> <span class="pre">number</span> <span class="pre">of</span> <span class="pre">gpus</span> <span class="pre">per</span> <span class="pre">node</span></code>.
+When used with this launcher, <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal notranslate"><span class="pre">DistributedDataParallel</span></code></a> assumes 1:1 mapping of processes to GPUs.
+It also assumes that your script calls <code class="docutils literal notranslate"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.</p>
 <p><a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/simple/distributed">https://github.com/NVIDIA/apex/tree/master/examples/simple/distributed</a> shows detailed usage.
 <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/imagenet">https://github.com/NVIDIA/apex/tree/master/examples/imagenet</a> shows another example
-that combines <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a> with mixed precision training.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>module</strong> – Network definition to be run in multi-gpu/distributed mode.</li>
-<li><strong>message_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>default=1e7</em>) – Minimum number of elements in a communication bucket.</li>
-<li><strong>delay_allreduce</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>default=False</em>) – Delay all communication to the end of the backward pass.  This disables overlapping communication with computation.</li>
-<li><strong>allreduce_trigger_params</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – If supplied, should contain a list of parameters drawn from the model.  Allreduces will be kicked off whenever one of these parameters receives its gradient (as opposed to when a bucket of size message_size is full).  At the end of backward(), a cleanup allreduce to catch any remaining gradients will also be performed automatically.  If allreduce_trigger_params is supplied, the message_size argument will be ignored.</li>
-<li><strong>allreduce_always_fp32</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>default=False</em>) – Convert any FP16 gradients to FP32 before allreducing.  This can improve stability for widely scaled-out runs.</li>
-<li><strong>gradient_average</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>default=True</em>) – Option to toggle whether or not DDP averages the allreduced gradients over processes.  For proper scaling, the default value of True is recommended.</li>
-<li><strong>gradient_predivide_factor</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>default=1.0</em>) – Allows perfoming the average of gradients over processes partially before and partially after the allreduce.  Before allreduce:  <code class="docutils literal"><span class="pre">grads.mul_(1.0/gradient_predivide_factor)</span></code>.  After allreduce:  <code class="docutils literal"><span class="pre">grads.mul_(gradient_predivide_factor/world</span> <span class="pre">size)</span></code>.  This can reduce the stress on the dynamic range of FP16 allreduces for widely scaled-out runs.</li>
+that combines <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal notranslate"><span class="pre">DistributedDataParallel</span></code></a> with mixed precision training.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>module</strong> – Network definition to be run in multi-gpu/distributed mode.</p></li>
+<li><p><strong>message_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>default=1e7</em>) – Minimum number of elements in a communication bucket.</p></li>
+<li><p><strong>delay_allreduce</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>default=False</em>) – Delay all communication to the end of the backward pass.  This disables overlapping communication with computation.</p></li>
+<li><p><strong>allreduce_trigger_params</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – If supplied, should contain a list of parameters drawn from the model.  Allreduces will be kicked off whenever one of these parameters receives its gradient (as opposed to when a bucket of size message_size is full).  At the end of backward(), a cleanup allreduce to catch any remaining gradients will also be performed automatically.  If allreduce_trigger_params is supplied, the message_size argument will be ignored.</p></li>
+<li><p><strong>allreduce_always_fp32</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>default=False</em>) – Convert any FP16 gradients to FP32 before allreducing.  This can improve stability for widely scaled-out runs.</p></li>
+<li><p><strong>gradient_average</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>default=True</em>) – Option to toggle whether or not DDP averages the allreduced gradients over processes.  For proper scaling, the default value of True is recommended.</p></li>
+<li><p><strong>gradient_predivide_factor</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>default=1.0</em>) – Allows perfoming the average of gradients over processes partially before and partially after the allreduce.  Before allreduce:  <code class="docutils literal notranslate"><span class="pre">grads.mul_(1.0/gradient_predivide_factor)</span></code>.  After allreduce:  <code class="docutils literal notranslate"><span class="pre">grads.mul_(gradient_predivide_factor/world</span> <span class="pre">size)</span></code>.  This can reduce the stress on the dynamic range of FP16 allreduces for widely scaled-out runs.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <div class="admonition warning">
-<p class="first admonition-title">Warning</p>
-<p class="last">If <code class="docutils literal"><span class="pre">gradient_average=False</span></code>, the pre-allreduce division (<code class="docutils literal"><span class="pre">grads.mul_(1.0/gradient_predivide_factor)</span></code>) will still be applied, but the post-allreduce gradient averaging (<code class="docutils literal"><span class="pre">grads.mul_(gradient_predivide_factor/world</span> <span class="pre">size)</span></code>) will be omitted.</p>
+<p class="admonition-title">Warning</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">gradient_average=False</span></code>, the pre-allreduce division (<code class="docutils literal notranslate"><span class="pre">grads.mul_(1.0/gradient_predivide_factor)</span></code>) will still be applied, but the post-allreduce gradient averaging (<code class="docutils literal notranslate"><span class="pre">grads.mul_(gradient_predivide_factor/world</span> <span class="pre">size)</span></code>) will be omitted.</p>
 </div>
+<dl class="method">
+<dt id="apex.parallel.DistributedDataParallel.forward">
+<code class="sig-name descname">forward</code><span class="sig-paren">(</span><em class="sig-param">*inputs</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/distributed.html#DistributedDataParallel.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.DistributedDataParallel.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
 <dt id="apex.parallel.Reducer">
-<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">Reducer</code><span class="sig-paren">(</span><em>module_or_grads_list</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.Reducer" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.Reducer</span></code></a> is a simple class that helps allreduce a module’s parameters
-across processes.  <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> is intended to give the user additional control:
-Unlike <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a>, <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> will not automatically allreduce
-parameters during <code class="docutils literal"><span class="pre">backward()</span></code>.
-Instead, <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> waits for the user to call <code class="docutils literal"><span class="pre">&lt;reducer_instance&gt;.reduce()</span></code> manually.
+<em class="property">class </em><code class="sig-prename descclassname">apex.parallel.</code><code class="sig-name descname">Reducer</code><span class="sig-paren">(</span><em class="sig-param">module_or_grads_list</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/distributed.html#Reducer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.Reducer" title="Permalink to this definition">¶</a></dt>
+<dd><p><a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal notranslate"><span class="pre">apex.parallel.Reducer</span></code></a> is a simple class that helps allreduce a module’s parameters
+across processes.  <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reducer</span></code></a> is intended to give the user additional control:
+Unlike <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal notranslate"><span class="pre">DistributedDataParallel</span></code></a>, <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reducer</span></code></a> will not automatically allreduce
+parameters during <code class="docutils literal notranslate"><span class="pre">backward()</span></code>.
+Instead, <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reducer</span></code></a> waits for the user to call <code class="docutils literal notranslate"><span class="pre">&lt;reducer_instance&gt;.reduce()</span></code> manually.
 This enables, for example, delaying the allreduce to be carried out every
 several iterations instead of every single iteration.</p>
-<p>Like <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal"><span class="pre">DistributedDataParallel</span></code></a>, <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> averages any tensors it allreduces
+<p>Like <a class="reference internal" href="#apex.parallel.DistributedDataParallel" title="apex.parallel.DistributedDataParallel"><code class="xref py py-class docutils literal notranslate"><span class="pre">DistributedDataParallel</span></code></a>, <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reducer</span></code></a> averages any tensors it allreduces
 over the number of participating processes.</p>
-<p><a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> is designed to work with the upstream launch utility script
-<code class="docutils literal"><span class="pre">torch.distributed.launch</span></code> with <code class="docutils literal"><span class="pre">--nproc_per_node</span> <span class="pre">&lt;=</span> <span class="pre">number</span> <span class="pre">of</span> <span class="pre">gpus</span> <span class="pre">per</span> <span class="pre">node</span></code>.
-When used with this launcher, <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal"><span class="pre">Reducer</span></code></a> assumes 1:1 mapping of processes to GPUs.
-It also assumes that your script calls <code class="docutils literal"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>module_or_grads_list</strong> – Either a network definition (module) being run in multi-gpu/distributed mode, or an iterable of gradients to be reduced.  If a module is passed in, the Reducer constructor will sync the parameters across processes (broadcasting from rank 0) to make sure they’re all initialized with the same values.  If a list of gradients (that came from some module) is passed in, the user is responsible for manually syncing that module’s parameters at the beginning of training.</td>
-</tr>
-</tbody>
-</table>
+<p><a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reducer</span></code></a> is designed to work with the upstream launch utility script
+<code class="docutils literal notranslate"><span class="pre">torch.distributed.launch</span></code> with <code class="docutils literal notranslate"><span class="pre">--nproc_per_node</span> <span class="pre">&lt;=</span> <span class="pre">number</span> <span class="pre">of</span> <span class="pre">gpus</span> <span class="pre">per</span> <span class="pre">node</span></code>.
+When used with this launcher, <a class="reference internal" href="#apex.parallel.Reducer" title="apex.parallel.Reducer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reducer</span></code></a> assumes 1:1 mapping of processes to GPUs.
+It also assumes that your script calls <code class="docutils literal notranslate"><span class="pre">torch.cuda.set_device(args.rank)</span></code> before creating the model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>module_or_grads_list</strong> – Either a network definition (module) being run in multi-gpu/distributed mode, or an iterable of gradients to be reduced.  If a module is passed in, the Reducer constructor will sync the parameters across processes (broadcasting from rank 0) to make sure they’re all initialized with the same values.  If a list of gradients (that came from some module) is passed in, the user is responsible for manually syncing that module’s parameters at the beginning of training.</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="class">
 <dt id="apex.parallel.SyncBatchNorm">
-<em class="property">class </em><code class="descclassname">apex.parallel.</code><code class="descname">SyncBatchNorm</code><span class="sig-paren">(</span><em>num_features</em>, <em>eps=1e-05</em>, <em>momentum=0.1</em>, <em>affine=True</em>, <em>track_running_stats=True</em>, <em>process_group=None</em>, <em>channel_last=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.SyncBatchNorm" title="Permalink to this definition">¶</a></dt>
-<dd><p>synchronized batch normalization module extented from <code class="docutils literal"><span class="pre">torch.nn.BatchNormNd</span></code>
+<em class="property">class </em><code class="sig-prename descclassname">apex.parallel.</code><code class="sig-name descname">SyncBatchNorm</code><span class="sig-paren">(</span><em class="sig-param">num_features</em>, <em class="sig-param">eps=1e-05</em>, <em class="sig-param">momentum=0.1</em>, <em class="sig-param">affine=True</em>, <em class="sig-param">track_running_stats=True</em>, <em class="sig-param">process_group=None</em>, <em class="sig-param">channel_last=False</em>, <em class="sig-param">fuse_relu=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/optimized_sync_batchnorm.html#SyncBatchNorm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.SyncBatchNorm" title="Permalink to this definition">¶</a></dt>
+<dd><p>synchronized batch normalization module extented from <cite>torch.nn.BatchNormNd</cite>
 with the added stats reduction across multiple processes.
-<a class="reference internal" href="#apex.parallel.SyncBatchNorm" title="apex.parallel.SyncBatchNorm"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.SyncBatchNorm</span></code></a> is designed to work with
-<code class="docutils literal"><span class="pre">DistributedDataParallel</span></code>.</p>
+<a class="reference internal" href="#apex.parallel.SyncBatchNorm" title="apex.parallel.SyncBatchNorm"><code class="xref py py-class docutils literal notranslate"><span class="pre">apex.parallel.SyncBatchNorm</span></code></a> is designed to work with
+<cite>DistributedDataParallel</cite>.</p>
 <p>When running in training mode, the layer reduces stats across all processes
 to increase the effective batchsize for normalization layer. This is useful
 in applications where batch size is small on a given process that would
 diminish converged accuracy of the model. The model uses collective
-communication package from <code class="docutils literal"><span class="pre">torch.distributed</span></code>.</p>
+communication package from <cite>torch.distributed</cite>.</p>
 <p>When running in evaluation mode, the layer falls back to
-<code class="docutils literal"><span class="pre">torch.nn.functional.batch_norm</span></code>.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>num_features</strong> – <span class="math">\(C\)</span> from an expected input of size
-<span class="math">\((N, C, L)\)</span> or <span class="math">\(L\)</span> from input of size <span class="math">\((N, L)\)</span></li>
-<li><strong>eps</strong> – a value added to the denominator for numerical stability.
-Default: 1e-5</li>
-<li><strong>momentum</strong> – the value used for the running_mean and running_var
-computation. Can be set to <code class="docutils literal"><span class="pre">None</span></code> for cumulative moving average
-(i.e. simple average). Default: 0.1</li>
-<li><strong>affine</strong> – a boolean value that when set to <code class="docutils literal"><span class="pre">True</span></code>, this module has
-learnable affine parameters. Default: <code class="docutils literal"><span class="pre">True</span></code></li>
-<li><strong>track_running_stats</strong> – a boolean value that when set to <code class="docutils literal"><span class="pre">True</span></code>, this
-module tracks the running mean and variance, and when set to <code class="docutils literal"><span class="pre">False</span></code>,
+<cite>torch.nn.functional.batch_norm</cite></p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>num_features</strong> – <span class="math notranslate nohighlight">\(C\)</span> from an expected input of size
+<span class="math notranslate nohighlight">\((N, C, L)\)</span> or <span class="math notranslate nohighlight">\(L\)</span> from input of size <span class="math notranslate nohighlight">\((N, L)\)</span></p></li>
+<li><p><strong>eps</strong> – a value added to the denominator for numerical stability.
+Default: 1e-5</p></li>
+<li><p><strong>momentum</strong> – the value used for the running_mean and running_var
+computation. Can be set to <code class="docutils literal notranslate"><span class="pre">None</span></code> for cumulative moving average
+(i.e. simple average). Default: 0.1</p></li>
+<li><p><strong>affine</strong> – a boolean value that when set to <code class="docutils literal notranslate"><span class="pre">True</span></code>, this module has
+learnable affine parameters. Default: <code class="docutils literal notranslate"><span class="pre">True</span></code></p></li>
+<li><p><strong>track_running_stats</strong> – a boolean value that when set to <code class="docutils literal notranslate"><span class="pre">True</span></code>, this
+module tracks the running mean and variance, and when set to <code class="docutils literal notranslate"><span class="pre">False</span></code>,
 this module does not track such statistics and always uses batch
-statistics in both training and eval modes. Default: <code class="docutils literal"><span class="pre">True</span></code></li>
+statistics in both training and eval modes. Default: <code class="docutils literal notranslate"><span class="pre">True</span></code></p></li>
+<li><p><strong>process_group</strong> – pass in a process group within which the stats of the
+mini-batch is being synchronized. <code class="docutils literal notranslate"><span class="pre">None</span></code> for using default process
+group</p></li>
+<li><p><strong>channel_last</strong> – a boolean value that when set to <code class="docutils literal notranslate"><span class="pre">True</span></code>, this module
+take the last dimension of the input tensor to be the channel
+dimension. Default: False</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
-<p>Example:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">sbn</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">parallel</span><span class="o">.</span><span class="n">SyncBatchNorm</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
+</dd>
+</dl>
+<dl>
+<dt>Examples::</dt><dd><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># channel first tensor</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sbn</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">parallel</span><span class="o">.</span><span class="n">SyncBatchNorm</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">inp</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">14</span><span class="p">,</span> <span class="mi">14</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">out</span> <span class="o">=</span> <span class="n">sbn</span><span class="p">(</span><span class="n">inp</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">inp</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">out</span> <span class="o">=</span> <span class="n">sbn</span><span class="p">(</span><span class="n">inp</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># channel last tensor</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sbn</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">parallel</span><span class="o">.</span><span class="n">SyncBatchNorm</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="n">channel_last</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">inp</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">14</span><span class="p">,</span> <span class="mi">14</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
 </pre></div>
 </div>
+</dd>
+</dl>
+<dl class="method">
+<dt id="apex.parallel.SyncBatchNorm.forward">
+<code class="sig-name descname">forward</code><span class="sig-paren">(</span><em class="sig-param">input</em>, <em class="sig-param">z=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel/optimized_sync_batchnorm.html#SyncBatchNorm.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.SyncBatchNorm.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
 </dd></dl>
 
 <div class="section" id="utility-functions">
 <h2>Utility functions<a class="headerlink" href="#utility-functions" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="apex.parallel.convert_syncbn_model">
-<code class="descclassname">apex.parallel.</code><code class="descname">convert_syncbn_model</code><span class="sig-paren">(</span><em>module</em>, <em>process_group=None</em>, <em>channel_last=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.parallel.convert_syncbn_model" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">apex.parallel.</code><code class="sig-name descname">convert_syncbn_model</code><span class="sig-paren">(</span><em class="sig-param">module</em>, <em class="sig-param">process_group=None</em>, <em class="sig-param">channel_last=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/parallel.html#convert_syncbn_model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.parallel.convert_syncbn_model" title="Permalink to this definition">¶</a></dt>
 <dd><p>Recursively traverse module and its children to replace all instances of
-<code class="docutils literal"><span class="pre">torch.nn.modules.batchnorm._BatchNorm</span></code> with <a class="reference internal" href="#apex.parallel.SyncBatchNorm" title="apex.parallel.SyncBatchNorm"><code class="xref py py-class docutils literal"><span class="pre">apex.parallel.SyncBatchNorm</span></code></a>.</p>
-<p>All <code class="docutils literal"><span class="pre">torch.nn.BatchNorm*N*d</span></code> wrap around
-<code class="docutils literal"><span class="pre">torch.nn.modules.batchnorm._BatchNorm</span></code>, so this function lets you easily switch
+<code class="docutils literal notranslate"><span class="pre">torch.nn.modules.batchnorm._BatchNorm</span></code> with <a class="reference internal" href="#apex.parallel.SyncBatchNorm" title="apex.parallel.SyncBatchNorm"><code class="xref py py-class docutils literal notranslate"><span class="pre">apex.parallel.SyncBatchNorm</span></code></a>.</p>
+<p>All <code class="docutils literal notranslate"><span class="pre">torch.nn.BatchNorm*N*d</span></code> wrap around
+<code class="docutils literal notranslate"><span class="pre">torch.nn.modules.batchnorm._BatchNorm</span></code>, so this function lets you easily switch
 to use sync BN.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>module</strong> (<em>torch.nn.Module</em>) – input module</td>
-</tr>
-</tbody>
-</table>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>module</strong> (<em>torch.nn.Module</em>) – input module</p>
+</dd>
+</dl>
 <p>Example:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># model is an instance of torch.nn.Module</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># model is an instance of torch.nn.Module</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">apex</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">sync_bn_model</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">parallel</span><span class="o">.</span><span class="n">convert_syncbn_model</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
 </pre></div>
@@ -382,9 +402,7 @@ to use sync BN.</p>
 
 
            </div>
-           <div class="articleComments">
-            
-           </div>
+           
           </div>
           <footer>
   
@@ -393,7 +411,7 @@ to use sync BN.</p>
         <a href="optimizers.html" class="btn btn-neutral float-right" title="apex.optimizers" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="advanced.html" class="btn btn-neutral" title="Advanced Amp Usage" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="advanced.html" class="btn btn-neutral float-left" title="Advanced Amp Usage" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
@@ -402,11 +420,11 @@ to use sync BN.</p>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018.
+        &copy; Copyright 2018
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -419,37 +437,15 @@ to use sync BN.</p>
   
 
 
-  
-
-    <script type="text/javascript">
-        var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'./',
-            VERSION:'0.1.0',
-            COLLAPSE_INDEX:false,
-            FILE_SUFFIX:'.html',
-            HAS_SOURCE:  true,
-            SOURCELINK_SUFFIX: '.txt'
-        };
-    </script>
-      <script type="text/javascript" src="_static/jquery.js"></script>
-      <script type="text/javascript" src="_static/underscore.js"></script>
-      <script type="text/javascript" src="_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-
-  
-
-  
-  
-    <script type="text/javascript" src="_static/js/theme.js"></script>
-  
-
-  
-  
   <script type="text/javascript">
       jQuery(function () {
-          SphinxRtdTheme.StickyNav.enable();
+          SphinxRtdTheme.Navigation.enable(true);
       });
   </script>
+
+  
+  
+    
     
 
   <style>

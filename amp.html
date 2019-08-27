@@ -17,46 +17,39 @@
   
 
   
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
 
-  
-  
     
 
   
-
-  
-  
-    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  
-
-  
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  
-    <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
-  
-
-  
-        <link rel="index" title="Index"
-              href="genindex.html"/>
-        <link rel="search" title="Search" href="search.html"/>
-    <link rel="top" title="Apex 0.1.0 documentation" href="index.html"/>
-        <link rel="next" title="Advanced Amp Usage" href="advanced.html"/>
-        <link rel="prev" title="Apex (A PyTorch Extension)" href="index.html"/> 
-
-  
-  <script src="_static/js/modernizr.min.js"></script>
-
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Advanced Amp Usage" href="advanced.html" />
+    <link rel="prev" title="Apex (A PyTorch Extension)" href="index.html" /> 
 </head>
 
-<body class="wy-body-for-nav" role="document">
+<body class="wy-body-for-nav">
 
    
   <div class="wy-grid-for-nav">
-
     
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
-        <div class="wy-side-nav-search">
+        <div class="wy-side-nav-search" >
            
 
           
@@ -127,13 +120,13 @@
               <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">apex.amp</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#opt-levels-and-properties"><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#opt-levels-and-properties"><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s and Properties</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#properties">Properties</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#o2-almost-fp16-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#opt-levels"><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#o0-fp32-training"><code class="docutils literal notranslate"><span class="pre">O0</span></code>:  FP32 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal notranslate"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#o2-almost-fp16-mixed-precision"><code class="docutils literal notranslate"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#o3-fp16-training"><code class="docutils literal notranslate"><span class="pre">O3</span></code>:  FP16 training</a></li>
 </ul>
 </li>
 </ul>
@@ -185,7 +178,7 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+      <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="index.html">Apex</a>
@@ -193,9 +186,10 @@
       </nav>
 
 
-      
       <div class="wy-nav-content">
+        
         <div class="rst-content">
+        
           
 
 
@@ -249,16 +243,16 @@ is under construction.</p>
 please review <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> to see if any topics match your use case.  If that doesn’t help,
 <a class="reference external" href="https://github.com/NVIDIA/apex/issues">file an issue</a>.</p>
 <div class="section" id="opt-levels-and-properties">
-<h2><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties<a class="headerlink" href="#opt-levels-and-properties" title="Permalink to this headline">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s and Properties<a class="headerlink" href="#opt-levels-and-properties" title="Permalink to this headline">¶</a></h2>
 <p>Amp allows users to easily experiment with different pure and mixed precision modes.
 Commonly-used default modes are chosen by
-selecting an “optimization level” or <code class="docutils literal"><span class="pre">opt_level</span></code>; each <code class="docutils literal"><span class="pre">opt_level</span></code> establishes a set of
+selecting an “optimization level” or <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>; each <code class="docutils literal notranslate"><span class="pre">opt_level</span></code> establishes a set of
 properties that govern Amp’s implementation of pure or mixed precision training.
-Finer-grained control of how a given <code class="docutils literal"><span class="pre">opt_level</span></code> behaves can be achieved by passing values for
-particular properties directly to <code class="docutils literal"><span class="pre">amp.initialize</span></code>.  These manually specified values
-override the defaults established by the <code class="docutils literal"><span class="pre">opt_level</span></code>.</p>
+Finer-grained control of how a given <code class="docutils literal notranslate"><span class="pre">opt_level</span></code> behaves can be achieved by passing values for
+particular properties directly to <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code>.  These manually specified values
+override the defaults established by the <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>.</p>
 <p>Example:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># Declare model and optimizer as usual, with default (FP32) precision</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Declare model and optimizer as usual, with default (FP32) precision</span>
 <span class="n">model</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">D_in</span><span class="p">,</span> <span class="n">D_out</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
 <span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">SGD</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">)</span>
 
@@ -271,111 +265,111 @@ override the defaults established by the <code class="docutils literal"><span cl
 <span class="o">...</span>
 </pre></div>
 </div>
-<p>Users <strong>should not</strong> manually cast their model or data to <code class="docutils literal"><span class="pre">.half()</span></code>, regardless of what <code class="docutils literal"><span class="pre">opt_level</span></code>
+<p>Users <strong>should not</strong> manually cast their model or data to <code class="docutils literal notranslate"><span class="pre">.half()</span></code>, regardless of what <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>
 or properties are chosen.  Amp intends that users start with an existing default (FP32) script,
 add the three lines corresponding to the Amp API, and begin training with mixed precision.
 Amp can also be disabled, in which case the original script will behave exactly as it used to.
 In this way, there’s no risk adhering to the Amp API, and a lot of potential performance benefit.</p>
 <div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Because it’s never necessary to manually cast your model (aside from the call <code class="docutils literal"><span class="pre">amp.initialize</span></code>)
+<p class="admonition-title">Note</p>
+<p>Because it’s never necessary to manually cast your model (aside from the call <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code>)
 or input data, a script that adheres to the new API
-can switch between different <code class="docutils literal"><span class="pre">opt-level</span></code>s without having to make any other changes.</p>
+can switch between different <code class="docutils literal notranslate"><span class="pre">opt-level</span></code>s without having to make any other changes.</p>
 </div>
 <div class="section" id="properties">
 <h3>Properties<a class="headerlink" href="#properties" title="Permalink to this headline">¶</a></h3>
 <p>Currently, the under-the-hood properties that govern pure or mixed precision training are the following:</p>
 <ul class="simple">
-<li><code class="docutils literal"><span class="pre">cast_model_type</span></code>:  Casts your model’s parameters and buffers to the desired type.</li>
-<li><code class="docutils literal"><span class="pre">patch_torch_functions</span></code>: Patch all Torch functions and Tensor methods to perform Tensor Core-friendly ops like GEMMs and convolutions in FP16, and any ops that benefit from FP32 precision in FP32.</li>
-<li><code class="docutils literal"><span class="pre">keep_batchnorm_fp32</span></code>:  To enhance precision and enable cudnn batchnorm (which improves performance), it’s often beneficial to keep batchnorm weights in FP32 even if the rest of the model is FP16.</li>
-<li><code class="docutils literal"><span class="pre">master_weights</span></code>:  Maintain FP32 master weights to accompany any FP16 model weights.  FP32 master weights are stepped by the optimizer to enhance precision and capture small gradients.</li>
-<li><code class="docutils literal"><span class="pre">loss_scale</span></code>:  If <code class="docutils literal"><span class="pre">loss_scale</span></code> is a float value, use this value as the static (fixed) loss scale.  If <code class="docutils literal"><span class="pre">loss_scale</span></code> is the string <code class="docutils literal"><span class="pre">&quot;dynamic&quot;</span></code>, adaptively adjust the loss scale over time.  Dynamic loss scale adjustments are performed by Amp automatically.</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cast_model_type</span></code>:  Casts your model’s parameters and buffers to the desired type.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">patch_torch_functions</span></code>: Patch all Torch functions and Tensor methods to perform Tensor Core-friendly ops like GEMMs and convolutions in FP16, and any ops that benefit from FP32 precision in FP32.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">keep_batchnorm_fp32</span></code>:  To enhance precision and enable cudnn batchnorm (which improves performance), it’s often beneficial to keep batchnorm weights in FP32 even if the rest of the model is FP16.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">master_weights</span></code>:  Maintain FP32 master weights to accompany any FP16 model weights.  FP32 master weights are stepped by the optimizer to enhance precision and capture small gradients.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">loss_scale</span></code>:  If <code class="docutils literal notranslate"><span class="pre">loss_scale</span></code> is a float value, use this value as the static (fixed) loss scale.  If <code class="docutils literal notranslate"><span class="pre">loss_scale</span></code> is the string <code class="docutils literal notranslate"><span class="pre">&quot;dynamic&quot;</span></code>, adaptively adjust the loss scale over time.  Dynamic loss scale adjustments are performed by Amp automatically.</p></li>
 </ul>
-<p>Again, you often don’t need to specify these properties by hand.  Instead, select an <code class="docutils literal"><span class="pre">opt_level</span></code>,
-which will set them up for you.  After selecting an <code class="docutils literal"><span class="pre">opt_level</span></code>, you can optionally pass property
+<p>Again, you often don’t need to specify these properties by hand.  Instead, select an <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>,
+which will set them up for you.  After selecting an <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>, you can optionally pass property
 kwargs as manual overrides.</p>
-<p>If you attempt to override a property that does not make sense for the selected <code class="docutils literal"><span class="pre">opt_level</span></code>,
-Amp will raise an error with an explanation.  For example, selecting <code class="docutils literal"><span class="pre">opt_level=&quot;O1&quot;</span></code> combined with
-the override <code class="docutils literal"><span class="pre">master_weights=True</span></code> does not make sense.  <code class="docutils literal"><span class="pre">O1</span></code> inserts casts
+<p>If you attempt to override a property that does not make sense for the selected <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>,
+Amp will raise an error with an explanation.  For example, selecting <code class="docutils literal notranslate"><span class="pre">opt_level=&quot;O1&quot;</span></code> combined with
+the override <code class="docutils literal notranslate"><span class="pre">master_weights=True</span></code> does not make sense.  <code class="docutils literal notranslate"><span class="pre">O1</span></code> inserts casts
 around Torch functions rather than model weights.  Data, activations, and weights are recast
 out-of-place on the fly as they flow through patched functions.  Therefore, the model weights themselves
 can (and should) remain FP32, and there is no need to maintain separate FP32 master weights.</p>
 </div>
 <div class="section" id="opt-levels">
-<h3><code class="docutils literal"><span class="pre">opt_level</span></code>s<a class="headerlink" href="#opt-levels" title="Permalink to this headline">¶</a></h3>
-<p>Recognized <code class="docutils literal"><span class="pre">opt_level</span></code>s are <code class="docutils literal"><span class="pre">&quot;O0&quot;</span></code>, <code class="docutils literal"><span class="pre">&quot;O1&quot;</span></code>, <code class="docutils literal"><span class="pre">&quot;O2&quot;</span></code>, and <code class="docutils literal"><span class="pre">&quot;O3&quot;</span></code>.</p>
-<p><code class="docutils literal"><span class="pre">O0</span></code> and <code class="docutils literal"><span class="pre">O3</span></code> are not true mixed precision, but they are useful for establishing accuracy and
+<h3><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s<a class="headerlink" href="#opt-levels" title="Permalink to this headline">¶</a></h3>
+<p>Recognized <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s are <code class="docutils literal notranslate"><span class="pre">&quot;O0&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;O1&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;O2&quot;</span></code>, and <code class="docutils literal notranslate"><span class="pre">&quot;O3&quot;</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">O0</span></code> and <code class="docutils literal notranslate"><span class="pre">O3</span></code> are not true mixed precision, but they are useful for establishing accuracy and
 speed baselines, respectively.</p>
-<p><code class="docutils literal"><span class="pre">O1</span></code> and <code class="docutils literal"><span class="pre">O2</span></code> are different implementations of mixed precision.  Try both, and see
+<p><code class="docutils literal notranslate"><span class="pre">O1</span></code> and <code class="docutils literal notranslate"><span class="pre">O2</span></code> are different implementations of mixed precision.  Try both, and see
 what gives the best speedup and accuracy for your model.</p>
 <div class="section" id="o0-fp32-training">
-<h4><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training<a class="headerlink" href="#o0-fp32-training" title="Permalink to this headline">¶</a></h4>
+<h4><code class="docutils literal notranslate"><span class="pre">O0</span></code>:  FP32 training<a class="headerlink" href="#o0-fp32-training" title="Permalink to this headline">¶</a></h4>
 <p>Your incoming model should be FP32 already, so this is likely a no-op.
-<code class="docutils literal"><span class="pre">O0</span></code> can be useful to establish an accuracy baseline.</p>
+<code class="docutils literal notranslate"><span class="pre">O0</span></code> can be useful to establish an accuracy baseline.</p>
 <div class="line-block">
-<div class="line">Default properties set by <code class="docutils literal"><span class="pre">O0</span></code>:</div>
-<div class="line"><code class="docutils literal"><span class="pre">cast_model_type=torch.float32</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">patch_torch_functions=False</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=None</span></code> (effectively, “not applicable,” everything is FP32)</div>
-<div class="line"><code class="docutils literal"><span class="pre">master_weights=False</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">loss_scale=1.0</span></code></div>
+<div class="line">Default properties set by <code class="docutils literal notranslate"><span class="pre">O0</span></code>:</div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">cast_model_type=torch.float32</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">patch_torch_functions=False</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">keep_batchnorm_fp32=None</span></code> (effectively, “not applicable,” everything is FP32)</div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">master_weights=False</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">loss_scale=1.0</span></code></div>
 <div class="line"><br /></div>
 <div class="line"><br /></div>
 </div>
 </div>
 <div class="section" id="o1-mixed-precision-recommended-for-typical-use">
-<h4><code class="docutils literal"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)<a class="headerlink" href="#o1-mixed-precision-recommended-for-typical-use" title="Permalink to this headline">¶</a></h4>
+<h4><code class="docutils literal notranslate"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)<a class="headerlink" href="#o1-mixed-precision-recommended-for-typical-use" title="Permalink to this headline">¶</a></h4>
 <p>Patch all Torch functions and Tensor methods to cast their inputs according to a whitelist-blacklist
 model.  Whitelist ops (for example, Tensor Core-friendly ops like GEMMs and convolutions) are performed
 in FP16.  Blacklist ops that benefit from FP32 precision (for example, softmax)
-are performed in FP32.  <code class="docutils literal"><span class="pre">O1</span></code> also uses dynamic loss scaling, unless overridden.</p>
+are performed in FP32.  <code class="docutils literal notranslate"><span class="pre">O1</span></code> also uses dynamic loss scaling, unless overridden.</p>
 <div class="line-block">
-<div class="line">Default properties set by <code class="docutils literal"><span class="pre">O1</span></code>:</div>
-<div class="line"><code class="docutils literal"><span class="pre">cast_model_type=None</span></code> (not applicable)</div>
-<div class="line"><code class="docutils literal"><span class="pre">patch_torch_functions=True</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=None</span></code> (again, not applicable, all model weights remain FP32)</div>
-<div class="line"><code class="docutils literal"><span class="pre">master_weights=None</span></code> (not applicable, model weights remain FP32)</div>
-<div class="line"><code class="docutils literal"><span class="pre">loss_scale=&quot;dynamic&quot;</span></code></div>
+<div class="line">Default properties set by <code class="docutils literal notranslate"><span class="pre">O1</span></code>:</div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">cast_model_type=None</span></code> (not applicable)</div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">patch_torch_functions=True</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">keep_batchnorm_fp32=None</span></code> (again, not applicable, all model weights remain FP32)</div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">master_weights=None</span></code> (not applicable, model weights remain FP32)</div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">loss_scale=&quot;dynamic&quot;</span></code></div>
 <div class="line"><br /></div>
 <div class="line"><br /></div>
 </div>
 </div>
 <div class="section" id="o2-almost-fp16-mixed-precision">
-<h4><code class="docutils literal"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision<a class="headerlink" href="#o2-almost-fp16-mixed-precision" title="Permalink to this headline">¶</a></h4>
-<p><code class="docutils literal"><span class="pre">O2</span></code> casts the model weights to FP16,
-patches the model’s <code class="docutils literal"><span class="pre">forward</span></code> method to cast input
+<h4><code class="docutils literal notranslate"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision<a class="headerlink" href="#o2-almost-fp16-mixed-precision" title="Permalink to this headline">¶</a></h4>
+<p><code class="docutils literal notranslate"><span class="pre">O2</span></code> casts the model weights to FP16,
+patches the model’s <code class="docutils literal notranslate"><span class="pre">forward</span></code> method to cast input
 data to FP16, keeps batchnorms in FP32, maintains FP32 master weights,
-updates the optimizer’s <code class="docutils literal"><span class="pre">param_groups</span></code> so that the <code class="docutils literal"><span class="pre">optimizer.step()</span></code>
+updates the optimizer’s <code class="docutils literal notranslate"><span class="pre">param_groups</span></code> so that the <code class="docutils literal notranslate"><span class="pre">optimizer.step()</span></code>
 acts directly on the FP32 weights (followed by FP32 master weight-&gt;FP16 model weight
 copies if necessary),
 and implements dynamic loss scaling (unless overridden).
-Unlike <code class="docutils literal"><span class="pre">O1</span></code>, <code class="docutils literal"><span class="pre">O2</span></code> does not patch Torch functions or Tensor methods.</p>
+Unlike <code class="docutils literal notranslate"><span class="pre">O1</span></code>, <code class="docutils literal notranslate"><span class="pre">O2</span></code> does not patch Torch functions or Tensor methods.</p>
 <div class="line-block">
-<div class="line">Default properties set by <code class="docutils literal"><span class="pre">O2</span></code>:</div>
-<div class="line"><code class="docutils literal"><span class="pre">cast_model_type=torch.float16</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">patch_torch_functions=False</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=True</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">master_weights=True</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">loss_scale=&quot;dynamic&quot;</span></code></div>
+<div class="line">Default properties set by <code class="docutils literal notranslate"><span class="pre">O2</span></code>:</div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">cast_model_type=torch.float16</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">patch_torch_functions=False</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">keep_batchnorm_fp32=True</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">master_weights=True</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">loss_scale=&quot;dynamic&quot;</span></code></div>
 <div class="line"><br /></div>
 <div class="line"><br /></div>
 </div>
 </div>
 <div class="section" id="o3-fp16-training">
-<h4><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training<a class="headerlink" href="#o3-fp16-training" title="Permalink to this headline">¶</a></h4>
-<p><code class="docutils literal"><span class="pre">O3</span></code> may not achieve the stability of the true mixed precision options <code class="docutils literal"><span class="pre">O1</span></code> and <code class="docutils literal"><span class="pre">O2</span></code>.
+<h4><code class="docutils literal notranslate"><span class="pre">O3</span></code>:  FP16 training<a class="headerlink" href="#o3-fp16-training" title="Permalink to this headline">¶</a></h4>
+<p><code class="docutils literal notranslate"><span class="pre">O3</span></code> may not achieve the stability of the true mixed precision options <code class="docutils literal notranslate"><span class="pre">O1</span></code> and <code class="docutils literal notranslate"><span class="pre">O2</span></code>.
 However, it can be useful to establish a speed baseline for your model, against which
-the performance of <code class="docutils literal"><span class="pre">O1</span></code> and <code class="docutils literal"><span class="pre">O2</span></code> can be compared.  If your model uses batch normalization,
-to establish “speed of light” you can try <code class="docutils literal"><span class="pre">O3</span></code> with the additional property override
-<code class="docutils literal"><span class="pre">keep_batchnorm_fp32=True</span></code> (which enables cudnn batchnorm, as stated earlier).</p>
+the performance of <code class="docutils literal notranslate"><span class="pre">O1</span></code> and <code class="docutils literal notranslate"><span class="pre">O2</span></code> can be compared.  If your model uses batch normalization,
+to establish “speed of light” you can try <code class="docutils literal notranslate"><span class="pre">O3</span></code> with the additional property override
+<code class="docutils literal notranslate"><span class="pre">keep_batchnorm_fp32=True</span></code> (which enables cudnn batchnorm, as stated earlier).</p>
 <div class="line-block">
-<div class="line">Default properties set by <code class="docutils literal"><span class="pre">O3</span></code>:</div>
-<div class="line"><code class="docutils literal"><span class="pre">cast_model_type=torch.float16</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">patch_torch_functions=False</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">keep_batchnorm_fp32=False</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">master_weights=False</span></code></div>
-<div class="line"><code class="docutils literal"><span class="pre">loss_scale=1.0</span></code></div>
+<div class="line">Default properties set by <code class="docutils literal notranslate"><span class="pre">O3</span></code>:</div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">cast_model_type=torch.float16</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">patch_torch_functions=False</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">keep_batchnorm_fp32=False</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">master_weights=False</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">loss_scale=1.0</span></code></div>
 <div class="line"><br /></div>
 <div class="line"><br /></div>
 </div>
@@ -386,68 +380,64 @@ to establish “speed of light” you can try <code class="docutils literal"><sp
 <span id="unified-api"></span><h2>Unified API<a class="headerlink" href="#module-apex.amp" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="apex.amp.initialize">
-<code class="descclassname">apex.amp.</code><code class="descname">initialize</code><span class="sig-paren">(</span><em>models</em>, <em>optimizers=None</em>, <em>enabled=True</em>, <em>opt_level='O1'</em>, <em>cast_model_type=None</em>, <em>patch_torch_functions=None</em>, <em>keep_batchnorm_fp32=None</em>, <em>master_weights=None</em>, <em>loss_scale=None</em>, <em>cast_model_outputs=None</em>, <em>num_losses=1</em>, <em>verbosity=1</em>, <em>min_loss_scale=None</em>, <em>max_loss_scale=16777216.0</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.initialize" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">apex.amp.</code><code class="sig-name descname">initialize</code><span class="sig-paren">(</span><em class="sig-param">models</em>, <em class="sig-param">optimizers=None</em>, <em class="sig-param">enabled=True</em>, <em class="sig-param">opt_level='O1'</em>, <em class="sig-param">cast_model_type=None</em>, <em class="sig-param">patch_torch_functions=None</em>, <em class="sig-param">keep_batchnorm_fp32=None</em>, <em class="sig-param">master_weights=None</em>, <em class="sig-param">loss_scale=None</em>, <em class="sig-param">cast_model_outputs=None</em>, <em class="sig-param">num_losses=1</em>, <em class="sig-param">verbosity=1</em>, <em class="sig-param">min_loss_scale=None</em>, <em class="sig-param">max_loss_scale=16777216.0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/amp/frontend.html#initialize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.amp.initialize" title="Permalink to this definition">¶</a></dt>
 <dd><p>Initialize your models, optimizers, and the Torch tensor and functional namespace according to the
-chosen <code class="docutils literal"><span class="pre">opt_level</span></code> and overridden properties, if any.</p>
-<p><code class="docutils literal"><span class="pre">amp.initialize</span></code> should be called <strong>after</strong> you have finished
+chosen <code class="docutils literal notranslate"><span class="pre">opt_level</span></code> and overridden properties, if any.</p>
+<p><code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code> should be called <strong>after</strong> you have finished
 constructing your model(s) and
 optimizer(s), but <strong>before</strong> you send your model through any DistributedDataParallel wrapper.
 See <a class="reference external" href="https://github.com/NVIDIA/apex/tree/master/examples/imagenet#distributed-training">Distributed training</a> in the Imagenet example.</p>
-<p>Currently, <code class="docutils literal"><span class="pre">amp.initialize</span></code> should only be called <strong>once</strong>,
+<p>Currently, <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code> should only be called <strong>once</strong>,
 although it can process an arbitrary number of
 models and optimizers (see the corresponding <a class="reference external" href="https://nvidia.github.io/apex/advanced.html#multiple-models-optimizers-losses">Advanced Amp Usage topic</a>).
-If you think your use case requires <code class="docutils literal"><span class="pre">amp.initialize</span></code> to be called more than once,
+If you think your use case requires <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code> to be called more than once,
 <a class="reference external" href="https://github.com/NVIDIA/apex/issues">let us know</a>.</p>
-<p>Any property keyword argument that is not <code class="docutils literal"><span class="pre">None</span></code> will be interpreted as a manual override.</p>
+<p>Any property keyword argument that is not <code class="docutils literal notranslate"><span class="pre">None</span></code> will be interpreted as a manual override.</p>
 <p>To prevent having to rewrite anything else in your script, name the returned models/optimizers
 to replace the passed models/optimizers, as in the code sample below.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>models</strong> (<em>torch.nn.Module</em><em> or </em><em>list of torch.nn.Modules</em>) – Models to modify/cast.</li>
-<li><strong>optimizers</strong> (<em>optional</em><em>, </em><em>torch.optim.Optimizer</em><em> or </em><em>list of torch.optim.Optimizers</em>) – Optimizers to modify/cast.
-REQUIRED for training, optional for inference.</li>
-<li><strong>enabled</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=True</em>) – If False, renders all Amp calls no-ops, so your script
-should run as if Amp were not present.</li>
-<li><strong>opt_level</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>optional</em><em>, </em><em>default=&quot;O1&quot;</em>) – Pure or mixed precision optimization level.  Accepted values are
-“O0”, “O1”, “O2”, and “O3”, explained in detail above.</li>
-<li><strong>cast_model_type</strong> (<code class="docutils literal"><span class="pre">torch.dtype</span></code>, optional, default=None) – Optional property override, see
-above.</li>
-<li><strong>patch_torch_functions</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.</li>
-<li><strong>keep_batchnorm_fp32</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.  If
-passed as a string, must be the string “True” or “False”.</li>
-<li><strong>master_weights</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.</li>
-<li><strong>loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.  If passed as a string,
-must be a string representing a number, e.g., “128.0”, or the string “dynamic”.</li>
-<li><strong>cast_model_outputs</strong> (<em>torch.dpython:type</em><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Option to ensure that the outputs
-of your model(s) are always cast to a particular type regardless of <code class="docutils literal"><span class="pre">opt_level</span></code>.</li>
-<li><strong>num_losses</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>optional</em><em>, </em><em>default=1</em>) – Option to tell Amp in advance how many losses/backward
-passes you plan to use.  When used in conjunction with the <code class="docutils literal"><span class="pre">loss_id</span></code> argument to
-<code class="docutils literal"><span class="pre">amp.scale_loss</span></code>, enables Amp to use a different loss scale per loss/backward pass,
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>models</strong> (<em>torch.nn.Module</em><em> or </em><em>list of torch.nn.Modules</em>) – Models to modify/cast.</p></li>
+<li><p><strong>optimizers</strong> (<em>optional</em><em>, </em><em>torch.optim.Optimizer</em><em> or </em><em>list of torch.optim.Optimizers</em>) – Optimizers to modify/cast.
+REQUIRED for training, optional for inference.</p></li>
+<li><p><strong>enabled</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=True</em>) – If False, renders all Amp calls no-ops, so your script
+should run as if Amp were not present.</p></li>
+<li><p><strong>opt_level</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>optional</em><em>, </em><em>default=&quot;O1&quot;</em>) – Pure or mixed precision optimization level.  Accepted values are
+“O0”, “O1”, “O2”, and “O3”, explained in detail above.</p></li>
+<li><p><strong>cast_model_type</strong> (<code class="docutils literal notranslate"><span class="pre">torch.dtype</span></code>, optional, default=None) – Optional property override, see
+above.</p></li>
+<li><p><strong>patch_torch_functions</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.</p></li>
+<li><p><strong>keep_batchnorm_fp32</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.  If
+passed as a string, must be the string “True” or “False”.</p></li>
+<li><p><strong>master_weights</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.</p></li>
+<li><p><strong>loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Optional property override.  If passed as a string,
+must be a string representing a number, e.g., “128.0”, or the string “dynamic”.</p></li>
+<li><p><strong>cast_model_outputs</strong> (<em>torch.dpython:type</em><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Option to ensure that the outputs
+of your model(s) are always cast to a particular type regardless of <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>.</p></li>
+<li><p><strong>num_losses</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>optional</em><em>, </em><em>default=1</em>) – Option to tell Amp in advance how many losses/backward
+passes you plan to use.  When used in conjunction with the <code class="docutils literal notranslate"><span class="pre">loss_id</span></code> argument to
+<code class="docutils literal notranslate"><span class="pre">amp.scale_loss</span></code>, enables Amp to use a different loss scale per loss/backward pass,
 which can improve stability.  See “Multiple models/optimizers/losses”
-under <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> for examples.  If <code class="docutils literal"><span class="pre">num_losses</span></code> is left to 1, Amp will still
+under <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> for examples.  If <code class="docutils literal notranslate"><span class="pre">num_losses</span></code> is left to 1, Amp will still
 support multiple losses/backward passes, but use a single global loss scale
-for all of them.</li>
-<li><strong>verbosity</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>default=1</em>) – Set to 0 to suppress Amp-related output.</li>
-<li><strong>min_loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>default=None</em>) – Sets a floor for the loss scale values that can be chosen by dynamic
+for all of them.</p></li>
+<li><p><strong>verbosity</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>default=1</em>) – Set to 0 to suppress Amp-related output.</p></li>
+<li><p><strong>min_loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>default=None</em>) – Sets a floor for the loss scale values that can be chosen by dynamic
 loss scaling.  The default value of None means that no floor is imposed.
-If dynamic loss scaling is not used, <cite>min_loss_scale</cite> is ignored.</li>
-<li><strong>max_loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>default=2.**24</em>) – Sets a ceiling for the loss scale values that can be chosen by
-dynamic loss scaling.  If dynamic loss scaling is not used, <cite>max_loss_scale</cite> is ignored.</li>
+If dynamic loss scaling is not used, <cite>min_loss_scale</cite> is ignored.</p></li>
+<li><p><strong>max_loss_scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>default=2.**24</em>) – Sets a ceiling for the loss scale values that can be chosen by
+dynamic loss scaling.  If dynamic loss scaling is not used, <cite>max_loss_scale</cite> is ignored.</p></li>
 </ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">Model(s) and optimizer(s) modified according to the <code class="docutils literal"><span class="pre">opt_level</span></code>.
-If either the <code class="docutils literal"><span class="pre">models</span></code> or <code class="docutils literal"><span class="pre">optimizers</span></code> args were lists, the corresponding return value will
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Model(s) and optimizer(s) modified according to the <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>.
+If either the <code class="docutils literal notranslate"><span class="pre">models</span></code> or <code class="docutils literal notranslate"><span class="pre">optimizers</span></code> args were lists, the corresponding return value will
 also be a list.</p>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <p>Permissible invocations:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span><span class="o">...</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optim</span><span class="p">,</span><span class="o">...</span><span class="p">)</span>
 <span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">],</span><span class="o">...</span><span class="p">)</span>
 <span class="p">[</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="n">optim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="n">optim</span><span class="p">,</span><span class="o">...</span><span class="p">)</span>
 <span class="p">[</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="n">model1</span><span class="p">,</span> <span class="n">model2</span><span class="p">],</span> <span class="p">[</span><span class="n">optim1</span><span class="p">,</span> <span class="n">optim2</span><span class="p">],</span><span class="o">...</span><span class="p">)</span>
@@ -474,85 +464,78 @@ also be a list.</p>
 
 <dl class="function">
 <dt id="apex.amp.scale_loss">
-<code class="descclassname">apex.amp.</code><code class="descname">scale_loss</code><span class="sig-paren">(</span><em>loss</em>, <em>optimizers</em>, <em>loss_id=0</em>, <em>model=None</em>, <em>delay_unscale=False</em>, <em>delay_overflow_check=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.scale_loss" title="Permalink to this definition">¶</a></dt>
-<dd><p>On context manager entrance, creates <code class="docutils literal"><span class="pre">scaled_loss</span> <span class="pre">=</span> <span class="pre">(loss.float())*current</span> <span class="pre">loss</span> <span class="pre">scale</span></code>.
-<code class="docutils literal"><span class="pre">scaled_loss</span></code> is yielded so that the user can call <code class="docutils literal"><span class="pre">scaled_loss.backward()</span></code>:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+<code class="sig-prename descclassname">apex.amp.</code><code class="sig-name descname">scale_loss</code><span class="sig-paren">(</span><em class="sig-param">loss</em>, <em class="sig-param">optimizers</em>, <em class="sig-param">loss_id=0</em>, <em class="sig-param">model=None</em>, <em class="sig-param">delay_unscale=False</em>, <em class="sig-param">delay_overflow_check=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/amp/handle.html#scale_loss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.amp.scale_loss" title="Permalink to this definition">¶</a></dt>
+<dd><p>On context manager entrance, creates <code class="docutils literal notranslate"><span class="pre">scaled_loss</span> <span class="pre">=</span> <span class="pre">(loss.float())*current</span> <span class="pre">loss</span> <span class="pre">scale</span></code>.
+<code class="docutils literal notranslate"><span class="pre">scaled_loss</span></code> is yielded so that the user can call <code class="docutils literal notranslate"><span class="pre">scaled_loss.backward()</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
     <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>On context manager exit (if <code class="docutils literal"><span class="pre">delay_unscale=False</span></code>), the gradients are checked for infs/NaNs
-and unscaled, so that <code class="docutils literal"><span class="pre">optimizer.step()</span></code> can be called.</p>
+<p>On context manager exit (if <code class="docutils literal notranslate"><span class="pre">delay_unscale=False</span></code>), the gradients are checked for infs/NaNs
+and unscaled, so that <code class="docutils literal notranslate"><span class="pre">optimizer.step()</span></code> can be called.</p>
 <div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">If Amp is using explicit FP32 master params (which is the default for <code class="docutils literal"><span class="pre">opt_level=O2</span></code>, and
-can also be manually enabled by supplying <code class="docutils literal"><span class="pre">master_weights=True</span></code> to <code class="docutils literal"><span class="pre">amp.initialize</span></code>)
+<p class="admonition-title">Note</p>
+<p>If Amp is using explicit FP32 master params (which is the default for <code class="docutils literal notranslate"><span class="pre">opt_level=O2</span></code>, and
+can also be manually enabled by supplying <code class="docutils literal notranslate"><span class="pre">master_weights=True</span></code> to <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code>)
 any FP16 gradients are copied to FP32 master gradients before being unscaled.
-<code class="docutils literal"><span class="pre">optimizer.step()</span></code> will then apply the unscaled master gradients to the master params.</p>
+<code class="docutils literal notranslate"><span class="pre">optimizer.step()</span></code> will then apply the unscaled master gradients to the master params.</p>
 </div>
 <div class="admonition warning">
-<p class="first admonition-title">Warning</p>
-<p class="last">If Amp is using explicit FP32 master params, only the FP32 master gradients will be
-unscaled.  The direct <code class="docutils literal"><span class="pre">.grad</span></code> attributes of any FP16
+<p class="admonition-title">Warning</p>
+<p>If Amp is using explicit FP32 master params, only the FP32 master gradients will be
+unscaled.  The direct <code class="docutils literal notranslate"><span class="pre">.grad</span></code> attributes of any FP16
 model params will remain scaled after context manager exit.
 This subtlety affects gradient clipping.  See “Gradient clipping” under
 <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> for best practices.</p>
 </div>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>loss</strong> (<em>Tensor</em>) – Typically a scalar Tensor. The <code class="docutils literal"><span class="pre">scaled_loss</span></code> that the context
-manager yields is simply <code class="docutils literal"><span class="pre">loss.float()*loss_scale</span></code>, so in principle
-<code class="docutils literal"><span class="pre">loss</span></code> could have more than one element, as long as you call
-<code class="docutils literal"><span class="pre">backward()</span></code> on <code class="docutils literal"><span class="pre">scaled_loss</span></code> appropriately within the context manager body.</li>
-<li><strong>optimizers</strong> – All optimizer(s) for which the current backward pass is creating gradients.
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>loss</strong> (<em>Tensor</em>) – Typically a scalar Tensor. The <code class="docutils literal notranslate"><span class="pre">scaled_loss</span></code> that the context
+manager yields is simply <code class="docutils literal notranslate"><span class="pre">loss.float()*loss_scale</span></code>, so in principle
+<code class="docutils literal notranslate"><span class="pre">loss</span></code> could have more than one element, as long as you call
+<code class="docutils literal notranslate"><span class="pre">backward()</span></code> on <code class="docutils literal notranslate"><span class="pre">scaled_loss</span></code> appropriately within the context manager body.</p></li>
+<li><p><strong>optimizers</strong> – All optimizer(s) for which the current backward pass is creating gradients.
 Must be an optimizer or list of optimizers returned from an earlier call
-to <code class="docutils literal"><span class="pre">amp.initialize</span></code>.  For example use with multiple optimizers, see
-“Multiple models/optimizers/losses” under <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a>.</li>
-<li><strong>loss_id</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>optional</em><em>, </em><em>default=0</em>) – When used in conjunction with the <code class="docutils literal"><span class="pre">num_losses</span></code> argument
-to <code class="docutils literal"><span class="pre">amp.initialize</span></code>, enables Amp to use a different loss scale per loss.  <code class="docutils literal"><span class="pre">loss_id</span></code>
-must be an integer between 0 and <code class="docutils literal"><span class="pre">num_losses</span></code> that tells Amp which loss is
+to <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code>.  For example use with multiple optimizers, see
+“Multiple models/optimizers/losses” under <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a>.</p></li>
+<li><p><strong>loss_id</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>optional</em><em>, </em><em>default=0</em>) – When used in conjunction with the <code class="docutils literal notranslate"><span class="pre">num_losses</span></code> argument
+to <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code>, enables Amp to use a different loss scale per loss.  <code class="docutils literal notranslate"><span class="pre">loss_id</span></code>
+must be an integer between 0 and <code class="docutils literal notranslate"><span class="pre">num_losses</span></code> that tells Amp which loss is
 being used for the current backward pass.  See “Multiple models/optimizers/losses”
-under <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> for examples.  If <code class="docutils literal"><span class="pre">loss_id</span></code> is left unspecified, Amp
-will use the default global loss scaler for this backward pass.</li>
-<li><strong>model</strong> (<em>torch.nn.Module</em><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Currently unused, reserved to enable future
-optimizations.</li>
-<li><strong>delay_unscale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=False</em>) – <code class="docutils literal"><span class="pre">delay_unscale</span></code> is never necessary, and
-the default value of <code class="docutils literal"><span class="pre">False</span></code> is strongly recommended.
-If <code class="docutils literal"><span class="pre">True</span></code>, Amp will not unscale the gradients or perform model-&gt;master
+under <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a> for examples.  If <code class="docutils literal notranslate"><span class="pre">loss_id</span></code> is left unspecified, Amp
+will use the default global loss scaler for this backward pass.</p></li>
+<li><p><strong>model</strong> (<em>torch.nn.Module</em><em>, </em><em>optional</em><em>, </em><em>default=None</em>) – Currently unused, reserved to enable future
+optimizations.</p></li>
+<li><p><strong>delay_unscale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em><em>, </em><em>default=False</em>) – <code class="docutils literal notranslate"><span class="pre">delay_unscale</span></code> is never necessary, and
+the default value of <code class="docutils literal notranslate"><span class="pre">False</span></code> is strongly recommended.
+If <code class="docutils literal notranslate"><span class="pre">True</span></code>, Amp will not unscale the gradients or perform model-&gt;master
 gradient copies on context manager exit.
-<code class="docutils literal"><span class="pre">delay_unscale=True</span></code> is a minor ninja performance optimization and can result
+<code class="docutils literal notranslate"><span class="pre">delay_unscale=True</span></code> is a minor ninja performance optimization and can result
 in weird gotchas (especially with multiple models/optimizers/losses),
 so only use it if you know what you’re doing.
 “Gradient accumulation across iterations” under <a class="reference external" href="https://nvidia.github.io/apex/advanced.html">Advanced Amp Usage</a>
-illustrates a situation where this CAN (but does not need to) be used.</li>
+illustrates a situation where this CAN (but does not need to) be used.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <div class="admonition warning">
-<p class="first admonition-title">Warning</p>
-<p class="last">If <code class="docutils literal"><span class="pre">delay_unscale</span></code> is <code class="docutils literal"><span class="pre">True</span></code> for a given backward pass, <code class="docutils literal"><span class="pre">optimizer.step()</span></code> cannot be
+<p class="admonition-title">Warning</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">delay_unscale</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code> for a given backward pass, <code class="docutils literal notranslate"><span class="pre">optimizer.step()</span></code> cannot be
 called yet after context manager exit, and must wait for another, later backward context
-manager invocation with <code class="docutils literal"><span class="pre">delay_unscale</span></code> left to False.</p>
+manager invocation with <code class="docutils literal notranslate"><span class="pre">delay_unscale</span></code> left to False.</p>
 </div>
 </dd></dl>
 
 <dl class="function">
 <dt id="apex.amp.master_params">
-<code class="descclassname">apex.amp.</code><code class="descname">master_params</code><span class="sig-paren">(</span><em>optimizer</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.amp.master_params" title="Permalink to this definition">¶</a></dt>
-<dd><p>Generator expression that iterates over the params owned by <code class="docutils literal"><span class="pre">optimizer</span></code>.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>optimizer</strong> – An optimizer previously returned from <code class="docutils literal"><span class="pre">amp.initialize</span></code>.</td>
-</tr>
-</tbody>
-</table>
+<code class="sig-prename descclassname">apex.amp.</code><code class="sig-name descname">master_params</code><span class="sig-paren">(</span><em class="sig-param">optimizer</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/amp/_amp_state.html#master_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.amp.master_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generator expression that iterates over the params owned by <code class="docutils literal notranslate"><span class="pre">optimizer</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>optimizer</strong> – An optimizer previously returned from <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code>.</p>
+</dd>
+</dl>
 </dd></dl>
 
 </div>
@@ -562,7 +545,7 @@ manager invocation with <code class="docutils literal"><span class="pre">delay_u
 multiple backward passes per iteration, multiple models/optimizers,
 custom/user-defined autograd functions, and custom data batch classes.  Gradient clipping and GANs also
 require special treatment, but this treatment does not need to change
-for different <code class="docutils literal"><span class="pre">opt_level</span></code>s.  Further details can be found here:</p>
+for different <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s.  Further details can be found here:</p>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="advanced.html">Advanced Amp Usage</a></li>
@@ -571,19 +554,19 @@ for different <code class="docutils literal"><span class="pre">opt_level</span><
 </div>
 <div class="section" id="transition-guide-for-old-api-users">
 <h2>Transition guide for old API users<a class="headerlink" href="#transition-guide-for-old-api-users" title="Permalink to this headline">¶</a></h2>
-<p>We strongly encourage moving to the new Amp API, because it’s more versatile, easier to use, and future proof.  The original <code class="xref py py-class docutils literal"><span class="pre">FP16_Optimizer</span></code> and the old “Amp” API are deprecated, and subject to removal at at any time.</p>
+<p>We strongly encourage moving to the new Amp API, because it’s more versatile, easier to use, and future proof.  The original <code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code> and the old “Amp” API are deprecated, and subject to removal at at any time.</p>
 <div class="section" id="for-users-of-the-old-amp-api">
 <h3>For users of the old “Amp” API<a class="headerlink" href="#for-users-of-the-old-amp-api" title="Permalink to this headline">¶</a></h3>
-<p>In the new API, <code class="docutils literal"><span class="pre">opt-level</span> <span class="pre">O1</span></code> performs the same patching of the Torch namespace as the old thing
+<p>In the new API, <code class="docutils literal notranslate"><span class="pre">opt-level</span> <span class="pre">O1</span></code> performs the same patching of the Torch namespace as the old thing
 called “Amp.”
 However, the new API allows static or dynamic loss scaling, while the old API only allowed dynamic loss scaling.</p>
-<p>In the new API, the old call to <code class="docutils literal"><span class="pre">amp_handle</span> <span class="pre">=</span> <span class="pre">amp.init()</span></code>, and the returned <code class="docutils literal"><span class="pre">amp_handle</span></code>, are no
-longer exposed or necessary.  The new <code class="docutils literal"><span class="pre">amp.initialize()</span></code> does the duty of <code class="docutils literal"><span class="pre">amp.init()</span></code> (and more).
-Therefore, any existing calls to <code class="docutils literal"><span class="pre">amp_handle</span> <span class="pre">=</span> <span class="pre">amp.init()</span></code> should be deleted.</p>
-<p>The functions formerly exposed through <code class="docutils literal"><span class="pre">amp_handle</span></code> are now free
-functions accessible through the <code class="docutils literal"><span class="pre">amp</span></code> module.</p>
+<p>In the new API, the old call to <code class="docutils literal notranslate"><span class="pre">amp_handle</span> <span class="pre">=</span> <span class="pre">amp.init()</span></code>, and the returned <code class="docutils literal notranslate"><span class="pre">amp_handle</span></code>, are no
+longer exposed or necessary.  The new <code class="docutils literal notranslate"><span class="pre">amp.initialize()</span></code> does the duty of <code class="docutils literal notranslate"><span class="pre">amp.init()</span></code> (and more).
+Therefore, any existing calls to <code class="docutils literal notranslate"><span class="pre">amp_handle</span> <span class="pre">=</span> <span class="pre">amp.init()</span></code> should be deleted.</p>
+<p>The functions formerly exposed through <code class="docutils literal notranslate"><span class="pre">amp_handle</span></code> are now free
+functions accessible through the <code class="docutils literal notranslate"><span class="pre">amp</span></code> module.</p>
 <p>The backward context manager must be changed accordingly:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># old API</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># old API</span>
 <span class="k">with</span> <span class="n">amp_handle</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
     <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 <span class="o">-&gt;</span>
@@ -597,23 +580,23 @@ with a particular precision are still honored by the new API.</p>
 </div>
 <div class="section" id="for-users-of-the-old-fp16-optimizer">
 <h3>For users of the old FP16_Optimizer<a class="headerlink" href="#for-users-of-the-old-fp16-optimizer" title="Permalink to this headline">¶</a></h3>
-<p><code class="docutils literal"><span class="pre">opt-level</span> <span class="pre">O2</span></code> is equivalent to <code class="xref py py-class docutils literal"><span class="pre">FP16_Optimizer</span></code> with <code class="docutils literal"><span class="pre">dynamic_loss_scale=True</span></code>.
+<p><code class="docutils literal notranslate"><span class="pre">opt-level</span> <span class="pre">O2</span></code> is equivalent to <code class="xref py py-class docutils literal notranslate"><span class="pre">FP16_Optimizer</span></code> with <code class="docutils literal notranslate"><span class="pre">dynamic_loss_scale=True</span></code>.
 Once again, the backward pass must be changed to the unified version:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">optimizer</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">optimizer</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span>
 <span class="o">-&gt;</span>
 <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
     <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 </pre></div>
 </div>
 <p>One annoying aspect of FP16_Optimizer was that the user had to manually convert their model to half
-(either by calling <code class="docutils literal"><span class="pre">.half()</span></code> on it, or using a function or module wrapper from
-<code class="docutils literal"><span class="pre">apex.fp16_utils</span></code>), and also manually call <code class="docutils literal"><span class="pre">.half()</span></code> on input data.  <strong>Neither of these are
+(either by calling <code class="docutils literal notranslate"><span class="pre">.half()</span></code> on it, or using a function or module wrapper from
+<code class="docutils literal notranslate"><span class="pre">apex.fp16_utils</span></code>), and also manually call <code class="docutils literal notranslate"><span class="pre">.half()</span></code> on input data.  <strong>Neither of these are
 necessary in the new API.  No matter what –opt-level
 you choose, you can and should simply build your model and pass input data in the default FP32 format.</strong>
 The new Amp API will perform the right conversions during
-<code class="docutils literal"><span class="pre">model,</span> <span class="pre">optimizer</span> <span class="pre">=</span> <span class="pre">amp.initialize(model,</span> <span class="pre">optimizer,</span> <span class="pre">opt_level=....)</span></code> based on the <code class="docutils literal"><span class="pre">--opt-level</span></code>
+<code class="docutils literal notranslate"><span class="pre">model,</span> <span class="pre">optimizer</span> <span class="pre">=</span> <span class="pre">amp.initialize(model,</span> <span class="pre">optimizer,</span> <span class="pre">opt_level=....)</span></code> based on the <code class="docutils literal notranslate"><span class="pre">--opt-level</span></code>
 and any overridden flags.  Floating point input data may be FP32 or FP16, but you may as well just
-let it be FP16, because the <code class="docutils literal"><span class="pre">model</span></code> returned by <code class="docutils literal"><span class="pre">amp.initialize</span></code> will have its <code class="docutils literal"><span class="pre">forward</span></code>
+let it be FP16, because the <code class="docutils literal notranslate"><span class="pre">model</span></code> returned by <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code> will have its <code class="docutils literal notranslate"><span class="pre">forward</span></code>
 method patched to cast the input data appropriately.</p>
 </div>
 </div>
@@ -621,9 +604,7 @@ method patched to cast the input data appropriately.</p>
 
 
            </div>
-           <div class="articleComments">
-            
-           </div>
+           
           </div>
           <footer>
   
@@ -632,7 +613,7 @@ method patched to cast the input data appropriately.</p>
         <a href="advanced.html" class="btn btn-neutral float-right" title="Advanced Amp Usage" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="index.html" class="btn btn-neutral" title="Apex (A PyTorch Extension)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="index.html" class="btn btn-neutral float-left" title="Apex (A PyTorch Extension)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
@@ -641,11 +622,11 @@ method patched to cast the input data appropriately.</p>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018.
+        &copy; Copyright 2018
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -658,37 +639,15 @@ method patched to cast the input data appropriately.</p>
   
 
 
-  
-
-    <script type="text/javascript">
-        var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'./',
-            VERSION:'0.1.0',
-            COLLAPSE_INDEX:false,
-            FILE_SUFFIX:'.html',
-            HAS_SOURCE:  true,
-            SOURCELINK_SUFFIX: '.txt'
-        };
-    </script>
-      <script type="text/javascript" src="_static/jquery.js"></script>
-      <script type="text/javascript" src="_static/underscore.js"></script>
-      <script type="text/javascript" src="_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-
-  
-
-  
-  
-    <script type="text/javascript" src="_static/js/theme.js"></script>
-  
-
-  
-  
   <script type="text/javascript">
       jQuery(function () {
-          SphinxRtdTheme.StickyNav.enable();
+          SphinxRtdTheme.Navigation.enable(true);
       });
   </script>
+
+  
+  
+    
     
 
   <style>

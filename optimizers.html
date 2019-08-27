@@ -17,46 +17,39 @@
   
 
   
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
 
-  
-  
     
 
   
-
-  
-  
-    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  
-
-  
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
-  
-    <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
-  
-
-  
-        <link rel="index" title="Index"
-              href="genindex.html"/>
-        <link rel="search" title="Search" href="search.html"/>
-    <link rel="top" title="Apex 0.1.0 documentation" href="index.html"/>
-        <link rel="next" title="apex.normalization.fused_layer_norm" href="layernorm.html"/>
-        <link rel="prev" title="apex.parallel" href="parallel.html"/> 
-
-  
-  <script src="_static/js/modernizr.min.js"></script>
-
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato" type="text/css" />
+  <link rel="stylesheet" href="_static/css/pytorch_theme.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="apex.normalization.fused_layer_norm" href="layernorm.html" />
+    <link rel="prev" title="apex.parallel" href="parallel.html" /> 
 </head>
 
-<body class="wy-body-for-nav" role="document">
+<body class="wy-body-for-nav">
 
    
   <div class="wy-grid-for-nav">
-
     
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
-        <div class="wy-side-nav-search">
+        <div class="wy-side-nav-search" >
            
 
           
@@ -127,13 +120,13 @@
               <p class="caption"><span class="caption-text">AMP:  Automatic Mixed Precision</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="amp.html">apex.amp</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="amp.html#opt-levels-and-properties"><code class="docutils literal"><span class="pre">opt_level</span></code>s and Properties</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="amp.html#opt-levels-and-properties"><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s and Properties</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="amp.html#properties">Properties</a></li>
-<li class="toctree-l3"><a class="reference internal" href="amp.html#opt-levels"><code class="docutils literal"><span class="pre">opt_level</span></code>s</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o0-fp32-training"><code class="docutils literal"><span class="pre">O0</span></code>:  FP32 training</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o2-almost-fp16-mixed-precision"><code class="docutils literal"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
-<li class="toctree-l4"><a class="reference internal" href="amp.html#o3-fp16-training"><code class="docutils literal"><span class="pre">O3</span></code>:  FP16 training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="amp.html#opt-levels"><code class="docutils literal notranslate"><span class="pre">opt_level</span></code>s</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o0-fp32-training"><code class="docutils literal notranslate"><span class="pre">O0</span></code>:  FP32 training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o1-mixed-precision-recommended-for-typical-use"><code class="docutils literal notranslate"><span class="pre">O1</span></code>:  Mixed Precision (recommended for typical use)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o2-almost-fp16-mixed-precision"><code class="docutils literal notranslate"><span class="pre">O2</span></code>:  “Almost FP16” Mixed Precision</a></li>
+<li class="toctree-l4"><a class="reference internal" href="amp.html#o3-fp16-training"><code class="docutils literal notranslate"><span class="pre">O3</span></code>:  FP16 training</a></li>
 </ul>
 </li>
 </ul>
@@ -185,7 +178,7 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+      <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="index.html">Apex</a>
@@ -193,9 +186,10 @@
       </nav>
 
 
-      
       <div class="wy-nav-content">
+        
         <div class="rst-content">
+        
           
 
 
@@ -241,59 +235,303 @@
 <span id="apex-optimizers"></span><h1>apex.optimizers<a class="headerlink" href="#module-apex.optimizers" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="apex.optimizers.FusedAdam">
-<em class="property">class </em><code class="descclassname">apex.optimizers.</code><code class="descname">FusedAdam</code><span class="sig-paren">(</span><em>params</em>, <em>lr=0.001</em>, <em>bias_correction=True</em>, <em>betas=(0.9</em>, <em>0.999)</em>, <em>eps=1e-08</em>, <em>eps_inside_sqrt=False</em>, <em>weight_decay=0.0</em>, <em>max_grad_norm=0.0</em>, <em>amsgrad=False</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.optimizers.FusedAdam" title="Permalink to this definition">¶</a></dt>
-<dd><p>Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
-<code class="docutils literal"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span> <span class="pre">--cuda_ext</span> <span class="pre">--cpp_ext</span></code>.</p>
-<p>It has been proposed in <a class="reference external" href="https://arxiv.org/abs/1412.6980">Adam: A Method for Stochastic Optimization</a>.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>params</strong> (<em>iterable</em>) – iterable of parameters to optimize or dicts defining
-parameter groups.</li>
-<li><strong>lr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – learning rate. (default: 1e-3)</li>
-<li><strong>betas</strong> (<em>Tuple</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>]</em><em>, </em><em>optional</em>) – coefficients used for computing
-running averages of gradient and its square. (default: (0.9, 0.999))</li>
-<li><strong>eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – term added to the denominator to improve
-numerical stability. (default: 1e-8)</li>
-<li><strong>weight_decay</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – weight decay (L2 penalty) (default: 0)</li>
-<li><strong>amsgrad</strong> (<em>boolean</em><em>, </em><em>optional</em>) – whether to use the AMSGrad variant of this
-algorithm from the paper <a class="reference external" href="https://openreview.net/forum?id=ryQu7f-RZ">On the Convergence of Adam and Beyond</a>
-(default: False) NOT SUPPORTED in FusedAdam!</li>
-<li><strong>eps_inside_sqrt</strong> (<em>boolean</em><em>, </em><em>optional</em>) – in the ‘update parameters’ step,
-adds eps to the bias-corrected second moment estimate before
-evaluating square root instead of adding it to the square root of
-second moment estimate as in the original paper. (default: False)</li>
+<em class="property">class </em><code class="sig-prename descclassname">apex.optimizers.</code><code class="sig-name descname">FusedAdam</code><span class="sig-paren">(</span><em class="sig-param">params</em>, <em class="sig-param">lr=0.001</em>, <em class="sig-param">bias_correction=True</em>, <em class="sig-param">betas=(0.9</em>, <em class="sig-param">0.999)</em>, <em class="sig-param">eps=1e-08</em>, <em class="sig-param">adam_w_mode=True</em>, <em class="sig-param">weight_decay=0.0</em>, <em class="sig-param">amsgrad=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_adam.html#FusedAdam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedAdam" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implements Adam algorithm.</p>
+<p>Currently GPU-only.  Requires Apex to be installed via
+<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-v</span> <span class="pre">--no-cache-dir</span> <span class="pre">--global-option=&quot;--cpp_ext&quot;</span> <span class="pre">--global-option=&quot;--cuda_ext&quot;</span> <span class="pre">./</span></code>.</p>
+<p>This version of fused Adam implements 2 fusions.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Fusion of the Adam update’s elementwise operations</p></li>
+<li><p>A multi-tensor apply launch that batches the elementwise updates applied to all the model’s parameters into one or a few kernel launches.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</div></blockquote>
+<p><a class="reference internal" href="#apex.optimizers.FusedAdam" title="apex.optimizers.FusedAdam"><code class="xref py py-class docutils literal notranslate"><span class="pre">apex.optimizers.FusedAdam</span></code></a> may be used as a drop-in replacement for <code class="docutils literal notranslate"><span class="pre">torch.optim.Adam</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">opt</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">optimizers</span><span class="o">.</span><span class="n">FusedAdam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span> <span class="o">=</span> <span class="o">....</span><span class="p">)</span>
+<span class="o">...</span>
+<span class="n">opt</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+</div>
+<p><a class="reference internal" href="#apex.optimizers.FusedAdam" title="apex.optimizers.FusedAdam"><code class="xref py py-class docutils literal notranslate"><span class="pre">apex.optimizers.FusedAdam</span></code></a> may be used with or without Amp.  If you wish to use <a class="reference internal" href="#apex.optimizers.FusedAdam" title="apex.optimizers.FusedAdam"><code class="xref py py-class docutils literal notranslate"><span class="pre">FusedAdam</span></code></a> with Amp,
+you may choose any <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">opt</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">optimizers</span><span class="o">.</span><span class="n">FusedAdam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span> <span class="o">=</span> <span class="o">....</span><span class="p">)</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">opt</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">opt</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O0&quot;</span> <span class="ow">or</span> <span class="s2">&quot;O1 or &quot;</span><span class="n">O2</span><span class="s2">&quot;)</span>
+<span class="o">...</span>
+<span class="n">opt</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>In general, <code class="docutils literal notranslate"><span class="pre">opt_level=&quot;O1&quot;</span></code> is recommended.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>A previous version of <a class="reference internal" href="#apex.optimizers.FusedAdam" title="apex.optimizers.FusedAdam"><code class="xref py py-class docutils literal notranslate"><span class="pre">FusedAdam</span></code></a> allowed a number of additional arguments to <code class="docutils literal notranslate"><span class="pre">step</span></code>.  These additional arguments
+are now deprecated and unnecessary.</p>
+</div>
+<p>Adam was been proposed in <a class="reference external" href="https://arxiv.org/abs/1412.6980">Adam: A Method for Stochastic Optimization</a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>iterable</em>) – iterable of parameters to optimize or dicts defining
+parameter groups.</p></li>
+<li><p><strong>lr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – learning rate. (default: 1e-3)</p></li>
+<li><p><strong>betas</strong> (<em>Tuple</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>]</em><em>, </em><em>optional</em>) – coefficients used for computing
+running averages of gradient and its square. (default: (0.9, 0.999))</p></li>
+<li><p><strong>eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – term added to the denominator to improve
+numerical stability. (default: 1e-8)</p></li>
+<li><p><strong>weight_decay</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – weight decay (L2 penalty) (default: 0)</p></li>
+<li><p><strong>amsgrad</strong> (<em>boolean</em><em>, </em><em>optional</em>) – whether to use the AMSGrad variant of this
+algorithm from the paper <a class="reference external" href="https://openreview.net/forum?id=ryQu7f-RZ">On the Convergence of Adam and Beyond</a>
+(default: False) NOT SUPPORTED in FusedAdam!</p></li>
+<li><p><strong>adam_w_mode</strong> (<em>boolean</em><em>, </em><em>optional</em>) – Apply L2 regularization or weight decay
+True for decoupled weight decay(also known as AdamW) (default: True)</p></li>
+</ul>
+</dd>
+</dl>
 <dl class="method">
 <dt id="apex.optimizers.FusedAdam.step">
-<code class="descname">step</code><span class="sig-paren">(</span><em>closure=None</em>, <em>grads=None</em>, <em>output_params=None</em>, <em>scale=1.0</em>, <em>grad_norms=None</em><span class="sig-paren">)</span><a class="headerlink" href="#apex.optimizers.FusedAdam.step" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">step</code><span class="sig-paren">(</span><em class="sig-param">closure=None</em>, <em class="sig-param">grads=None</em>, <em class="sig-param">output_params=None</em>, <em class="sig-param">scale=None</em>, <em class="sig-param">grad_norms=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_adam.html#FusedAdam.step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedAdam.step" title="Permalink to this definition">¶</a></dt>
 <dd><p>Performs a single optimization step.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>closure</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#callable" title="(in Python v3.7)"><em>callable</em></a><em>, </em><em>optional</em>) – A closure that reevaluates the model
-and returns the loss.</li>
-<li><strong>grads</strong> (<em>list of tensors</em><em>, </em><em>optional</em>) – weight gradient to use for the
-optimizer update. If gradients have type torch.half, parameters
-are expected to be in type torch.float. (default: None)</li>
-<li><strong>params</strong> (<em>output</em>) – A reduced precision copy
-of the updated weights written out in addition to the regular
-updated weights. Have to be of same type as gradients. (default: None)</li>
-<li><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – factor to divide gradient tensor values
-by before applying to weights. (default: 1)</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>closure</strong> (<em>callable</em><em>, </em><em>optional</em>) – A closure that reevaluates the model
+and returns the loss.</p>
+</dd>
+</dl>
+<p>The remaining arguments are deprecated, and are only retained (for the moment) for error-checking purposes.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="apex.optimizers.FusedLAMB">
+<em class="property">class </em><code class="sig-prename descclassname">apex.optimizers.</code><code class="sig-name descname">FusedLAMB</code><span class="sig-paren">(</span><em class="sig-param">params</em>, <em class="sig-param">lr=0.001</em>, <em class="sig-param">bias_correction=True</em>, <em class="sig-param">betas=(0.9</em>, <em class="sig-param">0.999)</em>, <em class="sig-param">eps=1e-06</em>, <em class="sig-param">weight_decay=0.01</em>, <em class="sig-param">amsgrad=False</em>, <em class="sig-param">adam_w_mode=True</em>, <em class="sig-param">grad_averaging=True</em>, <em class="sig-param">set_grad_none=True</em>, <em class="sig-param">max_grad_norm=1.0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_lamb.html#FusedLAMB"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedLAMB" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implements LAMB algorithm.</p>
+<p>Currently GPU-only.  Requires Apex to be installed via
+<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-v</span> <span class="pre">--no-cache-dir</span> <span class="pre">--global-option=&quot;--cpp_ext&quot;</span> <span class="pre">--global-option=&quot;--cuda_ext&quot;</span> <span class="pre">./</span></code>.</p>
+<p>This version of fused LAMB implements 2 fusions.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Fusion of the LAMB update’s elementwise operations</p></li>
+<li><p>A multi-tensor apply launch that batches the elementwise updates applied to all the model’s parameters into one or a few kernel launches.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</div></blockquote>
+<p><a class="reference internal" href="#apex.optimizers.FusedLAMB" title="apex.optimizers.FusedLAMB"><code class="xref py py-class docutils literal notranslate"><span class="pre">apex.optimizers.FusedLAMB</span></code></a>’s usage is identical to any ordinary Pytorch optimizer:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">opt</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">optimizers</span><span class="o">.</span><span class="n">FusedLAMB</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span> <span class="o">=</span> <span class="o">....</span><span class="p">)</span>
+<span class="o">...</span>
+<span class="n">opt</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+</div>
+<p><a class="reference internal" href="#apex.optimizers.FusedLAMB" title="apex.optimizers.FusedLAMB"><code class="xref py py-class docutils literal notranslate"><span class="pre">apex.optimizers.FusedLAMB</span></code></a> may be used with or without Amp.  If you wish to use <a class="reference internal" href="#apex.optimizers.FusedLAMB" title="apex.optimizers.FusedLAMB"><code class="xref py py-class docutils literal notranslate"><span class="pre">FusedLAMB</span></code></a> with Amp,
+you may choose any <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">opt</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">optimizers</span><span class="o">.</span><span class="n">FusedLAMB</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span> <span class="o">=</span> <span class="o">....</span><span class="p">)</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">opt</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">opt</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O0&quot;</span> <span class="ow">or</span> <span class="s2">&quot;O1 or &quot;</span><span class="n">O2</span><span class="s2">&quot;)</span>
+<span class="o">...</span>
+<span class="n">opt</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>In general, <code class="docutils literal notranslate"><span class="pre">opt_level=&quot;O1&quot;</span></code> is recommended.</p>
+<p>LAMB was proposed in <a class="reference external" href="https://arxiv.org/abs/1904.00962">Large Batch Optimization for Deep Learning: Training BERT in 76 minutes</a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>iterable</em>) – iterable of parameters to optimize or dicts defining
+parameter groups.</p></li>
+<li><p><strong>lr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – learning rate. (default: 1e-3)</p></li>
+<li><p><strong>betas</strong> (<em>Tuple</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>]</em><em>, </em><em>optional</em>) – coefficients used for computing
+running averages of gradient and its norm. (default: (0.9, 0.999))</p></li>
+<li><p><strong>eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – term added to the denominator to improve
+numerical stability. (default: 1e-8)</p></li>
+<li><p><strong>weight_decay</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – weight decay (L2 penalty) (default: 0)</p></li>
+<li><p><strong>amsgrad</strong> (<em>boolean</em><em>, </em><em>optional</em>) – whether to use the AMSGrad variant of this
+algorithm from the paper <a class="reference external" href="https://openreview.net/forum?id=ryQu7f-RZ">On the Convergence of Adam and Beyond</a>
+NOT SUPPORTED now! (default: False)</p></li>
+<li><p><strong>adam_w_mode</strong> (<em>boolean</em><em>, </em><em>optional</em>) – Apply L2 regularization or weight decay
+True for decoupled weight decay(also known as AdamW) (default: True)</p></li>
+<li><p><strong>grad_averaging</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em>) – whether apply (1-beta2) to grad when
+calculating running averages of gradient. (default: True)</p></li>
+<li><p><strong>set_grad_none</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em>) – whether set grad to None when zero_grad()
+method is called. (default: True)</p></li>
+<li><p><strong>max_grad_norm</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – value used to clip global grad norm
+(default: 1.0)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="apex.optimizers.FusedLAMB.step">
+<code class="sig-name descname">step</code><span class="sig-paren">(</span><em class="sig-param">closure=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_lamb.html#FusedLAMB.step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedLAMB.step" title="Permalink to this definition">¶</a></dt>
+<dd><p>Performs a single optimization step.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>closure</strong> (<em>callable</em><em>, </em><em>optional</em>) – A closure that reevaluates the model
+and returns the loss.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.optimizers.FusedLAMB.zero_grad">
+<code class="sig-name descname">zero_grad</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_lamb.html#FusedLAMB.zero_grad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedLAMB.zero_grad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Clears the gradients of all optimized <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.Tensor</span></code> s.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="apex.optimizers.FusedNovoGrad">
+<em class="property">class </em><code class="sig-prename descclassname">apex.optimizers.</code><code class="sig-name descname">FusedNovoGrad</code><span class="sig-paren">(</span><em class="sig-param">params</em>, <em class="sig-param">lr=0.001</em>, <em class="sig-param">bias_correction=True</em>, <em class="sig-param">betas=(0.9</em>, <em class="sig-param">0.999)</em>, <em class="sig-param">eps=1e-08</em>, <em class="sig-param">weight_decay=0.0</em>, <em class="sig-param">amsgrad=False</em>, <em class="sig-param">reg_inside_moment=False</em>, <em class="sig-param">grad_averaging=True</em>, <em class="sig-param">norm_type=2</em>, <em class="sig-param">init_zero=False</em>, <em class="sig-param">set_grad_none=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_novograd.html#FusedNovoGrad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedNovoGrad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implements NovoGrad algorithm.</p>
+<p>Currently GPU-only.  Requires Apex to be installed via
+<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-v</span> <span class="pre">--no-cache-dir</span> <span class="pre">--global-option=&quot;--cpp_ext&quot;</span> <span class="pre">--global-option=&quot;--cuda_ext&quot;</span> <span class="pre">./</span></code>.</p>
+<p>This version of fused NovoGrad implements 2 fusions.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Fusion of the NovoGrad update’s elementwise operations</p></li>
+<li><p>A multi-tensor apply launch that batches the elementwise updates applied to all the model’s parameters into one or a few kernel launches.</p></li>
+</ul>
+</div></blockquote>
+<p><a class="reference internal" href="#apex.optimizers.FusedNovoGrad" title="apex.optimizers.FusedNovoGrad"><code class="xref py py-class docutils literal notranslate"><span class="pre">apex.optimizers.FusedNovoGrad</span></code></a>’s usage is identical to any Pytorch optimizer:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">opt</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">optimizers</span><span class="o">.</span><span class="n">FusedNovoGrad</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span> <span class="o">=</span> <span class="o">....</span><span class="p">)</span>
+<span class="o">...</span>
+<span class="n">opt</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+</div>
+<p><a class="reference internal" href="#apex.optimizers.FusedNovoGrad" title="apex.optimizers.FusedNovoGrad"><code class="xref py py-class docutils literal notranslate"><span class="pre">apex.optimizers.FusedNovoGrad</span></code></a> may be used with or without Amp.  If you wish to use <a class="reference internal" href="#apex.optimizers.FusedNovoGrad" title="apex.optimizers.FusedNovoGrad"><code class="xref py py-class docutils literal notranslate"><span class="pre">FusedNovoGrad</span></code></a> with Amp,
+you may choose any <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">opt</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">optimizers</span><span class="o">.</span><span class="n">FusedNovoGrad</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span> <span class="o">=</span> <span class="o">....</span><span class="p">)</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">opt</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">opt</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O0&quot;</span> <span class="ow">or</span> <span class="s2">&quot;O1 or &quot;</span><span class="n">O2</span><span class="s2">&quot;)</span>
+<span class="o">...</span>
+<span class="n">opt</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>In general, <code class="docutils literal notranslate"><span class="pre">opt_level=&quot;O1&quot;</span></code> is recommended.</p>
+<p>It has been proposed in <a class="reference external" href="https://arxiv.org/abs/1904.03288">Jasper: An End-to-End Convolutional Neural Acoustic Model</a>.
+More info: <a class="reference external" href="https://nvidia.github.io/OpenSeq2Seq/html/optimizers.html#novograd">https://nvidia.github.io/OpenSeq2Seq/html/optimizers.html#novograd</a></p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>iterable</em>) – iterable of parameters to optimize or dicts defining
+parameter groups.</p></li>
+<li><p><strong>lr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – learning rate. (default: 1e-3)</p></li>
+<li><p><strong>betas</strong> (<em>Tuple</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>]</em><em>, </em><em>optional</em>) – coefficients used for computing
+running averages of gradient and its norm. (default: (0.9, 0.999))</p></li>
+<li><p><strong>eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – term added to the denominator to improve
+numerical stability. (default: 1e-8)</p></li>
+<li><p><strong>weight_decay</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – weight decay (L2 penalty) (default: 0)</p></li>
+<li><p><strong>amsgrad</strong> (<em>boolean</em><em>, </em><em>optional</em>) – whether to use the AMSGrad variant of this
+algorithm from the paper <a class="reference external" href="https://openreview.net/forum?id=ryQu7f-RZ">On the Convergence of Adam and Beyond</a>
+NOT SUPPORTED now! (default: False)</p></li>
+<li><p><strong>reg_inside_moment</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em>) – whether do regularization (norm and L2)
+in momentum calculation. True for include, False for not include and
+only do it on update term. (default: False)</p></li>
+<li><p><strong>grad_averaging</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em>) – whether apply (1-beta2) to grad when
+calculating running averages of gradient. (default: True)</p></li>
+<li><p><strong>norm_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>optional</em>) – which norm to calculate for each layer.
+2 for L2 norm, and 0 for infinite norm. These 2 are only supported
+type now. (default: 2)</p></li>
+<li><p><strong>init_zero</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em>) – whether init norm with 0 (start averaging on
+1st step) or first step norm (start averaging on 2nd step). True for
+init with 0. (default: False)</p></li>
+<li><p><strong>set_grad_none</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em>) – whether set grad to None when zero_grad()
+method is called. (default: True)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="apex.optimizers.FusedNovoGrad.step">
+<code class="sig-name descname">step</code><span class="sig-paren">(</span><em class="sig-param">closure=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_novograd.html#FusedNovoGrad.step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedNovoGrad.step" title="Permalink to this definition">¶</a></dt>
+<dd><p>Performs a single optimization step.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>closure</strong> (<em>callable</em><em>, </em><em>optional</em>) – A closure that reevaluates the model
+and returns the loss.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.optimizers.FusedNovoGrad.zero_grad">
+<code class="sig-name descname">zero_grad</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_novograd.html#FusedNovoGrad.zero_grad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedNovoGrad.zero_grad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Clears the gradients of all optimized <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.Tensor</span></code> s.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="apex.optimizers.FusedSGD">
+<em class="property">class </em><code class="sig-prename descclassname">apex.optimizers.</code><code class="sig-name descname">FusedSGD</code><span class="sig-paren">(</span><em class="sig-param">params</em>, <em class="sig-param">lr=&lt;required parameter&gt;</em>, <em class="sig-param">momentum=0</em>, <em class="sig-param">dampening=0</em>, <em class="sig-param">weight_decay=0</em>, <em class="sig-param">nesterov=False</em>, <em class="sig-param">wd_after_momentum=False</em>, <em class="sig-param">materialize_master_grads=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_sgd.html#FusedSGD"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedSGD" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implements stochastic gradient descent (optionally with momentum).</p>
+<p>Currently GPU-only.  Requires Apex to be installed via
+<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-v</span> <span class="pre">--no-cache-dir</span> <span class="pre">--global-option=&quot;--cpp_ext&quot;</span> <span class="pre">--global-option=&quot;--cuda_ext&quot;</span> <span class="pre">./</span></code>.</p>
+<p>This version of fused SGD implements 2 fusions.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Fusion of the SGD update’s elementwise operations</p></li>
+<li><p>A multi-tensor apply launch that batches the elementwise updates applied to all the model’s parameters into one or a few kernel launches.</p></li>
+</ul>
+</div></blockquote>
+<p><a class="reference internal" href="#apex.optimizers.FusedSGD" title="apex.optimizers.FusedSGD"><code class="xref py py-class docutils literal notranslate"><span class="pre">apex.optimizers.FusedSGD</span></code></a> may be used as a drop-in replacement for <code class="docutils literal notranslate"><span class="pre">torch.optim.SGD</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">opt</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">optimizers</span><span class="o">.</span><span class="n">FusedSGD</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span> <span class="o">=</span> <span class="o">....</span><span class="p">)</span>
+<span class="o">...</span>
+<span class="n">opt</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+</div>
+<p><a class="reference internal" href="#apex.optimizers.FusedSGD" title="apex.optimizers.FusedSGD"><code class="xref py py-class docutils literal notranslate"><span class="pre">apex.optimizers.FusedSGD</span></code></a> may be used with or without Amp.  If you wish to use <a class="reference internal" href="#apex.optimizers.FusedSGD" title="apex.optimizers.FusedSGD"><code class="xref py py-class docutils literal notranslate"><span class="pre">FusedSGD</span></code></a> with Amp,
+you may choose any <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">opt</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">optimizers</span><span class="o">.</span><span class="n">FusedSGD</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span> <span class="o">=</span> <span class="o">....</span><span class="p">)</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">opt</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">opt</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="s2">&quot;O0&quot;</span> <span class="ow">or</span> <span class="s2">&quot;O1 or &quot;</span><span class="n">O2</span><span class="s2">&quot;)</span>
+<span class="o">...</span>
+<span class="n">opt</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>In general, <code class="docutils literal notranslate"><span class="pre">opt_level=&quot;O1&quot;</span></code> is recommended.</p>
+<p>Nesterov momentum is based on the formula from
+<a class="reference external" href="http://www.cs.toronto.edu/%7Ehinton/absps/momentum.pdf">On the importance of initialization and momentum in deep learning</a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>iterable</em>) – iterable of parameters to optimize or dicts defining
+parameter groups</p></li>
+<li><p><strong>lr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a>) – learning rate</p></li>
+<li><p><strong>momentum</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – momentum factor (default: 0)</p></li>
+<li><p><strong>weight_decay</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – weight decay (L2 penalty) (default: 0)</p></li>
+<li><p><strong>dampening</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>optional</em>) – dampening for momentum (default: 0)</p></li>
+<li><p><strong>nesterov</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em>) – enables Nesterov momentum (default: False)</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">SGD</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">momentum</span><span class="o">=</span><span class="mf">0.9</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">loss_fn</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="nb">input</span><span class="p">),</span> <span class="n">target</span><span class="p">)</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The implementation of SGD with Momentum/Nesterov subtly differs from
+Sutskever et. al. and implementations in some other frameworks.</p>
+<p>Considering the specific case of Momentum, the update can be written as</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}v = \rho * v + g \\
+p = p - lr * v\end{split}\]</div>
+<p>where p, g, v and <span class="math notranslate nohighlight">\(\rho\)</span> denote the parameters, gradient,
+velocity, and momentum respectively.</p>
+<p>This is in contrast to Sutskever et. al. and
+other frameworks which employ an update of the form</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}v = \rho * v + lr * g \\
+p = p - v\end{split}\]</div>
+<p>The Nesterov version is analogously modified.</p>
+</div>
+<dl class="method">
+<dt id="apex.optimizers.FusedSGD.step">
+<code class="sig-name descname">step</code><span class="sig-paren">(</span><em class="sig-param">closure=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_sgd.html#FusedSGD.step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedSGD.step" title="Permalink to this definition">¶</a></dt>
+<dd><p>Performs a single optimization step.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>closure</strong> (<em>callable</em><em>, </em><em>optional</em>) – A closure that reevaluates the model
+and returns the loss.</p>
+</dd>
+</dl>
 </dd></dl>
 
 </dd></dl>
@@ -302,9 +540,7 @@ by before applying to weights. (default: 1)</li>
 
 
            </div>
-           <div class="articleComments">
-            
-           </div>
+           
           </div>
           <footer>
   
@@ -313,7 +549,7 @@ by before applying to weights. (default: 1)</li>
         <a href="layernorm.html" class="btn btn-neutral float-right" title="apex.normalization.fused_layer_norm" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="parallel.html" class="btn btn-neutral" title="apex.parallel" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="parallel.html" class="btn btn-neutral float-left" title="apex.parallel" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
@@ -322,11 +558,11 @@ by before applying to weights. (default: 1)</li>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018.
+        &copy; Copyright 2018
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -339,37 +575,15 @@ by before applying to weights. (default: 1)</li>
   
 
 
-  
-
-    <script type="text/javascript">
-        var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'./',
-            VERSION:'0.1.0',
-            COLLAPSE_INDEX:false,
-            FILE_SUFFIX:'.html',
-            HAS_SOURCE:  true,
-            SOURCELINK_SUFFIX: '.txt'
-        };
-    </script>
-      <script type="text/javascript" src="_static/jquery.js"></script>
-      <script type="text/javascript" src="_static/underscore.js"></script>
-      <script type="text/javascript" src="_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-
-  
-
-  
-  
-    <script type="text/javascript" src="_static/js/theme.js"></script>
-  
-
-  
-  
   <script type="text/javascript">
       jQuery(function () {
-          SphinxRtdTheme.StickyNav.enable();
+          SphinxRtdTheme.Navigation.enable(true);
       });
   </script>
+
+  
+  
+    
     
 
   <style>
