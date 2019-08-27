@@ -213,7 +213,7 @@ In order to get bitwise accuracy, we recommend the following workflow::
         # Continue training
         ...
 
-Note that we recommend restoring the model using the same opt_level.
+Note that we recommend restoring the model using the same ``opt_level``. Also note that we recommend calling the ``load_state_dict`` methods after ``amp.initialize``.
 
 Advanced use cases
 ------------------

@@ -91,7 +91,7 @@ amp.load_state_dict(checkpoint['amp'])
 ...
 ```
 
-Note that we recommend restoring the model using the same `opt_level`.
+Note that we recommend restoring the model using the same `opt_level`. Also note that we recommend calling the `load_state_dict` methods after `amp.initialize`.
 
 # Requirements
 
