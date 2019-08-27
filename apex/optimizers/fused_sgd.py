@@ -21,7 +21,7 @@ class FusedSGD(Optimizer):
         opt.step()
 
     :class:`apex.optimizers.FusedSGD` may be used with or without Amp.  If you wish to use :class:`FusedSGD` with Amp,
-    you may choose any `opt_level`::
+    you may choose any ``opt_level``::
 
         opt = apex.optimizers.FusedSGD(model.parameters(), lr = ....)
         model, opt = amp.initialize(model, opt, opt_level="O0" or "O1 or "O2")

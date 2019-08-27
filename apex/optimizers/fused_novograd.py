@@ -20,7 +20,7 @@ class FusedNovoGrad(torch.optim.Optimizer):
         opt.step()
 
     :class:`apex.optimizers.FusedNovoGrad` may be used with or without Amp.  If you wish to use :class:`FusedNovoGrad` with Amp,
-    you may choose any `opt_level`::
+    you may choose any ``opt_level``::
 
         opt = apex.optimizers.FusedNovoGrad(model.parameters(), lr = ....)
         model, opt = amp.initialize(model, opt, opt_level="O0" or "O1 or "O2")
