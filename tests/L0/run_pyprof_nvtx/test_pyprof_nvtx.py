@@ -7,6 +7,10 @@ import unittest
 from apex import pyprof
 pyprof.nvtx.init()
 
+TORCH_MAJOR = int(torch.__version__.split('.')[0])
+TORCH_MINOR = int(torch.__version__.split('.')[1])
+
+
 # TODO: add tests for:
 # F.bilinear, F.l1_loss, F.multilabel_soft_margin_loss, F.multi_margin_loss
 
@@ -307,7 +311,11 @@ class TestPyProfNvtx(unittest.TestCase):
     
     def test_gumbel_softmax(self):
         inp = torch.randn(16, 1024, device='cuda', dtype=self.dtype)
-        output = F.gumbel_softmax(inp, tau=1, hard=False, eps=1e-10, dim=-1)
+        # Don't use dim argument for PyTorch < 1.1.0
+        if TORCH_MAJOR == 1 and TORCH_MINOR < 1:
+            output = F.gumbel_softmax(inp, tau=1, hard=False, eps=1e-10)
+        else:
+            output = F.gumbel_softmax(inp, tau=1, hard=False, eps=1e-10, dim=-1)
     
     def test_log_softmax(self):
         inp = torch.randn(16, 1024, device='cuda', dtype=self.dtype)
@@ -381,7 +389,8 @@ class TestPyProfNvtx(unittest.TestCase):
         weight = torch.randn(pre_embed_dim, post_embed_dim, device='cuda', dtype=self.dtype)
         output = F.embedding_bag(inp, weight, offsets=None, max_norm=None, norm_type=2,
             scale_grad_by_freq=False, mode='mean', sparse=False)
-    
+
+    @unittest.skipIf(TORCH_MAJOR==1 and TORCH_MINOR<1, 'F.one_hot not supported in PyTorch<1.1.0')
     def test_one_hot(self):
         num_classes = 10
         inp = torch.randint(0, num_classes, (128, 16), device='cuda')    
