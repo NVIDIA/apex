@@ -103,7 +103,8 @@ class FusedAdam(torch.optim.Optimizer):
                 group['step'] = 1
 
             # create lists for multi-tensor apply
-            p_list, g_list, m1_list, m2_list = [], [], [], []
+            g_16, p_16, m_16, v_16 = [], [], [], []
+            g_32, p_32, m_32, v_32 = [], [], [], []
 
             for p in group['params']:
                 if p.grad is None:
@@ -119,22 +120,43 @@ class FusedAdam(torch.optim.Optimizer):
                     # Exponential moving average of squared gradient values
                     state['exp_avg_sq'] = torch.zeros_like(p.data)
 
-                p_list.append(p.data)
-                g_list.append(p.grad.data)
-                m1_list.append(state['exp_avg'])
-                m2_list.append(state['exp_avg_sq'])
+                if p.dtype == torch.float16:
+                    g_16.append(p.grad.data)
+                    p_16.append(p.data)
+                    m_16.append(state['exp_avg'])
+                    v_16.append(state['exp_avg_sq'])
+                elif p.dtype == torch.float32:
+                    g_32.append(p.grad.data)
+                    p_32.append(p.data)
+                    m_32.append(state['exp_avg'])
+                    v_32.append(state['exp_avg_sq'])
+                else:
+                    raise RuntimeError('FusedAdam only support fp16 and fp32.')
 
-            multi_tensor_applier(self.multi_tensor_adam,
-                                 self._dummy_overflow_buf,
-                                 [g_list, p_list, m1_list, m2_list],
-                                 group['lr'],
-                                 beta1,
-                                 beta2,
-                                 group['eps'],
-                                 group['step'],
-                                 self.adam_w_mode,
-                                 bias_correction,
-                                 group['weight_decay'])
+            if(len(g_16) > 0):
+                multi_tensor_applier(self.multi_tensor_adam,
+                                     self._dummy_overflow_buf,
+                                     [g_16, p_16, m_16, v_16],
+                                     group['lr'],
+                                     beta1,
+                                     beta2,
+                                     group['eps'],
+                                     group['step'],
+                                     self.adam_w_mode,
+                                     bias_correction,
+                                     group['weight_decay'])
+            if(len(g_32) > 0):
+                multi_tensor_applier(self.multi_tensor_adam,
+                                     self._dummy_overflow_buf,
+                                     [g_32, p_32, m_32, v_32],
+                                     group['lr'],
+                                     beta1,
+                                     beta2,
+                                     group['eps'],
+                                     group['step'],
+                                     self.adam_w_mode,
+                                     bias_correction,
+                                     group['weight_decay'])
 
 
         return loss
