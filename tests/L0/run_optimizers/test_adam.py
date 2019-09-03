@@ -68,9 +68,6 @@ class TestFusedAdam(unittest.TestCase):
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
-    def test_double(self):
-        self.gen_single_type_test(param_type=torch.double)
-
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
 
