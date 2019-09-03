@@ -1,6 +1,5 @@
 import torch
 from apex.multi_tensor_apply import multi_tensor_applier
-from amp_C import multi_tensor_adam
 
 class FusedAdam(torch.optim.Optimizer):
 
@@ -68,7 +67,14 @@ class FusedAdam(torch.optim.Optimizer):
                         betas=betas, eps=eps, weight_decay=weight_decay)
         super(FusedAdam, self).__init__(params, defaults)
         self.adam_w_mode = 1 if adam_w_mode else 0
-        self.dummy_overflow_buf = torch.cuda.IntTensor([0])
+        if multi_tensor_applier.available:
+            import amp_C
+            # Skip buffer
+            self._dummy_overflow_buf = torch.cuda.IntTensor([0])
+            self.multi_tensor_adam = amp_C.multi_tensor_adam
+        else:
+            raise RuntimeError('apex.optimizers.FusedAdam requires cuda extensions')
+
 
     def step(self, closure=None, grads=None, output_params=None, scale=None, grad_norms=None):
         """Performs a single optimization step.
@@ -118,8 +124,8 @@ class FusedAdam(torch.optim.Optimizer):
                 m1_list.append(state['exp_avg'])
                 m2_list.append(state['exp_avg_sq'])
 
-            multi_tensor_applier(multi_tensor_adam,
-                                 self.dummy_overflow_buf,
+            multi_tensor_applier(self.multi_tensor_adam,
+                                 self._dummy_overflow_buf,
                                  [g_list, p_list, m1_list, m2_list],
                                  group['lr'],
                                  beta1,
