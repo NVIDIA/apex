@@ -50,6 +50,8 @@ class FusedAdam(torch.optim.Optimizer):
             (default: False) NOT SUPPORTED in FusedAdam!
         adam_w_mode (boolean, optional): Apply L2 regularization or weight decay
             True for decoupled weight decay(also known as AdamW) (default: True)
+        set_grad_none (bool, optional): whether set grad to None when zero_grad()
+            method is called. (default: True)
 
     .. _Adam\: A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
@@ -59,7 +61,7 @@ class FusedAdam(torch.optim.Optimizer):
 
     def __init__(self, params, lr=1e-3, bias_correction=True,
                  betas=(0.9, 0.999), eps=1e-8, adam_w_mode=True,
-                 weight_decay=0., amsgrad=False):
+                 weight_decay=0., amsgrad=False, set_grad_none=True):
 
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
@@ -67,6 +69,7 @@ class FusedAdam(torch.optim.Optimizer):
                         betas=betas, eps=eps, weight_decay=weight_decay)
         super(FusedAdam, self).__init__(params, defaults)
         self.adam_w_mode = 1 if adam_w_mode else 0
+        self.set_grad_none = set_grad_none
         if multi_tensor_applier.available:
             import amp_C
             # Skip buffer
@@ -75,6 +78,13 @@ class FusedAdam(torch.optim.Optimizer):
         else:
             raise RuntimeError('apex.optimizers.FusedAdam requires cuda extensions')
 
+    def zero_grad(self):
+        if self.set_grad_none:
+            for group in self.param_groups:
+                for p in group['params']:
+                    p.grad = None
+        else:
+            super(FusedAdam, self).zero_grad()
 
     def step(self, closure=None, grads=None, output_params=None, scale=None, grad_norms=None):
         """Performs a single optimization step.
