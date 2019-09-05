@@ -67,6 +67,19 @@ def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
                            "https://github.com/NVIDIA/apex/pull/323#discussion_r287021798.  "
                            "You can try commenting out this check (at your own risk).")
 
+# Set up macros for forward/backward compatibility hack around
+# https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
+# and
+# https://github.com/NVIDIA/apex/issues/456
+# https://github.com/pytorch/pytorch/commit/eb7b39e02f7d75c26d8a795ea8c7fd911334da7e#diff-4632522f237f1e4e728cb824300403ac
+version_ge_1_1 = []
+if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 0):
+    version_ge_1_1 = ['-DVERSION_GE_1_1']
+version_ge_1_3 = []
+if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 2):
+    version_ge_1_3 = ['-DVERSION_GE_1_3']
+version_dependent_macros = version_ge_1_1 + version_ge_1_3
+
 if "--cuda_ext" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
     sys.argv.remove("--cuda_ext")
@@ -75,12 +88,6 @@ if "--cuda_ext" in sys.argv:
         raise RuntimeError("--cuda_ext was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
         check_cuda_torch_binary_vs_bare_metal(torch.utils.cpp_extension.CUDA_HOME)
-
-        # Set up macros for forward/backward compatibility hack around
-        # https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
-        version_ge_1_1 = []
-        if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 0):
-            version_ge_1_1 = ['-DVERSION_GE_1_1']
 
         ext_modules.append(
             CUDAExtension(name='amp_C',
@@ -94,30 +101,33 @@ if "--cuda_ext" in sys.argv:
                                    'csrc/multi_tensor_adam.cu',
                                    'csrc/multi_tensor_novograd.cu',
                                    'csrc/multi_tensor_lamb.cu'],
-                          extra_compile_args={'cxx': ['-O3'],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-lineinfo',
                                                       '-O3',
                                                       # '--resource-usage',
-                                                      '--use_fast_math']}))
+                                                      '--use_fast_math'] + version_dependent_macros}))
         ext_modules.append(
             CUDAExtension(name='fused_adam_cuda',
                           sources=['csrc/fused_adam_cuda.cpp',
                                    'csrc/fused_adam_cuda_kernel.cu'],
-                          extra_compile_args={'cxx': ['-O3',],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
                                               'nvcc':['-O3',
-                                                      '--use_fast_math']}))
+                                                      '--use_fast_math'] + version_dependent_macros}))
         ext_modules.append(
             CUDAExtension(name='syncbn',
                           sources=['csrc/syncbn.cpp',
-                                   'csrc/welford.cu']))
+                                   'csrc/welford.cu'],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3'] + version_dependent_macros}))
+
         ext_modules.append(
             CUDAExtension(name='fused_layer_norm_cuda',
                           sources=['csrc/layer_norm_cuda.cpp',
                                    'csrc/layer_norm_cuda_kernel.cu'],
-                          extra_compile_args={'cxx': ['-O3'] + version_ge_1_1,
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-maxrregcount=50',
                                                       '-O3',
-                                                      '--use_fast_math'] + version_ge_1_1}))
+                                                      '--use_fast_math'] + version_dependent_macros}))
 
 if "--bnp" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
@@ -129,24 +139,19 @@ if "--bnp" in sys.argv:
     if torch.utils.cpp_extension.CUDA_HOME is None:
         raise RuntimeError("--bnp was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
-        # Set up macros for forward/backward compatibility hack around
-        # https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
-        version_ge_1_1 = []
-        if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 0):
-            version_ge_1_1 = ['-DVERSION_GE_1_1']
         ext_modules.append(
             CUDAExtension(name='bnp',
                           sources=['apex/contrib/csrc/groupbn/batch_norm.cu',
                                    'apex/contrib/csrc/groupbn/ipc.cu',
                                    'apex/contrib/csrc/groupbn/interface.cpp',
                                    'apex/contrib/csrc/groupbn/batch_norm_add_relu.cu'],
-                          extra_compile_args={'cxx': [] + version_ge_1_1,
+                          extra_compile_args={'cxx': [] + version_dependent_macros,
                                               'nvcc':['-DCUDA_HAS_FP16=1',
                                                       '-D__CUDA_NO_HALF_OPERATORS__',
                                                       '-D__CUDA_NO_HALF_CONVERSIONS__',
                                                       '-D__CUDA_NO_HALF2_OPERATORS__',
                                                       '-gencode',
-                                                      'arch=compute_70,code=sm_70'] + version_ge_1_1}))
+                                                      'arch=compute_70,code=sm_70'] + version_dependent_macros}))
 
 if "--xentropy" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
@@ -158,18 +163,13 @@ if "--xentropy" in sys.argv:
     if torch.utils.cpp_extension.CUDA_HOME is None:
         raise RuntimeError("--xentropy was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
-        # Set up macros for forward/backward compatibility hack around
-        # https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
-        version_ge_1_1 = []
-        if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 0):
-            version_ge_1_1 = ['-DVERSION_GE_1_1']
         ext_modules.append(
             CUDAExtension(name='xentropy_cuda',
                           sources=['apex/contrib/csrc/xentropy/interface.cpp',
                                    'apex/contrib/csrc/xentropy/xentropy_kernel.cu'],
                           include_dirs=['csrc'],
-                          extra_compile_args={'cxx': ['-O3'] + version_ge_1_1,
-                                              'nvcc':['-O3'] + version_ge_1_1}))
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3'] + version_dependent_macros}))
 
 setup(
     name='apex',

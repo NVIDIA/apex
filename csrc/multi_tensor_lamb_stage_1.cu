@@ -136,7 +136,7 @@ void multi_tensor_lamb_stage1_cuda(
           noop_flag,
           tensor_lists,
           LAMBStage1Functor<scalar_t_0, scalar_t_1, scalar_t_2>(),
-          per_tensor_decay.data<float>(),
+          per_tensor_decay.DATA_PTR<float>(),
           beta1,
           beta2,
           beta1_correction,

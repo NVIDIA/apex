@@ -96,7 +96,7 @@ void multi_tensor_apply(
         // using accscalar_t = acc_type<scalar_t, true>;
         multi_tensor_apply_kernel<<<loc_block_info, block_size, 0, stream>>>(
           chunk_size,
-          noop_flag.data<int>(),
+          noop_flag.DATA_PTR<int>(),
           tl,
           callable,
           args...);
