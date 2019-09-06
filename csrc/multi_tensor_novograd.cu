@@ -181,7 +181,7 @@ void multi_tensor_novograd_cuda(
       lr,
       (momentMode_t) moment_mode,
       weight_decay,
-      grad_norms.data<float>()); )
+      grad_norms.DATA_PTR<float>()); )
 
   AT_CUDA_CHECK(cudaGetLastError());
 

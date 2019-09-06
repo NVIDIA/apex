@@ -8,6 +8,8 @@
 
 #include <cuda.h>
 
+#include "compat.h"
+
 #define cudaCheckErrors(msg) \
     do { \
         cudaError_t __err = cudaGetLastError(); \
@@ -72,7 +74,7 @@ at::Tensor nhwc_bn_fwd_train(
   const int C = x.size(3);
 
   // generating new magic number and use that for sync
-  int* magic = magic_tensor.data<int>();
+  int* magic = magic_tensor.DATA_PTR<int>();
   *magic = (*magic + 1) & 0xff;
 
   // Allocate output tensor
@@ -87,13 +89,13 @@ at::Tensor nhwc_bn_fwd_train(
   bn->setConstants(momentum, epsilon);
 
   // set pointers within the wrapper
-  bn->setInputOutputPointers(x.data<at::Half>(),
+  bn->setInputOutputPointers(x.DATA_PTR<at::Half>(),
                              nullptr,
-                             y.data<at::Half>(),
+                             y.DATA_PTR<at::Half>(),
                              nullptr);
 
-  bn->setWeightPointers({scale.data<float>(), bias.data<float>()}, {nullptr, nullptr});
-  bn->setParameterPointers({running_mean.data<float>(), running_inv_var.data<float>()});
+  bn->setWeightPointers({scale.DATA_PTR<float>(), bias.DATA_PTR<float>()}, {nullptr, nullptr});
+  bn->setParameterPointers({running_mean.DATA_PTR<float>(), running_inv_var.DATA_PTR<float>()});
 
   // deal with workspace(s)
   auto workspace_bytes = bn->numWorkspaceBytes();
@@ -114,12 +116,12 @@ at::Tensor nhwc_bn_fwd_train(
   Workspace ws(total_workspace_bytes);
 
   std::vector<void *> workspace;
-  workspace.push_back(minibatch_mean.data<float>());
-  workspace.push_back(minibatch_inv_var.data<float>());
+  workspace.push_back(minibatch_mean.DATA_PTR<float>());
+  workspace.push_back(minibatch_inv_var.DATA_PTR<float>());
 
   auto stream = at::cuda::getCurrentCUDAStream().stream();
   const int retired_cta_bytes = workspace_bytes[2];
-  void* retired_ctas = ret_cta.data<uint8_t>();
+  void* retired_ctas = ret_cta.DATA_PTR<uint8_t>();
   assert(ret_cta.size(0)>=retired_cta_bytes);
   workspace.push_back(retired_ctas);
 
@@ -165,13 +167,13 @@ at::Tensor nhwc_bn_fwd_eval(
   bn->setConstants(momentum, epsilon);
 
   // set pointers within the wrapper
-  bn->setInputOutputPointers(x.data<at::Half>(),
+  bn->setInputOutputPointers(x.DATA_PTR<at::Half>(),
                              nullptr,
-                             y.data<at::Half>(),
+                             y.DATA_PTR<at::Half>(),
                              nullptr);
 
-  bn->setWeightPointers({scale.data<float>(), bias.data<float>()}, {nullptr, nullptr});
-  bn->setParameterPointers({running_mean.data<float>(), running_inv_var.data<float>()});
+  bn->setWeightPointers({scale.DATA_PTR<float>(), bias.DATA_PTR<float>()}, {nullptr, nullptr});
+  bn->setParameterPointers({running_mean.DATA_PTR<float>(), running_inv_var.DATA_PTR<float>()});
 
   // deal with workspace(s)
   auto workspace_bytes = bn->numWorkspaceBytes();
@@ -197,7 +199,7 @@ at::Tensor nhwc_bn_fwd_eval(
 
   auto stream = at::cuda::getCurrentCUDAStream().stream();
   const int retired_cta_bytes = workspace_bytes[2];
-  void* retired_ctas = ret_cta.data<uint8_t>();
+  void* retired_ctas = ret_cta.DATA_PTR<uint8_t>();
   assert(ret_cta.size(0)>=retired_cta_bytes);
   workspace.push_back(retired_ctas);
 
@@ -244,7 +246,7 @@ std::vector<at::Tensor> nhwc_bn_bwd(
   const int C = x.size(3);
 
   // generating new magic number and use that for sync
-  int* magic = magic_tensor.data<int>();
+  int* magic = magic_tensor.DATA_PTR<int>();
   *magic = (*magic + 1) & 0xff;
 
   // outputs
@@ -264,13 +266,13 @@ std::vector<at::Tensor> nhwc_bn_bwd(
   bn->setConstants(momentum, epsilon);
 
   // set pointers within the wrapper
-  bn->setInputOutputPointers(x.data<at::Half>(),
-                             x_grad.data<at::Half>(),
+  bn->setInputOutputPointers(x.DATA_PTR<at::Half>(),
+                             x_grad.DATA_PTR<at::Half>(),
                              nullptr,
-                             dy.data<at::Half>());
+                             dy.DATA_PTR<at::Half>());
 
-  bn->setWeightPointers({scale.data<float>(), bias.data<float>()}, {scale_grad.data<float>(), bias_grad.data<float>()});
-  bn->setParameterPointers({running_mean.data<float>(), running_inv_var.data<float>()});
+  bn->setWeightPointers({scale.DATA_PTR<float>(), bias.DATA_PTR<float>()}, {scale_grad.DATA_PTR<float>(), bias_grad.DATA_PTR<float>()});
+  bn->setParameterPointers({running_mean.DATA_PTR<float>(), running_inv_var.DATA_PTR<float>()});
 
   // deal with workspace(s)
   auto workspace_bytes = bn->numWorkspaceBytes();
@@ -291,12 +293,12 @@ std::vector<at::Tensor> nhwc_bn_bwd(
   Workspace ws(total_workspace_bytes);
 
   std::vector<void *> workspace;
-  workspace.push_back(minibatch_mean.data<float>());
-  workspace.push_back(minibatch_inv_var.data<float>());
+  workspace.push_back(minibatch_mean.DATA_PTR<float>());
+  workspace.push_back(minibatch_inv_var.DATA_PTR<float>());
 
   auto stream = at::cuda::getCurrentCUDAStream().stream();
   const int retired_cta_bytes = workspace_bytes[2];
-  void* retired_ctas = ret_cta.data<uint8_t>();
+  void* retired_ctas = ret_cta.DATA_PTR<uint8_t>();
   assert(ret_cta.size(0)>=retired_cta_bytes);
   workspace.push_back(retired_ctas);
 

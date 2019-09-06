@@ -274,8 +274,8 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
       noop_flag,
       tensor_lists,
       L2NormFunctor<scalar_t_0>(),
-      output.data<float>(),
-      per_tensor ? output_per_tensor.data<float>() : nullptr,
+      output.DATA_PTR<float>(),
+      per_tensor ? output_per_tensor.DATA_PTR<float>() : nullptr,
       per_tensor,
       max_chunks_per_tensor);)
 
@@ -289,10 +289,10 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
   auto ret = at::empty({1}, output.options());
   auto stream = at::cuda::getCurrentCUDAStream();
   cleanup<<<per_tensor ? ntensors : 1, 512, 0, stream>>>(
-    output.data<float>(),
-    per_tensor ? output_per_tensor.data<float>() : nullptr,
-    ret.data<float>(),
-    per_tensor ? ret_per_tensor.data<float>() : nullptr,
+    output.DATA_PTR<float>(),
+    per_tensor ? output_per_tensor.DATA_PTR<float>() : nullptr,
+    ret.DATA_PTR<float>(),
+    per_tensor ? ret_per_tensor.DATA_PTR<float>() : nullptr,
     per_tensor,
     max_chunks_per_tensor);
 
@@ -344,8 +344,8 @@ void multi_tensor_norm_out_cuda(
         noop_flag,
         tensor_lists,
         MaxNormFunctor<scalar_t_0>(),
-        output.data<float>(),
-        output_per_tensor.data<float>(),
+        output.DATA_PTR<float>(),
+        output_per_tensor.DATA_PTR<float>(),
         true,
         max_chunks_per_tensor);)
   }
@@ -358,8 +358,8 @@ void multi_tensor_norm_out_cuda(
         noop_flag,
         tensor_lists,
         L2NormFunctor<scalar_t_0>(),
-        output.data<float>(),
-        output_per_tensor.data<float>(),
+        output.DATA_PTR<float>(),
+        output_per_tensor.DATA_PTR<float>(),
         true,
         max_chunks_per_tensor);)
   }
@@ -373,10 +373,10 @@ void multi_tensor_norm_out_cuda(
   auto ret = at::empty({1}, output.options());
   auto stream = at::cuda::getCurrentCUDAStream();
   cleanup_v2<<<ntensors, 512, 0, stream>>>(
-    output.data<float>(),
-    output_per_tensor.data<float>(),
-    ret.data<float>(),
-    out.data<float>(),
+    output.DATA_PTR<float>(),
+    output_per_tensor.DATA_PTR<float>(),
+    ret.DATA_PTR<float>(),
+    out.DATA_PTR<float>(),
     true,
     max_chunks_per_tensor,
     norm_type,

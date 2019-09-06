@@ -99,8 +99,8 @@ void multi_tensor_lamb_stage2_cuda(
         noop_flag,
         tensor_lists,
         LAMBStage2Functor<scalar_t_0, scalar_t_1>(),
-        per_tensor_param_norm.data<float>(),
-        per_tensor_update_norm.data<float>(),
+        per_tensor_param_norm.DATA_PTR<float>(),
+        per_tensor_update_norm.DATA_PTR<float>(),
         learning_rate); ))
 
   AT_CUDA_CHECK(cudaGetLastError());
