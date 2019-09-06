@@ -145,6 +145,7 @@ if "--bnp" in sys.argv:
                                    'apex/contrib/csrc/groupbn/ipc.cu',
                                    'apex/contrib/csrc/groupbn/interface.cpp',
                                    'apex/contrib/csrc/groupbn/batch_norm_add_relu.cu'],
+                          include_dirs=['csrc'],
                           extra_compile_args={'cxx': [] + version_dependent_macros,
                                               'nvcc':['-DCUDA_HAS_FP16=1',
                                                       '-D__CUDA_NO_HALF_OPERATORS__',
