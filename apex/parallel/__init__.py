@@ -43,6 +43,7 @@ def convert_syncbn_model(module, process_group=None, channel_last=False):
         mod = SyncBatchNorm(module.num_features, module.eps, module.momentum, module.affine, module.track_running_stats, process_group, channel_last=channel_last)
         mod.running_mean = module.running_mean
         mod.running_var = module.running_var
+        mod.num_batches_tracked = module.num_batches_tracked
         if module.affine:
             mod.weight.data = module.weight.data.clone().detach()
             mod.bias.data = module.bias.data.clone().detach()
