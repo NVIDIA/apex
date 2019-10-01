@@ -118,8 +118,9 @@ if "--cuda_ext" in sys.argv:
                                                       '--use_fast_math'] + version_dependent_macros}))
         ext_modules.append(
             CUDAExtension(name='fused_adam_cuda',
-                          sources=['csrc/fused_adam_cuda.cpp',
-                                   'csrc/fused_adam_cuda_kernel.cu'],
+                          sources=['apex/contrib/csrc/optimizers/fused_adam_cuda.cpp',
+                                   'apex/contrib/csrc/optimizers/fused_adam_cuda_kernel.cu'],
+                          include_dirs=['csrc'],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
                                               'nvcc':['-O3',
                                                       '--use_fast_math'] + version_dependent_macros}))
