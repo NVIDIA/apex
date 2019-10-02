@@ -5,6 +5,9 @@ import itertools
 
 import torch
 
+def is_cuda_enabled():
+    return torch.version.cuda is not None
+
 def get_cuda_version():
     return tuple(int(x) for x in torch.version.cuda.split('.'))
 
