@@ -65,10 +65,10 @@ class TestCheckpointing(unittest.TestCase):
         for key in state_dictA:
             paramA = state_dictA[key]
             paramB = state_dictB[key]
-            self.assertTrue(torch.allclose(paramA.float(), paramB.float(), atol=1e-4),
-                 msg='Parameters in state_dicts not equal.' + 
-                     'key: {}\nparam: {}\nrestored: {}\ndiff: {} for {}'.format(
-                         key, paramA, paramB, paramA - paramB, test_setup))
+            self.assertTrue((paramA==paramB).all(),
+                msg='Parameters in state_dices not equal.' +
+                    'key: {}\nparam: {}\nrestored: {}\ndiff: {} for {}'.format(
+                        key, paramA, paramB, paramA - paramB, test_setup))
 
     def test_restoring(self):
         nb_epochs = 10
