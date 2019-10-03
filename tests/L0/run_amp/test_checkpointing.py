@@ -57,18 +57,18 @@ class TestCheckpointing(unittest.TestCase):
         optimizer.step()
         return output
 
-    def compare_models(self, modelA, modelB):
+    def compare_models(self, modelA, modelB, test_setup=''):
         state_dictA = modelA.state_dict()
         state_dictB = modelB.state_dict()
         self.assertEqual(len(state_dictA), len(state_dictB),
-                         'state_dicts have different lengths')
+                         'state_dicts have different lengths' + test_setup)
         for key in state_dictA:
             paramA = state_dictA[key]
             paramB = state_dictB[key]
-            self.assertTrue(torch.allclose(paramA.float(), paramB.float(), rtol=0, atol=1e-4),
+            self.assertTrue(torch.allclose(paramA.float(), paramB.float(), atol=1.5e-4),
                  msg='Parameters in state_dicts not equal.' + 
-                     'key: {}\nparam: {}\nrestored: {}\ndiff: {}'.format(
-                         key, paramA, paramB, paramA - paramB))
+                     'key: {}\nparam: {}\nrestored: {}\ndiff: {} for {}'.format(
+                         key, paramA, paramB, paramA - paramB, test_setup))
 
     def test_restoring(self):
         nb_epochs = 10
@@ -77,11 +77,11 @@ class TestCheckpointing(unittest.TestCase):
             for res_opt_level in self.test_opt_levels:
                 for amp_before_load in [True, False]:
                     for num_losses in range(1, 3):
-#                        print('#' * 75 + '\n' + \
-#                              f'opt_level {opt_level}\n' + \
-#                              f'restore_opt_level {res_opt_level}\n' + \
-#                              f'amp_before_load {amp_before_load}\n' + \
-#                              f'num_losses {num_losses}\n')
+                        test_setup = ('#' * 75 + '\n' + \
+                              f'opt_level {opt_level}\n' + \
+                              f'restore_opt_level {res_opt_level}\n' + \
+                              f'amp_before_load {amp_before_load}\n' + \
+                              f'num_losses {num_losses}\n')
 
                         self.seed()
 
@@ -154,8 +154,8 @@ class TestCheckpointing(unittest.TestCase):
                                         range(num_losses, num_losses*2))
                                     self.assertTrue(
                                         torch.allclose(output.float(), restore_output.float()),
-                                        'Output of reference and restored models differ')
-                                    self.compare_models(model, restore_model)
+                                        'Output of reference and restored models differ for ' + test_setup)
+                                    self.compare_models(model, restore_model, test_setup)
                         # if opt_level != res_opt_level
                         else:
                             # Only check state_dict
@@ -194,7 +194,7 @@ class TestCheckpointing(unittest.TestCase):
                                     num_losses=num_losses,
                                     verbosity=0)
                             
-                            self.compare_models(model, restore_model)
+                            self.compare_models(model, restore_model, test_setup)
 
     def test_loss_scale_decrease(self):
         num_losses = 3
@@ -207,7 +207,7 @@ class TestCheckpointing(unittest.TestCase):
             model = MyModel().to('cuda')
         
             optimizer = optim.SGD(model.parameters(),
-                                  lr=1e-3)#self.initial_lr)
+                                  lr=self.initial_lr)
         
             model, optimizer = amp.initialize(
                 model, optimizer, opt_level=opt_level, num_losses=num_losses,
