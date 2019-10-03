@@ -117,14 +117,6 @@ if "--cuda_ext" in sys.argv:
                                                       # '--resource-usage',
                                                       '--use_fast_math'] + version_dependent_macros}))
         ext_modules.append(
-            CUDAExtension(name='fused_adam_cuda',
-                          sources=['apex/contrib/csrc/optimizers/fused_adam_cuda.cpp',
-                                   'apex/contrib/csrc/optimizers/fused_adam_cuda_kernel.cu'],
-                          include_dirs=['csrc'],
-                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
-                                              'nvcc':['-O3',
-                                                      '--use_fast_math'] + version_dependent_macros}))
-        ext_modules.append(
             CUDAExtension(name='syncbn',
                           sources=['csrc/syncbn.cpp',
                                    'csrc/welford.cu'],
@@ -182,6 +174,25 @@ if "--xentropy" in sys.argv:
                           include_dirs=['csrc'],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
+
+if "--fusedadam" in sys.argv:
+    from torch.utils.cpp_extension import CUDAExtension
+    sys.argv.remove("--fusedadam")
+
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension
+
+    if torch.utils.cpp_extension.CUDA_HOME is None:
+        raise RuntimeError("--fusedadam was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        ext_modules.append(
+            CUDAExtension(name='fused_adam_cuda',
+                          sources=['apex/contrib/csrc/optimizers/fused_adam_cuda.cpp',
+                                   'apex/contrib/csrc/optimizers/fused_adam_cuda_kernel.cu'],
+                          include_dirs=['csrc'],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
+                                              'nvcc':['-O3',
+                                                      '--use_fast_math'] + version_dependent_macros}))
 
 setup(
     name='apex',
