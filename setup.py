@@ -175,15 +175,15 @@ if "--xentropy" in sys.argv:
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
 
-if "--fusedadam" in sys.argv:
+if "--deprecated_fused_adam" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
-    sys.argv.remove("--fusedadam")
+    sys.argv.remove("--deprecated_fused_adam")
 
     from torch.utils.cpp_extension import BuildExtension
     cmdclass['build_ext'] = BuildExtension
 
     if torch.utils.cpp_extension.CUDA_HOME is None:
-        raise RuntimeError("--fusedadam was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+        raise RuntimeError("--deprecated_fused_adam was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
         ext_modules.append(
             CUDAExtension(name='fused_adam_cuda',

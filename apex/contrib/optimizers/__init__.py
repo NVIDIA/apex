@@ -7,4 +7,4 @@ try:
     del fused_adam_cuda
     del fused_adam
 except ImportError as err:
-    print("apex was installed without --fusedadam flag, contrib.fused_adam is not available")
+    print("apex was installed without --deprecated_fused_adam flag, contrib.fused_adam is not available")
