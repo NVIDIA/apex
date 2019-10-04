@@ -67,6 +67,9 @@ model, optimizer = amp.initialize(model, optimizer, opt_level=opt_level)
 
 # Train your model
 ...
+with amp.scale_loss(loss, optimizer) as scaled_loss:
+    scaled_loss.backward()
+...
 
 # Save checkpoint
 checkpoint = {
