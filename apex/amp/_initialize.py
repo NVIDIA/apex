@@ -142,25 +142,25 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
     from apex.parallel import DistributedDataParallel as apex_DDP
     from .amp import init as amp_init
 
-    optimizers_was_list = False
-    if isinstance(optimizers, torch.optim.Optimizer) or isinstance(optimizers, LARC):
+    optimizers_was_iter = False
+    if isinstance(optimizers, (torch.optim.Optimizer, LARC)):
         optimizers = [optimizers]
     elif optimizers is None:
         optimizers = []
-    elif isinstance(optimizers, list):
-        optimizers_was_list = True
+    elif isinstance(optimizers, (list, tuple)):
+        optimizers_was_iter = True
         check_optimizers(optimizers)
     else:
         check_optimizers([optimizers])
-        raise TypeError("optimizers must be either a single optimizer or a list of optimizers.")
+        raise TypeError("optimizers must be either a single optimizer or a (list, tuple) of optimizers.")
 
     if isinstance(models, torch.nn.Module):
-        models_was_list = False
+        models_was_iter = False
         models = [models]
-    elif isinstance(models, list):
-        models_was_list = True
+    elif isinstance(models, (list, tuple)):
+        models_was_iter = True
     else:
-        raise TypeError("models must be either a single model or a list of models.")
+        raise TypeError("models must be either a single model or a (list, tuple) of models.")
 
     check_models(models)
 
@@ -218,8 +218,7 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
 
             model.forward = patch_forward(model.forward)
 
-    for i, optimizer in enumerate(optimizers):
-        optimizers[i] = _process_optimizer(optimizer, properties)
+    optimizers = [_process_optimizer(o, properties) for o in optimizers]
 
     _amp_state.loss_scalers = []
     for _ in range(num_losses):
@@ -242,19 +241,9 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
 
             optimizer.step = patch_step(optimizer.step)
 
-    if optimizers_was_list:
-        if models_was_list:
-            return models, optimizers
-        else:
-            return models[0], optimizers
-    else:
-        if models_was_list:
-            if len(optimizers) == 0:
-                return models
-            else:
-                return models, optimizers[0]
-        else:
-            if len(optimizers) == 0:
-                return models[0]
-            else:
-                return models[0], optimizers[0]
+    models = models if models_was_iter else models[0]
+    if len(optimizers) == 0:
+        return models
+
+    optimizers = optimizers if optimizers_was_iter else optimizers[0]
+    return models, optimizers

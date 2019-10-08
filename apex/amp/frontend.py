@@ -229,8 +229,8 @@ def initialize(
     to replace the passed models/optimizers, as in the code sample below.
 
     Args:
-        models (torch.nn.Module or list of torch.nn.Modules):  Models to modify/cast.
-        optimizers (optional, torch.optim.Optimizer or list of torch.optim.Optimizers):  Optimizers to modify/cast.
+        models (torch.nn.Module or (list, tuple) of torch.nn.Modules):  Models to modify/cast.
+        optimizers (optional, torch.optim.Optimizer or (list, tuple) of torch.optim.Optimizers):  Optimizers to modify/cast.
             REQUIRED for training, optional for inference.
         enabled (bool, optional, default=True):  If False, renders all Amp calls no-ops, so your script
             should run as if Amp were not present.
@@ -262,7 +262,7 @@ def initialize(
 
     Returns:
         Model(s) and optimizer(s) modified according to the ``opt_level``.
-        If either the ``models`` or ``optimizers`` args were lists, the corresponding return value will
+        If either the ``models`` or ``optimizers`` args were (lists, tuples), the corresponding return value will
         also be a list.
 
     Permissible invocations::
@@ -271,6 +271,7 @@ def initialize(
         model, [optim1, optim2] = amp.initialize(model, [optim1, optim2],...)
         [model1, model2], optim = amp.initialize([model1, model2], optim,...)
         [model1, model2], [optim1, optim2] = amp.initialize([model1, model2], [optim1, optim2],...)
+        [model1, model2], [optim1, optim2] = amp.initialize((model1, model2), (optim1, optim2),...)
 
         # This is not an exhaustive list of the cross product of options that are possible,
         # just a set of examples.
