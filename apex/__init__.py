@@ -2,7 +2,9 @@
 import torch
 import warnings
 
-from . import parallel
+if torch.distributed.is_available():
+    from . import parallel
+
 from . import amp
 from . import fp16_utils
 

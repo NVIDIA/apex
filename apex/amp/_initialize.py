@@ -2,6 +2,7 @@ import torch
 from torch._six import string_classes
 import functools
 import numpy as np
+import sys
 import warnings
 from ._amp_state import _amp_state, warn_or_err, container_abcs
 from .handle import disable_casts
@@ -10,8 +11,10 @@ from ._process_optimizer import _process_optimizer
 from apex.fp16_utils import convert_network
 from ..fp16_utils import FP16_Optimizer as FP16_Optimizer_general
 from ..contrib.optimizers import FP16_Optimizer as FP16_Optimizer_for_fused
-from ..parallel import DistributedDataParallel as apex_DDP
-from ..parallel.LARC import LARC
+
+if torch.distributed.is_available():
+    from ..parallel import DistributedDataParallel as apex_DDP
+    from ..parallel.LARC import LARC
 
 
 def to_type(dtype, t):
@@ -62,7 +65,7 @@ def check_models(models):
         parallel_type = None
         if isinstance(model, torch.nn.parallel.DistributedDataParallel):
             parallel_type = "torch.nn.parallel.DistributedDataParallel"
-        if isinstance(model, apex_DDP):
+        if ('apex_DDP' in sys.modules) and isinstance(model, apex_DDP):
             parallel_type = "apex.parallel.DistributedDataParallel"
         if isinstance(model, torch.nn.parallel.DataParallel):
             parallel_type = "torch.nn.parallel.DataParallel"
@@ -139,11 +142,10 @@ class O2StateDictHook(object):
 
 
 def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs=None):
-    from apex.parallel import DistributedDataParallel as apex_DDP
     from .amp import init as amp_init
 
     optimizers_was_list = False
-    if isinstance(optimizers, torch.optim.Optimizer) or isinstance(optimizers, LARC):
+    if isinstance(optimizers, torch.optim.Optimizer) or ('LARC' in sys.modules and isinstance(optimizers, LARC)):
         optimizers = [optimizers]
     elif optimizers is None:
         optimizers = []
