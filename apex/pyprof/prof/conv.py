@@ -18,7 +18,7 @@ class Conv(OperatorLayerBase):
 	fftAuxList = ["compute_gemm_pointers", "flip_filter", "fft2d_r2c_", "fft2d_c2r_", "fft1d_r2c", "fft1d_c2r"]
 	miscAuxList = ["scaleTensor_kernel",]
 
-	convList = ["_s884cudnn_", "_scudnn_", "2d_grouped_direct_kernel", "cudnn::detail::implicit_convolve_sgemm", "cudnn::detail::dgrad2d_alg1_1", "cudnn::detail::wgrad_alg0_engine", "cudnn::detail::dgrad_engine", "dgrad_1x1_stride_2x2", "spatialDepthwiseConvolutionUpdateOutput"]
+	convList = ["_s884cudnn_", "_s1688cudnn_", "_scudnn_", "2d_grouped_direct_kernel", "cudnn::detail::implicit_convolve_sgemm", "cudnn::detail::dgrad2d_alg1_1", "cudnn::detail::wgrad_alg0_engine", "cudnn::detail::dgrad_engine", "dgrad_1x1_stride_2x2", "spatialDepthwiseConvolutionUpdateOutput"]
 	winoList = ["winograd3x3Kernel", "_sgemm_"]
 	fftList = ["fermiPlusCgemmLDS128_batched", "_gcgemm_",]
 	miscList = []
@@ -224,7 +224,10 @@ class Conv(OperatorLayerBase):
 		return f
 
 	def tc(self):
-		return 1 if "884cudnn" in self.name else "-"
+		for s in ["884cudnn", "1688cudnn"]:
+			if s in self.name:
+				return 1
+		return "-"
 
 	def op(self):
 		return self.op_

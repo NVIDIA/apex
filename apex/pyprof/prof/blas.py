@@ -3,6 +3,8 @@ from .utility import Utility
 from .base import OperatorLayerBase
 import numpy as np
 
+TC_GEMMS = ["884gemm", "1688gemm"]
+
 class Addmm(OperatorLayerBase):
 
 	def __init__(self, d):
@@ -59,7 +61,10 @@ class Addmm(OperatorLayerBase):
 		return
 
 	def tc(self):
-		return 1 if "884gemm" in self.name else 0
+            for s in TC_GEMMS:
+                if s in self.name:
+                    return 1
+            return 0
 
 	def bytes(self):
 		m, n, k = self.m, self.n, self.k
@@ -116,7 +121,10 @@ class Bmm(OperatorLayerBase):
 		self.name = d.name
 
 	def tc(self):
-		return 1 if "884gemm" in self.name else 0
+            for s in TC_GEMMS:
+                if s in self.name:
+                    return 1
+            return 0
 
 	def params(self):
 		#p = OrderedDict([('A', A['shape']), ('B', B['shape']), ('type', t1)])
@@ -248,7 +256,10 @@ class Matmul(OperatorLayerBase):
 		if self.name in Matmul.NON_TC:
 			return "-"
 		else:
-			return 1 if "884gemm" in self.name else 0
+                    for s in TC_GEMMS:
+                        if s in self.name:
+                            return 1
+                    return 0
 
 	def bytes(self):
 		# TODO: check bytes for non-GEMM cases
@@ -310,7 +321,10 @@ class Mm(OperatorLayerBase):
 		return p
 
 	def tc(self):
-		return 1 if "884gemm" in self.name else 0
+            for s in TC_GEMMS:
+                if s in self.name:
+                    return 1
+            return 0
 
 	def bytes(self):
 		m, n, k = self.m, self.n, self.k

@@ -12,8 +12,7 @@ import torch.cuda.profiler as profiler
 import argparse
 
 from apex import pyprof
-from apex.optimizers import FusedAdam, FP16_Optimizer
-import fused_adam_cuda
+from apex.optimizers import FusedAdam
 
 def parseArgs():
 	parser = argparse.ArgumentParser(prog=sys.argv[0], description="Run popular imagenet models.")
@@ -91,7 +90,7 @@ def main():
 	args = parseArgs()
 
 	pyprof.nvtx.init()
-	pyprof.nvtx.wrap(fused_adam_cuda, 'adam')
+#	pyprof.nvtx.wrap(fused_adam_cuda, 'adam')
 
 	N = args.b
 	C = 3
@@ -112,7 +111,6 @@ def main():
 		optimizer = torch.optim.SGD(net.parameters(), lr = 0.01, momentum=0.9)
 	elif (args.o == "adam"):
 		optimizer = FusedAdam(net.parameters())
-		optimizer = FP16_Optimizer(optimizer)
 	else:
 		assert False
 
