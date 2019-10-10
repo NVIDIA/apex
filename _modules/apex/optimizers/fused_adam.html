@@ -130,6 +130,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../../../amp.html#module-apex.amp">Unified API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../amp.html#checkpointing">Checkpointing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../amp.html#advanced-use-cases">Advanced use cases</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../advanced.html">Advanced Amp Usage</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../advanced.html#gans">GANs</a></li>
@@ -230,7 +231,6 @@
   <h1>Source code for apex.optimizers.fused_adam</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">apex.multi_tensor_apply</span> <span class="k">import</span> <span class="n">multi_tensor_applier</span>
-<span class="kn">from</span> <span class="nn">amp_C</span> <span class="k">import</span> <span class="n">multi_tensor_adam</span>
 
 <div class="viewcode-block" id="FusedAdam"><a class="viewcode-back" href="../../../optimizers.html#apex.optimizers.FusedAdam">[docs]</a><span class="k">class</span> <span class="nc">FusedAdam</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">):</span>
 
@@ -281,6 +281,8 @@
 <span class="sd">            (default: False) NOT SUPPORTED in FusedAdam!</span>
 <span class="sd">        adam_w_mode (boolean, optional): Apply L2 regularization or weight decay</span>
 <span class="sd">            True for decoupled weight decay(also known as AdamW) (default: True)</span>
+<span class="sd">        set_grad_none (bool, optional): whether set grad to None when zero_grad()</span>
+<span class="sd">            method is called. (default: True)</span>
 
 <span class="sd">    .. _Adam\: A Method for Stochastic Optimization:</span>
 <span class="sd">        https://arxiv.org/abs/1412.6980</span>
@@ -290,7 +292,7 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">lr</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">,</span> <span class="n">bias_correction</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                  <span class="n">betas</span><span class="o">=</span><span class="p">(</span><span class="mf">0.9</span><span class="p">,</span> <span class="mf">0.999</span><span class="p">),</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">,</span> <span class="n">adam_w_mode</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                 <span class="n">weight_decay</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">amsgrad</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+                 <span class="n">weight_decay</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">amsgrad</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">set_grad_none</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 
         <span class="k">if</span> <span class="n">amsgrad</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;FusedAdam does not support the AMSGrad variant.&#39;</span><span class="p">)</span>
@@ -298,7 +300,22 @@
                         <span class="n">betas</span><span class="o">=</span><span class="n">betas</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="n">eps</span><span class="p">,</span> <span class="n">weight_decay</span><span class="o">=</span><span class="n">weight_decay</span><span class="p">)</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">FusedAdam</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">defaults</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">adam_w_mode</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">adam_w_mode</span> <span class="k">else</span> <span class="mi">0</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dummy_overflow_buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">IntTensor</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_grad_none</span> <span class="o">=</span> <span class="n">set_grad_none</span>
+        <span class="k">if</span> <span class="n">multi_tensor_applier</span><span class="o">.</span><span class="n">available</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">amp_C</span>
+            <span class="c1"># Skip buffer</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_dummy_overflow_buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">IntTensor</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">multi_tensor_adam</span> <span class="o">=</span> <span class="n">amp_C</span><span class="o">.</span><span class="n">multi_tensor_adam</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;apex.optimizers.FusedAdam requires cuda extensions&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="FusedAdam.zero_grad"><a class="viewcode-back" href="../../../optimizers.html#apex.optimizers.FusedAdam.zero_grad">[docs]</a>    <span class="k">def</span> <span class="nf">zero_grad</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_grad_none</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_groups</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">group</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]:</span>
+                    <span class="n">p</span><span class="o">.</span><span class="n">grad</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">FusedAdam</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span></div>
 
 <div class="viewcode-block" id="FusedAdam.step"><a class="viewcode-back" href="../../../optimizers.html#apex.optimizers.FusedAdam.step">[docs]</a>    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">closure</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">grads</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">output_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">grad_norms</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Performs a single optimization step.</span>
@@ -327,7 +344,8 @@
                 <span class="n">group</span><span class="p">[</span><span class="s1">&#39;step&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
 
             <span class="c1"># create lists for multi-tensor apply</span>
-            <span class="n">p_list</span><span class="p">,</span> <span class="n">g_list</span><span class="p">,</span> <span class="n">m1_list</span><span class="p">,</span> <span class="n">m2_list</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]</span>
+            <span class="n">g_16</span><span class="p">,</span> <span class="n">p_16</span><span class="p">,</span> <span class="n">m_16</span><span class="p">,</span> <span class="n">v_16</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]</span>
+            <span class="n">g_32</span><span class="p">,</span> <span class="n">p_32</span><span class="p">,</span> <span class="n">m_32</span><span class="p">,</span> <span class="n">v_32</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]</span>
 
             <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">group</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]:</span>
                 <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -343,22 +361,43 @@
                     <span class="c1"># Exponential moving average of squared gradient values</span>
                     <span class="n">state</span><span class="p">[</span><span class="s1">&#39;exp_avg_sq&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
 
-                <span class="n">p_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
-                <span class="n">g_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
-                <span class="n">m1_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;exp_avg&#39;</span><span class="p">])</span>
-                <span class="n">m2_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;exp_avg_sq&#39;</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">torch</span><span class="o">.</span><span class="n">float16</span><span class="p">:</span>
+                    <span class="n">g_16</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+                    <span class="n">p_16</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+                    <span class="n">m_16</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;exp_avg&#39;</span><span class="p">])</span>
+                    <span class="n">v_16</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;exp_avg_sq&#39;</span><span class="p">])</span>
+                <span class="k">elif</span> <span class="n">p</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">:</span>
+                    <span class="n">g_32</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+                    <span class="n">p_32</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+                    <span class="n">m_32</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;exp_avg&#39;</span><span class="p">])</span>
+                    <span class="n">v_32</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;exp_avg_sq&#39;</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;FusedAdam only support fp16 and fp32.&#39;</span><span class="p">)</span>
 
-            <span class="n">multi_tensor_applier</span><span class="p">(</span><span class="n">multi_tensor_adam</span><span class="p">,</span>
-                                 <span class="bp">self</span><span class="o">.</span><span class="n">dummy_overflow_buf</span><span class="p">,</span>
-                                 <span class="p">[</span><span class="n">g_list</span><span class="p">,</span> <span class="n">p_list</span><span class="p">,</span> <span class="n">m1_list</span><span class="p">,</span> <span class="n">m2_list</span><span class="p">],</span>
-                                 <span class="n">group</span><span class="p">[</span><span class="s1">&#39;lr&#39;</span><span class="p">],</span>
-                                 <span class="n">beta1</span><span class="p">,</span>
-                                 <span class="n">beta2</span><span class="p">,</span>
-                                 <span class="n">group</span><span class="p">[</span><span class="s1">&#39;eps&#39;</span><span class="p">],</span>
-                                 <span class="n">group</span><span class="p">[</span><span class="s1">&#39;step&#39;</span><span class="p">],</span>
-                                 <span class="bp">self</span><span class="o">.</span><span class="n">adam_w_mode</span><span class="p">,</span>
-                                 <span class="n">bias_correction</span><span class="p">,</span>
-                                 <span class="n">group</span><span class="p">[</span><span class="s1">&#39;weight_decay&#39;</span><span class="p">])</span>
+            <span class="k">if</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">g_16</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="n">multi_tensor_applier</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">multi_tensor_adam</span><span class="p">,</span>
+                                     <span class="bp">self</span><span class="o">.</span><span class="n">_dummy_overflow_buf</span><span class="p">,</span>
+                                     <span class="p">[</span><span class="n">g_16</span><span class="p">,</span> <span class="n">p_16</span><span class="p">,</span> <span class="n">m_16</span><span class="p">,</span> <span class="n">v_16</span><span class="p">],</span>
+                                     <span class="n">group</span><span class="p">[</span><span class="s1">&#39;lr&#39;</span><span class="p">],</span>
+                                     <span class="n">beta1</span><span class="p">,</span>
+                                     <span class="n">beta2</span><span class="p">,</span>
+                                     <span class="n">group</span><span class="p">[</span><span class="s1">&#39;eps&#39;</span><span class="p">],</span>
+                                     <span class="n">group</span><span class="p">[</span><span class="s1">&#39;step&#39;</span><span class="p">],</span>
+                                     <span class="bp">self</span><span class="o">.</span><span class="n">adam_w_mode</span><span class="p">,</span>
+                                     <span class="n">bias_correction</span><span class="p">,</span>
+                                     <span class="n">group</span><span class="p">[</span><span class="s1">&#39;weight_decay&#39;</span><span class="p">])</span>
+            <span class="k">if</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">g_32</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="n">multi_tensor_applier</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">multi_tensor_adam</span><span class="p">,</span>
+                                     <span class="bp">self</span><span class="o">.</span><span class="n">_dummy_overflow_buf</span><span class="p">,</span>
+                                     <span class="p">[</span><span class="n">g_32</span><span class="p">,</span> <span class="n">p_32</span><span class="p">,</span> <span class="n">m_32</span><span class="p">,</span> <span class="n">v_32</span><span class="p">],</span>
+                                     <span class="n">group</span><span class="p">[</span><span class="s1">&#39;lr&#39;</span><span class="p">],</span>
+                                     <span class="n">beta1</span><span class="p">,</span>
+                                     <span class="n">beta2</span><span class="p">,</span>
+                                     <span class="n">group</span><span class="p">[</span><span class="s1">&#39;eps&#39;</span><span class="p">],</span>
+                                     <span class="n">group</span><span class="p">[</span><span class="s1">&#39;step&#39;</span><span class="p">],</span>
+                                     <span class="bp">self</span><span class="o">.</span><span class="n">adam_w_mode</span><span class="p">,</span>
+                                     <span class="n">bias_correction</span><span class="p">,</span>
+                                     <span class="n">group</span><span class="p">[</span><span class="s1">&#39;weight_decay&#39;</span><span class="p">])</span>
 
 
         <span class="k">return</span> <span class="n">loss</span></div></div>

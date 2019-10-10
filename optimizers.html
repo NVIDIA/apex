@@ -132,6 +132,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="amp.html#module-apex.amp">Unified API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="amp.html#checkpointing">Checkpointing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="amp.html#advanced-use-cases">Advanced use cases</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="advanced.html">Advanced Amp Usage</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#gans">GANs</a></li>
@@ -235,7 +236,7 @@
 <span id="apex-optimizers"></span><h1>apex.optimizers<a class="headerlink" href="#module-apex.optimizers" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="apex.optimizers.FusedAdam">
-<em class="property">class </em><code class="sig-prename descclassname">apex.optimizers.</code><code class="sig-name descname">FusedAdam</code><span class="sig-paren">(</span><em class="sig-param">params</em>, <em class="sig-param">lr=0.001</em>, <em class="sig-param">bias_correction=True</em>, <em class="sig-param">betas=(0.9</em>, <em class="sig-param">0.999)</em>, <em class="sig-param">eps=1e-08</em>, <em class="sig-param">adam_w_mode=True</em>, <em class="sig-param">weight_decay=0.0</em>, <em class="sig-param">amsgrad=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_adam.html#FusedAdam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedAdam" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">apex.optimizers.</code><code class="sig-name descname">FusedAdam</code><span class="sig-paren">(</span><em class="sig-param">params</em>, <em class="sig-param">lr=0.001</em>, <em class="sig-param">bias_correction=True</em>, <em class="sig-param">betas=(0.9</em>, <em class="sig-param">0.999)</em>, <em class="sig-param">eps=1e-08</em>, <em class="sig-param">adam_w_mode=True</em>, <em class="sig-param">weight_decay=0.0</em>, <em class="sig-param">amsgrad=False</em>, <em class="sig-param">set_grad_none=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_adam.html#FusedAdam"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedAdam" title="Permalink to this definition">¶</a></dt>
 <dd><p>Implements Adam algorithm.</p>
 <p>Currently GPU-only.  Requires Apex to be installed via
 <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-v</span> <span class="pre">--no-cache-dir</span> <span class="pre">--global-option=&quot;--cpp_ext&quot;</span> <span class="pre">--global-option=&quot;--cuda_ext&quot;</span> <span class="pre">./</span></code>.</p>
@@ -283,6 +284,8 @@ algorithm from the paper <a class="reference external" href="https://openreview.
 (default: False) NOT SUPPORTED in FusedAdam!</p></li>
 <li><p><strong>adam_w_mode</strong> (<em>boolean</em><em>, </em><em>optional</em>) – Apply L2 regularization or weight decay
 True for decoupled weight decay(also known as AdamW) (default: True)</p></li>
+<li><p><strong>set_grad_none</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em>) – whether set grad to None when zero_grad()
+method is called. (default: True)</p></li>
 </ul>
 </dd>
 </dl>
@@ -297,6 +300,12 @@ and returns the loss.</p>
 </dd>
 </dl>
 <p>The remaining arguments are deprecated, and are only retained (for the moment) for error-checking purposes.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="apex.optimizers.FusedAdam.zero_grad">
+<code class="sig-name descname">zero_grad</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_adam.html#FusedAdam.zero_grad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedAdam.zero_grad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Clears the gradients of all optimized <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.Tensor</span></code> s.</p>
 </dd></dl>
 
 </dd></dl>
@@ -435,6 +444,18 @@ method is called. (default: True)</p></li>
 </ul>
 </dd>
 </dl>
+<dl class="method">
+<dt id="apex.optimizers.FusedNovoGrad.load_state_dict">
+<code class="sig-name descname">load_state_dict</code><span class="sig-paren">(</span><em class="sig-param">state_dict</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_novograd.html#FusedNovoGrad.load_state_dict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedNovoGrad.load_state_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Loads the optimizer state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>state_dict</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.7)"><em>dict</em></a>) – optimizer state. Should be an object returned
+from a call to <code class="xref py py-meth docutils literal notranslate"><span class="pre">state_dict()</span></code>.</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="method">
 <dt id="apex.optimizers.FusedNovoGrad.step">
 <code class="sig-name descname">step</code><span class="sig-paren">(</span><em class="sig-param">closure=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/apex/optimizers/fused_novograd.html#FusedNovoGrad.step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#apex.optimizers.FusedNovoGrad.step" title="Permalink to this definition">¶</a></dt>

@@ -132,6 +132,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#module-apex.amp">Unified API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#checkpointing">Checkpointing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#advanced-use-cases">Advanced use cases</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="advanced.html">Advanced Amp Usage</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="advanced.html#gans">GANs</a></li>
@@ -538,6 +539,42 @@ manager invocation with <code class="docutils literal notranslate"><span class="
 </dl>
 </dd></dl>
 
+</div>
+<div class="section" id="checkpointing">
+<h2>Checkpointing<a class="headerlink" href="#checkpointing" title="Permalink to this headline">¶</a></h2>
+<p>To properly save and load your amp training, we introduce the <code class="docutils literal notranslate"><span class="pre">amp.state_dict()</span></code>, which contains all <code class="docutils literal notranslate"><span class="pre">loss_scaler</span></code>s and their corresponding unskipped steps, as well as <code class="docutils literal notranslate"><span class="pre">amp.load_state_dict()</span></code> to restore these attributes.</p>
+<p>In order to get bitwise accuracy, we recommend the following workflow:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Initialization</span>
+<span class="n">opt_level</span> <span class="o">=</span> <span class="s1">&#39;O1&#39;</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="n">opt_level</span><span class="p">)</span>
+
+<span class="c1"># Train your model</span>
+<span class="o">...</span>
+
+<span class="c1"># Save checkpoint</span>
+<span class="n">checkpoint</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;model&#39;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">(),</span>
+    <span class="s1">&#39;optimizer&#39;</span><span class="p">:</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">state_dict</span><span class="p">(),</span>
+    <span class="s1">&#39;amp&#39;</span><span class="p">:</span> <span class="n">amp</span><span class="o">.</span><span class="n">state_dict</span><span class="p">()</span>
+<span class="p">}</span>
+<span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">checkpoint</span><span class="p">,</span> <span class="s1">&#39;amp_checkpoint.pt&#39;</span><span class="p">)</span>
+<span class="o">...</span>
+
+<span class="c1"># Restore</span>
+<span class="n">model</span> <span class="o">=</span> <span class="o">...</span>
+<span class="n">optimizer</span> <span class="o">=</span> <span class="o">...</span>
+<span class="n">checkpoint</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;amp_checkpoint.pt&#39;</span><span class="p">)</span>
+
+<span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">opt_level</span><span class="o">=</span><span class="n">opt_level</span><span class="p">)</span>
+<span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">checkpoint</span><span class="p">[</span><span class="s1">&#39;model&#39;</span><span class="p">])</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">checkpoint</span><span class="p">[</span><span class="s1">&#39;optimizer&#39;</span><span class="p">])</span>
+<span class="n">amp</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">checkpoint</span><span class="p">[</span><span class="s1">&#39;amp&#39;</span><span class="p">])</span>
+
+<span class="c1"># Continue training</span>
+<span class="o">...</span>
+</pre></div>
+</div>
+<p>Note that we recommend restoring the model using the same <code class="docutils literal notranslate"><span class="pre">opt_level</span></code>. Also note that we recommend calling the <code class="docutils literal notranslate"><span class="pre">load_state_dict</span></code> methods after <code class="docutils literal notranslate"><span class="pre">amp.initialize</span></code>.</p>
 </div>
 <div class="section" id="advanced-use-cases">
 <h2>Advanced use cases<a class="headerlink" href="#advanced-use-cases" title="Permalink to this headline">¶</a></h2>
