@@ -13,6 +13,8 @@ a Pytorch extension with NVIDIA-maintained utilities to streamline mixed precisi
 
 Installation instructions can be found here:  https://github.com/NVIDIA/apex#quick-start.
 
+Some other useful material, including GTC 2019 and Pytorch DevCon 2019 Slides, can be found here:  https://github.com/mcarilli/mixed_precision_references.
+
 .. toctree::
    :maxdepth: 1
    :caption: AMP:  Automatic Mixed Precision
