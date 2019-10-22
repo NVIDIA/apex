@@ -84,7 +84,7 @@ For Resnet50 in particular, `--opt-level O3 --keep-batchnorm-fp32 True` establis
 the "speed of light."  (Without `--keep-batchnorm-fp32`, it's slower, because it does
 not use cudnn batchnorm.)
 
-#### `--opt-level O1` ("conservative mixed precision")
+#### `--opt-level O1` (Official Mixed Precision recipe, recommended for typical use)
 
 `O1` patches Torch functions to cast inputs according to a whitelist-blacklist model.
 FP16-friendly (Tensor Core) ops like gemms and convolutions run in FP16, while ops
@@ -105,7 +105,9 @@ $ python -m torch.distributed.launch --nproc_per_node=2 main_amp.py -a resnet50 
 For best performance, set `--nproc_per_node` equal to the total number of GPUs on the node
 to use all available resources.
 
-#### `--opt-level O2` ("fast mixed precision")
+#### `--opt-level O2` ("Almost FP16" mixed precision.  More dangerous than O1.)
+
+`O2` exists mainly to support some internal use cases.  Please prefer `O1`.
 
 `O2` casts the model to FP16, keeps batchnorms in FP32,
 maintains master weights in FP32, and implements

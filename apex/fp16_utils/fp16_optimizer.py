@@ -11,105 +11,16 @@ from .fp16util import model_grads_to_master_grads, master_params_to_model_params
 
 # TODO:  Update overflow check + downscale to use Carl's fused kernel.
 class FP16_Optimizer(object):
-    """
-    :class:`FP16_Optimizer` is designed to wrap an existing PyTorch optimizer, 
-    and manage static or dynamic loss scaling and master weights in a manner transparent to the user.
-    For standard use, only two lines must be changed:  creating the :class:`FP16_Optimizer` instance,
-    and changing the call to ``backward``.
-
-    Example::
-
-        model = torch.nn.Linear(D_in, D_out).cuda().half()
-        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
-        # Name the FP16_Optimizer instance to replace the existing optimizer
-        # (recommended but not required):
-        optimizer = FP16_Optimizer(optimizer, static_loss_scale = 128.0)
-        ...
-        # loss.backward() becomes:
-        optimizer.backward(loss)
-        ...
-
-    Example with dynamic loss scaling::
-
-        ...
-        optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
-                                   # optional arg to control dynamic loss scaling behavior
-                                   # dynamic_loss_args={'scale_window' : 500})
-                                   # Usually, dynamic_loss_args is not necessary. 
-
-    Args:
-        init_optimizer (torch.optim.optimizer):  Existing optimizer created with the parameters to optimize.  Internally, :class:`FP16_Optimizer` replaces the passed optimizer's fp16 parameters, if any, with fp32 master parameters copied from the original ones.  :class:`FP16_Optimizer` also stores references to the original fp16 parameters, and updates these fp16 parameters from the master fp32 copy at the end of each :attr:`step`.  
-        static_loss_scale (float, optional, default=1.0):  Loss scale used internally to scale gradients computed by the model.  Any fp16 gradients will be copied to fp32, then downscaled before being applied to the fp32 master params, so ``static_loss_scale`` should not affect learning rate.
-        dynamic_loss_scale (bool, optional, default=False):  Use dynamic loss scaling.  If True, this will override any ``static_loss_scale`` option.
-        dynamic_loss_args (dict, optional, default=None):  Dict of kwargs that will be forwarded to the internal :class:`LossScaler` instance's constructor.  Keys of this dict must match kwargs accepted by :class:`LossScaler`'s constructor.  If ``dynamic_loss_args`` is unspecified, :class:`LossScaler`'s defaults will be used.
-        verbose (bool, optional, default=True):  By default, FP16_Optimizer's constructor prints out the parameters and parameter groups it is ingesting, as a sanity check.  If this becomes annoying (e.g. for large models), it can be disabled by passing ``verbose=False``.  ``verbose=False`` will not disable printing when the loss scale is readjusted during dynamic loss scaling.
-
-    ``init_optimizer`` is expected to have been constructed in the ordinary way.  
-    It is recommended (although not required) that the newly constructed :class:`FP16_Optimizer` instance be 
-    named to replace ``init_optimizer``, for two reasons:  
-    First, it means that references to the same name
-    later in the file will not have to change.  
-    Second, :class:`FP16_Optimizer` reserves the right (as an implementation detail) to 
-    modify ``init_optimizer``.  If you do choose a unique name for the new
-    :class:`FP16_Optimizer` instance, you should only work with this new instance,
-    because the preexisting optimizer might no longer behave as expected.
-
-    ``init_optimizer`` may be any Pytorch optimizer. 
-    It may contain a mixture of fp16 and fp32 parameters organized into any number of 
-    ``param_groups`` with different hyperparameters.  The :class:`FP16_Optimizer` constructor will 
-    ingest these ``param_groups`` and remember them. 
-
-    Calls to ::
-
-        loss.backward() 
-
-    must be replaced with ::
-
-        optimizer.backward(loss)  
-
-    because :class:`FP16_Optimizer` requires ownership of the backward pass to implement 
-    loss scaling and copies to master gradients.
-
-    .. note::
-        Loss scaling, either static or dynamic, is orthogonal to learning rate, because gradients
-        are downscaled before being applied.  This means that adjusting the loss scale, or using
-        dynamic loss scaling, should not require retuning the learning rate or any other 
-        hyperparameters.
-
-
-    **Advanced options**
-
-    **Closures**:  :class:`FP16_Optimizer` can wrap a Pytorch optimizer that receives a closure.
-    See docstring for :attr:`step`.
-
-    **Gradient clipping**:  Use :attr:`clip_master_grads`.
-    
-    **Multiple losses**:  If your model accumulates gradients from multiple losses,
-    this can be made more efficient by supplying ``update_master_grads=False``
-    to :attr:`backward`.  See docstring for :attr:`backward`.
-
-    **Manually adjusting loss scale**:  The current loss scale can be retrieved or set via ::
-
-        print(optimizer.loss_scale)
-        optimizer.loss_scale = new_loss_scale
-
-    For static loss scaling, manually adjusting the loss scale over time is a reasonable
-    thing to do.  During later epochs, gradients may become smaller, and a 
-    higher loss scale may be required, analogous to scheduling the learning rate.  Dynamic loss
-    scaling is more subtle (see :class:`DynamicLossScaler`) and in this case, manually adjusting 
-    the loss scale is not recommended.
-
-    **Multi_GPU training**:  If the wrapped ``init_optimizer`` was created from a model wrapped in
-    Pytorch DistributedDataParallel or Apex DistributedDataParallel, :class:`FP16_Optimizer` 
-    should still work as intended.
-    """
-
     def __init__(self, 
                  init_optimizer, 
                  static_loss_scale=1.0, 
                  dynamic_loss_scale=False,
                  dynamic_loss_args=None,
                  verbose=True):
+        print("Warning:  FP16_Optimizer is deprecated and dangerous, and will be deleted soon.  "
+              "If it still works, you're probably getting lucky.  "
+              "For mixed precision, use the documented API https://nvidia.github.io/apex/amp.html, with opt_level=O1.")
+
         if not torch.cuda.is_available:
             raise SystemError("Cannot use fp16 without CUDA.")
 
