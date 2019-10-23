@@ -37,7 +37,8 @@ FP32_FUNCS = [
     'softmin',
     'log_softmax',
     'softmax',
-
+    'gelu',
+    
     # Normalization
     'layer_norm',
     'group_norm',
