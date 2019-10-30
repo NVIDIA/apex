@@ -12,7 +12,7 @@ Alternatively, you can supply your own base image via the `BASE_IMAGE` build-arg
 `-devel` image for Pytorch 1.0 and later from the
 [official Pytorch Dockerhub](https://hub.docker.com/r/pytorch/pytorch) may be used:
 ```
-docker build --build-arg BASE_IMAGE=pytorch/pytorch:nightly-devel-cuda10.0-cudnn7 -t new_image_with_apex .
+docker build --build-arg BASE_IMAGE=1.3-cuda10.1-cudnn7-devel -t new_image_with_apex .
 ```
 
 If you want to rebuild your image, and force the latest Apex to be cloned and installed, make any small change to the `SHA` variable in **Dockerfile**.
