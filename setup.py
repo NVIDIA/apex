@@ -2,7 +2,6 @@ import torch
 from setuptools import setup, find_packages
 import subprocess
 
-from pip._internal import main as pipmain
 import sys
 import warnings
 import os
@@ -32,6 +31,10 @@ cmdclass = {}
 ext_modules = []
 
 if "--pyprof" in sys.argv:
+    try:
+        from pip._internal import main as pipmain
+    except ImportError:
+        from pip._internal.main import main as pipmain
     with open('requirements.txt') as f:
         required_packages = f.read().splitlines()
         pipmain(["install"] + required_packages)
