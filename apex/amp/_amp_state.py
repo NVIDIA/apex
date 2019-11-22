@@ -1,5 +1,5 @@
 # This is a "header object" that allows different amp modules to communicate.
-# I'm a C++ guy, not a python guy.  I decided this approach because it seemed most C++-like.  
+# I'm a C++ guy, not a python guy.  I decided this approach because it seemed most C++-like.
 # But apparently it's ok:
 # http://effbot.org/pyfaq/how-do-i-share-global-variables-across-modules.htm
 import os
@@ -35,12 +35,9 @@ def warn_or_err(msg):
         #                    "hard_override=True to amp.initialize.")
 
 
-distributed = False
-if 'WORLD_SIZE' in os.environ:
-    distributed = int(os.environ['WORLD_SIZE']) > 1
-
-
 def maybe_print(msg, rank0=False):
+    distributed = torch.distributed.is_initialized() and \
+        torch.distributed.get_world_size() > 1
     if _amp_state.verbosity > 0:
         if rank0:
             if distributed:
