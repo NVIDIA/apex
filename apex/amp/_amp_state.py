@@ -36,7 +36,8 @@ def warn_or_err(msg):
 
 
 def maybe_print(msg, rank0=False):
-    distributed = torch.distributed.is_initialized() and \
+    distributed = torch.distributed.is_available() and \
+        torch.distributed.is_initialized() and \
         torch.distributed.get_world_size() > 1
     if _amp_state.verbosity > 0:
         if rank0:
