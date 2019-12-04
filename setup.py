@@ -2,7 +2,7 @@ import torch
 from setuptools import setup, find_packages
 import subprocess
 
-from pip._internal import main as pipmain
+from pip import main as pipmain
 import sys
 import warnings
 import os
