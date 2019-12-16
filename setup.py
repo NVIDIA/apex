@@ -30,15 +30,11 @@ if TORCH_MAJOR == 0 and TORCH_MINOR < 4:
 cmdclass = {}
 ext_modules = []
 
+extras = {}
 if "--pyprof" in sys.argv:
-    try:
-        from pip._internal import main as pipmain
-        pipmain() # call it and catch TypeError
-    except TypeError:
-        from pip._internal.main import main as pipmain
     with open('requirements.txt') as f:
         required_packages = f.read().splitlines()
-        pipmain(["install"] + required_packages)
+        extras['pyprof'] = required_packages
     try:
         sys.argv.remove("--pyprof")
     except:
@@ -213,4 +209,5 @@ setup(
     description='PyTorch Extensions written by NVIDIA',
     ext_modules=ext_modules,
     cmdclass=cmdclass,
+    extras_require=extras,
 )
