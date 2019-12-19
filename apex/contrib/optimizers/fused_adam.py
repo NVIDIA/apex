@@ -61,7 +61,120 @@ class FusedAdam(torch.optim.Optimizer):
         super(FusedAdam, self).__init__(params, defaults)
         self.eps_mode = 0 if  eps_inside_sqrt else 1
 
-    def step(self, closure=None, grads=None, output_params=None, scale=1., grad_norms=None):
+        self._dummy_overflow_buf = torch.cuda.IntTensor([0])
+
+    def has_overflow(self):
+        """Check if overflows were detected by any call to step(...) method.
+        Calling this method clears the overflow flag.
+        """
+        has_overflow = self._dummy_overflow_buf.item()
+        self._dummy_overflow_buf.zero_()
+        return has_overflow
+
+    def revert_step(self, grads=None, scale=1., start=-1, end=-1, update_step=True):
+        """Undo changes done by step function.
+        This method only works correctly when step and revert_step are called with the same arguments.
+
+        Arguments:
+            grads (list of tensors, optional): weight gradient to use for the
+                optimizer update. If gradients have type torch.half, parameters
+                are expected to be in type torch.float. (default: None)
+            scale (float, optional): factor to divide gradient tensor values
+                by before applying to weights. (default: 1)
+        """
+        assert (not self._use_multi_tensor), "revert_step not implemented for multi_tensor."
+
+        if hasattr(self, "_amp_stash"):
+            grads = self._amp_stash.grads
+            scale = self._amp_stash.scale*self._amp_scale_adjustment
+
+        if grads is None:
+            grads_group = [None]*len(self.param_groups)
+        # backward compatibility
+        # assuming a list/generator of parameter means single group
+        elif isinstance(grads, types.GeneratorType):
+            grads_group = [grads]
+        elif type(grads[0])!=list:
+            grads_group = [grads]
+        else:
+            grads_group = grads
+
+        param_idx = -1
+        for group, grads_this_group in zip(self.param_groups, grads_group):
+            if grads_this_group is None:
+               grads_this_group = [None]*len(group['params'])
+
+            # compute combined scale factor for this group
+            combined_scale = scale
+            if group['max_grad_norm'] > 0:
+                # norm is in fact norm*scale
+                clip = ((grad_norm / scale) + 1e-6) / group['max_grad_norm']
+                if clip > 1:
+                    combined_scale = clip * scale
+
+            bias_correction = 1 if group['bias_correction'] else 0
+
+            for p, grad in zip(group['params'], grads_this_group):
+                param_idx += 1
+                #note: p.grad should not ever be set for correct operation of mixed precision optimizer that sometimes sends None gradients
+                if p.grad is None and grad is None:
+                    continue
+                if grad is None:
+                    grad = p.grad.data
+                if grad.is_sparse:
+                    raise RuntimeError('FusedAdam does not support sparse gradients, please consider SparseAdam instead')
+
+                #print("revert_step(param_idx=%d" % (param_idx))
+
+                state = self.state[p]
+
+                # State initialization
+                assert (len(state) > 0), "state not initialized."
+
+                exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
+                beta1, beta2 = group['betas']
+
+                if start >= 0 and start < end:
+                    fused_adam_cuda.adam_undo(
+                                         p.data[start:end],
+                                         p.data[start:end],
+                                         exp_avg[start:end],
+                                         exp_avg[start:end],
+                                         exp_avg_sq[start:end],
+                                         exp_avg_sq[start:end],
+                                         grad[start:end],
+                                         group['lr'],
+                                         beta1,
+                                         beta2,
+                                         group['eps'],
+                                         combined_scale,
+                                         state['step'],
+                                         self.eps_mode,
+                                         bias_correction,
+                                         group['weight_decay'])
+                else:
+                    fused_adam_cuda.adam_undo(
+                                         p.data,
+                                         p.data,
+                                         exp_avg,
+                                         exp_avg,
+                                         exp_avg_sq,
+                                         exp_avg_sq,
+                                         grad,
+                                         group['lr'],
+                                         beta1,
+                                         beta2,
+                                         group['eps'],
+                                         combined_scale,
+                                         state['step'],
+                                         self.eps_mode,
+                                         bias_correction,
+                                         group['weight_decay'])
+
+                if update_step:
+                    state['step'] -= 1
+
+    def step(self, closure=None, grads=None, output_params=None, scale=1., grad_norms=None, start=-1, end=-1, update_step=True):
         """Performs a single optimization step.
 
         Arguments:
@@ -109,6 +222,7 @@ class FusedAdam(torch.optim.Optimizer):
         if grad_norms is None:
             grad_norms = [None]*len(self.param_groups)
 
+        param_idx = -1
         for group, grads_this_group, output_params_this_group, grad_norm in zip(self.param_groups, grads_group, output_params_group, grad_norms):
             if grads_this_group is None:
                grads_this_group = [None]*len(group['params'])
@@ -132,6 +246,7 @@ class FusedAdam(torch.optim.Optimizer):
                     tensorlists = [[],[],[],[]]
 
             for p, grad, output_param in zip(group['params'], grads_this_group, output_params_this_group):
+                param_idx += 1
                 #note: p.grad should not ever be set for correct operation of mixed precision optimizer that sometimes sends None gradients
                 if p.grad is None and grad is None:
                     continue
@@ -139,6 +254,8 @@ class FusedAdam(torch.optim.Optimizer):
                     grad = p.grad.data
                 if grad.is_sparse:
                     raise RuntimeError('FusedAdam does not support sparse gradients, please consider SparseAdam instead')
+
+                #print("step(param_idx=%d" % (param_idx))
 
                 state = self.state[p]
 
@@ -157,27 +274,54 @@ class FusedAdam(torch.optim.Optimizer):
 
                 out_p = torch.tensor([], dtype = torch.float) if output_param is None else output_param
                 if self._use_multi_tensor:
-                    pl = [p.data, exp_avg, exp_avg_sq, grad]
+                    pl = [p.data, p.data, exp_avg, exp_avg, exp_avg_sq, exp_avg_sq, grad]
                     if output_param is not None:
                         pl.append(out_p)
 
                     for tl, t in zip(tensorlists, pl):
                         tl.append(t)
                 else:
-                    fused_adam_cuda.adam(p.data,
-                                         out_p,
-                                         exp_avg,
-                                         exp_avg_sq,
-                                         grad,
-                                         group['lr'],
-                                         beta1,
-                                         beta2,
-                                         group['eps'],
-                                         combined_scale,
-                                         state['step'],
-                                         self.eps_mode,
-                                         bias_correction,
-                                         group['weight_decay'])
+                    if start >= 0 and start < end:
+                        fused_adam_cuda.adam(self._dummy_overflow_buf,
+                                             p.data[start:end],
+                                             p.data[start:end],
+                                             out_p[start:end],
+                                             exp_avg[start:end],
+                                             exp_avg[start:end],
+                                             exp_avg_sq[start:end],
+                                             exp_avg_sq[start:end],
+                                             grad[start:end],
+                                             group['lr'],
+                                             beta1,
+                                             beta2,
+                                             group['eps'],
+                                             combined_scale,
+                                             state['step'],
+                                             self.eps_mode,
+                                             bias_correction,
+                                             group['weight_decay'])
+                        if not update_step:
+                            state['step'] -= 1
+                    else:
+                        fused_adam_cuda.adam(self._dummy_overflow_buf,
+                                             p.data,
+                                             p.data,
+                                             out_p,
+                                             exp_avg,
+                                             exp_avg,
+                                             exp_avg_sq,
+                                             exp_avg_sq,
+                                             grad,
+                                             group['lr'],
+                                             beta1,
+                                             beta2,
+                                             group['eps'],
+                                             combined_scale,
+                                             state['step'],
+                                             self.eps_mode,
+                                             bias_correction,
+                                             group['weight_decay'])
+
 
             if self._use_multi_tensor:
                 multi_tensor_applier(
