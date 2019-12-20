@@ -1,6 +1,7 @@
 #include <torch/extension.h>
 
 // CUDA forward declaration
+void fused_strided_check_finite(at::Tensor& noop, at::Tensor& p_copy, int stride, int clear_overflow_first);
 void fused_adam_cuda(at::Tensor& noop, at::Tensor& p_in, at::Tensor& p_out, at::Tensor& p_copy, at::Tensor& m_in, at::Tensor& m_out, at::Tensor& v_in, at::Tensor& v_out, at::Tensor& g_in, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
 void fused_adam_undo_cuda(at::Tensor& p_in, at::Tensor& p_out, at::Tensor& m_in, at::Tensor& m_out, at::Tensor& v_in, at::Tensor& v_out, at::Tensor& g_in, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
 void fused_adam_cuda_mt(int chunk_size, at::Tensor noop_flag, std::vector<std::vector<at::Tensor>> tensor_lists, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
@@ -10,6 +11,16 @@ void fused_adam_cuda_mt(int chunk_size, at::Tensor noop_flag, std::vector<std::v
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 // C++ interface
+void strided_check_finite(
+		at::Tensor& noop,
+		at::Tensor& p_copy, 
+		int stride,
+		int clear_overflow_first
+	 ) {
+	CHECK_INPUT(p_copy);
+	fused_strided_check_finite(noop, p_copy, stride, clear_overflow_first);
+}
+
 void adam(
 		at::Tensor& noop,
 		at::Tensor& p_in, 
@@ -73,6 +84,7 @@ void adam_undo(
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+        m.def("strided_check_finite", &strided_check_finite, "Strided finite check.");
         m.def("adam", &adam, "Adam optimized CUDA implementation.");
         m.def("adam_undo", &adam_undo, "Adam optimized CUDA implementation.");
         m.def("adam_mt", &fused_adam_cuda_mt, "Adam optimized multi tensor CUDA implementation.");

@@ -71,6 +71,19 @@ class FusedAdam(torch.optim.Optimizer):
         self._dummy_overflow_buf.zero_()
         return has_overflow
 
+    def strided_check_finite(self, output_params, stride=1, start=-1, end=-1, clear=True):
+        """Strided check for overflow.
+        You can get status by calling has_overflow.
+        """
+        if start >= 0 and start < end:
+            out_p = output_params[start:end]
+        else:
+            out_p = output_params
+        fused_adam_cuda.strided_check_finite(self._dummy_overflow_buf,
+                out_p,
+                stride,
+                1 if clear else 0)
+
     def revert_step(self, grads=None, scale=1., start=-1, end=-1, update_step=True):
         """Undo changes done by step function.
         This method only works correctly when step and revert_step are called with the same arguments.
