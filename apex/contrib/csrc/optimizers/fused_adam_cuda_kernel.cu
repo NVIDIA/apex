@@ -21,6 +21,36 @@ typedef enum{
     ADAM_MODE_1   =1  // eps outside square root
 } adamMode_t;
 
+template <typename GRAD_T>
+__global__ void strided_check_finite_cuda_kernel(
+        volatile int* noop_gmem,
+        GRAD_T* __restrict__ p_copy,
+	const size_t tsize,
+	int stride,
+	int clear_overflow_first)
+{
+        //Assuming 2D grids and 2D blocks
+        const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
+        const int threadsPerBlock = blockDim.x * blockDim.y;
+        const int threadIdInBlock = threadIdx.y * blockDim.x + threadIdx.x;
+        const int i = (blockId * threadsPerBlock + threadIdInBlock) * stride;
+        const int totThreads = gridDim.x*gridDim.y*threadsPerBlock*stride;
+
+	if (clear_overflow_first) {
+		if (i == 0) {
+			*noop_gmem = 0;
+		}
+		__syncthreads();
+	}
+	
+	for (int j = i; j < tsize; j+=totThreads) {
+		GRAD_T pi = p_copy[j];
+		if (!isfinite(pi)) {
+			*noop_gmem = 1;
+		}
+	}
+}
+
 template <typename T, typename GRAD_T>
 __global__ void adam_cuda_kernel(
         volatile int* noop_gmem,
@@ -74,6 +104,13 @@ __global__ void adam_cuda_kernel(
 		p_out[j] = pi;
 		if (p_copy != NULL) p_copy[j] = (GRAD_T) pi;
 	}
+
+	if (p_copy != NULL) {
+		__syncthreads();
+		if (i == 0 && *noop_gmem) {
+			p_copy[0] = INFINITY;
+		}
+	}
 }
 
 template <typename T, typename GRAD_T>
@@ -122,7 +159,6 @@ __global__ void adam_undo_cuda_kernel(
 		}
         }
 }
-
 
 template <int DEPTH, typename T, typename GRAD_T>
 struct AdamFunctor
@@ -216,6 +252,34 @@ struct AdamFunctor
         }
     }
 };
+
+void fused_strided_check_finite(
+	at::Tensor & noop,
+        at::Tensor & p_copy,
+        int stride,
+	int clear_overflow_first)
+{
+	//Get tensor size
+	int tsize = p_copy.numel();
+	int niter = tsize / stride;
+
+	//Determine #threads and #blocks
+	const int threadsPerBlock = 512;
+	const dim3 blocks((niter+threadsPerBlock-1)/threadsPerBlock);
+	AT_ASSERTM(at::cuda::detail::canUse32BitIndexMath(p_copy), "parameter tensor is too large to be indexed with int32");
+
+	cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+	using namespace at; // prevents "toString is undefined" errors
+	DISPATCH_FLOAT_AND_HALF(p_copy.scalar_type(), 0, "check_finite_cuda_kernel",
+			strided_check_finite_cuda_kernel<scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+				noop.DATA_PTR<int>(),
+				p_copy.DATA_PTR<scalar_t_0>(),
+				tsize,
+				stride,
+				clear_overflow_first);
+			);
+	THCudaCheck(cudaGetLastError());
+}
 
 void fused_adam_cuda(
 	at::Tensor & noop,
