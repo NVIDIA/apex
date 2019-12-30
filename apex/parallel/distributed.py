@@ -255,8 +255,8 @@ class DistributedDataParallel(Module):
 
     def __setstate__(self, state):
         super(DistributedDataParallel, self).__setstate__(state)
-        if self.allreduce_different_streams and delay_allreduce:
-            raise ValueError("self.allreduce_different_streams may only be used if delay_allreduce=False.")
+        if self.allreduce_different_streams and self.delay_allreduce:
+            raise ValueError("self.allreduce_different_streams may only be used if self.delay_allreduce=False.")
 
         if self.delay_allreduce:
             self.needs_refresh = True
@@ -597,7 +597,7 @@ class DistributedDataParallel(Module):
                             len(self.buckets), self.num_buckets)
                         for b, bucket in enumerate(self.buckets):
                             assert len(bucket) == self.bucket_sizes[b], "len(buckets[{}]) = {}, expected {})".format(
-                                b, len(buckets[b]), self.bucket_sizes[b])
+                                b, len(bucket), self.bucket_sizes[b])
                             for i in range(len(bucket)):
                                 bucket[i] = None
 
