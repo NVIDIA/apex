@@ -194,6 +194,25 @@ if "--deprecated_fused_adam" in sys.argv:
                                               'nvcc':['-O3',
                                                       '--use_fast_math'] + version_dependent_macros}))
 
+if "--radix_decomp" in sys.argv:
+    from torch.utils.cpp_extension import CUDAExtension
+    sys.argv.remove("--radix_decomp")
+
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension
+
+    if torch.utils.cpp_extension.CUDA_HOME is None:
+        raise RuntimeError("--radix_decomp was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        ext_modules.append(
+            CUDAExtension(name='radix_decomp_cuda',
+                          sources=['apex/contrib/csrc/radix_decomp/fused_radix_decomp_cuda.cpp',
+                                   'apex/contrib/csrc/radix_decomp/fused_radix_decomp_cuda_kernel.cu'],
+                          include_dirs=['csrc'],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
+                                              'nvcc':['-O3',
+                                                      '--use_fast_math'] + version_dependent_macros}))
+
 setup(
     name='apex',
     version='0.1',
