@@ -3,6 +3,9 @@ from setuptools import setup, find_packages
 import subprocess
 
 from pip._internal import main as pipmain
+if not callable(pipmain):
+    from pip._internal.main import main as pipmain
+
 import sys
 import warnings
 import os
