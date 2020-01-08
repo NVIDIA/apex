@@ -1,0 +1,3 @@
+[submodule "apex/contrib/csrc/multihead_attn/cutlass"]
+	path = apex/contrib/csrc/multihead_attn/cutlass
+	url = https://github.com/NVIDIA/cutlass.git
