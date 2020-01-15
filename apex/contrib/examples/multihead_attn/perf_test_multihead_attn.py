@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import argparse
 
 from apex.contrib.multihead_attn import SelfMultiheadAttn
+from apex.contrib.multihead_attn import RefSelfMultiheadAttn
 from apex.contrib.multihead_attn import SelfMultiheadAttnNormAdd
 from apex.contrib.multihead_attn import EncdecMultiheadAttn
 from apex.contrib.multihead_attn import EncdecMultiheadAttnNormAdd
@@ -20,6 +21,9 @@ parser.add_argument('--heads', default=16, type=int, help='Number of Multihead A
 parser.add_argument('--encdec-attn', action='store_true', help='Use Encoder-Decoder Attention instead of Self Attention.')
 parser.add_argument('--norm-add', action='store_true', help='Include Layer Norm and Dropout-Add in Multihead Attention block.')
 parser.add_argument('--cublaslt', action='store_true', help='Use CublasLT Gemms.')
+parser.add_argument('--ref', action='store_true', help='Reference implementation in python pytorch.')
+parser.add_argument('--native', action='store_true', help='torch.nn.MultitheadAttention Version.')
+parser.add_argument('--fwd', action='store_true', help='Only execute Fwd Pass.')
 
 args = parser.parse_args()
 assert args.seq_length % 64 == 0, "Sequence Length should be a multiple of 64!"
@@ -43,10 +47,16 @@ for idx in range(0, args.layers) :
         if args.norm_add :
             attn_layers.append(SelfMultiheadAttnNormAdd(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default', cublaslt=args.cublaslt))
         else :
-            attn_layers.append(SelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default', cublaslt=args.cublaslt))
+            if args.native :
+                attn_layers.append(torch.nn.MultiheadAttention(args.hidden_dim, args.heads, dropout=0.1, bias=False))
+            elif args.ref :
+                attn_layers.append(RefSelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
+            else :
+                attn_layers.append(SelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default', cublaslt=args.cublaslt))
     attn_layers[idx].cuda()
     attn_layers[idx].half()
-    attn_layers[idx].reset_parameters()
+    if not args.native :
+        attn_layers[idx].reset_parameters()
 
 start_evt_fwd = []
 start_evt_bwd = []
@@ -68,20 +78,30 @@ for sequences in range(args.num_seqs_start, args.num_seqs_stop + args.num_seqs_i
             start_evt_fwd[evt_idx].record()
     
         for lyr_idx in range(0, args.layers) :
-            outputs,_ = attn_layers[lyr_idx].forward(layer_inputs, 
-                                                     layer_inputs, 
-                                                     layer_inputs, 
-                                                     mask_future_timesteps=False, 
-                                                     key_padding_mask=None, 
-                                                     incremental_state=None, 
-                                                     need_weights=False, 
-                                                     static_kv=False)
+            if args.native :
+                outputs,_ = attn_layers[lyr_idx].forward(layer_inputs, 
+                                                         layer_inputs, 
+                                                         layer_inputs, 
+                                                         key_padding_mask=None, 
+                                                         need_weights=False, 
+                                                         attn_mask=None)
+            else :
+                outputs,_ = attn_layers[lyr_idx].forward(layer_inputs, 
+                                                         layer_inputs, 
+                                                         layer_inputs,
+                                                         is_training=True,
+                                                         mask_future_timesteps=False, 
+                                                         key_padding_mask=None, 
+                                                         incremental_state=None, 
+                                                         need_weights=False, 
+                                                         static_kv=False)
             layer_inputs = outputs
     
         if evt_idx >= 0 :
             start_evt_bwd[evt_idx].record()
-    
-        layer_inputs.backward(grads)
+
+        if not args.fwd :
+            layer_inputs.backward(grads)
     
         if evt_idx >= 0 :
             stop_evt_bwd[evt_idx].record()
