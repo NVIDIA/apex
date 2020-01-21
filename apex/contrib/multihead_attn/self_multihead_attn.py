@@ -12,7 +12,6 @@ import torch.nn.functional as F
 from torch.autograd.variable  import Variable
 
 import fast_self_multihead_attn
-import fast_cublaslt_self_multihead_attn
 
 class SelfAttnFunc(torch.autograd.Function) :
     @staticmethod
@@ -85,83 +84,12 @@ class SelfAttnFunc(torch.autograd.Function) :
 
 self_attn_func = SelfAttnFunc.apply
 
-class SelfAttnCublasltFunc(torch.autograd.Function) :
-    @staticmethod
-    def forward(ctx, use_time_mask, is_training, heads, inputs, input_weights, output_weights, pad_mask, dropout_prob) :
-        heads_t        = Variable(torch.tensor([heads]))
-        dropout_prob_t = Variable(torch.tensor([dropout_prob]))
-        null_tensor    = torch.tensor([])
-        use_mask       = (pad_mask is not None)
-
-        input_lin_results,                                              \
-        softmax_results,                                                \
-        dropout_results,                                                \
-        dropout_mask,                                                   \
-        matmul2_results,                                                \
-        outputs =                                                       \
-            fast_cublaslt_self_multihead_attn.forward(                  \
-                              use_mask,                                 \
-                              use_time_mask,                            \
-                              is_training,                              \
-                              heads,                                    \
-                              inputs,                                   \
-                              input_weights,                            \
-                              output_weights,                           \
-                              pad_mask if use_mask else null_tensor,    \
-                              dropout_prob)
-
-        ctx.save_for_backward(heads_t,                                  \
-                              matmul2_results,                          \
-                              dropout_results,                          \
-                              softmax_results,                          \
-                              input_lin_results,                        \
-                              inputs,                                   \
-                              input_weights,                            \
-                              output_weights,                           \
-                              dropout_mask,                             \
-                              dropout_prob_t)
-
-        return outputs.detach()
-
-    @staticmethod
-    def backward(ctx, output_grads) :
-        heads_t,                                                        \
-        matmul2_results,                                                \
-        dropout_results,                                                \
-        softmax_results,                                                \
-        input_lin_results,                                              \
-        inputs,                                                         \
-        input_weights,                                                  \
-        output_weights,                                                 \
-        dropout_mask,                                                   \
-        dropout_prob_t      = ctx.saved_tensors
-
-        input_grads,                                                    \
-        input_weight_grads,                                             \
-        output_weight_grads =                                           \
-            fast_cublaslt_self_multihead_attn.backward(                 \
-                              heads_t[0],                               \
-                              output_grads,                             \
-                              matmul2_results,                          \
-                              dropout_results,                          \
-                              softmax_results,                          \
-                              input_lin_results,                        \
-                              inputs,                                   \
-                              input_weights,                            \
-                              output_weights,                           \
-                              dropout_mask,                             \
-                              dropout_prob_t[0])
-
-        return None, None, None, input_grads, input_weight_grads, output_weight_grads, None, None
-
-self_attn_cublaslt_func = SelfAttnCublasltFunc.apply
-
 class SelfMultiheadAttn(nn.Module):
     """Multi-headed attention.
 
     See "Attention Is All You Need" for more details.
     """
-    def __init__(self, embed_dim, num_heads, dropout=0., softmax_type='default', cublaslt=False, bias=False):
+    def __init__(self, embed_dim, num_heads, dropout=0., softmax_type='default', bias=False):
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
@@ -180,19 +108,7 @@ class SelfMultiheadAttn(nn.Module):
             self.register_parameter('in_proj_bias', None)
         self.reset_parameters()
 
-        self.cublaslt = cublaslt
-        
-        if self.cublaslt :
-            self.attn_func = self_attn_cublaslt_func
-            fast_cublaslt_self_multihead_attn.forward_init(self.num_heads, self.embed_dim)
-            fast_cublaslt_self_multihead_attn.backward_init(self.num_heads, self.embed_dim)
-        else :
-            self.attn_func = self_attn_func
-
-    def __del__(self) :
-        if self.cublaslt :
-            fast_cublaslt_self_multihead_attn.forward_del()
-            fast_cublaslt_self_multihead_attn.backward_del()
+        self.attn_func = self_attn_func
 
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.in_proj_weight)

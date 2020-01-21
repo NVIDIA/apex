@@ -20,7 +20,6 @@ parser.add_argument('--hidden-dim', default=1024, type=int, help='Multihead Atte
 parser.add_argument('--heads', default=16, type=int, help='Number of Multihead Attention heads')
 parser.add_argument('--encdec-attn', action='store_true', help='Use Encoder-Decoder Attention instead of Self Attention.')
 parser.add_argument('--norm-add', action='store_true', help='Include Layer Norm and Dropout-Add in Multihead Attention block.')
-parser.add_argument('--cublaslt', action='store_true', help='Use CublasLT Gemms.')
 parser.add_argument('--ref', action='store_true', help='Reference implementation in python pytorch.')
 parser.add_argument('--native', action='store_true', help='torch.nn.MultitheadAttention Version.')
 parser.add_argument('--fwd', action='store_true', help='Only execute Fwd Pass.')
@@ -40,19 +39,19 @@ attn_layers = []
 for idx in range(0, args.layers) :
     if args.encdec_attn :
         if args.norm_add :
-            attn_layers.append(EncdecMultiheadAttnNormAdd(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default', cublaslt=args.cublaslt))
+            attn_layers.append(EncdecMultiheadAttnNormAdd(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
         else :
-            attn_layers.append(EncdecMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default', cublaslt=args.cublaslt))
+            attn_layers.append(EncdecMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
     else :
         if args.norm_add :
-            attn_layers.append(SelfMultiheadAttnNormAdd(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default', cublaslt=args.cublaslt))
+            attn_layers.append(SelfMultiheadAttnNormAdd(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
         else :
             if args.native :
                 attn_layers.append(torch.nn.MultiheadAttention(args.hidden_dim, args.heads, dropout=0.1, bias=False))
             elif args.ref :
                 attn_layers.append(RefSelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
             else :
-                attn_layers.append(SelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default', cublaslt=args.cublaslt))
+                attn_layers.append(SelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
     attn_layers[idx].cuda()
     attn_layers[idx].half()
     if not args.native :
@@ -113,10 +112,9 @@ for sequences in range(args.num_seqs_start, args.num_seqs_stop + args.num_seqs_i
         elapsed_time_fwd += start_evt_fwd[evt_idx].elapsed_time(start_evt_bwd[evt_idx])
         elapsed_time_bwd += start_evt_bwd[evt_idx].elapsed_time(stop_evt_bwd[evt_idx])
    
-    print("[ {} Attn {} {} ]Total Tokens: {:4d} Sequences: {:3d} Sequence Length: {:3d} Fwd Time / Layer: {:.3f} ms Bwd Time / Layer: {:.3f} ms".format(
+    print("[ {} Attn {} ]Total Tokens: {:4d} Sequences: {:3d} Sequence Length: {:3d} Fwd Time / Layer: {:.3f} ms Bwd Time / Layer: {:.3f} ms".format(
         'Encdec' if args.encdec_attn else 'Self',              \
         'Norm&Add' if args.norm_add else '',                   \
-        'CublasLt' if args.cublaslt else '',                   \
         sequences*args.seq_length,                             \
         sequences,                                             \
         args.seq_length,                                       \
