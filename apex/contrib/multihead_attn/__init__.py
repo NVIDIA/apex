@@ -1,5 +1,5 @@
 from .self_multihead_attn import SelfMultiheadAttn
-from .ref_self_multihead_attn import RefSelfMultiheadAttn
+from .py_self_multihead_attn import PySelfMultiheadAttn
 from .self_multihead_attn_norm_add import SelfMultiheadAttnNormAdd
 from .encdec_multihead_attn import EncdecMultiheadAttn
 from .encdec_multihead_attn_norm_add import EncdecMultiheadAttnNormAdd

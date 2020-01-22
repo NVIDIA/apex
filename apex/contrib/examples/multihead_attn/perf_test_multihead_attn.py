@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import argparse
 
 from apex.contrib.multihead_attn import SelfMultiheadAttn
-from apex.contrib.multihead_attn import RefSelfMultiheadAttn
+from apex.contrib.multihead_attn import PySelfMultiheadAttn
 from apex.contrib.multihead_attn import SelfMultiheadAttnNormAdd
 from apex.contrib.multihead_attn import EncdecMultiheadAttn
 from apex.contrib.multihead_attn import EncdecMultiheadAttnNormAdd
@@ -49,7 +49,7 @@ for idx in range(0, args.layers) :
             if args.native :
                 attn_layers.append(torch.nn.MultiheadAttention(args.hidden_dim, args.heads, dropout=0.1, bias=False))
             elif args.ref :
-                attn_layers.append(RefSelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
+                attn_layers.append(PySelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
             else :
                 attn_layers.append(SelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
     attn_layers[idx].cuda()
