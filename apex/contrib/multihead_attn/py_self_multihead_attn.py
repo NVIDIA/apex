@@ -71,13 +71,57 @@ class PySelfAttnFunc(torch.autograd.Function) :
         input_weights,                                                  \
         output_weights,                                                 \
         dropout_mask,                                                   \
-        dropout_prob_t      = ctx.saved_tensors
-
-        input_grads,                                                    \
-        input_weight_grads,                                             \
-        output_weight_grads = (output_grads, input_weights, output_weights)
+        dropout_prob_t          = ctx.saved_tensors
         
-        return None, None, None, input_grads, input_weight_grads, output_weight_grads, None, None
+        head_dim                = inputs.size(2) // heads_t[0]
+        
+        # Slice out q,k,v from one big Input Linear outuput (should only impact meta data, no copies!)
+        input_lin_results       = input_lin_results.view(inputs.size(0), inputs.size(1)*heads_t[0], 3, head_dim)
+        queries                 = input_lin_results[:,:,0,:]
+        keys                    = input_lin_results[:,:,1,:]
+        values                  = input_lin_results[:,:,2,:]
+        
+        # Slice out q,k,v from one big set of gradients entering the input linear's bprop  (should only impact meta data, no copies!)
+        input_lin_results_grads = torch.empty_like(input_lin_results)
+        queries_grads           = input_lin_results_grads[:,:,0,:]
+        keys_grads              = input_lin_results_grads[:,:,1,:]
+        values_grads            = input_lin_results_grads[:,:,2,:]
+        
+        # Output Linear GEMM - DGRAD
+        output_lin_grads = torch.mm(output_grads.view(output_grads.size(0) * output_grads.size(1), output_grads.size(2)), output_weights)
+        output_lin_grads = output_lin_grads.view(output_grads.size(0), output_grads.size(1), output_weights.size(1))
+        # Output Linear GEMM - WGRAD
+        output_weight_grads = torch.mm(output_grads.view(output_grads.size(0) * output_grads.size(1), output_grads.size(2)).transpose(0,1), 
+                                       matmul2_results.view(matmul2_results.size(0) * matmul2_results.size(1), matmul2_results.size(2)))
+        
+        output_lin_grads = output_lin_grads.view(inputs.size(0), inputs.size(1)*heads_t[0], head_dim).transpose(0,1)
+
+        # Matmul2 - DGRAD1
+        matmul2_dgrad1 = torch.bmm(output_lin_grads, values.transpose(0,1).transpose(1,2))
+        # Matmul2 - DGRAD2
+        values_grads   = torch.bmm(dropout_results.transpose(1,2), output_lin_grads, out=values_grads.transpose(0,1))
+
+        # Mask and Scaling for Dropout
+        dropout_grads = torch._masked_scale(matmul2_dgrad1, dropout_mask, dropout_prob_t[0])
+
+        # Softmax Grad
+        softmax_grads = torch._softmax_backward_data(dropout_grads, softmax_results, -1, softmax_results)
+
+        # Matmul1 - DGRAD1
+        queries_grads = torch.baddbmm(queries_grads.transpose(0,1), softmax_grads, keys.transpose(0,1), 
+                                      out=queries_grads.transpose(0,1), beta=0.0, alpha=scale_t[0])
+        # Matmul1 - DGRAD2
+        keys_grads    = torch.baddbmm(keys_grads.transpose(0,1), softmax_grads.transpose(1,2), queries.transpose(0,1), 
+                                      out=keys_grads.transpose(0,1), beta=0.0, alpha=scale_t[0])
+
+        # Input Linear GEMM - DGRAD
+        input_lin_results_grads = input_lin_results_grads.view(inputs.size(0)*inputs.size(1), heads_t[0]*3*head_dim)
+        input_grads = torch.mm(input_lin_results_grads, input_weights)
+        input_grads = input_grads.view(inputs.size(0), inputs.size(1), inputs.size(2))
+        # Input Linear GEMM - WGRAD
+        input_weight_grads = torch.mm(input_lin_results_grads.transpose(0,1), inputs.view(inputs.size(0)*inputs.size(1), inputs.size(2)))
+
+        return None, None, None, None, input_grads, input_weight_grads, output_weight_grads, None, None
 
 py_self_attn_func = PySelfAttnFunc.apply
 
