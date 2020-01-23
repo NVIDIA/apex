@@ -31,7 +31,7 @@ class PySelfAttnFunc(torch.autograd.Function) :
 
         # Dropout
         if is_training :
-            dropout_results,dropout_mask = torch._fused_dropout(softmax_results, p=dropout_prob_t[0])
+            dropout_results,dropout_mask = torch._fused_dropout(softmax_results, p=(1.-dropout_prob_t[0]))
         else :
             dropout_results = softmax_results
             dropout_mask    = null_tensor
@@ -42,7 +42,7 @@ class PySelfAttnFunc(torch.autograd.Function) :
         matmul2_results = matmul2_results.transpose(0, 1).contiguous().view(inputs.size(0), inputs.size(1), inputs.size(2))
        
         # Output Linear GEMM
-        outputs = torch.mm(inputs.view(inputs.size(0) * inputs.size(1), inputs.size(2)), output_weights.transpose(0,1))
+        outputs = torch.mm(matmul2_results.view(inputs.size(0) * inputs.size(1), inputs.size(2)), output_weights.transpose(0,1))
         outputs = outputs.view(inputs.size(0), inputs.size(1), output_weights.size(0))
 
         ctx.save_for_backward(heads_t,                                  \
