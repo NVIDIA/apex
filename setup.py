@@ -256,58 +256,6 @@ if "--fast_multihead_attn" in sys.argv:
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda',
                                                       '--use_fast_math'] + version_dependent_macros}))
-        ext_modules.append(
-            CUDAExtension(name='fast_cublaslt_self_multihead_attn',
-                          sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_cublaslt.cpp', 
-                                   'apex/contrib/csrc/multihead_attn/self_multihead_attn_cublaslt_cuda.cu'],
-                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
-                                              'nvcc':['-O3',
-                                                      '-gencode', 'arch=compute_70,code=sm_70',
-                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
-                                                      '-U__CUDA_NO_HALF_OPERATORS__',
-                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '--expt-relaxed-constexpr',
-                                                      '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros}))
-        ext_modules.append(
-            CUDAExtension(name='fast_cublaslt_self_multihead_attn_norm_add',
-                          sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add_cublaslt.cpp', 
-                                   'apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add_cublaslt_cuda.cu'],
-                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
-                                              'nvcc':['-O3',
-                                                      '-gencode', 'arch=compute_70,code=sm_70',
-                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
-                                                      '-U__CUDA_NO_HALF_OPERATORS__',
-                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '--expt-relaxed-constexpr',
-                                                      '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros}))
-        ext_modules.append(
-            CUDAExtension(name='fast_cublaslt_encdec_multihead_attn',
-                          sources=['apex/contrib/csrc/multihead_attn/encdec_multihead_attn_cublaslt.cpp', 
-                                   'apex/contrib/csrc/multihead_attn/encdec_multihead_attn_cublaslt_cuda.cu'],
-                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
-                                              'nvcc':['-O3',
-                                                      '-gencode', 'arch=compute_70,code=sm_70',
-                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
-                                                      '-U__CUDA_NO_HALF_OPERATORS__',
-                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '--expt-relaxed-constexpr',
-                                                      '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros}))
-        ext_modules.append(
-            CUDAExtension(name='fast_cublaslt_encdec_multihead_attn_norm_add',
-                          sources=['apex/contrib/csrc/multihead_attn/encdec_multihead_attn_norm_add_cublaslt.cpp', 
-                                   'apex/contrib/csrc/multihead_attn/encdec_multihead_attn_norm_add_cublaslt_cuda.cu'],
-                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
-                                              'nvcc':['-O3',
-                                                      '-gencode', 'arch=compute_70,code=sm_70',
-                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
-                                                      '-U__CUDA_NO_HALF_OPERATORS__',
-                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '--expt-relaxed-constexpr',
-                                                      '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros}))
 
 setup(
     name='apex',
