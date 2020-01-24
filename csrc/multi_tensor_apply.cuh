@@ -62,12 +62,13 @@ void multi_tensor_apply(
     }
   }
 
+  auto ori_dev = noop_flag.device();
+
   int ntensors = tensor_lists[0].size();
 
   TensorListMetadata<depth> tl;
 
-  auto stream = at::cuda::getCurrentCUDAStream();
-  
+   
   tl.start_tensor_this_launch = 0;
   int loc_block_info = 0;
   int loc_tensor_info = 0;
@@ -80,6 +81,10 @@ void multi_tensor_apply(
 
     int chunks_this_tensor = (tensor_lists[0][t].numel() + chunk_size - 1)/chunk_size;
 
+    const int dev_id = tensor_lists[0][t].device().index();
+
+    auto stream = at::cuda::getCurrentCUDAStream(dev_id);
+
     for(int chunk = 0; chunk < chunks_this_tensor; chunk++)
     {
       // std::cout << chunks_this_tensor << std::endl;
@@ -90,16 +95,22 @@ void multi_tensor_apply(
       bool tensors_full = (loc_tensor_info == depth_to_max_tensors[depth-1] &&
                            chunk == chunks_this_tensor - 1);
       bool blocks_full = (loc_block_info == depth_to_max_blocks[depth-1]);
-      bool last_chunk = (t == ntensors - 1 && chunk == chunks_this_tensor - 1);
+      bool last_chunk = ((t == ntensors - 1 || \
+         (dev_id != tensor_lists[0][t+1].device().index())) \
+                          && chunk == chunks_this_tensor - 1);
       if(tensors_full || blocks_full || last_chunk)
       {
+        auto tmp_flag = noop_flag.to(tensor_lists[0][t].device(),
+                                     noop_flag.dtype());
         // using accscalar_t = acc_type<scalar_t, true>;
         multi_tensor_apply_kernel<<<loc_block_info, block_size, 0, stream>>>(
           chunk_size,
-          noop_flag.DATA_PTR<int>(),
+          tmp_flag.DATA_PTR<int>(),
           tl,
           callable,
           args...);
+
+        noop_flag.set_data(tmp_flag.to(ori_dev, tmp_flag.dtype()));
 
         AT_CUDA_CHECK(cudaGetLastError());
 
