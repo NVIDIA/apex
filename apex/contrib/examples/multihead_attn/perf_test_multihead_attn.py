@@ -3,10 +3,7 @@ import torch.nn.functional as F
 import argparse
 
 from apex.contrib.multihead_attn import SelfMultiheadAttn
-from apex.contrib.multihead_attn import PySelfMultiheadAttn
-from apex.contrib.multihead_attn import SelfMultiheadAttnNormAdd
 from apex.contrib.multihead_attn import EncdecMultiheadAttn
-from apex.contrib.multihead_attn import EncdecMultiheadAttnNormAdd
 
 parser = argparse.ArgumentParser(description='Multihead Attention Standalone Test')
 parser.add_argument('--seq-length', default=64, type=int, help='Sequence Length of Input')
@@ -38,20 +35,17 @@ if torch.cuda.is_available():
 attn_layers = []
 for idx in range(0, args.layers) :
     if args.encdec_attn :
-        if args.norm_add :
-            attn_layers.append(EncdecMultiheadAttnNormAdd(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
+        if args.ref :
+            attn_layers.append(EncdecMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, include_norm_add=False, impl='default'))
         else :
-            attn_layers.append(EncdecMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
+            attn_layers.append(EncdecMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, include_norm_add=args.norm_add, impl='fast'))
     else :
-        if args.norm_add :
-            attn_layers.append(SelfMultiheadAttnNormAdd(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
+        if args.native :
+            attn_layers.append(torch.nn.MultiheadAttention(args.hidden_dim, args.heads, dropout=0.1, bias=False))
+        elif args.ref :
+            attn_layers.append(SelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, include_norm_add=args.norm_add, impl='default'))
         else :
-            if args.native :
-                attn_layers.append(torch.nn.MultiheadAttention(args.hidden_dim, args.heads, dropout=0.1, bias=False))
-            elif args.ref :
-                attn_layers.append(PySelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
-            else :
-                attn_layers.append(SelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, softmax_type='default'))
+            attn_layers.append(SelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, include_norm_add=args.norm_add, impl='fast'))
     attn_layers[idx].cuda()
     attn_layers[idx].half()
     if not args.native :
@@ -88,12 +82,10 @@ for sequences in range(args.num_seqs_start, args.num_seqs_stop + args.num_seqs_i
                 outputs,_ = attn_layers[lyr_idx].forward(layer_inputs, 
                                                          layer_inputs, 
                                                          layer_inputs,
-                                                         is_training=True,
-                                                         mask_future_timesteps=False, 
                                                          key_padding_mask=None, 
-                                                         incremental_state=None, 
                                                          need_weights=False, 
-                                                         static_kv=False)
+                                                         attn_mask=None,
+                                                         is_training=True)
             layer_inputs = outputs
     
         if evt_idx >= 0 :
