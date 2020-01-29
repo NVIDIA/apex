@@ -3,12 +3,6 @@ import torch
 import importlib
 from apex.multi_tensor_apply import multi_tensor_applier
 
-def fused_norm(input):
-    if input.type() == 'torch.cuda.HalfTensor':
-        return lib.THCudaHalfTensor_normall(torch.cuda._state_cdata, input._cdata, 16384) #yes, 16384 is half 2 if you stare at it long enough
-    else:
-        return input.norm()
-
 class DistributedFusedAdam(torch.optim.Optimizer):
 
     """Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
@@ -54,7 +48,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  radix_base=2, num_blocks=4, full_pipeline=True,
                  normalize_by_L2_grad_norm=False, distributed_weight_update=0,
                  dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
-                 dwu_num_ag_pg=0):
+                 dwu_num_ag_pg=0, dwu_num_blk_st=1):
         global fused_adam_cuda, radix_decomp_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
         radix_decomp_cuda = importlib.import_module("radix_decomp_cuda")
@@ -73,7 +67,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         super(DistributedFusedAdam, self).__init__(params, defaults)
         self.eps_mode = 0 if  eps_inside_sqrt else 1
 
-        self._dummy_overflow_buf = torch.cuda.IntTensor([0])
+        self._overflow_buf = torch.cuda.IntTensor([0])
 
         self._last_step = False
         self._overlap_reductions = overlap_reductions
@@ -102,85 +96,81 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         p_offset = 0
         p_i = 0
-        if self._overlap_reductions:
-            self._grads_info = []
+        self._grads_info = []
         for group in self.param_groups:
             for p in group['params']:
                 if not p.requires_grad:
                     continue
                 p_grads_size = p.numel()
-                if self._overlap_reductions:
-                    def wrapper(param, param_i, param_grads_size, param_offset):
-                        def allreduce_hook(grad):
-                            self._do_overlapped_reduction(param_i, param_grads_size, param_offset, grad)
-                        param.register_hook(allreduce_hook)
-                    self._grads_info.append({"param_grads_size":p_grads_size, "param_offset":p_offset})
-                    wrapper(p, p_i, p_grads_size, p_offset)
+                def wrapper(param, param_i, param_grads_size, param_offset):
+                    def allreduce_hook(grad):
+                        self._do_overlapped_reduction(param_i, param_grads_size, param_offset, grad)
+                    param.register_hook(allreduce_hook)
+                self._grads_info.append({"param_grads_size":p_grads_size, "param_offset":p_offset})
+                wrapper(p, p_i, p_grads_size, p_offset)
                 p_offset += p_grads_size
                 p_i += 1
         self._grads_generated = [False]*len(self._grads_info)
-        self._current_block = self._num_blocks
-        self._events = []
+        if self._overlap_reductions:
+            self._current_block = self._num_blocks
 
+        self._net_total_param_size = p_offset
         self._total_param_size = p_offset
         dwu_min_page_size = 256 * self._num_blocks * self._group_size
-        self._total_param_size = ((self._total_param_size + dwu_min_page_size - 1) // self._total_param_size) * self._total_param_size
+        self._total_param_size = ((self._total_param_size + dwu_min_page_size - 1) // dwu_min_page_size) * dwu_min_page_size
         self._block_size = self._total_param_size // self._num_blocks
         self._shard_size = self._block_size // self._group_size
+        print("self._net_total_param_size=%d, self._total_param_size=%d, dwu_min_page_size=%d, self._block_size=%d, self._shard_size=%d" % (self._net_total_param_size, self._total_param_size,dwu_min_page_size,self._block_size,self._shard_size))
         if self._num_prestats > 0:
             self._prestats_shard_size = self._shard_size + self._num_prestats * self._radix_size
             self._prestats_block_size = self._prestats_shard_size * self._group_size
-            self._total_param_size += self._group_size * self._num_prestats * self._radix_size
 
         self._flat_grads = torch.zeros([self._total_param_size]).half().cuda()
         self._new_params = None
         self._fp32_p = None
         self._fp32_m = None
         self._fp32_v = None
+        self._copy_to_fp32 = False
         self._num_redux = 0
 
         self._distributed_weight_update = distributed_weight_update # Is this still needed?
         self._num_rs_pg = dwu_num_rs_pg
         self._num_ar_pg = dwu_num_ar_pg
         self._num_ag_pg = dwu_num_ag_pg
+        self._num_blk_st = dwu_num_blk_st
         if self._num_groups > 1:
             self._ar_pg = []
-            self._ar_st = []
             for dev_i in range(self._group_size):
                 ranks = [dev_i+j*self._group_size for j in range(self._num_groups)]
                 for i in range(self._num_ar_pg):
                     grp = torch.distributed.new_group(ranks=ranks)
                     if torch.distributed.get_rank() in ranks:
                         self._ar_pg.append(grp)
-                        self._ar_st.append(torch.cuda.Stream())
         rs_ranks = []
         for group_i in range(self._num_groups):
             rs_ranks.append([group_i*self._group_size+j for j in range(self._group_size)])
         self._rs_pg = []
-        self._rs_st = []
         for group_i in range(self._num_groups):
             ranks = rs_ranks[group_i]
             for i in range(self._num_rs_pg):
                 grp = torch.distributed.new_group(ranks=ranks)
                 if torch.distributed.get_rank() in ranks:
                     self._rs_pg.append(grp)
-                    self._rs_st.append(torch.cuda.Stream())
         if self._num_ag_pg == 0:
             self._ag_pg = self._rs_pg
-            self._ag_st = self._rs_st
         else:
             self._ag_pg = []
-            self._ag_st = []
             for group_i in range(self._num_groups):
                 ranks = rs_ranks[group_i]
                 for i in range(self._num_ag_pg):
                     grp = torch.distributed.new_group(ranks=ranks)
                     if torch.distributed.get_rank() in ranks:
                         self._ag_pg.append(grp)
-                        self._ag_st.append(torch.cuda.Stream())
+        self._blk_st = []
+        for i in range(self._num_blk_st):
+            self._blk_st.append(torch.cuda.Stream())
         
     def _get_flush_block(self):
-        # print([1 if x else 0 for x in self._grads_generated])
         flush_block = []
         num_grads = len(self._grads_generated)
         contiguous_idx = num_grads
@@ -200,123 +190,103 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         return flush_block
 
     def __pipeline_block_reductions(self, grad_shards):
-        self._rs_st[self._num_redux%len(self._rs_st)].wait_stream(torch.cuda.current_stream())
+        self._blk_st[self._num_redux%len(self._blk_st)].wait_stream(torch.cuda.current_stream())
         if self._num_groups > 1:
-            with torch.cuda.stream(self._rs_st[self._num_redux%len(self._rs_st)]):
-                work = torch.distributed.reduce_scatter(grad_shards[self._rank_in_group],grad_shards,group=self._rs_pg[self._num_redux%len(self._rs_pg)],async_op=True)
-            with torch.cuda.stream(self._ar_st[self._num_redux%len(self._ar_st)]):
-                work.wait()
-                torch.distributed.all_reduce(grad_shards[self._rank_in_group],group=self._ar_pg[self._num_redux%len(self._ar_pg)],async_op=False)
-            return self._ar_st[self._num_redux%len(self._ar_st)].record_event()
+            torch.distributed.reduce_scatter(grad_shards[self._rank_in_group],grad_shards,group=self._rs_pg[self._num_redux%len(self._rs_pg)],async_op=False)
+            torch.distributed.all_reduce(grad_shards[self._rank_in_group],group=self._ar_pg[self._num_redux%len(self._ar_pg)],async_op=False)
         else:
-            with torch.cuda.stream(self._rs_st[self._num_redux%len(self._rs_st)]):
-                torch.distributed.reduce_scatter(grad_shards[self._rank_in_group],grad_shards,group=self._rs_pg[self._num_redux%len(self._rs_pg)],async_op=False)
-            return self._rs_st[self._num_redux%len(self._rs_st)].record_event()
+            torch.distributed.reduce_scatter(grad_shards[self._rank_in_group],grad_shards,group=self._rs_pg[self._num_redux%len(self._rs_pg)],async_op=False)
 
     def _pipeline_block_reductions(self, flat_grads, start, end, do_prestats=False):
         if do_prestats:
-            prestats_grad_block = torch.empty([self._group_size*self._prestats_shard_size]).half().cuda()
             grad_block = flat_grads[start:end]
+            prestats_grad_block = torch.empty([self._prestats_block_size]).half().cuda()
             self._merge(prestats_grad_block, grad_block, self._decomp_stats)
-            prestat_grad_shards = [prestats_grad_block[i*self._prestats_shard_size:(i+1)*self._prestats_shard_size] for i in range(self._group_size)]
-            reduction_event = self.__pipeline_block_reductions(prestats_grad_shards)
-            self._rs_st[self._num_redux%len(self._rs_st)].wait_event(reduction_event)
-            with torch.cuda.stream(self._rs_st[self._num_redux%len(self._rs_st)]):
-                grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
-                self._split(prestats_grad_block, grad_shards, self._decomp_stats)
-                self._extract_reduced_stats(self._decomp_stats)
-            return self._rs_st[self._num_redux%len(self._rs_st)].record_event()
+            prestats_grad_shards = [prestats_grad_block[i*self._prestats_shard_size:(i+1)*self._prestats_shard_size] for i in range(self._group_size)]
+            self.__pipeline_block_reductions(prestats_grad_shards)
+            grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
+            self._split(prestats_grad_block, grad_shards[self._rank_in_group], self._decomp_stats)
+            self._extract_reduced_stats(self._decomp_stats)
         else:
             grad_block = flat_grads[start:end]
             grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
-            return self.__pipeline_block_reductions(grad_shards)
+            self.__pipeline_block_reductions(grad_shards)
 
     # NB!
     # self._global_scale is used by this method.
 
-    def _pipeline_block_step(self, reduction_event, flat_grads, new_params, start, end):
+    def _pipeline_block_step(self, flat_grads, new_params, start, end):
         grad_block = flat_grads[start:end]
         grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
         new_params_shards = [new_params[start+shard_i*self._shard_size:start+(shard_i+1)*self._shard_size] for shard_i in range(self._group_size)]
         shard_start = start + self._rank_in_group * self._shard_size
         shard_end = shard_start + self._shard_size
-        self._ag_st[self._num_redux%len(self._ag_st)].wait_event(reduction_event)
-        with torch.cuda.stream(self._ag_st[self._num_redux%len(self._ag_st)]):
-            block_id = start // self._block_size
-            self._partial_step_single_shard(block_id)
-            torch.distributed.all_gather(new_params_shards,new_params_shards[self._rank_in_group],group=self._ag_pg[self._num_redux%len(self._ag_pg)],async_op=False)
-        return self._ag_st[self._num_redux%len(self._ag_st)].record_event()
+        block_id = start // self._block_size
+        self._partial_step_single_shard(block_id)
+        torch.distributed.all_gather(new_params_shards,new_params_shards[self._rank_in_group],group=self._ag_pg[self._num_redux%len(self._ag_pg)],async_op=False)
 
-    def __pipeline_block_grad_L2_norm(self, reduction_event, flat_grads, start, end):
+    def __pipeline_block_grad_L2_norm(self, flat_grads, start, end):
         grad_block = flat_grads[start:end]
         grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
-        self._rs_st[self._num_redux%len(self._rs_st)].wait_for_event(reduction_event)
-        with torch.cuda.stream(self._rs_st[self._num_redux%len(self._rs_st)]):
-            self._partial_L2_grad_norm_squared[0] += fused_norm(grad_shards[self._rank_in_group])
-        return self._rs_st[self._num_redux%len(self._rs_st)].record_event()
+        self._partial_L2_grad_norm_squared[0] += grad_shards[self._rank_in_group].norm()
 
     # NB!
     # self._global_scale is set by the prestat reduction logic, OR manually by user
 
     def _pipeline_block(self, flat_grads, new_params, start, end, do_prestats=False):
-        reduction_event = self._pipeline_block_reductions(flat_grads, start, end, do_prestats)
+        self._pipeline_block_reductions(flat_grads, start, end, do_prestats)
         if self._normalize_by_L2_grad_norm:
-            reduction_event = self.__pipeline_block_grad_L2_norm(reduction_event, start, end)
-        return self._pipeline_block_step(reduction_event, flat_grads, new_params, start, end)
+            self.__pipeline_block_grad_L2_norm(start, end)
+        self._pipeline_block_step(flat_grads, new_params, start, end)
 
-    def _split(self, prestats_grad_block, grads_shard, prestats):
+    def _split(self, prestats_grad_block, grad_shard, prestats):
         """Split a block containing fp16 gradients and decomposed prestats.
         """
         i = self._rank_in_group
-        grads_shard.copy_(prestats_grad_block[i*(self._shard_size+self._prestats_size):i*(self._shard_size+self._prestats_size)+self._shard_size])
-        prestats.copy_(prestats_grad_block[i*(self._shard_size+self._prestats_size)+self._shard_size:(i+1)*(self._shard_size+self._prestats_size)])
+        prestats_grad_shard = prestats_grad_block[i*self._prestats_shard_size:(i+1)*self._prestats_shard_size]
+        grad_shard.copy_(prestats_grad_shard[0:self._shard_size])
+        prestats.copy_(prestats_grad_shard[self._shard_size:self._prestats_shard_size])
+        # FIXME: Perhaps set_(...) will suffice?
             
-    def _merge(self, prestats_grad_block, grads_block, prestats):
+    def _merge(self, prestats_grad_block, grad_block, prestats):
         """Merge fp16 gradients and decomposed prestats into single block.
         """
         for j in range(self._group_size):
             i = self._group_size - j - 1
-            prestats_grad_block[i*(self._shard_size+self._prestats_size):i*(self._shard_size+self._prestats_size)+self._shard_size].copy_(grads_block[i*self._shard_size:(i+1)*self._shard_size])
-            prestats_grad_block[i*(self._shard_size+self._prestats_size)+self._shard_size:(i+1)*(self._shard_size+self._prestats_size)].copy_(prestats)
+            grad_shard = grad_block[i*self._shard_size:(i+1)*self._shard_size]
+            prestats_grad_shard = prestats_grad_block[i*self._prestats_shard_size:(i+1)*self._prestats_shard_size]
+            prestats_grad_shard[0:self._shard_size].copy_(grad_shard)
+            prestats_grad_shard[self._shard_size:self._prestats_shard_size].copy_(prestats)
 
     def _do_overlapped_reduction(self, param_i, param_grads_size, param_offset, grad):
         # handle overlapped reductions
         if self._last_step == False:
             torch.div(grad.view(-1), self._world_size, out=self._flat_grads[param_offset:param_offset+param_grads_size])
             self._grads_generated[param_i]=True
-            flush_block = self._get_flush_block()
-            while flush_block:
-                start = flush_block[0]
-                end = flush_block[1]
-                # print("->", start, end)
-                #print("block=%d :: start=%d, end=%d, fused_norm(self._flat_grads_parallel) = %e" % (self._current_block, start,end,fused_norm(self._flat_grads_parallel[start:end])))
-
-                do_prestats = True if self._decomp_stats is not None and end == (self._block_size*self._num_blocks) else False
-                if self._full_pipeline:
-                    if self._new_params is None:
-                        self._new_params = torch.empty_like(self._flat_grads)
-                    pipe_event = self._pipeline_block(self._flat_grads, self._new_params, start, end, do_prestats)
-                    self._events.append(pipe_event)
-                else:
-                    reduction_event = self._pipeline_block_reductions(self._flat_grads, start, end, do_prestats)
-                    self._events.append(reduction_event)
-
-                # To-Do: add events to list, wait for them before using gradient/new_params
-                # To-Do: allocate self._new_params on demand
-
-                self._num_redux += 1
+            if self._overlap_reductions:
                 flush_block = self._get_flush_block()
+                while flush_block:
+                    start = flush_block[0]
+                    end = flush_block[1]
+                    do_prestats = True if self._decomp_stats is not None and end == (self._block_size*self._num_blocks) else False
+                    self._blk_st[self._num_redux%len(self._blk_st)].wait_stream(torch.cuda.current_stream())
+                    with torch.cuda.stream(self._blk_st[self._num_redux%len(self._blk_st)]):
+                        if self._full_pipeline:
+                            if self._new_params is None:
+                                self._new_params = torch.empty_like(self._flat_grads)
+                            self._pipeline_block(self._flat_grads, self._new_params, start, end, do_prestats)
+                        else:
+                            self._pipeline_block_reductions(self._flat_grads, start, end, do_prestats)
 
-            if self._current_block == 0:
-                self._current_block = self.dwu_num_blocks
+                    self._num_redux += 1
+                    flush_block = self._get_flush_block()
 
-    def _wait_for_events(self, stream=None):
-        """Wait for all events recorded during reduction and optimization pipeline.
-        """
-        with torch.cuda.stream(stream if stream is not None else torch.cuda.current_stream()):
-            for event in self._events:
-                torch.cuda.current_stream().wait_for_event(event)
-        self._events = []
+                if self._current_block == 0:
+                    self._current_block = self._num_blocks
+
+    def _wait_streams(self):
+        for st in self._blk_st:
+            torch.cuda.current_stream().wait_stream(st)
 
     def set_global_scale(self, global_scale):
         """Manually set global scale.
@@ -325,6 +295,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """
         self._global_scale = global_scale
         self._num_prestats = 0 # clear this to prevent set_stats from being used.
+
+    @property
+    def global_scale(self):
+        return self._global_scale
 
     def set_stats(self, stats):
         """Provide a stats tensor that will be reduced together with the fp16 gradients.
@@ -338,11 +312,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """
         if stats.numel() != self._num_prestats:
             raise RuntimeError('stats tensor must have %d elements' % (self._num_prestats))
-        self._stats = stats
-        self._decomp_stats = torch.empty([self._stats.numel()*self._radix_size]).half().cuda()
-        radix_decomp_cuda.radix_decomp(self._dummy_overflow, self._stats, self._decomp_stats, self._radix_max_digit, self._radix_min_digit, self._radix_base, 1)
-        self._global_scale = None
-        # should we return overflow flag here or raise run time error or do nothing?
+        with torch.cuda.stream(self._blk_st[self._num_redux%len(self._blk_st)]):
+            self._stats = stats.clone()
+            self._decomp_stats = torch.empty([self._stats.numel()*self._radix_size]).half().cuda()
+            radix_decomp_cuda.radix_decomp(self._overflow_buf, self._stats, self._decomp_stats, self._radix_max_digit, self._radix_min_digit, self._radix_base, 1)
+            self._global_scale = None
+            # FIXME: should we return overflow flag here or raise run time error or do nothing?
 
     def _extract_reduced_stats(self, decomp_stats):
         """Compose stats tensor from decomposed stats tensor after reduction.
@@ -352,7 +327,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             decomp_stats: stats tensor radix decomposed into fp16 tensor.
 
         """
-        radix_decomp_cuda.radix_comp(self._dummy_overflow, self._stats, decomp_stats, self._radix_max_digit, self._radix_min_digit, self._radix_base, 1)
+        radix_decomp_cuda.radix_comp(self._overflow_buf, self._stats, decomp_stats, self._radix_max_digit, self._radix_min_digit, self._radix_base, 1)
         self._global_scale = self._stats.view([-1])[0]
 
     @property
@@ -360,8 +335,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """Check if overflows were detected by any call to step(...) method.
         Clears the overflow flag.
         """
-        has_overflow = self._dummy_overflow_buf.item()
-        self._dummy_overflow_buf.zero_()
+        has_overflow = self._overflow_buf.item()
+        self._overflow_buf.zero_()
         return has_overflow
 
     @property
@@ -369,7 +344,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """Check if overflows were detected by any call to step(...) method.
         Does not clear overflow flag.
         """
-        return self._dummy_overflow_buf.item()
+        return self._overflow_buf.item()
 
     def strided_check_finite(self, output_params, stride=1, start=-1, end=-1, clear=True):
         """Strided check for overflow.
@@ -379,7 +354,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             out_p = output_params[start:end]
         else:
             out_p = output_params
-        fused_adam_cuda.strided_check_finite(self._dummy_overflow_buf,
+        fused_adam_cuda.strided_check_finite(self._overflow_buf,
                 out_p,
                 stride,
                 1 if clear else 0)
@@ -406,16 +381,15 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         shard_start = block_id * self._block_size + shard_id * self._shard_size
         shard_end = shard_start + self._shard_size
 
-        copy_to_fp32 = False
         if self._fp32_p is None:
             assert (not undo), "Tried to undo step before calling step."
             # Allocate fp32 buffers on demand. Note that we don't make these part of the state
             # since each rank only has partial buffers.
             # To-Do: 
-            self._fp32_p = torch.empty([self._num_blocks*self._shard_size]).float().cuda()
+            self._fp32_p = torch.zeros([self._num_blocks*self._shard_size]).float().cuda()
             self._fp32_m = torch.zeros([self._num_blocks*self._shard_size]).float().cuda()
             self._fp32_v = torch.zeros([self._num_blocks*self._shard_size]).float().cuda()
-            copy_to_fp32 = True
+            self._copy_to_fp32 = True
 
         step = None
         offset = 0
@@ -434,10 +408,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             group_end = -2
 
             for p in group['params']:
-                if p.grad is None:
+                if not p.requires_grad:
                     continue
-                if p.grad.is_sparse:
-                    raise RuntimeError('FusedAdam does not support sparse gradients, please consider SparseAdam instead')
+                #if p.grad.is_sparse:
+                #    raise RuntimeError('FusedAdam does not support sparse gradients, please consider SparseAdam instead')
 
                 state = self.state[p]
                 if len(state) == 0:
@@ -457,14 +431,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         group_start = clipped_start
                     group_end = clipped_end
 
-                    if copy_to_fp32:
+                    if self._copy_to_fp32:
                         param_offset = clipped_start - shard_start
                         param_size = clipped_end - clipped_start
                         buffer_start = block_id * self._shard_size + param_offset
                         buffer_end = buffer_start + param_size
                         param_start = (clipped_start - start)
                         param_end = param_start + param_size
-                        self._fp32_p[buffer_start:buffer_end].copy_(p[param_start:param_end].float())
+                        self._fp32_p[buffer_start:buffer_end].copy_(p.view(-1)[param_start:param_end].float())
 
                 offset += nels
 
@@ -492,12 +466,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                                          beta2,
                                          group['eps'],
                                          combined_scale,
-                                         step+1, # To-Do: Verify this should be step+1
+                                         step+1, # FIXME: Verify this should be step+1
                                          self.eps_mode,
                                          bias_correction,
                                          group['weight_decay'])
                 else:
-                    fused_adam_cuda.adam(self._dummy_overflow_buf,
+                    fused_adam_cuda.adam(self._overflow_buf,
                                          self._fp32_p[group_buffer_start:group_buffer_end],
                                          self._fp32_p[group_buffer_start:group_buffer_end],
                                          self._new_params[group_shard_start:group_shard_end],
@@ -519,7 +493,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def revert_step(self):
         """Revert effect of previously calling partial_step.
         """
-        self._wait_for_events()
+        self._wait_streams()
         for block_id in range(self._num_blocks):
             self._partial_step_single_shard(block_id, undo=True)
 
@@ -528,7 +502,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
-        self._wait_for_events()
+        self._wait_streams()
 
         # Compute gradient L2 norm (optionally)
         if self._normalize_by_L2_grad_norm:
@@ -536,30 +510,46 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             self._L2_grad_norm = self._partial_L2_grad_norm_squared[0]
 
         # Complete self._new_params
-        if not self._full_pipeline:
-            for block_id in range(self._num_blocks):
-                self._partial_step_single_shard(block_id, undo=False)
+        if not self._overlap_reductions or not self._full_pipeline:
+            if self._new_params is None:
+                self._new_params = torch.empty_like(self._flat_grads)
+            for inv_block_id in range(self._num_blocks):
+                block_id = self._num_blocks - inv_block_id - 1
+                with torch.cuda.stream(self._blk_st[self._num_redux%len(self._blk_st)]):
+                    start = block_id * self._block_size
+                    end = start + self._block_size
+                    if not self._overlap_reductions:
+                        do_prestats = True if block_id+1 == self._num_blocks else False
+                        self._pipeline_block(self._flat_grads, self._new_params, start, end, do_prestats)
+                    else:
+                        self._pipeline_block_step(self._flat_grads, self._new_params, start, end)
+                    self._num_redux += 1
+            self._wait_streams()
 
         # Check for overflow
         # Store state for loss scaler calculation
-        self.strided_check_finite(self._new_params, stride=self._shard_size)
+        self.strided_check_finite(self._new_params, stride=self._shard_size, start=0, end=self._net_total_param_size)
         if self.peek_overflow:
+            print("Reverting step")
             self.revert_step()
         else:
             # Copy self._new_params to model params
             offset = 0
-            for group in self.param_groups:
-                for p in group['params']:
-                    if p.grad is None:
-                        continue
-                    state = self.state[p]
-                    if len(state) == 0:
-                        state['step'] = 0
-                    state['step'] += 1
-                    nels = p.numel()
-                    p.set_(self._new_params[offset:offset+nels].view_as(p))
-                    offset += nels
-            self._new_params = None
+            with torch.no_grad():
+                for group in self.param_groups:
+                    for p in group['params']:
+                        if not p.requires_grad:
+                            continue
+                        state = self.state[p]
+                        if len(state) == 0:
+                            state['step'] = 0
+                        state['step'] += 1
+                        nels = p.numel()
+                        p.set_(self._new_params[offset:offset+nels].view_as(p))
+                        offset += nels
+        self._new_params = None
+        self._copy_to_fp32 = False
+        self._decomp_stats = None
 
         return loss
 

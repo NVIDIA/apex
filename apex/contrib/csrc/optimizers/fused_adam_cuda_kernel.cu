@@ -83,7 +83,7 @@ __global__ void adam_cuda_kernel(
 		T vi = v_in[j];
 		T pi = p_in[j];
 		GRAD_T gi = g_in[j];
-		__syncthreads();
+                // don't put __syncthreads inside this loop, it will cause deadlock
 		T scaled_grad = gi/grad_scale;
 		if (isfinite(scaled_grad)) {
                 	mi = b1*mi + (1-b1)*scaled_grad;
@@ -98,7 +98,6 @@ __global__ void adam_cuda_kernel(
         	} else {
 			*noop_gmem = 1;
 		}
-		__syncthreads();
 		m_out[j] = mi;
 		v_out[j] = vi;
 		p_out[j] = pi;
@@ -261,7 +260,7 @@ void fused_strided_check_finite(
 {
 	//Get tensor size
 	int tsize = p_copy.numel();
-	int niter = tsize / stride;
+	int niter = (tsize + stride - 1) / stride;
 
 	//Determine #threads and #blocks
 	const int threadsPerBlock = 512;
