@@ -67,7 +67,7 @@ std::vector<torch::Tensor> fwd(
   AT_ASSERTM(output_weights.type().scalarType()   == at::ScalarType::Half, "Only HALF is supported");
   
   if (use_mask) {
-  	AT_ASSERTM(pad_mask.dim()       == 2, "expected 2D tensor");
+  	AT_ASSERTM(pad_mask.dim()                     == 2,                    "expected 2D tensor");
   	AT_ASSERTM(pad_mask.type().scalarType()       == at::ScalarType::Byte, "Only BYTE is supported");
   }
   

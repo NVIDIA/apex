@@ -8,6 +8,13 @@ from .encdec_multihead_attn_func               import encdec_attn_func
 from .fast_encdec_multihead_attn_func          import fast_encdec_attn_func
 from .fast_encdec_multihead_attn_norm_add_func import fast_encdec_attn_norm_add_func
 
+@torch.jit.script
+def jit_dropout_add(x, residual, prob, is_training) :
+    # type: (Tensor, Tensor, float, bool) -> Tensor
+    out = F.dropout(x, p=prob, training=True)
+    out = residual + out
+    return out
+
 class EncdecMultiheadAttn(nn.Module):
     """Multi-headed attention.
 
@@ -34,13 +41,19 @@ class EncdecMultiheadAttn(nn.Module):
         else:
             self.register_parameter('in_proj_bias', None)
         if self.include_norm_add :
-            self.lyr_nrm_gamma_weights = Parameter(torch.Tensor(embed_dim))
-            self.lyr_nrm_beta_weights  = Parameter(torch.Tensor(embed_dim))
+            if impl == 'fast' :
+                self.lyr_nrm_gamma_weights = Parameter(torch.Tensor(embed_dim))
+                self.lyr_nrm_beta_weights  = Parameter(torch.Tensor(embed_dim))
+                self.lyr_nrm               = None
+            else :
+                self.lyr_nrm_gamma_weights = None
+                self.lyr_nrm_beta_weights  = None
+                self.lyr_nrm = torch.nn.LayerNorm(embed_dim)
         self.reset_parameters()
         
         if self.include_norm_add :
             if   impl == 'fast'    : self.attn_func = fast_encdec_attn_norm_add_func
-            elif impl == 'default' : assert False, "TODO: make default self attn with norm and add."
+            elif impl == 'default' : self.attn_func = encdec_attn_func
             else :                   assert False, "Unsupported impl: {} !".format(impl)
         else :
             if   impl == 'fast'    : self.attn_func = fast_encdec_attn_func
@@ -56,8 +69,11 @@ class EncdecMultiheadAttn(nn.Module):
             nn.init.constant_(self.in_proj_bias_kv, 0.)
             nn.init.constant_(self.out_proj.bias, 0.)
         if self.include_norm_add :
-            nn.init.ones_(self.lyr_nrm_gamma_weights)
-            nn.init.zeros_(self.lyr_nrm_beta_weights)
+            if self.impl == 'fast' :
+                nn.init.ones_(self.lyr_nrm_gamma_weights)
+                nn.init.zeros_(self.lyr_nrm_beta_weights)
+            else :
+                self.lyr_nrm.reset_parameters()
 
     def forward(self, query, key, value, key_padding_mask=None, need_weights=False, attn_mask=None, is_training=True) :
         """Input shape: Time x Batch x Channel
@@ -78,16 +94,26 @@ class EncdecMultiheadAttn(nn.Module):
             mask = None
 
         if self.include_norm_add :
-            outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query, key, 
-                                     self.lyr_nrm_gamma_weights, self.lyr_nrm_beta_weights, 
-                                     self.in_proj_weight_q, self.in_proj_weight_kv, self.out_proj_weight, mask, self.dropout)
+            if self.impl == 'fast' :
+                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query, key, 
+                                         self.lyr_nrm_gamma_weights, self.lyr_nrm_beta_weights, 
+                                         self.in_proj_weight_q, self.in_proj_weight_kv, self.out_proj_weight, mask, self.dropout)
+            else :
+                lyr_nrm_results = self.lyr_nrm(query)
+                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, lyr_nrm_results, key, 
+                                         self.in_proj_weight_q, self.in_proj_weight_kv, 
+                                         self.out_proj_weight, mask, self.dropout)
+                if is_training :
+                    outputs = jit_dropout_add(outputs, query, self.dropout, is_training)
+                else :
+                    outputs = outputs + query 
         else :
-            if self.impl == 'default' :
-                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query, key, 
+            if self.impl == 'fast' :
+                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query, key, 
                                          self.in_proj_weight_q, self.in_proj_weight_kv, 
                                          self.out_proj_weight, mask, self.dropout)
             else :
-                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query, key, 
+                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query, key, 
                                          self.in_proj_weight_q, self.in_proj_weight_kv, 
                                          self.out_proj_weight, mask, self.dropout)
 

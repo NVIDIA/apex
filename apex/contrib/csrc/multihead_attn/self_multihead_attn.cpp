@@ -56,7 +56,7 @@ std::vector<torch::Tensor> fwd(
   AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half, "Only HALF is supported");
 
   if (use_mask) {
-  	AT_ASSERTM(pad_mask.dim()       == 2, "expected 2D tensor");
+  	AT_ASSERTM(pad_mask.dim()                     == 2,                    "expected 2D tensor");
   	AT_ASSERTM(pad_mask.type().scalarType()       == at::ScalarType::Byte, "Only BYTE is supported");
   }
   
@@ -104,7 +104,7 @@ std::vector<torch::Tensor> bwd(
   AT_ASSERTM(inputs.type().scalarType()            == at::ScalarType::Half, "Only HALF is supported");
   AT_ASSERTM(input_weights.type().scalarType()     == at::ScalarType::Half, "Only HALF is supported");
   AT_ASSERTM(output_weights.type().scalarType()    == at::ScalarType::Half, "Only HALF is supported");
-  //AT_ASSERTM(dropout_mask.type().scalarType()      == at::ScalarType::Half, "Only HALF is supported");
+  AT_ASSERTM(dropout_mask.type().scalarType()      == at::ScalarType::Byte, "Only BYTE is supported");
   
   return bwd_cuda(
                                  heads, 
