@@ -35,15 +35,22 @@ class SelfMultiheadAttn(nn.Module):
         self.in_proj_weight  = Parameter(torch.Tensor(3*embed_dim, embed_dim))
         self.out_proj_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
         if self.bias:
+            assert impl != 'fast', "ERROR! The Fast implementation does not support biases!"
             self.in_proj_bias = Parameter(torch.Tensor(3*embed_dim))
+            self.out_proj_bias = Parameter(torch.Tensor(embed_dim))
         else:
             self.register_parameter('in_proj_bias', None)
+            self.register_parameter('out_proj_bias', None)
+            self.in_proj_bias = None
+            self.out_proj_bias = None
         if self.include_norm_add :
             if impl == 'fast' :
                 self.lyr_nrm_gamma_weights = Parameter(torch.Tensor(embed_dim))
                 self.lyr_nrm_beta_weights  = Parameter(torch.Tensor(embed_dim))
                 self.lyr_nrm               = None
             else : 
+                self.register_parameter('lyr_norm_gamma_weights', None)
+                self.register_parameter('lyr_norm_beta_weights', None)
                 self.lyr_nrm_gamma_weights = None
                 self.lyr_nrm_beta_weights  = None
                 self.lyr_nrm = torch.nn.LayerNorm(embed_dim)
@@ -63,7 +70,7 @@ class SelfMultiheadAttn(nn.Module):
         nn.init.xavier_uniform_(self.out_proj_weight)
         if self.bias:
             nn.init.constant_(self.in_proj_bias, 0.)
-            nn.init.constant_(self.out_proj.bias, 0.)
+            nn.init.constant_(self.out_proj_bias, 0.)
         if self.include_norm_add :
             if self.impl == 'fast' :
                 nn.init.ones_(self.lyr_nrm_gamma_weights)
@@ -96,7 +103,9 @@ class SelfMultiheadAttn(nn.Module):
             else :
                 lyr_nrm_results = self.lyr_nrm(query)
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, lyr_nrm_results, 
-                                         self.in_proj_weight, self.out_proj_weight, mask, self.dropout)
+                                         self.in_proj_weight, self.out_proj_weight, 
+                                         self.in_proj_bias, self.out_proj_bias,
+                                         mask, self.dropout)
                 if is_training :
                     outputs = jit_dropout_add(outputs, query, self.dropout, is_training)
                 else :
@@ -107,6 +116,8 @@ class SelfMultiheadAttn(nn.Module):
                                          self.in_proj_weight, self.out_proj_weight, mask, self.dropout)
             else :
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query, 
-                                         self.in_proj_weight, self.out_proj_weight, mask, self.dropout)
+                                         self.in_proj_weight, self.out_proj_weight, 
+                                         self.in_proj_bias, self.out_proj_bias,
+                                         mask, self.dropout)
 
         return outputs,None

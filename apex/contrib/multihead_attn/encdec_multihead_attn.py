@@ -36,16 +36,24 @@ class EncdecMultiheadAttn(nn.Module):
         self.in_proj_weight_kv   = Parameter(torch.Tensor(2*embed_dim, embed_dim))
         self.out_proj_weight     = Parameter(torch.Tensor(embed_dim, embed_dim))
         if self.bias:
+            assert impl != 'fast', "ERROR! The Fast implementation does not support biases!"
             self.in_proj_bias_q  = Parameter(torch.Tensor(embed_dim))
             self.in_proj_bias_kv = Parameter(torch.Tensor(2*embed_dim))
+            self.out_proj_bias   = Parameter(torch.Tensor(embed_dim))
         else:
-            self.register_parameter('in_proj_bias', None)
+            self.register_parameter('in_proj_bias_q', None)
+            self.register_parameter('in_proj_bias_kv', None)
+            self.in_proj_bias_q  = None
+            self.in_proj_bias_kv = None
+            self.out_proj_bias   = None
         if self.include_norm_add :
             if impl == 'fast' :
                 self.lyr_nrm_gamma_weights = Parameter(torch.Tensor(embed_dim))
                 self.lyr_nrm_beta_weights  = Parameter(torch.Tensor(embed_dim))
                 self.lyr_nrm               = None
             else :
+                self.register_parameter('lyr_norm_gamma_weights', None)
+                self.register_parameter('lyr_norm_beta_weights', None)
                 self.lyr_nrm_gamma_weights = None
                 self.lyr_nrm_beta_weights  = None
                 self.lyr_nrm = torch.nn.LayerNorm(embed_dim)
@@ -67,7 +75,7 @@ class EncdecMultiheadAttn(nn.Module):
         if self.bias:
             nn.init.constant_(self.in_proj_bias_q, 0.)
             nn.init.constant_(self.in_proj_bias_kv, 0.)
-            nn.init.constant_(self.out_proj.bias, 0.)
+            nn.init.constant_(self.out_proj_bias, 0.)
         if self.include_norm_add :
             if self.impl == 'fast' :
                 nn.init.ones_(self.lyr_nrm_gamma_weights)
@@ -101,8 +109,9 @@ class EncdecMultiheadAttn(nn.Module):
             else :
                 lyr_nrm_results = self.lyr_nrm(query)
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, lyr_nrm_results, key, 
-                                         self.in_proj_weight_q, self.in_proj_weight_kv, 
-                                         self.out_proj_weight, mask, self.dropout)
+                                         self.in_proj_weight_q, self.in_proj_weight_kv, self.out_proj_weight, 
+                                         self.in_proj_bias_q, self.in_proj_bias_kv, self.out_proj_bias, 
+                                         mask, self.dropout)
                 if is_training :
                     outputs = jit_dropout_add(outputs, query, self.dropout, is_training)
                 else :
@@ -110,11 +119,11 @@ class EncdecMultiheadAttn(nn.Module):
         else :
             if self.impl == 'fast' :
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query, key, 
-                                         self.in_proj_weight_q, self.in_proj_weight_kv, 
-                                         self.out_proj_weight, mask, self.dropout)
+                                         self.in_proj_weight_q, self.in_proj_weight_kv, self.out_proj_weight, mask, self.dropout)
             else :
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query, key, 
-                                         self.in_proj_weight_q, self.in_proj_weight_kv, 
-                                         self.out_proj_weight, mask, self.dropout)
+                                         self.in_proj_weight_q, self.in_proj_weight_kv, self.out_proj_weight, 
+                                         self.in_proj_bias_q, self.in_proj_bias_kv, self.out_proj_bias, 
+                                         mask, self.dropout)
 
         return outputs,None

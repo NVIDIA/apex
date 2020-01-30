@@ -20,6 +20,7 @@ parser.add_argument('--norm-add', action='store_true', help='Include Layer Norm 
 parser.add_argument('--ref', action='store_true', help='Reference implementation in python pytorch.')
 parser.add_argument('--native', action='store_true', help='torch.nn.MultitheadAttention Version.')
 parser.add_argument('--fwd', action='store_true', help='Only execute Fwd Pass.')
+parser.add_argument('--biases', action='store_true', help='Execute multihead attention with Linear Biases.')
 
 args = parser.parse_args()
 assert args.seq_length % 64 == 0, "Sequence Length should be a multiple of 64!"
@@ -36,16 +37,16 @@ attn_layers = []
 for idx in range(0, args.layers) :
     if args.encdec_attn :
         if args.ref :
-            attn_layers.append(EncdecMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, include_norm_add=False, impl='default'))
+            attn_layers.append(EncdecMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, bias=args.biases, include_norm_add=False, impl='default'))
         else :
-            attn_layers.append(EncdecMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, include_norm_add=args.norm_add, impl='fast'))
+            attn_layers.append(EncdecMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, bias=args.biases, include_norm_add=args.norm_add, impl='fast'))
     else :
         if args.native :
-            attn_layers.append(torch.nn.MultiheadAttention(args.hidden_dim, args.heads, dropout=0.1, bias=False))
+            attn_layers.append(torch.nn.MultiheadAttention(args.hidden_dim, args.heads, dropout=0.1, bias=args.biases))
         elif args.ref :
-            attn_layers.append(SelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, include_norm_add=args.norm_add, impl='default'))
+            attn_layers.append(SelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, bias=args.biases, include_norm_add=args.norm_add, impl='default'))
         else :
-            attn_layers.append(SelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, include_norm_add=args.norm_add, impl='fast'))
+            attn_layers.append(SelfMultiheadAttn(args.hidden_dim, args.heads, dropout=0.1, bias=args.biases, include_norm_add=args.norm_add, impl='fast'))
     attn_layers[idx].cuda()
     attn_layers[idx].half()
     if not args.native :

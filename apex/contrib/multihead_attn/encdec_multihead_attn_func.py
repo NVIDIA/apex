@@ -6,7 +6,11 @@ from torch.autograd.variable  import Variable
 
 class EncdecAttnFunc(torch.autograd.Function) :
     @staticmethod
-    def forward(ctx, use_time_mask, is_training, heads, scale, inputs_q, inputs_kv, input_weights_q, input_weights_kv, output_weights, mask, dropout_prob) :
+    def forward(ctx, use_time_mask, is_training, heads, scale, inputs_q, inputs_kv, 
+                input_weights_q, input_weights_kv, output_weights, 
+                input_biases_q, input_biases_kv, output_biases, 
+                mask, dropout_prob) :
+        use_biases_t   = Variable(torch.tensor([input_biases_q is not None]))
         heads_t        = Variable(torch.tensor([heads]))
         scale_t        = Variable(torch.tensor([scale]))
         dropout_prob_t = Variable(torch.tensor([dropout_prob]))
@@ -18,14 +22,26 @@ class EncdecAttnFunc(torch.autograd.Function) :
         # input2: (weights)     [embed_dim (1024), embed_dim (1024)] (transpose [0,1])
         # output:               [seql_q, seqs, embed_dim]
         # GEMM: ( (seql_q*seqs) x embed_dim ) x ( embed_dim x embed_dim ) = (seql_q*seqs x embed_dim)
-        input_lin_q_results = torch.mm(inputs_q.view(inputs_q.size(0) * inputs_q.size(1), inputs_q.size(2)), input_weights_q.transpose(0,1))
+        if use_biases_t[0] :
+            input_lin_q_results = torch.addmm(input_biases_q,
+                                              inputs_q.view(inputs_q.size(0) * inputs_q.size(1), inputs_q.size(2)), 
+                                              input_weights_q.transpose(0,1),
+                                              beta=1., alpha=1.)
+        else :
+            input_lin_q_results = torch.mm(inputs_q.view(inputs_q.size(0) * inputs_q.size(1), inputs_q.size(2)), input_weights_q.transpose(0,1))
         input_lin_q_results = input_lin_q_results.view(inputs_q.size(0), inputs_q.size(1), input_weights_q.size(0))
         # Input Linear GEMM KV
         # input1: (activations) [seql_k, seqs, embed_dim(1024)]
         # input2: (weights)     [embed_dim*2 (2048), embed_dim (1024)] (transpose [0,1])
         # output:               [seql_k, seqs, embed_dim*2]
         # GEMM: ( (seql_k*seqs) x embed_dim ) x ( embed_dim x embed_dim*2 ) = (seql_k*seqs x embed_dim*2)
-        input_lin_kv_results = torch.mm(inputs_kv.view(inputs_kv.size(0) * inputs_kv.size(1), inputs_kv.size(2)), input_weights_kv.transpose(0,1))
+        if use_biases_t[0] :
+            input_lin_kv_results = torch.addmm(input_biases_kv, 
+                                               inputs_kv.view(inputs_kv.size(0) * inputs_kv.size(1), inputs_kv.size(2)), 
+                                               input_weights_kv.transpose(0,1),
+                                               beta=1., alpha=1.)
+        else :
+            input_lin_kv_results = torch.mm(inputs_kv.view(inputs_kv.size(0) * inputs_kv.size(1), inputs_kv.size(2)), input_weights_kv.transpose(0,1))
         input_lin_kv_results = input_lin_kv_results.view(inputs_kv.size(0), inputs_kv.size(1), input_weights_kv.size(0))
 	
         # Slice out k,v from one big Input Linear outuput (should only impact meta data, no copies!)
@@ -89,10 +105,17 @@ class EncdecAttnFunc(torch.autograd.Function) :
         # Input2: (weights)     [ embed_dim, embed_dim ] transpose(0,1)
         # Output:               [ seql_q, seqs, embed_dim ]
         # GEMM: ( seql_q*seqs x embed_dim ) x ( embed_dim x embed_dim ) = ( seql_q*seqs x embed_dim )
-        outputs = torch.mm(matmul2_results.view(inputs_q.size(0) * inputs_q.size(1), inputs_q.size(2)), output_weights.transpose(0,1))
+        if use_biases_t[0] :
+            outputs = torch.addmm(output_biases,
+                                  matmul2_results.view(inputs_q.size(0) * inputs_q.size(1), inputs_q.size(2)), 
+                                  output_weights.transpose(0,1),
+                                  beta=1., alpha=1.)
+        else :
+            outputs = torch.mm(matmul2_results.view(inputs_q.size(0) * inputs_q.size(1), inputs_q.size(2)), output_weights.transpose(0,1))
         outputs = outputs.view(inputs_q.size(0), inputs_q.size(1), output_weights.size(0))
 
-        ctx.save_for_backward(heads_t,                                  \
+        ctx.save_for_backward(use_biases_t,                             \
+                              heads_t,                                  \
                               scale_t,                                  \
                               matmul2_results,                          \
                               dropout_results,                          \
@@ -111,6 +134,7 @@ class EncdecAttnFunc(torch.autograd.Function) :
     
     @staticmethod
     def backward(ctx, output_grads) :
+        use_biases_t,                                                   \
         heads_t,                                                        \
         scale_t,                                                        \
         matmul2_results,                                                \
@@ -160,6 +184,11 @@ class EncdecAttnFunc(torch.autograd.Function) :
         output_weight_grads = torch.mm(output_grads.view(output_grads.size(0) * output_grads.size(1), output_grads.size(2)).transpose(0,1), 
                                        matmul2_results.view(matmul2_results.size(0) * matmul2_results.size(1), matmul2_results.size(2)))
         output_lin_grads = output_lin_grads.view(output_grads.size(0), output_grads.size(1)*heads_t[0], head_dim).transpose(0,1)
+        
+        if use_biases_t[0] :
+            output_bias_grads = torch.sum(output_grads.view(output_grads.size(0) * output_grads.size(1), output_grads.size(2)), 0)
+        else :
+            output_bias_grads = None
 
         # Matmul2 - DGRAD1
         # Input1: (data grads)  [seql_q, seqs*heads, head_dim] transpose(0,1)
@@ -223,7 +252,18 @@ class EncdecAttnFunc(torch.autograd.Function) :
         # output:               [2*embed_dim, embed_dim]
         # GEMM: ( 2*embed_dim x seql_k*seqs ) x ( seql_k*seqs x embed_dim ) = (2*embed_dim x embed_dim)
         input_weight_kv_grads = torch.mm(input_lin_kv_results_grads.transpose(0,1), inputs_kv.view(inputs_kv.size(0)*inputs_kv.size(1), inputs_kv.size(2)))
+        
+        if use_biases_t[0] :
+            input_bias_grads_q = torch.sum(queries_grads, 0)
+            input_bias_grads_kv = torch.sum(input_lin_kv_results_grads, 0)
+        else :
+            input_bias_grads_q = None
+            input_bias_grads_kv = None
 
-        return None, None, None, None, input_q_grads, input_kv_grads, input_weight_q_grads, input_weight_kv_grads, output_weight_grads, None, None
+        return None, None, None, None,                                            \
+               input_q_grads, input_kv_grads,                                     \
+               input_weight_q_grads, input_weight_kv_grads, output_weight_grads,  \
+               input_bias_grads_q, input_bias_grads_kv, output_bias_grads,        \
+               None, None
 
 encdec_attn_func = EncdecAttnFunc.apply

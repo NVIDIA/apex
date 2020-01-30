@@ -6,7 +6,11 @@ from torch.autograd.variable  import Variable
 
 class SelfAttnFunc(torch.autograd.Function) :
     @staticmethod
-    def forward(ctx, use_time_mask, is_training, heads, scale, inputs, input_weights, output_weights, mask, dropout_prob) :
+    def forward(ctx, use_time_mask, is_training, heads, scale, inputs, 
+                input_weights, output_weights, 
+                input_biases, output_biases, 
+                mask, dropout_prob) :
+        use_biases_t   = Variable(torch.tensor([input_biases is not None]))
         heads_t        = Variable(torch.tensor([heads]))
         scale_t        = Variable(torch.tensor([scale]))
         dropout_prob_t = Variable(torch.tensor([dropout_prob]))
@@ -18,7 +22,13 @@ class SelfAttnFunc(torch.autograd.Function) :
         # input2: (weights)     [embed_dim*3 (3072), embed_dim (1024)] (transpose [0,1])
         # output:               [seql_q, seqs, embed_dim*3]
         # GEMM: ( (seql_q*seqs) x embed_dim ) x ( embed_dim x embed_dim*3 ) = (seql_q*seqs x embed_dim*3)
-        input_lin_results = torch.mm(inputs.view(inputs.size(0) * inputs.size(1), inputs.size(2)), input_weights.transpose(0,1))
+        if use_biases_t[0] :
+            input_lin_results = torch.addmm(input_biases, 
+                                            inputs.view(inputs.size(0) * inputs.size(1), inputs.size(2)), 
+                                            input_weights.transpose(0,1),
+                                            beta=1., alpha=1.)
+        else :
+            input_lin_results = torch.mm(inputs.view(inputs.size(0) * inputs.size(1), inputs.size(2)), input_weights.transpose(0,1))
         input_lin_results = input_lin_results.view(inputs.size(0), inputs.size(1), input_weights.size(0))
 	
         # Slice out q,k,v from one big Input Linear outuput (should only impact meta data, no copies!)
@@ -82,10 +92,17 @@ class SelfAttnFunc(torch.autograd.Function) :
         # Input2: (weights)     [ embed_dim, embed_dim ] transpose(0,1)
         # Output:               [ seql_q, seqs, embed_dim ]
         # GEMM: ( seql_q*seqs x embed_dim ) x ( embed_dim x embed_dim ) = ( seql_q*seqs x embed_dim )
-        outputs = torch.mm(matmul2_results.view(inputs.size(0) * inputs.size(1), inputs.size(2)), output_weights.transpose(0,1))
+        if use_biases_t[0] :
+            outputs = torch.addmm(output_biases, 
+                                  matmul2_results.view(inputs.size(0) * inputs.size(1), inputs.size(2)), 
+                                  output_weights.transpose(0,1),
+                                  beta=1., alpha=1.)
+        else :
+            outputs = torch.mm(matmul2_results.view(inputs.size(0) * inputs.size(1), inputs.size(2)), output_weights.transpose(0,1))
         outputs = outputs.view(inputs.size(0), inputs.size(1), output_weights.size(0))
 
-        ctx.save_for_backward(heads_t,                                  \
+        ctx.save_for_backward(use_biases_t,                             \
+                              heads_t,                                  \
                               scale_t,                                  \
                               matmul2_results,                          \
                               dropout_results,                          \
@@ -101,6 +118,7 @@ class SelfAttnFunc(torch.autograd.Function) :
     
     @staticmethod
     def backward(ctx, output_grads) :
+        use_biases_t,                                                   \
         heads_t,                                                        \
         scale_t,                                                        \
         matmul2_results,                                                \
@@ -147,6 +165,11 @@ class SelfAttnFunc(torch.autograd.Function) :
         output_weight_grads = torch.mm(output_grads.view(output_grads.size(0) * output_grads.size(1), output_grads.size(2)).transpose(0,1), 
                                        matmul2_results.view(matmul2_results.size(0) * matmul2_results.size(1), matmul2_results.size(2)))
         output_lin_grads = output_lin_grads.view(inputs.size(0), inputs.size(1)*heads_t[0], head_dim).transpose(0,1)
+        
+        if use_biases_t[0] :
+            output_bias_grads = torch.sum(output_grads.view(output_grads.size(0) * output_grads.size(1), output_grads.size(2)), 0)
+        else :
+            output_bias_grads = None
 
         # Matmul2 - DGRAD1
         # Input1: (data grads)  [seql_q, seqs*heads, head_dim] transpose(0,1)
@@ -197,6 +220,15 @@ class SelfAttnFunc(torch.autograd.Function) :
         # GEMM: ( 3*embed_dim x seql_q*seqs ) x ( seql_q*seqs x embed_dim ) = (3*embed_dim x embed_dim)
         input_weight_grads = torch.mm(input_lin_results_grads.transpose(0,1), inputs.view(inputs.size(0)*inputs.size(1), inputs.size(2)))
 
-        return None, None, None, None, input_grads, input_weight_grads, output_weight_grads, None, None
+        if use_biases_t[0] :
+            input_bias_grads = torch.sum(input_lin_results_grads, 0)
+        else :
+            input_bias_grads = None
+
+        return None, None, None, None,                   \
+               input_grads,                              \
+               input_weight_grads, output_weight_grads,  \
+               input_bias_grads, output_bias_grads,      \
+               None, None
 
 self_attn_func = SelfAttnFunc.apply
