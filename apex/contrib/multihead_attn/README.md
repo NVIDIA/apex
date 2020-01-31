@@ -15,8 +15,8 @@ This implementation has two main features :
 
 ## How to Instantiate
 
-`SelfMultiheadAttn(` _hidden dim_, _heads_, _dropout prob_, _bias=bool_, _include_norm_add=bool_, _impl='fast'_ `)`
-`EncdecMultiheadAttn(` _hidden dim_, _heads_, _dropout prob_, _bias=bool_, _include_norm_add=bool_, _impl='fast'_ `)`
+`SelfMultiheadAttn(` _hidden dim_, _heads_, _dropout=prob_, _bias=bool_, _include_norm_add=bool_, _impl='fast'_ `)`
+`EncdecMultiheadAttn(` _hidden dim_, _heads_, _dropout=prob_, _bias=bool_, _include_norm_add=bool_, _impl='fast'_ `)`
 
  `impl` has two options:
  * `fast` uses C++ Version
