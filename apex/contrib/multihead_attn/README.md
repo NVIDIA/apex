@@ -11,3 +11,28 @@ This implementation has too main features :
 | Reduces CPU Overheads               |                | X           |
 | Fuses masking with Softmax          |                | X           |
 | Removes Transposes and Copies       | X              | X           |
+
+## Instructions to build on Linux
+
+```
+$ git clone https://github.com/NVIDIA/apex
+$ cd apex
+$ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_multihead_attn" ./
+```
+## Try Performance Tests Yourself!
+Perf test script is found here!
+```
+cd contrib/examples/multihead_attn
+```
+### Fast Multihead Attention
+```
+python perf_test_multihead_attn.py --ref
+```
+### Fast Multihead Attention with C++ Implementation
+```
+python perf_test_multihead_attn.py
+```
+### Compare with `torch.nn.MultiheadAttn`
+```
+python perf_test_multihead_attn.py --native
+```
