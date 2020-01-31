@@ -7,8 +7,8 @@ from apex.contrib.multihead_attn import EncdecMultiheadAttn
 
 parser = argparse.ArgumentParser(description='Multihead Attention Standalone Test')
 parser.add_argument('--seq-length', default=64, type=int, help='Sequence Length of Input')
-parser.add_argument('--num-seqs-start', default=5, type=int, help='Start Range of Number of Sequences')
-parser.add_argument('--num-seqs-stop', default=80, type=int, help='Stop Range of Number of Sequences')
+parser.add_argument('--num-seqs-start', default=10, type=int, help='Start Range of Number of Sequences')
+parser.add_argument('--num-seqs-stop', default=120, type=int, help='Stop Range of Number of Sequences')
 parser.add_argument('--num-seqs-inc', default=5, type=int, help='Range Increment of Number of Sequences')
 parser.add_argument('--trials', default=20, type=int, help='Number of Trials to Execute')
 parser.add_argument('--warmup-trials', default=5, type=int, help='Warmup Trials to discard')
