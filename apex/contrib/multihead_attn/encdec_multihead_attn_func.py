@@ -66,18 +66,17 @@ class EncdecAttnFunc(torch.autograd.Function) :
 
         if mask is not None :
             # Self Attention Time Mask
-            if mask_future_timesteps :
-               assert (len(mask.size()) == 2), "Timing mask is not 2D!"
-               assert (mask.size(0) == mask.size(1)), "Sequence length should match!"
-               matmul1_results += mask.unsqueeze(0)
+            if use_time_mask :
+                assert (len(mask.size()) == 2), "Timing mask is not 2D!"
+                assert (mask.size(0) == mask.size(1)), "Sequence length should match!"
+                matmul1_results = matmul1_results.masked_fill_(mask, float('-inf'))
             # Key Padding Mask
             else :
-               assert len(matmul.size()) == 3, "Padding mask is not 3D!"
-               batches,seql_q,seql_k = matmul1_results.size()
-               seqs = int(batches / heads)
-               matmul1_results = matmul1_results.view(seqs, heads, seql_q, seql_k)
-               matmul1_results = matmul1_results + mask.unsqueeze(1).unsequeeze(2)
-               matmul1_results = matmul1_results.view(seqs*heads, seql_q, seql_k)
+                batches,seql_q,seql_k = matmul1_results.size()
+                seqs = int(batches / heads)
+                matmul1_results = matmul1_results.view(seqs, heads, seql_q, seql_k)
+                matmul1_results = matmul1_results.masked_fill_(mask.unsqueeze(1).unsqueeze(2), float('-inf'))
+                matmul1_results = matmul1_results.view(seqs*heads, seql_q, seql_k)
 
         softmax_results = F.softmax(matmul1_results, dim=-1)
 

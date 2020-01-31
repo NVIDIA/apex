@@ -72,6 +72,65 @@ class EncdecMultiheadAttnTest(unittest.TestCase):
         self.assertTrue(torch.allclose(self.ref_inputs_k,  self.tst_inputs_k,  atol=1e-5, rtol=1e-5))
         self.assertTrue(torch.allclose(ref_outputs, tst_outputs, atol=1e-3, rtol=1e-3))
         self.assertTrue(torch.allclose(self.ref_inputs_q.grad, self.tst_inputs_q.grad, atol=1e-3, rtol=1e-3))
+    
+    def test_encdec_multihead_attn_time_mask(self) :
+        grads          = torch.randn_like(self.tst_inputs_q)
+        time_mask_byte = torch.triu(torch.ones(self.tst_inputs_q.size(0), self.tst_inputs_k.size(0), device=torch.device("cuda"), dtype=torch.uint8), 1)
+        time_mask_bool = time_mask_byte.to(torch.bool)
+        
+        ref_outputs,_ = self.ref_layer.forward(self.ref_inputs_q, 
+                                               self.ref_inputs_k, 
+                                               self.ref_inputs_k,
+                                               key_padding_mask=None, 
+                                               need_weights=False, 
+                                               attn_mask=time_mask_bool,
+                                               is_training=True)
+
+        tst_outputs,_ = self.tst_layer.forward(self.tst_inputs_q, 
+                                               self.tst_inputs_k, 
+                                               self.tst_inputs_k,
+                                               key_padding_mask=None, 
+                                               need_weights=False, 
+                                               attn_mask=time_mask_byte,
+                                               is_training=True)
+        
+        self.ref_inputs_q.backward(grads)
+        self.tst_inputs_q.backward(grads)
+
+        self.assertTrue(torch.allclose(self.ref_inputs_q,  self.tst_inputs_q,  atol=1e-5, rtol=1e-5))
+        self.assertTrue(torch.allclose(self.ref_inputs_k,  self.tst_inputs_k,  atol=1e-5, rtol=1e-5))
+        self.assertTrue(torch.allclose(ref_outputs, tst_outputs, atol=1e-3, rtol=1e-3))
+        self.assertTrue(torch.allclose(self.ref_inputs_q.grad, self.tst_inputs_q.grad, atol=1e-3, rtol=1e-3))
+    
+    def test_encdec_multihead_attn_pad_mask(self) :
+        grads         = torch.randn_like(self.tst_inputs_q)
+        pad_mask_byte = torch.tril(torch.ones(self.tst_inputs_k.size(1), self.tst_inputs_k.size(0), device=torch.device("cuda"), dtype=torch.uint8), 1)
+        pad_mask_bool = pad_mask_byte.to(torch.bool)
+        
+        ref_outputs,_ = self.ref_layer.forward(self.ref_inputs_q, 
+                                               self.ref_inputs_k, 
+                                               self.ref_inputs_k,
+                                               key_padding_mask=pad_mask_bool, 
+                                               need_weights=False, 
+                                               attn_mask=None,
+                                               is_training=True)
+
+        tst_outputs,_ = self.tst_layer.forward(self.tst_inputs_q, 
+                                               self.tst_inputs_k, 
+                                               self.tst_inputs_k,
+                                               key_padding_mask=pad_mask_byte, 
+                                               need_weights=False, 
+                                               attn_mask=None,
+                                               is_training=True)
+        
+        self.ref_inputs_q.backward(grads)
+        self.tst_inputs_q.backward(grads)
+
+        self.assertTrue(torch.allclose(self.ref_inputs_q,  self.tst_inputs_q,  atol=1e-5, rtol=1e-5))
+        self.assertTrue(torch.allclose(self.ref_inputs_k,  self.tst_inputs_k,  atol=1e-5, rtol=1e-5))
+        self.assertTrue(torch.allclose(ref_outputs, tst_outputs, atol=1e-3, rtol=1e-3))
+        self.assertTrue(torch.allclose(self.ref_inputs_q.grad, self.tst_inputs_q.grad, atol=1e-3, rtol=1e-3))
+
 
 if __name__ == '__main__':
     unittest.main()

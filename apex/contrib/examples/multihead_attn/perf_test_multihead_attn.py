@@ -23,7 +23,6 @@ parser.add_argument('--fwd', action='store_true', help='Only execute Fwd Pass.')
 parser.add_argument('--biases', action='store_true', help='Execute multihead attention with Linear Biases.')
 
 args = parser.parse_args()
-assert args.seq_length % 64 == 0, "Sequence Length should be a multiple of 64!"
 
 if not torch.cuda.is_available():
     raise NotImplementedError('Running on CPU is not supported')
