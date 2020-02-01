@@ -50,3 +50,10 @@ python perf_test_multihead_attn.py --native
 ```
 python perf_test_multihead_attn.py --seq-length 64 --num-seqs-start 10 --num-seqs-stop 120 --num-seqs-inc 5
 ```
+
+## Performance Comparisons
+
+Performance was measured with 64 token sequence lengths on an NVIDIA TitanV card.
+
+![Multihead Attention Forward](MHA_fwd.png)
+![Multihead Attention Backward](MHA_bwd.png)
