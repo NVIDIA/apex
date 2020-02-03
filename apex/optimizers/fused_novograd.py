@@ -99,7 +99,7 @@ class FusedNovoGrad(torch.optim.Optimizer):
         super(FusedNovoGrad, self).load_state_dict(state_dict)
         # in case exp_avg_sq is not on the same device as params, move it there
         for group in self.param_groups:
-            if len(group['params']) > 0:
+            if (len(group['params']) > 0) and ("exp_avg_sq" in group):
                 group['exp_avg_sq'][0] = group['exp_avg_sq'][0].to(group['params'][0].device)
                 group['exp_avg_sq'][1] = group['exp_avg_sq'][1].to(group['params'][0].device)
 
