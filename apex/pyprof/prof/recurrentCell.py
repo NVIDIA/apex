@@ -1,6 +1,6 @@
 from collections import OrderedDict
-from .utility import Utility
-from .base import OperatorLayerBase
+from utility import Utility
+from base import OperatorLayerBase
 
 def hasTileSize(name):
 	if ("sgemm" in name) or ("884gemm" in name) or ("hgemm" in name):

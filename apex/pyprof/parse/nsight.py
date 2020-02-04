@@ -1,38 +1,28 @@
 import sys
-import struct, binascii
 
-class NVVP(object):
+class Nsight(object):
 	"""
 	This class gets kernel information from the SQL (nvvp) database.
 	"""
 
-	driverT = "CUPTI_ACTIVITY_KIND_DRIVER"
+	#driverT = "CUPTI_ACTIVITY_KIND_DRIVER"
 	runtimeT = "CUPTI_ACTIVITY_KIND_RUNTIME"
-	kernelT = "CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL"
-	markerT = "CUPTI_ACTIVITY_KIND_MARKER"
-	stringT = "StringTable"
+	kernelT = "CUPTI_ACTIVITY_KIND_KERNEL"
+	markerT = "NVTX_EVENTS"
+	stringT = "StringIds"
 
 	def __init__(self, db):
 		self.db = db
 		self.markerId = 0
-
-	def encode_object_id(self, pid, tid):
-		"""
-		Given process id (pid) and thread id (tid), return the object id.
-		object id = pid (little endian 4 bytes) + tid (little endian 8 bytes)
-		"""
-		objId = struct.pack('<i', pid) + struct.pack('<q',tid)
-		objId = binascii.hexlify(objId).decode('ascii').upper()
-		return objId
-
 
 	def getProfileStart(self):
 		"""
 		Get the profile start time
 		"""
 		profStart = sys.maxsize
-		for table in [self.driverT, self.runtimeT, self.kernelT, self.markerT]:
-			colname = "timestamp" if table is self.markerT else "start"
+		#for table in [self.driverT, self.runtimeT, self.kernelT, self.markerT]:
+		for table in [self.runtimeT, self.kernelT, self.markerT]:
+			colname = "start"
 			cmd = "select {} from {} ORDER BY {} ASC LIMIT 1".format(colname, table, colname)
 			result = self.db.select(cmd)
 			assert(len(result) <= 1)
@@ -48,7 +38,7 @@ class NVVP(object):
 		"""
 		Get the string associated with an id.
 		"""
-		cmd = "select value from {} where _id_ = {}".format(self.stringT, id_)
+		cmd = "select value from {} where id = {}".format(self.stringT, id_)
 		result = self.db.select(cmd)
 		assert (len(result) == 1)
 		return result[0]['value']
@@ -56,22 +46,13 @@ class NVVP(object):
 	def createMarkerTable(self):
 		"""
 		Create a temporary table and index it to speed up repeated SQL quesries.
-		The table is an INNER JOIN of CUPTI_ACTIVITY_KIND_MARKER with itself.
 		"""
-		cmd = 'CREATE TEMPORARY TABLE marker AS SELECT \
-					a._id_ as id, \
-					a.timestamp AS startTime, \
-					b.timestamp AS endTime, \
-					HEX(a.objectId) AS objectId, \
-					a.name AS name \
-					FROM {} AS a INNER JOIN {} AS b ON \
-					a.id = b.id and \
-					a.flags = 2 and b.flags = 4'.format(self.markerT, self.markerT)
+		cmd = 'CREATE TEMPORARY TABLE marker AS SELECT * FROM {}'.format(self.markerT)
 		self.db.execute(cmd)
 
-		self.db.execute('CREATE INDEX start_index ON marker (startTime)')
-		self.db.execute('CREATE INDEX end_index ON marker (endTime)')
-		self.db.execute('CREATE INDEX id_index ON marker (id)')
+		self.db.execute('CREATE INDEX start_index ON marker (start)')
+		self.db.execute('CREATE INDEX end_index ON marker (end)')
+		#self.db.execute('CREATE INDEX id_index ON marker (id)')
 
 	def getCPUInfo(self, corrId):
 		"""
@@ -80,23 +61,19 @@ class NVVP(object):
 		"""
 
 		#First look in the runtime table
-		cmd = "select start,end,processId,threadId from {} where correlationId={}".format(self.runtimeT, corrId);
+		#cmd = "select start,end,processId,threadId from {} where correlationId={}".format(self.runtimeT, corrId);
+		cmd = "select start,end,globalTid from {} where correlationId={}".format(self.runtimeT, corrId);
 		result = self.db.select(cmd)
-		assert (len(result) <= 1)
-
-		if (len(result) == 0):
-			#Look in the driver table
-			cmd = "select start,end,processId,threadId from {} where correlationId={}".format(self.driverT, corrId);
-			result = self.db.select(cmd)
-
 		assert (len(result) == 1)
+
 		info = result[0]
 		start = info['start']
 		end = info['end']
-		pid = info['processId']
-		tid = info['threadId']
-		tid = tid & 0xffffffff	#convert to unsigned
-		objId = self.encode_object_id(pid, tid)
+		# globalId = f(pid, tid). Call it objId (for legacy).
+		objId = info['globalTid']
+		pid = -1
+		tid = objId & 0x00000000ffffff # not sure, but appears to be.
+
 		assert (end > start)
 		return [start, end, pid, tid, objId]
 
@@ -104,7 +81,7 @@ class NVVP(object):
 		"""
 		Get GPU kernel info
 		"""
-		cmd = "select name,correlationId,start,end,deviceId,streamId,gridX,gridY,gridZ,blockX,blockY,blockZ from {}".format(self.kernelT)
+		cmd = "select demangledName as name,correlationId,start,end,deviceId,streamId,gridX,gridY,gridZ,blockX,blockY,blockZ from {}".format(self.kernelT)
 		result = self.db.select(cmd)
 		return result
 
@@ -142,8 +119,8 @@ class NVVP(object):
 			This speeds up future queries.
 			"""
 			margin = 0
-			cmd = 'DELETE FROM marker WHERE objectId = "{}" AND endTime < {}'.format(objId, sTime - margin)
-			#cmd = 'DELETE FROM marker WHERE endTime < {}'.format(sTime - margin)
+			cmd = 'DELETE FROM marker WHERE globalTid = {} AND end < {}'.format(objId, sTime - margin)
+			#cmd = 'DELETE FROM marker WHERE end < {}'.format(sTime - margin)
 			self.db.execute(cmd)
 
 		def getLayerName(mlist):
@@ -226,16 +203,17 @@ class NVVP(object):
 			return mlist
 
 		#Find all encapsulating markers
-		cmd = 'SELECT id,name from marker where \
-				objectId = "{}" and \
-				startTime < {} and \
-				endTime > {} \
-				ORDER BY startTime ASC'.format(objId, startTime, endTime)
+		cmd = 'SELECT text from marker where \
+				globalTid = {} and \
+				start < {} and \
+				end > {} \
+				ORDER BY start ASC'.format(objId, startTime, endTime)
 		result = self.db.select(cmd)
 
 		#Bin markers into different lists
 		for r in result:
-			m = self.getString(r['name'])
+			#m = self.getString(r['name'])
+			m = r['text']
 
 			#Hack: If its a known gradient checkpointing marker, ignore it.
 			if m.find("CheckpointFunctionBackward") >= 0:
@@ -269,6 +247,7 @@ class NVVP(object):
 		#Get markers with seq id (inserted by PyTorch) from the previous kernel to the present kernel
 		#Only for fprop kernels
 		if (len(result) and not bprop):
+			'''
 			loId = self.markerId
 			hiId = result[-1]['id']
 			self.markerId = hiId
@@ -288,7 +267,10 @@ class NVVP(object):
 				altSeqMarkers = list(set(altSeqMarkers))
 				altSeqMarkers.sort(key=seqcompare)
 				altSeqMarkers = prune(altSeqMarkers)
+			'''
+			pass
 
 		delete(objId, startTime)
+		#delete("", startTime)
 
 		return layerMarkers, filterTrace(traceMarkers), reprMarkers, pyprofMarkers, seqMarkers, otherMarkers, altSeqMarkers, getSeqId(seqMarkers), getSeqId(altSeqMarkers), getLayerName(layerMarkers)

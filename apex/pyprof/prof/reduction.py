@@ -1,6 +1,6 @@
 from collections import OrderedDict
-from .utility import Utility
-from .base import OperatorLayerBase
+from utility import Utility
+from base import OperatorLayerBase
 
 class Mean(OperatorLayerBase):
 
@@ -24,8 +24,15 @@ class Mean(OperatorLayerBase):
 		assert (len(args) <= 2)
 		i = args[0]
 
-		self.shape = i['shape']
-		self.type = i['dtype']
+		# The input can be a scalar or a tensor
+		if 'shape' in i: # tensor
+			self.shape = i['shape']
+			self.type = i['dtype']
+		else: # scalar
+			assert ('value' in i)
+			self.shape = (1,)
+			self.type = i['type']
+
 		self.dir = d.dir
 		self.sub = d.sub
 
@@ -82,6 +89,7 @@ class Sum(OperatorLayerBase):
 
 		self.shape = i['shape']
 		self.type = i['dtype']
+		self.sub = d.sub
 
 	def params(self):
 		p = OrderedDict([('T', self.shape), ('type', self.type)])
@@ -104,7 +112,11 @@ class Sum(OperatorLayerBase):
 		return self.elems()
 
 	def bytes(self):
-		return self.elems() * Utility.typeToBytes(self.type)
+		b = self.elems() * Utility.typeToBytes(self.type)
+		if self.sub == 0:
+			return b
+		else:
+			return 0
 
 class Norm(OperatorLayerBase):
 
@@ -125,6 +137,7 @@ class Norm(OperatorLayerBase):
 		i = args[0]
 		self.shape = i['shape']
 		self.type = i['dtype']
+		self.sub = d.sub
 
 	def params(self):
 		p = OrderedDict([('T', self.shape), ('type', self.type)])
@@ -134,11 +147,19 @@ class Norm(OperatorLayerBase):
 		return Utility.numElems(self.shape)
 
 	def bytes(self):
-		return self.elems() * Utility.typeToBytes(self.type)
+		b = self.elems() * Utility.typeToBytes(self.type)
+		if self.sub == 0:
+			return b
+		else:
+			return 0
 
 	def flops(self):
 		# square and add plus sqrt
-		return 2 * self.elems() + 1
+		f = 2 * self.elems() + 1
+		if self.sub == 0:
+			return f
+		else:
+			return 0
 
 	def tc(self):
 		return "-"

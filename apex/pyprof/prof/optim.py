@@ -1,6 +1,6 @@
 from collections import OrderedDict
-from .utility import Utility
-from .base import OperatorLayerBase
+from utility import Utility
+from base import OperatorLayerBase
 
 #TODO: Add support for other optimizers.
 
@@ -16,6 +16,7 @@ class Adam(OperatorLayerBase):
 		self.mod_ = mod
 		self.op_ = op
 		self.args = args
+		self.sub = d.sub
 
 		assert(op == "adam")
 		assert (len(args) == 12) or (len(args) == 14)
@@ -53,7 +54,7 @@ class Adam(OperatorLayerBase):
 			#Get time to write "hw
 			b += elems * Utility.typeToBytes(gtype)
 
-		return b
+		return b if (self.sub == 0) else 0
 
 	def tc(self):
 		return "-"

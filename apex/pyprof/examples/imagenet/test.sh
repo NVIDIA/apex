@@ -6,8 +6,8 @@ SCRIPT=`realpath $0`
 SCRIPTPATH=`dirname $SCRIPT`
 PYPROF="$SCRIPTPATH/../.."
 
-parse="python -m apex.pyprof.parse"
-prof="python -m apex.pyprof.prof"
+parse="python $PYPROF/parse/parse.py"
+prof="python $PYPROF/prof/prof.py"
 
 for net in "resnet50"
 do
@@ -21,7 +21,7 @@ do
 
 			#NVprof
 			echo "nvprof -fo $sql --profile-from-start off python imagenet.py -m ${net} -o $optim -b $batch"
-			nvprof -fo $sql --profile-from-start off python imagenet.py -m ${net} -o $optim -b $batch
+			sudo env "PATH=$PATH" nvprof -fo $sql --profile-from-start off python imagenet.py -m ${net} -o $optim -b $batch
 
 			#Parse
 			echo $parse $sql
