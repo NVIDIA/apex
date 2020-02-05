@@ -47,7 +47,7 @@ class FusedNovoGrad(torch.optim.Optimizer):
         reg_inside_moment (bool, optional): whether do regularization (norm and L2)
             in momentum calculation. True for include, False for not include and
             only do it on update term. (default: False)
-        grad_averaging (bool, optional): whether apply (1-beta2) to grad when
+        grad_averaging (bool, optional): whether apply (1-beta1) to grad when
             calculating running averages of gradient. (default: True)
         norm_type (int, optional): which norm to calculate for each layer.
             2 for L2 norm, and 0 for infinite norm. These 2 are only supported

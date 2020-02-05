@@ -2,7 +2,6 @@ import torch
 from setuptools import setup, find_packages
 import subprocess
 
-from pip._internal import main as pipmain
 import sys
 import warnings
 import os
@@ -31,10 +30,11 @@ if TORCH_MAJOR == 0 and TORCH_MINOR < 4:
 cmdclass = {}
 ext_modules = []
 
+extras = {}
 if "--pyprof" in sys.argv:
     with open('requirements.txt') as f:
         required_packages = f.read().splitlines()
-        pipmain(["install"] + required_packages)
+        extras['pyprof'] = required_packages
     try:
         sys.argv.remove("--pyprof")
     except:
@@ -153,9 +153,7 @@ if "--bnp" in sys.argv:
                                               'nvcc':['-DCUDA_HAS_FP16=1',
                                                       '-D__CUDA_NO_HALF_OPERATORS__',
                                                       '-D__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '-D__CUDA_NO_HALF2_OPERATORS__',
-                                                      '-gencode',
-                                                      'arch=compute_70,code=sm_70'] + version_dependent_macros}))
+                                                      '-D__CUDA_NO_HALF2_OPERATORS__'] + version_dependent_macros}))
 
 if "--xentropy" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
@@ -209,4 +207,5 @@ setup(
     description='PyTorch Extensions written by NVIDIA',
     ext_modules=ext_modules,
     cmdclass=cmdclass,
+    extras_require=extras,
 )
