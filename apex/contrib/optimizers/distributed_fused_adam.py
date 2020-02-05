@@ -170,6 +170,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         for i in range(self._num_blk_st):
             self._blk_st.append(torch.cuda.Stream())
         self._works = []
+        if num_prestats > 0:
+            self._prestats_grad_block = torch.empty([self._prestats_block_size]).half().cuda()
         
     def _get_flush_block(self):
         flush_block = []
@@ -201,13 +203,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def _pipeline_block_reductions(self, flat_grads, start, end, do_prestats=False):
         if do_prestats:
             grad_block = flat_grads[start:end]
-            prestats_grad_block = torch.empty([self._prestats_block_size]).half().cuda()
-            self._merge(prestats_grad_block, grad_block, self._decomp_stats)
-            prestats_grad_shards = [prestats_grad_block[i*self._prestats_shard_size:(i+1)*self._prestats_shard_size] for i in range(self._group_size)]
+            self._merge(self._prestats_grad_block, grad_block, self._decomp_stats)
+            prestats_grad_shards = [self._prestats_grad_block[i*self._prestats_shard_size:(i+1)*self._prestats_shard_size] for i in range(self._group_size)]
             work = self.__pipeline_block_reductions(prestats_grad_shards)
             work.wait()
             grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
-            self._split(prestats_grad_block, grad_shards[self._rank_in_group], self._decomp_stats)
+            self._split(self._prestats_grad_block, grad_shards[self._rank_in_group], self._decomp_stats)
             self._extract_reduced_stats(self._decomp_stats)
             return None
         else:
