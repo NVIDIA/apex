@@ -259,7 +259,7 @@ The above steps should result in a permanent change.
 
 _Temporary solution_
 
-When running on bare metal, you can run nsys with `sudo`.
+When running on bare metal, you can run nvprof or nsys with `sudo`.
 
 If you're running in a Docker image, you can temporarily elevate your privileges with one of the following (oldest to newest syntax):
 <pre>
