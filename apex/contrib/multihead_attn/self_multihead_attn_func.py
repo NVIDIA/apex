@@ -48,7 +48,7 @@ class SelfAttnFunc(torch.autograd.Function) :
         # Input2: (Keys)    [seql_k, seqs*heads, head_dim] transpose(0,1)
         # output:           [seqs*heads, seql_q, seql_k]
         # GEMM: Per batch: ( seql_q x head_dim ) x ( head_dim x seql_k ) = ( seql_q x seql_k )
-        matmul1_results = torch.empty((queries.size(1),queries.size(0),keys.size(2)), dtype=queries.dtype, device=torch.device('cuda'))
+        matmul1_results = torch.empty((queries.size(1),queries.size(0),keys.size(0)), dtype=queries.dtype, device=torch.device('cuda'))
         matmul1_results = torch.baddbmm(matmul1_results, queries.transpose(0,1), keys.transpose(0,1).transpose(1,2), out=matmul1_results, beta=0.0, alpha=scale_t[0])
 
         if mask is not None :
@@ -56,12 +56,14 @@ class SelfAttnFunc(torch.autograd.Function) :
             if use_time_mask :
                 assert (len(mask.size()) == 2), "Timing mask is not 2D!"
                 assert (mask.size(0) == mask.size(1)), "Sequence length should match!"
+                mask = mask.to(torch.bool)
                 matmul1_results = matmul1_results.masked_fill_(mask, float('-inf'))
             # Key Padding Mask
             else :
                 batches,seql_q,seql_k = matmul1_results.size()
                 seqs = int(batches / heads)
                 matmul1_results = matmul1_results.view(seqs, heads, seql_q, seql_k)
+                mask = mask.to(torch.bool)
                 matmul1_results = matmul1_results.masked_fill_(mask.unsqueeze(1).unsqueeze(2), float('-inf'))
                 matmul1_results = matmul1_results.view(seqs*heads, seql_q, seql_k)
 

@@ -9,7 +9,7 @@ class EncdecMultiheadAttnNormAddTest(unittest.TestCase):
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-        self.seq_length   = 64
+        self.seq_length   = 80
         self.sequences    = 10
         self.hidden_dim   = 1024
         self.heads        = 16
