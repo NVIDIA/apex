@@ -321,7 +321,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if stats.numel() != self._num_prestats:
             raise RuntimeError('stats tensor must have %d elements' % (self._num_prestats))
         with torch.cuda.stream(self._blk_st[self._num_redux%len(self._blk_st)]):
-            self._stats = stats.clone()
+            self._stats = stats
             self._decomp_stats = torch.empty([self._stats.numel()*self._radix_size]).half().cuda()
             radix_decomp_cuda.radix_decomp(self._overflow_buf, self._stats, self._decomp_stats, self._radix_max_digit, self._radix_min_digit, self._radix_base, 1)
             self._global_scale = None
