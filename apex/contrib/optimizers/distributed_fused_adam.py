@@ -294,7 +294,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
     def _wait_works(self):
         for work in self._works:
-            work.wait()
+            if work is not None:
+                work.wait()
         self._works = []
 
     def set_global_scale(self, global_scale):
