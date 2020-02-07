@@ -172,6 +172,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._works = []
         if num_prestats > 0:
             self._prestats_grad_block = torch.empty([self._prestats_block_size]).half().cuda()
+
+    def set_last_step(self, last_step):
+        self._last_step = last_step
         
     def _get_flush_block(self):
         flush_block = []
