@@ -57,7 +57,7 @@ class VanillaFusedAdam(torch.optim.Optimizer):
                  num_prestats=0, radix_min_digit=-20, radix_max_digit=20,
                  radix_base=2, num_blocks=4, full_pipeline=True,
                  normalize_by_L2_grad_norm=False, distributed_weight_update=0,
-                 dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
+                 dwu_group_size=0, dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
                  dwu_num_ag_pg=0, dwu_num_blk_st=1):
         global fused_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
