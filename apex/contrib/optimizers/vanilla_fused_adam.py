@@ -78,6 +78,9 @@ class VanillaFusedAdam(torch.optim.Optimizer):
         self._overflow_buf = torch.cuda.IntTensor([0])
 
         self._global_scale = None
+
+    def set_last_step(self, last_step):
+        return None
         
     def set_global_scale(self, global_scale):
         """Manually set global scale.
