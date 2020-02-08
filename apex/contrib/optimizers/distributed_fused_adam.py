@@ -269,9 +269,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
     def _do_overlapped_reduction(self, param_i, param_grads_size, param_offset, grad):
         # handle overlapped reductions
-        if self._last_step == False:
-            torch.div(grad.view(-1), self._world_size, out=self._flat_grads[param_offset:param_offset+param_grads_size])
-            self._grads_generated[param_i]=True
+        torch.div(grad.view(-1), self._world_size, out=self._flat_grads[param_offset:param_offset+param_grads_size])
+        self._grads_generated[param_i]=True
+        if not self._last_step:
             if self._overlap_reductions:
                 flush_block = self._get_flush_block()
                 while flush_block:
@@ -517,13 +517,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         self._wait_works()
 
-        # Compute gradient L2 norm (optionally)
-        if self._normalize_by_L2_grad_norm:
-            torch.distributed.all_reduce(self._partial_L2_grad_norm_squared)
-            self._L2_grad_norm = self._partial_L2_grad_norm_squared[0]
-
         # Complete self._new_params
-        if not self._overlap_reductions or not self._full_pipeline:
+        if self._last_step or not self._overlap_reductions or not self._full_pipeline:
             if self._new_params is None:
                 self._new_params = torch.empty_like(self._flat_grads)
             for inv_block_id in range(self._num_blocks):
@@ -531,13 +526,18 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 with torch.cuda.stream(self._blk_st[self._num_redux%len(self._blk_st)]):
                     start = block_id * self._block_size
                     end = start + self._block_size
-                    if not self._overlap_reductions:
+                    if self._last_step or not self._overlap_reductions:
                         do_prestats = True if block_id+1 == self._num_blocks else False
                         self._pipeline_block(self._flat_grads, self._new_params, start, end, do_prestats)
                     else:
                         self._pipeline_block_step(self._flat_grads, self._new_params, start, end)
                     self._num_redux += 1
             self._wait_works()
+
+        # Compute gradient L2 norm (optionally)
+        if self._normalize_by_L2_grad_norm:
+            torch.distributed.all_reduce(self._partial_L2_grad_norm_squared)
+            self._L2_grad_norm = self._partial_L2_grad_norm_squared[0]
 
         # Check for overflow
         # Store state for loss scaler calculation
