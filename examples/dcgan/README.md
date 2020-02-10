@@ -29,13 +29,13 @@ With the new Amp API **you never need to explicitly convert your model, or the i
 
 "Pure FP32" training:
 ```
-$ python main_amp.py --opt-level O0
+$ python main_amp.py --opt_level O0
 ```
 Recommended mixed precision training:
 ```
-$ python main_amp.py --opt-level O1
+$ python main_amp.py --opt_level O1
 ```
 
 Have a look at the original [DCGAN example](https://github.com/pytorch/examples/tree/master/dcgan) for more information about the used arguments.
 
-To enable mixed precision training, we introduce the `--opt-level` argument.
+To enable mixed precision training, we introduce the `--opt_level` argument.
