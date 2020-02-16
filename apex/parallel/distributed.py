@@ -597,7 +597,7 @@ class DistributedDataParallel(Module):
                             len(self.buckets), self.num_buckets)
                         for b, bucket in enumerate(self.buckets):
                             assert len(bucket) == self.bucket_sizes[b], "len(buckets[{}]) = {}, expected {})".format(
-                                b, len(buckets[b]), self.bucket_sizes[b])
+                                b, len(bucket[b]), self.bucket_sizes[b])
                             for i in range(len(bucket)):
                                 bucket[i] = None
 
