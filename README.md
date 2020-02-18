@@ -1,10 +1,8 @@
 # Introduction
 
-This repository holds NVIDIA-maintained utilities to streamline
-mixed precision and distributed training in Pytorch.
+This is a Python package available on [PyPI](https://pypi.org/project/pytorch-extension/) for NVIDIA-maintained utilities to streamline mixed precision and distributed training in Pytorch.
 Some of the code here will be included in upstream Pytorch eventually.
-The intention of Apex is to make up-to-date utilities available to
-users as quickly as possible.
+The intention of Apex is to make up-to-date utilities available to users as quickly as possible.
 
 ## Full API Documentation: [https://nvidia.github.io/apex](https://nvidia.github.io/apex)
 
@@ -119,17 +117,14 @@ See the [Docker example folder](https://github.com/NVIDIA/apex/tree/master/examp
 
 ### Linux
 
-For performance and full functionality, we recommend installing Apex with
-CUDA and C++ extensions via
+For performance and full functionality, we recommend installing with CUDA and C++ extensions according to
 ```
-git clone https://github.com/NVIDIA/apex
-cd apex
-pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" pytorch-extension
 ```
 
-Apex also supports a Python-only build (required with Pytorch 0.4) via
+For a Python-only build (required with Pytorch 0.4):
 ```
-pip install -v --disable-pip-version-check --no-cache-dir ./
+pip install -v --disable-pip-version-check --no-cache-dir pytorch-extension
 ```
 A Python-only build omits:
 - Fused kernels required to use `apex.optimizers.FusedAdam`.
@@ -142,5 +137,5 @@ Pyprof support has been moved to its own [dedicated repository](https://github.c
 The codebase is deprecated in Apex and will be removed soon.
 
 ### Windows support
-Windows support is experimental, and Linux is recommended.  `pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .` may work if you were able to build Pytorch from source
-on your system.  `pip install -v --no-cache-dir .` (without CUDA/C++ extensions) is more likely to work.  If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
+Windows support is experimental, and Linux is recommended.  `pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" pytorch-extension` may work if you were able to build Pytorch from source
+on your system.  `pip install -v --disable-pip-version-check --no-cache-dir pytorch-extension` (without CUDA/C++ extensions) is more likely to work.  If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
