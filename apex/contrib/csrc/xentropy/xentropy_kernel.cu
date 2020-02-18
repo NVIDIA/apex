@@ -1,6 +1,6 @@
 /**
  * From PyTorch:
- * 
+ *
  * Copyright (c) 2016-     Facebook, Inc            (Adam Paszke)
  * Copyright (c) 2014-     Facebook, Inc            (Soumith Chintala)
  * Copyright (c) 2011-2014 Idiap Research Institute (Ronan Collobert)
@@ -10,54 +10,54 @@
  * Copyright (c) 2006-2010 NEC Laboratories America (Ronan Collobert, Leon Bottou, Iain Melvin, Jason Weston)
  * Copyright (c) 2006      Idiap Research Institute (Samy Bengio)
  * Copyright (c) 2001-2004 Idiap Research Institute (Ronan Collobert, Samy Bengio, Johnny Mariethoz)
- * 
+ *
  * From Caffe2:
- * 
+ *
  * Copyright (c) 2016-present, Facebook Inc. All rights reserved.
- * 
+ *
  * All contributions by Facebook:
  * Copyright (c) 2016 Facebook Inc.
- *  
+ *
  * All contributions by Google:
  * Copyright (c) 2015 Google Inc.
  * All rights reserved.
- *  
+ *
  * All contributions by Yangqing Jia:
  * Copyright (c) 2015 Yangqing Jia
  * All rights reserved.
- *  
+ *
  * All contributions from Caffe:
  * Copyright(c) 2013, 2014, 2015, the respective contributors
  * All rights reserved.
- *  
+ *
  * All other contributions:
  * Copyright(c) 2015, 2016 the respective contributors
  * All rights reserved.
- *  
+ *
  * Caffe2 uses a copyright model similar to Caffe: each contributor holds
  * copyright over their contributions to Caffe2. The project versioning records
  * all such contribution and copyright details. If a contributor wants to further
  * mark their specific copyright on a particular contribution, they should
  * indicate their copyright solely in the commit message of the change when it is
  * committed.
- * 
+ *
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
- * 
+ *
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 
+ *
  * 3. Neither the names of Facebook, Deepmind Technologies, NYU, NEC Laboratories America
  *    and IDIAP Research Institute nor the names of its contributors may be
  *    used to endorse or promote products derived from this software without
  *    specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -285,31 +285,34 @@ blockReduce(AccumT* smem,
   __syncthreads();
 }
 
-template <template<typename, typename> class Reduction, int ILP, typename T, typename AccumT>
+template <template<typename, typename> class Reduction, int ILP, int VEC, typename T, typename AccumT>
 __device__ __forceinline__ AccumT
 ilpReduce(T* data,
           int size,
           const Reduction<T, AccumT>& r,
           AccumT defaultVal)
 {
+  typedef typename std::aligned_storage<VEC*sizeof(T), VEC*alignof(T)>::type LoadT;
+
   AccumT threadVal = defaultVal;
   int offset = threadIdx.x;
 
   int last = size % (ILP * blockDim.x);
 
-  // Body (unroll by ILP times)
-  for (; offset < size - last; offset += blockDim.x * ILP) {
-    T tmp[ILP];
+  T v[ILP];
+  LoadT* value = reinterpret_cast<LoadT*>(&v);
 
+  for (; offset * ILP < (size - last); offset += blockDim.x) {
 #pragma unroll
-    for (int j = 0; j < ILP; ++j)
-      tmp[j] = data[offset + j * blockDim.x];
+    for (int j = 0; j < ILP/VEC; ++j)
+      value[j] = reinterpret_cast<LoadT*>(data + ILP*offset)[j];
 
-#pragma unroll
-    for (int j = 0; j < ILP; ++j)
-      threadVal = r(threadVal, tmp[j]);
+    for (int j = 0; j < ILP; ++j) {
+      threadVal = r(threadVal, v[j]);
+    }
   }
 
+  offset = size - last + threadIdx.x;
   // Epilogue
   for (; offset < size; offset += blockDim.x)
     threadVal = r(threadVal, data[offset]);
@@ -317,7 +320,7 @@ ilpReduce(T* data,
   return threadVal;
 }
 
-template <template<typename, typename> class Reduction1, template<typename, typename> class Reduction2, int ILP, typename T, typename AccumT>
+template <template<typename, typename> class Reduction1, template<typename, typename> class Reduction2, int ILP, int VEC, typename T, typename AccumT>
 __device__ __forceinline__ void
 ilpReduce(T* data,
           int size,
@@ -328,27 +331,29 @@ ilpReduce(T* data,
           const Reduction2<T, AccumT>& r2,
           AccumT defaultVal2)
 {
+  typedef typename std::aligned_storage<VEC*sizeof(T), VEC*alignof(T)>::type LoadT;
+
   AccumT threadVal1 = defaultVal1;
   AccumT threadVal2 = defaultVal2;
   int offset = threadIdx.x;
 
   int last = size % (ILP * blockDim.x);
 
-  // Body (unroll by ILP times)
-  for (; offset < size - last; offset += blockDim.x * ILP) {
-    T tmp[ILP];
+  T v[ILP];
+  LoadT* value = reinterpret_cast<LoadT*>(&v);
 
+  for (; offset * ILP < (size - last); offset += blockDim.x) {
 #pragma unroll
-    for (int j = 0; j < ILP; ++j)
-      tmp[j] = data[offset + j * blockDim.x];
+    for (int j = 0; j < ILP/VEC; ++j)
+      value[j] = reinterpret_cast<LoadT*>(data + ILP*offset)[j];
 
-#pragma unroll
     for (int j = 0; j < ILP; ++j) {
-      threadVal1 = r1(threadVal1, tmp[j]);
-      threadVal2 = r2(threadVal2, tmp[j]);
+      threadVal1 = r1(threadVal1, v[j]);
+      threadVal2 = r2(threadVal2, v[j]);
     }
   }
 
+  offset = size - last + threadIdx.x;
   // Epilogue
   for (; offset < size; offset += blockDim.x) {
     threadVal1 = r1(threadVal1, data[offset]);
@@ -358,6 +363,15 @@ ilpReduce(T* data,
   *reducVal1 = threadVal1;
   *reducVal2 = threadVal2;
 }
+
+__device__ __forceinline__ int get_alignment(uint64_t addr){
+  if(addr % 16 == 0) return 16;
+  if(addr % 8 == 0) return 8;
+  if(addr % 4 == 0) return 4;
+  if(addr % 2 == 0) return 2;
+  return 1;
+}
+
 
 template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t, template <typename, typename, typename> class Epilogue>
 __global__ void
@@ -375,17 +389,46 @@ cunn_SoftMaxXEntropyForward(
   // each block handles a sample in the mini-batch
   input += blockIdx.x * classes;
   //output += blockIdx.x * classes;
+  const int vec_size = get_alignment((uint64_t)input) / sizeof(scalar_t);
 
   int64_t label = labels[blockIdx.x];
 
   // find the max and sum
   accscalar_t threadMax, threadSum, max_k, sum_k;
-  ilpReduce<MaxFloat, AddFloat, ILP, scalar_t, accscalar_t>(
+  switch (vec_size) {
+  case 8:
+    ilpReduce<MaxFloat, AddFloat, ILP, 8, scalar_t, accscalar_t>(
       input, classes,
       &threadMax, MaxFloat<scalar_t, accscalar_t>(),
       -at::numeric_limits<accscalar_t>::max(),
       &threadSum, AddFloat<scalar_t, accscalar_t>(),
       static_cast<accscalar_t>(0));
+    break;
+  case 4:
+    ilpReduce<MaxFloat, AddFloat, ILP, 4, scalar_t, accscalar_t>(
+      input, classes,
+      &threadMax, MaxFloat<scalar_t, accscalar_t>(),
+      -at::numeric_limits<accscalar_t>::max(),
+      &threadSum, AddFloat<scalar_t, accscalar_t>(),
+      static_cast<accscalar_t>(0));
+    break;
+  case 2:
+    ilpReduce<MaxFloat, AddFloat, ILP, 2, scalar_t, accscalar_t>(
+      input, classes,
+      &threadMax, MaxFloat<scalar_t, accscalar_t>(),
+      -at::numeric_limits<accscalar_t>::max(),
+      &threadSum, AddFloat<scalar_t, accscalar_t>(),
+      static_cast<accscalar_t>(0));
+    break;
+  default:
+    ilpReduce<MaxFloat, AddFloat, ILP, 1, scalar_t, accscalar_t>(
+      input, classes,
+      &threadMax, MaxFloat<scalar_t, accscalar_t>(),
+      -at::numeric_limits<accscalar_t>::max(),
+      &threadSum, AddFloat<scalar_t, accscalar_t>(),
+      static_cast<accscalar_t>(0));
+  }
+
   blockReduce<Max, Add, accscalar_t>(
       sdata,
       &max_k, threadMax, Max<accscalar_t>(),
@@ -393,9 +436,22 @@ cunn_SoftMaxXEntropyForward(
       &sum_k, threadSum, Add<accscalar_t>(),
       static_cast<accscalar_t>(0));
 
+  accscalar_t threadExp;
   // reduce all values
-  accscalar_t threadExp = ilpReduce<SumExpFloat, ILP, scalar_t, accscalar_t>(
-      input, classes, SumExpFloat<scalar_t, accscalar_t>(max_k), static_cast<accscalar_t>(0));
+  switch (vec_size) {
+  case 8:
+    threadExp = ilpReduce<SumExpFloat, ILP, 8, scalar_t, accscalar_t>(input, classes, SumExpFloat<scalar_t, accscalar_t>(max_k), static_cast<accscalar_t>(0));
+    break;
+  case 4:
+    threadExp = ilpReduce<SumExpFloat, ILP, 4, scalar_t, accscalar_t>(input, classes, SumExpFloat<scalar_t, accscalar_t>(max_k), static_cast<accscalar_t>(0));
+    break;
+  case 2:
+    threadExp = ilpReduce<SumExpFloat, ILP, 2, scalar_t, accscalar_t>(input, classes, SumExpFloat<scalar_t, accscalar_t>(max_k), static_cast<accscalar_t>(0));
+    break;
+  default:
+    threadExp = ilpReduce<SumExpFloat, ILP, 1, scalar_t, accscalar_t>(input, classes, SumExpFloat<scalar_t, accscalar_t>(max_k), static_cast<accscalar_t>(0));
+  }
+
   accscalar_t sumAll = blockReduce<Add, accscalar_t>(
       sdata, threadExp, Add<accscalar_t>(), static_cast<accscalar_t>(0));
 
@@ -409,6 +465,59 @@ cunn_SoftMaxXEntropyForward(
       * smoothing - log_prob * (1 - smoothing);
     max_log_sum_exp[blockIdx.x] = max_k + std::log(sumAll);
   }
+}
+
+template <int ILP, int VEC, typename scalar_t, typename accscalar_t, typename outscalar_t>
+__device__ __forceinline__ void
+aligned_apply(scalar_t *gradInput,
+              scalar_t *logits,
+              outscalar_t *max_log_sum_exp,
+              outscalar_t *gradOutput,
+              int64_t *labels,
+              const float smoothing,
+              int classes)
+{
+  accscalar_t smooth_positives = 1.0 - smoothing;
+  accscalar_t smooth_negatives = smoothing / classes;
+  accscalar_t tmpGradOutput = gradOutput[blockIdx.x];
+  int64_t label = labels[blockIdx.x];
+  accscalar_t coeff = max_log_sum_exp[blockIdx.x];
+
+  int offset = threadIdx.x;
+  int last = classes % (ILP * blockDim.x);
+
+  typedef typename std::aligned_storage<VEC*sizeof(scalar_t), VEC*alignof(scalar_t)>::type LoadT;
+  // input
+  scalar_t v[ILP];
+  LoadT* value = reinterpret_cast<LoadT*>(&v);
+  // output
+  scalar_t r[ILP];
+  LoadT* result = reinterpret_cast<LoadT*>(&r);
+
+  for (; offset * ILP < (classes - last); offset += blockDim.x) {
+#pragma unroll
+    for (int j = 0; j < ILP/VEC; ++j)
+      value[j] = reinterpret_cast<LoadT*>(logits + ILP*offset)[j];
+
+#pragma unroll
+    for (int j = 0; j < ILP; ++j)
+      r[j] = tmpGradOutput * (std::exp(
+          static_cast<accscalar_t>(v[j]) - coeff) -
+          static_cast<accscalar_t>((offset * ILP + j == label) ? 1 : 0) *
+          smooth_positives - smooth_negatives);
+
+#pragma unroll
+    for (int j = 0; j < ILP/VEC; ++j)
+      reinterpret_cast<LoadT*>(gradInput + ILP*offset)[j] = result[j];
+  }
+
+  offset = classes - last + threadIdx.x;
+  for (; offset < classes; offset += blockDim.x)
+    gradInput[offset] = tmpGradOutput * (std::exp(
+        static_cast<accscalar_t>(logits[offset]) - coeff) -
+        static_cast<accscalar_t>((offset == label) ? 1 : 0) *
+        smooth_positives - smooth_negatives);
+
 }
 
 template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t, template<typename, typename, typename> class Epilogue>
@@ -425,40 +534,24 @@ cunn_SoftMaxXEntropyBackward(
   gradInput += blockIdx.x * classes;
   logits += blockIdx.x * classes;
 
-  accscalar_t smooth_positives = 1.0 - smoothing;
-  accscalar_t smooth_negatives = smoothing / classes;
-  accscalar_t tmpGradOutput = gradOutput[blockIdx.x];
-  int64_t label = labels[blockIdx.x];
-  accscalar_t coeff = max_log_sum_exp[blockIdx.x];
+  // We use smaller alignment for in/output
+  const int vec_size = std::min(get_alignment((uint64_t)logits), get_alignment((uint64_t)gradInput)) / sizeof(scalar_t);
 
-  int offset = threadIdx.x;
-  int last = classes % (ILP * blockDim.x);
-  for (; offset < classes - last; offset += blockDim.x * ILP) {
-    accscalar_t tmpLogits[ILP];
-
-#pragma unroll
-    for (int j = 0; j < ILP; ++j) {
-      tmpLogits[j] = static_cast<accscalar_t>(logits[offset + j * blockDim.x]);
-    }
-
-#pragma unroll
-    for (int j = 0; j < ILP; ++j)
-      gradInput[offset + j * blockDim.x] = tmpGradOutput * (
-         std::exp(tmpLogits[j] - coeff) - static_cast<accscalar_t>(
-         (offset + j * blockDim.x == label) ? 1 : 0) *
-         smooth_positives - smooth_negatives);
+  switch (vec_size) {
+  case 8:
+    aligned_apply<ILP, 8, scalar_t, accscalar_t, outscalar_t>(gradInput, logits, max_log_sum_exp, gradOutput, labels, smoothing, classes);
+    break;
+  case 4:
+    aligned_apply<ILP, 4, scalar_t, accscalar_t, outscalar_t>(gradInput, logits, max_log_sum_exp, gradOutput, labels, smoothing, classes);
+    break;
+  case 2:
+    aligned_apply<ILP, 2, scalar_t, accscalar_t, outscalar_t>(gradInput, logits, max_log_sum_exp, gradOutput, labels, smoothing, classes);
+    break;
+  default:
+    aligned_apply<ILP, 1, scalar_t, accscalar_t, outscalar_t>(gradInput, logits, max_log_sum_exp, gradOutput, labels, smoothing, classes);
+    break;
   }
-
-  for (; offset < classes; offset += blockDim.x)
-    gradInput[offset] = tmpGradOutput * (std::exp(
-        static_cast<accscalar_t>(logits[offset]) - coeff) - 
-        static_cast<accscalar_t>((offset == label) ? 1 : 0) *
-        smooth_positives - smooth_negatives);
 }
-
-
-
-
 
 
 template<template<typename, typename, typename> class Epilogue>
@@ -495,13 +588,13 @@ std::vector<Tensor> host_softmax_xentropy(
   // XXX: it assumes that inner_size == 1
   TORCH_CHECK(inner_size == 1, "Currently only inner size 1 supported");
 
-  const int ILP = 2;
   dim3 grid(outer_size);
-  dim3 block = SoftMax_getBlockSize(ILP, dim_size);
-  
+
   using namespace at;
   DISPATCH_FLOAT_AND_HALF(input.scalar_type(), 0, "host_softmax_xentropy",
     using accscalar_t = at::acc_type<scalar_t_0, true>;
+    const int ILP = sizeof(float4)/sizeof(scalar_t_0);
+    dim3 block = SoftMax_getBlockSize(ILP, dim_size);
     if (!half_to_float) {
       cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, scalar_t_0, Epilogue>
         <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
@@ -564,12 +657,12 @@ Tensor host_softmax_xentropy_backward(
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
   TORCH_CHECK(inner_size == 1, "Currently only inner size 1 supported");
 
-  const int ILP = 2;
   dim3 grid(outer_size);
-  dim3 block = SoftMax_getBlockSize(ILP, dim_size);
 
   DISPATCH_FLOAT_AND_HALF(gI.scalar_type(), 0, "host_softmax_xentropy_backward",
     using accscalar_t = acc_type<scalar_t_0, true>;
+    const int ILP = sizeof(float4)/sizeof(scalar_t_0);
+    dim3 block = SoftMax_getBlockSize(ILP, dim_size);
     if (!half_to_float) {
       cunn_SoftMaxXEntropyBackward<ILP, scalar_t_0, accscalar_t, scalar_t_0, Epilogue>
        <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
