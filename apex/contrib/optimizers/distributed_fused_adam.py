@@ -172,6 +172,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._works = []
         if num_prestats > 0:
             self._prestats_grad_block = torch.empty([self._prestats_block_size]).half().cuda()
+        self.global_scale_calculator = None
 
     def set_last_step(self, last_step):
         self._last_step = last_step
@@ -341,7 +342,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         """
         radix_decomp_cuda.radix_comp(self._overflow_buf, self._stats, decomp_stats, self._radix_max_digit, self._radix_min_digit, self._radix_base, 1)
-        self._global_scale = self._stats.view([-1])[0]
+        self._global_scale = self.global_scale_calculator(self._stats)
 
     @property
     def has_overflow(self):
