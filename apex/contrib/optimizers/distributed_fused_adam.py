@@ -46,7 +46,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  amp_scale_adjustment=1.0, overlap_reductions=True,
                  num_prestats=0, radix_min_digit=-20, radix_max_digit=20,
                  radix_base=2, num_blocks=4, full_pipeline=True,
-                 normalize_by_L2_grad_norm=False, distributed_weight_update=0,
+                 compute_L2_grad_norm=False, distributed_weight_update=0,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
                  dwu_num_ag_pg=0, dwu_num_blk_st=1):
         global fused_adam_cuda, radix_decomp_cuda
@@ -82,12 +82,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._decomp_stats = None
         self._global_scale = None
         self._num_blocks = dwu_num_blocks
-        if normalize_by_L2_grad_norm and full_pipeline:
-            raise RuntimeError('DistributedFusedAdam does not support both full_pipeline and normalize_by_L2_grad_norm')
         self._full_pipeline = full_pipeline
-        self._normalize_by_L2_grad_norm = normalize_by_L2_grad_norm
-        if self._normalize_by_L2_grad_norm:
-            self._partial_L2_grad_norm_squared = torch.zeros([1]).float().cuda()
+        self._compute_L2_grad_norm = compute_L2_grad_norm
         self._L2_grad_norm = None
         self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
         self._world_size = torch.distributed.get_world_size()
@@ -214,11 +210,28 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
             self._split(self._prestats_grad_block, grad_shards[self._rank_in_group], self._decomp_stats)
             self._extract_reduced_stats(self._decomp_stats)
-            return None
+            work = None
         else:
             grad_block = flat_grads[start:end]
             grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
-            return self.__pipeline_block_reductions(grad_shards)
+            work = self.__pipeline_block_reductions(grad_shards)
+        if self._compute_L2_grad_norm and start == 0:
+            self._wait_works()
+            if work is not None:
+                work.wait()
+                work = None
+            # last block, so finish L2 grad norm
+            partial_sum = torch.zeros([]).cuda()
+            for block in range(self._num_blocks):
+                start = block * self._block_size
+                end = start + self._block_size
+                grad_block = flat_grads[block*self._block_size:(block+1)*self._block_size]
+                grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
+                shard_grad_norm = grad_shards[self._rank_in_group].float().norm()
+                partial_sum += (shard_grad_norm*shard_grad_norm)
+            torch.distributed.all_reduce(partial_sum,group=self._rs_pg[self._num_redux%len(self._rs_pg)])
+            self._L2_grad_norm = partial_sum.sqrt().item()
+        return work
 
     # NB!
     # self._global_scale is used by this method.
@@ -233,11 +246,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._partial_step_single_shard(block_id)
         return torch.distributed.all_gather(new_params_shards,new_params_shards[self._rank_in_group],group=self._ag_pg[self._num_redux%len(self._ag_pg)],async_op=True)
 
-    def __pipeline_block_grad_L2_norm(self, flat_grads, start, end):
-        grad_block = flat_grads[start:end]
-        grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
-        self._partial_L2_grad_norm_squared[0] += grad_shards[self._rank_in_group].norm()
-
     # NB!
     # self._global_scale is set by the prestat reduction logic, OR manually by user
 
@@ -245,8 +253,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         work = self._pipeline_block_reductions(flat_grads, start, end, do_prestats)
         if work is not None:
             work.wait()
-        if self._normalize_by_L2_grad_norm:
-            self.__pipeline_block_grad_L2_norm(start, end)
         return self._pipeline_block_step(flat_grads, new_params, start, end)
 
     def _split(self, prestats_grad_block, grad_shard, prestats):
@@ -372,6 +378,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 out_p,
                 stride,
                 1 if clear else 0)
+
+    @property
+    def L2_grad_norm(self):
+        return self._L2_grad_norm
 
     # Distributed weight update algorithm:
     # Model parameters are kept as-is.
@@ -534,11 +544,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         self._pipeline_block_step(self._flat_grads, self._new_params, start, end)
                     self._num_redux += 1
             self._wait_works()
-
-        # Compute gradient L2 norm (optionally)
-        if self._normalize_by_L2_grad_norm:
-            torch.distributed.all_reduce(self._partial_L2_grad_norm_squared)
-            self._L2_grad_norm = self._partial_L2_grad_norm_squared[0]
 
         # Check for overflow
         # Store state for loss scaler calculation
