@@ -291,7 +291,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     with torch.cuda.stream(self._blk_st[self._num_redux%len(self._blk_st)]):
                         if self._full_pipeline:
                             if self._new_params is None:
-                                self._new_params = torch.empty_like(self._flat_grads)
+                                self._new_params = torch.zeros_like(self._flat_grads)
                             work = self._pipeline_block(self._flat_grads, self._new_params, start, end, do_prestats)
                             self._works.append(work)
                         else:
@@ -418,7 +418,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             self._copy_to_fp32 = True
 
         step = None
-        offset = 0
+        param_i = 0
         for group in self.param_groups:
             # compute combined scale factor for this group
             combined_scale = self._global_scale
@@ -446,6 +446,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     # all we want from state at this point is state['step'], which should be the same for all p
                     step = state['step']
                 nels = p.numel()
+                offset = self._grads_info[param_i]['param_offset']
+                param_i += 1
 
                 start = offset
                 end = start + nels
@@ -465,8 +467,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         param_start = (clipped_start - start)
                         param_end = param_start + param_size
                         self._fp32_p[buffer_start:buffer_end].copy_(p.view(-1)[param_start:param_end].float())
-
-                offset += nels
 
             group_size = group_end - group_start
             if group_size > 0:
@@ -533,7 +533,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Complete self._new_params
         if self._last_step or not self._overlap_reductions or not self._full_pipeline:
             if self._new_params is None:
-                self._new_params = torch.empty_like(self._flat_grads)
+                self._new_params = torch.zeros_like(self._flat_grads)
             for inv_block_id in range(self._num_blocks):
                 block_id = self._num_blocks - inv_block_id - 1
                 with torch.cuda.stream(self._blk_st[self._num_redux%len(self._blk_st)]):
@@ -555,8 +555,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             self.revert_step()
         else:
             # Copy self._new_params to model params
-            offset = 0
             with torch.no_grad():
+                param_i = 0
                 for group in self.param_groups:
                     for p in group['params']:
                         if not p.requires_grad:
@@ -566,8 +566,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                             state['step'] = 0
                         state['step'] += 1
                         nels = p.numel()
+                        offset = self._grads_info[param_i]['param_offset']
                         p.set_(self._new_params[offset:offset+nels].view_as(p))
-                        offset += nels
+                        param_i += 1
         self._new_params = None
         self._copy_to_fp32 = False
         self._decomp_stats = None
