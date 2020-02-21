@@ -76,33 +76,46 @@ void CutlassGemm_FP32Accum(cudaStream_t stream, long m, long n, long k,
   typedef cutlass::gemm::Gemm<WmmaGemmTraits> Gemm;
   typename Gemm::Params params;
 
+    // batchCount in cutlass batched GEMM kernels maps to gridDim.z, which is limited to 16 bits. 
+    // To implement batched GEMM with larger batch size, we fragment it into
+    // smaller batched GEMMs of gridDim.z <= 64k
+    int iterBatchCount = std::min(batchCount, (2 << 16));
+    
+    do {
+      int result = params.initialize(
+        m,                  // M dimension for each batch
+        n,                  // N dimension for each batch
+        k,                  // K dimension for each batch
+        alpha,              // scalar alpha
+        a,
+        lda,
+        strideA,     // distance in memory between the first element of neighboring batch
+        b,
+        ldb,
+        strideB,     // distance in memory between the first element of neighboring batch
+        beta,               // scalar beta
+        c,                  // source matrix C
+        ldc,
+        strideC,     // distance in memory between the first element of neighboring batch
+        c,                  // destination matrix C (may be different memory than source C matrix)
+        ldc,
+        strideC,    // distance in memory between the first element of neighboring batch
+        iterBatchCount
+      );
 
-  int result = params.initialize(
-    m,                  // M dimension for each batch
-    n,                  // N dimension for each batch
-    k,                  // K dimension for each batch
-    alpha,              // scalar alpha
-    a,
-    lda,
-    strideA,     // distance in memory between the first element of neighboring batch
-    b,
-    ldb,
-    strideB,     // distance in memory between the first element of neighboring batch
-    beta,               // scalar beta
-    c,                  // source matrix C
-    ldc,
-    strideC,     // distance in memory between the first element of neighboring batch
-    c,                  // destination matrix C (may be different memory than source C matrix)
-    ldc,
-    strideC,    // distance in memory between the first element of neighboring batch
-    batchCount
-  );
+    AT_ASSERTM(result == 0, "Failed to initialize CUTLASS Gemm::Params object.");
+    // Launch the CUTLASS GEMM kernel.
+    THCudaCheck(Gemm::launch(params));
 
-  AT_ASSERTM(result == 0, "Failed to initialize CUTLASS Gemm::Params object.");
-  
-  // Launch the CUTLASS GEMM kernel.
-  THCudaCheck(Gemm::launch(params));
+    // Update batched GEMM params based on completed work
+    batchCount -= iterBatchCount;
+    a += iterBatchCount;
+    b += iterBatchCount;
+    c += iterBatchCount;
 
+    iterBatchCount = std::min(batchCount, (2 << 16 - 1));
+    
+  } while(batchCount > 0);
 }
 
 void gemm_switch_fp32accum(THCState *state, char transa, char transb, long m, long n, long k,
