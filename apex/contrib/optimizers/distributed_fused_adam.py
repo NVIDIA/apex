@@ -105,6 +105,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self._grads_info.append({"param_grads_size":p_grads_size, "param_offset":p_offset})
                 wrapper(p, p_i, p_grads_size, p_offset)
                 p_offset += p_grads_size
+                # enforce 128b alignment (64 * fp16)
+                p_offset = ((p_offset + 63) // 64) * 64 
                 p_i += 1
         self._grads_generated = [False]*len(self._grads_info)
         if self._overlap_reductions:
