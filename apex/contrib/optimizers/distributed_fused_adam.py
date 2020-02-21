@@ -505,16 +505,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """Complete reductions if full pipeline is not selected or overlap is not allowed.
         """
         self._wait_works()
-        if self._compute_L2_grad_norm:
-            partial_sum = torch.zeros([]).cuda()
-            for block in range(self._num_blocks):
-                start = block * self._block_size
-                end = start + self._block_size
-                grad_block = self._flat_grads[block*self._block_size:(block+1)*self._block_size]
-                grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
-                shard_grad_norm = grad_shards[self._rank_in_group].float().norm()
-                partial_sum += (shard_grad_norm*shard_grad_norm)
-            work = torch.distributed.all_reduce(partial_sum,group=self._rs_pg[0], async_op=True)
         if self._last_step or not self._overlap_reductions or not self._full_pipeline:
             if self._new_params is None:
                 self._new_params = torch.zeros_like(self._flat_grads)
@@ -530,6 +520,15 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         self._works.append(work)
         self._wait_works()
         if self._compute_L2_grad_norm:
+            partial_sum = torch.zeros([]).cuda()
+            for block in range(self._num_blocks):
+                start = block * self._block_size
+                end = start + self._block_size
+                grad_block = self._flat_grads[block*self._block_size:(block+1)*self._block_size]
+                grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
+                shard_grad_norm = grad_shards[self._rank_in_group].float().norm()
+                partial_sum += (shard_grad_norm*shard_grad_norm)
+            torch.distributed.all_reduce(partial_sum,group=self._rs_pg[0], async_op=False)
             self._L2_grad_norm = partial_sum.sqrt().item()
 
     def revert_step(self):
