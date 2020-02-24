@@ -1,16 +1,12 @@
 import torch
-from torch import nn
-from torch.nn import Parameter
-import torch.nn.functional as F
-from torch.autograd.variable  import Variable
-
 import fast_self_multihead_attn
+
 
 class FastSelfAttnFunc(torch.autograd.Function) :
     @staticmethod
-    def forward(ctx, use_time_mask, is_training, heads, inputs, input_weights, output_weights, pad_mask, dropout_prob) :
-        heads_t        = Variable(torch.tensor([heads]))
-        dropout_prob_t = Variable(torch.tensor([dropout_prob]))
+    def forward(ctx, use_time_mask, is_training, heads, inputs, input_weights, output_weights, pad_mask, dropout_prob):
+        heads_t        = torch.tensor([heads])
+        dropout_prob_t = torch.tensor([dropout_prob])
         null_tensor    = torch.tensor([])
         use_mask       = (pad_mask is not None)
 
@@ -45,7 +41,7 @@ class FastSelfAttnFunc(torch.autograd.Function) :
         return outputs.detach()
 
     @staticmethod
-    def backward(ctx, output_grads) :
+    def backward(ctx, output_grads):
         heads_t,                                                        \
         matmul2_results,                                                \
         dropout_results,                                                \

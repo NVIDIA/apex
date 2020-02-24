@@ -2,18 +2,19 @@ import torch
 from torch import nn
 from torch.nn import Parameter
 import torch.nn.functional as F
-from torch.autograd.variable  import Variable
 
 from .self_multihead_attn_func               import self_attn_func
 from .fast_self_multihead_attn_func          import fast_self_attn_func
 from .fast_self_multihead_attn_norm_add_func import fast_self_attn_norm_add_func
 
+
 @torch.jit.script
-def jit_dropout_add(x, residual, prob, is_training) :
+def jit_dropout_add(x, residual, prob, is_training):
     # type: (Tensor, Tensor, float, bool) -> Tensor
     out = F.dropout(x, p=prob, training=True)
     out = residual + out
     return out
+
 
 class SelfMultiheadAttn(nn.Module):
     """Multi-headed attention.
@@ -43,12 +44,12 @@ class SelfMultiheadAttn(nn.Module):
             self.register_parameter('out_proj_bias', None)
             self.in_proj_bias = None
             self.out_proj_bias = None
-        if self.include_norm_add :
-            if impl == 'fast' :
+        if self.include_norm_add:
+            if impl == 'fast':
                 self.lyr_nrm_gamma_weights = Parameter(torch.Tensor(embed_dim))
                 self.lyr_nrm_beta_weights  = Parameter(torch.Tensor(embed_dim))
                 self.lyr_nrm               = None
-            else : 
+            else:
                 self.register_parameter('lyr_norm_gamma_weights', None)
                 self.register_parameter('lyr_norm_beta_weights', None)
                 self.lyr_nrm_gamma_weights = None
@@ -56,11 +57,11 @@ class SelfMultiheadAttn(nn.Module):
                 self.lyr_nrm = torch.nn.LayerNorm(embed_dim)
         self.reset_parameters()
 
-        if self.include_norm_add :
+        if self.include_norm_add:
             if   impl == 'fast'    : self.attn_func = fast_self_attn_norm_add_func
             elif impl == 'default' : self.attn_func = self_attn_func
             else :                   assert False, "Unsupported impl: {} !".format(impl)
-        else :
+        else:
             if   impl == 'fast'    : self.attn_func = fast_self_attn_func
             elif impl == 'default' : self.attn_func = self_attn_func
             else :                   assert False, "Unsupported impl: {} !".format(impl)
@@ -71,14 +72,14 @@ class SelfMultiheadAttn(nn.Module):
         if self.bias:
             nn.init.constant_(self.in_proj_bias, 0.)
             nn.init.constant_(self.out_proj_bias, 0.)
-        if self.include_norm_add :
-            if self.impl == 'fast' :
+        if self.include_norm_add:
+            if self.impl == 'fast':
                 nn.init.ones_(self.lyr_nrm_gamma_weights)
                 nn.init.zeros_(self.lyr_nrm_beta_weights)
-            else :
+            else:
                 self.lyr_nrm.reset_parameters()
 
-    def forward(self, query, key, value, key_padding_mask=None, need_weights=False, attn_mask=None, is_training=True) :
+    def forward(self, query, key, value, key_padding_mask=None, need_weights=False, attn_mask=None, is_training=True):
         """Input shape: Time x Batch x Channel
 
         Self-attention can be implemented by passing in the same arguments for
@@ -87,36 +88,36 @@ class SelfMultiheadAttn(nn.Module):
         the key by passing a binary ByteTensor (`key_padding_mask`) with shape:
         batch x src_len, where padding elements are indicated by 1s.
         """
-        if key_padding_mask is not None :
+        if key_padding_mask is not None:
             assert (attn_mask is None), "ERROR attn_mask and key_padding_mask should not be both defined!"
             mask = key_padding_mask
-        elif attn_mask is not None :
+        elif attn_mask is not None:
             mask = attn_mask
-        else :
+        else:
             mask = None
 
-        if self.include_norm_add :
-            if self.impl == 'fast' :
-                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query, 
-                                         self.lyr_nrm_gamma_weights, self.lyr_nrm_beta_weights, 
+        if self.include_norm_add:
+            if self.impl == 'fast':
+                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query,
+                                         self.lyr_nrm_gamma_weights, self.lyr_nrm_beta_weights,
                                          self.in_proj_weight, self.out_proj_weight, mask, self.dropout)
-            else :
+            else:
                 lyr_nrm_results = self.lyr_nrm(query)
-                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, lyr_nrm_results, 
-                                         self.in_proj_weight, self.out_proj_weight, 
+                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, lyr_nrm_results,
+                                         self.in_proj_weight, self.out_proj_weight,
                                          self.in_proj_bias, self.out_proj_bias,
                                          mask, self.dropout)
-                if is_training :
+                if is_training:
                     outputs = jit_dropout_add(outputs, query, self.dropout, is_training)
-                else :
-                    outputs = outputs + query 
-        else :
-            if self.impl == 'fast' :
-                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query, 
+                else:
+                    outputs = outputs + query
+        else:
+            if self.impl == 'fast':
+                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query,
                                          self.in_proj_weight, self.out_proj_weight, mask, self.dropout)
-            else :
-                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query, 
-                                         self.in_proj_weight, self.out_proj_weight, 
+            else:
+                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query,
+                                         self.in_proj_weight, self.out_proj_weight,
                                          self.in_proj_bias, self.out_proj_bias,
                                          mask, self.dropout)
 
