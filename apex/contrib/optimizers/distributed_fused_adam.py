@@ -203,7 +203,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def _pipeline_block_reductions(self, block_id, flat_grads):
         start = block_id * self._block_size
         end = start + self._block_size
-        do_prestats = True if block_id+1 == self._num_blocks else False
+        do_prestats = True if self._num_prestats > 0 and block_id+1 == self._num_blocks else False
         if do_prestats:
             grad_block = flat_grads[start:end]
             self._merge(self._prestats_grad_block, grad_block, self._decomp_stats)
