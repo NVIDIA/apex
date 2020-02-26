@@ -409,9 +409,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             combined_scale = self._global_scale
             if group['max_grad_norm'] > 0:
                 # norm is in fact norm*scale
-                clip = ((grad_norm / scale) + 1e-6) / group['max_grad_norm']
+                clip = ((self.L2_grad_norm / self._global_scale) + 1e-6) / group['max_grad_norm']
                 if clip > 1:
-                    combined_scale = clip * scale
+                    combined_scale = clip * self._global_scale
 
             bias_correction = 1 if group['bias_correction'] else 0
 
