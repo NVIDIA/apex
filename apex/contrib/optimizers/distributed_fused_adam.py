@@ -501,6 +501,18 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                                          bias_correction,
                                          group['weight_decay'])
 
+    def _do_compute_L2_grad_norm(self):
+        partial_sum = torch.zeros([]).cuda()
+        for block in range(self._num_blocks):
+            start = block * self._block_size
+            end = start + self._block_size
+            grad_block = self._flat_grads[block*self._block_size:(block+1)*self._block_size]
+            grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
+            shard_grad_norm = grad_shards[self._rank_in_group].float().norm()
+            partial_sum += (shard_grad_norm*shard_grad_norm)
+        torch.distributed.all_reduce(partial_sum,group=self._rs_pg[0], async_op=False)
+        self._L2_grad_norm = partial_sum.sqrt().item()
+
     def complete_reductions(self):
         """Complete reductions if full pipeline is not selected or overlap is not allowed.
         """
@@ -508,28 +520,46 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if self._last_step or not self._overlap_reductions or not self._full_pipeline:
             if self._new_params is None:
                 self._new_params = torch.zeros_like(self._flat_grads)
-            for inv_block_id in range(self._num_blocks):
-                block_id = self._num_blocks - inv_block_id - 1
-                self._blk_st[block_id%len(self._blk_st)].wait_stream(torch.cuda.current_stream())
-                with torch.cuda.stream(self._blk_st[block_id%len(self._blk_st)]):
-                    if self._last_step or not self._overlap_reductions:
-                        work = self._pipeline_block(block_id, self._flat_grads, self._new_params)
-                        self._works.append(work)
-                    else:
+            if self._last_step or not self._overlap_reductions:
+                # nothing done so far, run full pipeline after reductions
+                if self._compute_L2_grad_norm:
+                    # do reductions, wait, complete L2, do step
+                    for inv_block_id in range(self._num_blocks):
+                        block_id = self._num_blocks - inv_block_id - 1
+                        self._blk_st[block_id%len(self._blk_st)].wait_stream(torch.cuda.current_stream())
+                        with torch.cuda.stream(self._blk_st[block_id%len(self._blk_st)]):
+                            work = self._pipeline_block_reductions(block_id, self._flat_grads)
+                            self._works.append(work)
+                    self._wait_works()
+                    self._do_compute_L2_grad_norm()
+                    for inv_block_id in range(self._num_blocks):
+                        block_id = self._num_blocks - inv_block_id - 1
+                        self._blk_st[block_id%len(self._blk_st)].wait_stream(torch.cuda.current_stream())
+                        with torch.cuda.stream(self._blk_st[block_id%len(self._blk_st)]):
+                            work = self._pipeline_block_step(block_id, self._flat_grads, self._new_params)
+                            self._works.append(work)
+                else:
+                    # run full pipeline
+                    for inv_block_id in range(self._num_blocks):
+                        block_id = self._num_blocks - inv_block_id - 1
+                        self._blk_st[block_id%len(self._blk_st)].wait_stream(torch.cuda.current_stream())
+                        with torch.cuda.stream(self._blk_st[block_id%len(self._blk_st)]):
+                            work = self._pipeline_block(block_id, self._flat_grads, self._new_params)
+                            self._works.append(work)
+            else:
+                # reductions done.
+                if self._compute_L2_grad_norm:
+                    self._do_compute_L2_grad_norm()
+                # do step
+                for inv_block_id in range(self._num_blocks):
+                    block_id = self._num_blocks - inv_block_id - 1
+                    self._blk_st[block_id%len(self._blk_st)].wait_stream(torch.cuda.current_stream())
+                    with torch.cuda.stream(self._blk_st[block_id%len(self._blk_st)]):
                         work = self._pipeline_block_step(block_id, self._flat_grads, self._new_params)
                         self._works.append(work)
-        self._wait_works()
-        if self._compute_L2_grad_norm:
-            partial_sum = torch.zeros([]).cuda()
-            for block in range(self._num_blocks):
-                start = block * self._block_size
-                end = start + self._block_size
-                grad_block = self._flat_grads[block*self._block_size:(block+1)*self._block_size]
-                grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
-                shard_grad_norm = grad_shards[self._rank_in_group].float().norm()
-                partial_sum += (shard_grad_norm*shard_grad_norm)
-            torch.distributed.all_reduce(partial_sum,group=self._rs_pg[0], async_op=False)
-            self._L2_grad_norm = partial_sum.sqrt().item()
+        else:
+            if self._compute_L2_grad_norm:
+                self._do_compute_L2_grad_norm()
 
     def revert_step(self):
         """Revert effect of previously calling partial_step.
