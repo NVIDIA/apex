@@ -203,7 +203,7 @@ if "--fast_multihead_attn" in sys.argv:
     sys.argv.remove("--fast_multihead_attn")
 
     from torch.utils.cpp_extension import BuildExtension
-    cmdclass['build_ext'] = BuildExtension
+    cmdclass['build_ext'] = BuildExtension.with_options(use_ninja=False)
 
     if torch.utils.cpp_extension.CUDA_HOME is None:
         raise RuntimeError("--fast_multihead_attn was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
