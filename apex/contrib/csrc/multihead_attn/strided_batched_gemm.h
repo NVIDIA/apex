@@ -147,7 +147,7 @@ void CutlassGemm_FP32Accum(cudaStream_t stream, long m, long n, long k,
 void gemm_switch_fp32accum(THCState *state, char transa, char transb, long m, long n, long k,
                            float alpha, const half *a, long lda, long strideA, const half *b, long ldb, long strideB,
                            float beta, half *c, long ldc, long strideC, long batchCount) {
-  cudaStream_t stream = THCState_getCurrentStream(state);
+  auto stream = c10::cuda::getCurrentCUDAStream();
   //printf("GEMM   -> %c%c M: %i N: %i K: %i Alpha: %f Beta: %f\n", (transa == 't' ? 'T' : 'N'), (transb =='t' ? 'T' : 'N'), m, n, k, alpha, beta);
   if        ( (transa == 't') && (transb == 'n') ) { 
     if      (!(lda & 0x7) && !(ldb & 0x7) && !(ldc & 0x7)) { CublasStridedBatchedGemm(state, transa, transb, m, n, k, alpha, a, lda, strideA, b, ldb, strideB, beta, c, ldc, strideC, batchCount, CUBLAS_GEMM_ALGO0_TENSOR_OP); }
