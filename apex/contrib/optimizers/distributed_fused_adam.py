@@ -1,4 +1,5 @@
 import types
+import math
 import torch
 import importlib
 from apex.multi_tensor_apply import multi_tensor_applier
@@ -407,11 +408,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         for group in self.param_groups:
             # compute combined scale factor for this group
             combined_scale = self._global_scale
-            if group['max_grad_norm'] > 0:
-                # norm is in fact norm*scale
-                clip = ((self.L2_grad_norm / self._global_scale) + 1e-6) / group['max_grad_norm']
-                if clip > 1:
-                    combined_scale = clip * self._global_scale
+            if group['max_grad_norm'] > 0 and math.isfinite(self.L2_grad_norm):
+                combined_scale = group['max_grad_norm'] / (self.L2_grad_norm / self._global_scale + 1e-6)
+                combined_scale = self._global_scale / min(1, combined_scale)
 
             bias_correction = 1 if group['bias_correction'] else 0
 
