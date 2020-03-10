@@ -179,7 +179,7 @@ You can choose which columns you'd like to display. Here's a list from calling `
               dir:      Direction
               sub:      Sub Sequence Id
               mod:      Module
-              op:       Operattion
+              op:       Operation
               kernel:   Kernel Name
               params:   Parameters
               sil:      Silicon Time (in ns)
