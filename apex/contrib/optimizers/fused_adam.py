@@ -130,6 +130,7 @@ class FusedAdam(torch.optim.Optimizer):
                     tensorlists = [[],[],[],[],[]]
                 else:
                     tensorlists = [[],[],[],[]]
+                tensordevice = None
 
             for p, grad, output_param in zip(group['params'], grads_this_group, output_params_this_group):
                 #note: p.grad should not ever be set for correct operation of mixed precision optimizer that sometimes sends None gradients
@@ -163,35 +164,43 @@ class FusedAdam(torch.optim.Optimizer):
 
                     for tl, t in zip(tensorlists, pl):
                         tl.append(t)
+
+                    if tensordevice is None:
+                        tensordevice = p.device
+                    elif tensordevice != p.device:
+                        raise RuntimeError('FusedAdam does not support use_mt with tensors on multiple device')
+
                 else:
-                    fused_adam_cuda.adam(p.data,
-                                         out_p,
-                                         exp_avg,
-                                         exp_avg_sq,
-                                         grad,
-                                         group['lr'],
-                                         beta1,
-                                         beta2,
-                                         group['eps'],
-                                         combined_scale,
-                                         state['step'],
-                                         self.eps_mode,
-                                         bias_correction,
-                                         group['weight_decay'])
+                    with torch.cuda.device(p.device):
+                        fused_adam_cuda.adam(p.data,
+                                             out_p,
+                                             exp_avg,
+                                             exp_avg_sq,
+                                             grad,
+                                             group['lr'],
+                                             beta1,
+                                             beta2,
+                                             group['eps'],
+                                             combined_scale,
+                                             state['step'],
+                                             self.eps_mode,
+                                             bias_correction,
+                                             group['weight_decay'])
 
             if self._use_multi_tensor:
-                multi_tensor_applier(
-                    fused_adam_cuda.adam_mt,
-                    self._overflow_buf,
-                    tensorlists,
-                    group['lr'],
-                    beta1,
-                    beta2,
-                    group['eps'],
-                    combined_scale,
-                    state['step'],
-                    self.eps_mode,
-                    bias_correction,
-                    group['weight_decay'])
+                with torch.cuda.device(tensordevice):
+                    multi_tensor_applier(
+                        fused_adam_cuda.adam_mt,
+                        self._overflow_buf,
+                        tensorlists,
+                        group['lr'],
+                        beta1,
+                        beta2,
+                        group['eps'],
+                        combined_scale,
+                        state['step'],
+                        self.eps_mode,
+                        bias_correction,
+                        group['weight_decay'])
 
         return loss
