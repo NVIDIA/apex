@@ -287,9 +287,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
                     flush_block = self._get_flush_block()
 
-                if self._current_block == 0:
-                    self._current_block = self._num_blocks
-
     def _wait_works(self):
         for work in self._works:
             if work is not None:
@@ -516,6 +513,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """Complete reductions if full pipeline is not selected or overlap is not allowed.
         """
         self._wait_works()
+
+        if self._last_step:
+            # zero out gradients that have not been completed yet
+            for param_i, grad_generated in enumerate(self._grads_generated):
+                if not grad_generated:
+                    grad_info = self._grads_info[param_i]
+                    param_offset = grad_info["param_offset"]
+                    param_size = grad_info["param_grads_size"]
+                    self._flat_grads[param_offset:param_offset+param_size].zero_()
+                    self._grads_generated[param_i] = True
+
         if self._last_step or not self._overlap_reductions or not self._full_pipeline:
             if self._new_params is None:
                 self._new_params = torch.zeros_like(self._flat_grads)
@@ -560,6 +568,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             if self._compute_L2_grad_norm:
                 self._do_compute_L2_grad_norm()
 
+        self._copy_to_fp32 = False
+        self._decomp_stats = None
+        self._current_block = self._num_blocks
+        self._grads_generated = [False]*len(self._grads_info)
+
     def revert_step(self):
         """Revert effect of previously calling partial_step.
         """
@@ -597,8 +610,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         p.set_(self._new_params[offset:offset+nels].view_as(p))
                         param_i += 1
         self._new_params = None
-        self._copy_to_fp32 = False
-        self._decomp_stats = None
 
         return loss
 
