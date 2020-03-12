@@ -270,7 +270,6 @@ struct AdamFunctor
 
 #pragma unroll
             for(int ii = 0; ii < ILP; ii++) {
-                int j = j_start + threadIdx.x + ii*blockDim.x;
                 T scaled_grad = gi[ii]/grad_scale;
                 if (isfinite(scaled_grad)) {
                     mi[ii] = b1*mi[ii] + (1-b1)*scaled_grad;
@@ -360,7 +359,6 @@ struct AdamUndoFunctor
 
 #pragma unroll
             for(int ii = 0; ii < ILP; ii++) {
-                int j = j_start + threadIdx.x + ii*blockDim.x;
                 T scaled_grad = gi[ii]/grad_scale;
                 if (isfinite(scaled_grad)) {
                     float denom;
