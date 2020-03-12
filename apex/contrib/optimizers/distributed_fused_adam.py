@@ -68,12 +68,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         self._last_step = False
         self._overlap_reductions = overlap_reductions
-        self._radix_min_digit = radix_min_digit
-        self._radix_max_digit = radix_max_digit
-        self._radix_size = self._radix_max_digit - self._radix_min_digit + 1
-        self._radix_base = radix_base
-        self._stats = None
-        self._decomp_stats = None
         self._global_scale = None
         self._num_blocks = dwu_num_blocks
         self._full_pipeline = full_pipeline
@@ -158,7 +152,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         for i in range(self._num_blk_st):
             self._blk_st.append(torch.cuda.Stream())
         self._works = []
-        self.global_scale_calculator = None
 
     def set_last_step(self, last_step):
         self._last_step = last_step
