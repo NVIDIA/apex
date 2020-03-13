@@ -118,7 +118,7 @@ class FusedAdam(torch.optim.Optimizer):
             self._step(grads, output_params, scale, grad_norms, False, True)
         return loss
 
-    def _step(self, grads, output_params, scale., grad_norms, check_overflow, undo):
+    def _step(self, grads, output_params, scale, grad_norms, check_overflow, undo):
         if check_overflow:
             modified_params = []
 
@@ -280,5 +280,3 @@ class FusedAdam(torch.optim.Optimizer):
         if check_overflow:
             for i, out_p in enumerate(modified_params):
                 self.strided_check_finite(out_p, stride=out_p.numel(), start=0, end=out_p.numel(), clear=True if i == 0 else False)
-
-        return loss
