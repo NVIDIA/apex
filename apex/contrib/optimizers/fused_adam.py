@@ -35,6 +35,8 @@ class FusedAdam(torch.optim.Optimizer):
         https://openreview.net/forum?id=ryQu7f-RZ
     """
 
+    _step_supports_amp_scaling = True
+
     def __init__(self, params,
                  lr=1e-3, bias_correction = True,
                  betas=(0.9, 0.999), eps=1e-8, eps_inside_sqrt = False,
@@ -60,8 +62,10 @@ class FusedAdam(torch.optim.Optimizer):
                         max_grad_norm=max_grad_norm)
         super(FusedAdam, self).__init__(params, defaults)
         self.eps_mode = 0 if  eps_inside_sqrt else 1
+        self._dummy_inv_scale = torch.full((1,), 1.0, dtype=torch.float32, device='cuda')
 
-    def step(self, closure=None, grads=None, output_params=None, scale=1., grad_norms=None):
+    def step(self, closure=None, grads=None, output_params=None, scale=1., grad_norms=None,
+             grad_scaler=None):
         """Performs a single optimization step.
 
         Arguments:
@@ -79,6 +83,17 @@ class FusedAdam(torch.optim.Optimizer):
         loss = None
         if closure is not None:
             loss = closure()
+
+        if grad_scaler is not None:
+            assert not self._use_multi_tensor
+            assert grads is not None
+            # Check for infs, tell scaler where the tensor is
+            found_inf = torch.full((1,), 0.0, dtype=torch.float32, device='cuda')
+            for grad in grads:
+                torch._amp_non_finite_check_and_unscale_(grad, found_inf, self._dummy_inv_scale)
+            grad_scaler._per_optimizer_states[id(self)]['found_inf_per_device'] \
+                [torch.device(torch.cuda.current_deice())] = found_inf
+            scale = grad_scaler._get_scale_async()
 
         if hasattr(self, "_amp_stash"):
             grads = self._amp_stash.grads
@@ -177,7 +192,8 @@ class FusedAdam(torch.optim.Optimizer):
                                          state['step'],
                                          self.eps_mode,
                                          bias_correction,
-                                         group['weight_decay'])
+                                         group['weight_decay'],
+                                         found_inf)
 
             if self._use_multi_tensor:
                 multi_tensor_applier(
