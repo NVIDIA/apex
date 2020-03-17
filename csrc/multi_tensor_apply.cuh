@@ -56,7 +56,11 @@ void multi_tensor_apply(
     for(int t = 0; t < tensor_lists[l].size(); t++)
     {
       // TODO:  Print which tensor fails.
-      TORCH_CHECK(tensor_lists[l][t].is_contiguous(), "A tensor was not contiguous.");
+      bool contiguous_memory = tensor_lists[l][t].is_contiguous();
+#ifdef VERSION_GE_1_5
+      contiguous_memory = (contiguous_memory || tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast));
+#endif
+      TORCH_CHECK(contiguous_memory, "A tensor was not contiguous.");
       TORCH_CHECK(tensor_lists[l][t].is_cuda(), "A tensor was not cuda.");
       TORCH_CHECK(tensor_lists[l][t].numel() == tensor_lists[0][t].numel(), "Size mismatch");
     }
