@@ -13,6 +13,17 @@
 #define BLOCK_SIZE 512
 #define ILP 4
 
+template<typename T>
+__device__ __forceinline__ bool is_aligned(T* p){
+  return ((uint64_t)p) % (ILP*sizeof(T)) == 0;
+}
+
+template<typename T>
+__device__ __forceinline__ void load_store(T* dst, T* src, int dst_offset, int src_offset){
+  typedef typename std::aligned_storage<ILP*sizeof(T), ILP*alignof(T)>::type LT;
+  ((LT*)dst)[dst_offset] = ((LT*)src)[src_offset];
+}
+
 template<typename x_t, typename y_t, typename out_t>
 struct AxpbyFunctor
 {
@@ -43,46 +54,72 @@ struct AxpbyFunctor
 
     n -= chunk_idx*chunk_size;
 
-    // Non-divergent exit condition for __syncthreads, not necessary here
-    float xs[ILP];
-    float ys[ILP];
-    for(int i_start = 0;
-        i_start < n && i_start < chunk_size;
-        i_start += blockDim.x*ILP)
+    bool finite = true;
+    if(n % ILP == 0 && chunk_size % ILP == 0 && is_aligned(x) && is_aligned(y) && is_aligned(out))
     {
-      #pragma unroll
-      for(int ii = 0; ii < ILP; ii++)
-      {
-        xs[ii] = 0;
-        ys[ii] = 0;
-        int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n && i < chunk_size)
-        {
-          xs[ii] = static_cast<float>(x[i]);
-          ys[ii] = static_cast<float>(y[i]);
-        }
-      }
-
-      // see note in multi_tensor_scale_kernel.cu
-      #pragma unroll
-      for(int ii = 0; ii < ILP; ii++)
-      {
-        int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n && i < chunk_size)
-        {
-          out[i] = static_cast<out_t>(a*xs[ii] + b*ys[ii]);
-          bool finite = true;
+      x_t xs[ILP];
+      y_t ys[ILP];
+      out_t os[ILP];
+      for(int i_start = threadIdx.x; i_start*ILP < n && i_start*ILP < chunk_size; i_start += blockDim.x) {
+        // load
+        load_store(xs, x, 0 , i_start);
+        load_store(ys, y, 0 , i_start);
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++) {
+          os[ii] = a*static_cast<float>(xs[ii]) + b*static_cast<float>(ys[ii]);
           if(arg_to_check == -1)
-            finite = (isfinite(xs[ii]) && isfinite(ys[ii]));
+            finite = finite && (isfinite(xs[ii]) && isfinite(ys[ii]));
           if(arg_to_check == 0)
-            finite = isfinite(xs[ii]);
+            finite = finite && isfinite(xs[ii]);
           if(arg_to_check == 1)
-            finite = isfinite(ys[ii]);
-          if(!finite)
-            *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
+            finite = finite && isfinite(ys[ii]);
+        }
+        // store
+        load_store(out, os, i_start , 0);
+      }
+    }
+    else
+    {
+      // Non-divergent exit condition for __syncthreads, not necessary here
+      float xs[ILP];
+      float ys[ILP];
+      for(int i_start = 0;
+          i_start < n && i_start < chunk_size;
+          i_start += blockDim.x*ILP)
+      {
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          xs[ii] = 0;
+          ys[ii] = 0;
+          int i = i_start + threadIdx.x + ii*blockDim.x;
+          if(i < n && i < chunk_size)
+          {
+            xs[ii] = static_cast<float>(x[i]);
+            ys[ii] = static_cast<float>(y[i]);
+          }
+        }
+
+        // see note in multi_tensor_scale_kernel.cu
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          int i = i_start + threadIdx.x + ii*blockDim.x;
+          if(i < n && i < chunk_size)
+          {
+            out[i] = static_cast<out_t>(a*xs[ii] + b*ys[ii]);
+            if(arg_to_check == -1)
+              finite = finite && (isfinite(xs[ii]) && isfinite(ys[ii]));
+            if(arg_to_check == 0)
+              finite = finite && isfinite(xs[ii]);
+            if(arg_to_check == 1)
+              finite = finite && isfinite(ys[ii]);
+          }
         }
       }
     }
+    if(!finite)
+      *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
   }
 };
 
