@@ -92,7 +92,7 @@ class FusedAdam(torch.optim.Optimizer):
             for grad in grads:
                 torch._amp_non_finite_check_and_unscale_(grad, found_inf, self._dummy_inv_scale)
             grad_scaler._per_optimizer_states[id(self)]['found_inf_per_device'] \
-                [torch.device(torch.cuda.current_deice())] = found_inf
+                [torch.device(torch.cuda.current_device())] = found_inf
             scale = grad_scaler._get_scale_async()
 
         if hasattr(self, "_amp_stash"):
