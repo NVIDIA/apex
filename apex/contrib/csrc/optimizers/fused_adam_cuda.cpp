@@ -3,7 +3,7 @@
 // CUDA forward declaration
 void fused_strided_check_finite(at::Tensor & noop, at::Tensor & p_copy, int stride, int clear_overflow_first);
 
-void fused_adam_cuda_no_overflow_check(at::Tensor & p_in, Tensor & p_out, at::Tensor & p_copy, at::Tensor & m_in, at::Tensor & m_out, at::Tensor & v_in, at::Tensor & v_out, at::Tensor & g, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
+void fused_adam_cuda_no_overflow_check(at::Tensor & p_in, at::Tensor & p_out, at::Tensor & p_copy, at::Tensor & m_in, at::Tensor & m_out, at::Tensor & v_in, at::Tensor & v_out, at::Tensor & g, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
 void fused_adam_cuda(at::Tensor & p, at::Tensor & p_copy, at::Tensor & m, at::Tensor & v, at::Tensor & g, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
 void fused_adam_undo_cuda(at::Tensor & p, at::Tensor & m, at::Tensor & v, at::Tensor & g, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
 
