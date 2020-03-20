@@ -409,7 +409,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                                              bias_correction,
                                              group['weight_decay'])
                     elif self._revert_method == 2:
-                        self._swap_optimizer_state_buffers()
+                        self.__swap_optimizer_state_buffers()
                     elif self._revert_method == 3:
                         raise RuntimeError('revert_step debug option not implemented yet')
                 else:
@@ -430,7 +430,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                                              bias_correction,
                                              group['weight_decay'])
                     elif self._revert_method == 2:
-                        self._swap_optimizer_state_buffers()
+                        self.__swap_optimizer_state_buffers()
                         fused_adam_cuda.adam_no_overflow_check(
                                              self._fp32_backup_p[group_buffer_start:group_buffer_end],
                                              self._fp32_p[group_buffer_start:group_buffer_end],
