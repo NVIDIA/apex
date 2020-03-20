@@ -89,6 +89,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._grads_info = []
         for group in self.param_groups:
             for p in group['params']:
+                torch.distributed.broadcast(p,0)
                 if not p.requires_grad:
                     continue
                 p_grads_size = p.numel()
