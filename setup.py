@@ -209,7 +209,7 @@ if "--deprecated_fused_lamb" in sys.argv:
         raise RuntimeError("--deprecated_fused_lamb was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
         ext_modules.append(
-            CUDAExtension(name='fused_adam_lamb',
+            CUDAExtension(name='fused_lamb_cuda',
                           sources=['apex/contrib/csrc/optimizers/fused_lamb_cuda.cpp',
                                    'apex/contrib/csrc/optimizers/fused_lamb_cuda_kernel.cu'],
                           include_dirs=[os.path.join(this_dir, 'csrc')],
