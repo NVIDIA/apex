@@ -55,66 +55,68 @@ struct AxpbyFunctor
     n -= chunk_idx*chunk_size;
 
     bool finite = true;
+    x_t r_x[ILP];
+    y_t r_y[ILP];
+    out_t r_out[ILP];
+
+    // to make things simple, we put aligned case in a different code path
     if(n % ILP == 0 && chunk_size % ILP == 0 && is_aligned(x) && is_aligned(y) && is_aligned(out))
     {
-      x_t xs[ILP];
-      y_t ys[ILP];
-      out_t os[ILP];
-      for(int i_start = threadIdx.x; i_start*ILP < n && i_start*ILP < chunk_size; i_start += blockDim.x) {
+      for(int i_start = threadIdx.x; i_start*ILP < n && i_start*ILP < chunk_size; i_start += blockDim.x)
+      {
         // load
-        load_store(xs, x, 0 , i_start);
-        load_store(ys, y, 0 , i_start);
+        load_store(r_x, x, 0 , i_start);
+        load_store(r_y, y, 0 , i_start);
 #pragma unroll
-        for(int ii = 0; ii < ILP; ii++) {
-          os[ii] = a*static_cast<float>(xs[ii]) + b*static_cast<float>(ys[ii]);
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          r_out[ii] = a*static_cast<float>(r_x[ii]) + b*static_cast<float>(r_y[ii]);
           if(arg_to_check == -1)
-            finite = finite && (isfinite(xs[ii]) && isfinite(ys[ii]));
+            finite = finite && (isfinite(r_x[ii]) && isfinite(r_y[ii]));
           if(arg_to_check == 0)
-            finite = finite && isfinite(xs[ii]);
+            finite = finite && isfinite(r_x[ii]);
           if(arg_to_check == 1)
-            finite = finite && isfinite(ys[ii]);
+            finite = finite && isfinite(r_y[ii]);
         }
         // store
-        load_store(out, os, i_start , 0);
+        load_store(out, r_out, i_start , 0);
       }
     }
     else
     {
       // Non-divergent exit condition for __syncthreads, not necessary here
-      float xs[ILP];
-      float ys[ILP];
-      for(int i_start = 0;
-          i_start < n && i_start < chunk_size;
-          i_start += blockDim.x*ILP)
+      for(int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x*ILP)
       {
 #pragma unroll
         for(int ii = 0; ii < ILP; ii++)
         {
-          xs[ii] = 0;
-          ys[ii] = 0;
+          r_x[ii] = 0;
+          r_y[ii] = 0;
           int i = i_start + threadIdx.x + ii*blockDim.x;
           if(i < n && i < chunk_size)
           {
-            xs[ii] = static_cast<float>(x[i]);
-            ys[ii] = static_cast<float>(y[i]);
+            r_x[ii] = x[i];
+            r_y[ii] = y[i];
           }
         }
-
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          r_out[ii] = a*static_cast<float>(r_x[ii]) + b*static_cast<float>(r_y[ii]);
+          if(arg_to_check == -1)
+            finite = finite && (isfinite(r_x[ii]) && isfinite(r_y[ii]));
+          if(arg_to_check == 0)
+            finite = finite && isfinite(r_x[ii]);
+          if(arg_to_check == 1)
+            finite = finite && isfinite(r_y[ii]);
+        }
         // see note in multi_tensor_scale_kernel.cu
 #pragma unroll
         for(int ii = 0; ii < ILP; ii++)
         {
           int i = i_start + threadIdx.x + ii*blockDim.x;
           if(i < n && i < chunk_size)
-          {
-            out[i] = static_cast<out_t>(a*xs[ii] + b*ys[ii]);
-            if(arg_to_check == -1)
-              finite = finite && (isfinite(xs[ii]) && isfinite(ys[ii]));
-            if(arg_to_check == 0)
-              finite = finite && isfinite(xs[ii]);
-            if(arg_to_check == 1)
-              finite = finite && isfinite(ys[ii]);
-          }
+            out[i] = r_out[ii];
         }
       }
     }
