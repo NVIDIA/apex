@@ -70,8 +70,7 @@ class FusedLAMB(torch.optim.Optimizer):
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         grad_averaging=grad_averaging,
                         max_grad_norm=max_grad_norm)
-        s
-        per(FusedLAMB, self).__init__(params, defaults)
+        super(FusedLAMB, self).__init__(params, defaults)
         if multi_tensor_applier.available:
             fused_lamb_cuda = importlib.import_module("fused_lamb_cuda")
             self.multi_tensor_lamb = fused_lamb_cuda.lamb
