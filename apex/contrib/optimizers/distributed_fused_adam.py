@@ -293,11 +293,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def L2_grad_norm(self):
         return self._L2_grad_norm
 
-    def __swap_optimizer_state_buffers(self):
-        p,m,v = self._fp32_p,self._fp32_m,self._fp32_v
-        self._fp32_p,self._fp32_m,self._fp32_v = self._fp32_backup_p,self._fp32_backup_m,self._fp32_backup_v
-        self._fp32_backup_p,self._fp32_backup_m,self._fp32_backup_v = p,m,v
-
     # Distributed weight update algorithm:
     # Model parameters are kept as-is.
     # Gradients are flattened during backprop.
@@ -410,48 +405,31 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                                              bias_correction,
                                              group['weight_decay'])
                     elif self._revert_method == 2:
-                        self.__swap_optimizer_state_buffers()
+                        self._fp32_p[group_buffer_start:group_buffer_end].copy_(self._fp32_backup_p[group_buffer_start:group_buffer_end])
+                        self._fp32_m[group_buffer_start:group_buffer_end].copy_(self._fp32_backup_m[group_buffer_start:group_buffer_end])
+                        self._fp32_v[group_buffer_start:group_buffer_end].copy_(self._fp32_backup_v[group_buffer_start:group_buffer_end])
                     elif self._revert_method == 3:
                         raise RuntimeError('revert_step debug option not implemented yet')
                 else:
-                    if self._revert_method == 1:
-                        fused_adam_cuda.adam(
-                                             self._fp32_p[group_buffer_start:group_buffer_end],
-                                             self._new_params[group_shard_start:group_shard_end],
-                                             self._fp32_m[group_buffer_start:group_buffer_end],
-                                             self._fp32_v[group_buffer_start:group_buffer_end],
-                                             self._flat_grads[group_shard_start:group_shard_end],
-                                             group['lr'],
-                                             beta1,
-                                             beta2,
-                                             group['eps'],
-                                             combined_scale,
-                                             step+1,
-                                             self.eps_mode,
-                                             bias_correction,
-                                             group['weight_decay'])
-                    elif self._revert_method == 2:
-                        self.__swap_optimizer_state_buffers()
-                        fused_adam_cuda.adam_no_overflow_check(
-                                             self._fp32_backup_p[group_buffer_start:group_buffer_end],
-                                             self._fp32_p[group_buffer_start:group_buffer_end],
-                                             self._new_params[group_shard_start:group_shard_end],
-                                             self._fp32_backup_m[group_buffer_start:group_buffer_end],
-                                             self._fp32_m[group_buffer_start:group_buffer_end],
-                                             self._fp32_backup_v[group_buffer_start:group_buffer_end],
-                                             self._fp32_v[group_buffer_start:group_buffer_end],
-                                             self._flat_grads[group_shard_start:group_shard_end],
-                                             group['lr'],
-                                             beta1,
-                                             beta2,
-                                             group['eps'],
-                                             combined_scale,
-                                             step+1,
-                                             self.eps_mode,
-                                             bias_correction,
-                                             group['weight_decay'])
-                    elif self._revert_method == 3:
-                        raise RuntimeError('revert_step debug option not implemented yet')
+                    if self._revert_method > 1:
+                        self._fp32_backup_p[group_buffer_start:group_buffer_end].copy_(self._fp32_p[group_buffer_start:group_buffer_end])
+                        self._fp32_backup_m[group_buffer_start:group_buffer_end].copy_(self._fp32_m[group_buffer_start:group_buffer_end])
+                        self._fp32_backup_v[group_buffer_start:group_buffer_end].copy_(self._fp32_v[group_buffer_start:group_buffer_end])
+                    fused_adam_cuda.adam(
+                                         self._fp32_p[group_buffer_start:group_buffer_end],
+                                         self._new_params[group_shard_start:group_shard_end],
+                                         self._fp32_m[group_buffer_start:group_buffer_end],
+                                         self._fp32_v[group_buffer_start:group_buffer_end],
+                                         self._flat_grads[group_shard_start:group_shard_end],
+                                         group['lr'],
+                                         beta1,
+                                         beta2,
+                                         group['eps'],
+                                         combined_scale,
+                                         step+1,
+                                         self.eps_mode,
+                                         bias_correction,
+                                         group['weight_decay'])
 
     def _do_compute_L2_grad_norm(self):
         partial_sum = torch.zeros([]).cuda()
