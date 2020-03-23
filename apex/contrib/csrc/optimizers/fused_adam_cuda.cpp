@@ -2,8 +2,8 @@
 
 // CUDA forward declaration
 void fused_strided_check_finite(at::Tensor& noop, at::Tensor& p_copy, int stride, int clear_overflow_first);
-void fused_adam_cuda(at::Tensor& noop, at::Tensor& p_in, at::Tensor& p_out, at::Tensor& p_copy, at::Tensor& m_in, at::Tensor& m_out, at::Tensor& v_in, at::Tensor& v_out, at::Tensor& g_in, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
-void fused_adam_undo_cuda(at::Tensor& p_in, at::Tensor& p_out, at::Tensor& m_in, at::Tensor& m_out, at::Tensor& v_in, at::Tensor& v_out, at::Tensor& g_in, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
+void fused_adam_cuda(at::Tensor& noop, at::Tensor& p_in, at::Tensor& p_out, at::Tensor& p_copy, at::Tensor& m_in, at::Tensor& m_out, at::Tensor& v_in, at::Tensor& v_out, at::Tensor& g_in, float lr, float beta1, float beta2, float eps, at::Tensor& grad_scale, int step, int mode, int bias_correction, float decay);
+void fused_adam_undo_cuda(at::Tensor& p_in, at::Tensor& p_out, at::Tensor& m_in, at::Tensor& m_out, at::Tensor& v_in, at::Tensor& v_out, at::Tensor& g_in, float lr, float beta1, float beta2, float eps, at::Tensor& grad_scale, int step, int mode, int bias_correction, float decay, at::Tensor& found_inf);
 void fused_adam_cuda_mt(int chunk_size, at::Tensor noop_flag, std::vector<std::vector<at::Tensor>> tensor_lists, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
 
 #define CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")
@@ -31,7 +31,7 @@ void adam(
 		at::Tensor& v_in, 
 		at::Tensor& v_out, 
 		at::Tensor& g_in, 
-		float lr, float beta1, float beta2, float eps, float grad_scale, 
+		float lr, float beta1, float beta2, float eps, at::Tensor& grad_scale, 
 		int step, int mode, int bias_correction, float decay
 	 ) {
 	CHECK_INPUT(p_in);
@@ -62,8 +62,9 @@ void adam_undo(
 		at::Tensor& v_in, 
 		at::Tensor& v_out, 
 		at::Tensor& g_in, 
-		float lr, float beta1, float beta2, float eps, float grad_scale, 
-		int step, int mode, int bias_correction, float decay
+		float lr, float beta1, float beta2, float eps, at::Tensor& grad_scale, 
+		int step, int mode, int bias_correction, float decay,
+                at::Tensor& found_inf
 	 ) {
 	CHECK_INPUT(p_in);
 	CHECK_INPUT(p_out);
@@ -80,7 +81,7 @@ void adam_undo(
         AT_ASSERTM(v_out.numel()  == num_elem, "number of elements in v_out and p_in tensors should be equal");
         AT_ASSERTM(g_in.numel()   == num_elem, "number of elements in g_in and p_in tensors should be equal");
 
-	fused_adam_undo_cuda(p_in, p_out, m_in, m_out, v_in, v_out, g_in, lr, beta1, beta2, eps, grad_scale, step, mode, bias_correction, decay);
+	fused_adam_undo_cuda(p_in, p_out, m_in, m_out, v_in, v_out, g_in, lr, beta1, beta2, eps, grad_scale, step, mode, bias_correction, decay, found_inf);
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
