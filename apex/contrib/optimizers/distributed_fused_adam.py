@@ -520,8 +520,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def complete_reductions(self):
         """Complete reductions if full pipeline is not selected or overlap is not allowed.
         """
-        self._wait_works()
-
         if self._last_step:
             # zero out gradients that have not been completed yet
             for param_i, grad_generated in enumerate(self._grads_generated):
@@ -532,9 +530,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     self._flat_grads[param_offset:param_offset+param_size].zero_()
                     self._grads_generated[param_i] = True
 
+        for dist_opt_stream in self._blk_st:
+            torch.cuda.current_stream().wait_stream(dist_opt_stream)
+
+
         if self._last_step or not self._overlap_reductions or not self._full_pipeline:
-            if self._new_params is None:
-                self._new_params = torch.zeros_like(self._flat_grads)
             if self._last_step or not self._overlap_reductions:
                 # nothing done so far, run full pipeline after reductions
                 if self._compute_L2_grad_norm:
@@ -559,8 +559,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         block_id = self._num_blocks - inv_block_id - 1
                         self._blk_st[block_id%len(self._blk_st)].wait_stream(torch.cuda.current_stream())
                         with torch.cuda.stream(self._blk_st[block_id%len(self._blk_st)]):
-                            work = self._pipeline_block(block_id, self._flat_grads, self._new_params)
-                            self._works.append(work)
+                            self._pipeline_block(block_id, self._flat_grads, self._next_model_params)
             else:
                 # reductions done.
                 if self._compute_L2_grad_norm:
