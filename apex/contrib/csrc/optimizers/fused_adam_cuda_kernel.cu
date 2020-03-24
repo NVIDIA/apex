@@ -574,7 +574,7 @@ void fused_adam_cuda_mt(
 }
 
 __global__
-void conditional_copy_kernel(half *dst, half *src, int n, float *found_inf) {
+void conditional_copy_kernel(at::Half *dst, at::Half *src, int n, float *found_inf) {
     if (*found_inf == 0.f) { return; }
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = gridDim.x * blockDim.x;
@@ -598,8 +598,8 @@ void conditional_copy_cuda(at::Tensor& dst, at::Tensor& src, at::Tensor& found_i
     int num_blocks = min((n + block_size - 1) / block_size, max_blocks);
     auto stream = at::cuda::getCurrentCUDAStream();
     conditional_copy_kernel<<<num_blocks, block_size, 0, at::cuda::getCurrentCUDAStream()>>>(
-        dst.DATA_PTR<half>(),
-        src.DATA_PTR<half>(),
+        dst.DATA_PTR<at::Half>(),
+        src.DATA_PTR<at::Half>(),
         n,
         found_inf.DATA_PTR<float>());
     THCudaCheck(cudaGetLastError());
