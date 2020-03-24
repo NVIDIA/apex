@@ -40,6 +40,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         https://openreview.net/forum?id=ryQu7f-RZ
     """
 
+    _step_supports_amp_scaling = True
+
     def __init__(self, params,
                  lr=1e-3, bias_correction = True,
                  betas=(0.9, 0.999), eps=1e-8, eps_inside_sqrt = False,
@@ -587,7 +589,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         for block_id in range(self._num_blocks):
             self._partial_step_single_shard(block_id, undo=True)
 
-    def step(self, closure=None):
+    def step(self, closure=None, grad_scaler=None):
         assert closure is None
 
         # Ensure dist opt pipeline is finished
