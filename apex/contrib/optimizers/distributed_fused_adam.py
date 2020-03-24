@@ -38,6 +38,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         https://openreview.net/forum?id=ryQu7f-RZ
     """
 
+    _set_supports_amp_scaling = True
+
     def __init__(self, params,
                  lr=1e-3, bias_correction = True,
                  betas=(0.9, 0.999), eps=1e-8, eps_inside_sqrt = False,
@@ -62,6 +64,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         super(DistributedFusedAdam, self).__init__(params, defaults)
         self.eps_mode = 0 if  eps_inside_sqrt else 1
 
+        self._found_inf = torch.full((1,), 0., dtype=torch.float32, device='cuda')
         self._overflow_buf = torch.cuda.IntTensor([0])
 
         # Way to revert a step
@@ -106,6 +109,20 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._grads_generated = [False]*len(self._grads_info)
         if self._overlap_reductions:
             self._current_block = self._num_blocks
+
+        # Flatten fp16 model params and allocate fp16 double-buffer
+        self._cur_model_params = torch.zeros((p_offset,), dtype=torch.float16, device='cuda')
+        self._next_model_params = torch.zeros((p_offset,), dtype=torch.float16, device='cuda')
+        idx = 0
+        for group in self.param_groups:
+            for p in group['params']:
+                assert p.requires_grad
+                offset = self._grads_info[idx]['param_offset']
+                end = offset + p.numel()
+                idx += 1
+                with torch.no_grad():
+                    self._cur_model_params[offset:end].copy_(p.view(-1))
+                    p.set_(self._cur_model_params[offset:end]).view_as(p)
 
         self._net_total_param_size = p_offset
         self._total_param_size = p_offset
@@ -170,7 +187,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
     def set_last_step(self, last_step):
         self._last_step = last_step
-        
+
     def _get_flush_block(self):
         flush_block = []
         num_grads = len(self._grads_generated)
@@ -196,13 +213,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         grad_block = flat_grads[start:end]
         grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
         if self._pg_supports_no_copy:
-            work = torch.distributed.reduce_scatter(grad_shards[self._rank_in_group],grad_shards,group=self._rs_pg[block_id%len(self._rs_pg)],async_op=True,no_copy=True)
+            torch.distributed.reduce_scatter(grad_shards[self._rank_in_group],grad_shards,group=self._rs_pg[block_id%len(self._rs_pg)], no_copy=True)
         else:
-            work = torch.distributed.reduce_scatter(grad_shards[self._rank_in_group],grad_shards,group=self._rs_pg[block_id%len(self._rs_pg)],async_op=True)
+            torch.distributed.reduce_scatter(grad_shards[self._rank_in_group],grad_shards,group=self._rs_pg[block_id%len(self._rs_pg)])
         if self._num_groups > 1:
-            work.wait()
-            work = torch.distributed.all_reduce(grad_shards[self._rank_in_group],group=self._ar_pg[block_id%len(self._ar_pg)],async_op=True)
-        return work
+            torch.distributed.all_reduce(grad_shards[self._rank_in_group],group=self._ar_pg[block_id%len(self._ar_pg)])
 
     # NB!
     # self._global_scale is used by this method.
@@ -212,16 +227,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         new_params_shards = [new_params[start+shard_i*self._shard_size:start+(shard_i+1)*self._shard_size] for shard_i in range(self._group_size)]
         self._partial_step_single_shard(block_id)
         if self._pg_supports_no_copy:
-            work = torch.distributed.all_gather(new_params_shards,new_params_shards[self._rank_in_group],group=self._ag_pg[block_id%len(self._ag_pg)],async_op=True,no_copy=True)
+            torch.distributed.all_gather(new_params_shards,new_params_shards[self._rank_in_group],group=self._ag_pg[block_id%len(self._ag_pg)], no_copy=True)
         else:
-            work = torch.distributed.all_gather(new_params_shards,new_params_shards[self._rank_in_group],group=self._ag_pg[block_id%len(self._ag_pg)],async_op=True)
-        return work
+            torch.distributed.all_gather(new_params_shards,new_params_shards[self._rank_in_group],group=self._ag_pg[block_id%len(self._ag_pg)])
 
     def _pipeline_block(self, block_id, flat_grads, new_params):
-        work = self._pipeline_block_reductions(block_id, flat_grads)
-        if work is not None:
-            work.wait()
-        return self._pipeline_block_step(block_id, flat_grads, new_params)
+        self._pipeline_block_reductions(block_id, flat_grads)
+        self._pipeline_block_step(block_id, flat_grads, new_params)
 
     def _do_overlapped_reduction(self, param_i, param_grads_size, param_offset, grad):
         # handle overlapped reductions
@@ -235,13 +247,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     self._blk_st[block_id%len(self._blk_st)].wait_stream(torch.cuda.current_stream())
                     with torch.cuda.stream(self._blk_st[block_id%len(self._blk_st)]):
                         if self._full_pipeline:
-                            if self._new_params is None:
-                                self._new_params = torch.zeros_like(self._flat_grads)
-                            work = self._pipeline_block(block_id, self._flat_grads, self._new_params)
-                            self._works.append(work)
+                            self._pipeline_block(block_id, self._flat_grads, self._next_model_params)
                         else:
-                            work = self._pipeline_block_reductions(block_id, self._flat_grads)
-                            self._works.append(work)
+                            self._pipeline_block_reductions(block_id, self._flat_grads)
 
                     flush_block = self._get_flush_block()
 
@@ -403,7 +411,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                                              step+1, # FIXME: Verify this should be step+1
                                              self.eps_mode,
                                              bias_correction,
-                                             group['weight_decay'])
+                                             group['weight_decay'],
+                                             self._found_inf)
                     elif self._revert_method == 2:
                         self._fp32_p[group_buffer_start:group_buffer_end].copy_(self._fp32_backup_p[group_buffer_start:group_buffer_end])
                         self._fp32_m[group_buffer_start:group_buffer_end].copy_(self._fp32_backup_m[group_buffer_start:group_buffer_end])
@@ -417,7 +426,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         self._fp32_backup_v[group_buffer_start:group_buffer_end].copy_(self._fp32_v[group_buffer_start:group_buffer_end])
                     fused_adam_cuda.adam(
                                          self._fp32_p[group_buffer_start:group_buffer_end],
-                                         self._new_params[group_shard_start:group_shard_end],
+                                         self._next_model_params[group_shard_start:group_shard_end],
                                          self._fp32_m[group_buffer_start:group_buffer_end],
                                          self._fp32_v[group_buffer_start:group_buffer_end],
                                          self._flat_grads[group_shard_start:group_shard_end],
@@ -438,14 +447,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
             shard_grad_norm = grad_shards[self._rank_in_group].norm(dtype=torch.float32,p=2)
             partial_sum += (shard_grad_norm*shard_grad_norm)
-        torch.distributed.all_reduce(partial_sum,group=self._rs_pg[0], async_op=False)
+        torch.distributed.all_reduce(partial_sum,group=self._rs_pg[0])
         self._L2_grad_norm = partial_sum.sqrt().item()
 
     def complete_reductions(self):
         """Complete reductions if full pipeline is not selected or overlap is not allowed.
         """
-        self._wait_works()
-
         if self._last_step:
             # zero out gradients that have not been completed yet
             for param_i, grad_generated in enumerate(self._grads_generated):
@@ -455,6 +462,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     param_size = grad_info["param_grads_size"]
                     self._flat_grads[param_offset:param_offset+param_size].zero_()
                     self._grads_generated[param_i] = True
+
+        for dist_opt_stream in self._blk_st:
+            torch.cuda.current_stream().wait_stream(dist_opt_stream)
 
         if self._last_step or not self._overlap_reductions or not self._full_pipeline:
             if self._new_params is None:
@@ -483,8 +493,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         block_id = self._num_blocks - inv_block_id - 1
                         self._blk_st[block_id%len(self._blk_st)].wait_stream(torch.cuda.current_stream())
                         with torch.cuda.stream(self._blk_st[block_id%len(self._blk_st)]):
-                            work = self._pipeline_block(block_id, self._flat_grads, self._new_params)
-                            self._works.append(work)
+                            self._pipeline_block(block_id, self._flat_grads, self._next_model_params)
             else:
                 # reductions done.
                 if self._compute_L2_grad_norm:
@@ -512,37 +521,38 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         for block_id in range(self._num_blocks):
             self._partial_step_single_shard(block_id, undo=True)
 
-    def step(self, closure=None):
-        loss = None
-        if closure is not None:
-            loss = closure()
+    def step(self, closure=None, grad_scaler=None):
+        assert closure is None
 
-        self._wait_works()
+        # Ensure dist opt pipeline is finished
+        for dist_opt_stream in self._blk_st:
+            torch.cuda.current_stream().wait_stream(dist_opt_stream)
 
-        # Check for overflow
-        # Store state for loss scaler calculation
-        self.strided_check_finite(self._new_params, stride=self._shard_size, start=0, end=self._net_total_param_size)
-        if self.peek_overflow:
-            print("Reverting step")
-            self.revert_step()
-        else:
-            # Copy self._new_params to model params
-            with torch.no_grad():
-                param_i = 0
-                for group in self.param_groups:
-                    for p in group['params']:
-                        if not p.requires_grad:
-                            continue
-                        state = self.state[p]
-                        if len(state) == 0:
-                            state['step'] = 0
-                        state['step'] += 1
-                        nels = p.numel()
-                        offset = self._grads_info[param_i]['param_offset']
-                        p.set_(self._new_params[offset:offset+nels].view_as(p))
-                        param_i += 1
-        self._new_params = None
+        # TODO: don't use a R/W kernel here
+        torch._amp_non_finite_check_and_unscale(self._next_model_params, self._found_inf, self._dummy_inv_scale)
+        # TODO: do we need to pass the found_inf back to the grad_scaler here?
 
-        return loss
+        # Launch kernels to undo fp32 state changes; these are no-ops if *found_inf is false
+        for block_id in range(self._num_blocks):
+            # TODO: should we put these on dist opt streams? Shouldn't matter (all bandwidth-bound)
+            self._partial_step_single_shard(block_id, undo=True)
 
+        # Launch a kernel to copy cur_params -> next params if there was an overflow
+        fused_adam_cuda.conditional_copy(self._next_model_params, self._cur_model_params, self._found_inf)
 
+        # Update params to the next params
+        param_i = 0
+        for group in self.param_groups:
+            for p in group['params']:
+                state = self.state[p]
+                if len(state) == 0:
+                    state['step'] = 0
+                state['step'] += 1
+                offset = self._grads_info[param_i]['param_offset']
+                end = offset + p.numel()
+                with torch.no_grad():
+                    p.set_(self._next_model_params[offset:offset+end].view_as(p))
+                param_i += 1
+
+        # Swap the fp16 params double buffer
+        (self._cur_model_params, self._next_model_params) = (self._next_model_params, self._cur_model_params)

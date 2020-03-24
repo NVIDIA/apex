@@ -61,7 +61,7 @@ __global__ void adam_cuda_kernel(
         const float b1,
         const float b2,
         const float eps,
-        const float grad_scale,
+        const float *p_grad_scale,
         const float step_size,
         const size_t tsize,
         adamMode_t mode,
@@ -73,6 +73,7 @@ __global__ void adam_cuda_kernel(
     const int threadIdInBlock = threadIdx.y * blockDim.x + threadIdx.x;
     const int i = (blockId * threadsPerBlock + threadIdInBlock);
     const int totThreads = gridDim.x*gridDim.y*threadsPerBlock;
+    float grad_scale = *p_grad_scale;
 
     T mi[ILP];
     T vi[ILP];
@@ -144,18 +145,23 @@ __global__ void adam_undo_cuda_kernel(
         const float b1,
         const float b2,
         const float eps,
-        const float grad_scale,
+        const float *p_grad_scale,
         const float step_size,
         const size_t tsize,
         adamMode_t mode,
-        const float decay)
+        const float decay,
+        const float *p_found_inf)
 {
+    // If no overflow, do nothing
+    if (*p_found_inf == 0.f) { return; }
+
     //Assuming 2D grids and 2D blocks
     const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
     const int threadsPerBlock = blockDim.x * blockDim.y;
     const int threadIdInBlock = threadIdx.y * blockDim.x + threadIdx.x;
     const int i = (blockId * threadsPerBlock + threadIdInBlock);
     const int totThreads = gridDim.x*gridDim.y*threadsPerBlock;
+    float grad_scale = *p_grad_scale;
 
     T mi[ILP];
     T vi[ILP];
@@ -426,7 +432,7 @@ void fused_adam_cuda(
         float beta1,
         float beta2,
         float eps,
-        float grad_scale,
+        at::Tensor & grad_scale,
         int step,
         int mode,
         int bias_correction,
@@ -468,7 +474,7 @@ void fused_adam_cuda(
                         beta1,
                         beta2,
                         eps,
-                        grad_scale,
+                        grad_scale.DATA_PTR<float>(),
                         step_size,
                         tsize,
                         (adamMode_t) mode,
@@ -486,7 +492,7 @@ void fused_adam_cuda(
                         beta1,
                         beta2,
                         eps,
-                        grad_scale,
+                        grad_scale.DATA_PTR<float>(),
                         step_size,
                         tsize,
                         (adamMode_t) mode,
@@ -506,11 +512,12 @@ void fused_adam_undo_cuda(
         float beta1,
         float beta2,
         float eps,
-        float grad_scale,
+        at::Tensor & grad_scale,
         int step,
         int mode,
         int bias_correction,
-        float decay)
+        float decay,
+        at::Tensor & found_inf)
 {
 //        using namespace at;
 
@@ -547,11 +554,12 @@ void fused_adam_undo_cuda(
                         beta1,
                         beta2,
                         eps,
-                        grad_scale,
+                        grad_scale.DATA_PTR<float>(),
                         step_size,
                         tsize,
                         (adamMode_t) mode,
-                        decay);
+                        decay,
+                        found_inf.DATA_PTR<float>());
                 );
       } else {
             using namespace at;
@@ -564,11 +572,12 @@ void fused_adam_undo_cuda(
                         beta1,
                         beta2,
                         eps,
-                        grad_scale,
+                        grad_scale.DATA_PTR<float>(),
                         step_size,
                         tsize,
                         (adamMode_t) mode,
-                        decay);
+                        decay,
+                        found_inf.DATA_PTR<float>());
             );
       }
       THCudaCheck(cudaGetLastError());
@@ -750,3 +759,34 @@ void fused_adam_undo_cuda_mt(
     THCudaCheck(cudaGetLastError());
 }
 
+__global__
+void conditional_copy_kernel(at::Half *dst, at::Half *src, int n, float *found_inf) {
+    if (*found_inf == 0.f) { return; }
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = gridDim.x * blockDim.x;
+
+    half2 *h2_src = reinterpret_cast<half2*>(src);
+    half2 *h2_dst = reinterpret_cast<half2*>(dst);
+
+    for (int i = tid * 2; i < n; i += stride * 2) {
+        if (i < (n - 1)) {
+            h2_dst[i/2] = h2_src[i/2];
+        } else {
+            dst[i] = src[i];
+        }
+    }
+}
+
+void conditional_copy_cuda(at::Tensor& dst, at::Tensor& src, at::Tensor& found_inf) {
+    const int block_size = 512;
+    const int max_blocks = 1024;
+    int n = dst.numel();
+    int num_blocks = min((n + block_size - 1) / block_size, max_blocks);
+    auto stream = at::cuda::getCurrentCUDAStream();
+    conditional_copy_kernel<<<num_blocks, block_size, 0, at::cuda::getCurrentCUDAStream()>>>(
+        dst.DATA_PTR<at::Half>(),
+        src.DATA_PTR<at::Half>(),
+        n,
+        found_inf.DATA_PTR<float>());
+    THCudaCheck(cudaGetLastError());
+}

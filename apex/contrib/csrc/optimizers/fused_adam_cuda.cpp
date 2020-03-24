@@ -3,12 +3,13 @@
 // CUDA forward declaration
 void fused_strided_check_finite(at::Tensor & noop, at::Tensor & p_copy, int stride, int clear_overflow_first);
 
-void fused_adam_cuda(at::Tensor & p, at::Tensor & p_copy, at::Tensor & m, at::Tensor & v, at::Tensor & g, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
-void fused_adam_undo_cuda(at::Tensor & p, at::Tensor & m, at::Tensor & v, at::Tensor & g, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
+void fused_adam_cuda(at::Tensor & p, at::Tensor & p_copy, at::Tensor & m, at::Tensor & v, at::Tensor & g, float lr, float beta1, float beta2, float eps, at::Tensor& grad_scale, int step, int mode, int bias_correction, float decay);
+void fused_adam_undo_cuda(at::Tensor & p, at::Tensor & m, at::Tensor & v, at::Tensor & g, float lr, float beta1, float beta2, float eps, at::Tensor& grad_scale, int step, int mode, int bias_correction, float decay, at::Tensor& found_inf);
 
 void fused_adam_cuda_mt(int chunk_size, at::Tensor noop_flag, std::vector<std::vector<at::Tensor>> tensor_lists, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
 void fused_adam_undo_cuda_mt(int chunk_size, at::Tensor noop_flag, std::vector<std::vector<at::Tensor>> tensor_lists, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
 
+void conditional_copy_cuda(at::Tensor& dst, at::Tensor& src, at::Tensor& found_inf);
 
 #define CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
@@ -24,7 +25,7 @@ void strided_check_finite(
 	CHECK_INPUT(p_copy);
 	fused_strided_check_finite(noop, p_copy, stride, clear_overflow_first);
 }
-void adam(at::Tensor & p, at::Tensor & p_copy, at::Tensor & m, at::Tensor & v, at::Tensor & g, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay) {
+void adam(at::Tensor & p, at::Tensor & p_copy, at::Tensor & m, at::Tensor & v, at::Tensor & g, float lr, float beta1, float beta2, float eps, at::Tensor& grad_scale, int step, int mode, int bias_correction, float decay) {
         CHECK_INPUT(p);
         if (p_copy.numel() > 0) CHECK_INPUT(p_copy);
         CHECK_INPUT(m);
@@ -38,7 +39,7 @@ void adam(at::Tensor & p, at::Tensor & p_copy, at::Tensor & m, at::Tensor & v, a
 
         fused_adam_cuda(p, p_copy, m, v, g, lr, beta1, beta2, eps, grad_scale, step, mode, bias_correction, decay);
 }
-void adam_undo(at::Tensor & p, at::Tensor & m, at::Tensor & v, at::Tensor & g, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay) {
+void adam_undo(at::Tensor & p, at::Tensor & m, at::Tensor & v, at::Tensor & g, float lr, float beta1, float beta2, float eps, at::Tensor& grad_scale, int step, int mode, int bias_correction, float decay, at::Tensor& found_inf) {
         CHECK_INPUT(p);
         CHECK_INPUT(m);
         CHECK_INPUT(v);
@@ -48,8 +49,17 @@ void adam_undo(at::Tensor & p, at::Tensor & m, at::Tensor & v, at::Tensor & g, f
         AT_ASSERTM(v.numel() == num_elem, "number of elements in v and p tensors should be equal");
         AT_ASSERTM(g.numel() == num_elem, "number of elements in g and p tensors should be equal");
 
-        fused_adam_undo_cuda(p, m, v, g, lr, beta1, beta2, eps, grad_scale, step, mode, bias_correction, decay);
+        fused_adam_undo_cuda(p, m, v, g, lr, beta1, beta2, eps, grad_scale, step, mode, bias_correction, decay, found_inf);
 }
+
+void conditional_copy(at::Tensor& dst, at::Tensor& src, at::Tensor& found_inf) {
+    CHECK_INPUT(dst);
+    CHECK_INPUT(src);
+    CHECK_INPUT(found_inf);
+    AT_ASSERTM(dst.numel() == src.numel(), "Dst and src must be the same size");
+    conditional_copy_cuda(dst, src, found_inf);
+}
+
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         m.def("strided_check_finite", &strided_check_finite, "Strided finite check.");
@@ -57,4 +67,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         m.def("adam_undo", &adam_undo, "Undo function for Adam optimized CUDA implementation.");
         m.def("adam_mt", &fused_adam_cuda_mt, "Multi tensor Adam optimized CUDA implementation.");
         m.def("adam_undo_mt", &fused_adam_undo_cuda_mt, "Multi tensor undo function for Adam optimized CUDA implementation.");
+        m.def("conditional_copy", &conditional_copy, "Copy guarded by flag.");
 }
