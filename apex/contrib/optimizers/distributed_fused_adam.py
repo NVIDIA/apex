@@ -212,7 +212,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         return flush_block
 
     def __pipeline_block_reductions(self, block_id, grad_shards):
-        torch.distributed.reduce_scatter(grad_shards[self._rank_in_group],grad_shards,group=self._rs_pg[block_id%len(self._rs_pg)], inplace=True)
+        torch.distributed.reduce_scatter(grad_shards[self._rank_in_group],grad_shards,group=self._rs_pg[block_id%len(self._rs_pg)], no_copy=True)
         if self._num_groups > 1:
             torch.distributed.all_reduce(grad_shards[self._rank_in_group],group=self._ar_pg[block_id%len(self._ar_pg)])
 
@@ -248,7 +248,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         shard_end = shard_start + self._shard_size
         block_id = start // self._block_size
         self._partial_step_single_shard(block_id)
-        torch.distributed.all_gather(new_params_shards,new_params_shards[self._rank_in_group],group=self._ag_pg[block_id%len(self._ag_pg)], inplace=True)
+        torch.distributed.all_gather(new_params_shards,new_params_shards[self._rank_in_group],group=self._ag_pg[block_id%len(self._ag_pg)], no_copy=True)
 
     # NB!
     # self._global_scale is set by the prestat reduction logic, OR manually by user
@@ -516,7 +516,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             grad_shards = [grad_block[i*self._shard_size:(i+1)*self._shard_size] for i in range(self._group_size)]
             shard_grad_norm = grad_shards[self._rank_in_group].float().norm()
             partial_sum += (shard_grad_norm*shard_grad_norm)
-        torch.distributed.all_reduce(partial_sum,group=self._rs_pg[0], async_op=False)
+        torch.distributed.all_reduce(partial_sum,group=self._rs_pg[0])
         self._L2_grad_norm = partial_sum.sqrt().item()
 
     def complete_reductions(self):
