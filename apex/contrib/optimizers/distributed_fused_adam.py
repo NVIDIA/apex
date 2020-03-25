@@ -38,7 +38,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         https://openreview.net/forum?id=ryQu7f-RZ
     """
 
-    _set_supports_amp_scaling = True
+    _step_supports_amp_scaling = True
 
     def __init__(self, params,
                  lr=1e-3, bias_correction = True,
@@ -65,6 +65,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self.eps_mode = 0 if  eps_inside_sqrt else 1
 
         self._found_inf = torch.full((1,), 0., dtype=torch.float32, device='cuda')
+        self._dummy_inv_scale = torch.full((1,), 1.0, dtype=torch.float32, device='cuda')
         self._overflow_buf = torch.cuda.IntTensor([0])
 
         # Way to revert a step
@@ -110,9 +111,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if self._overlap_reductions:
             self._current_block = self._num_blocks
 
+        self._net_total_param_size = p_offset
+        self._total_param_size = p_offset
+        dwu_min_page_size = 256 * self._num_blocks * self._group_size
+        self._total_param_size = ((self._total_param_size + dwu_min_page_size - 1) // dwu_min_page_size) * dwu_min_page_size
+        self._block_size = self._total_param_size // self._num_blocks
+        self._shard_size = self._block_size // self._group_size
+        print("self._net_total_param_size=%d, self._total_param_size=%d, dwu_min_page_size=%d, self._block_size=%d, self._shard_size=%d" % (self._net_total_param_size, self._total_param_size,dwu_min_page_size,self._block_size,self._shard_size))
+
         # Flatten fp16 model params and allocate fp16 double-buffer
-        self._cur_model_params = torch.zeros((p_offset,), dtype=torch.float16, device='cuda')
-        self._next_model_params = torch.zeros((p_offset,), dtype=torch.float16, device='cuda')
+        self._cur_model_params = torch.zeros((self._total_param_size,), dtype=torch.float16, device='cuda')
+        self._next_model_params = torch.zeros((self._total_param_size,), dtype=torch.float16, device='cuda')
         idx = 0
         for group in self.param_groups:
             for p in group['params']:
@@ -122,15 +131,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 idx += 1
                 with torch.no_grad():
                     self._cur_model_params[offset:end].copy_(p.view(-1))
-                    p.set_(self._cur_model_params[offset:end]).view_as(p)
-
-        self._net_total_param_size = p_offset
-        self._total_param_size = p_offset
-        dwu_min_page_size = 256 * self._num_blocks * self._group_size
-        self._total_param_size = ((self._total_param_size + dwu_min_page_size - 1) // dwu_min_page_size) * dwu_min_page_size
-        self._block_size = self._total_param_size // self._num_blocks
-        self._shard_size = self._block_size // self._group_size
-        print("self._net_total_param_size=%d, self._total_param_size=%d, dwu_min_page_size=%d, self._block_size=%d, self._shard_size=%d" % (self._net_total_param_size, self._total_param_size,dwu_min_page_size,self._block_size,self._shard_size))
+                    p.set_(self._cur_model_params[offset:end].view_as(p))
 
         self._flat_grads = torch.zeros([self._total_param_size]).half().cuda()
         self._new_params = None
@@ -529,7 +530,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             torch.cuda.current_stream().wait_stream(dist_opt_stream)
 
         # TODO: don't use a R/W kernel here
-        torch._amp_non_finite_check_and_unscale(self._next_model_params, self._found_inf, self._dummy_inv_scale)
+        torch._amp_non_finite_check_and_unscale_(self._next_model_params, self._found_inf, self._dummy_inv_scale)
         # TODO: do we need to pass the found_inf back to the grad_scaler here?
 
         # Launch kernels to undo fp32 state changes; these are no-ops if *found_inf is false
@@ -551,7 +552,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 offset = self._grads_info[param_i]['param_offset']
                 end = offset + p.numel()
                 with torch.no_grad():
-                    p.set_(self._next_model_params[offset:offset+end].view_as(p))
+                    p.set_(self._next_model_params[offset:end].view_as(p))
                 param_i += 1
 
         # Swap the fp16 params double buffer
