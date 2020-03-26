@@ -530,6 +530,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             torch.cuda.current_stream().wait_stream(dist_opt_stream)
 
         # TODO: don't use a R/W kernel here
+        self._found_inf.zero_()
         torch._amp_non_finite_check_and_unscale_(self._next_model_params, self._found_inf, self._dummy_inv_scale)
         # TODO: do we need to pass the found_inf back to the grad_scaler here?
 
