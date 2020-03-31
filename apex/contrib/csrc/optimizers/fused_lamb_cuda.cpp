@@ -13,6 +13,7 @@ void multi_tensor_lamb_cuda(
   const float weight_decay,
   const int grad_averaging,
   const int mode,
+  const float global_grad_norm,
   const float max_grad_norm);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {

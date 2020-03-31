@@ -227,6 +227,7 @@ void multi_tensor_lamb_cuda(
   const float weight_decay,
   const int grad_averaging,
   const int mode,
+  const float global_grad_norm,
   const float max_grad_norm)
 {
   using namespace at;
@@ -246,9 +247,6 @@ void multi_tensor_lamb_cuda(
 
   std::vector<std::vector<at::Tensor>> grad_list(tensor_lists.begin(), tensor_lists.begin()+1);
   std::vector<std::vector<at::Tensor>> param_list(tensor_lists.begin()+1, tensor_lists.begin()+2);
-
-  // Compute global grad norm
-  auto grad_norm_tuple = multi_tensor_l2norm_cuda(chunk_size, noop_flag, grad_list, false);
 
   // Compute per tensor param norm
   auto param_norm_tuple = multi_tensor_l2norm_cuda(chunk_size, noop_flag, param_list, true);
@@ -271,7 +269,7 @@ void multi_tensor_lamb_cuda(
         epsilon,
         (adamMode_t) mode,
         weight_decay,
-        std::get<0>(grad_norm_tuple).DATA_PTR<float>(),
+        global_grad_norm,
         max_grad_norm); )
 
   // Compute update norms
