@@ -81,6 +81,7 @@ class FusedLAMB(torch.optim.Optimizer):
 
         self.adam_w_mode = 1 if adam_w_mode else 0
         self.set_grad_none = set_grad_none
+        print("apex.contrib.optimiziers.FusedLAMB: testing global gradient clipping")
 
     def zero_grad(self):
         if self.set_grad_none:
