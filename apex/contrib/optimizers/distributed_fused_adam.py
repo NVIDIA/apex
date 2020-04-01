@@ -495,7 +495,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
-        if self._last_step or not self._full_pipeline:
+        if self._last_step or not self._overlap_reductions or not self._full_pipeline:
             if self._new_params is None:
                 self._new_params = torch.zeros_like(self._flat_grads)
             for inv_block_id in range(self._num_blocks):
