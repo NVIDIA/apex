@@ -108,14 +108,16 @@ class FusedLAMB(torch.optim.Optimizer):
         g_all_32, g_all_16 = [], []
         for group in self.param_groups:
             for p in group['params']:
-                if p.grad is not None:
-                    if p.dtype == torch.float32:
-                        g_all_32.append(p.grad.data)
-                    elif p.dytpe == torch.float16:
-                        g_all_16.append(p.grad.data)
-                    else:
-                        raise RuntimeError('FusedLAMB only support fp16 and fp32.')
+                if p.grad is None:
+                    continue
+                if p.dtype == torch.float32:
+                    g_all_32.append(p.grad.data)
+                elif p.dytpe == torch.float16:
+                    g_all_16.append(p.grad.data)
+                else:
+                    raise RuntimeError('FusedLAMB only support fp16 and fp32.')
 
+        print("====after collect")
         # compute grad norm for two lists
         g_norm_32, _ = multi_tensor_applier(self.multi_tensor_l2norm,
                                             self._dummy_overflow_buf,
@@ -124,9 +126,13 @@ class FusedLAMB(torch.optim.Optimizer):
                                             self._dummy_overflow_buf,
                                             [g_all_16], False)
 
+        print("====after multi_tensor_l2norm")
+
         # blend two grad norms to get global grad norm
         global_grad_norm = math.sqrt(g_norm_32 * g_norm_32 + g_norm_16 * g_norm_16)
         max_grad_norm = self.defaults['max_grad_norm']
+        print("====global_grad_norm:", global_grad_norm)
+        print("====max_grad_norm:", max_grad_norm)
 
         for group in self.param_groups:
             bias_correction = 1 if group['bias_correction'] else 0
