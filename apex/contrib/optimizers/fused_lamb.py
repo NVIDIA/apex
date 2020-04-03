@@ -118,13 +118,15 @@ class FusedLAMB(torch.optim.Optimizer):
                     raise RuntimeError('FusedLAMB only support fp16 and fp32.')
 
         print("====after collect")
+        print("====g_all_32:", g_all_32)
+        print("====g_all_16:", g_all_16)
         # compute grad norm for two lists
-        g_norm_32, _ = multi_tensor_applier(self.multi_tensor_l2norm,
-                                            self._dummy_overflow_buf,
-                                            [g_all_32], False)
-        g_norm_16, _ = multi_tensor_applier(self.multi_tensor_l2norm,
-                                            self._dummy_overflow_buf,
-                                            [g_all_16], False)
+        g_norm_32, norm_per_tensor = multi_tensor_applier(self.multi_tensor_l2norm,
+                                                          self._dummy_overflow_buf,
+                                                          [g_all_32], True)
+        g_norm_16, norm_per_tensor = multi_tensor_applier(self.multi_tensor_l2norm,
+                                                          self._dummy_overflow_buf,
+                                                          [g_all_16], True)
 
         print("====after multi_tensor_l2norm")
 
