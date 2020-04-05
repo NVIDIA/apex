@@ -115,7 +115,6 @@ class FusedLAMB(torch.optim.Optimizer):
                     g_all_16.append(p.grad.data)
                 else:
                     raise RuntimeError('FusedLAMB only support fp16 and fp32.')
-:q!
 
         g_norm_32, g_norm_16 = 0.0, 0.0
         # compute grad norm for two lists
