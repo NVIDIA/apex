@@ -41,8 +41,8 @@ struct LAMBStage1Functor
     const float epsilon,
     adamMode_t mode,
     const float decay,
-    float global_grad_norm,
-    float max_global_grad_norm)
+    const float global_grad_norm,
+    const float max_global_grad_norm)
   {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
