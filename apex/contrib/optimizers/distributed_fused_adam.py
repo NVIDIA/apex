@@ -338,7 +338,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
     @property
     def L2_grad_norm(self):
-        return self._L2_grad_norm
+        if self._compute_L2_grad_norm:
+            for i, blk_st in enumerate(self._blk_st):
+                torch.cuda.current_stream().wait_stream(blk_st)
+            return self._L2_grad_norm
+        else:
+            return None
 
     # Distributed weight update algorithm:
     # Model parameters are kept as-is.
