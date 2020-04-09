@@ -46,7 +46,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  compute_L2_grad_norm=False, distributed_weight_update=0,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
                  dwu_num_ag_pg=0, dwu_num_blk_st=1, revert_method=1, flat_mt=False,
-                 dwu_num_chunks=4, predivide=True, internal_pipeline=False):
+                 dwu_num_chunks=4, predivide=True, internal_pipeline=False,
+                 e5m2_allgather=False):
         global fused_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
 
@@ -80,6 +81,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._num_chunks = dwu_num_chunks
         self._predivide = predivide
         self._internal_pipeline = internal_pipeline
+        self._e5m2_allgather = e5m2_allgather
         self._full_pipeline = full_pipeline
         self._compute_L2_grad_norm = compute_L2_grad_norm
         self._L2_grad_norm = torch.zeros([]).cuda() if self._compute_L2_grad_norm else None
@@ -306,7 +308,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     with torch.cuda.stream(self._blk_st[block_id%len(self._blk_st)]):
                         if self._full_pipeline:
                             if self._new_params is None:
-                                self._new_params = torch.zeros_like(self._flat_grads)
+                                if self._e5m2_allgather:
+                                    self._new_params = torch.zeros_like(self._flat_grads,dtype=torch.uint8)
+                                else:
+                                    self._new_params = torch.zeros_like(self._flat_grads)
                             self._pipeline_block(block_id, self._flat_grads, self._new_params)
                         else:
                             self._pipeline_block_reductions(block_id, self._flat_grads)
@@ -539,7 +544,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         if self._last_step or not self._overlap_reductions or not self._full_pipeline:
             if self._new_params is None:
-                self._new_params = torch.zeros_like(self._flat_grads)
+                if self._e5m2_allgather:
+                    self._new_params = torch.zeros_like(self._flat_grads,dtype=torch.uint8)
+                else:
+                    self._new_params = torch.zeros_like(self._flat_grads)
             for inv_block_id in range(self._num_blocks):
                 block_id = self._num_blocks - inv_block_id - 1
                 with torch.cuda.stream(self._blk_st[block_id%len(self._blk_st)]):
@@ -551,7 +559,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
             # Check for overflow
             # Store state for loss scaler calculation
-            self.strided_check_finite(self._new_params, stride=self._shard_size, start=0, end=self._net_total_param_size)
+            if self._e5m2_allgather:
+                new_params = torch.empty_like(self._flat_grads)
+                fused_adam_cuda.unpack_e5m2(self._new_params, new_params)
+            else:
+                new_params = self._new_params
+            self.strided_check_finite(new_params, stride=self._shard_size, start=0, end=self._net_total_param_size)
             if self.peek_overflow:
                 print("Reverting step")
                 self.revert_step()
@@ -569,7 +582,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                             state['step'] += 1
                             nels = p.numel()
                             offset = self._grads_info[param_i]['param_offset']
-                            p.set_(self._new_params[offset:offset+nels].view_as(p))
+                            p.set_(new_params[offset:offset+nels].view_as(p))
                             param_i += 1
             self._new_params = None
 

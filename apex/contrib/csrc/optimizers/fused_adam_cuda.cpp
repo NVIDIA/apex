@@ -9,6 +9,7 @@ void fused_adam_undo_cuda(at::Tensor & p, at::Tensor & m, at::Tensor & v, at::Te
 void fused_adam_cuda_mt(int chunk_size, at::Tensor noop_flag, std::vector<std::vector<at::Tensor>> tensor_lists, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
 void fused_adam_undo_cuda_mt(int chunk_size, at::Tensor noop_flag, std::vector<std::vector<at::Tensor>> tensor_lists, float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, float decay);
 
+void unpack_e5m2_cuda(at::Tensor & p_in, at::Tensor & p_out);
 
 #define CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
@@ -50,11 +51,20 @@ void adam_undo(at::Tensor & p, at::Tensor & m, at::Tensor & v, at::Tensor & g, f
 
         fused_adam_undo_cuda(p, m, v, g, lr, beta1, beta2, eps, grad_scale, step, mode, bias_correction, decay);
 }
+void unpack_e5m2(at::Tensor & p_in, at::Tensor & p_out) {
+	CHECK_INPUT(p_in);
+	CHECK_INPUT(p_out);
+	int64_t num_elem = p_in.numel();
+	AT_ASSERTM(p_out.numel() == num_elem, "number of elements in p_in and p_out should be equal");
+
+	unpack_e5m2_cuda(p_in, p_out);
+}
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         m.def("strided_check_finite", &strided_check_finite, "Strided finite check.");
         m.def("adam", &adam, "Adam optimized CUDA implementation.");
         m.def("adam_undo", &adam_undo, "Undo function for Adam optimized CUDA implementation.");
+        m.def("unpack_e5m2", &unpack_e5m2, "Unpack byte tensor containing e5m2 floats.");
         m.def("adam_mt", &fused_adam_cuda_mt, "Multi tensor Adam optimized CUDA implementation.");
         m.def("adam_undo_mt", &fused_adam_undo_cuda_mt, "Multi tensor undo function for Adam optimized CUDA implementation.");
 }
