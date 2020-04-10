@@ -138,6 +138,13 @@ if "--cuda_ext" in sys.argv:
                                                       '-O3',
                                                       '--use_fast_math'] + version_dependent_macros}))
 
+        ext_modules.append(
+            CUDAExtension(name='mlp_cuda',
+                          sources=['csrc/mlp.cpp',
+                                   'csrc/mlp_cuda.cu'],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3'] + version_dependent_macros}))
+
 if "--bnp" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
     sys.argv.remove("--bnp")
