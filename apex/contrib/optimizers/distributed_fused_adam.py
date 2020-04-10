@@ -1,6 +1,7 @@
 import math
 import torch
 import importlib
+from apex.multi_tensor_apply import multi_tensor_applier
 
 class DistributedFusedAdam(torch.optim.Optimizer):
 
@@ -559,17 +560,15 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
             # Check for overflow
             # Store state for loss scaler calculation
-            if self._e5m2_allgather:
-                new_params = torch.empty_like(self._flat_grads)
-                fused_adam_cuda.unpack_e5m2(self._new_params, new_params)
-            else:
-                new_params = self._new_params
-            self.strided_check_finite(new_params, stride=self._shard_size, start=0, end=self._net_total_param_size)
+            self.strided_check_finite(self._new_params, stride=self._shard_size, start=0, end=self._net_total_param_size)
             if self.peek_overflow:
                 print("Reverting step")
                 self.revert_step()
             else:
                 # Copy self._new_params to model params
+                if self._e5m2_allgather:
+                    p_in = []
+                    p_out = []
                 with torch.no_grad():
                     param_i = 0
                     for group in self.param_groups:
@@ -582,8 +581,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                             state['step'] += 1
                             nels = p.numel()
                             offset = self._grads_info[param_i]['param_offset']
-                            p.set_(new_params[offset:offset+nels].view_as(p))
+                            if self._e5m2_allgather:
+                                p_in.append(self._new_params[offset:offset+nels].view_as(p))
+                                p_out.append(p)
+                            else:
+                                p.set_(self._new_params[offset:offset+nels].view_as(p))
                             param_i += 1
+                    if self._e5m2_allgather:
+                        multi_tensor_applier(
+                                fused_adam_cuda.unpack_e5m2_mt,
+                                self._overflow_buf,
+                                [p_in, p_out]);
             self._new_params = None
 
         torch.cuda.current_stream().wait_stream(self._blk_st[0])

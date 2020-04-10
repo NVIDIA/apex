@@ -120,7 +120,37 @@ __global__ void strided_check_finite_cuda_kernel(
     }
 
     for (int j = i; j < tsize; j+=totThreads) {
-	GRAD_T pi = p_copy[j];
+        GRAD_T pi = p_copy[j];
+        if (!isfinite(pi)) {
+            *noop_gmem = 1;
+        }
+    }
+}
+template <>
+__global__ void strided_check_finite_cuda_kernel(
+        volatile int* noop_gmem,
+        uint8_t* __restrict__ p_copy,
+        const size_t tsize,
+        int stride,
+        int clear_overflow_first)
+{
+    //Assuming 2D grids and 2D blocks
+    const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
+    const int threadsPerBlock = blockDim.x * blockDim.y;
+    const int threadIdInBlock = threadIdx.y * blockDim.x + threadIdx.x;
+    const int i = (blockId * threadsPerBlock + threadIdInBlock) * stride;
+    const int totThreads = gridDim.x*gridDim.y*threadsPerBlock*stride;
+
+    if (clear_overflow_first) {
+        if (i == 0) {
+            *noop_gmem = 0;
+        }
+        __syncthreads();
+    }
+
+    for (int j = i; j < tsize; j+=totThreads) {
+        at::Half pi;
+        convert(p_copy[j], pi);
         if (!isfinite(pi)) {
             *noop_gmem = 1;
         }
@@ -337,6 +367,65 @@ __global__ void adam_undo_cuda_kernel(
     }
 }
 
+template <int DEPTH, typename FROM_T, typename TO_T>
+struct UnpackE5M2Functor
+{
+    __device__ __forceinline__ void operator()(
+        int chunk_size,
+        volatile int* noop_gmem,
+        TensorListMetadata<DEPTH>& tl)
+    {
+        if (*noop_gmem != 0) return;
+
+        int tensor_loc = tl.block_to_tensor[blockIdx.x];
+        int chunk_idx = tl.block_to_chunk[blockIdx.x];
+        int n = tl.sizes[tensor_loc];
+
+        FROM_T* p_in = (FROM_T *)tl.addresses[0][tensor_loc];
+        p_in += chunk_idx*chunk_size;
+        TO_T* p_out = (TO_T *)tl.addresses[1][tensor_loc];
+        p_out += chunk_idx*chunk_size;
+
+        n -= chunk_idx*chunk_size;
+        int dim = chunk_size < n ? chunk_size : n;
+
+	FROM_T pi[ILP];
+        TO_T po[ILP];
+
+        bool overflow = false;
+        for(int j_start = 0;  j_start < dim;  j_start+=blockDim.x*ILP) {
+#pragma unroll
+            for(int ii = 0; ii < ILP; ii++) {
+                pi[ii] = FROM_T(0);
+                int j = j_start + threadIdx.x + ii*blockDim.x;
+                if (j < dim) {
+                    pi[ii] = p_in[j];
+                }
+            }
+
+#pragma unroll
+            for(int ii = 0; ii < ILP; ii++) {
+                convert(pi[ii], po[ii]);
+                if (!isfinite(po[ii])) {
+                    overflow = true;
+                }
+            }
+
+#pragma unroll
+            for(int ii = 0; ii < ILP; ii++) {
+                int j = j_start + threadIdx.x + ii*blockDim.x;
+                if (j < dim) {
+                    p_out[j] = po[ii];
+                }
+            }
+        }
+
+        if (overflow) {
+            *noop_gmem = 1;
+        }
+    }
+};
+
 template <int DEPTH, typename T, typename GRAD_T>
 struct AdamFunctor
 {
@@ -533,7 +622,7 @@ void fused_strided_check_finite(
 
 	cudaStream_t stream = at::cuda::getCurrentCUDAStream();
         using namespace at; // prevents "toString is undefined" errors
-        DISPATCH_FLOAT_AND_HALF(p_copy.scalar_type(), 0, "check_finite_cuda_kernel",
+        DISPATCH_FLOAT_HALF_AND_BYTE(p_copy.scalar_type(), 0, "check_finite_cuda_kernel",
                 strided_check_finite_cuda_kernel<scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
                     noop.DATA_PTR<int>(),
                     p_copy.DATA_PTR<scalar_t_0>(),
@@ -667,6 +756,28 @@ void unpack_e5m2_cuda(
                   tsize);
               );
       THCudaCheck(cudaGetLastError());
+}
+
+void unpack_e5m2_cuda_mt(
+    int chunk_size,
+    at::Tensor noop_flag,
+    std::vector<std::vector<at::Tensor>> tensor_lists) // p_in, p_out
+{
+    //Constants
+    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+
+    size_t tl_sz = tensor_lists.size();
+    AT_ASSERTM(tl_sz == 2, "expected tensor lists of size 2");
+
+    DISPATCH_FLOAT_HALF_AND_BYTE(tensor_lists[1][0].scalar_type(), 0, "unpack_e5m2_cuda_mt_kernel",
+            multi_tensor_apply<2>(
+                BLOCK_SIZE,
+                chunk_size,
+                noop_flag,
+                tensor_lists,
+                UnpackE5M2Functor<2, uint8_t, scalar_t_0>());
+            );
+    THCudaCheck(cudaGetLastError());
 }
 
 void fused_adam_undo_cuda(
