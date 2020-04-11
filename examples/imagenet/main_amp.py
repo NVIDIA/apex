@@ -261,35 +261,32 @@ def main():
                 'optimizer' : optimizer.state_dict(),
             }, is_best)
 
-class data_prefetcher():
-    def __init__(self, loader):
-        self.loader = iter(loader)
-        self.stream = torch.cuda.Stream()
-        self.mean = torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255]).cuda().view(1,3,1,1)
-        self.std = torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255]).cuda().view(1,3,1,1)
-        # With Amp, it isn't necessary to manually convert data to half.
-        # if args.fp16:
-        #     self.mean = self.mean.half()
-        #     self.std = self.std.half()
-        self.preload()
+def data_prefetcher(loader):
 
-    def preload(self):
-        try:
-            self.next_input, self.next_target = next(self.loader)
-        except StopIteration:
-            self.next_input = None
-            self.next_target = None
-            return
-        # if record_stream() doesn't work, another option is to make sure device inputs are created
-        # on the main stream.
-        # self.next_input_gpu = torch.empty_like(self.next_input, device='cuda')
-        # self.next_target_gpu = torch.empty_like(self.next_target, device='cuda')
-        # Need to make sure the memory allocated for next_* is not still in use by the main stream
-        # at the time we start copying to next_*:
-        # self.stream.wait_stream(torch.cuda.current_stream())
-        with torch.cuda.stream(self.stream):
-            self.next_input = self.next_input.cuda(non_blocking=True)
-            self.next_target = self.next_target.cuda(non_blocking=True)
+    stream = torch.cuda.Stream()
+    mean = torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255]).cuda().view(1,3,1,1)
+    std = torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255]).cuda().view(1,3,1,1)
+    # With Amp, it isn't necessary to manually convert data to half.
+    # if args.fp16:
+    #     self.mean = self.mean.half()
+    #     self.std = self.std.half()
+
+    loading_input  = None
+    loading_target = None
+    ready_input    = None
+    ready_target   = None
+    
+    for idx, (input, target) in enumerate(loader):
+        # synchronize so the loading is complete,
+        # and then move them to "ready_*"
+        torch.cuda.current_stream().wait_stream(stream)
+        ready_input, ready_target = loading_input, loading_target
+
+        # start loading the next batch
+        with torch.cuda.stream(stream):
+            loading_input  = input .cuda(non_blocking=True)
+            loading_target = target.cuda(non_blocking=True)
+            # TODO: improve these alternative if record_stream() doesn't work
             # more code for the alternative if record_stream() doesn't work:
             # copy_ will record the use of the pinned source tensor in this side stream.
             # self.next_input_gpu.copy_(self.next_input, non_blocking=True)
@@ -301,19 +298,27 @@ class data_prefetcher():
             # if args.fp16:
             #     self.next_input = self.next_input.half()
             # else:
-            self.next_input = self.next_input.float()
-            self.next_input = self.next_input.sub_(self.mean).div_(self.std)
+            loading_input = loading_input.float()
+            loading_input = loading_input.sub_(mean).div_(std)
 
-    def next(self):
-        torch.cuda.current_stream().wait_stream(self.stream)
-        input = self.next_input
-        target = self.next_target
-        if input is not None:
-            input.record_stream(torch.cuda.current_stream())
-        if target is not None:
-            target.record_stream(torch.cuda.current_stream())
-        self.preload()
-        return input, target
+        if ready_input is not None:
+            ready_input.record_stream(torch.cuda.current_stream())
+        if ready_target is not None:
+            ready_target.record_stream(torch.cuda.current_stream())
+        # avoid pop out None when loading the first batch
+        if ready_input is not None:
+            yeild ready_input, ready_target
+            
+    # pop out the last batch
+    torch.cuda.current_stream().wait_stream(stream)
+    ready_input, ready_target = loading_input, loading_target
+    if ready_input is not None:
+        ready_input.record_stream(torch.cuda.current_stream())
+    if ready_target is not None:
+        ready_target.record_stream(torch.cuda.current_stream())
+    # avoid pop out None when loading the first batch
+    if ready_input is not None:
+        yeild ready_input, ready_target
 
 
 def train(train_loader, model, criterion, optimizer, epoch):
@@ -326,14 +331,14 @@ def train(train_loader, model, criterion, optimizer, epoch):
     model.train()
     end = time.time()
 
-    prefetcher = data_prefetcher(train_loader)
-    input, target = prefetcher.next()
-    i = 0
-    while input is not None:
-        i += 1
+    for i, (input, target) in enumerate(data_prefetcher(train_loader)):
+
         if args.prof >= 0 and i == args.prof:
             print("Profiling begun at iteration {}".format(i))
             torch.cuda.cudart().cudaProfilerStart()
+
+        # pop range for prefetcher.next
+        if args.prof >= 0 and i > args.prof: torch.cuda.nvtx.range_pop()
 
         if args.prof >= 0: torch.cuda.nvtx.range_push("Body of iteration {}".format(i))
 
@@ -397,12 +402,14 @@ def train(train_loader, model, criterion, optimizer, epoch):
                        args.world_size*args.batch_size/batch_time.avg,
                        batch_time=batch_time,
                        loss=losses, top1=top1, top5=top5))
-        if args.prof >= 0: torch.cuda.nvtx.range_push("prefetcher.next()")
-        input, target = prefetcher.next()
-        if args.prof >= 0: torch.cuda.nvtx.range_pop()
+        # if args.prof >= 0: torch.cuda.nvtx.range_push("prefetcher.next()")
+        # input, target = prefetcher.next()
+        # if args.prof >= 0: torch.cuda.nvtx.range_pop()
 
         # Pop range "Body of iteration {}".format(i)
         if args.prof >= 0: torch.cuda.nvtx.range_pop()
+            
+        if args.prof >= 0 and i < args.prof + 10: torch.cuda.nvtx.range_push("prefetcher.next")
 
         if args.prof >= 0 and i == args.prof + 10:
             print("Profiling ended at iteration {}".format(i))
@@ -421,11 +428,7 @@ def validate(val_loader, model, criterion):
 
     end = time.time()
 
-    prefetcher = data_prefetcher(val_loader)
-    input, target = prefetcher.next()
-    i = 0
-    while input is not None:
-        i += 1
+    for i, (input, target) in enumerate(data_prefetcher(val_loader)):
 
         # compute output
         with torch.no_grad():
@@ -463,8 +466,6 @@ def validate(val_loader, model, criterion):
                    args.world_size * args.batch_size / batch_time.avg,
                    batch_time=batch_time, loss=losses,
                    top1=top1, top5=top5))
-
-        input, target = prefetcher.next()
 
     print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))
