@@ -256,7 +256,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
     def _pipeline_block_step(self, block_id):
         if self._new_params is None:
-            self._new_params = torch.zeros_like(self._flat_grads,dtype=uint8 if self._e5m2_allgather else self._flat_grads.dtype)
+            self._new_params = torch.zeros_like(self._flat_grads,dtype=torch.uint8 if self._e5m2_allgather else self._flat_grads.dtype)
 
         start = block_id * self._block_size
         end = start + self._block_size
