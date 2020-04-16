@@ -154,6 +154,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     if torch.distributed.get_rank() in ranks:
                         self._ar_pg.append(grp)
             self._ar_st = [torch.cuda.Stream() for _ in range(self._num_ar_pg)]
+            for ar_pg in self._ar_pg:
+                torch.distributed.all_reduce(self._overflow_buf,group=ar_pg)
         rs_ranks = []
         for group_i in range(self._num_groups):
             rs_ranks.append([group_i*self._group_size+j for j in range(self._group_size)])
@@ -166,6 +168,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     self._rs_pg.append(grp)
             if self._compute_L2_grad_norm and torch.distributed.get_rank() in ranks:
                 self._l2_grad_norm_pg = torch.distributed.new_group(ranks=ranks)
+                torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
         self._rs_st = [torch.cuda.Stream() for _ in range(self._num_rs_pg)]
         if self._num_ag_pg == 0:
             self._ag_pg = self._rs_pg
@@ -180,6 +183,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     if torch.distributed.get_rank() in ranks:
                         self._ag_pg.append(grp)
             self._ag_st = [torch.cuda.Stream() for _ in range(self._num_ag_pg)]
+            for ag_pg in self._ag_pg:
+                torch.distributed.all_reduce(self._overflow_buf,group=ag_pg)
         self._l2_grad_norm_st = torch.cuda.Stream() if self._compute_L2_grad_norm else None
         self._completion_st = torch.cuda.Stream()
 
@@ -452,7 +457,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 beta1, beta2 = group['betas']
                 if undo:
                     if self._revert_method == 1:
-                        fused_adam_cuda.adam_undo(
+                        fused_adam_cuda.maybe_adam_undo(
+                                             torch.empty([0]),
                                              self._fp32_p[group_buffer_start:group_buffer_end],
                                              self._fp32_m[group_buffer_start:group_buffer_end],
                                              self._fp32_v[group_buffer_start:group_buffer_end],
@@ -576,7 +582,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                             param_i += 1
                     if self._e5m2_allgather:
                         multi_tensor_applier(
-                                fused_adam_cuda.unpack_e5m2_mt,
+                                fused_adam_cuda.maybe_cast_mt,
                                 self._overflow_buf,
                                 [p_in, p_out]);
                     elif self._do_not_flatten_model:
