@@ -146,7 +146,7 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
     from .amp import init as amp_init
 
     optimizers_was_list = False
-    if isinstance(optimizers, torch.optim.Optimizer) or ('LARC' in sys.modules and isinstance(optimizers, LARC)):
+    if isinstance(optimizers, torch.optim.Optimizer) or ('LARC' in globals() and isinstance(optimizers, LARC)):
         optimizers = [optimizers]
     elif optimizers is None:
         optimizers = []
