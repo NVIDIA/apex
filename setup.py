@@ -198,6 +198,26 @@ if "--deprecated_fused_adam" in sys.argv:
                                               'nvcc':['-O3',
                                                       '--use_fast_math'] + version_dependent_macros}))
 
+if "--deprecated_fused_lamb" in sys.argv:
+    from torch.utils.cpp_extension import CUDAExtension
+    sys.argv.remove("--deprecated_fused_lamb")
+
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension
+
+    if torch.utils.cpp_extension.CUDA_HOME is None:
+        raise RuntimeError("--deprecated_fused_lamb was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        ext_modules.append(
+            CUDAExtension(name='fused_lamb_cuda',
+                          sources=['apex/contrib/csrc/optimizers/fused_lamb_cuda.cpp',
+                                   'apex/contrib/csrc/optimizers/fused_lamb_cuda_kernel.cu',
+                                   'csrc/multi_tensor_l2norm_kernel.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
+                                              'nvcc':['-O3',
+                                                      '--use_fast_math'] + version_dependent_macros}))
+
 if "--fast_multihead_attn" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
     sys.argv.remove("--fast_multihead_attn")

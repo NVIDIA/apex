@@ -239,4 +239,5 @@ class FP16_Optimizer(object):
         # constructed in the same way as the one whose state_dict we are loading, the same master params
         # are guaranteed to exist, so we can just copy_() from the saved master params.
         for current, saved in zip(self.fp32_groups, state_dict['fp32_groups']):
-            current.data.copy_(saved.data)
+            for _current, _saved in zip(current, saved):
+                _current.data.copy_(_saved.data)
