@@ -8,7 +8,7 @@ class FusedLAMB(torch.optim.Optimizer):
     """Implements LAMB algorithm.
 
     Currently GPU-only.  Requires Apex to be installed via
-    ``pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./``.
+    ``pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--deprecated_fused_lamb" ./``.
 
     This version of fused LAMB implements 2 fusions.
 
