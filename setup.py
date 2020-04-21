@@ -219,9 +219,11 @@ if "--deprecated_fused_lamb" in sys.argv:
                                                       '--use_fast_math'] + version_dependent_macros}))
 
 # Check, if ATen/CUDAGenerator.h is found, otherwise use the new ATen/CUDAGeneratorImpl.h, due to breaking change in https://github.com/pytorch/pytorch/pull/36026 
+generator_flag = []
 torch_dir = torch.__path__[0]
 if os.path.exists(os.path.join(torch_dir, 'include', 'ATen', 'CUDAGenerator.h')):
     generator_flag = ['-DOLD_GENERATOR']
+
 if "--fast_multihead_attn" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
     sys.argv.remove("--fast_multihead_attn")
