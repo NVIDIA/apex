@@ -1,5 +1,11 @@
 #include <ATen/ATen.h>
+
+#ifdef OLD_GENERATOR
 #include <ATen/CUDAGenerator.h>
+#else
+#include <ATen/CUDAGeneratorImpl.h>
+#endif
+
 #include <ATen/cuda/CUDAContext.h>
 #include <curand_kernel.h>
 
