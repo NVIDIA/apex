@@ -48,6 +48,10 @@ class LARC(object):
     def __setstate__(self, state):
         self.optim.__setstate__(state)
 
+    @property
+    def state(self):
+        return self.optim.state
+
     def __repr__(self):
         return self.optim.__repr__()
 
