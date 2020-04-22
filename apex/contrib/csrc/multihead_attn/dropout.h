@@ -217,7 +217,7 @@ void apex_fused_dropout_cuda(scalar_t const *inputs,
     rng_engine_inputs = gen->philox_engine_inputs(counter_offset);
 #else
     std::lock_guard<std::mutex> lock(gen.mutex());
-    rng_engine_inputs = gen.philox_engine_inputs(counter_offset);
+    rng_engine_inputs = gen->philox_engine_inputs(counter_offset);
 #endif
   }
 
@@ -255,7 +255,7 @@ void apex_dropout_add_cuda(scalar_t const *inputs,
     rng_engine_inputs = gen->philox_engine_inputs(counter_offset);
 #else
     std::lock_guard<std::mutex> lock(gen.mutex());
-    rng_engine_inputs = gen.philox_engine_inputs(counter_offset);
+    rng_engine_inputs = gen->philox_engine_inputs(counter_offset);
 #endif
   }
 
