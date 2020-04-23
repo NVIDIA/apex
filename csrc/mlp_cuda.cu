@@ -10,8 +10,11 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 
-#define BIASADDRELU_FPROP_NUM_THREADS 128
-#define BIASADDRELU_BPROP_NUM_THREADS 128
+// constants for fused bias+relu kernel
+#define BIAS_RELU_FW_NTHREADS 128 // forward number of thread per block
+#define BIAS_RELU_BW_NTHREADS_X 32 // backward number of thread in feature dim
+#define BIAS_RELU_BW_NTHREADS_Y 16 // backward number of thread in batch dim
+#define BIAS_RELU_RED_PER_THREAD 16 // backward minimal reduction length per thread
 
 // move to a header later on
 #define ILP 4
@@ -205,28 +208,25 @@ __global__ void biasAddRelu_fprop(T *X, T *b, uint batch_size, uint features) {
 }
 
 // Compute grid size for pointwise backward kernel.
-// Some intelligence needed to determine number of splits for reduction.
+// block_x/y is total elment being handled per block, not number of threads
 void get_biasAddRelu_bprop_grid_size(
     int yfeat,
-    int threadsPerBlock,
     int batch_size,
+    int block_x,
+    int block_y,
     int* grid_x,
     int* grid_y) {
+
+  *grid_x = (yfeat + block_x - 1) / block_x;
   // Get number of SMs for efficient reduction.
   int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
-  // First preference, whole reduction in 1 CTA
-  int nBlocks = (yfeat + threadsPerBlock - 1) / threadsPerBlock;
-
-  // Figure out how many splits to divide reduction into. At least 32 elements per CTA.
-  // we want grid_y as close to sqrt(batchsize)?
-  int nRedSplits = std::sqrt(batch_size);
-  // for batchsize <=64, just use 1 block
-  if(batch_size < 64) nRedSplits = 1;
-  // no need to go over occupancy
-  nRedSplits = min((8*num_SMs)/nBlocks, nRedSplits);
-
-  *grid_x = nBlocks;
-  *grid_y = nRedSplits;
+  // can switch to occupancy calculation. use 4 below now for sm_70
+  int max_blocks_y = num_SMs * 4 / (*grid_x);
+  // block_y should be from minimal work per thread
+  int nRedSplits = (batch_size + block_y - 1) / block_y;
+  // increase number of elem per thread redcution to not launch more than enough
+  // kernel adjust work, so here we just launch max block
+  *grid_y = std::min(nRedSplits, max_blocks_y);
   return;
 }
 
@@ -245,14 +245,22 @@ __global__ void biasAddRelu_bprop(
   // The feature that this thread is responsible for
   int f = blockIdx.x * blockDim.x + threadIdx.x;
 
-  // Compute the batch span this thread is responsible for
-  int chunkSize = (batch_size + gridDim.y - 1) / gridDim.y;
-  int nStart = blockIdx.y * chunkSize;
-  int nSpan = min(batch_size, nStart + chunkSize) - nStart;
+  // Compute the span this thread is responsible for
+  // For this block
+  int b_chunkSize = (batch_size + gridDim.y - 1) / gridDim.y;
+  int b_nStart = blockIdx.y * b_chunkSize;
+  int b_nSpan = min(batch_size, b_nStart + b_chunkSize) - b_nStart;
+  // For this thread
+  int chunkSize = (b_chunkSize + blockDim.y - 1) / blockDim.y;
+  int nStart = threadIdx.y * chunkSize + b_nStart;
+  int nSpan = min(b_nStart + b_nSpan, nStart + chunkSize) - nStart;
+
   volatile float* out = intermediate + blockIdx.y * features;
 
   // Flag to trigger last reduction.
   __shared__ bool isLastBlock;
+  // we know block size for now
+  __shared__ float smem[BIAS_RELU_BW_NTHREADS_X*BIAS_RELU_BW_NTHREADS_Y];
 
   // Accumulate db in FP32 always
   float db_local = 0;
@@ -296,15 +304,28 @@ __global__ void biasAddRelu_bprop(
       }
     }
 
-    // Write out partial result
-    out[f] = db_local;
+    // naive block reduction on y-dim
+    int linear_idx = threadIdx.y * blockDim.x + threadIdx.x;
+    smem[linear_idx] = db_local;
+  }
+  __syncthreads();
+  if (f < features) {
+    if(threadIdx.y == 0) {
+      for(int yidx = 1; yidx < blockDim.y; yidx++){
+        db_local += smem[yidx * blockDim.x + threadIdx.x];
+      }
+
+      // block result is in db_local now for all threadIdx.y == 0
+      // Write out partial result
+      out[f] = db_local;
+    }
   }
   __threadfence();
   __syncthreads();
 
-  // Increment semaphore and check if this is the last CTA in
-  // the grid_y dimension.
-  if (threadIdx.x == 0 && f < features) {
+  // Increment semaphore and check if this is the last CTA in the grid_y dimension.
+  // Only thread (0,0) calls this
+  if (threadIdx.x == 0 && threadIdx.y == 0 && f < features) {
     unsigned int sum_idx;
     sum_idx = atomicAdd(&(semaphores[blockIdx.x]), 1);
     isLastBlock = (sum_idx == (gridDim.y - 1));
@@ -312,14 +333,17 @@ __global__ void biasAddRelu_bprop(
   __syncthreads();
 
   db_local = 0;
+  // No block reduction for now, only thread (*,0) do grid reduction
   if (isLastBlock && f < features) {
-    for (int n = 0; n < gridDim.y; n++) {
-      int row, col;
-      row = f;
-      col = n;
-      db_local += (float)(intermediate[col * features + row]);
+    if(threadIdx.y == 0) {
+      for (int n = 0; n < gridDim.y; n++) {
+        int row, col;
+        row = f;
+        col = n;
+        db_local += (float)(intermediate[col * features + row]);
+      }
+      db[f] = (T)db_local;
     }
-    db[f] = (T)db_local;
   }
 }
 
@@ -338,10 +362,16 @@ __global__ void biasAddRelu_bprop_aligned(
   // The feature that this thread is responsible for
   int f = blockIdx.x * blockDim.x + threadIdx.x;
 
-  // Compute the batch span this thread is responsible for
-  int chunkSize = (batch_size + gridDim.y - 1) / gridDim.y;
-  int nStart = blockIdx.y * chunkSize;
-  int nSpan = min(batch_size, nStart + chunkSize) - nStart;
+  // Compute the span this thread is responsible for
+  // For this block
+  int b_chunkSize = (batch_size + gridDim.y - 1) / gridDim.y;
+  int b_nStart = blockIdx.y * b_chunkSize;
+  int b_nSpan = min(batch_size, b_nStart + b_chunkSize) - b_nStart;
+  // For this thread
+  int chunkSize = (b_chunkSize + blockDim.y - 1) / blockDim.y;
+  int nStart = threadIdx.y * chunkSize + b_nStart;
+  int nSpan = min(b_nStart + b_nSpan, nStart + chunkSize) - nStart;
+
   volatile float* out = intermediate + blockIdx.y * features;
 
   // Flag to trigger last reduction.
@@ -399,24 +429,45 @@ __global__ void biasAddRelu_bprop_aligned(
     }
   }
 
-  if(gridDim.y == 1) {
+  // we know block size for now
+  __shared__ float smem[BIAS_RELU_BW_NTHREADS_X*BIAS_RELU_BW_NTHREADS_Y*ILP];
+  // naive block reduction on y-dim
+  int linear_idx = threadIdx.y * blockDim.x + threadIdx.x;
+  float* smem_out = smem + ILP * linear_idx;
 #pragma unroll
-    for(int ii=0;ii<ILP;ii++){
-      r_dy[ii] = db_local[ii]; // reuse local dy buffer
-    }
-    load_store(db, r_dy, f, 0);
-    return;
+  for(int ii=0;ii<ILP;ii++){
+    smem_out[ii] = db_local[ii]; // reuse local dy buffer
   }
+  __syncthreads();
+  if(threadIdx.y == 0) {
+    for(int yidx = 1; yidx < blockDim.y; yidx++){
+      float* smem_in = smem + ILP * (yidx * blockDim.x + threadIdx.x);
+#pragma unroll
+      for(int ii=0;ii<ILP;ii++){
+        db_local[ii] += smem_in[ii]; // reuse local dy buffer
+      }
+    }
 
-  // Write out partial result
-  load_store(out, db_local, f, 0);
+    // block result is in db_local now for all threadIdx.y == 0
+    // TODO: maybe not useful early exit here
+    if(gridDim.y == 1) {
+#pragma unroll
+      for(int ii=0;ii<ILP;ii++){
+        r_dy[ii] = db_local[ii]; // reuse local dy buffer
+      }
+      load_store(db, r_dy, f, 0);
+      return;
+    }
 
+    // Write out partial result
+    load_store(out, db_local, f, 0);
+  }
   __threadfence();
   __syncthreads();
 
-  // Increment semaphore and check if this is the last CTA in
-  // the grid_y dimension.
-  if (threadIdx.x == 0) {
+  // Increment semaphore and check if this is the last CTA in the grid_y dimension.
+  // Only thread (0,0) calls this
+  if (threadIdx.x == 0 && threadIdx.y == 0) {
     unsigned int sum_idx;
     sum_idx = atomicAdd(&(semaphores[blockIdx.x]), 1);
     isLastBlock = (sum_idx == (gridDim.y - 1));
@@ -428,22 +479,26 @@ __global__ void biasAddRelu_bprop_aligned(
     db_local[ii] = 0.f;
   }
   float r_db[ILP];
+
+  // No block reduction for now, only thread (*,0) do grid reduction
   if (isLastBlock) {
-    for (int n = 0; n < gridDim.y; n++) {
-      int row, col;
-      row = f;
-      col = n;
-      load_store(r_db, intermediate, 0, col * features / ILP + row);
+    if(threadIdx.y == 0){
+      for (int n = 0; n < gridDim.y; n++) {
+        int row, col;
+        row = f;
+        col = n;
+        load_store(r_db, intermediate, 0, col * features / ILP + row);
+#pragma unroll
+        for(int ii=0;ii<ILP;ii++){
+          db_local[ii] += r_db[ii];
+        }
+      }
 #pragma unroll
       for(int ii=0;ii<ILP;ii++){
-        db_local[ii] += r_db[ii];
+        r_dy[ii] = db_local[ii]; // reuse local dy buffer
       }
+      load_store(db, r_dy, f, 0);
     }
-#pragma unroll
-    for(int ii=0;ii<ILP;ii++){
-      r_dy[ii] = db_local[ii]; // reuse local dy buffer
-    }
-    load_store(db, r_dy, f, 0);
   }
 }
 
@@ -502,10 +557,20 @@ size_t get_reduction_scratch_space(int batch_size, int num_layers, const int* ou
   size_t max_scratch_space = 0;
   // Loop over all layers to see which one needs the max scratch space
   for (int l = 0; l < num_layers; l++) {
-    int tmp, num_splits;
+    // need to find max(aligned, not_aligned)
+    int tmp, res0, res1;
+
+    int block_x = BIAS_RELU_BW_NTHREADS_X;
+    int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
     get_biasAddRelu_bprop_grid_size(
-        output_features[l], BIASADDRELU_BPROP_NUM_THREADS, batch_size, &tmp, &num_splits);
-    max_scratch_space = std::max(max_scratch_space, (size_t)(output_features[l] * num_splits));
+      output_features[l], batch_size, block_x, block_y, &tmp, &res0);
+
+    block_x = ILP * BIAS_RELU_BW_NTHREADS_X;
+    get_biasAddRelu_bprop_grid_size(
+      output_features[l], batch_size, block_x, block_y, &tmp, &res1);
+
+    max_scratch_space = std::max(max_scratch_space, (size_t)(output_features[l] * res0));
+    max_scratch_space = std::max(max_scratch_space, (size_t)(output_features[l] * res1));
   }
 
   return max_scratch_space;
@@ -631,8 +696,8 @@ int mlp_fp(
     const uint &input_size = ofeat;
     int num_blocks = 0;
     int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAddRelu_fprop<T>, BIASADDRELU_FPROP_NUM_THREADS, 0);
-    biasAddRelu_fprop<<<num_SMs*num_blocks, BIASADDRELU_FPROP_NUM_THREADS, 0, stream>>>(output, bias, batch_size, input_size);
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAddRelu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+    biasAddRelu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
 
     // Set current output as next layer input
     reserved_space_x = reserved_space_y;
@@ -720,23 +785,25 @@ int mlp_bp(
     float zero = 0.f;
 
     // Call bias ReLU backprop - first implementation, 1 thread per bias element
-    int threadsPerBlock = BIASADDRELU_BPROP_NUM_THREADS;
+    dim3 block(BIAS_RELU_BW_NTHREADS_X, BIAS_RELU_BW_NTHREADS_Y);
     int grid_x, grid_y;
-    get_biasAddRelu_bprop_grid_size(yfeat, threadsPerBlock, batch_size, &grid_x, &grid_y);
-
-    dim3 block(threadsPerBlock);
-
     cudaMemsetAsync(semaphores, 0, semaphore_size, stream);
 
-    if(yfeat % (ILP * threadsPerBlock) == 0 &&
+    if(yfeat % (ILP * BIAS_RELU_BW_NTHREADS_X) == 0 &&
        is_aligned(y) &&
        is_aligned(dy) &&
        is_aligned(dy_gemm) &&
        is_aligned(dbias)){
-      dim3 grid(grid_x/ILP, grid_y);
+      int block_x = ILP * BIAS_RELU_BW_NTHREADS_X;
+      int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
+      get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
+      dim3 grid(grid_x, grid_y);
       biasAddRelu_bprop_aligned<T, 4><<<grid, block, 0, stream>>>(
         y, dy, yfeat, batch_size, dy_gemm, db_scratch, semaphores, dbias);
     } else {
+      int block_x = BIAS_RELU_BW_NTHREADS_X;
+      int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
+      get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
       dim3 grid(grid_x, grid_y);
       biasAddRelu_bprop<T, 4><<<grid, block, 0, stream>>>(
         y, dy, yfeat, batch_size, dy_gemm, db_scratch, semaphores, dbias);
