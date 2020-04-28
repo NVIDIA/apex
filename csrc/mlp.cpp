@@ -35,7 +35,8 @@ int mlp_bp(
     T* work_space,
     T* dX,
     T** dwPtr,
-    T** dbPtr);
+    T** dbPtr,
+    bool requires_grad);
 
 std::vector<at::Tensor> mlp_forward(std::vector<at::Tensor> inputs) {
   // inputs contains (input, weights, biases)
@@ -86,6 +87,9 @@ std::vector<at::Tensor> mlp_backward(
   auto batch_size = inputs[0].size(0);
   auto input_features = inputs[0].size(1);
 
+  // TODO: not creating empty tensor for it?
+  bool requires_grad = inputs[0].requires_grad();
+
   std::vector<int> output_features;
   for (int i = 0; i < num_layers; i++) {
     output_features.push_back(inputs[i + 1].size(0));
@@ -127,7 +131,8 @@ std::vector<at::Tensor> mlp_backward(
         work_space.data_ptr<scalar_t>(),
         outputs_ptr[0],
         outputs_ptr.data() + 1,
-        outputs_ptr.data() + 1 + num_layers);
+        outputs_ptr.data() + 1 + num_layers,
+        requires_grad);
   });
 
   return outputs;

@@ -725,7 +725,8 @@ int mlp_bp(
     T* work_space,
     T* dX,
     T** dwPtr,
-    T** dbPtr) {
+    T** dbPtr,
+    bool requires_grad) {
   T* weight;
   T *dweight, *dx, *dy, *dbias;
   T *x, *y;
@@ -811,7 +812,8 @@ int mlp_bp(
 
     cublasStatus_t cublas_status;
     // Call GEMM dgrad
-    cublas_status = mlp_gemm(
+    if (layer != num_layers - 1 || requires_grad == 1) {
+      cublas_status = mlp_gemm(
         handle,
         CUBLAS_OP_N,
         CUBLAS_OP_N,
@@ -827,9 +829,10 @@ int mlp_bp(
         dx,
         xfeat);
 
-    if (cublas_status != CUBLAS_STATUS_SUCCESS) {
-      printf("GEMM dgrad failed with %d\n", cublas_status);
-      return 1;
+      if (cublas_status != CUBLAS_STATUS_SUCCESS) {
+        printf("GEMM dgrad failed with %d\n", cublas_status);
+        return 1;
+      }
     }
 
     // Call GEMM wgrad
@@ -883,7 +886,8 @@ template int mlp_bp<float>(
     float* work_space,
     float* dX,
     float** dwPtr,
-    float** dbPtr);
+    float** dbPtr,
+    bool requires_grad);
 
 template int mlp_fp<at::Half>(
     at::Half* X,
@@ -909,7 +913,8 @@ template int mlp_bp<at::Half>(
     at::Half* work_space,
     at::Half* dX,
     at::Half** dwPtr,
-    at::Half** dbPtr);
+    at::Half** dbPtr,
+    bool requires_grad);
 
 template int mlp_fp<double>(
     double* X,
@@ -935,7 +940,8 @@ template int mlp_bp<double>(
     double* work_space,
     double* dX,
     double** dwPtr,
-    double** dbPtr);
+    double** dbPtr,
+    bool requires_grad);
 
 template size_t get_mlp_bp_workspace_in_bytes<float>(
     int batch_size,
