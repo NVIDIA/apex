@@ -115,8 +115,13 @@ __device__ __forceinline__ T reduce_block_into_lanes
     // __SYNCWARP();
 
     #pragma unroll
-    for(int i = 16; i >= lanes; i >>= 1)
+    for(int i = 16; i >= lanes; i >>= 1) {
+#ifdef __HIP_PLATFORM_HCC__
+      final = final + __shfl_down(0xffffffff, final, i);
+#else
       final = final + __shfl_down_sync(0xffffffff, final, i);
+#endif
+    }
   }
 
   if(share_result)
@@ -165,8 +170,13 @@ __device__ __forceinline__ T reduce_block_into_lanes_max_op
     // __SYNCWARP();
 
     #pragma unroll
-    for(int i = 16; i >= lanes; i >>= 1)
+    for(int i = 16; i >= lanes; i >>= 1) {
+#ifdef __HIP_PLATFORM_HCC__
+      final = fmaxf(fabsf(final), fabsf(__shfl_down(0xffffffff, final, i)));
+#else
       final = fmaxf(fabsf(final), fabsf(__shfl_down_sync(0xffffffff, final, i)));
+#endif
+    }
   }
 
   if(share_result)
