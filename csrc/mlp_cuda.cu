@@ -812,7 +812,7 @@ int mlp_bp(
 
     cublasStatus_t cublas_status;
     // Call GEMM dgrad
-    if (layer != num_layers - 1 || requires_grad == 1) {
+    if (layer > 0 || requires_grad == 1) {
       cublas_status = mlp_gemm(
         handle,
         CUBLAS_OP_N,
