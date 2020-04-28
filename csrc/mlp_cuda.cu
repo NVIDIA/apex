@@ -45,6 +45,12 @@ __device__ __inline__ float relu(float a) {
   return (retf);
 }
 
+// Keep Sigmoid in float only. When using half, cast to float before calling.
+__device__ __inline__ float sigmoid(float a) {
+  float retf = 1.f / (1.f + expf(-a));
+  return (retf);
+}
+
 // FP64 Wrapper around cublas GEMMEx
 cublasStatus_t mlp_gemm(
     cublasHandle_t handle,
@@ -293,6 +299,46 @@ __global__ void Relu_fprop(T *X, uint batch_size, uint features) {
   }
 }
 
+// Sigmoid. Assume input X is [features x batch size], column major.
+// Safe to call in-place.
+template <typename T>
+__global__ void Sigmoid_fprop(T *X, uint batch_size, uint features) {
+  T r_x[ILP];
+  if(is_aligned(X) && features % ILP ==0) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid*ILP < features * batch_size; tid += blockDim.x * gridDim.x) {
+      load_store(r_x, X, 0 , tid);
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        r_x[ii] = sigmoid(static_cast<float>(r_x[ii]));
+      }
+      load_store(X, r_x, tid , 0);
+    }
+  } else {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid < features * batch_size; tid += ILP * blockDim.x * gridDim.x) {
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          r_x[ii] = X[idx];
+        }
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        r_x[ii] = sigmoid(static_cast<float>(r_x[ii]));
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          X[idx] = r_x[ii];
+        }
+      }
+    }
+  }
+}
+
 // ReLU. Assume input X is [features x batch size], column major.
 // Safe to call in-place.
 template <typename T>
@@ -329,6 +375,58 @@ __global__ void Relu_bprop(T *dY, T *Y, uint batch_size, uint features, T *dX) {
       for(int ii = 0; ii < ILP; ii++) {
         if ((float)r_y[ii] <= 0.f)
           r_dy[ii] = 0;
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          dX[idx] = r_dy[ii];
+        }
+      }
+    }
+  }
+}
+
+// Sigmoid. Assume input X is [features x batch size], column major.
+// Safe to call in-place.
+template <typename T>
+__global__ void Sigmoid_bprop(T *dY, T *Y, uint batch_size, uint features, T *dX) {
+  T r_dy[ILP];
+  T r_y[ILP];
+  if(is_aligned(dY) &&
+     is_aligned(Y) &&
+     is_aligned(dX) &&
+     features % ILP ==0) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid*ILP < features * batch_size; tid += blockDim.x * gridDim.x) {
+      load_store(r_dy, dY, 0 , tid);
+      load_store(r_y, Y, 0 , tid);
+#pragma unroll
+      for(int ii=0;ii<ILP;ii++){
+        float grad_out = r_dy[ii];
+        float out = r_y[ii];
+        float grad_i = out * ( 1.f - out) * grad_out;
+        r_dy[ii] = grad_i;
+      }
+      load_store(dX, r_dy, tid, 0);
+    }
+  } else {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid < features * batch_size; tid += ILP * blockDim.x * gridDim.x) {
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          r_dy[ii] = dY[idx];
+          r_y[ii] = Y[idx];
+        }
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        float grad_out = r_dy[ii];
+        float out = r_y[ii];
+        float grad_i = out * ( 1.f - out) * grad_out;
+        r_dy[ii] = grad_i;
       }
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++) {
@@ -933,15 +1031,28 @@ int mlp_fp(
     int num_blocks = 0;
     int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
     // Call biasReLU
-    if(use_bias == 1 && activation == 1) {
-      cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAddRelu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
-      biasAddRelu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
-    } else if (use_bias == 1 && activation == 0) {
-      cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAdd_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
-      biasAdd_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
-    } else if (use_bias == 0 && activation == 1) {
-      cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Relu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
-      Relu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+    if(use_bias == 1) {
+      if (activation == 0) { // no activation
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAdd_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+        biasAdd_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
+      } else if (activation == 1) { // relu
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAddRelu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+        biasAddRelu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
+      } else if (activation == 2) { // sigmoid
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAdd_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+        biasAdd_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Sigmoid_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+        Sigmoid_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+      }
+    } else {
+      // don't need to do anything in case of no activation and no bias
+      if (activation == 1) { // relu
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Relu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+        Relu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+      } else if (activation == 2) { // sigmoid
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Sigmoid_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+        Sigmoid_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+      }
     }
 
     // Set current output as next layer input
@@ -1032,51 +1143,79 @@ int mlp_bp(
     float one = 1.f;
     float zero = 0.f;
 
-    if(use_bias == 1 && activation == 1) {
-      // Call bias ReLU backprop - first implementation, 1 thread per bias element
-      dim3 block(BIAS_RELU_BW_NTHREADS_X, BIAS_RELU_BW_NTHREADS_Y);
-      int grid_x, grid_y;
-      cudaMemsetAsync(semaphores, 0, semaphore_size, stream);
+    if (use_bias == 1) {
+      if (activation == 0) { // no acitvation
+        // bgrad
+        dim3 block(BIAS_RELU_BW_NTHREADS_X, BIAS_RELU_BW_NTHREADS_Y);
+        int grid_x, grid_y;
+        cudaMemsetAsync(semaphores, 0, semaphore_size, stream);
 
-      if(yfeat % (ILP * BIAS_RELU_BW_NTHREADS_X) == 0 &&
-         is_aligned(y) &&
-         is_aligned(dy) &&
-         is_aligned(dy_gemm) &&
-         is_aligned(dbias)){
-        int block_x = ILP * BIAS_RELU_BW_NTHREADS_X;
-        int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
-        get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
-        dim3 grid(grid_x, grid_y);
-        biasAddRelu_bprop_aligned<T, 4><<<grid, block, 0, stream>>>(
-          y, dy, yfeat, batch_size, dy_gemm, db_scratch, semaphores, dbias);
-      } else {
         int block_x = BIAS_RELU_BW_NTHREADS_X;
         int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
         get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
         dim3 grid(grid_x, grid_y);
-        biasAddRelu_bprop<T, 4><<<grid, block, 0, stream>>>(
-          y, dy, yfeat, batch_size, dy_gemm, db_scratch, semaphores, dbias);
-      }
-    } else if (use_bias == 1 && activation == 0) {
-      dim3 block(BIAS_RELU_BW_NTHREADS_X, BIAS_RELU_BW_NTHREADS_Y);
-      int grid_x, grid_y;
-      cudaMemsetAsync(semaphores, 0, semaphore_size, stream);
+        biasAdd_bprop<T, 4><<<grid, block, 0, stream>>>(
+          dy, yfeat, batch_size, db_scratch, semaphores, dbias);
+        // bypass dgrad through reset pointer
+        dy_gemm = dy;
+      } else if (activation == 1) { // relu
+        dim3 block(BIAS_RELU_BW_NTHREADS_X, BIAS_RELU_BW_NTHREADS_Y);
+        int grid_x, grid_y;
+        cudaMemsetAsync(semaphores, 0, semaphore_size, stream);
 
-      int block_x = BIAS_RELU_BW_NTHREADS_X;
-      int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
-      get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
-      dim3 grid(grid_x, grid_y);
-      biasAdd_bprop<T, 4><<<grid, block, 0, stream>>>(
-        dy, yfeat, batch_size, db_scratch, semaphores, dbias);
-      dy_gemm = dy; // bypass dgrad through reset pointer
-    } else if (use_bias == 0 && activation == 1) {
-      int num_blocks = 0;
-      int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
-      cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Relu_bprop<T>, BIAS_RELU_FW_NTHREADS, 0);
-      Relu_bprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(dy, y, batch_size, yfeat, dy_gemm);
-    } else if (use_bias == 0 && activation == 0) {
-      // no activation and bias
-      dy_gemm = dy;
+        if(yfeat % (ILP * BIAS_RELU_BW_NTHREADS_X) == 0 &&
+           is_aligned(y) &&
+           is_aligned(dy) &&
+           is_aligned(dy_gemm) &&
+           is_aligned(dbias)){
+          int block_x = ILP * BIAS_RELU_BW_NTHREADS_X;
+          int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
+          get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
+          dim3 grid(grid_x, grid_y);
+          biasAddRelu_bprop_aligned<T, 4><<<grid, block, 0, stream>>>(
+            y, dy, yfeat, batch_size, dy_gemm, db_scratch, semaphores, dbias);
+        } else {
+          int block_x = BIAS_RELU_BW_NTHREADS_X;
+          int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
+          get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
+          dim3 grid(grid_x, grid_y);
+          biasAddRelu_bprop<T, 4><<<grid, block, 0, stream>>>(
+            y, dy, yfeat, batch_size, dy_gemm, db_scratch, semaphores, dbias);
+        }
+      } else if (activation == 2) { // sigmoid
+        // activation backward
+        int num_blocks = 0;
+        int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Sigmoid_bprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+        Sigmoid_bprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(dy, y, batch_size, yfeat, dy_gemm);
+
+        // bgrad, from dy_gemm
+        dim3 block(BIAS_RELU_BW_NTHREADS_X, BIAS_RELU_BW_NTHREADS_Y);
+        int grid_x, grid_y;
+        cudaMemsetAsync(semaphores, 0, semaphore_size, stream);
+
+        int block_x = BIAS_RELU_BW_NTHREADS_X;
+        int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
+        get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
+        dim3 grid(grid_x, grid_y);
+        biasAdd_bprop<T, 4><<<grid, block, 0, stream>>>(
+          dy_gemm, yfeat, batch_size, db_scratch, semaphores, dbias);
+      }
+    } else { // no bias below
+      if (activation == 0) {
+        // bypass dgrad through reset pointer
+        dy_gemm = dy;
+      } else if (activation == 1) { // relu
+        int num_blocks = 0;
+        int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Relu_bprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+        Relu_bprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(dy, y, batch_size, yfeat, dy_gemm);
+      } else if (activation == 2) { // sigmoid
+        int num_blocks = 0;
+        int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Sigmoid_bprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+        Sigmoid_bprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(dy, y, batch_size, yfeat, dy_gemm);
+      }
     }
 
     cublasStatus_t cublas_status;

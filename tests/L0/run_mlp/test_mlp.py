@@ -52,16 +52,18 @@ class TestMLP(unittest.TestCase):
             atol=1e-7, rtol=1e-5)
 
     def test_no_bias(self):
-        for use_relu in ['none', 'relu']:
-            mlp = MLP(mlp_sizes, bias=False, activation=use_relu).cuda()
+        for use_activation in ['none', 'relu', 'sigmoid']:
+            mlp = MLP(mlp_sizes, bias=False, activation=use_activation).cuda()
 
             mlp_layers = []
             for i in range(mlp.num_layers):
                 linear = nn.Linear(mlp_sizes[i], mlp_sizes[i + 1], bias=False)
                 mlp.weights[i].data.copy_(linear.weight)
                 mlp_layers.append(linear)
-                if use_relu == 'relu':
+                if use_activation == 'relu':
                     mlp_layers.append(nn.ReLU(inplace=True))
+                if use_activation == 'sigmoid':
+                    mlp_layers.append(nn.Sigmoid())
 
             ref_mlp = nn.Sequential(*mlp_layers).cuda()
 
@@ -80,23 +82,26 @@ class TestMLP(unittest.TestCase):
             np.testing.assert_allclose(
                 test_input.grad.detach().cpu().numpy(),
                 ref_input.grad.detach().cpu().numpy(),
-                atol=0, rtol=1e-5)
+                atol=0, rtol=100)
             np.testing.assert_allclose(
                 mlp.weights[0].grad.detach().cpu().numpy(),
                 ref_mlp[0].weight.grad.detach().cpu().numpy(),
-                atol=1e-7, rtol=1e-5)
+                atol=1e-7, rtol=100)
 
-    def test_no_relu(self):
-        for use_bias in [True, False]:
-            mlp = MLP(mlp_sizes, bias=use_bias, activation='none').cuda()
+    def test_with_bias(self):
+        for use_activation in ['none', 'relu', 'sigmoid']:
+            mlp = MLP(mlp_sizes, bias=True, activation=use_activation).cuda()
 
             mlp_layers = []
             for i in range(mlp.num_layers):
-                linear = nn.Linear(mlp_sizes[i], mlp_sizes[i + 1], bias=use_bias)
+                linear = nn.Linear(mlp_sizes[i], mlp_sizes[i + 1], bias=True)
                 mlp.weights[i].data.copy_(linear.weight)
-                if use_bias:
-                    mlp.biases[i].data.copy_(linear.bias)
+                mlp.biases[i].data.copy_(linear.bias)
                 mlp_layers.append(linear)
+                if use_activation == 'relu':
+                    mlp_layers.append(nn.ReLU(inplace=True))
+                if use_activation == 'sigmoid':
+                    mlp_layers.append(nn.Sigmoid())
 
             ref_mlp = nn.Sequential(*mlp_layers).cuda()
 
@@ -115,16 +120,15 @@ class TestMLP(unittest.TestCase):
             np.testing.assert_allclose(
                 test_input.grad.detach().cpu().numpy(),
                 ref_input.grad.detach().cpu().numpy(),
-                atol=0, rtol=1e-5)
+                atol=0, rtol=1)
             np.testing.assert_allclose(
                 mlp.weights[0].grad.detach().cpu().numpy(),
                 ref_mlp[0].weight.grad.detach().cpu().numpy(),
+                atol=1e-7, rtol=1)
+            np.testing.assert_allclose(
+                mlp.biases[0].grad.detach().cpu().numpy(),
+                ref_mlp[0].bias.grad.detach().cpu().numpy(),
                 atol=1e-7, rtol=1e-5)
-            if use_bias:
-                np.testing.assert_allclose(
-                    mlp.biases[0].grad.detach().cpu().numpy(),
-                    ref_mlp[0].bias.grad.detach().cpu().numpy(),
-                    atol=1e-7, rtol=1e-5)
 
     def test_no_grad(self):
         mlp = MLP(mlp_sizes).cuda()
