@@ -159,9 +159,55 @@ cublasStatus_t mlp_gemm(
       CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 
-// Bias ADD + ReLU. Assume input X is [features x batch size], assume column major.
+// Bias ADD. Assume input X is [features x batch size], column major.
 // Bias is one 'features' long vector, with implicit broadcast.
-// Currently, activation support fuesed ReLU. Safe to call in-place.
+template <typename T>
+__global__ void biasAdd_fprop(T *X, T *b, uint batch_size, uint features) {
+  T r_x[ILP];
+  T r_b[ILP];
+  if(is_aligned(X) && is_aligned(b) && features % ILP ==0) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid*ILP < features * batch_size; tid += blockDim.x * gridDim.x) {
+      int row = tid % (features / ILP);
+      load_store(r_x, X, 0 , tid);
+      load_store(r_b, b, 0 , row);
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        float bias_sum = static_cast<float>(r_x[ii]) + static_cast<float>(r_b[ii]);
+        r_x[ii] = bias_sum;
+      }
+      load_store(X, r_x, tid , 0);
+    }
+  } else {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid < features * batch_size; tid += ILP * blockDim.x * gridDim.x) {
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          int row = tid % features;
+          r_x[ii] = X[idx];
+          r_b[ii] = b[row];
+        }
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        float bias_sum = static_cast<float>(r_x[ii]) + static_cast<float>(r_b[ii]);
+        r_x[ii] = bias_sum;
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          X[idx] = r_x[ii];
+        }
+      }
+    }
+  }
+}
+
+// Bias ADD + ReLU. Assume input X is [features x batch size], column major.
+// Activation support fuesed ReLU. Safe to call in-place.
 template <typename T>
 __global__ void biasAddRelu_fprop(T *X, T *b, uint batch_size, uint features) {
   T r_x[ILP];
@@ -207,6 +253,94 @@ __global__ void biasAddRelu_fprop(T *X, T *b, uint batch_size, uint features) {
   }
 }
 
+// ReLU. Assume input X is [features x batch size], column major.
+// Safe to call in-place.
+template <typename T>
+__global__ void Relu_fprop(T *X, uint batch_size, uint features) {
+  T r_x[ILP];
+  if(is_aligned(X) && features % ILP ==0) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid*ILP < features * batch_size; tid += blockDim.x * gridDim.x) {
+      load_store(r_x, X, 0 , tid);
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        r_x[ii] = relu(static_cast<float>(r_x[ii]));
+      }
+      load_store(X, r_x, tid , 0);
+    }
+  } else {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid < features * batch_size; tid += ILP * blockDim.x * gridDim.x) {
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          r_x[ii] = X[idx];
+        }
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        r_x[ii] = relu(static_cast<float>(r_x[ii]));
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          X[idx] = r_x[ii];
+        }
+      }
+    }
+  }
+}
+
+// ReLU. Assume input X is [features x batch size], column major.
+// Safe to call in-place.
+template <typename T>
+__global__ void Relu_bprop(T *dY, T *Y, uint batch_size, uint features, T *dX) {
+  T r_dy[ILP];
+  T r_y[ILP];
+  if(is_aligned(dY) &&
+     is_aligned(Y) &&
+     is_aligned(dX) &&
+     features % ILP ==0) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid*ILP < features * batch_size; tid += blockDim.x * gridDim.x) {
+      load_store(r_dy, dY, 0 , tid);
+      load_store(r_y, Y, 0 , tid);
+#pragma unroll
+      for(int ii=0;ii<ILP;ii++){
+        if ((float)r_y[ii] <= 0.f)
+          r_dy[ii] = 0;
+      }
+      load_store(dX, r_dy, tid, 0);
+    }
+  } else {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid < features * batch_size; tid += ILP * blockDim.x * gridDim.x) {
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          r_dy[ii] = dY[idx];
+          r_y[ii] = Y[idx];
+        }
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        if ((float)r_y[ii] <= 0.f)
+          r_dy[ii] = 0;
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          dX[idx] = r_dy[ii];
+        }
+      }
+    }
+  }
+}
+
 // Compute grid size for pointwise backward kernel.
 // block_x/y is total elment being handled per block, not number of threads
 void get_biasAddRelu_bprop_grid_size(
@@ -228,6 +362,105 @@ void get_biasAddRelu_bprop_grid_size(
   // kernel adjust work, so here we just launch max block
   *grid_y = std::min(nRedSplits, max_blocks_y);
   return;
+}
+
+// Addition done deterministically via a 2-pass approach. Each CTA writes out partial
+// sum, and the last CTA in grid Y dimension accumulates partials serially and writes to result.
+template <typename T, int UNROLL_FACTOR>
+__global__ void biasAdd_bprop(
+    T* dY,
+    int features,
+    int batch_size,
+    volatile float* intermediate,
+    int* semaphores,
+    T* db) {
+  // The feature that this thread is responsible for
+  int f = blockIdx.x * blockDim.x + threadIdx.x;
+
+  // Compute the span this thread is responsible for
+  // For this block
+  int b_chunkSize = (batch_size + gridDim.y - 1) / gridDim.y;
+  int b_nStart = blockIdx.y * b_chunkSize;
+  int b_nSpan = min(batch_size, b_nStart + b_chunkSize) - b_nStart;
+  // For this thread
+  int chunkSize = (b_chunkSize + blockDim.y - 1) / blockDim.y;
+  int nStart = threadIdx.y * chunkSize + b_nStart;
+  int nSpan = min(b_nStart + b_nSpan, nStart + chunkSize) - nStart;
+
+  volatile float* out = intermediate + blockIdx.y * features;
+
+  // Flag to trigger last reduction.
+  __shared__ bool isLastBlock;
+  // we know block size for now
+  __shared__ float smem[BIAS_RELU_BW_NTHREADS_X*BIAS_RELU_BW_NTHREADS_Y];
+
+  // Accumulate db in FP32 always
+  float db_local = 0;
+  if (f < features) {
+    int nidx = 0;
+    // Handle non-multiple of UNROLL_FACTOR residue
+    for (; nidx < nSpan % UNROLL_FACTOR; nidx++) {
+      int row, col, flat_idx;
+      row = f;
+      col = nStart + nidx;
+      flat_idx = col * features + row;
+      db_local += (float)dY[flat_idx];
+    }
+
+    // Handle meat of work
+    for (; (nidx + UNROLL_FACTOR - 1) < nSpan; nidx += UNROLL_FACTOR) {
+      int row, col, flat_idx;
+      row = f;
+      col = nStart + nidx;
+      flat_idx = col * features + row;
+#pragma unroll 4
+      for (int u = 0; u < UNROLL_FACTOR; u++) {
+        db_local += (float)dY[flat_idx];
+        flat_idx += features;
+      }
+    }
+
+    // naive block reduction on y-dim
+    int linear_idx = threadIdx.y * blockDim.x + threadIdx.x;
+    smem[linear_idx] = db_local;
+  }
+  __syncthreads();
+  if (f < features) {
+    if(threadIdx.y == 0) {
+      for(int yidx = 1; yidx < blockDim.y; yidx++){
+        db_local += smem[yidx * blockDim.x + threadIdx.x];
+      }
+
+      // block result is in db_local now for all threadIdx.y == 0
+      // Write out partial result
+      out[f] = db_local;
+    }
+  }
+  __threadfence();
+  __syncthreads();
+
+  // Increment semaphore and check if this is the last CTA in the grid_y dimension.
+  // Only thread (0,0) calls this
+  if (threadIdx.x == 0 && threadIdx.y == 0 && f < features) {
+    unsigned int sum_idx;
+    sum_idx = atomicAdd(&(semaphores[blockIdx.x]), 1);
+    isLastBlock = (sum_idx == (gridDim.y - 1));
+  }
+  __syncthreads();
+
+  db_local = 0;
+  // No block reduction for now, only thread (*,0) do grid reduction
+  if (isLastBlock && f < features) {
+    if(threadIdx.y == 0) {
+      for (int n = 0; n < gridDim.y; n++) {
+        int row, col;
+        row = f;
+        col = n;
+        db_local += (float)(intermediate[col * features + row]);
+      }
+      db[f] = (T)db_local;
+    }
+  }
 }
 
 // Addition done deterministically via a 2-pass approach. Each CTA writes out partial
@@ -696,19 +929,19 @@ int mlp_fp(
       return 1;
     }
 
+    const uint &input_size = ofeat;
+    int num_blocks = 0;
+    int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
     // Call biasReLU
     if(use_bias == 1 && activation == 1) {
-      const uint &input_size = ofeat;
-      int num_blocks = 0;
-      int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
       cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAddRelu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
       biasAddRelu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
     } else if (use_bias == 1 && activation == 0) {
-      printf("Not implemented: bias only\n");
-      return 1;
+      cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAdd_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+      biasAdd_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
     } else if (use_bias == 0 && activation == 1) {
-      printf("Not implemented: relu without bias\n");
-      return 1;
+      cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Relu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+      Relu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
     }
 
     // Set current output as next layer input
@@ -825,11 +1058,22 @@ int mlp_bp(
           y, dy, yfeat, batch_size, dy_gemm, db_scratch, semaphores, dbias);
       }
     } else if (use_bias == 1 && activation == 0) {
-      printf("Not implemented: bias only\n");
-      return 1;
+      dim3 block(BIAS_RELU_BW_NTHREADS_X, BIAS_RELU_BW_NTHREADS_Y);
+      int grid_x, grid_y;
+      cudaMemsetAsync(semaphores, 0, semaphore_size, stream);
+
+      int block_x = BIAS_RELU_BW_NTHREADS_X;
+      int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
+      get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
+      dim3 grid(grid_x, grid_y);
+      biasAdd_bprop<T, 4><<<grid, block, 0, stream>>>(
+        dy, yfeat, batch_size, db_scratch, semaphores, dbias);
+      dy_gemm = dy; // bypass dgrad through reset pointer
     } else if (use_bias == 0 && activation == 1) {
-      printf("Not implemented: relu without bias\n");
-      return 1;
+      int num_blocks = 0;
+      int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+      cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Relu_bprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+      Relu_bprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(dy, y, batch_size, yfeat, dy_gemm);
     } else if (use_bias == 0 && activation == 0) {
       // no activation and bias
       dy_gemm = dy;
