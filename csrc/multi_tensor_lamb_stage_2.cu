@@ -24,7 +24,8 @@ struct LAMBStage2Functor
     TensorListMetadata<2>& tl,
     const float* per_tensor_param_norm,
     const float* per_tensor_update_norm,
-    const float learning_rate)
+    const float learning_rate,
+    bool use_nvlamb)
   {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
@@ -35,9 +36,15 @@ struct LAMBStage2Functor
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
-    float param_norm = per_tensor_param_norm[tensor_num];
-    float update_norm = per_tensor_update_norm[tensor_num];
-    T ratio = (update_norm != 0.0f && param_norm != 0.0f) ? learning_rate * (param_norm / update_norm) : learning_rate;
+    MATH_T ratio = learning_rate;
+    // nvlamb: apply adaptive learning rate to all parameters
+    // otherwise, only apply to those with non-zero weight decay
+    if (use_nvlamb || (decay != 0.0))
+    {
+      float param_norm = per_tensor_param_norm[tensor_num];
+      float update_norm = per_tensor_update_norm[tensor_num];
+      ratio = (update_norm != 0.0f && param_norm != 0.0f) ? learning_rate * (param_norm / update_norm) : learning_rate;
+    }
 
     T* p = (T*)tl.addresses[0][tensor_loc];
     p += chunk_idx*chunk_size;
@@ -87,8 +94,11 @@ void multi_tensor_lamb_stage2_cuda(
   std::vector<std::vector<at::Tensor>> tensor_lists,
   at::Tensor per_tensor_param_norm,
   at::Tensor per_tensor_update_norm,
-  const float learning_rate)
+  const float learning_rate,
+  at::optional<bool> use_nvlamb_python)
 {
+  bool use_nvlamb = use_nvlamb_python.has_value() ? use_nvlamb_python.value() : false;
+
   using namespace at;
 
   DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
@@ -101,7 +111,8 @@ void multi_tensor_lamb_stage2_cuda(
         LAMBStage2Functor<scalar_t_0, scalar_t_1>(),
         per_tensor_param_norm.DATA_PTR<float>(),
         per_tensor_update_norm.DATA_PTR<float>(),
-        learning_rate); ))
+        learning_rate,
+	use_nvlamb); ))
 
   AT_CUDA_CHECK(cudaGetLastError());
 
