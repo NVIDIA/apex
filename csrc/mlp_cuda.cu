@@ -646,7 +646,9 @@ int mlp_fp(
     int* output_features,
     T** BPtr,
     T* Y,
-    T* reserved_space) {
+    T* reserved_space,
+    int use_bias,
+    int activation) {
   T *weight, *input, *output, *bias;
   T *reserved_space_x, *reserved_space_y;
   reserved_space_x = NULL;
@@ -662,7 +664,9 @@ int mlp_fp(
     weight = WPtr[layer];
     input = (layer == 0) ? X : reserved_space_x;
     output = (layer == num_layers - 1) ? Y : reserved_space_y;
-    bias = BPtr[layer];
+    if (use_bias) {
+      bias = BPtr[layer];
+    }
     int ifeat = (layer == 0) ? input_features : output_features[layer - 1];
     int ofeat = output_features[layer];
 
@@ -693,11 +697,19 @@ int mlp_fp(
     }
 
     // Call biasReLU
-    const uint &input_size = ofeat;
-    int num_blocks = 0;
-    int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAddRelu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
-    biasAddRelu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
+    if(use_bias == 1 && activation == 1) {
+      const uint &input_size = ofeat;
+      int num_blocks = 0;
+      int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+      cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAddRelu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+      biasAddRelu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
+    } else if (use_bias == 1 && activation == 0) {
+      printf("Not implemented: bias only\n");
+      return 1;
+    } else if (use_bias == 0 && activation == 1) {
+      printf("Not implemented: relu without bias\n");
+      return 1;
+    }
 
     // Set current output as next layer input
     reserved_space_x = reserved_space_y;
@@ -726,7 +738,9 @@ int mlp_bp(
     T* dX,
     T** dwPtr,
     T** dbPtr,
-    bool requires_grad) {
+    bool requires_grad,
+    int use_bias,
+    int activation) {
   T* weight;
   T *dweight, *dx, *dy, *dbias;
   T *x, *y;
@@ -785,29 +799,40 @@ int mlp_bp(
     float one = 1.f;
     float zero = 0.f;
 
-    // Call bias ReLU backprop - first implementation, 1 thread per bias element
-    dim3 block(BIAS_RELU_BW_NTHREADS_X, BIAS_RELU_BW_NTHREADS_Y);
-    int grid_x, grid_y;
-    cudaMemsetAsync(semaphores, 0, semaphore_size, stream);
+    if(use_bias == 1 && activation == 1) {
+      // Call bias ReLU backprop - first implementation, 1 thread per bias element
+      dim3 block(BIAS_RELU_BW_NTHREADS_X, BIAS_RELU_BW_NTHREADS_Y);
+      int grid_x, grid_y;
+      cudaMemsetAsync(semaphores, 0, semaphore_size, stream);
 
-    if(yfeat % (ILP * BIAS_RELU_BW_NTHREADS_X) == 0 &&
-       is_aligned(y) &&
-       is_aligned(dy) &&
-       is_aligned(dy_gemm) &&
-       is_aligned(dbias)){
-      int block_x = ILP * BIAS_RELU_BW_NTHREADS_X;
-      int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
-      get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
-      dim3 grid(grid_x, grid_y);
-      biasAddRelu_bprop_aligned<T, 4><<<grid, block, 0, stream>>>(
-        y, dy, yfeat, batch_size, dy_gemm, db_scratch, semaphores, dbias);
-    } else {
-      int block_x = BIAS_RELU_BW_NTHREADS_X;
-      int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
-      get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
-      dim3 grid(grid_x, grid_y);
-      biasAddRelu_bprop<T, 4><<<grid, block, 0, stream>>>(
-        y, dy, yfeat, batch_size, dy_gemm, db_scratch, semaphores, dbias);
+      if(yfeat % (ILP * BIAS_RELU_BW_NTHREADS_X) == 0 &&
+         is_aligned(y) &&
+         is_aligned(dy) &&
+         is_aligned(dy_gemm) &&
+         is_aligned(dbias)){
+        int block_x = ILP * BIAS_RELU_BW_NTHREADS_X;
+        int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
+        get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
+        dim3 grid(grid_x, grid_y);
+        biasAddRelu_bprop_aligned<T, 4><<<grid, block, 0, stream>>>(
+          y, dy, yfeat, batch_size, dy_gemm, db_scratch, semaphores, dbias);
+      } else {
+        int block_x = BIAS_RELU_BW_NTHREADS_X;
+        int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
+        get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
+        dim3 grid(grid_x, grid_y);
+        biasAddRelu_bprop<T, 4><<<grid, block, 0, stream>>>(
+          y, dy, yfeat, batch_size, dy_gemm, db_scratch, semaphores, dbias);
+      }
+    } else if (use_bias == 1 && activation == 0) {
+      printf("Not implemented: bias only\n");
+      return 1;
+    } else if (use_bias == 0 && activation == 1) {
+      printf("Not implemented: relu without bias\n");
+      return 1;
+    } else if (use_bias == 0 && activation == 0) {
+      // no activation and bias
+      dy_gemm = dy;
     }
 
     cublasStatus_t cublas_status;
@@ -871,7 +896,9 @@ template int mlp_fp<float>(
     int* output_features,
     float** BPtr,
     float* Y,
-    float* reserved_space);
+    float* reserved_space,
+    int use_bias,
+    int activation);
 
 template int mlp_bp<float>(
     float* X,
@@ -887,7 +914,9 @@ template int mlp_bp<float>(
     float* dX,
     float** dwPtr,
     float** dbPtr,
-    bool requires_grad);
+    bool requires_grad,
+    int use_bias,
+    int activation);
 
 template int mlp_fp<at::Half>(
     at::Half* X,
@@ -898,7 +927,9 @@ template int mlp_fp<at::Half>(
     int* output_features,
     at::Half** BPtr,
     at::Half* Y,
-    at::Half* reserved_space);
+    at::Half* reserved_space,
+    int use_bias,
+    int activation);
 
 template int mlp_bp<at::Half>(
     at::Half* X,
@@ -914,7 +945,9 @@ template int mlp_bp<at::Half>(
     at::Half* dX,
     at::Half** dwPtr,
     at::Half** dbPtr,
-    bool requires_grad);
+    bool requires_grad,
+    int use_bias,
+    int activation);
 
 template int mlp_fp<double>(
     double* X,
@@ -925,7 +958,9 @@ template int mlp_fp<double>(
     int* output_features,
     double** BPtr,
     double* Y,
-    double* reserved_space);
+    double* reserved_space,
+    int use_bias,
+    int activation);
 
 template int mlp_bp<double>(
     double* X,
@@ -941,7 +976,9 @@ template int mlp_bp<double>(
     double* dX,
     double** dwPtr,
     double** dbPtr,
-    bool requires_grad);
+    bool requires_grad,
+    int use_bias,
+    int activation);
 
 template size_t get_mlp_bp_workspace_in_bytes<float>(
     int batch_size,
