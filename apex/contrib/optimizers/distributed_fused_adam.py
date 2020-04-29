@@ -106,7 +106,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 if not p.requires_grad:
                     continue
                 self._model_params.append(p)
-                state = self.state['p']
+                state = self.state[p]
                 if len(state) == 0:
                     state['step'] = 0
                 if self._param_state is None:
@@ -543,6 +543,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self.revert_step()
             else:
                 # Copy self._new_params to model params
+                for p in self._model_params: self.state[p]['step'] += 1
                 multi_tensor_applier(
                         fused_adam_cuda.maybe_cast_mt,
                         self._overflow_buf,
