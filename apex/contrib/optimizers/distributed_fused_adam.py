@@ -124,7 +124,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 p_i += 1
         self._grads_generated = [False]*len(self._grads_info)
         self._flat_mt = flat_mt
-        self._grads = [None]*len(self._grads_info) if self._flat_mt else None
+        self._grads = []
         if self._overlap_reductions:
             self._current_block = self._num_blocks
 
@@ -154,6 +154,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # FIXME: Rethink fp16 label since it's either uint8 or fp16
         self._fp16_p = torch.zeros([self._mega_shard_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
         self._fp16_g = torch.zeros([self._mega_shard_size], dtype=torch.float16, device='cuda')
+
+        self._individual_flat_grads = []
+        for p_i, grads_info in enumerate(self._grads_info):
+            self._individual_flat_grads.append(self._flat_grads[grads_info["param_offset"]:grads_info["param_offset"]+grads_info["param_grads_size"]])
 
         def _flat_split(p):
             def __blockify(p):
@@ -393,26 +397,19 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             torch.distributed.all_gather(self._new_params_mega_shards, self._fp16_p, group=self._ag_pg[0], no_copy=True)
 
     def _flatten_grad_mt(self, scale):
-        if self._flat_mt:
-            grads = []
-            flat_grads = []
-            for p_i, (grads_info, grad) in enumerate(zip(self._grads_info, self._grads)):
-                if grad is not None:
-                    grads.append(grad)
-                    flat_grads.append( self._flat_grads[grads_info["param_offset"]:grads_info["param_offset"]+grads_info["param_grads_size"]] )
-            self._grads = [None]*len(self._grads_info)
-            if len(grads) > 0:
-                self._overflow_buf.zero_()
-                multi_tensor_applier(
-                        amp_C.multi_tensor_scale,
-                        self._overflow_buf,
-                        [grads, flat_grads],
-                        scale)
+        if self._flat_mt and len(self._grads) > 0:
+            self._overflow_buf.zero_()
+            multi_tensor_applier(
+                    amp_C.multi_tensor_scale,
+                    self._overflow_buf,
+                    list(zip(*self._grads)),
+                    scale)
+            self._grads = []
 
     def _do_overlapped_reduction(self, param_i, param_grads_size, param_offset, grad):
         # handle overlapped reductions
         if self._flat_mt:
-            self._grads[param_i] = grad.view(-1)
+            self._grads.append( (grad.view(-1), self._individual_flat_grads[param_i]) )
         else:
             torch.div(grad.view(-1), self._world_size if self._predivide else 1.0, out=self._flat_grads[param_offset:param_offset+param_grads_size])
         self._grads_generated[param_i]=True
