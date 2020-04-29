@@ -258,6 +258,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self._l2_grad_norm_pg = torch.distributed.new_group(ranks=ranks)
                 torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
         self._rs_st = [torch.cuda.Stream() for _ in range(self._num_rs_pg)]
+        for rs_pg in self._rs_pg:
+            torch.distributed.all_reduce(self._overflow_buf,group=rs_pg)
         if self._num_ag_pg == 0:
             self._ag_pg = self._rs_pg
             self._ag_st = self._rs_st
