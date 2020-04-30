@@ -51,7 +51,8 @@ void multi_tensor_lamb_stage2_cuda(
     std::vector<std::vector<at::Tensor>> tensor_lists,
     at::Tensor per_tensor_param_norm,
     at::Tensor per_tensor_update_norm,
-    const float step_size,
+    const float lr,
+    const float weight_decay,
     at::optional<bool> use_nvlamb_python);
 
 void multi_tensor_adam_cuda(
