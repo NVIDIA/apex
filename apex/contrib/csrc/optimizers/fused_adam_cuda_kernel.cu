@@ -14,6 +14,17 @@
 #define BLOCK_SIZE 512
 #define ILP 4
 
+template<typename T>
+__device__ __forceinline__ bool is_aligned(T* p){
+  return ((uint64_t)p) % (ILP*sizeof(T)) == 0;
+}
+
+template<typename T>
+__device__ __forceinline__ void load_store(T* dst, T* src, int dst_offset, int src_offset){
+  typedef typename std::aligned_storage<ILP*sizeof(T), ILP*alignof(T)>::type LT;
+  ((LT*)dst)[dst_offset] = ((LT*)src)[src_offset];
+}
+
 #include "type_shim.h"
 
 typedef enum{
@@ -99,24 +110,64 @@ struct AdamFunctor
         T incoming_v[ILP];
         T incoming_g[ILP];
 
-        for(int i_start = 0;
-            i_start < n && i_start < chunk_size;
-            i_start += blockDim.x*ILP) {
-
-            #pragma unroll
+        // to make things simple, we put aligned case in a different code path
+        if(n % ILP == 0 &&
+           chunk_size % ILP == 0 &&
+           is_aligned(p) &&
+           is_aligned(m) &&
+           is_aligned(v) &&
+           is_aligned(g) &&
+           is_aligned(p_copy))
+        {
+          for(int i_start = threadIdx.x; i_start*ILP < n && i_start*ILP < chunk_size; i_start += blockDim.x)
+          {
+            // load
+            GRAD_T tmp_g[ILP];
+            load_store(incoming_p, p, 0, i_start);
+            load_store(incoming_m, m, 0, i_start);
+            load_store(incoming_v, v, 0, i_start);
+            load_store(tmp_g, g, 0, i_start);
+#pragma unroll
             for(int ii = 0; ii < ILP; ii++) {
-                incoming_p[ii] = 0;
-                incoming_m[ii] = 0;
-                incoming_v[ii] = 0;
-                incoming_g[ii] = 0;
+              incoming_g[ii] = static_cast<T>(tmp_g[ii]);
+              T scaled_grad = incoming_g[ii]/grad_scale;
+              incoming_m[ii] = b1*incoming_m[ii] + (1-b1)*scaled_grad;
+              incoming_v[ii] = b2*incoming_v[ii] + (1-b2)*scaled_grad*scaled_grad;
+              float denom;
+              if (mode == ADAM_MODE_0)
+                denom = sqrtf(incoming_v[ii] + eps);
+              else // Mode 1
+                denom = sqrtf(incoming_v[ii]) + eps;
+              float update = (incoming_m[ii]/denom) + (decay*incoming_p[ii]);
+              incoming_p[ii] = incoming_p[ii] - (step_size*update);
+              if (DEPTH == 5)  tmp_g[ii] = static_cast<GRAD_T>(incoming_p[ii]);
+            }
+            load_store(p, incoming_p, i_start, 0);
+            load_store(m, incoming_m, i_start, 0);
+            load_store(v, incoming_v, i_start, 0);
+            if (DEPTH == 5) load_store(p_copy, tmp_g, i_start, 0);
+          }
+        }
+        else
+        {
+          for(int i_start = 0;
+              i_start < n && i_start < chunk_size;
+              i_start += blockDim.x*ILP) {
 
-                int i = i_start + threadIdx.x + ii*blockDim.x;
-                if (i < n && i < chunk_size) {
-                    incoming_p[ii] = p[i];
-                    incoming_m[ii] = m[i];
-                    incoming_v[ii] = v[i];
-                    incoming_g[ii] = static_cast<T>(g[i]);
-                }
+#pragma unroll
+            for(int ii = 0; ii < ILP; ii++) {
+              incoming_p[ii] = 0;
+              incoming_m[ii] = 0;
+              incoming_v[ii] = 0;
+              incoming_g[ii] = 0;
+
+              int i = i_start + threadIdx.x + ii*blockDim.x;
+              if (i < n && i < chunk_size) {
+                incoming_p[ii] = p[i];
+                incoming_m[ii] = m[i];
+                incoming_v[ii] = v[i];
+                incoming_g[ii] = static_cast<T>(g[i]);
+              }
             }
 
             // note for clarification to future michael:
@@ -124,24 +175,25 @@ struct AdamFunctor
             // the write loop, since writes just fire off once their LDGs arrive.
             // Put another way, the STGs are dependent on the LDGs, but not on each other.
             // There is still compute ILP benefit from unrolling the loop though.
-            #pragma unroll
+#pragma unroll
             for(int ii = 0; ii < ILP; ii++) {
-                int j = i_start + threadIdx.x + ii*blockDim.x;
+              int j = i_start + threadIdx.x + ii*blockDim.x;
 
-                if(j < n && j < chunk_size) {
-                    T scaled_grad = incoming_g[ii]/grad_scale;
-                    m[j] = b1*incoming_m[ii] + (1-b1)*scaled_grad;
-                    v[j] = b2*incoming_v[ii] + (1-b2)*scaled_grad*scaled_grad;
-                    float denom;
-                    if (mode == ADAM_MODE_0)
-                        denom = sqrtf(v[j] + eps);
-                    else // Mode 1
-                        denom = sqrtf(v[j]) + eps;
-                    float update = (m[j]/denom) + (decay*incoming_p[ii]);
-                    p[j] = incoming_p[ii] - (step_size*update);
-                    if (DEPTH == 5)  p_copy[j] = (GRAD_T) p[j];
-                }
+              if(j < n && j < chunk_size) {
+                T scaled_grad = incoming_g[ii]/grad_scale;
+                m[j] = b1*incoming_m[ii] + (1-b1)*scaled_grad;
+                v[j] = b2*incoming_v[ii] + (1-b2)*scaled_grad*scaled_grad;
+                float denom;
+                if (mode == ADAM_MODE_0)
+                  denom = sqrtf(v[j] + eps);
+                else // Mode 1
+                  denom = sqrtf(v[j]) + eps;
+                float update = (m[j]/denom) + (decay*incoming_p[ii]);
+                p[j] = incoming_p[ii] - (step_size*update);
+                if (DEPTH == 5)  p_copy[j] = (GRAD_T) p[j];
+              }
             }
+          }
         }
     }
 };
@@ -332,4 +384,3 @@ void fused_adam_cuda_mt(
     }
     THCudaCheck(cudaGetLastError());
 }
-
