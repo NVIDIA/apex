@@ -1,4 +1,5 @@
 import torch
+import math
 from apex.multi_tensor_apply import multi_tensor_applier
 
 class FusedLAMB(torch.optim.Optimizer):
