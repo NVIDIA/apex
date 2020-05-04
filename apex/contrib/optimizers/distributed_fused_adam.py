@@ -129,6 +129,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 # (weight_ih, weight_hh, bias_ih, bias_hh)
                 if prev is not None and (prev.data_ptr() + prev.numel() * prev.element_size() != p.data_ptr()):
                     p_offset = ((p_offset + 63) // 64) * 64
+                prev = p
                 p_i += 1
         self._grads_generated = [False]*len(self._grads_info)
         self._flat_mt = flat_mt
