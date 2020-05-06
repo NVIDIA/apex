@@ -413,7 +413,7 @@ class DistributedFusedAdamV2(torch.optim.Optimizer):
             combined_scale = self._global_scale / min(1, combined_scale)
         bias_correction = 1 if self._param_group['bias_correction'] else 0
         beta1, beta2 = self._param_group['betas']
-        fused_adam_cuda.adam(
+        fused_adam_cuda.reversible_adam(
                 p, p_copy, m, v, g,
                 self._param_group['lr'],
                 beta1,
