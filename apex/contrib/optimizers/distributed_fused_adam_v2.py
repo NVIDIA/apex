@@ -67,6 +67,7 @@ class DistributedFusedAdamV2(torch.optim.Optimizer):
         self.eps_mode = 0 if  eps_inside_sqrt else 1
 
         self._overflow_buf = torch.cuda.IntTensor([0])
+        self._has_overflow = False
 
         assert (len(self.param_groups) == 1), "More than one parameter group is not supported."
 
@@ -352,7 +353,7 @@ class DistributedFusedAdamV2(torch.optim.Optimizer):
         
     def _get_flush_block(self):
         flush_block = []
-        if self._grads_generated[self._low_param_i[self._current_block-1]]:
+        if self._current_block > 0 and self._grads_generated[self._low_param_i[self._current_block-1]]:
             num_grads = len(self._grads_generated)
             contiguous_idx = num_grads
             while contiguous_idx > 0 and self._grads_generated[contiguous_idx-1]:
@@ -363,10 +364,6 @@ class DistributedFusedAdamV2(torch.optim.Optimizer):
                 start = self._current_block * self._block_size
                 end = (self._current_block+1) * self._block_size
                 flush_block = [start, end]
-
-            if self._current_block == 0:
-                # reset
-                self._grads_generated = [False]*len(self._grads_info)
 
         return flush_block
 
@@ -404,7 +401,7 @@ class DistributedFusedAdamV2(torch.optim.Optimizer):
                 l2_grad_norm_sq = torch.empty([1], device='cuda')
                 l2_grad_norm_sq = self._fp16_g.norm(dtype=torch.float32, p=2)**2
                 torch.distributed.all_reduce(l2_grad_norm_sq, group=self._l2_grad_norm_pg)
-                self._L2_grad_norm = l2_grad_norm_sq.sqrt()
+                self._L2_grad_norm = l2_grad_norm_sq.sqrt().item()
 
     def __launch_step_kernel(self, p, p_copy, m, v, g):
         combined_scale = self._global_scale
@@ -501,8 +498,8 @@ class DistributedFusedAdamV2(torch.optim.Optimizer):
         """Check if overflows were detected by any call to step(...) method.
         Clears the overflow flag.
         """
-        has_overflow = self._overflow_buf.item()
-        self._overflow_buf.zero_()
+        has_overflow = self._has_overflow
+        self._has_overflow = False
         return has_overflow
 
     @property
@@ -510,7 +507,7 @@ class DistributedFusedAdamV2(torch.optim.Optimizer):
         """Check if overflows were detected by any call to step(...) method.
         Does not clear overflow flag.
         """
-        return self._overflow_buf.item()
+        return self._has_overflow
 
     def strided_check_finite(self, output_params, stride=1, start=-1, end=-1, clear=True):
         """Strided check for overflow.
@@ -524,6 +521,8 @@ class DistributedFusedAdamV2(torch.optim.Optimizer):
                 out_p,
                 stride,
                 1 if clear else 0)
+        self._has_overflow = False if self._overflow_buf.item() == 0 else True
+        return self._has_overflow
 
     @property
     def L2_grad_norm(self):
@@ -595,13 +594,8 @@ class DistributedFusedAdamV2(torch.optim.Optimizer):
         with torch.cuda.stream(self._completion_st):
             # Check for overflow
             # Store state for loss scaler calculation
-            if skip_overflow_check:
-                has_overflow = False
-            else:
-                self.strided_check_finite(self._new_params, stride=self._shard_size, start=0, end=self._net_total_param_size)
-                has_overflow = self.peek_overflow
+            has_overflow = False if skip_overflow_check else self.strided_check_finite(self._new_params, stride=self._shard_size, start=0, end=self._net_total_param_size)
             if has_overflow:
-                print("Reverting step")
                 self.revert_step()
             else:
                 # Copy self._new_params to model params

@@ -86,7 +86,6 @@ class DistributedFusedAdamV3(torch.optim.Optimizer):
         self._e5m2_allgather = e5m2_allgather
         self._do_not_flatten_model = do_not_flatten_model
         self._full_pipeline = full_pipeline
-        self._compute_L2_grad_norm = compute_L2_grad_norm
         self._L2_grad_norm = None
         self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
         self._world_size = torch.distributed.get_world_size()
@@ -202,7 +201,7 @@ class DistributedFusedAdamV3(torch.optim.Optimizer):
         
     def _get_flush_block(self):
         flush_block = []
-        if self._grads_generated[self._low_param_i[self._current_block-1]]:
+        if self._current_block > 0 and self._grads_generated[self._low_param_i[self._current_block-1]]:
             num_grads = len(self._grads_generated)
             contiguous_idx = num_grads
             while contiguous_idx > 0 and self._grads_generated[contiguous_idx-1]:
@@ -213,10 +212,6 @@ class DistributedFusedAdamV3(torch.optim.Optimizer):
                 start = self._current_block * self._block_size
                 end = (self._current_block+1) * self._block_size
                 flush_block = [start, end]
-
-            if self._current_block == 0:
-                # reset
-                self._grads_generated = [False]*len(self._grads_info)
 
         return flush_block
 
@@ -267,7 +262,7 @@ class DistributedFusedAdamV3(torch.optim.Optimizer):
                 if block_id == 0:
                     self._l2_grad_norm_st.wait_stream(self._dwu_st)
                     with torch.cuda.stream(self._l2_grad_norm_st):
-                        self._L2_grad_norm = self._flat_grads.norm(dtype=torch.float32, p=2)
+                        self._L2_grad_norm = self._flat_grads.norm(dtype=torch.float32, p=2).item()
                 flush_block = self._get_flush_block()
 
     def set_global_scale(self, global_scale):
@@ -303,7 +298,7 @@ class DistributedFusedAdamV3(torch.optim.Optimizer):
                 torch.distributed.all_reduce(self._flat_grads)
             self._l2_grad_norm_st.wait_stream(self._dwu_st)
             with torch.cuda.stream(self._l2_grad_norm_st):
-                self._L2_grad_norm = self._flat_grads.norm(dtype=torch.float32, p=2)
+                self._L2_grad_norm = self._flat_grads.norm(dtype=torch.float32, p=2).item()
 
         self._current_block = self._num_blocks
         self._grads_generated = [False]*len(self._grads_info)
@@ -313,20 +308,17 @@ class DistributedFusedAdamV3(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
-        if not self.has_overflow:
-            with torch.cuda.stream(self._dwu_st):
-                self.__launch_step_kernel(
-                    self._fp32_p,
-                    self._flat_params_shards[self._rank_in_group],
-                    self._fp32_m,
-                    self._fp32_v,
-                    self._flat_grads_shards[self._rank_in_group])
-                torch.distributed.all_gather(self._flat_params_shards, self._flat_params_shards[self._rank_in_group], group=self._ag_pg, no_copy=True)
-                for p in self._model_params: self.state[p]['step'] += 1
+        with torch.cuda.stream(self._dwu_st):
+            self.__launch_step_kernel(
+                self._fp32_p,
+                self._flat_params_shards[self._rank_in_group],
+                self._fp32_m,
+                self._fp32_v,
+                self._flat_grads_shards[self._rank_in_group])
+            torch.distributed.all_gather(self._flat_params_shards, self._flat_params_shards[self._rank_in_group], group=self._ag_pg, no_copy=True)
+            for p in self._model_params: self.state[p]['step'] += 1
 
-            torch.cuda.current_stream().wait_stream(self._dwu_st)
-        else:
-            print("Overflow detected, skipping step")
+        torch.cuda.current_stream().wait_stream(self._dwu_st)
 
         return loss
 
