@@ -19,7 +19,9 @@ int mlp_fp(
     int* output_features,
     T** BPtr,
     T* Y,
-    T* reserved_space);
+    T* reserved_space,
+    int use_bias,
+    int activation);
 
 template <typename T>
 int mlp_bp(
@@ -35,11 +37,18 @@ int mlp_bp(
     T* work_space,
     T* dX,
     T** dwPtr,
-    T** dbPtr);
+    T** dbPtr,
+    bool requires_grad,
+    int use_bias,
+    int activation);
 
-std::vector<at::Tensor> mlp_forward(std::vector<at::Tensor> inputs) {
-  // inputs contains (input, weights, biases)
-  auto num_layers = (inputs.size() - 1) / 2;
+std::vector<at::Tensor> mlp_forward(int use_bias, int activation, std::vector<at::Tensor> inputs) {
+
+  auto num_layers = inputs.size() - 1;
+  if (use_bias) {
+    // inputs contains (input, weights, biases)
+    num_layers /= 2;
+  }
   auto batch_size = inputs[0].size(0);
   auto input_features = inputs[0].size(1);
 
@@ -60,7 +69,9 @@ std::vector<at::Tensor> mlp_forward(std::vector<at::Tensor> inputs) {
     std::vector<scalar_t*> b_ptr;
     for (int i = 0; i < num_layers; i++) {
       w_ptr.push_back(inputs[i + 1].data_ptr<scalar_t>());
-      b_ptr.push_back(inputs[i + 1 + num_layers].data_ptr<scalar_t>());
+      if (use_bias) {
+        b_ptr.push_back(inputs[i + 1 + num_layers].data_ptr<scalar_t>());
+      }
     }
     auto result = mlp_fp<scalar_t>(
         inputs[0].data_ptr<scalar_t>(),
@@ -71,37 +82,48 @@ std::vector<at::Tensor> mlp_forward(std::vector<at::Tensor> inputs) {
         output_features.data(),
         b_ptr.data(),
         out.data_ptr<scalar_t>(),
-        reserved_space.data_ptr<scalar_t>());
+        reserved_space.data_ptr<scalar_t>(),
+        use_bias,
+        activation);
   });
 
   return {out, reserved_space};
 }
 
 std::vector<at::Tensor> mlp_backward(
-    at::Tensor grad_o,
-    std::vector<at::Tensor> fprop_outputs,
-    std::vector<at::Tensor> inputs) {
-  // same code to get sizes and W pointers
-  auto num_layers = (inputs.size() - 1) / 2;
+  int use_bias,
+  int activation,
+  at::Tensor grad_o,
+  std::vector<at::Tensor> fprop_outputs,
+  std::vector<at::Tensor> inputs) {
+
+  auto num_layers = inputs.size() - 1;
+  if (use_bias) {
+    // inputs contains (input, weights, biases)
+    num_layers /= 2;
+  }
+
   auto batch_size = inputs[0].size(0);
   auto input_features = inputs[0].size(1);
+
+  // TODO: not creating empty tensor for it?
+  bool requires_grad = inputs[0].requires_grad();
 
   std::vector<int> output_features;
   for (int i = 0; i < num_layers; i++) {
     output_features.push_back(inputs[i + 1].size(0));
   }
   // create outputs, length of inputs
+  // TODO: not create bias if not needed
   std::vector<at::Tensor> outputs;
   for (int i = 0; i < inputs.size(); i++) {
     outputs.push_back(at::empty(inputs[i].sizes(), inputs[i].type()));  // clone for testing now
   }
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(inputs[0].type(), "mlp_forward", [&] {
+  AT_DISPATCH_FLOATING_TYPES_AND_HALF(inputs[0].type(), "mlp_backward", [&] {
     std::vector<scalar_t*> w_ptr;
-    std::vector<scalar_t*> b_ptr;
     for (int i = 0; i < num_layers; i++) {
       w_ptr.push_back(inputs[i + 1].data_ptr<scalar_t>());
-      b_ptr.push_back(inputs[i + 1 + num_layers].data_ptr<scalar_t>());
     }
     std::vector<scalar_t*> outputs_ptr;
     for (int i = 0; i < inputs.size(); i++) {
@@ -127,7 +149,10 @@ std::vector<at::Tensor> mlp_backward(
         work_space.data_ptr<scalar_t>(),
         outputs_ptr[0],
         outputs_ptr.data() + 1,
-        outputs_ptr.data() + 1 + num_layers);
+        outputs_ptr.data() + 1 + num_layers,
+        requires_grad,
+        use_bias,
+        activation);
   });
 
   return outputs;
