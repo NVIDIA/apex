@@ -13,6 +13,17 @@
 #define BLOCK_SIZE 512
 #define ILP 4
 
+template<typename T>
+__device__ __forceinline__ bool is_aligned(T* p){
+  return ((uint64_t)p) % (ILP*sizeof(T)) == 0;
+}
+
+template<typename T>
+__device__ __forceinline__ void load_store(T* dst, T* src, int dst_offset, int src_offset){
+  typedef typename std::aligned_storage<ILP*sizeof(T), ILP*alignof(T)>::type LT;
+  ((LT*)dst)[dst_offset] = ((LT*)src)[src_offset];
+}
+
 template<typename x_t>
 struct L2NormFunctor
 {
@@ -41,19 +52,41 @@ struct L2NormFunctor
     __shared__ float s_vals[512];
 
     float vals[ILP]; // = {0}; // this probably works too but I want to be sure...
+    x_t r_x[ILP];
     for(int i = 0; i < ILP; i++)
-      vals[i] = 0.f;
-
-    for(int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x*ILP)
     {
-      #pragma unroll
-      for(int ii = 0; ii < ILP; ii++)
+      vals[i] = 0.f;
+      r_x[i] = 0;
+    }
+
+    // to make things simple, we put aligned case in a different code path
+    if(n % ILP == 0 && chunk_size % ILP == 0 && is_aligned(x))
+    {
+      for(int i_start = threadIdx.x; i_start*ILP < n && i_start*ILP < chunk_size; i_start += blockDim.x)
       {
-        int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n && i < chunk_size)
+        // load
+        load_store(r_x, x, 0 , i_start);
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
         {
-          float next = static_cast<float>(x[i]);
+          float next = static_cast<float>(r_x[ii]);
           vals[ii] += next*next;
+        }
+      }
+    }
+    else
+    {
+      for(int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x*ILP)
+      {
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          int i = i_start + threadIdx.x + ii*blockDim.x;
+          if(i < n && i < chunk_size)
+          {
+            float next = static_cast<float>(x[i]);
+            vals[ii] += next*next;
+          }
         }
       }
     }
@@ -104,19 +137,41 @@ struct MaxNormFunctor
     __shared__ float s_vals[512];
 
     float vals[ILP]; // = {0}; // this probably works too but I want to be sure...
+    x_t r_x[ILP];
     for(int i = 0; i < ILP; i++)
-      vals[i] = 0.f;
-
-    for(int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x*ILP)
     {
-      #pragma unroll
-      for(int ii = 0; ii < ILP; ii++)
+      vals[i] = 0.f;
+      r_x[i] = 0;
+    }
+
+    // to make things simple, we put aligned case in a different code path
+    if(n % ILP == 0 && chunk_size % ILP == 0 && is_aligned(x))
+    {
+      for(int i_start = threadIdx.x; i_start*ILP < n && i_start*ILP < chunk_size; i_start += blockDim.x)
       {
-        int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n && i < chunk_size)
+        // load
+        load_store(r_x, x, 0 , i_start);
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
         {
-          float next = static_cast<float>(x[i]);
+          float next = static_cast<float>(r_x[ii]);
           vals[ii] = fmaxf(fabsf(vals[ii]), fabsf(next));
+        }
+      }
+    }
+    else
+    {
+      for(int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x*ILP)
+      {
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          int i = i_start + threadIdx.x + ii*blockDim.x;
+          if(i < n && i < chunk_size)
+          {
+            float next = static_cast<float>(x[i]);
+            vals[ii] = fmaxf(fabsf(vals[ii]), fabsf(next));
+          }
         }
       }
     }

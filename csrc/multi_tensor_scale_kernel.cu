@@ -15,6 +15,17 @@
 #define BLOCK_SIZE 512
 #define ILP 4
 
+template<typename T>
+__device__ __forceinline__ bool is_aligned(T* p){
+  return ((uint64_t)p) % (ILP*sizeof(T)) == 0;
+}
+
+template<typename T>
+__device__ __forceinline__ void load_store(T* dst, T* src, int dst_offset, int src_offset){
+  typedef typename std::aligned_storage<ILP*sizeof(T), ILP*alignof(T)>::type LT;
+  ((LT*)dst)[dst_offset] = ((LT*)src)[src_offset];
+}
+
 template<typename in_t, typename out_t>
 struct ScaleFunctor
 {
@@ -34,44 +45,68 @@ struct ScaleFunctor
 
     in_t* in = (in_t*)tl.addresses[0][tensor_loc];
     in += chunk_idx*chunk_size;
-   
+
     out_t* out = (out_t*)tl.addresses[1][tensor_loc];
     out += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
 
-    // Non-divergent exit condition for __syncthreads, not necessary here
-    float incoming_vals[ILP];
-    for(int i_start = 0;
-        i_start < n && i_start < chunk_size;
-        i_start += blockDim.x*ILP)
-    {
-      #pragma unroll
-      for(int ii = 0; ii < ILP; ii++)
-      {
-        incoming_vals[ii] = 0;
-        int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n && i < chunk_size)
-          incoming_vals[ii] = static_cast<float>(in[i]);
-      }
+    bool finite = true;
+    in_t r_in[ILP];
+    out_t r_out[ILP];
 
-      // note for clarification to future michael:
-      // From a pure memory dependency perspective, there's likely no point unrolling
-      // the write loop, since writes just fire off once their LDGs arrive.
-      // Put another way, the STGs are dependent on the LDGs, but not on each other.
-      // There is still compute ILP benefit from unrolling the loop though.
-      #pragma unroll
-      for(int ii = 0; ii < ILP; ii++)
+    // to make things simple, we put aligned case in a different code path
+    if(n % ILP == 0 && chunk_size % ILP == 0 && is_aligned(in) && is_aligned(out))
+    {
+      for(int i_start = threadIdx.x; i_start*ILP < n && i_start*ILP < chunk_size; i_start += blockDim.x)
       {
-        int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n && i < chunk_size)
+        // load
+        load_store(r_in, in, 0 , i_start);
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
         {
-          out[i] = static_cast<out_t>(incoming_vals[ii]*scale);
-          if(!isfinite(incoming_vals[ii]))
-            *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
+          r_out[ii] = static_cast<float>(r_in[ii]) * scale;
+          finite = finite && isfinite(r_in[ii]);
+        }
+        // store
+        load_store(out, r_out, i_start, 0);
+      }
+    }
+    else
+    {
+      // Non-divergent exit condition for __syncthreads, not necessary here
+      for(int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x*ILP)
+      {
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          r_in[ii] = 0;
+          int i = i_start + threadIdx.x + ii*blockDim.x;
+          if(i < n && i < chunk_size)
+            r_in[ii] = in[i];
+        }
+        // note for clarification to future michael:
+        // From a pure memory dependency perspective, there's likely no point unrolling
+        // the write loop, since writes just fire off once their LDGs arrive.
+        // Put another way, the STGs are dependent on the LDGs, but not on each other.
+        // There is still compute ILP benefit from unrolling the loop though.
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          r_out[ii] = static_cast<float>(r_in[ii]) * scale;
+          finite = finite && isfinite(r_in[ii]);
+        }
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          int i = i_start + threadIdx.x + ii*blockDim.x;
+          if(i < n && i < chunk_size)
+            out[i] = r_out[ii];
         }
       }
     }
+    if(!finite)
+      *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
   }
 };
 

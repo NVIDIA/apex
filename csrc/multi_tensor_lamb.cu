@@ -13,6 +13,17 @@
 #define BLOCK_SIZE 512
 #define ILP 4
 
+template<typename T>
+__device__ __forceinline__ bool is_aligned(T* p){
+  return ((uint64_t)p) % (ILP*sizeof(T)) == 0;
+}
+
+template<typename T>
+__device__ __forceinline__ void load_store(T* dst, T* src, int dst_offset, int src_offset){
+  typedef typename std::aligned_storage<ILP*sizeof(T), ILP*alignof(T)>::type LT;
+  ((LT*)dst)[dst_offset] = ((LT*)src)[src_offset];
+}
+
 typedef enum{
   MOMENT_MODE_0   =0, // L2 regularization mode
   MOMENT_MODE_1   =1  // Decoupled weight decay mode
@@ -68,71 +79,149 @@ struct LAMBStage1Functor
 
     n -= chunk_idx*chunk_size;
 
-    // see note in multi_tensor_scale_kernel.cu
-    for(int i_start = 0;
-            i_start < n && i_start < chunk_size;
-            i_start += blockDim.x*ILP)
+    MATH_T r_g[ILP];
+    MATH_T r_p[ILP];
+    MATH_T r_m[ILP];
+    MATH_T r_v[ILP];
+    // to make things simple, we put aligned case in a different code path
+    if(n % ILP == 0 &&
+       chunk_size % ILP == 0 &&
+       is_aligned(g) &&
+       is_aligned(p) &&
+       is_aligned(m) &&
+       is_aligned(v))
     {
-      MATH_T r_g[ILP];
-      MATH_T r_p[ILP];
-      MATH_T r_m[ILP];
-      MATH_T r_v[ILP];
-#pragma unroll
-      for(int ii = 0; ii < ILP; ii++)
+      T l_g[ILP];
+      T l_p[ILP];
+      T l_m[ILP];
+      T l_v[ILP];
+      for(int i_start = threadIdx.x; i_start*ILP < n && i_start*ILP < chunk_size; i_start += blockDim.x)
       {
-        int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n && i < chunk_size)
+        // load
+        load_store(l_g, g, 0, i_start);
+        if (decay != 0)
+          load_store(l_p, p, 0, i_start);
+        load_store(l_m, m, 0, i_start);
+        load_store(l_v, v, 0, i_start);
+        // unpack
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
         {
-          r_g[ii] = g[i];
-          // special ?optimization? for lamb stage 1
+          r_g[ii] = l_g[ii];
           if (decay == 0) {
             r_p[ii] = MATH_T(0);
           }
           else {
-            r_p[ii] = p[i];
+            r_p[ii] = l_p[ii];
           }
-          r_m[ii] = m[i];
-          r_v[ii] = v[i];
-        } else {
-          r_g[ii] = MATH_T(0);
-          r_p[ii] = MATH_T(0);
-          r_m[ii] = MATH_T(0);
-          r_v[ii] = MATH_T(0);
+          r_m[ii] = l_m[ii];
+          r_v[ii] = l_v[ii];
         }
-      }
 #pragma unroll
-      for(int ii = 0; ii < ILP; ii++)
-      {
-        if (mode == MOMENT_MODE_0) {
-          MATH_T scaled_grad = r_g[ii] / clipped_global_grad_norm;
-          // L2 on scaled grad
-          scaled_grad = scaled_grad + decay*r_p[ii];
-          r_m[ii] = r_m[ii] * beta1 + beta3 * scaled_grad;
-          r_v[ii] = r_v[ii] * beta2 + (1-beta2) * scaled_grad * scaled_grad;
-          MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
-          MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
-          MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
-          r_p[ii] = next_m_unbiased / denom;
-        }
-        else {
-          MATH_T scaled_grad = r_g[ii] / clipped_global_grad_norm;
-          r_m[ii] = r_m[ii] * beta1 + beta3 * scaled_grad;
-          r_v[ii] = r_v[ii] * beta2 + (1-beta2) * scaled_grad * scaled_grad;
-          MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
-          MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
-          MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
-          r_p[ii] = (next_m_unbiased/denom) + (decay*r_p[ii]);
-        }
-      }
-#pragma unroll
-      for(int ii = 0; ii < ILP; ii++)
-      {
-        int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n && i < chunk_size)
+        for(int ii = 0; ii < ILP; ii++)
         {
-          g[i] = r_p[ii];
-          m[i] = r_m[ii];
-          v[i] = r_v[ii];
+          if (mode == MOMENT_MODE_0) {
+            MATH_T scaled_grad = r_g[ii] / clipped_global_grad_norm;
+            // L2 on scaled grad
+            scaled_grad = scaled_grad + decay*r_p[ii];
+            r_m[ii] = r_m[ii] * beta1 + beta3 * scaled_grad;
+            r_v[ii] = r_v[ii] * beta2 + (1-beta2) * scaled_grad * scaled_grad;
+            MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
+            MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
+            MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
+            r_p[ii] = next_m_unbiased / denom;
+          }
+          else {
+            MATH_T scaled_grad = r_g[ii] / clipped_global_grad_norm;
+            r_m[ii] = r_m[ii] * beta1 + beta3 * scaled_grad;
+            r_v[ii] = r_v[ii] * beta2 + (1-beta2) * scaled_grad * scaled_grad;
+            MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
+            MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
+            MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
+            r_p[ii] = (next_m_unbiased/denom) + (decay*r_p[ii]);
+          }
+        }
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          l_p[ii] = r_p[ii];
+          l_m[ii] = r_m[ii];
+          l_v[ii] = r_v[ii];
+        }
+        // store
+        load_store(g, l_p, i_start, 0);
+        load_store(m, l_m, i_start, 0);
+        load_store(v, l_v, i_start, 0);
+      }
+    }
+    else
+    {
+      // see note in multi_tensor_scale_kernel.cu
+      for(int i_start = 0;
+          i_start < n && i_start < chunk_size;
+          i_start += blockDim.x*ILP)
+      {
+        MATH_T r_g[ILP];
+        MATH_T r_p[ILP];
+        MATH_T r_m[ILP];
+        MATH_T r_v[ILP];
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          int i = i_start + threadIdx.x + ii*blockDim.x;
+          if(i < n && i < chunk_size)
+          {
+            r_g[ii] = g[i];
+            // special ?optimization? for lamb stage 1
+            if (decay == 0) {
+              r_p[ii] = MATH_T(0);
+            }
+            else {
+              r_p[ii] = p[i];
+            }
+            r_m[ii] = m[i];
+            r_v[ii] = v[i];
+          } else {
+            r_g[ii] = MATH_T(0);
+            r_p[ii] = MATH_T(0);
+            r_m[ii] = MATH_T(0);
+            r_v[ii] = MATH_T(0);
+          }
+        }
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          if (mode == MOMENT_MODE_0) {
+            MATH_T scaled_grad = r_g[ii] / clipped_global_grad_norm;
+            // L2 on scaled grad
+            scaled_grad = scaled_grad + decay*r_p[ii];
+            r_m[ii] = r_m[ii] * beta1 + beta3 * scaled_grad;
+            r_v[ii] = r_v[ii] * beta2 + (1-beta2) * scaled_grad * scaled_grad;
+            MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
+            MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
+            MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
+            r_p[ii] = next_m_unbiased / denom;
+          }
+          else {
+            MATH_T scaled_grad = r_g[ii] / clipped_global_grad_norm;
+            r_m[ii] = r_m[ii] * beta1 + beta3 * scaled_grad;
+            r_v[ii] = r_v[ii] * beta2 + (1-beta2) * scaled_grad * scaled_grad;
+            MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
+            MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
+            MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
+            r_p[ii] = (next_m_unbiased/denom) + (decay*r_p[ii]);
+          }
+        }
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          int i = i_start + threadIdx.x + ii*blockDim.x;
+          if(i < n && i < chunk_size)
+          {
+            g[i] = r_p[ii];
+            m[i] = r_m[ii];
+            v[i] = r_v[ii];
+          }
         }
       }
     }
@@ -173,34 +262,58 @@ struct LAMBStage2Functor
 
     n -= chunk_idx*chunk_size;
 
-    for(int i_start = 0;
-            i_start < n && i_start < chunk_size;
-            i_start += blockDim.x*ILP)
+    // to make things simple, we put aligned case in a different code path
+    if(n % ILP == 0 &&
+       chunk_size % ILP == 0 &&
+       is_aligned(p) &&
+       is_aligned(update))
     {
-      MATH_T r_p[ILP];
-      MATH_T r_update[ILP];
-#pragma unroll
-      for(int ii = 0; ii < ILP; ii++)
+      T r_p[ILP];
+      T r_update[ILP];
+      for(int i_start = threadIdx.x; i_start*ILP < n && i_start*ILP < chunk_size; i_start += blockDim.x)
       {
-       	int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n && i < chunk_size)
+        // load
+        load_store(r_p, p, 0, i_start);
+        load_store(r_update, update, 0, i_start);
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
         {
-          r_p[ii] = p[i];
-          r_update[ii] = update[i];
+          r_p[ii] = static_cast<MATH_T>(r_p[ii]) - (ratio * static_cast<MATH_T>(r_update[ii]));
         }
+        load_store(p, r_p, i_start, 0);
       }
-#pragma unroll
-      for(int ii = 0; ii < ILP; ii++)
+    }
+    else
+    {
+      for(int i_start = 0;
+          i_start < n && i_start < chunk_size;
+          i_start += blockDim.x*ILP)
       {
-       	r_p[ii] = r_p[ii] - (ratio * r_update[ii]);
-      }
+        MATH_T r_p[ILP];
+        MATH_T r_update[ILP];
 #pragma unroll
-      for(int ii = 0; ii < ILP; ii++)
-      {
-        int i = i_start + threadIdx.x + ii*blockDim.x;
-        if(i < n && i < chunk_size)
+        for(int ii = 0; ii < ILP; ii++)
         {
-          p[i] = r_p[ii];
+          int i = i_start + threadIdx.x + ii*blockDim.x;
+          if(i < n && i < chunk_size)
+          {
+            r_p[ii] = p[i];
+            r_update[ii] = update[i];
+          }
+        }
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          r_p[ii] = r_p[ii] - (ratio * r_update[ii]);
+        }
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          int i = i_start + threadIdx.x + ii*blockDim.x;
+          if(i < n && i < chunk_size)
+          {
+            p[i] = r_p[ii];
+          }
         }
       }
     }

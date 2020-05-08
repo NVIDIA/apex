@@ -177,7 +177,13 @@ if "--cuda_ext" in sys.argv:
                                                           '-O3',
                                                           '--use_fast_math'] + version_dependent_macros}))
         else:
-            print ("INFO: Skipping FusedLayerNorm extension.")
+            print ("INFO: Building FusedLayerNorm extension.")
+            ext_modules.append(
+                CUDAExtension(name='fused_layer_norm_cuda',
+                              sources=['csrc/layer_norm_cuda.cpp',
+                                       'csrc/hip/layer_norm_hip_kernel.hip'],
+                              extra_compile_args={'cxx' : ['-O3'] + version_dependent_macros,
+                                                  'nvcc' : []}))
 
         if not is_rocm_pytorch:
             ext_modules.append(
