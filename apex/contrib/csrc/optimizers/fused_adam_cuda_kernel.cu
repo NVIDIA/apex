@@ -1033,4 +1033,3 @@ void fused_maybe_adam_undo_cuda(
     }
     THCudaCheck(cudaGetLastError());
 }
-

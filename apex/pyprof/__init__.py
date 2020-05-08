@@ -1,3 +1,3 @@
 import warnings
 
-from . import nvtx
+from . import nvtx, prof
