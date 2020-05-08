@@ -102,6 +102,8 @@ def promote_match_arg0(mod, fn, handle, verbose=False):
 
         if utils.type_string(arg0) == 'HalfTensor':
             cast_fn = utils.maybe_half
+        if utils.type_string(arg0) == 'BFloat16Tensor':
+            cast_fn = utils.maybe_bfloat16
         elif utils.type_string(arg0) == 'FloatTensor':
             cast_fn = utils.maybe_float
         else:

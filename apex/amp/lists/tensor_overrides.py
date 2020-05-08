@@ -15,6 +15,10 @@ FP16_FUNCS = [
     '__matmul__',
 ]
 
+BFLOAT16_FUNCS = [
+    '__matmul__',
+]
+
 FP32_FUNCS = [
     '__ipow__',
     '__pow__',
@@ -56,7 +60,7 @@ SEQUENCE_CASTS = []
 # between `torch` and `torch.Tensor` (and check with `hasattr`,
 # because a few random ones aren't defined on Tensor)
 _self_mod = importlib.import_module(__name__)
-for attrname in ['FP16_FUNCS', 'FP32_FUNCS', 'CASTS', 'SEQUENCE_CASTS']:
+for attrname in ['FP16_FUNCS', 'BFLOAT16_FUNCS', 'FP32_FUNCS', 'CASTS', 'SEQUENCE_CASTS']:
     lst = getattr(_self_mod, attrname)
     for fn in getattr(torch_overrides, attrname):
         if hasattr(MODULE, fn):

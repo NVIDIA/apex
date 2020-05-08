@@ -28,7 +28,8 @@ def is_floating_point(x):
         torch_type = x.type()
         return torch_type.endswith('FloatTensor') or \
             torch_type.endswith('HalfTensor') or \
-            torch_type.endswith('DoubleTensor')
+            torch_type.endswith('DoubleTensor') or \
+            torch_type.endswith('BFloat16Tensor')
     except AttributeError:
         return False
 

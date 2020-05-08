@@ -26,6 +26,27 @@ FP16_FUNCS = [
     'mv',
 ]
 
+BFLOAT16_FUNCS = [
+    # Low level functions wrapped by torch.nn layers.
+    # The wrapper layers contain the weights which are then passed in as a parameter
+    # to these functions.
+    'conv1d',
+    'conv2d',
+    'conv3d',
+    'conv_transpose1d',
+    'conv_transpose2d',
+    'conv_transpose3d',
+    'conv_tbc',
+
+    # BLAS
+    'addmm',
+    'addmv',
+    'addr',
+    'matmul',
+    'mm',
+    'mv',
+]
+
 FP32_FUNCS = [
     # Pointwise
     'acos',
