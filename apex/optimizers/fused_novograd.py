@@ -58,7 +58,7 @@ class FusedNovoGrad(torch.optim.Optimizer):
         set_grad_none (bool, optional): whether set grad to None when zero_grad()
             method is called. (default: True)
 
-    .. _Jasper\: An End-to-End Convolutional Neural Acoustic Model:
+    .. _Jasper - An End-to-End Convolutional Neural Acoustic Model:
         https://arxiv.org/abs/1904.03288
     .. _On the Convergence of Adam and Beyond:
         https://openreview.net/forum?id=ryQu7f-RZ
