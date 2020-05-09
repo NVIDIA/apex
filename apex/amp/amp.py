@@ -30,6 +30,9 @@ def half_function(fn):
     wrap_fn = functools.partial(wrap.make_cast_wrapper, try_caching=True)
     return _decorator_helper(fn, utils.maybe_half, wrap_fn)
 
+def bfloat16_function(fn):
+    wrap_fn = functools.partial(wrap.make_cast_wrapper, try_caching=True)
+    return _decorator_helper(fn, utils.maybe_bfloat16, wrap_fn)
 
 def float_function(fn):
     wrap_fn = functools.partial(wrap.make_cast_wrapper, try_caching=False)
@@ -48,6 +51,11 @@ def register_half_function(module, name):
             name, module))
     _USER_CAST_REGISTRY.add((module, name, utils.maybe_half))
 
+def register_bfloat16_function(module, name):
+    if not hasattr(module, name):
+        raise ValueError('No function named {} in module {}.'.format(
+            name, module))
+    _USER_CAST_REGISTRY.add((module, name, utils.maybe_bfloat16))
 
 def register_float_function(module, name):
     if not hasattr(module, name):
@@ -116,11 +124,11 @@ def init(enabled=True, loss_scale="dynamic", patch_type=torch.float16, enable_ca
     # 1.5) Pre-0.4, put the blacklist methods on HalfTensor and whitelist
     #      methods on FloatTensor, since they're distinct types.
     if compat.tensor_is_float_tensor():
-        for fn in getattr(tensor_overrides, low_prec_funcs):
-            wrap.cached_cast(torch.cuda.FloatTensor, fn, utils.maybe_low_prec,
+        for fn in getattr(tensor_overrides, 'FP16_FUNCS'):
+            wrap.cached_cast(torch.cuda.FloatTensor, fn, utils.maybe_half,
                              handle, try_caching=True, verbose=verbose)
         for fn in tensor_overrides.FP32_FUNCS:
-            wrap.cached_cast(low_prec_tensor, fn, utils.maybe_float,
+            wrap.cached_cast(torch.cuda.HalfTensor, fn, utils.maybe_float,
                              handle, try_caching=False, verbose=verbose)
 
     # 2) Enable type-promotion on multi-arg functions and methods.
@@ -136,17 +144,17 @@ def init(enabled=True, loss_scale="dynamic", patch_type=torch.float16, enable_ca
     # 2.5) Pre-0.4, add blacklist methods directly to HalfTensor and FloatTensor types
     if compat.tensor_is_float_tensor():
         for cls, (list_name, promote_fn) in itertools.product([torch.cuda.FloatTensor,
-                                                               low_prec_tensor],
+                                                               torch.cuda.HalfTensor],
                                                               promote_table):
             for fn in getattr(tensor_overrides, list_name):
                 promote_fn(cls, fn, handle, verbose)
 
-    # 3) For any in-place version of a blacklist function, error if any input is fp16.
+    # 3) For any in-place version of a blacklist function, error if any input is fp16/bfloat16.
     #    NB: this is overly conservative.
     for fn in utils.as_inplace(torch_overrides.FP32_FUNCS):
         wrap.err_if_any_half(torch_overrides.MODULE, fn, handle)
 
-    # 3.5) For any in-place blacklist method, error if called on fp16 tensor
+    # 3.5) For any in-place blacklist method, error if called on fp16/bfloat16 tensor
     for fn in utils.as_inplace(tensor_overrides.FP32_FUNCS):
         wrap.err_if_arg0_half(tensor_overrides.MODULE, fn, handle, verbose)
         if compat.tensor_is_float_tensor():
@@ -158,7 +166,7 @@ def init(enabled=True, loss_scale="dynamic", patch_type=torch.float16, enable_ca
             tensor_overrides.CASTS)):
         wrap.promote_match_arg0(tensor_overrides.MODULE, fn, handle, verbose)
         if compat.tensor_is_float_tensor():
-            wrap.promote_match_arg0(low_prec_tensor, fn, handle, verbose)
+            wrap.promote_match_arg0(torch.cuda.HalfTensor, fn, handle, verbose)
             wrap.promote_match_arg0(torch.cuda.FloatTensor, fn, handle, verbose)
 
     # 5) RNNs + RNN cells are whitelisted specially
@@ -169,10 +177,10 @@ def init(enabled=True, loss_scale="dynamic", patch_type=torch.float16, enable_ca
         torch.nn.modules.rnn._VF = rnn_compat.VariableFunctionsShim()
         # Wrap all the rnns
         for x in rnn_compat.RNN_NAMES:
-            wrap.new_rnn_cast(x.upper(), handle, verbose)
+            wrap.new_rnn_cast(x.upper(), maybe_low_prec, handle, verbose)
 
     # Wrap all the RNN cells
-    rnn_compat.whitelist_rnn_cells(handle, verbose)
+    rnn_compat.whitelist_rnn_cells(maybe_low_prec, handle, verbose)
 
     # 6) Place error+print message on banned functions.
     #    Or, if allow_banned, then cast to FP32.

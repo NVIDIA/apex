@@ -189,7 +189,7 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
 
         for model in models:
             # Patch the forward method to cast incoming data to the correct type, and
-            # outgoing data to float32, so "the user never needs to call .half()."
+            # outgoing data to float32, so "the user never needs to call .half()/.bfloat16()."
             # I like writing things explicitly more than decorators.
             def patch_forward(old_fwd):
                 def new_fwd(*args, **kwargs):

@@ -16,6 +16,9 @@ class Properties(object):
             "opt_level" : None,
             "cast_model_type" : None,
             "patch_torch_functions" : False,
+            # TODO: patch_torch_functions_type could probably be unified with
+            # patch_torch_functions. Currently introducing a new attribute
+            # to be on the safer side and not break stuff.
             "patch_torch_functions_type" : None,
             "keep_batchnorm_fp32" : None,
             "master_weights" : None,
@@ -390,7 +393,7 @@ def initialize(
         maybe_print("Selected optimization level {}".format(opt_levels[opt_level].brief), True)
         maybe_print("Defaults for this optimization level are:", True)
         for k, v in _amp_state.opt_properties.options.items():
-            maybe_print("{:22} : {}".format(k, v), True)
+            maybe_print("{:26} : {}".format(k, v), True)
 
     _amp_state.min_loss_scale = min_loss_scale
     _amp_state.max_loss_scale = max_loss_scale
@@ -417,7 +420,7 @@ def initialize(
 
     maybe_print("After processing overrides, optimization options are:", True)
     for k, v in _amp_state.opt_properties.options.items():
-        maybe_print("{:22} : {}".format(k, v), True)
+        maybe_print("{:26} : {}".format(k, v), True)
 
     return _initialize(models, optimizers, _amp_state.opt_properties, num_losses, cast_model_outputs)
 

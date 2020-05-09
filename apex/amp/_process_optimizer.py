@@ -213,8 +213,8 @@ def lazy_init_no_master_weights(self):
             elif param.type() == 'torch.cuda.FloatTensor':
                 stash.all_fp32_params.append(param)
             else:
-                raise TypeError("Optimizer's parameters must be either "
-                                "torch.cuda.FloatTensor or torch.cuda.HalfTensor. "
+                raise TypeError("Optimizer's parameters must be one of "
+                                "torch.cuda.FloatTensor, torch.cuda.HalfTensor, torch.BFloat16Tensor. "
                                 "Received {}".format(param.type()))
 
     stash.all_fp16_grad_stash = [None for _ in stash.all_fp16_params]

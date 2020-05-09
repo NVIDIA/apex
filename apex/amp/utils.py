@@ -200,22 +200,28 @@ def synthesize_flattened_rnn_weights(fp32_weights,
         fp16_weights.append(fp16_layer_weights)
     return fp16_weights
 
+def _str_from_dtype(dtype=torch.float16):
+    type_to_str = {torch.float16 : 'Half',
+                   torch.bfloat16 : 'BFloat16'}
+    return type_to_str[dtype]
+
 # Roughly same as above, just the `fp32_weights` aren't nested.
 # Code kept separate for readability.
 def new_synthesize_flattened_rnn_weights(fp32_weights,
                                          fp16_flat_tensor,
                                          rnn_fn='',
+                                         dtype=torch.float16,
                                          verbose=False):
     fp16_weights = []
     fp32_base_ptr = fp32_weights[0].data_ptr()
     for w_fp32 in fp32_weights:
-        w_fp16 = w_fp32.new().half()
+        w_fp16 = w_fp32.new().to(dtype=dtype)
         offset = (w_fp32.data_ptr() - fp32_base_ptr) // w_fp32.element_size()
         w_fp16.set_(fp16_flat_tensor.storage(),
                     offset,
                     w_fp32.shape)
         w_fp16.copy_(w_fp32)
         if verbose:
-            print('Float->Half ({})'.format(rnn_fn))
+            print('Float->{} ({})'.format(_str_from_dtype(dtype), rnn_fn))
         fp16_weights.append(w_fp16)
     return fp16_weights
