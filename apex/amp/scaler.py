@@ -63,7 +63,7 @@ class LossScaler(object):
         self._unskipped = 0
         self._has_overflow = False
         self._overflow_buf = torch.cuda.IntTensor([0])
-        if multi_tensor_applier.available:
+        if multi_tensor_applier.available and _amp_state.opt_properties.opt_level not in {"O4", "O5"}:
             import amp_C
             LossScaler.has_fused_kernel = multi_tensor_applier.available
             LossScaler.multi_tensor_scale_cuda = amp_C.multi_tensor_scale

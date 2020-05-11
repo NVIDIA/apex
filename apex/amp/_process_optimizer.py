@@ -13,7 +13,7 @@ class AmpOptimizerState(object):
 
 def _master_params_to_model_params(self):
     stash = self._amp_stash
-    if multi_tensor_applier.available and not _amp_state.opt_properties.opt_level not in {"O4", "O5"}:
+    if multi_tensor_applier.available and _amp_state.opt_properties.opt_level not in {"O4", "O5"}:
         if len(stash.all_fp16_params) > 0:
             multi_tensor_applier(
                 stash.multi_tensor_scale,
