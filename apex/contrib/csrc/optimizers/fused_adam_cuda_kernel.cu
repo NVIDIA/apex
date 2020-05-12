@@ -793,7 +793,8 @@ void fused_strided_check_finite(
 
 	//Determine #threads and #blocks
 	const int threadsPerBlock = 512;
-	const dim3 blocks((niter+threadsPerBlock-1)/threadsPerBlock);
+	//In order to avoid race condition, blocks must be 1 when clear_overflow_first flag is set.
+	const dim3 blocks(clear_overflow_first ? 1 : (niter+threadsPerBlock-1)/threadsPerBlock);
 	AT_ASSERTM(at::cuda::detail::canUse32BitIndexMath(p_copy), "parameter tensor is too large to be indexed with int32");
 
 	cudaStream_t stream = at::cuda::getCurrentCUDAStream();
