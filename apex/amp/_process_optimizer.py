@@ -13,7 +13,7 @@ class AmpOptimizerState(object):
 
 def _master_params_to_model_params(self):
     stash = self._amp_stash
-    if multi_tensor_applier.available and _amp_state.opt_properties.opt_level not in {"O4", "O5"}:
+    if multi_tensor_applier.available:
         if len(stash.all_fp16_params) > 0:
             multi_tensor_applier(
                 stash.multi_tensor_scale,
@@ -337,7 +337,7 @@ def _process_optimizer(optimizer, properties):
             raise RuntimeError("Incoming optimizer already has {} defined.".format(name))
 
     # TODO:  Centralize exposure and import error checking for the C backend.
-    if multi_tensor_applier.available and not properties.opt_level in {"O4", "O5"}:
+    if multi_tensor_applier.available:
         import amp_C
         optimizer._amp_stash.multi_tensor_scale = amp_C.multi_tensor_scale
         optimizer._amp_stash.multi_tensor_l2norm = amp_C.multi_tensor_l2norm

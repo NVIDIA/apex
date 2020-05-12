@@ -127,9 +127,9 @@ void multi_tensor_lamb_stage1_cuda(
   float next_step = float(step+1);
   float beta1_correction = 1.0f - std::pow(beta1, next_step);
   float beta2_correction = 1.0f - std::pow(beta2, next_step);
-  DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[1][0].scalar_type(), 1, "lamb_stage_1",
-      DISPATCH_FLOAT_AND_HALF(tensor_lists[4][0].scalar_type(), 2, "lamb_stage_1",
+  DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
+    DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(tensor_lists[1][0].scalar_type(), 1, "lamb_stage_1",
+      DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(tensor_lists[4][0].scalar_type(), 2, "lamb_stage_1",
         multi_tensor_apply<5>(
           BLOCK_SIZE,
           chunk_size,

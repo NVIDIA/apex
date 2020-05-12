@@ -166,6 +166,8 @@ void multi_tensor_sgd_cuda(
   // 2. fp32, fp32, fp32, No
   // 3. fp16, fp32, fp32, Yes
   // 4. fp32, fp32, fp32, Yes // this is the materialize_master_grads=True case
+  // 5. bfp16, bfp16, bfp16, No
+  // 6. bfp16, fp32, fp32, Yes
   // It's easier to hardcode these possibilities than to use
   // switches etc. to handle the cross-product of cases where
   // we don't want the majority of them.
@@ -259,6 +261,46 @@ void multi_tensor_sgd_cuda(
         noop_flag,
         tensor_lists,
         SGDFunctor<4, float, float>(),
+        wd,
+        momentum,
+        dampening,
+        lr,
+        nesterov,
+        first_run,
+        wd_after_momentum,
+        scale);
+  }
+  // Case 5. bfp16, bfp16, bfp16, No
+  if(grad_type == at::ScalarType::BFloat16 &&
+     weight_type == at::ScalarType::BFloat16 &&
+     num_tensors == 3)
+  {
+    multi_tensor_apply<3>(
+        BLOCK_SIZE,
+        chunk_size,
+        noop_flag,
+        tensor_lists,
+        SGDFunctor<3, at::BFloat16, at::BFloat16>(),
+        wd,
+        momentum,
+        dampening,
+        lr,
+        nesterov,
+        first_run,
+        wd_after_momentum,
+        scale);
+  }
+  // Case 6. bfp16, fp32, fp32, Yes
+  else if(grad_type == at::ScalarType::BFloat16 &&
+          weight_type == at::ScalarType::Float &&
+          num_tensors == 4)
+  {
+    multi_tensor_apply<4>(
+        BLOCK_SIZE,
+        chunk_size,
+        noop_flag,
+        tensor_lists,
+        SGDFunctor<4, at::BFloat16, float>(),
         wd,
         momentum,
         dampening,
