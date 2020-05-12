@@ -124,7 +124,7 @@ def init(enabled=True, loss_scale="dynamic", patch_type=torch.float16, enable_ca
     # 1.5) Pre-0.4, put the blacklist methods on HalfTensor and whitelist
     #      methods on FloatTensor, since they're distinct types.
     if compat.tensor_is_float_tensor():
-        for fn in getattr(tensor_overrides, 'FP16_FUNCS'):
+        for fn in tensor_overrides.FP16_FUNCS:
             wrap.cached_cast(torch.cuda.FloatTensor, fn, utils.maybe_half,
                              handle, try_caching=True, verbose=verbose)
         for fn in tensor_overrides.FP32_FUNCS:
