@@ -29,7 +29,7 @@ class FusedAdam(torch.optim.Optimizer):
         use_mt (boolean, optional): use multi tensor apply for lower launch
             latency. (default: False)
 
-    .. _Adam\: A Method for Stochastic Optimization:
+    .. _Adam - A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
     .. _On the Convergence of Adam and Beyond:
         https://openreview.net/forum?id=ryQu7f-RZ
