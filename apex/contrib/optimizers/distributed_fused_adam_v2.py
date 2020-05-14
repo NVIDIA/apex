@@ -46,9 +46,10 @@ class DistributedFusedAdamV2(torch.optim.Optimizer):
                  weight_decay=0., max_grad_norm=0., amsgrad=False, use_mt=False,
                  amp_scale_adjustment=1.0, overlap_reductions=True, full_pipeline=True,
                  compute_L2_grad_norm=False, distributed_weight_update=0,
-                 dwu_group_size=0, dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
-                 dwu_num_ag_pg=0, revert_method=1, flat_mt=False,
-                 dwu_num_chunks=4, predivide=True, e5m2_allgather=False,
+                 dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
+                 dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
+                 dwu_exp_enabled=False, dwu_exp_num_rs_pg=1, dwu_exp_num_ar_pg=4,
+                 flat_mt=False, predivide=True, e5m2_allgather=False,
                  do_not_flatten_model=False):
         global fused_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
@@ -70,14 +71,6 @@ class DistributedFusedAdamV2(torch.optim.Optimizer):
         self._has_overflow = False
 
         assert (len(self.param_groups) == 1), "More than one parameter group is not supported."
-
-        # Way to revert a step
-        # 3 -> undo kernel + double buffer (debug, print norm of difference)
-        # 2 -> double buffer fp32 parameters
-        # 1 -> undo kernel
-        self._revert_method = revert_method
-        if self._revert_method > 1:
-            print("revert_method -> double buffer fp32 parameters, will consume more memory")
 
         self._last_step = False
         self._overlap_reductions = overlap_reductions
