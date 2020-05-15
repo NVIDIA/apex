@@ -49,7 +49,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
                  dwu_num_ag_pg=0, revert_method=1, flat_mt=False,
                  dwu_num_chunks=4, predivide=True, e5m2_allgather=False,
-                 do_not_flatten_model=False):
+                 do_not_flatten_model=False, do_nothing=False):
         global fused_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
 
@@ -79,6 +79,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if self._revert_method > 1:
             print("revert_method -> double buffer fp32 parameters, will consume more memory")
 
+        self._do_nothing = do_nothing
         self._last_step = False
         self._overlap_reductions = overlap_reductions
         self._global_scale = None
@@ -416,6 +417,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
     def _do_overlapped_reduction(self, param_i, param_grads_size, param_offset, param):
         # handle overlapped reductions
+        if self._do_nothing: return
         if self._flat_mt:
             self._grads.append( (param.grad, self._individual_flat_grads[param_i]) )
         else:
@@ -483,23 +485,24 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """Complete reductions if full pipeline is not selected or overlap is not allowed.
         """
 
-        if self._last_step:
-            # zero out gradients that have not been completed yet
-            for param_i, grad_generated in enumerate(self._grads_generated):
-                if not grad_generated:
-                    grad_info = self._grads_info[param_i]
-                    param_offset = grad_info["param_offset"]
-                    param_size = grad_info["param_grads_size"]
-                    self._flat_grads[param_offset:param_offset+param_size].zero_()
-                    self._grads_generated[param_i] = True
+        if not self._do_nothing:
+            if self._last_step:
+                # zero out gradients that have not been completed yet
+                for param_i, grad_generated in enumerate(self._grads_generated):
+                    if not grad_generated:
+                        grad_info = self._grads_info[param_i]
+                        param_offset = grad_info["param_offset"]
+                        param_size = grad_info["param_grads_size"]
+                        self._flat_grads[param_offset:param_offset+param_size].zero_()
+                        self._grads_generated[param_i] = True
 
-        if self._last_step or not self._overlap_reductions:
-            # nothing done so far, run full pipeline after reductions
-            for block_id in range(self._num_blocks-1,-1,-1):
-                self._pipeline_block_reductions(block_id)
+            if self._last_step or not self._overlap_reductions:
+                # nothing done so far, run full pipeline after reductions
+                for block_id in range(self._num_blocks-1,-1,-1):
+                    self._pipeline_block_reductions(block_id)
 
-        if self._compute_L2_grad_norm:
-            torch.cuda.current_stream().wait_stream(self._l2_grad_norm_st)
+            if self._compute_L2_grad_norm:
+                torch.cuda.current_stream().wait_stream(self._l2_grad_norm_st)
 
         self._current_block = self._num_blocks
         self._grads_generated = [False]*len(self._grads_info)
@@ -535,24 +538,25 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
-        if self._last_step or not self._overlap_reductions or not self._full_pipeline:
-            self._pipeline_step()
+        if not self._do_nothing:
+            if self._last_step or not self._overlap_reductions or not self._full_pipeline:
+                self._pipeline_step()
 
-        with torch.cuda.stream(self._completion_st):
-            # Check for overflow
-            # Store state for loss scaler calculation
-            has_overflow = False if skip_overflow_check else self.strided_check_finite(self._new_params, stride=self._shard_size, start=0, end=self._net_total_param_size)
-            if has_overflow:
-                self.revert_step()
-            else:
-                # Copy self._new_params to model params
-                for p in self._model_params: self.state[p]['step'] += 1
-                multi_tensor_applier(
-                        fused_adam_cuda.maybe_cast_mt,
-                        self._overflow_buf,
-                        self._packed_flat_to_model_params)
+            with torch.cuda.stream(self._completion_st):
+                # Check for overflow
+                # Store state for loss scaler calculation
+                has_overflow = False if skip_overflow_check else self.strided_check_finite(self._new_params, stride=self._shard_size, start=0, end=self._net_total_param_size)
+                if has_overflow:
+                    self.revert_step()
+                else:
+                    # Copy self._new_params to model params
+                    for p in self._model_params: self.state[p]['step'] += 1
+                    multi_tensor_applier(
+                            fused_adam_cuda.maybe_cast_mt,
+                            self._overflow_buf,
+                            self._packed_flat_to_model_params)
 
-        torch.cuda.current_stream().wait_stream(self._completion_st)
+            torch.cuda.current_stream().wait_stream(self._completion_st)
 
         self._reductions_works = [None]*self._num_blocks
         self._allgather_works = [None]*self._num_blocks
