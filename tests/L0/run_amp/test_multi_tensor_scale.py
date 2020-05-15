@@ -49,7 +49,10 @@ class TestMultiTensorScale(unittest.TestCase):
 
         applier(multi_tensor_scale, self.overflow_buf, [in_list, out_list], 1./self.scale)
 
-        self.assertTrue(all([torch.allclose(out, self.ref.to(out_type)) for out in out_list]))
+        # TODO: Remove this workaround for bfloat16 after torch.allcose() support bfloat16
+        if out_type == torch.bfloat16:
+            out_list = [out.float() for out in out_list]
+        self.assertTrue(all([torch.allclose(out, self.ref.to(out.dtype)) for out in out_list]))
         self.assertTrue(self.overflow_buf.item() == 0)
  
     def find_inf(self, sizea, sizeb, applier, repeat_tensors, in_type, out_type, t, ind, val, inplace=False):
@@ -106,8 +109,8 @@ class TestMultiTensorScale(unittest.TestCase):
         for sizea, sizeb in input_size_pairs:
           for applier in appliers:
             for repeat in repeat_tensors:
-              for in_type in (torch.float32, torch.float16):
-                for out_type in (torch.float32, torch.float16):
+              for in_type in (torch.float32, torch.float16, torch.bfloat16):
+                for out_type in (torch.float32, torch.float16, torch.bfloat16):
                   for inplace in (True, False):
                     if inplace is True and (out_type is not in_type):
                       continue

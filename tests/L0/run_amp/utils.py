@@ -6,6 +6,8 @@ BFLOAT16 = 'torch.cuda.BFloat16Tensor'
 
 DTYPES = [torch.half, torch.float]
 
+DTYPES2 = [torch.bfloat16, torch.float]
+
 ALWAYS_HALF = {torch.float: HALF,
                torch.half: HALF}
 ALWAYS_BFLOAT16 = {torch.bfloat16: BFLOAT16,
