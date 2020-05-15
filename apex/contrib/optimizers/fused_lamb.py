@@ -54,7 +54,7 @@ class FusedLAMB(torch.optim.Optimizer):
         max_grad_norm (float, optional): value used to clip global grad norm
             (default: 1.0)
 
-    .. _Large Batch Optimization for Deep Learning\: Training BERT in 76 minutes:
+    .. _Large Batch Optimization for Deep Learning - Training BERT in 76 minutes:
         https://arxiv.org/abs/1904.00962
     .. _On the Convergence of Adam and Beyond:
         https://openreview.net/forum?id=ryQu7f-RZ
