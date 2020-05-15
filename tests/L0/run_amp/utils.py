@@ -11,7 +11,7 @@ DTYPES2 = [torch.bfloat16, torch.float]
 ALWAYS_HALF = {torch.float: HALF,
                torch.half: HALF}
 ALWAYS_BFLOAT16 = {torch.bfloat16: BFLOAT16,
-				   torch.float: BFLOAT16}
+                   torch.float: BFLOAT16}
 ALWAYS_FLOAT = {torch.float: FLOAT,
                 torch.half: FLOAT}
 MATCH_INPUT = {torch.float: FLOAT,
