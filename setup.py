@@ -152,6 +152,7 @@ if "--cuda_ext" in sys.argv:
                                        'csrc/hip/multi_tensor_lamb_stage_1.hip',
                                        'csrc/hip/multi_tensor_lamb_stage_2.hip',
                                        'csrc/hip/multi_tensor_adam.hip',
+                                       'csrc/hip/multi_tensor_adagrad.hip',
                                        'csrc/hip/multi_tensor_novograd.hip',
                                        'csrc/hip/multi_tensor_lamb.hip'],
                               extra_compile_args={'cxx' : ['-O3'] + version_dependent_macros,
