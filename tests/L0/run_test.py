@@ -1,13 +1,12 @@
 import unittest
 import sys
-from common_utils import *
 
+from apex.testing.common_utils import TEST_WITH_ROCM, skipIfRocm
 
 test_dirs = ["run_amp", "run_fp16util", "run_optimizers", "run_fused_layer_norm", "run_pyprof_nvtx", "run_pyprof_data", "run_mlp"]
 
 ROCM_BLACKLIST = [
     'run_amp',
-    'run_fp16util',
     'run_optimizers',
     'run_fused_layer_norm',
     'run_pyprof_nvtx',
@@ -20,7 +19,7 @@ runner = unittest.TextTestRunner(verbosity=2)
 errcode = 0
 
 for test_dir in test_dirs:
-    if test_dir in ROCM_BLACKLIST:
+    if (test_dir in ROCM_BLACKLIST) and TEST_WITH_ROCM:
         continue
     suite = unittest.TestLoader().discover(test_dir)
 
