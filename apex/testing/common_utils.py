@@ -5,6 +5,8 @@ This file contains common utility functions for running the unit tests on ROCM.
 import torch
 import os
 import sys
+from functools import wraps
+import unittest
 
 
 TEST_WITH_ROCM = os.getenv('APEX_TEST_WITH_ROCM', '0') == '1'

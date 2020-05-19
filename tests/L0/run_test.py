@@ -6,7 +6,6 @@ from apex.testing.common_utils import TEST_WITH_ROCM, skipIfRocm
 test_dirs = ["run_amp", "run_fp16util", "run_optimizers", "run_fused_layer_norm", "run_pyprof_nvtx", "run_pyprof_data", "run_mlp"]
 
 ROCM_BLACKLIST = [
-    'run_amp',
     'run_optimizers',
     'run_fused_layer_norm',
     'run_pyprof_nvtx',

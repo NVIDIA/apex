@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from apex import amp
-
+from apex.testing.common_utils import skipIfRocm
 
 from utils import common_init, FLOAT
 
@@ -161,6 +161,7 @@ class TestCheckpointing(unittest.TestCase):
                             # skip tests for different opt_levels
                             continue
 
+    @skipIfRocm
     def test_loss_scale_decrease(self):
         num_losses = 3
         nb_decrease_loss_scales = [0, 1, 2]
