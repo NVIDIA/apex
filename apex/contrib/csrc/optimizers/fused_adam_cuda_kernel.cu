@@ -566,55 +566,24 @@ __global__ void maybe_cast_kernel(
     }
 }
 
-template <typename T, typename GRAD_T, typename REDU_T>
-__global__ void reversible_adam_cuda_kernel(
-        T* __restrict__ p,
-        REDU_T* __restrict__ p_copy, // For mixed precision training, pass NULL if not needed
-        T* __restrict__ m,
-        T* __restrict__ v,
-        const GRAD_T * __restrict__ g,
+template<adamMode_t mode, bool check_for_overflow, typename T, typename GRAD_T> 
+__device__ __forceinline__ void __block_adam(
+        bool& overflow,
+        T* mi,
+        T* vi,
+        T* pi,
+        GRAD_T* gi,
         const float b1,
         const float b2,
         const float eps,
         const float grad_scale,
         const float step_size,
-        const size_t tsize,
-        adamMode_t mode,
         const float decay)
 {
-    //Assuming 2D grids and 2D blocks
-    const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
-    const int threadsPerBlock = blockDim.x * blockDim.y;
-    const int threadIdInBlock = threadIdx.y * blockDim.x + threadIdx.x;
-    const int i = (blockId * threadsPerBlock + threadIdInBlock);
-    const int totThreads = gridDim.x*gridDim.y*threadsPerBlock;
-
-    T mi[ILP];
-    T vi[ILP];
-    T pi[ILP];
-    T gi[ILP];
-
-    bool overflow = false;
-    for(int j_start = 0;  j_start < tsize;  j_start+=totThreads*ILP) {
 #pragma unroll
-        for(int ii = 0; ii < ILP; ii++) {
-            mi[ii] = T(0);
-            vi[ii] = T(0);
-            pi[ii] = T(0);
-            gi[ii] = GRAD_T(0);
-
-            int j = j_start + i + totThreads*ii;
-            if (j < tsize) {
-                pi[ii] = p[j];
-                mi[ii] = m[j];
-                vi[ii] = v[j];
-                gi[ii] = static_cast<T>(g[j]);
-            }
-        }
-
-#pragma unroll
-        for(int ii = 0; ii < ILP; ii++) {
-            T scaled_grad = gi[ii]/grad_scale;
+    for(int ii = 0; ii < ILP; ii++) {
+        T scaled_grad = static_cast<T>(gi[ii])/grad_scale;
+        if (check_for_overflow) {
             if (isfinite(scaled_grad)) {
                 mi[ii] = b1*mi[ii] + (1-b1)*scaled_grad;
                 vi[ii] = b2*vi[ii] + (1-b2)*scaled_grad*scaled_grad;
@@ -628,25 +597,147 @@ __global__ void reversible_adam_cuda_kernel(
             } else {
                 overflow = true;
             }
+        } else {
+            mi[ii] = b1*mi[ii] + (1-b1)*scaled_grad;
+            vi[ii] = b2*vi[ii] + (1-b2)*scaled_grad*scaled_grad;
+            float denom;
+            if (mode == ADAM_MODE_0)
+                denom = sqrtf(vi[ii] + eps);
+            else // Mode 1
+                denom = sqrtf(vi[ii]) + eps;
+            float update = (mi[ii]/denom) + (decay*pi[ii]);
+            pi[ii] = pi[ii] - (step_size*update);
         }
+    }
+}
+
+template <adamMode_t mode, bool check_for_overflow, bool has_p_copy, typename T, typename GRAD_T, typename REDU_T>
+__global__ void reversible_adam_cuda_kernel(
+        T* __restrict__ p,
+        REDU_T* __restrict__ p_copy, // For mixed precision training, pass NULL if not needed
+        T* __restrict__ m,
+        T* __restrict__ v,
+        const GRAD_T * __restrict__ g,
+        const float b1,
+        const float b2,
+        const float eps,
+        const float grad_scale,
+        const float step_size,
+        const size_t tsize,
+        const float decay)
+{
+    //Assuming 2D grids and 2D blocks
+    const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
+    const int threadsPerBlock = blockDim.x * blockDim.y;
+    const int threadIdInBlock = threadIdx.y * blockDim.x + threadIdx.x;
+    const int i = (blockId * threadsPerBlock + threadIdInBlock);
+    const int totThreads = gridDim.x*gridDim.y*threadsPerBlock;
+
+    T mi[ILP];
+    T vi[ILP];
+    T pi[ILP];
+    GRAD_T gi[ILP];
+
+    bool overflow = false;
+    if(n % ILP == 0 &&
+       chunk_size % ILP == 0 &&
+       is_aligned(p) &&
+       is_aligned(m) &&
+       is_aligned(v) &&
+       is_aligned(g) &&
+       is_aligned(p_copy))
+    {
+        for(int j_start = 0;  j_start < tsize;  j_start+=totThreads*ILP) {
+#pragma unroll
+            for(int ii = 0; ii < ILP; ii++) {
+                mi[ii] = T(0);
+                vi[ii] = T(0);
+                pi[ii] = T(0);
+                gi[ii] = GRAD_T(0);
+
+                int j = j_start + i + totThreads*ii;
+                if (j < tsize) {
+                    load_store(pi, p, ii, j);
+                    load_store(mi, m, ii, j);
+                    load_store(vi, v, ii, j);
+                    load_store(gi, g, ii, j);
+                }
+            }
+#pragma unroll
+            for(int ii = 0; ii < ILP; ii++) {
+                g[ii] = static_cast<T>(tmp_g[ii]);
+            }
+
+            __block_adam<mode,has_p_copy,T,GRAD_T>(overflow, mi, vi, pi, gi, b1, b2, eps, grad_scale, step_size, decay);
+
+            if (has_p_copy)
+            {
+                REDU_T po[ILP];
+#pragma unroll
+                for(int ii = 0; ii < ILP; ii++) {
+                    po[ii] = convert(pi[ii], po[ii]);
+                }
+#pragma unroll
+                for(int ii = 0; ii < ILP; ii++) {
+                    int j = j_start + i + totThreads*ii;
+                    if (j < tsize) {
+                        load_store(m, mi, j, ii);
+                        load_store(v, vi, j, ii);
+                        load_store(p, pi, j, ii);
+                        load_store(p_copy, po, j, ii);
+                    }
+                }
+            } else {
+#pragma unroll
+                for(int ii = 0; ii < ILP; ii++) {
+                    int j = j_start + i + totThreads*ii;
+                    if (j < tsize) {
+                        load_store(m, mi, j, ii);
+                        load_store(v, vi, j, ii);
+                        load_store(p, pi, j, ii);
+                    }
+                }
+            }
+        }
+    } else {
+        for(int j_start = 0;  j_start < tsize;  j_start+=totThreads*ILP) {
+#pragma unroll
+            for(int ii = 0; ii < ILP; ii++) {
+                mi[ii] = T(0);
+                vi[ii] = T(0);
+                pi[ii] = T(0);
+                gi[ii] = GRAD_T(0);
+
+                int j = j_start + i + totThreads*ii;
+                if (j < tsize) {
+                    pi[ii] = p[j];
+                    mi[ii] = m[j];
+                    vi[ii] = v[j];
+                    gi[ii] = g[j];
+                }
+            }
+
+            __block_adam<mode,has_p_copy,T,GRAD_T>(overflow, mi, vi, pi, gi, b1, b2, eps, grad_scale, step_size, decay);
 
 #pragma unroll
-        for(int ii = 0; ii < ILP; ii++) {
-            int j = j_start + i + totThreads*ii;
-            if (j < tsize) {
-                m[j] = mi[ii];
-                v[j] = vi[ii];
-                p[j] = pi[ii];
-                if (p_copy != NULL) {
-                    convert(pi[ii], p_copy[j]);
+            for(int ii = 0; ii < ILP; ii++) {
+                int j = j_start + i + totThreads*ii;
+                if (j < tsize) {
+                    m[j] = mi[ii];
+                    v[j] = vi[ii];
+                    p[j] = pi[ii];
+                    if (has_p_copy) {
+                        convert(pi[ii], p_copy[j]);
+                    }
                 }
             }
         }
     }
 
-    if (p_copy != NULL) {
+    if (has_p_copy) {
         __syncthreads();
         if (overflow) {
+            // To-Do: Can this cause race condition?
             convert(float(INFINITY), p_copy[0]);
         }
     }
@@ -728,17 +819,6 @@ __global__ void maybe_adam_undo_cuda_kernel(
             }
         }
     }
-}
-
-template<typename T>
-__device__ __forceinline__ bool is_aligned(T* p){
-    return ((uint64_t)p) % (ILP*sizeof(T)) == 0;
-}
-
-template<typename T>
-__device__ __forceinline__ void load_store(T* dst, T* src, int dst_offset, int src_offset){
-    typedef typename std::aligned_storage<ILP*sizeof(T), ILP*alignof(T)>::type LT;
-    ((LT*)dst)[dst_offset] = ((LT*)src)[src_offset];
 }
 
 template<typename in_t, typename out_t>
@@ -856,7 +936,8 @@ void fused_reversible_adam_cuda(
         int step,
         int mode,
         int bias_correction,
-        float decay)
+        float decay,
+        bool check_for_overflow)
 {
 //      using namespace at;
 
@@ -884,13 +965,336 @@ void fused_reversible_adam_cuda(
           //dispatch is done on the gradient type
           using namespace at; // prevents "toString is undefined" errors
           if (p_copy.numel() == 0 || p_copy.scalar_type() == g.scalar_type()) {
-              DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
-                      using accscalar_t = at::acc_type<scalar_t_0, true>;
-                      reversible_adam_cuda_kernel<accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
-                          p.DATA_PTR<accscalar_t>(),
-                          p_copy.numel() ? p_copy.DATA_PTR<scalar_t_0>() : NULL,
-                          m.DATA_PTR<accscalar_t>(),
-                          v.DATA_PTR<accscalar_t>(),
+              if (check_for_overflow) {
+                  // check_overflow == true
+                  if (p_copy.numel() > 0) {
+                      // has_p_copy == true
+                      if (mode == 0) {
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_kernel<(adamMode_t)0, true, true, accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  p_copy.DATA_PTR<scalar_t_0>()
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      } else {
+                          AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_kernel<(adamMode_t)1, true, true, accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  p_copy.DATA_PTR<scalar_t_0>()
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      }
+                  } else {
+                      // has_p_copy == false
+                      if (mode == 0) {
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_kernel<(adamMode_t)0, true, false, accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  NULL,
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      } else {
+                          AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_kernel<(adamMode_t)1, true, false, accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  NULL,
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      }
+                  }
+              } else {
+                  // check_overflow == false
+                  if (p_copy.numel() > 0) {
+                      // has_p_copy == true
+                      if (mode == 0) {
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_kernel<(adamMode_t)0, false, true, accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  p_copy.DATA_PTR<scalar_t_0>()
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      } else {
+                          AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_kernel<(adamMode_t)1, false, true, accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  p_copy.DATA_PTR<scalar_t_0>()
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      }
+                  } else {
+                      // has_p_copy == false
+                      if (mode == 0) {
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_kernel<(adamMode_t)0, false, false, accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  NULL,
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      } else {
+                          AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_kernel<(adamMode_t)1, false, false, accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  NULL,
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      }
+                  }
+              }
+          } else {
+              AT_ASSERTM(p_copy.scalar_type() == at::ScalarType::Byte, "expected parameter to be of byte type");
+              if (check_for_overflow) {
+                  // check_overflow == true
+                  if (p_copy.numel() > 0) {
+                      // has_p_copy == true
+                      if (mode == 0) {
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)0, true, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  p_copy.DATA_PTR<uint8_t>()
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      } else {
+                          AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)1, true, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  p_copy.DATA_PTR<uint8_t>()
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      }
+                  } else {
+                      // has_p_copy == false
+                      if (mode == 0) {
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)0, true, false, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  NULL,
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      } else {
+                          AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)1, true, false, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  NULL,
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      }
+                  }
+              } else {
+                  // check_overflow == false
+                  if (p_copy.numel() > 0) {
+                      // has_p_copy == true
+                      if (mode == 0) {
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)0, false, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  p_copy.DATA_PTR<uint8_t>()
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      } else {
+                          AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)1, false, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  p_copy.DATA_PTR<uint8_t>()
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      }
+                  } else {
+                      // has_p_copy == false
+                      if (mode == 0) {
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)0, false, false, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  NULL,
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      } else {
+                          AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
+                          DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)1, false, false, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                                  p.DATA_PTR<accscalar_t>(),
+                                  NULL,
+                                  m.DATA_PTR<accscalar_t>(),
+                                  v.DATA_PTR<accscalar_t>(),
+                                  g.DATA_PTR<scalar_t_0>(),
+                                  beta1,
+                                  beta2,
+                                  eps,
+                                  grad_scale,
+                                  step_size,
+                                  tsize,
+                                  decay);
+                          );
+                      }
+                  }
+              }
+          }
+      } else {
+          using namespace at;
+          if (mode == 0) {
+              DISPATCH_DOUBLE_AND_FLOAT(g.scalar_type(), 0, "adam_cuda_kernel",
+                      reversible_adam_cuda_kernel<(adamMode_t)0, true, false, scalar_t_0, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+                          p.DATA_PTR<scalar_t_0>(),
+                          NULL, //don't output p_copy for fp32, it's wasted write
+                          m.DATA_PTR<scalar_t_0>(),
+                          v.DATA_PTR<scalar_t_0>(),
                           g.DATA_PTR<scalar_t_0>(),
                           beta1,
                           beta2,
@@ -902,14 +1306,13 @@ void fused_reversible_adam_cuda(
                           decay);
                       );
           } else {
-              AT_ASSERTM(p_copy.scalar_type() == at::ScalarType::Byte, "expected parameter to be of byte type");
-              DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
-                      using accscalar_t = at::acc_type<scalar_t_0, true>;
-                      reversible_adam_cuda_kernel<accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
-                          p.DATA_PTR<accscalar_t>(),
-                          p_copy.DATA_PTR<uint8_t>(),
-                          m.DATA_PTR<accscalar_t>(),
-                          v.DATA_PTR<accscalar_t>(),
+              AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
+              DISPATCH_DOUBLE_AND_FLOAT(g.scalar_type(), 0, "adam_cuda_kernel",
+                      reversible_adam_cuda_kernel<(adamMode_t)1, true, false, scalar_t_0, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
+                          p.DATA_PTR<scalar_t_0>(),
+                          NULL, //don't output p_copy for fp32, it's wasted write
+                          m.DATA_PTR<scalar_t_0>(),
+                          v.DATA_PTR<scalar_t_0>(),
                           g.DATA_PTR<scalar_t_0>(),
                           beta1,
                           beta2,
@@ -921,24 +1324,6 @@ void fused_reversible_adam_cuda(
                           decay);
                       );
           }
-      } else {
-          using namespace at;
-          DISPATCH_DOUBLE_AND_FLOAT(g.scalar_type(), 0, "adam_cuda_kernel",
-                  reversible_adam_cuda_kernel<scalar_t_0, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
-                      p.DATA_PTR<scalar_t_0>(),
-                      NULL, //don't output p_copy for fp32, it's wasted write
-                      m.DATA_PTR<scalar_t_0>(),
-                      v.DATA_PTR<scalar_t_0>(),
-                      g.DATA_PTR<scalar_t_0>(),
-                      beta1,
-                      beta2,
-                      eps,
-                      grad_scale,
-                      step_size,
-                      tsize,
-                      (adamMode_t) mode,
-                      decay);
-                  );
       }
       THCudaCheck(cudaGetLastError());
 }
