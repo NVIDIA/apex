@@ -16,6 +16,10 @@ class Properties(object):
             "opt_level" : None,
             "cast_model_type" : None,
             "patch_torch_functions" : False,
+            # TODO: patch_torch_functions_type could probably be unified with
+            # patch_torch_functions. Currently introducing a new attribute
+            # to be on the safer side and not break stuff.
+            "patch_torch_functions_type" : None,
             "keep_batchnorm_fp32" : None,
             "master_weights" : None,
             "loss_scale" : 1.0,
@@ -53,7 +57,7 @@ class Properties(object):
             if name in self.options:
                 # print("setting {} {}".format(name, value))
                 if name == "cast_model_type":
-                    if self.opt_level == "O1" and value is not None:
+                    if self.opt_level in {"O1", "O4"} and value is not None:
                         if value is not False:
                             if value is not torch.float32:
                                 warn_or_err("O1 inserts casts around Torch functions rather than "
@@ -63,13 +67,25 @@ class Properties(object):
                                             "cast_model_type was {}".format(value))
                     self.options[name] = value
                 elif name == "patch_torch_functions":
-                    if self.opt_level != "O1" and value:
+                    if self.opt_level not in {"O1", "O4"} and value:
                         warn_or_err("Currently, patch_torch_functions=True should only be set by "
-                                    "selecting opt_level='O1'.")
+                                    "selecting opt_level='O1' or 'O4'.")
                     self.options[name] = value
+                elif name == "patch_torch_functions_type":
+                    if self.opt_level not in {"O1", "O4"} and value is not None:
+                        warn_or_err("Currently, patch_torch_functions_type should only be set  by "
+                                    "selecting opt_level='O1' or 'O4'.")
+                    elif self.opt_level == "O1" and value != torch.float16:
+                        warn_or_err("patch_torch_functions_type should only be set to torch.float16 "
+                                    "for opt_level='O1.")
+                    elif self.opt_level == "O4" and value != torch.bfloat16:
+                        warn_or_err("patch_torch_functions_type should only be set to torch.bfloat16 "
+                                    "for opt_level='O4.")
+                    else:
+                        self.options[name] = value
                 elif name == "keep_batchnorm_fp32":
-                    if self.opt_level == "O1" and value is not None:
-                        warn_or_err("With opt_level O1, batchnorm functions are automatically patched "
+                    if self.opt_level in {"O1", "O4"} and value is not None:
+                        warn_or_err("With opt_level O1 or O4, batchnorm functions are automatically patched "
                                     "to run in FP32, so keep_batchnorm_fp32 should be None." +
                                     " keep_batchnorm_fp32 was {}".format(value))
                     if value == "False":
@@ -82,9 +98,9 @@ class Properties(object):
                             "or None, found keep_batchnorm_fp32={}".format(value)
                         self.options[name] = value
                 elif name == "master_weights":
-                    if self.opt_level == "O1" and value is not None:
-                        warn_or_err("It doesn't make sense to use master_weights with O1. "
-                                    "With O1, your model weights themselves should be FP32.")
+                    if self.opt_level in {"O1", "O4"} and value is not None:
+                        warn_or_err("It doesn't make sense to use master_weights with O1 and O4 . "
+                                    "With O1 and O4, your model weights themselves should be FP32.")
                     self.options[name] = value
                 elif name == "loss_scale":
                     if value == "dynamic":
@@ -113,6 +129,7 @@ class O3:
         properties.opt_level = "O3"
         properties.cast_model_type = torch.float16
         properties.patch_torch_functions = False
+        properties.patch_torch_functions_type = None
         properties.keep_batchnorm_fp32 = False
         properties.master_weights = False
         properties.loss_scale = 1.0
@@ -136,6 +153,7 @@ class O2:
         properties.opt_level = "O2"
         properties.cast_model_type = torch.float16
         properties.patch_torch_functions = False
+        properties.patch_torch_functions_type = None
         properties.keep_batchnorm_fp32 = True
         properties.master_weights = True
         properties.loss_scale = "dynamic"
@@ -158,6 +176,7 @@ class O1:
         properties.opt_level = "O1"
         properties.cast_model_type = None
         properties.patch_torch_functions = True
+        properties.patch_torch_functions_type = torch.float16
         properties.keep_batchnorm_fp32 = None
         properties.master_weights = None
         properties.loss_scale = "dynamic"
@@ -177,6 +196,7 @@ class O0:
         properties.opt_level = "O0"
         properties.cast_model_type = torch.float32
         properties.patch_torch_functions = False
+        properties.patch_torch_functions_type = None
         properties.keep_batchnorm_fp32 = None
         properties.master_weights = False
         properties.loss_scale = 1.0
@@ -184,11 +204,54 @@ class O0:
         # properties.enable_ddp_interop = False
         return properties # modified in place so this isn't really necessary
 
+class O4:
+    brief = "O4:  Insert automatic casts around Pytorch functions and Tensor methods.\n"
+    more = "The type of your model's weights is not altered.  However, internally,\n"\
+        "Pytorch functions are patched to cast any Tensor Core-friendly ops to BFLOAT16 for speed,\n"\
+        "while operations that might benefit from the additional stability of FP32 are patched\n"\
+        "to cast their inputs to fp32.\n"\
+        "Loss scaling is not required in O4 mode since bflaot16 has the same dynamic range as fp32."
+
+    def __call__(self, properties):
+        properties.enabled = True
+        properties.opt_level = "O4"
+        properties.cast_model_type = None
+        properties.patch_torch_functions = True
+        properties.patch_torch_functions_type = torch.bfloat16
+        properties.keep_batchnorm_fp32 = None
+        properties.master_weights = None
+        properties.loss_scale = 1
+        return properties # modified in place so this isn't really necessary
+
+class O5:
+    brief = "O5:  BFLOAT16 training with FP32 batchnorm and FP32 master weights.\n"
+    more = "Calls .bfloat16() on your model, converting the entire model (except for batchnorms)\n"\
+        "to BFLOAT16.  Batchnorms are retained in FP32 for additional stability.\n"\
+        "The forward pass is patched to cast incoming Tensors to BFLOAT16, so you don't need to change\n"\
+        "your data pipeline.\n"\
+        "O5 creates FP32 master weights outside the model and patches any optimizers to update\n"\
+        "these master weights, then copy the master weights into the BFLOAT16 model weights.\n"\
+        "Master weights can also improve convergence and stability."
+
+    def __call__(self, properties):
+        properties.enabled = True
+        properties.opt_level = "O5"
+        properties.cast_model_type = torch.bfloat16
+        properties.patch_torch_functions = False
+        properties.patch_torch_functions = None
+        properties.patch_torch_functions_type = None
+        properties.keep_batchnorm_fp32 = True
+        properties.master_weights = True
+        properties.loss_scale = 1
+        return properties # modified in place so this isn't really necessary
+
 
 opt_levels = {"O3": O3(),
               "O2": O2(),
               "O1": O1(),
-              "O0": O0()}
+              "O0": O0(),
+              "O4": O4(),
+              "O5": O5()}
 
 
 # allow user to directly pass Properties struct as well?
@@ -199,6 +262,7 @@ def initialize(
     opt_level="O1",
     cast_model_type=None,
     patch_torch_functions=None,
+    patch_torch_functions_type=None,
     keep_batchnorm_fp32=None,
     master_weights=None,
     loss_scale=None,
@@ -235,10 +299,11 @@ def initialize(
         enabled (bool, optional, default=True):  If False, renders all Amp calls no-ops, so your script
             should run as if Amp were not present.
         opt_level (str, optional, default="O1"):  Pure or mixed precision optimization level.  Accepted values are
-            "O0", "O1", "O2", and "O3", explained in detail above.
+            "O0", "O1", "O2", "O3", "O4" and "O5", explained in detail above.
         cast_model_type (``torch.dtype``, optional, default=None):  Optional property override, see
             above.
         patch_torch_functions (bool, optional, default=None):  Optional property override.
+        patch_torch_functions_type (``torch.dtype``, optional, default=None): Optional property override
         keep_batchnorm_fp32 (bool or str, optional, default=None):  Optional property override.  If
             passed as a string, must be the string "True" or "False".
         master_weights (bool, optional, default=None):  Optional property override.
@@ -321,14 +386,14 @@ def initialize(
     if opt_level not in opt_levels:
         raise RuntimeError(
             "Unexpected optimization level {}. ".format(opt_level) +
-            "Options are 'O0', 'O1', 'O2', 'O3'.  Note that in `O0`, `O1`, etc., the prefix O is the letter O, " +
+            "Options are 'O0', 'O1', 'O2', 'O3', 'O4', 'O5'.  Note that in `O0`, `O1`, etc., the prefix O is the letter O, " +
             "not the number zero.")
     else:
         _amp_state.opt_properties = opt_levels[opt_level](_amp_state.opt_properties)
         maybe_print("Selected optimization level {}".format(opt_levels[opt_level].brief), True)
         maybe_print("Defaults for this optimization level are:", True)
         for k, v in _amp_state.opt_properties.options.items():
-            maybe_print("{:22} : {}".format(k, v), True)
+            maybe_print("{:26} : {}".format(k, v), True)
 
     _amp_state.min_loss_scale = min_loss_scale
     _amp_state.max_loss_scale = max_loss_scale
@@ -344,6 +409,8 @@ def initialize(
         _amp_state.opt_properties.cast_model_type = cast_model_type
     if patch_torch_functions is not None:
         _amp_state.opt_properties.patch_torch_functions = patch_torch_functions
+    if patch_torch_functions_type is not None:
+        _amp_state.opt_properties.patch_torch_functions_type = patch_torch_functions_type
     if keep_batchnorm_fp32 is not None:
         _amp_state.opt_properties.keep_batchnorm_fp32 = keep_batchnorm_fp32
     if master_weights is not None:
@@ -353,7 +420,7 @@ def initialize(
 
     maybe_print("After processing overrides, optimization options are:", True)
     for k, v in _amp_state.opt_properties.options.items():
-        maybe_print("{:22} : {}".format(k, v), True)
+        maybe_print("{:26} : {}".format(k, v), True)
 
     return _initialize(models, optimizers, _amp_state.opt_properties, num_losses, cast_model_outputs)
 

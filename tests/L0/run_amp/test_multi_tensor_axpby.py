@@ -71,7 +71,10 @@ class TestMultiTensorAxpby(unittest.TestCase):
 
         applier(multi_tensor_axpby, self.overflow_buf, [x_list, y_list, out_list], self.a, self.b, -1)
 
-        self.assertTrue(all([torch.allclose(out, self.ref.to(out_type)) for out in out_list]),
+        # TODO: Remove this workaround for bfloat16 after torch.allcose() support bfloat16
+        if out_type == torch.bfloat16:
+            out_list = [out.float() for out in out_list]
+        self.assertTrue(all([torch.allclose(out, self.ref.to(out.dtype)) for out in out_list]),
                         msg="{} {} {} {} {} {} {}".format(sizea, sizeb, repeat_tensors,
                         x_type, y_type, out_type, inplace))
         self.assertTrue(self.overflow_buf.item() == 0,
@@ -121,9 +124,9 @@ class TestMultiTensorAxpby(unittest.TestCase):
         for sizea, sizeb in input_size_pairs:
           for applier in appliers:
             for repeat in repeat_tensors:
-              for x_type in (torch.float32, torch.float16):
-                for y_type in (torch.float32, torch.float16):
-                  for out_type in (torch.float32, torch.float16):
+              for x_type in (torch.float32, torch.float16, torch.bfloat16):
+                for y_type in (torch.float32, torch.float16, torch.bfloat16):
+                  for out_type in (torch.float32, torch.float16, torch.bfloat16):
                     for inplace in (True, False):
                       if inplace is True and (y_type is not out_type):
                         continue

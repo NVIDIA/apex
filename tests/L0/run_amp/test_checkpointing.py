@@ -28,7 +28,7 @@ class MyModel(torch.nn.Module):
 class TestCheckpointing(unittest.TestCase):
     def setUp(self):
         self.initial_lr = 1e-3
-        self.test_opt_levels = ("O0", "O1", "O2", "O3")
+        self.test_opt_levels = ("O0", "O1", "O2", "O3", "O4", "O5")
 
     def seed(self):
         torch.manual_seed(2809)
@@ -237,6 +237,7 @@ class TestCheckpointing(unittest.TestCase):
             state_dict = model.state_dict()
             for key in state_dict:
                 self.assertFalse('Half' in state_dict[key].type())
+                self.assertFalse('BFloat16' in state_dict[key].type())
 
             # Check, if model is still trainable
             # Create dummy data

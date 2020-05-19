@@ -28,7 +28,7 @@ def has_old_rnns():
     except:
         return False
 
-def whitelist_rnn_cells(handle, verbose):
+def whitelist_rnn_cells(cast_fn, handle, verbose):
     # Different module + function names in old/new RNN cases
     if has_old_rnns():
         fn_names = ['RNNReLUCell', 'RNNTanhCell', 'LSTMCell', 'GRUCell']
@@ -40,7 +40,7 @@ def whitelist_rnn_cells(handle, verbose):
 
     # Insert casts on cell functions
     for fn in fn_names:
-        wrap.cached_cast(mod, fn, utils.maybe_half, handle,
+        wrap.cached_cast(mod, fn, cast_fn, handle,
                          try_caching=True, verbose=verbose)
 
     if has_old_rnns():
