@@ -350,7 +350,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 torch.distributed.all_reduce(l2_grad_norm_sq, group=self._l2_grad_norm_pg)
                 self._L2_grad_norm = l2_grad_norm_sq.sqrt().item()
 
-    def __launch_step_kernel(self, p, p_copy, m, v, g):
+    def __launch_step_kernel(self, p, p_copy, m, v, g, check_for_overflow=True):
         combined_scale = self._global_scale
         if self._param_group['max_grad_norm'] > 0 and math.isfinite(self.L2_grad_norm):
             combined_scale = self._param_group['max_grad_norm'] / (self.L2_grad_norm / self._global_scale + 1e-6)
@@ -367,9 +367,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self._param_state['step']+1,
                 self.eps_mode,
                 bias_correction,
-                self._param_group['weight_decay'])
+                self._param_group['weight_decay'],
+                check_for_overflow)
 
-    def _pipeline_block_step(self, block_id):
+    def _pipeline_block_step(self, block_id, check_for_overflow=True):
         # Call step kernel once per block
         ag_stream = self._ag_st[block_id%self._num_ag_pg]
         with torch.cuda.stream(ag_stream):
@@ -380,7 +381,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self._fp16_p_blocks[block_id],
                 self._fp32_m_blocks[block_id],
                 self._fp32_v_blocks[block_id],
-                self._fp16_g_blocks[block_id])
+                self._fp16_g_blocks[block_id],
+                check_for_overflow)
         # Call all-gather once per step.
         # FIXME: Determine which is faster, one all-gather per block or a single all-gather at end
         if block_id == 0:
@@ -389,7 +391,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             with torch.cuda.stream(self._completion_st):
                 torch.distributed.all_gather(self._new_params_mega_shards, self._fp16_p, group=self._ag_pg[0], no_copy=True)
 
-    def _pipeline_step(self):
+    def _pipeline_step(self, check_for_overflow=True):
         # Call step kernel once per step
         # Call all-gather once per step
         with torch.cuda.stream(self._completion_st):
@@ -401,7 +403,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self._fp16_p,
                 self._fp32_m,
                 self._fp32_v,
-                self._fp16_g)
+                self._fp16_g,
+                check_for_overflow)
             torch.distributed.all_gather(self._new_params_mega_shards, self._fp16_p, group=self._ag_pg[0], no_copy=True)
 
     def _flatten_grad_mt(self, scale):
@@ -536,7 +539,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             loss = closure()
 
         if self._last_step or not self._overlap_reductions or not self._full_pipeline:
-            self._pipeline_step()
+            self._pipeline_step(check_for_overflow = not skip_overflow_check)
 
         with torch.cuda.stream(self._completion_st):
             # Check for overflow
