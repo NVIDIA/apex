@@ -67,12 +67,12 @@ class TestCache(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def train_eval_train_test(self, module, t):
+    def train_eval_train_test(self, module, t, opt_level):
         model = module(t).cuda()
         optimizer = torch.optim.SGD(model.parameters(), lr=1.0)
 
         _amp_state.allow_incoming_model_not_fp32 = True
-        model, optimizer = amp.initialize(model, optimizer, opt_level="O1", verbosity=0)
+        model, optimizer = amp.initialize(model, optimizer, opt_level=opt_level, verbosity=0)
         _amp_state.allow_incoming_model_not_fp32 = False
         
         def training_step():
@@ -92,6 +92,8 @@ class TestCache(unittest.TestCase):
             # Currently there's no difference in the allclose calls, so no need for branching,
             # but I'm keeping this in case we want different tolerances for fp16 and fp32 checks. 
             if model.weight.grad.type() == "torch.cuda.HalfTensor":
+                self.assertTrue(torch.allclose(model.weight.grad.float(), reference_grad))
+            elif model.weight.grad.type() == "torch.cuda.BFloat16Tensor":
                 self.assertTrue(torch.allclose(model.weight.grad.float(), reference_grad))
             elif model.weight.grad.type() == "torch.cuda.FloatTensor":
                 self.assertTrue(torch.allclose(model.weight.grad.float(), reference_grad))
@@ -115,22 +117,41 @@ class TestCache(unittest.TestCase):
     # I could easily have these as a set of for loops in a single test,
     # instead of going for granularity.
     def test_whitelist_module_fp16_weight(self):
-        self.train_eval_train_test(WhitelistModule, torch.float16)
+        self.train_eval_train_test(WhitelistModule, torch.float16, "O1")
 
     def test_whitelist_module_fp32_weight(self):
-        self.train_eval_train_test(WhitelistModule, torch.float32)
+        self.train_eval_train_test(WhitelistModule, torch.float32, "O1")
 
     def test_blacklist_module_fp16_weight(self):
-        self.train_eval_train_test(BlacklistModule, torch.float16)
+        self.train_eval_train_test(BlacklistModule, torch.float16, "O1")
 
     def test_blacklist_module_fp32_weight(self):
-        self.train_eval_train_test(BlacklistModule, torch.float32)
+        self.train_eval_train_test(BlacklistModule, torch.float32, "O1")
 
     def test_promote_module_fp16_weight(self):
-        self.train_eval_train_test(PromoteModule, torch.float16)
+        self.train_eval_train_test(PromoteModule, torch.float16, "O1")
 
     def test_promote_module_fp32_weight(self):
-        self.train_eval_train_test(PromoteModule, torch.float32)
+        self.train_eval_train_test(PromoteModule, torch.float32, "O1")
+
+    # opt_level = O4
+    def test_whitelist_module_bfp16_weight(self):
+        self.train_eval_train_test(WhitelistModule, torch.bfloat16, "O4")
+
+    def test_whitelist_module_fp32_weight(self):
+        self.train_eval_train_test(WhitelistModule, torch.float32, "O4")
+
+    def test_blacklist_module_bfp16_weight(self):
+        self.train_eval_train_test(BlacklistModule, torch.bfloat16, "O4")
+
+    def test_blacklist_module_fp32_weight(self):
+        self.train_eval_train_test(BlacklistModule, torch.float32, "O4")
+
+    def test_promote_module_bfp16_weight(self):
+        self.train_eval_train_test(PromoteModule, torch.bfloat16, "O4")
+
+    def test_promote_module_fp32_weight(self):
+        self.train_eval_train_test(PromoteModule, torch.float32, "O4")
 
 
 if __name__ == '__main__':

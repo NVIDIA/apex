@@ -164,7 +164,7 @@ void multi_tensor_novograd_cuda(
   multi_tensor_norm_out_cuda(chunk_size, noop_flag, grad_list, grad_norms, beta2, (1.0f - beta2), norm_type);
 
   // Assume single type across p,g,m1,m2 now
-  DISPATCH_DOUBLE_FLOAT_AND_HALF(
+  DISPATCH_DOUBLE_FLOAT_AND_HALF_AND_BFLOAT16(
     tensor_lists[0][0].scalar_type(), 0, "novograd",
     multi_tensor_apply<3>(
       BLOCK_SIZE,

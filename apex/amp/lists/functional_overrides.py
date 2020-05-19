@@ -26,6 +26,17 @@ FP16_FUNCS = [
     'linear',
 ]
 
+BFLOAT16_FUNCS = [
+    'conv1d',
+    'conv2d',
+    'conv3d',
+    'conv_transpose1d',
+    'conv_transpose2d',
+    'conv_transpose3d',
+    'conv_tbc', # Undocumented / maybe new?
+    'linear',
+]
+
 FP32_FUNCS = [
 
     # Interpolation/Upsampling TODO:  Remove for 1.2

@@ -363,7 +363,7 @@ void multi_tensor_lamb_cuda(
   // We now in-place modify grad to store update before compute its norm
   // Generally this is not a issue since people modify grad in step() method all the time
   // We can also grab list of empty tensor to avoid this, but I'd like to save space/cpu code
-  DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
+  DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
       multi_tensor_apply<4>(
         BLOCK_SIZE,
         chunk_size,
@@ -386,7 +386,7 @@ void multi_tensor_lamb_cuda(
 
   std::vector<std::vector<at::Tensor>> grad_param_list(tensor_lists.begin(), tensor_lists.begin()+2);
 
-  DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
+  DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
       multi_tensor_apply<2>(
         BLOCK_SIZE,
         chunk_size,

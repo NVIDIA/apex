@@ -9,7 +9,6 @@ import itertools
 
 import torch
 
-
 _DECORATOR_HANDLE = None
 _USER_CAST_REGISTRY = set()
 _USER_PROMOTE_REGISTRY = set()
@@ -31,6 +30,9 @@ def half_function(fn):
     wrap_fn = functools.partial(wrap.make_cast_wrapper, try_caching=True)
     return _decorator_helper(fn, utils.maybe_half, wrap_fn)
 
+def bfloat16_function(fn):
+    wrap_fn = functools.partial(wrap.make_cast_wrapper, try_caching=True)
+    return _decorator_helper(fn, utils.maybe_bfloat16, wrap_fn)
 
 def float_function(fn):
     wrap_fn = functools.partial(wrap.make_cast_wrapper, try_caching=False)
@@ -49,6 +51,11 @@ def register_half_function(module, name):
             name, module))
     _USER_CAST_REGISTRY.add((module, name, utils.maybe_half))
 
+def register_bfloat16_function(module, name):
+    if not hasattr(module, name):
+        raise ValueError('No function named {} in module {}.'.format(
+            name, module))
+    _USER_CAST_REGISTRY.add((module, name, utils.maybe_bfloat16))
 
 def register_float_function(module, name):
     if not hasattr(module, name):
@@ -65,7 +72,7 @@ def register_promote_function(module, name):
 
 
 # Top-level function to insert _all_ the hooks.
-def init(enabled=True, loss_scale="dynamic", enable_caching=True, verbose=False, allow_banned=False):
+def init(enabled=True, loss_scale="dynamic", patch_type=torch.float16, enable_caching=True, verbose=False, allow_banned=False):
     global _DECORATOR_HANDLE
 
     if not enabled:
@@ -87,16 +94,30 @@ def init(enabled=True, loss_scale="dynamic", enable_caching=True, verbose=False,
         wrap.promote(mod, fn, handle, verbose)
     _USER_PROMOTE_REGISTRY.clear()
 
+    # conditionally choose between fp16 and bfloat16 functions list to cache
+    if patch_type == torch.float16:
+        low_prec_funcs = 'FP16_FUNCS'
+        maybe_low_prec = utils.maybe_half
+        low_prec_tensor = torch.cuda.HalfTensor
+    elif patch_type == torch.bfloat16:
+        low_prec_funcs = 'BFLOAT16_FUNCS'
+        maybe_low_prec = utils.maybe_bfloat16
+        low_prec_tensor = torch.cuda.BFloat16Tensor
+    else:
+        raise RuntimeError("Unsupported patch_torch_functions_type passed to initialize." +
+                            "Supported types are: torch.float16 and torch.bfloat16.")
+
     # 1) Force-{fp16, fp32} on white- / black-list functions
     override_modules = [functional_overrides,
                         torch_overrides,
                         tensor_overrides]
-    cast_table = [('FP16_FUNCS', utils.maybe_half),
+    cast_table = [(low_prec_funcs, maybe_low_prec),
                   ('FP32_FUNCS', utils.maybe_float)]
+
     for module, (list_name, cast_fn) in itertools.product(override_modules,
                                                           cast_table):
         for fn in getattr(module, list_name):
-            try_caching = (cast_fn == utils.maybe_half)
+            try_caching = (cast_fn == maybe_low_prec)
             wrap.cached_cast(module.MODULE, fn, cast_fn, handle,
                              try_caching, verbose)
 
@@ -128,12 +149,12 @@ def init(enabled=True, loss_scale="dynamic", enable_caching=True, verbose=False,
             for fn in getattr(tensor_overrides, list_name):
                 promote_fn(cls, fn, handle, verbose)
 
-    # 3) For any in-place version of a blacklist function, error if any input is fp16.
+    # 3) For any in-place version of a blacklist function, error if any input is fp16/bfloat16.
     #    NB: this is overly conservative.
     for fn in utils.as_inplace(torch_overrides.FP32_FUNCS):
         wrap.err_if_any_half(torch_overrides.MODULE, fn, handle)
 
-    # 3.5) For any in-place blacklist method, error if called on fp16 tensor
+    # 3.5) For any in-place blacklist method, error if called on fp16/bfloat16 tensor
     for fn in utils.as_inplace(tensor_overrides.FP32_FUNCS):
         wrap.err_if_arg0_half(tensor_overrides.MODULE, fn, handle, verbose)
         if compat.tensor_is_float_tensor():
@@ -141,7 +162,7 @@ def init(enabled=True, loss_scale="dynamic", enable_caching=True, verbose=False,
 
     # 4) For other in-place methods, match the type of self tensor
     for fn in utils.as_inplace(itertools.chain(
-            tensor_overrides.FP16_FUNCS,
+            getattr(tensor_overrides, low_prec_funcs),
             tensor_overrides.CASTS)):
         wrap.promote_match_arg0(tensor_overrides.MODULE, fn, handle, verbose)
         if compat.tensor_is_float_tensor():
@@ -156,10 +177,10 @@ def init(enabled=True, loss_scale="dynamic", enable_caching=True, verbose=False,
         torch.nn.modules.rnn._VF = rnn_compat.VariableFunctionsShim()
         # Wrap all the rnns
         for x in rnn_compat.RNN_NAMES:
-            wrap.new_rnn_cast(x.upper(), handle, verbose)
+            wrap.new_rnn_cast(x.upper(), maybe_low_prec, handle, verbose)
 
     # Wrap all the RNN cells
-    rnn_compat.whitelist_rnn_cells(handle, verbose)
+    rnn_compat.whitelist_rnn_cells(maybe_low_prec, handle, verbose)
 
     # 6) Place error+print message on banned functions.
     #    Or, if allow_banned, then cast to FP32.
