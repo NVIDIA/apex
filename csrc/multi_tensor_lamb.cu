@@ -52,8 +52,8 @@ struct LAMBStage1Functor
     const float epsilon,
     adamMode_t mode,
     const float decay,
-    float* global_grad_norm,
-    float max_global_grad_norm)
+    const float global_grad_norm,
+    const float max_global_grad_norm)
   {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
@@ -63,7 +63,7 @@ struct LAMBStage1Functor
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
-    float clipped_global_grad_norm = (*global_grad_norm) > max_global_grad_norm ? (*global_grad_norm) / max_global_grad_norm : 1.0f;
+    float clipped_global_grad_norm = global_grad_norm > max_global_grad_norm ? global_grad_norm / max_global_grad_norm : 1.0f;
 
     T* g = (T*)tl.addresses[0][tensor_loc];
     g += chunk_idx*chunk_size;
@@ -239,7 +239,9 @@ struct LAMBStage2Functor
     TensorListMetadata<2>& tl,
     const float* per_tensor_param_norm,
     const float* per_tensor_update_norm,
-    const float learning_rate)
+    const float learning_rate,
+    const float decay,
+    bool use_nvlamb)
   {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
@@ -250,9 +252,15 @@ struct LAMBStage2Functor
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
-    float param_norm = per_tensor_param_norm[tensor_num];
-    float update_norm = per_tensor_update_norm[tensor_num];
-    MATH_T ratio = (update_norm != 0.0f && param_norm != 0.0f) ? learning_rate * (param_norm / update_norm) : learning_rate;
+    MATH_T ratio = learning_rate;
+    // nvlamb: apply adaptive learning rate to all parameters
+    // otherwise, only apply to those with non-zero weight decay
+    if (use_nvlamb || (decay != 0.0))
+    {
+      float param_norm = per_tensor_param_norm[tensor_num];
+      float update_norm = per_tensor_update_norm[tensor_num];
+      ratio = (update_norm != 0.0f && param_norm != 0.0f) ? learning_rate * (param_norm / update_norm) : learning_rate;
+    }
 
     T* update = (T*)tl.addresses[0][tensor_loc];
     update += chunk_idx*chunk_size;
@@ -334,11 +342,15 @@ void multi_tensor_lamb_cuda(
   const float weight_decay,
   const int grad_averaging,
   const int mode,
-  const float max_grad_norm)
+  const float global_grad_norm,
+  const float max_grad_norm,
+  at::optional<bool> use_nvlamb_python)
 {
   using namespace at;
   // Master weight and 32bit momentum(potentially changing) is not handled by this
   // So we assume every tensor are all in the same type
+
+  bool use_nvlamb = use_nvlamb_python.has_value() ? use_nvlamb_python.value() : false;
 
   // Handle bias correction mode
   float bias_correction1 = 1.0f, bias_correction2 = 1.0f;
@@ -353,9 +365,6 @@ void multi_tensor_lamb_cuda(
 
   std::vector<std::vector<at::Tensor>> grad_list(tensor_lists.begin(), tensor_lists.begin()+1);
   std::vector<std::vector<at::Tensor>> param_list(tensor_lists.begin()+1, tensor_lists.begin()+2);
-
-  // Compute global grad norm
-  auto grad_norm_tuple = multi_tensor_l2norm_cuda(chunk_size, noop_flag, grad_list, false);
 
   // Compute per tensor param norm
   auto param_norm_tuple = multi_tensor_l2norm_cuda(chunk_size, noop_flag, param_list, true);
@@ -378,7 +387,7 @@ void multi_tensor_lamb_cuda(
         epsilon,
         (adamMode_t) mode,
         weight_decay,
-        std::get<0>(grad_norm_tuple).DATA_PTR<float>(),
+        global_grad_norm,
         max_grad_norm); )
 
   // Compute update norms
@@ -395,7 +404,9 @@ void multi_tensor_lamb_cuda(
         LAMBStage2Functor<scalar_t_0>(),
         std::get<1>(param_norm_tuple).DATA_PTR<float>(),
         std::get<1>(update_norm_tuple).DATA_PTR<float>(),
-        lr); )
+        lr,
+	weight_decay,
+	use_nvlamb); )
 
   AT_CUDA_CHECK(cudaGetLastError());
 
