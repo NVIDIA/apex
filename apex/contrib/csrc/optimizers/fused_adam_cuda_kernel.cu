@@ -974,7 +974,7 @@ void fused_reversible_adam_cuda(
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
                               reversible_adam_cuda_kernel<(adamMode_t)0, true, true, accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
-                                  p_copy.DATA_PTR<scalar_t_0>()
+                                  p_copy.DATA_PTR<scalar_t_0>(),
                                   m.DATA_PTR<accscalar_t>(),
                                   v.DATA_PTR<accscalar_t>(),
                                   g.DATA_PTR<scalar_t_0>(),
@@ -992,7 +992,7 @@ void fused_reversible_adam_cuda(
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
                               reversible_adam_cuda_kernel<(adamMode_t)1, true, true, accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
-                                  p_copy.DATA_PTR<scalar_t_0>()
+                                  p_copy.DATA_PTR<scalar_t_0>(),
                                   m.DATA_PTR<accscalar_t>(),
                                   v.DATA_PTR<accscalar_t>(),
                                   g.DATA_PTR<scalar_t_0>(),
@@ -1053,7 +1053,7 @@ void fused_reversible_adam_cuda(
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
                               reversible_adam_cuda_kernel<(adamMode_t)0, false, true, accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
-                                  p_copy.DATA_PTR<scalar_t_0>()
+                                  p_copy.DATA_PTR<scalar_t_0>(),
                                   m.DATA_PTR<accscalar_t>(),
                                   v.DATA_PTR<accscalar_t>(),
                                   g.DATA_PTR<scalar_t_0>(),
@@ -1071,7 +1071,7 @@ void fused_reversible_adam_cuda(
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
                               reversible_adam_cuda_kernel<(adamMode_t)1, false, true, accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
-                                  p_copy.DATA_PTR<scalar_t_0>()
+                                  p_copy.DATA_PTR<scalar_t_0>(),
                                   m.DATA_PTR<accscalar_t>(),
                                   v.DATA_PTR<accscalar_t>(),
                                   g.DATA_PTR<scalar_t_0>(),
@@ -1135,7 +1135,7 @@ void fused_reversible_adam_cuda(
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
                               reversible_adam_cuda_e5m2_kernel<(adamMode_t)0, true, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
-                                  p_copy.DATA_PTR<uint8_t>()
+                                  p_copy.DATA_PTR<uint8_t>(),
                                   m.DATA_PTR<accscalar_t>(),
                                   v.DATA_PTR<accscalar_t>(),
                                   g.DATA_PTR<scalar_t_0>(),
@@ -1153,7 +1153,7 @@ void fused_reversible_adam_cuda(
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
                               reversible_adam_cuda_e5m2_kernel<(adamMode_t)1, true, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
-                                  p_copy.DATA_PTR<uint8_t>()
+                                  p_copy.DATA_PTR<uint8_t>(),
                                   m.DATA_PTR<accscalar_t>(),
                                   v.DATA_PTR<accscalar_t>(),
                                   g.DATA_PTR<scalar_t_0>(),
@@ -1214,7 +1214,7 @@ void fused_reversible_adam_cuda(
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
                               reversible_adam_cuda_e5m2_kernel<(adamMode_t)0, false, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
-                                  p_copy.DATA_PTR<uint8_t>()
+                                  p_copy.DATA_PTR<uint8_t>(),
                                   m.DATA_PTR<accscalar_t>(),
                                   v.DATA_PTR<accscalar_t>(),
                                   g.DATA_PTR<scalar_t_0>(),
@@ -1232,7 +1232,7 @@ void fused_reversible_adam_cuda(
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
                               reversible_adam_cuda_e5m2_kernel<(adamMode_t)1, false, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
-                                  p_copy.DATA_PTR<uint8_t>()
+                                  p_copy.DATA_PTR<uint8_t>(),
                                   m.DATA_PTR<accscalar_t>(),
                                   v.DATA_PTR<accscalar_t>(),
                                   g.DATA_PTR<scalar_t_0>(),
