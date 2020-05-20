@@ -20,9 +20,9 @@ __device__ __forceinline__ bool is_aligned(T* p){
 }
 
 template<typename T>
-__device__ __forceinline__ void load_store(T* dst, T* src, int dst_offset, int src_offset){
+__device__ __forceinline__ void load_store(T* dst, const T* src, int dst_offset, int src_offset){
   typedef typename std::aligned_storage<ILP*sizeof(T), ILP*alignof(T)>::type LT;
-  ((LT*)dst)[dst_offset] = ((LT*)src)[src_offset];
+  ((LT*)dst)[dst_offset] = ((const LT*)src)[src_offset];
 }
 
 #include "type_shim.h"
@@ -670,7 +670,7 @@ __global__ void reversible_adam_cuda_kernel(
                 REDU_T po[ILP];
 #pragma unroll
                 for(int ii = 0; ii < ILP; ii++) {
-                    po[ii] = convert(pi[ii], po[ii]);
+                    convert(pi[ii], po[ii]);
                 }
 #pragma unroll
                 for(int ii = 0; ii < ILP; ii++) {
@@ -1297,7 +1297,6 @@ void fused_reversible_adam_cuda(
                           grad_scale,
                           step_size,
                           tsize,
-                          (adamMode_t) mode,
                           decay);
                       );
           } else {
@@ -1315,7 +1314,6 @@ void fused_reversible_adam_cuda(
                           grad_scale,
                           step_size,
                           tsize,
-                          (adamMode_t) mode,
                           decay);
                       );
           }
