@@ -838,7 +838,6 @@ struct MaybeCastFunctor
 
         n -= chunk_idx*chunk_size;
 
-        bool finite = true;
         in_t r_in[ILP];
         out_t r_out[ILP];
 
@@ -852,7 +851,7 @@ struct MaybeCastFunctor
 #pragma unroll
                 for(int ii = 0; ii < ILP; ii++)
                 {
-                    convert(r_in[ii]*scale, r_out[ii]);
+                    convert(r_in[ii], r_out[ii]);
                 }
                 // store
                 load_store(out, r_out, i_start, 0);
@@ -874,7 +873,7 @@ struct MaybeCastFunctor
 #pragma unroll
                 for(int ii = 0; ii < ILP; ii++)
                 {
-                    convert(r_in[ii]*scale, r_out[ii]);
+                    convert(r_in[ii], r_out[ii]);
                 }
 #pragma unroll
                 for(int ii = 0; ii < ILP; ii++)
