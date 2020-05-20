@@ -11,6 +11,8 @@ import torch.nn.functional as F
 from utils import common_init, HALF, FLOAT,\
     ALWAYS_HALF, ALWAYS_BFLOAT16, ALWAYS_FLOAT, MATCH_INPUT
 
+from apex.testing.common_utils import skipIfRocm
+
 def run_layer_test(test_case, fns, expected, input_shape, test_backward=True):
     for fn, typ in it.product(fns, expected.keys()):
         x = torch.randn(input_shape, dtype=typ).requires_grad_()
@@ -101,9 +103,11 @@ class TestBasicCastsBFloat16(_TestBasicCasts):
     def tearDown(self):
         self.handle._deactivate()
 
+    @skipIfRocm
     def test_linear_is_bfloat16(self):
         self._test_linear(ALWAYS_BFLOAT16)
 
+    @skipIfRocm
     def test_conv2d_is_bfloat16(self):
         self._test_conv2d(ALWAYS_BFLOAT16)
 
@@ -227,9 +231,11 @@ class TestTensorCastsBFloat16(_TestTensorCasts):
     def tearDown(self):
         self.handle._deactivate()
 
+    @skipIfRocm
     def test_matmul_method_is_bfloat16(self):
         self._test_matmul_method(ALWAYS_BFLOAT16)
 
+    @skipIfRocm
     def test_matmul_op_is_bfloat16(self):
         self._test_matmul_op(ALWAYS_BFLOAT16)
 

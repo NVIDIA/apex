@@ -41,7 +41,8 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
 
     def tearDown(self):
         pass
-
+    
+    @skipIfRocm
     def test_2models2losses1optimizer(self):
         model0 = MyModel(1)
         model1 = MyModel(2)
@@ -167,6 +168,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                       if opt_level == "O1":
                           _amp_state.handle._deactivate()
 
+    @skipIfRocm
     def test_3models2losses1optimizer(self):
 
         model0 = MyModel(1)
@@ -323,6 +325,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                         if opt_level == "O1":
                             _amp_state.handle._deactivate()
 
+    @skipIfRocm
     def test_2models2losses2optimizers(self):
         model0 = MyModel(1)
         model1 = MyModel(2)
@@ -513,6 +516,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                       if opt_level == "O1":
                           _amp_state.handle._deactivate()
 
+    @skipIfRocm
     def test_3models2losses2optimizers(self):
         model0 = MyModel(1)
         model1 = MyModel(2)
