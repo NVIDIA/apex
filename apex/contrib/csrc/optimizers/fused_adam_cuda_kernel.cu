@@ -1133,7 +1133,7 @@ void fused_reversible_adam_cuda(
                       if (mode == 0) {
                           DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
-                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)0, true, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                              reversible_adam_cuda_kernel<(adamMode_t)0, true, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
                                   p_copy.DATA_PTR<uint8_t>(),
                                   m.DATA_PTR<accscalar_t>(),
@@ -1151,7 +1151,7 @@ void fused_reversible_adam_cuda(
                           AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
                           DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
-                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)1, true, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                              reversible_adam_cuda_kernel<(adamMode_t)1, true, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
                                   p_copy.DATA_PTR<uint8_t>(),
                                   m.DATA_PTR<accscalar_t>(),
@@ -1171,7 +1171,7 @@ void fused_reversible_adam_cuda(
                       if (mode == 0) {
                           DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
-                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)0, true, false, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                              reversible_adam_cuda_kernel<(adamMode_t)0, true, false, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
                                   NULL,
                                   m.DATA_PTR<accscalar_t>(),
@@ -1189,7 +1189,7 @@ void fused_reversible_adam_cuda(
                           AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
                           DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
-                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)1, true, false, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                              reversible_adam_cuda_kernel<(adamMode_t)1, true, false, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
                                   NULL,
                                   m.DATA_PTR<accscalar_t>(),
@@ -1212,7 +1212,7 @@ void fused_reversible_adam_cuda(
                       if (mode == 0) {
                           DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
-                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)0, false, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                              reversible_adam_cuda_kernel<(adamMode_t)0, false, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
                                   p_copy.DATA_PTR<uint8_t>(),
                                   m.DATA_PTR<accscalar_t>(),
@@ -1230,7 +1230,7 @@ void fused_reversible_adam_cuda(
                           AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
                           DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
-                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)1, false, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                              reversible_adam_cuda_kernel<(adamMode_t)1, false, true, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
                                   p_copy.DATA_PTR<uint8_t>(),
                                   m.DATA_PTR<accscalar_t>(),
@@ -1250,7 +1250,7 @@ void fused_reversible_adam_cuda(
                       if (mode == 0) {
                           DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
-                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)0, false, false, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                              reversible_adam_cuda_kernel<(adamMode_t)0, false, false, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
                                   NULL,
                                   m.DATA_PTR<accscalar_t>(),
@@ -1268,7 +1268,7 @@ void fused_reversible_adam_cuda(
                           AT_ASSERTM(mode == 1, "mode must be either 0 or 1");
                           DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
                               using accscalar_t = at::acc_type<scalar_t_0, true>;
-                              reversible_adam_cuda_e5m2_kernel<(adamMode_t)1, false, false, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
+                              reversible_adam_cuda_kernel<(adamMode_t)1, false, false, accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
                                   p.DATA_PTR<accscalar_t>(),
                                   NULL,
                                   m.DATA_PTR<accscalar_t>(),
