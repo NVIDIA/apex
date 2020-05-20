@@ -6,6 +6,7 @@ import torch
 from torch import nn
 
 from utils import common_init, HALF
+from apex.testing.common_utils import skipIfRocm
 
 class TestRnnCells(unittest.TestCase):
     def setUp(self):
@@ -73,6 +74,7 @@ class TestRnns(unittest.TestCase):
             output[-1, :, :].float().sum().backward()
             self.assertEqual(x.grad.dtype, x.dtype)
 
+    @skipIfRocm
     def test_rnn_is_half(self):
         configs = [(1, False), (2, False), (2, True)]
         for layers, bidir in configs:
@@ -80,6 +82,7 @@ class TestRnns(unittest.TestCase):
                          nonlinearity='relu', bidirectional=bidir)
             self.run_rnn_test(rnn, layers, bidir)
 
+    @skipIfRocm
     def test_gru_is_half(self):
         configs = [(1, False), (2, False), (2, True)]
         for layers, bidir in configs:
@@ -87,6 +90,7 @@ class TestRnns(unittest.TestCase):
                          bidirectional=bidir)
             self.run_rnn_test(rnn, layers, bidir)
 
+    @skipIfRocm
     def test_lstm_is_half(self):
         configs = [(1, False), (2, False), (2, True)]
         for layers, bidir in configs:
@@ -94,6 +98,7 @@ class TestRnns(unittest.TestCase):
                          bidirectional=bidir)
             self.run_rnn_test(rnn, layers, bidir, state_tuple=True)
 
+    @skipIfRocm
     def test_rnn_packed_sequence(self):
         num_layers = 2
         rnn = nn.RNN(input_size=self.h, hidden_size=self.h, num_layers=num_layers)

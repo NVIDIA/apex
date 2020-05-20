@@ -18,3 +18,6 @@ from . import fp16_utils
 from . import optimizers
 from . import normalization
 from . import pyprof
+
+#common utilties to run tests on ROCm.
+from . import testing
