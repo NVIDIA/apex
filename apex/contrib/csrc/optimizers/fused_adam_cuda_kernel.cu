@@ -646,21 +646,19 @@ __global__ void reversible_adam_cuda_kernel(
        is_aligned(g) &&
        is_aligned(p_copy))
     {
-        for(int j_start = 0;  j_start < tsize;  j_start+=totThreads*ILP) {
+        for(int j_start = i*ILP;  j_start < tsize;  j_start+=totThreads*ILP) {
 #pragma unroll
             for(int ii = 0; ii < ILP; ii++) {
                 mi[ii] = T(0);
                 vi[ii] = T(0);
                 pi[ii] = T(0);
                 gi[ii] = GRAD_T(0);
-
-                int j = j_start + i + totThreads*ii;
-                if (j < tsize) {
-                    load_store(pi, p, ii, j);
-                    load_store(mi, m, ii, j);
-                    load_store(vi, v, ii, j);
-                    load_store(gi, g, ii, j);
-                }
+            }
+            if (j_start < tsize) {
+                load_store(pi, p, 0, j_start);
+                load_store(mi, m, 0, j_start);
+                load_store(vi, v, 0, j_start);
+                load_store(gi, g, 0, j_start);
             }
 
             __block_adam<mode,check_for_overflow,T,GRAD_T>(overflow, mi, vi, pi, gi, b1, b2, eps, grad_scale, step_size, decay);
@@ -672,27 +670,11 @@ __global__ void reversible_adam_cuda_kernel(
                 for(int ii = 0; ii < ILP; ii++) {
                     convert(pi[ii], po[ii]);
                 }
-#pragma unroll
-                for(int ii = 0; ii < ILP; ii++) {
-                    int j = j_start + i + totThreads*ii;
-                    if (j < tsize) {
-                        load_store(m, mi, j, ii);
-                        load_store(v, vi, j, ii);
-                        load_store(p, pi, j, ii);
-                        load_store(p_copy, po, j, ii);
-                    }
-                }
-            } else {
-#pragma unroll
-                for(int ii = 0; ii < ILP; ii++) {
-                    int j = j_start + i + totThreads*ii;
-                    if (j < tsize) {
-                        load_store(m, mi, j, ii);
-                        load_store(v, vi, j, ii);
-                        load_store(p, pi, j, ii);
-                    }
-                }
+                load_store(p_copy, po, j_start, 0);
             }
+            load_store(m, mi, j_start, 0);
+            load_store(v, vi, j_start, 0);
+            load_store(p, pi, j_start, 0);
         }
     } else {
         for(int j_start = 0;  j_start < tsize;  j_start+=totThreads*ILP) {
