@@ -639,8 +639,7 @@ __global__ void reversible_adam_cuda_kernel(
     GRAD_T gi[ILP];
 
     bool overflow = false;
-    if(n % ILP == 0 &&
-       chunk_size % ILP == 0 &&
+    if(tsize % ILP == 0 &&
        is_aligned(p) &&
        is_aligned(m) &&
        is_aligned(v) &&
@@ -663,12 +662,8 @@ __global__ void reversible_adam_cuda_kernel(
                     load_store(gi, g, ii, j);
                 }
             }
-#pragma unroll
-            for(int ii = 0; ii < ILP; ii++) {
-                g[ii] = static_cast<T>(tmp_g[ii]);
-            }
 
-            __block_adam<mode,has_p_copy,T,GRAD_T>(overflow, mi, vi, pi, gi, b1, b2, eps, grad_scale, step_size, decay);
+            __block_adam<mode,check_for_overflow,T,GRAD_T>(overflow, mi, vi, pi, gi, b1, b2, eps, grad_scale, step_size, decay);
 
             if (has_p_copy)
             {
@@ -717,7 +712,7 @@ __global__ void reversible_adam_cuda_kernel(
                 }
             }
 
-            __block_adam<mode,has_p_copy,T,GRAD_T>(overflow, mi, vi, pi, gi, b1, b2, eps, grad_scale, step_size, decay);
+            __block_adam<mode,check_for_overflow,T,GRAD_T>(overflow, mi, vi, pi, gi, b1, b2, eps, grad_scale, step_size, decay);
 
 #pragma unroll
             for(int ii = 0; ii < ILP; ii++) {
