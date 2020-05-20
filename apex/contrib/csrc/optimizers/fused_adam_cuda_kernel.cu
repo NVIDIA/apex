@@ -646,7 +646,7 @@ __global__ void reversible_adam_cuda_kernel(
        is_aligned(g) &&
        is_aligned(p_copy))
     {
-        for(int j_start = i*ILP;  j_start < tsize;  j_start+=totThreads*ILP) {
+        for(int j_start = i;  j_start*ILP < tsize;  j_start+=totThreads) {
 #pragma unroll
             for(int ii = 0; ii < ILP; ii++) {
                 mi[ii] = T(0);
@@ -654,12 +654,10 @@ __global__ void reversible_adam_cuda_kernel(
                 pi[ii] = T(0);
                 gi[ii] = GRAD_T(0);
             }
-            if (j_start < tsize) {
-                load_store(pi, p, 0, j_start);
-                load_store(mi, m, 0, j_start);
-                load_store(vi, v, 0, j_start);
-                load_store(gi, g, 0, j_start);
-            }
+            load_store(pi, p, 0, j_start);
+            load_store(mi, m, 0, j_start);
+            load_store(vi, v, 0, j_start);
+            load_store(gi, g, 0, j_start);
 
             __block_adam<mode,check_for_overflow,T,GRAD_T>(overflow, mi, vi, pi, gi, b1, b2, eps, grad_scale, step_size, decay);
 
