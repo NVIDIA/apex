@@ -13,6 +13,8 @@ from torch.nn import Parameter
 from utils import common_init, HALF, FLOAT,\
     ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
 
+from apex.testing.common_utils import skipIfRocm
+
 class MyModel(torch.nn.Module):
     def __init__(self, unique):
         super(MyModel, self).__init__()
