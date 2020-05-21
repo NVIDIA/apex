@@ -92,6 +92,14 @@ def lazy_init_with_master_weights(self):
 
 def post_backward_models_are_masters(scaler, params, stashed_grads, scale_override=None):
         grads_have_scale, stashed_have_scale, out_scale = scaler.loss_scale(), 1.0, 1.0
+
+        # not much to do if scale == 1.0 and static scaling
+        if scaler.loss_scale() == 1.0 and not scaler.dynamic:
+            # Clear the stash.
+            for i in range(len(stashed_grads)):
+                stashed_grads[i] = None
+            return
+        
         if scale_override is not None:
             grads_have_scale, stashed_have_scale, out_scale = scale_override
 

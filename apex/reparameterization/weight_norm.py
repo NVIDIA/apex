@@ -20,7 +20,7 @@ def _norm(p, dim):
 HALF_TYPES = (torch.cuda.HalfTensor, torch.HalfTensor)
 
 class WeightNorm(Reparameterization):
-    """
+    r"""
     Weight normalization is a reparameterization that decouples the magnitude
     of a weight tensor from its direction. This replaces the parameter specified
     by `name` (e.g. "weight") with two parameters: one specifying the magnitude

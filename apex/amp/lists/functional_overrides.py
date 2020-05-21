@@ -63,7 +63,8 @@ FP32_FUNCS = [
     'binary_cross_entropy_with_logits',
     'smooth_l1_loss',
     'soft_margin_loss',
-    'triplet_margin_loss'
+    'triplet_margin_loss',
+    'ctc_loss'
 ]
 
 BANNED_FUNCS = [
