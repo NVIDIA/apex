@@ -21,7 +21,7 @@ struct LAMBStage2Functor
    __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorListMetadata<2>& tl,
+    TensorListMetadata<2>* tl,
     const float* per_tensor_param_norm,
     const float* per_tensor_update_norm,
     const float learning_rate)
@@ -30,19 +30,19 @@ struct LAMBStage2Functor
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
-    int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    int tensor_loc = tl->block_to_tensor[blockIdx.x];
+    int tensor_num = tl->start_tensor_this_launch + tensor_loc;
+    int chunk_idx = tl->block_to_chunk[blockIdx.x];
+    int n = tl->sizes[tensor_loc];
 
     float param_norm = per_tensor_param_norm[tensor_num];
     float update_norm = per_tensor_update_norm[tensor_num];
     T ratio = (update_norm != 0.0f && param_norm != 0.0f) ? learning_rate * (param_norm / update_norm) : learning_rate;
 
-    T* p = (T*)tl.addresses[0][tensor_loc];
+    T* p = (T*)tl->addresses[0][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    UPD_T* update = (UPD_T*)tl.addresses[1][tensor_loc];
+    UPD_T* update = (UPD_T*)tl->addresses[1][tensor_loc];
     update += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
