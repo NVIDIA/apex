@@ -132,7 +132,7 @@ class FusedLAMB(torch.optim.Optimizer):
         global_grad_norm = multi_tensor_applier(self.multi_tensor_l2norm,
                                                 self._dummy_overflow_buf,
                                                 [[g_norm_32, g_norm_16]],
-                                                False)[0].item()
+                                                False)[0]
         max_grad_norm = self.defaults['max_grad_norm']
 
         for group in self.param_groups:

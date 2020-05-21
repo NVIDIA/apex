@@ -52,7 +52,7 @@ struct LAMBStage1Functor
     const float epsilon,
     adamMode_t mode,
     const float decay,
-    const float global_grad_norm,
+    at::Tensor global_grad_norm,
     const float max_global_grad_norm)
   {
     // I'd like this kernel to propagate infs/nans.
@@ -342,7 +342,7 @@ void multi_tensor_lamb_cuda(
   const float weight_decay,
   const int grad_averaging,
   const int mode,
-  const float global_grad_norm,
+  at::Tensor global_grad_norm,
   const float max_grad_norm,
   at::optional<bool> use_nvlamb_python)
 {
