@@ -23,20 +23,20 @@ using MATH_T = float;
 
 template <typename T> struct AdagradFunctor {
   __device__ __forceinline__ void
-  operator()(int chunk_size, volatile int *noop_gmem, TensorListMetadata<3> &tl,
+  operator()(int chunk_size, volatile int *noop_gmem, TensorListMetadata<3> *tl,
              const float epsilon, const float lr, adagradMode_t mode,
              const float weight_decay) {
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    int tensor_loc = tl->block_to_tensor[blockIdx.x];
+    int chunk_idx = tl->block_to_chunk[blockIdx.x];
+    int n = tl->sizes[tensor_loc];
 
-    T *g = (T *)tl.addresses[0][tensor_loc];
+    T *g = (T *)tl->addresses[0][tensor_loc];
     g += chunk_idx * chunk_size;
 
-    T *p = (T *)tl.addresses[1][tensor_loc];
+    T *p = (T *)tl->addresses[1][tensor_loc];
     p += chunk_idx * chunk_size;
 
-    T *h = (T *)tl.addresses[2][tensor_loc];
+    T *h = (T *)tl->addresses[2][tensor_loc];
     h += chunk_idx * chunk_size;
 
     n -= chunk_idx * chunk_size;

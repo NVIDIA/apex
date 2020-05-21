@@ -20,7 +20,7 @@ struct LAMBStage1Functor
    __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorListMetadata<5>& tl,
+    TensorListMetadata<5>* tl,
     const float* per_tensor_decay,
     const float beta1,
     const float beta2,
@@ -33,26 +33,26 @@ struct LAMBStage1Functor
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
-    int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    int tensor_loc = tl->block_to_tensor[blockIdx.x];
+    int tensor_num = tl->start_tensor_this_launch + tensor_loc;
+    int chunk_idx = tl->block_to_chunk[blockIdx.x];
+    int n = tl->sizes[tensor_loc];
 
     float decay = per_tensor_decay[tensor_num];
 
-    GRAD_T* g = (GRAD_T*)tl.addresses[0][tensor_loc];
+    GRAD_T* g = (GRAD_T*)tl->addresses[0][tensor_loc];
     g += chunk_idx*chunk_size;
 
-    T* p = (T*)tl.addresses[1][tensor_loc];
+    T* p = (T*)tl->addresses[1][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    T* m = (T*)tl.addresses[2][tensor_loc];
+    T* m = (T*)tl->addresses[2][tensor_loc];
     m += chunk_idx*chunk_size;
 
-    T* v = (T*)tl.addresses[3][tensor_loc];
+    T* v = (T*)tl->addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
 
-    UPD_T* update = (UPD_T*)tl.addresses[4][tensor_loc];
+    UPD_T* update = (UPD_T*)tl->addresses[4][tensor_loc];
     update += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;

@@ -76,7 +76,7 @@ struct AdamFunctor
     __device__ __forceinline__ void operator()(
         int chunk_size,
         volatile int* noop_gmem,
-        TensorListMetadata<DEPTH>& tl,
+        TensorListMetadata<DEPTH>* tl,
         const float b1,
         const float b2,
         const float eps,
@@ -85,21 +85,21 @@ struct AdamFunctor
         adamMode_t mode,
         const float decay)
     {
-        int tensor_loc = tl.block_to_tensor[blockIdx.x];
-        int chunk_idx = tl.block_to_chunk[blockIdx.x];
-        int n = tl.sizes[tensor_loc];
+        int tensor_loc = tl->block_to_tensor[blockIdx.x];
+        int chunk_idx = tl->block_to_chunk[blockIdx.x];
+        int n = tl->sizes[tensor_loc];
 
-        T* p = (T *)tl.addresses[0][tensor_loc];
+        T* p = (T *)tl->addresses[0][tensor_loc];
         p += chunk_idx*chunk_size;
-        T* m = (T *)tl.addresses[1][tensor_loc];
+        T* m = (T *)tl->addresses[1][tensor_loc];
         m += chunk_idx*chunk_size;
-        T* v = (T *)tl.addresses[2][tensor_loc];
+        T* v = (T *)tl->addresses[2][tensor_loc];
         v += chunk_idx*chunk_size;
-        GRAD_T* g = (GRAD_T *)tl.addresses[3][tensor_loc];
+        GRAD_T* g = (GRAD_T *)tl->addresses[3][tensor_loc];
         g += chunk_idx*chunk_size;
         GRAD_T* p_copy = NULL;
         if (DEPTH == 5) {
-            p_copy = (GRAD_T *)tl.addresses[4][tensor_loc];
+            p_copy = (GRAD_T *)tl->addresses[4][tensor_loc];
             p_copy += chunk_idx*chunk_size;
         }
 
@@ -736,17 +736,17 @@ struct MaybeCastFunctor
     __device__ __forceinline__ void operator()(
         int chunk_size,
         volatile int* overflow_flag,
-        TensorListMetadata<DEPTH>& tl)
+        TensorListMetadata<DEPTH>* tl)
     {
         if (overflow_flag && *overflow_flag != 0) return;
 
-        int tensor_loc = tl.block_to_tensor[blockIdx.x];
-        int chunk_idx = tl.block_to_chunk[blockIdx.x];
-        int n = tl.sizes[tensor_loc];
+        int tensor_loc = tl->block_to_tensor[blockIdx.x];
+        int chunk_idx = tl->block_to_chunk[blockIdx.x];
+        int n = tl->sizes[tensor_loc];
 
-        FROM_T* p_in = (FROM_T *)tl.addresses[0][tensor_loc];
+        FROM_T* p_in = (FROM_T *)tl->addresses[0][tensor_loc];
         p_in += chunk_idx*chunk_size;
-        TO_T* p_out = (TO_T *)tl.addresses[1][tensor_loc];
+        TO_T* p_out = (TO_T *)tl->addresses[1][tensor_loc];
         p_out += chunk_idx*chunk_size;
 
         n -= chunk_idx*chunk_size;
