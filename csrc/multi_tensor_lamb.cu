@@ -387,7 +387,7 @@ void multi_tensor_lamb_cuda(
         epsilon,
         (adamMode_t) mode,
         weight_decay,
-        global_grad_norm.data(),
+        global_grad_norm.data_ptr<float>(),
         max_grad_norm); )
 
   // Compute update norms
