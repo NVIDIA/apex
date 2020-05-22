@@ -271,7 +271,7 @@ void multi_tensor_sgd_cuda(
         scale);
   }
   // Case 5. bfp16, bfp16, bfp16, No
-  if(grad_type == at::ScalarType::BFloat16 &&
+  else if(grad_type == at::ScalarType::BFloat16 &&
      weight_type == at::ScalarType::BFloat16 &&
      num_tensors == 3)
   {
