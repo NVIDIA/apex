@@ -33,11 +33,17 @@ class SelfMultiheadAttn(nn.Module):
         self.impl = impl
         self.scaling = self.head_dim**-0.5
 
-        self.in_proj_weight  = Parameter(torch.Tensor(3*embed_dim, embed_dim))
+        #self.in_proj_weight  = Parameter(torch.Tensor(3*embed_dim, embed_dim))
+        self.q_weight  = Parameter(torch.Tensor(embed_dim, embed_dim))
+        self.k_weight  = Parameter(torch.Tensor(embed_dim, embed_dim))
+        self.v_weight  = Parameter(torch.Tensor(embed_dim, embed_dim))
         self.out_proj_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
         if self.bias:
             assert impl != 'fast', "ERROR! The Fast implementation does not support biases!"
-            self.in_proj_bias = Parameter(torch.Tensor(3*embed_dim))
+            #self.in_proj_bias = Parameter(torch.Tensor(3*embed_dim))
+            self.q_bias  = Parameter(torch.Tensor(embed_dim))
+            self.k_bias  = Parameter(torch.Tensor(embed_dim))
+            self.v_bias  = Parameter(torch.Tensor(embed_dim))
             self.out_proj_bias = Parameter(torch.Tensor(embed_dim))
         else:
             self.register_parameter('in_proj_bias', None)
@@ -67,10 +73,15 @@ class SelfMultiheadAttn(nn.Module):
             else :                   assert False, "Unsupported impl: {} !".format(impl)
 
     def reset_parameters(self):
-        nn.init.xavier_uniform_(self.in_proj_weight)
+        #nn.init.xavier_uniform_(self.in_proj_weight)
+        nn.init.xavier_uniform_(self.q_weight)
+        nn.init.xavier_uniform_(self.k_weight)
+        nn.init.xavier_uniform_(self.v_weight)
         nn.init.xavier_uniform_(self.out_proj_weight)
         if self.bias:
-            nn.init.constant_(self.in_proj_bias, 0.)
+            nn.init.constant_(self.q_bias, 0.)
+            nn.init.constant_(self.k_bias, 0.)
+            nn.init.constant_(self.v_bias, 0.)
             nn.init.constant_(self.out_proj_bias, 0.)
         if self.include_norm_add:
             if self.impl == 'fast':
@@ -88,6 +99,11 @@ class SelfMultiheadAttn(nn.Module):
         the key by passing a binary ByteTensor (`key_padding_mask`) with shape:
         batch x src_len, where padding elements are indicated by 1s.
         """
+        qkv_weight = torch.cat([self.q_weight.view(16,1,64,1024), self.k_weight.view(16,1,64,1024), self.v_weight.view(16,1,64,1024)], dim=1).reshape(3072,1024).contiguous()
+        if self.bias:
+            qkv_bias = torch.cat([self.q_bias.view(16,1,64), self.k_bias.view(16,1,64), self.v_bias.view(16,1,64)],dim=1).reshape(3072).contiguous()
+        else:
+            qkv_bias=None        
         if key_padding_mask is not None:
             assert (attn_mask is None), "ERROR attn_mask and key_padding_mask should not be both defined!"
             mask = key_padding_mask
@@ -114,11 +130,11 @@ class SelfMultiheadAttn(nn.Module):
         else:
             if self.impl == 'fast':
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query,
-                                         self.in_proj_weight, self.out_proj_weight, mask, self.dropout)
+                                         qkv_weight, self.out_proj_weight, mask, self.dropout)
             else:
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query,
-                                         self.in_proj_weight, self.out_proj_weight,
-                                         self.in_proj_bias, self.out_proj_bias,
+                                         qkv_weight, self.out_proj_weight,
+                                         qkv_bias, self.out_proj_bias,
                                          mask, self.dropout)
 
         return outputs,None
