@@ -39,7 +39,7 @@ class SelfMultiheadAttn(nn.Module):
         self.v_weight  = Parameter(torch.Tensor(embed_dim, embed_dim))
         self.out_proj_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
         if self.bias:
-            assert impl != 'fast', "ERROR! The Fast implementation does not support biases!"
+            #assert impl != 'fast', "ERROR! The Fast implementation does not support biases!"
             #self.in_proj_bias = Parameter(torch.Tensor(3*embed_dim))
             self.q_bias  = Parameter(torch.Tensor(embed_dim))
             self.k_bias  = Parameter(torch.Tensor(embed_dim))
@@ -130,7 +130,7 @@ class SelfMultiheadAttn(nn.Module):
         else:
             if self.impl == 'fast':
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query,
-                                         qkv_weight, self.out_proj_weight, mask, self.dropout)
+                                         qkv_weight, self.out_proj_weight, qkv_bias, self.out_proj_bias, mask, self.dropout)
             else:
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query,
                                          qkv_weight, self.out_proj_weight,
