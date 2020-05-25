@@ -100,8 +100,8 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                                   dropout_prob_t[0])
 
         else:
-            input_bias_grads = None                                                    \
-            output_bias_grads = None                                                    \
+            input_bias_grads = None                                                    
+            output_bias_grads = None
             input_grads,                                                    \
             input_weight_grads,                                             \
             output_weight_grads =                                           \
