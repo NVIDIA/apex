@@ -15,22 +15,28 @@ class TestFusedAdam(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def gen_param_optim(self, tensors, adam_option):
+    def gen_param_optim(self, tensors, adam_option, apex_only=False):
         ref_param = []
         tst_param = []
         for tensor in tensors:
-            ref_param.append(torch.nn.Parameter(tensor.clone()))
+            if apex_only:
+                ref_param.append(torch.nn.Parameter(tensor.clone().float()))
+            else:
+                ref_param.append(torch.nn.Parameter(tensor.clone()))
             tst_param.append(torch.nn.Parameter(tensor.clone()))
 
-        ref_optim = torch.optim.Adam(ref_param, **adam_option)
+        if apex_only:
+            ref_optim = apex.optimizers.FusedAdam(ref_param, **adam_option)
+        else:
+            ref_optim = torch.optim.Adam(ref_param, **adam_option)
         tst_optim = apex.optimizers.FusedAdam(tst_param, **adam_option)
 
         return (ref_param, tst_param, ref_optim, tst_optim)
 
-    def gen_grad(self, ref_param, tst_param):
+    def gen_grad(self, ref_param, tst_param, apex_only=False):
         for p_ref, p_tst in zip(ref_param, tst_param):
-            p_ref.grad = torch.rand_like(p_ref)
-            p_tst.grad = p_ref.grad
+            p_tst.grad = torch.rand_like(p_tst)
+            p_ref.grad = p_tst.grad.detach().float() if apex_only else p_tst.grad
 
     def gen_mixed_grad(self, ref_param, tst_param, scale=1.0):
         half_grads = []
@@ -39,9 +45,11 @@ class TestFusedAdam(unittest.TestCase):
             p_ref.grad = half_grads[-1].float() / scale
         return half_grads
 
-    def get_max_diff(self, ref_param, tst_param):
+    def get_max_diff(self, ref_param, tst_param, apex_only=False):
         max_abs_diff = max_rel_diff = 0
         for p_ref, p_tst in zip(ref_param, tst_param):
+            if apex_only:
+                p_tst = p_tst.float()
             max_abs_diff_p = (p_ref - p_tst).abs().max().item()
             max_rel_diff_p = ((p_ref - p_tst) / p_ref).abs().max().item()
 
@@ -50,29 +58,38 @@ class TestFusedAdam(unittest.TestCase):
 
         return max_abs_diff, max_rel_diff
 
-    def gen_single_type_test(self, param_type=torch.float):
+    def gen_single_type_test(self, param_type=torch.float, apex_only=False):
         nelem = 278011
         adam_option = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08,
             'weight_decay':0, 'amsgrad':False}
 
         tensor = torch.rand(nelem, dtype=param_type, device='cuda')
         ref_param, tst_param, ref_optim, tst_optim = \
-            self.gen_param_optim([tensor], adam_option)
+            self.gen_param_optim([tensor], adam_option, apex_only=apex_only)
 
         for i in range(self.iters):
-            self.gen_grad(ref_param, tst_param)
+            self.gen_grad(ref_param, tst_param, apex_only=apex_only)
             ref_optim.step()
             tst_optim.step()
-            max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
+            max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param, apex_only=apex_only)
 
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
-            self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+            if not apex_only:
+                self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
 
     def test_half(self):
         self.gen_single_type_test(param_type=torch.float16)
+
+    # Compares bfloat16 computation against float32 as gold standard.
+    # Uses apex optimizers(controlled by apex_only flag) for both types.
+    # Doesn't use upstream optimizer like other tests as they seem to be
+    # numerically unstable for half types
+    def test_bfloat16(self):
+        self.max_abs_diff = 1e-2
+        self.gen_single_type_test(param_type=torch.bfloat16, apex_only=True)
 
     @unittest.skip('Disable until 8/1/2019 adam/adamw upstream picked')
     def test_multi_params(self):
