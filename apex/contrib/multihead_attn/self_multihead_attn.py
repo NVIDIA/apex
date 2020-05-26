@@ -86,7 +86,7 @@ class SelfMultiheadAttn(nn.Module):
             else :                   assert False, "Unsupported impl: {} !".format(impl)
 
     def reset_parameters(self):
-        if separate_qkv_params:
+        if self.separate_qkv_params:
             nn.init.xavier_uniform_(self.q_weight)
             nn.init.xavier_uniform_(self.k_weight)
             nn.init.xavier_uniform_(self.v_weight)
@@ -94,7 +94,7 @@ class SelfMultiheadAttn(nn.Module):
             nn.init.xavier_uniform_(self.in_proj_weight)
         nn.init.xavier_uniform_(self.out_proj_weight)
         if self.bias:
-            if separate_qkv_params:
+            if self.separate_qkv_params:
                 nn.init.constant_(self.q_bias, 0.)
                 nn.init.constant_(self.k_bias, 0.)
                 nn.init.constant_(self.v_bias, 0.)
