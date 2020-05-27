@@ -162,6 +162,7 @@ std::vector<torch::Tensor> fwd_cuda(
                                static_cast<uint8_t*>(dropout_mask.data_ptr()),
                                dropout_elems,
                                (1.0f - dropout_prob));
+
   }
 
   // Matmul2
@@ -362,16 +363,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              attn_batches);
 
   // Apply Dropout Mask and Scale by Dropout Probability 
-//  apex_masked_scale_cuda<half,float,uint32_t>(
-//                             static_cast<half const*>(matmul2_grads.data_ptr()),
-//                             static_cast<half*>(matmul2_grads.data_ptr()),
-//                             static_cast<uint8_t const*>(dropout_mask.data_ptr()),
-//                             dropout_elems,
-//                             (1.0 / (1.0 - dropout_prob)));
-//
   // Softmax Grad
-  bool softmax_success = false;
-  dispatch_masked_scale_softmax_backward2<half, half, float,false>(
+  dispatch_masked_scale_softmax_backward<half, half, float,false>(
                              static_cast<half*>(matmul2_grads.data_ptr()), 
                              static_cast<half*>(matmul2_grads.data_ptr()), 
                              reinterpret_cast<half const*>(softmax_results.data_ptr()),
@@ -381,18 +374,6 @@ std::vector<torch::Tensor> bwd_cuda(
                              k_seq_len,
                              attn_batches*q_seq_len);
 
-  //at::Tensor softmax_grads   = torch::empty_like(matmul2_grads);
-
-//  softmax_success = dispatch_softmax_backward<half, half, float>(
-//                             static_cast<half*>(softmax_grads.data_ptr()), 
-//                             static_cast<half*>(matmul2_grads.data_ptr()), 
-//                             reinterpret_cast<half const*>(softmax_results.data_ptr()),
-//                             k_seq_len,
-//                             k_seq_len,
-//                             attn_batches*q_seq_len);
-
-//  auto softmax_grads = at::_softmax_backward_data(matmul2_grads, softmax_results,-1, softmax_results);
-//  assert(softmax_success);
   // Matmul1 Dgrad1
   gemm_switch_fp32accum(     state, 
                              a_layout_n, 
@@ -432,9 +413,6 @@ std::vector<torch::Tensor> bwd_cuda(
                              lead_dim, 
                              batch_stride, 
                              attn_batches);
-//  auto bmm1_probe = input_lin_output_grads.clone().detach().view({k_seq_len*sequences,output_lin_dim});
-//  std::cout<<"input_lin_results_grad_ptr, inputs_ptr, weights_ptr "<<std::hex<<input_lin_output_grads.data_ptr()<<" "<<inputs.data_ptr()<<" "<<input_weights.data_ptr()<<std::endl;
-//  std::cout<<"q grad pointer "<<std::hex<<q_lin_grads_ptr<<std::endl;
   // Input Linear Dgrad  
   THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_N, 
