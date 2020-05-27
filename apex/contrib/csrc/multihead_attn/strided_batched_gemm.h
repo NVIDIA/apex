@@ -33,8 +33,10 @@ void CublasStridedBatchedGemm(THCState *state, char transa, char transb, long m,
                     float beta, half *c, long ldc, long strideC, long batchCount, cublasGemmAlgo_t algo=CUBLAS_GEMM_DEFAULT_TENSOR_OP) {
     cublasOperation_t opa = convertTransToCublasOperation(transa);
     cublasOperation_t opb = convertTransToCublasOperation(transb);
- 
+
     cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
+    cudaStream_t   stream = at::cuda::getCurrentCUDAStream().stream();
+    cublasSetStream(handle, stream);
     float fAlpha = alpha;
     float fBeta = beta;
     //THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
@@ -131,7 +133,7 @@ void CutlassGemm_FP32Accum(cudaStream_t stream, long m, long n, long k,
 
     AT_ASSERTM(result == 0, "Failed to initialize CUTLASS Gemm::Params object.");
     // Launch the CUTLASS GEMM kernel.
-    THCudaCheck(Gemm::launch(params));
+    THCudaCheck(Gemm::launch(params, stream));
 
     // Update batched GEMM params based on completed work
     batchesLeft = batchesLeft - iterBatchCount;

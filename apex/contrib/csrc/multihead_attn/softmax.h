@@ -240,7 +240,7 @@ bool dispatch_softmax(output_t *dst, const input_t *src, int softmax_elements, i
         dim3 threads(warp_size, warps_per_block, 1);
  
         // launch
-        kernel<<<blocks, threads>>>(dst, src, batch_count, softmax_elements_stride, softmax_elements);
+        kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, batch_count, softmax_elements_stride, softmax_elements);
         return true;
     }
     return false;
@@ -464,7 +464,7 @@ bool dispatch_masked_softmax(output_t *dst, const input_t *src, const uint8_t *p
         dim3 threads(warp_size, warps_per_block, 1);
  
         // launch
-        kernel<<<blocks, threads>>>(dst, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride);
+        kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride);
         return true;
     }
     return false;
@@ -687,7 +687,7 @@ bool dispatch_time_masked_softmax(output_t *dst, const input_t *src, const uint8
         dim3 threads(warp_size, warps_per_block, 1);
  
         // launch
-        kernel<<<blocks, threads>>>(dst, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, mod_seq_len);
+        kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, mod_seq_len);
         return true;
     }
     return false;
@@ -873,7 +873,7 @@ bool dispatch_softmax_backward(output_t *grad_input, const input_t *grad, const 
         dim3 threads(warp_size, warps_per_block, 1);
  
         // launch
-        kernel<<<blocks, threads>>>(grad_input, grad, output, batch_count, softmax_elements_stride, softmax_elements);
+        kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(grad_input, grad, output, batch_count, softmax_elements_stride, softmax_elements);
         return true;
     }
     return false;
@@ -1062,7 +1062,7 @@ bool dispatch_masked_softmax_backward(output_t *grad_input, const input_t *grad,
         dim3 threads(warp_size, warps_per_block, 1);
  
         // launch
-        kernel<<<blocks, threads>>>(grad_input, grad, output, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride);
+        kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(grad_input, grad, output, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride);
         return true;
     }
     return false;
