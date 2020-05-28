@@ -292,7 +292,7 @@ __global__ void additive_masked_softmax_warp_forward(input_t *dst, const output_
                 //                                          (__half)-std::numeric_limits<float>::infinity(), 
                 //                                          curr_mask + itr_jmp);
                 elements_input[i][it] += *(curr_mask + itr_jmp);
-	    } else {printf("initialization needed");}
+	    } 
  
         }
     }
