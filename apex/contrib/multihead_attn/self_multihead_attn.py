@@ -120,12 +120,12 @@ class SelfMultiheadAttn(nn.Module):
         batch x src_len, where padding elements are indicated by 1s.
         """
         if self.separate_qkv_params:
-            input_weights = torch.cat([self.q_weight.view(16,1,64,1024), self.k_weight.view(16,1,64,1024), self.v_weight.view(16,1,64,1024)], dim=1).reshape(3072,1024).contiguous()
+            input_weights = torch.cat([self.q_weight.view(self.num_heads,1,self.head_dim,self.embed_dim), self.k_weight.view(self.num_heads,1,self.head_dim,self.embed_dim), self.v_weight.view(self.num_heads,1,self.head_dim,self.embed_dim)], dim=1).reshape(3*self.embed_dim,self.embed_dim).contiguous()
         else: 
             input_weights = self.in_proj_weight
         if self.bias:
             if self.separate_qkv_params:
-                input_bias = torch.cat([self.q_bias.view(16,1,64), self.k_bias.view(16,1,64), self.v_bias.view(16,1,64)],dim=1).reshape(3072).contiguous()
+                input_bias = torch.cat([self.q_bias.view(self.num_heads,1,self.head_dim), self.k_bias.view(self.num_heads,1,self.head_dim), self.v_bias.view(self.num_heads,1,self.head_dim)],dim=1).reshape(3*self.embed_dim).contiguous()
             else:
                 input_bias = self.in_proj_bias
         else:
