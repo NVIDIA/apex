@@ -91,7 +91,7 @@ class FusedAdagrad(torch.optim.Optimizer):
                 if len(state) == 0:
                     # Exponential moving average of gradient values
                     state['sum'] = torch.zeros_like(p.data)
-                if p.dtype == torch.float16:
+                if p.dtype in {torch.float16, torch.bfloat16}:
                     g_16.append(p.grad.data)
                     p_16.append(p.data)
                     h_16.append(state['sum'])
@@ -100,7 +100,7 @@ class FusedAdagrad(torch.optim.Optimizer):
                     p_32.append(p.data)
                     h_32.append(state['sum'])
                 else:
-                    raise RuntimeError('FusedAdagrad only support fp16 and fp32.')
+                    raise RuntimeError('FusedAdagrad only support fp16, bfloat16 and fp32.')
 
             if(len(g_16) > 0):
                 multi_tensor_applier(self.multi_tensor_adagrad,

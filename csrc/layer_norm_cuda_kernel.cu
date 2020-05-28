@@ -690,7 +690,7 @@ void cuda_layer_norm(
     double epsilon)
 {
     using namespace at;
-    DISPATCH_DOUBLE_FLOAT_AND_HALF(input->scalar_type(), 0, "layer_norm_cuda_kernel",
+    DISPATCH_DOUBLE_FLOAT_AND_HALF_AND_BFLOAT16(input->scalar_type(), 0, "layer_norm_cuda_kernel",
         using accscalar_t = at::acc_type<scalar_t_0, true>;
         HostApplyLayerNorm(
             output->DATA_PTR<scalar_t_0>(),
@@ -793,7 +793,7 @@ void cuda_layer_norm_gradient(
     at::Tensor* grad_beta)
 {
     using namespace at;
-    DISPATCH_FLOAT_AND_HALF(input->scalar_type(), 0, "cuComputeGradInput",
+    DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(input->scalar_type(), 0, "cuComputeGradInput",
         using accscalar_t = at::acc_type<scalar_t_0, true>;
         HostLayerNormGradient(
 	    dout->DATA_PTR<scalar_t_0>(),

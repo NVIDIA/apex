@@ -90,7 +90,7 @@ void multi_tensor_adagrad_cuda(
   using namespace at;
 
   // Assume single type across p,g,h now
-  DISPATCH_DOUBLE_FLOAT_AND_HALF(
+  DISPATCH_DOUBLE_FLOAT_AND_HALF_AND_BFLOAT16(
       tensor_lists[0][0].scalar_type(), 0, "adagrad",
       multi_tensor_apply<3>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
                             AdagradFunctor<scalar_t_0>(), epsilon, lr,
