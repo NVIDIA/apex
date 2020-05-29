@@ -45,8 +45,7 @@ class MaskSoftmaxDropout(torch.autograd.Function) :
                               mask_additive_t,        \
                               dropout_prob_t)
 
-        print("inside, dropout mask, soft results", dropout_mask,softmax_results)
-        return dropout_results.detach()#, dropout_mask, softmax_results
+        return dropout_results.detach()
 
     @staticmethod
     def backward(ctx, output_grads):
