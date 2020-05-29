@@ -176,9 +176,9 @@ std::vector<torch::Tensor> fwd_cuda(
   assert(softmax_success);
 
   if (is_training) {
-    apex_fused_dropout_cuda<half,float,uint32_t>(
-                             static_cast<half const*>(softmax_results.data_ptr()), 
-                             static_cast<half*>(dropout_results.data_ptr()), 
+    apex_fused_dropout_cuda<at::Half,float,uint32_t>(
+                             static_cast<at::Half const*>(softmax_results.data_ptr()), 
+                             static_cast<at::Half*>(dropout_results.data_ptr()), 
                              static_cast<uint8_t*>(dropout_mask.data_ptr()),
                              dropout_elems,
                              (1.0f - dropout_prob));
@@ -224,23 +224,22 @@ std::vector<torch::Tensor> fwd_cuda(
                              CUDA_R_16F, 
                              embed_dim,
                              CUDA_R_32F,
-                             //CUBLAS_GEMM_ALGO1_TENSOR_OP));
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
   
   // End-of-block Dropout-Add 
   if (is_training) {
-    apex_dropout_add_cuda<half,float,uint32_t>(
-                               static_cast<half const*>(output_lin_results.data_ptr()), 
-                               static_cast<half const*>(inputs.data_ptr()), 
-                               static_cast<half*>(outputs.data_ptr()), 
+    apex_dropout_add_cuda<at::Half,float,uint32_t>(
+                               static_cast<at::Half const*>(output_lin_results.data_ptr()), 
+                               static_cast<at::Half const*>(inputs.data_ptr()), 
+                               static_cast<at::Half*>(outputs.data_ptr()), 
                                static_cast<uint8_t*>(dropout_add_mask.data_ptr()),
                                total_tokens,
                                (1.0f - dropout_prob));
   } else {
-    apex_add_cuda<half,float,uint32_t>(
-                               static_cast<half const*>(output_lin_results.data_ptr()), 
-                               static_cast<half const*>(inputs.data_ptr()), 
-                               static_cast<half*>(outputs.data_ptr()), 
+    apex_add_cuda<at::Half,float,uint32_t>(
+                               static_cast<at::Half const*>(output_lin_results.data_ptr()), 
+                               static_cast<at::Half const*>(inputs.data_ptr()), 
+                               static_cast<at::Half*>(outputs.data_ptr()), 
                                total_tokens);
   }
 
@@ -309,6 +308,7 @@ std::vector<torch::Tensor> bwd_cuda(
   torch::Tensor input_weight_grads     = torch::empty_like(input_weights);
   torch::Tensor output_weight_grads    = torch::empty_like(output_weights);
   // Intermediate Tensor Allocations
+  torch::Tensor dropout_add_grads      = torch::empty_like(output_grads);
   torch::Tensor output_lin_grads       = torch::empty_like(matmul2_results);
   torch::Tensor matmul2_grads          = torch::empty_like(dropout_results);
   torch::Tensor input_lin_output_grads = torch::empty_like(input_lin_results);
@@ -330,9 +330,9 @@ std::vector<torch::Tensor> bwd_cuda(
   THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
 
   // Dropout Add Backward  
-  apex_masked_scale_cuda<half,float,uint32_t>(
-                             static_cast<half const*>(output_grads.data_ptr()),
-							 static_cast<half*>(output_grads.data_ptr()),
+  apex_masked_scale_cuda<at::Half,float,uint32_t>(
+                             static_cast<at::Half const*>(output_grads.data_ptr()),
+							 static_cast<at::Half*>(dropout_add_grads.data_ptr()),
 							 static_cast<uint8_t const*>(dropout_add_mask.data_ptr()),
        						 total_tokens,
                              (1.0 / (1.0 - dropout_prob)));
@@ -348,7 +348,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<const void*>(output_weights.data_ptr()),
                              CUDA_R_16F, 
                              embed_dim,
-                             static_cast<const void*>(output_grads.data_ptr()),
+                             static_cast<const void*>(dropout_add_grads.data_ptr()),
                              CUDA_R_16F, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
@@ -369,7 +369,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<const void*>(matmul2_results.data_ptr()),
                              CUDA_R_16F, 
                              embed_dim,
-                             static_cast<const void*>(output_grads.data_ptr()),
+                             static_cast<const void*>(dropout_add_grads.data_ptr()),
                              CUDA_R_16F, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
@@ -420,9 +420,9 @@ std::vector<torch::Tensor> bwd_cuda(
                              attn_batches);
 
   // Apply Dropout Mask and Scale by Dropout Probability 
-  apex_masked_scale_cuda<half,float,uint32_t>(
-                             static_cast<half const*>(matmul2_grads.data_ptr()),
-							 static_cast<half*>(matmul2_grads.data_ptr()),
+  apex_masked_scale_cuda<at::Half,float,uint32_t>(
+                             static_cast<at::Half const*>(matmul2_grads.data_ptr()),
+							 static_cast<at::Half*>(matmul2_grads.data_ptr()),
 							 static_cast<uint8_t const*>(dropout_mask.data_ptr()),
 							 dropout_elems,
                              (1.0 / (1.0 - dropout_prob)));

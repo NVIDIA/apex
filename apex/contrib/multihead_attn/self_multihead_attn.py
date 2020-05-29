@@ -6,7 +6,12 @@ import torch.nn.functional as F
 from .self_multihead_attn_func               import self_attn_func
 from .fast_self_multihead_attn_func          import fast_self_attn_func
 from .fast_self_multihead_attn_norm_add_func import fast_self_attn_norm_add_func
+from apex.normalization.fused_layer_norm     import FusedLayerNorm
 
+if hasattr(torch._C, '_jit_set_profiling_executor') :
+    torch._C._jit_set_profiling_executor(False)
+if hasattr(torch._C, '_jit_set_profiling_mode') :
+    torch._C._jit_set_profiling_mode(False)
 
 @torch.jit.script
 def jit_dropout_add(x, residual, prob, is_training):
@@ -75,7 +80,7 @@ class SelfMultiheadAttn(nn.Module):
                 self.register_parameter('lyr_norm_beta_weights', None)
                 self.lyr_nrm_gamma_weights = None
                 self.lyr_nrm_beta_weights  = None
-                self.lyr_nrm = torch.nn.LayerNorm(embed_dim)
+                self.lyr_nrm = FusedLayerNorm(embed_dim)
         self.reset_parameters()
 
         if self.include_norm_add:

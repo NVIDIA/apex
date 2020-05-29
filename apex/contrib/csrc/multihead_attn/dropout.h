@@ -42,10 +42,11 @@ __global__ void apex_fused_dropout_kernel(scalar_t const                *inputs,
        linearIndex += gridDim.x * blockDim.x*UNROLL) {
        float4 rand = curand_uniform4(&state);
        scalar_t src[UNROLL];
-       rand.x = rand.x < p;
-       rand.y = rand.y < p;
-       rand.z = rand.z < p;
-       rand.w = rand.w < p;
+       rand.x = rand.x <= p;
+       rand.y = rand.y <= p;
+       rand.z = rand.z <= p;
+       rand.w = rand.w <= p;
+
        for (int ii = 0; ii < UNROLL; ii++) {
            IndexType li = linearIndex + blockDim.x * gridDim.x * ii;
            if (li < totalElements) {
@@ -55,7 +56,7 @@ __global__ void apex_fused_dropout_kernel(scalar_t const                *inputs,
        for (int ii = 0; ii < UNROLL; ii++) {
            IndexType li = linearIndex + blockDim.x * gridDim.x * ii;
            if (li < totalElements) {
-	           outputs[li] = src[ii]*static_cast<scalar_t>((&rand.x)[ii]*pinv);
+	           outputs[li] = src[ii]*(&rand.x)[ii]*pinv;
                mask[li]    = (uint8_t)(&rand.x)[ii];
            }
        }
@@ -94,10 +95,10 @@ __global__ void apex_dropout_add_kernel(scalar_t const                *inputs,
        float4 rand = curand_uniform4(&state);
        scalar_t src[UNROLL];
        scalar_t add_src[UNROLL];
-       rand.x = rand.x < p;
-       rand.y = rand.y < p;
-       rand.z = rand.z < p;
-       rand.w = rand.w < p;
+       rand.x = rand.x <= p;
+       rand.y = rand.y <= p;
+       rand.z = rand.z <= p;
+       rand.w = rand.w <= p;
        for (int ii = 0; ii < UNROLL; ii++) {
            IndexType li = linearIndex + blockDim.x * gridDim.x * ii;
            if (li < totalElements) {
@@ -108,9 +109,8 @@ __global__ void apex_dropout_add_kernel(scalar_t const                *inputs,
        for (int ii = 0; ii < UNROLL; ii++) {
            IndexType li = linearIndex + blockDim.x * gridDim.x * ii;
            if (li < totalElements) {
-	           accscalar_t int1 = static_cast<accscalar_t>((&rand.x)[ii]) * static_cast<accscalar_t>(src[ii]);
-	           accscalar_t int2 = int1 * static_cast<accscalar_t>(pinv);
-	           outputs[li] = static_cast<scalar_t>(static_cast<accscalar_t>(add_src[ii]) + int2);
+	           accscalar_t int1 = src[ii] * (&rand.x)[ii] * pinv;
+	           outputs[li] = static_cast<scalar_t>(static_cast<accscalar_t>(add_src[ii]) + int1);
                mask[li]    = (uint8_t)(&rand.x)[ii];
            }
        }
@@ -182,7 +182,7 @@ __global__ void apex_masked_scale_kernel(scalar_t const *inputs,
        for (int ii = 0; ii < UNROLL; ii++) {
            IndexType li = linearIndex + blockDim.x * gridDim.x * ii;
            if (li < totalElements) {
-               outputs[li] = static_cast<scalar_t>(src[ii]*static_cast<scalar_t>(scale)) * msk[ii];
+               outputs[li] = static_cast<accscalar_t>(src[ii]) * scale * static_cast<accscalar_t>(msk[ii]);
            }
        }
   }

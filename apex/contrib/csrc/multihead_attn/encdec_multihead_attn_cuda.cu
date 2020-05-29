@@ -182,9 +182,9 @@ std::vector<torch::Tensor> fwd_cuda(
   assert(softmax_success);
 
   if (is_training) {
-    apex_fused_dropout_cuda<half,float,uint32_t>(
-                               static_cast<half const*>(softmax_results.data_ptr()), 
-                               static_cast<half*>(dropout_results.data_ptr()), 
+    apex_fused_dropout_cuda<at::Half,float,uint32_t>(
+                               static_cast<at::Half const*>(softmax_results.data_ptr()), 
+                               static_cast<at::Half*>(dropout_results.data_ptr()), 
                                static_cast<uint8_t*>(dropout_mask.data_ptr()),
                                dropout_elems,
                                (1.0f - dropout_prob));
@@ -397,9 +397,9 @@ std::vector<torch::Tensor> bwd_cuda(
                              attn_batches);
 
   // Apply Dropout Mask and Scale by Dropout Probability 
-  apex_masked_scale_cuda<half,float,uint32_t>(
-                             static_cast<half const*>(matmul2_grads.data_ptr()),
-                             static_cast<half*>(matmul2_grads.data_ptr()),
+  apex_masked_scale_cuda<at::Half,float,uint32_t>(
+                             static_cast<at::Half const*>(matmul2_grads.data_ptr()),
+                             static_cast<at::Half*>(matmul2_grads.data_ptr()),
                              static_cast<uint8_t const*>(dropout_mask.data_ptr()),
                              dropout_elems,
                              (1.0 / (1.0 - dropout_prob)));
