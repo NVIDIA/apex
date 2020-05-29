@@ -115,17 +115,18 @@ It's often convenient to use Apex in Docker containers.  Compatible options incl
 
 See the [Docker example folder](https://github.com/NVIDIA/apex/tree/master/examples/docker) for details.
 
+## On ROCm:
+* Python 3.6
+* Pytorch 1.5 or newer, The HIPExtensions require 1.5 or newer.
+* We recommend follow the instructions from [ROCm-Pytorch](https://github.com/ROCmSoftwarePlatform/pytorch) to install pytorch on ROCm.
+
 # Quick Start
 
 ### Rocm
 Apex on ROCm supports both python only build and extension build.
-
-Pre-requisites:
-* Pytorch installed on ROCm. 
-
 Note: Pytorch version recommended is >=1.5 for extension build.
 
-### To install using python only build use the following:
+### To install using python only build use the following command in apex folder:
 ```
 python3.6 setup.py install
 ```
