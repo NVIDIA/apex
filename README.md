@@ -117,6 +117,24 @@ See the [Docker example folder](https://github.com/NVIDIA/apex/tree/master/examp
 
 # Quick Start
 
+### Rocm
+Apex on ROCm supports both python only build and extension build.
+
+Pre-requisites:
+* Pytorch installed on ROCm. 
+
+Note: Pytorch version recommended is >=1.5 for extension build.
+
+### To install using python only build use the following:
+```
+python3.6 setup.py install
+```
+
+### To install using extensions enabled use the following command in apex folder:
+```
+python3.6 setup.py install --cpp_ext --cuda_ext
+```
+
 ### Linux
 
 For performance and full functionality, we recommend installing Apex with
