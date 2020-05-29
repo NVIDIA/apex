@@ -52,7 +52,7 @@ struct LAMBStage1Functor
     const float epsilon,
     adamMode_t mode,
     const float decay,
-    const float global_grad_norm,
+    const float* global_grad_norm,
     const float max_global_grad_norm)
   {
     // I'd like this kernel to propagate infs/nans.
@@ -63,7 +63,7 @@ struct LAMBStage1Functor
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
-    float clipped_global_grad_norm = global_grad_norm > max_global_grad_norm ? global_grad_norm / max_global_grad_norm : 1.0f;
+    float clipped_global_grad_norm = (*global_grad_norm) > max_global_grad_norm ? (*global_grad_norm) / max_global_grad_norm : 1.0f;
 
     T* g = (T*)tl.addresses[0][tensor_loc];
     g += chunk_idx*chunk_size;
@@ -342,7 +342,7 @@ void multi_tensor_lamb_cuda(
   const float weight_decay,
   const int grad_averaging,
   const int mode,
-  const float global_grad_norm,
+  at::Tensor global_grad_norm,
   const float max_grad_norm,
   at::optional<bool> use_nvlamb_python)
 {
@@ -387,7 +387,7 @@ void multi_tensor_lamb_cuda(
         epsilon,
         (adamMode_t) mode,
         weight_decay,
-        global_grad_norm,
+        global_grad_norm.DATA_PTR<float>(),
         max_grad_norm); )
 
   // Compute update norms

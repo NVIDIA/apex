@@ -118,12 +118,13 @@ void multi_tensor_lamb_stage1_cuda(
   const float beta1,
   const float beta2,
   const float epsilon,
-  const float global_grad_norm,
+  at::Tensor global_grad_norm,
   const float max_global_grad_norm)
 {
   using namespace at;
 
-  float clipped_global_grad_norm = global_grad_norm > max_global_grad_norm ? global_grad_norm / max_global_grad_norm : 1.0f;
+  const float* g_grad_norm = global_grad_norm.DATA_PTR<float>();
+  float clipped_global_grad_norm = *(g_grad_norm) > max_global_grad_norm ? *(g_grad_norm) / max_global_grad_norm : 1.0f;
   float next_step = float(step+1);
   float beta1_correction = 1.0f - std::pow(beta1, next_step);
   float beta2_correction = 1.0f - std::pow(beta2, next_step);
