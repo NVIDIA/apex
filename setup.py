@@ -244,6 +244,58 @@ if "--fast_multihead_attn" in sys.argv:
     else:
         subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
         ext_modules.append(
+            CUDAExtension(name='fast_additive_mask_softmax_dropout',
+                          sources=['apex/contrib/csrc/multihead_attn/additive_masked_softmax_dropout.cpp',
+                                   'apex/contrib/csrc/multihead_attn/additive_masked_softmax_dropout_cuda.cu'],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
+                                              'nvcc':['-O3',
+                                                      '-gencode', 'arch=compute_70,code=sm_70',
+                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda',
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+        ext_modules.append(
+            CUDAExtension(name='fast_mask_softmax_dropout',
+                          sources=['apex/contrib/csrc/multihead_attn/masked_softmax_dropout.cpp',
+                                   'apex/contrib/csrc/multihead_attn/masked_softmax_dropout_cuda.cu'],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
+                                              'nvcc':['-O3',
+                                                      '-gencode', 'arch=compute_70,code=sm_70',
+                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda',
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+        ext_modules.append(
+            CUDAExtension(name='fast_self_multihead_attn_bias_additive_mask',
+                          sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_additive_mask.cpp',
+                                   'apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_additive_mask_cuda.cu'],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
+                                              'nvcc':['-O3',
+                                                      '-gencode', 'arch=compute_70,code=sm_70',
+                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda',
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+        ext_modules.append(
+            CUDAExtension(name='fast_self_multihead_attn_bias',
+                          sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_bias.cpp',
+                                   'apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_cuda.cu'],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
+                                              'nvcc':['-O3',
+                                                      '-gencode', 'arch=compute_70,code=sm_70',
+                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda',
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+        ext_modules.append(
             CUDAExtension(name='fast_self_multihead_attn',
                           sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn.cpp',
                                    'apex/contrib/csrc/multihead_attn/self_multihead_attn_cuda.cu'],
