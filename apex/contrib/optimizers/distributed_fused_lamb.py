@@ -424,20 +424,20 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
     def __compute_contrib_param_norm(self):
         if self._contrib_model_param_for_norm_fp16 is not None and self._contrib_model_param_for_norm_fp32 is not None:
-            gnorm_fp16 = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_model_param_for_norm_fp16], True)
-            gnorm_fp32 = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_model_param_for_norm_fp32], True)
+            gnorm_fp16 = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_model_param_for_norm_fp16], True)[1]
+            gnorm_fp32 = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_model_param_for_norm_fp32], True)[1]
             gnorm = torch.empty(size=[self._contrib_model_param_for_norm_num], dtype=torch.bool, device='cuda')
             gnorm.masked_scatter(self._contrib_model_param_for_norm_is_fp16, gnorm_fp16)
             gnorm.masked_scatter(self._contrib_model_param_for_norm_is_fp32, gnorm_fp32)
         elif self._contrib_model_param_for_norm_fp16 is not None:
-            gnorm = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_model_param_for_norm_fp16], True)
+            gnorm = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_model_param_for_norm_fp16], True)[1]
         elif self._contrib_model_param_for_norm_fp32 is not None:
-            gnorm = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_model_param_for_norm_fp32], True)
+            gnorm = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_model_param_for_norm_fp32], True)[1]
         return gnorm
 
     def __compute_contrib_update_norm(self):
         l2_norm = torch.zeros(size=[self._model_params_num], dtype=torch.float32, device='cuda')
-        local_contrib_l2_norm = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_update_frag_for_norm], True) ** 2
+        local_contrib_l2_norm = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_update_frag_for_norm], True)[1] ** 2
         contrib_l2_norm = l2_norm[self._contrib_min_param_i:self._contrib_max_param_i+1]
         contrib_l2_norm.copy_(local_contrib_l2_norm)
         torch.distributed.allreduce(l2_norm, group=self._ag_pg[0])
