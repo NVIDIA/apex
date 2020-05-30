@@ -84,7 +84,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         max_grad_norm=max_grad_norm)
-        super(DistributedFusedAdam, self).__init__(params, defaults)
+        super(DistributedFusedLAMB, self).__init__(params, defaults)
         self.eps_mode = 0 if  eps_inside_sqrt else 1
 
         self._overflow_buf = torch.cuda.IntTensor([0])
