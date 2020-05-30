@@ -33,8 +33,10 @@ void CublasStridedBatchedGemm(THCState *state, char transa, char transb, long m,
                     float beta, half *c, long ldc, long strideC, long batchCount, cublasGemmAlgo_t algo=CUBLAS_GEMM_DEFAULT_TENSOR_OP) {
     cublasOperation_t opa = convertTransToCublasOperation(transa);
     cublasOperation_t opb = convertTransToCublasOperation(transb);
- 
+
     cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
+    cudaStream_t   stream = at::cuda::getCurrentCUDAStream().stream();
+    cublasSetStream(handle, stream);
     float fAlpha = alpha;
     float fBeta = beta;
     //THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
@@ -100,15 +102,54 @@ void CutlassGemm_FP32Accum(cudaStream_t stream, long m, long n, long k,
 
   AT_ASSERTM(result == 0, "Failed to initialize CUTLASS Gemm::Params object.");
   
-  // Launch the CUTLASS GEMM kernel.
-  THCudaCheck(Gemm::launch(params));
+  // batchCount in cutlass batched GEMM kernels maps to gridDim.z, which is limited to 16 bits. 
+  // To implement batched GEMM with larger batch size, we fragment it into
+  // smaller batched GEMMs of gridDim.z <= 64k
+  long batchesLeft    = batchCount;
+  long iterBatchCount = std::min(batchesLeft, static_cast<long>((1 << 16) - 1));
+  
+  do {
+  	 //printf("CUTLASS-> %c%c M: %ld N: %ld K: %ld %d%d%d LDA: %ld LDB: %ld LDC: %ld strideA: %ld strideB: %ld strideC: %ld Alpha: %f Beta: %f TotalBatches: %ld iterBatchCount %ld\n", ((int)A_LAYOUT == 0 ? 'T' : 'N'), ((int)B_LAYOUT ==0 ? 'T' : 'N'), m, n, k, SRC_A,SRC_B,DST_C, lda, ldb, ldc, strideA, strideB, strideC, alpha, beta, batchesLeft, iterBatchCount);
+    int result = params.initialize(
+      m,                  // M dimension for each batch
+      n,                  // N dimension for each batch
+      k,                  // K dimension for each batch
+      alpha,              // scalar alpha
+      a,
+      lda,
+      strideA,     // distance in memory between the first element of neighboring batch
+      b,
+      ldb,
+      strideB,     // distance in memory between the first element of neighboring batch
+      beta,               // scalar beta
+      c,                  // source matrix C
+      ldc,
+      strideC,     // distance in memory between the first element of neighboring batch
+      c,                  // destination matrix C (may be different memory than source C matrix)
+      ldc,
+      strideC,    // distance in memory between the first element of neighboring batch
+      iterBatchCount
+    );
 
+    AT_ASSERTM(result == 0, "Failed to initialize CUTLASS Gemm::Params object.");
+    // Launch the CUTLASS GEMM kernel.
+    THCudaCheck(Gemm::launch(params, stream));
+
+    // Update batched GEMM params based on completed work
+    batchesLeft = batchesLeft - iterBatchCount;
+    a += iterBatchCount * strideA;
+    b += iterBatchCount * strideB;
+    c += iterBatchCount * strideC;;
+
+    iterBatchCount = std::min(batchesLeft, static_cast<long>((1 << 16) - 1));
+    
+  } while(batchesLeft > 0);
 }
 
 void gemm_switch_fp32accum(THCState *state, char transa, char transb, long m, long n, long k,
                            float alpha, const half *a, long lda, long strideA, const half *b, long ldb, long strideB,
                            float beta, half *c, long ldc, long strideC, long batchCount) {
-  cudaStream_t stream = THCState_getCurrentStream(state);
+  auto stream = c10::cuda::getCurrentCUDAStream();
   //printf("GEMM   -> %c%c M: %i N: %i K: %i Alpha: %f Beta: %f\n", (transa == 't' ? 'T' : 'N'), (transb =='t' ? 'T' : 'N'), m, n, k, alpha, beta);
   if        ( (transa == 't') && (transb == 'n') ) { 
     if      (!(lda & 0x7) && !(ldb & 0x7) && !(ldc & 0x7)) { CublasStridedBatchedGemm(state, transa, transb, m, n, k, alpha, a, lda, strideA, b, ldb, strideB, beta, c, ldc, strideC, batchCount, CUBLAS_GEMM_ALGO0_TENSOR_OP); }

@@ -51,7 +51,9 @@ void multi_tensor_lamb_stage2_cuda(
     std::vector<std::vector<at::Tensor>> tensor_lists,
     at::Tensor per_tensor_param_norm,
     at::Tensor per_tensor_update_norm,
-    const float step_size);
+    const float lr,
+    const float weight_decay,
+    at::optional<bool> use_nvlamb_python);
 
 void multi_tensor_adam_cuda(
   int chunk_size,
@@ -65,6 +67,17 @@ void multi_tensor_adam_cuda(
   const int mode,
   const int bias_correction,
   const float weight_decay);
+
+
+void multi_tensor_adagrad_cuda(
+  int chunk_size,
+  at::Tensor noop_flag,
+  std::vector<std::vector<at::Tensor>> tensor_lists,
+  const float lr,
+  const float epsilon,
+  const int mode,
+  const float weight_decay);
+
 
 void multi_tensor_novograd_cuda(
   int chunk_size,
@@ -95,7 +108,9 @@ void multi_tensor_lamb_cuda(
   const float weight_decay,
   const int grad_averaging,
   const int mode,
-  const float max_grad_norm);
+  const float global_grad_norm,
+  const float max_grad_norm,
+  at::optional<bool> use_nvlamb_python);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("multi_tensor_scale", &multi_tensor_scale_cuda,
@@ -111,6 +126,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("multi_tensor_lamb_stage2_cuda", &multi_tensor_lamb_stage2_cuda,
         "Completes application of gradient to parameters for LAMB optimizer");
   m.def("multi_tensor_adam", &multi_tensor_adam_cuda,
+        "Compute and apply gradient update to parameters for Adam optimizer");
+  m.def("multi_tensor_adagrad", &multi_tensor_adagrad_cuda,
         "Compute and apply gradient update to parameters for Adam optimizer");
   m.def("multi_tensor_novograd", &multi_tensor_novograd_cuda,
         "Compute and apply gradient update to parameters for Adam optimizer");

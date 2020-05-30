@@ -34,6 +34,32 @@
   }
 
 
+#define DISPATCH_FLOAT_HALF_AND_BYTE(TYPE, LEVEL, NAME, ...) \
+  switch(TYPE) \
+  { \
+    case at::ScalarType::Float: \
+    { \
+      using scalar_t_##LEVEL = float; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::Half: \
+    { \
+      using scalar_t_##LEVEL = at::Half; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::Byte: \
+    { \
+      using scalar_t_##LEVEL = uint8_t; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    default: \
+      AT_ERROR(#NAME, " not implemented for '", toString(TYPE), "'");  \
+  }
+
+
 #define DISPATCH_DOUBLE_FLOAT_AND_HALF(TYPE, LEVEL, NAME, ...) \
   switch(TYPE) \
   { \
