@@ -493,7 +493,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
     def _do_overlapped_reduction(self, param_i, param_grads_size, param_offset, param):
         # handle overlapped reductions
-        if param.dtype = torch.float16:
+        if param.dtype == torch.float16:
             self._grads_fp16.append( (param.grad, self._individual_flat_grads[param_i]) )
         else:
             self._grads_fp32.append( (param.grad, self._individual_flat_grads[param_i]) )
