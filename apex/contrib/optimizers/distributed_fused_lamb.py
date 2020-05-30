@@ -72,7 +72,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
                  dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
                  e5m2_allgather=False):
-        global distributed_lamb_cuda
+        global fused_adam_cuda, distributed_lamb_cuda
+        fused_adam_cuda = importlib.import_module("fused_adam_cuda")
         distributed_lamb_cuda = importlib.import_module("distributed_lamb_cuda")
 
         self._amp_scale_adjustment = amp_scale_adjustment
