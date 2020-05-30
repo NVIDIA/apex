@@ -291,9 +291,9 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._contrib_model_param_for_norm_num = len(self._contrib_model_param_for_norm_is_fp16)
         if len(self._contrib_model_param_for_norm_fp16) == 0: self._contrib_model_param_for_norm_fp16 = None
         if len(self._contrib_model_param_for_norm_fp32) == 0: self._contrib_model_param_for_norm_fp32 = None
-        self._contrib_model_param_for_norm_is_fp16 = torch.tensor([is_fp16 for is_fp16 in self._contrib_model_param_for_norm_is_fp16], dtype=torch.bool, device='cuda')
         self._contrib_model_param_for_norm_is_fp32 = torch.tensor([not is_fp16 for is_fp16 in self._contrib_model_param_for_norm_is_fp16], dtype=torch.bool, device='cuda')
-        self._contrib_model_param_for_norm_is_fp16 = None
+        self._contrib_model_param_for_norm_is_fp16 = torch.tensor([is_fp16 for is_fp16 in self._contrib_model_param_for_norm_is_fp16], dtype=torch.bool, device='cuda')
+        self._model_param_is_contrib = torch.tensor(self._model_param_is_contrib, dtype=torch.bool, device='cuda')
 
         p, m, v, u, g, p_copy = list(zip(*self._contrib_tensor_list))
         self._contrib_compute_update_term_tensor_list = [g, p, m, v, u]
