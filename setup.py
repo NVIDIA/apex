@@ -220,6 +220,8 @@ if "--deprecated_fused_lamb" in sys.argv:
             CUDAExtension(name='fused_lamb_cuda',
                           sources=['apex/contrib/csrc/optimizers/fused_lamb_cuda.cpp',
                                    'apex/contrib/csrc/optimizers/fused_lamb_cuda_kernel.cu',
+                                   'apex/contrib/csrc/optimizers/multi_tensor_distopt_lamb.cpp',
+                                   'apex/contrib/csrc/optimizers/multi_tensor_distopt_lamb_kernel.cu',
                                    'csrc/multi_tensor_l2norm_kernel.cu'],
                           include_dirs=[os.path.join(this_dir, 'csrc')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
