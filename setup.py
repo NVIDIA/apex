@@ -35,6 +35,10 @@ ext_modules = []
 
 extras = {}
 if "--pyprof" in sys.argv:
+    try:
+        from pip._internal import main as pipmain
+    except ImportError:
+        from pip._internal.main import main as pipmain
     with open('requirements.txt') as f:
         required_packages = f.read().splitlines()
         extras['pyprof'] = required_packages
