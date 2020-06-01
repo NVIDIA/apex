@@ -204,6 +204,13 @@ def patchClass(cls):
 			add_wrapper(cls, f)
 
 def init():
+	string = "\n\nPyprof has been moved to its own dedicated repository and will " + \
+			"soon be removed from Apex.  Please visit\n" + \
+			"https://github.com/NVIDIA/PyProf\n" + \
+			"for the latest version.\n\n"
+	# print regardless of warning state
+	print(string)
+
 	print("Initializing NVTX monkey patches")
 	for cls in [torch, torch.Tensor, torch.nn.functional,]:
 		patchClass(cls)

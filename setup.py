@@ -22,7 +22,7 @@ if not torch.cuda.is_available():
     if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None:
         os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5"
 
-print("torch.__version__  = ", torch.__version__)
+print("\n\ntorch.__version__  = {}\n\n".format(torch.__version__))
 TORCH_MAJOR = int(torch.__version__.split('.')[0])
 TORCH_MINOR = int(torch.__version__.split('.')[1])
 
@@ -35,6 +35,11 @@ ext_modules = []
 
 extras = {}
 if "--pyprof" in sys.argv:
+    string = "\n\nPyprof has been moved to its own dedicated repository and will " + \
+             "soon be removed from Apex.  Please visit\n" + \
+             "https://github.com/NVIDIA/PyProf\n" + \
+             "for the latest version."
+    warnings.warn(string, DeprecationWarning)
     with open('requirements.txt') as f:
         required_packages = f.read().splitlines()
         extras['pyprof'] = required_packages
