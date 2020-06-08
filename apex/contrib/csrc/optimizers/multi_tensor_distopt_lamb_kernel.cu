@@ -24,58 +24,144 @@ __device__ __forceinline__ void load_store(T* dst, T* src, int dst_offset, int s
   ((LT*)dst)[dst_offset] = ((LT*)src)[src_offset];
 }
 
+template <typename FROM_T, typename TO_T> 
+__device__ void convert(const FROM_T vi, TO_T& vo)
+{
+    vo = static_cast<TO_T>(vi);
+}
+
+template <>
+__device__ void convert(const float vi, uint8_t& vo)
+{
+    union S
+    {
+	float as_float;
+	int as_int;
+    };
+    S s;
+    s.as_float = vi;
+    s.as_int = s.as_int & 0xFF800000;
+    union T
+    {
+        at::Half as_half;
+	uint8_t as_byte[2];
+    };
+    T t;
+    t.as_half = static_cast<at::Half>(vi + s.as_float / 8.0f);
+    vo = t.as_byte[1];
+}
+
+template <>
+__device__ void convert(const uint8_t vi, float& vo)
+{
+    union T
+    {
+        at::Half as_half;
+	uint8_t as_byte[2];
+    };
+    T t;
+    t.as_byte[0] = 0;
+    t.as_byte[1] = vi;
+    vo = static_cast<float>(t.as_half);
+}
+
+template <>
+__device__ void convert(const at::Half vi, uint8_t& vo)
+{
+    union S
+    {
+	float as_float;
+	int as_int;
+    };
+    S s;
+    s.as_float = static_cast<float>(vi);
+    s.as_int = s.as_int & 0xFF800000;
+    union T
+    {
+        at::Half as_half;
+	uint8_t as_byte[2];
+    };
+    T t;
+    t.as_half = static_cast<at::Half>(vi + s.as_float / 8.0f);
+    vo = t.as_byte[1];
+}
+
+template <>
+__device__ void convert(const uint8_t vi, at::Half& vo)
+{
+    union T
+    {
+        at::Half as_half;
+	uint8_t as_byte[2];
+    };
+    T t;
+    t.as_byte[0] = 0;
+    t.as_byte[1] = vi;
+    vo = t.as_half;
+}
+
 typedef enum{
   MOMENT_MODE_0   =0, // L2 regularization mode
   MOMENT_MODE_1   =1  // Decoupled weight decay mode
 } adamMode_t;
 
-std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
-  int chunk_size,
-  at::Tensor noop_flag,
-  std::vector<std::vector<at::Tensor>> tensor_lists,
-  at::optional<bool> per_tensor_python);
-
-using MATH_T = float;
-
-template<typename T>
-struct LAMBStage1Functor
+template<typename T, typename GRAD_T, typename MATH_T>
+struct DistOptLAMBStage1Functor
 {
    __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorListMetadata<4>* tl,
-    const float beta1,
-    const float beta2,
-    const float beta3,
-    const float beta1_correction,
-    const float beta2_correction,
-    const float epsilon,
+    TensorListMetadata<5>& tl,
+    const MATH_T* per_tensor_beta1,
+    const MATH_T* per_tensor_beta2,
+    const MATH_T* per_tensor_beta3,
+    const int* per_tensor_bias_correction,
+    const int step,
+    const MATH_T* per_tensor_epsilon,
     adamMode_t mode,
-    const float decay,
-    const float* global_grad_norm,
-    const float max_global_grad_norm)
+    const MATH_T* per_tensor_decay,
+    const MATH_T global_grad_norm,
+    const MATH_T max_global_grad_norm)
   {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl->block_to_tensor[blockIdx.x];
-    int chunk_idx = tl->block_to_chunk[blockIdx.x];
-    int n = tl->sizes[tensor_loc];
+    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    int tensor_num = tl.start_tensor_this_launch + tensor_loc;
+    int chunk_idx = tl.block_to_chunk[blockIdx.x];
+    int n = tl.sizes[tensor_loc];
 
-    float clipped_global_grad_norm = (*global_grad_norm) > max_global_grad_norm ? (*global_grad_norm) / max_global_grad_norm : 1.0f;
+    MATH_T clipped_global_grad_norm = global_grad_norm > max_global_grad_norm ? global_grad_norm / max_global_grad_norm : (MATH_T) 1.0;
 
-    T* g = (T*)tl->addresses[0][tensor_loc];
+    MATH_T beta1 = per_tensor_beta1[tensor_num];
+    MATH_T beta2 = per_tensor_beta1[tensor_num];
+    MATH_T beta3 = per_tensor_beta1[tensor_num];
+    MATH_T beta1_correction, beta2_correction;
+    if (per_tensor_bias_correction[tensor_num] == 1) {
+        beta1_correction = 1 - pow(beta1, (MATH_T) step);
+        beta2_correction = 1 - pow(beta2, (MATH_T) step);
+    } else {
+        beta1_correction = (MATH_T) 1.0;
+        beta2_correction = (MATH_T) 1.0;
+    }
+    MATH_T epsilon = per_tensor_epsilon[tensor_num];
+    MATH_T decay = per_tensor_decay[tensor_num];
+
+    GRAD_T* g = (GRAD_T*)tl.addresses[0][tensor_loc];
     g += chunk_idx*chunk_size;
 
-    T* p = (T*)tl->addresses[1][tensor_loc];
+    T* p = (T*)tl.addresses[1][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    T* m = (T*)tl->addresses[2][tensor_loc];
+    T* m = (T*)tl.addresses[2][tensor_loc];
     m += chunk_idx*chunk_size;
 
-    T* v = (T*)tl->addresses[3][tensor_loc];
+    T* v = (T*)tl.addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
+
+    MATH_T* u = (MATH_T*)tl.addresses[4][tensor_loc];
+    u += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
 
@@ -91,7 +177,7 @@ struct LAMBStage1Functor
        is_aligned(m) &&
        is_aligned(v))
     {
-      T l_g[ILP];
+      GRAD_T l_g[ILP];
       T l_p[ILP];
       T l_m[ILP];
       T l_v[ILP];
@@ -144,12 +230,11 @@ struct LAMBStage1Functor
 #pragma unroll
         for(int ii = 0; ii < ILP; ii++)
         {
-          l_p[ii] = r_p[ii];
           l_m[ii] = r_m[ii];
           l_v[ii] = r_v[ii];
         }
         // store
-        load_store(g, l_p, i_start, 0);
+        load_store(u, r_p, i_start, 0);
         load_store(m, l_m, i_start, 0);
         load_store(v, l_v, i_start, 0);
       }
@@ -218,7 +303,7 @@ struct LAMBStage1Functor
           int i = i_start + threadIdx.x + ii*blockDim.x;
           if(i < n && i < chunk_size)
           {
-            g[i] = r_p[ii];
+            u[i] = r_p[ii];
             m[i] = r_m[ii];
             v[i] = r_v[ii];
           }
@@ -230,43 +315,48 @@ struct LAMBStage1Functor
 
 // Step 2 reads in 'update' value and per-tensor param_norm and update_norm.
 // It computes new parameter value.
-template<typename T>
-struct LAMBStage2Functor
+template<typename T, typename GRAD_T, typename MATH_T>
+struct DistOptLAMBStage2Functor
 {
    __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorListMetadata<2>* tl,
-    const float* per_tensor_param_norm,
-    const float* per_tensor_update_norm,
-    const float learning_rate,
-    const float decay,
+    TensorListMetadata<3>& tl,
+    const MATH_T* per_tensor_param_norm,
+    const MATH_T* per_tensor_update_norm,
+    const MATH_T learning_rate,
+    const MATH_T* per_tensor_decay,
     bool use_nvlamb)
   {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl->block_to_tensor[blockIdx.x];
-    int tensor_num = tl->start_tensor_this_launch + tensor_loc;
-    int chunk_idx = tl->block_to_chunk[blockIdx.x];
-    int n = tl->sizes[tensor_loc];
+    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    int tensor_num = tl.start_tensor_this_launch + tensor_loc;
+    int chunk_idx = tl.block_to_chunk[blockIdx.x];
+    int n = tl.sizes[tensor_loc];
+
+    MATH_T decay = per_tensor_decay[tensor_num];
 
     MATH_T ratio = learning_rate;
     // nvlamb: apply adaptive learning rate to all parameters
     // otherwise, only apply to those with non-zero weight decay
-    if (use_nvlamb || (decay != 0.0))
+    if (use_nvlamb || (decay != (MATH_T) 0.0))
     {
-      float param_norm = per_tensor_param_norm[tensor_num];
-      float update_norm = per_tensor_update_norm[tensor_num];
-      ratio = (update_norm != 0.0f && param_norm != 0.0f) ? learning_rate * (param_norm / update_norm) : learning_rate;
+      MATH_T param_norm = per_tensor_param_norm[tensor_num];
+      MATH_T update_norm = per_tensor_update_norm[tensor_num];
+      ratio = (update_norm != (MATH_T) 0.0 && param_norm != (MATH_T) 0.0) ? learning_rate * (param_norm / update_norm) : learning_rate;
     }
 
-    T* update = (T*)tl->addresses[0][tensor_loc];
+    MATH_T* update = (MATH_T*)tl.addresses[0][tensor_loc];
     update += chunk_idx*chunk_size;
 
-    T* p = (T*)tl->addresses[1][tensor_loc];
+    T* p = (T*)tl.addresses[1][tensor_loc];
     p += chunk_idx*chunk_size;
+
+    GRAD_T* p_copy = (GRAD_T*)tl.addresses[2][tensor_loc];
+    p_copy += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
 
@@ -277,7 +367,8 @@ struct LAMBStage2Functor
        is_aligned(update))
     {
       T r_p[ILP];
-      T r_update[ILP];
+      MATH_T r_update[ILP];
+      GRAD_T r_p_copy[ILP];
       for(int i_start = threadIdx.x; i_start*ILP < n && i_start*ILP < chunk_size; i_start += blockDim.x)
       {
         // load
@@ -286,9 +377,11 @@ struct LAMBStage2Functor
 #pragma unroll
         for(int ii = 0; ii < ILP; ii++)
         {
-          r_p[ii] = static_cast<MATH_T>(r_p[ii]) - (ratio * static_cast<MATH_T>(r_update[ii]));
+          r_p[ii] = static_cast<MATH_T>(r_p[ii]) - (ratio * r_update[ii]);
+          convert(r_p[ii], r_p_copy[ii]);
         }
         load_store(p, r_p, i_start, 0);
+        load_store(p_copy, r_p_copy, i_start, 0);
       }
     }
     else
@@ -321,6 +414,7 @@ struct LAMBStage2Functor
           if(i < n && i < chunk_size)
           {
             p[i] = r_p[ii];
+            convert(r_p[ii], p_copy[i]);
           }
         }
       }
@@ -328,86 +422,72 @@ struct LAMBStage2Functor
   }
 };
 
-
-void multi_tensor_lamb_cuda(
+void multi_tensor_lamb_compute_update_term_cuda(
   int chunk_size,
   at::Tensor noop_flag,
   std::vector<std::vector<at::Tensor>> tensor_lists,
-  const float lr,
-  const float beta1,
-  const float beta2,
-  const float epsilon,
+  at::Tensor per_tensor_beta1,
+  at::Tensor per_tensor_beta2,
+  at::Tensor per_tensor_beta3,
+  at::Tensor per_tensor_bias_correction,
   const int step,
-  const int bias_correction,
-  const float weight_decay,
-  const int grad_averaging,
+  at::Tensor per_tensor_epsilon,
   const int mode,
-  at::Tensor global_grad_norm,
-  const float max_grad_norm,
-  at::optional<bool> use_nvlamb_python)
+  at::Tensor per_tensor_decay,
+  const float global_grad_norm,
+  const float max_global_grad_norm)
 {
   using namespace at;
-  // Master weight and 32bit momentum(potentially changing) is not handled by this
-  // So we assume every tensor are all in the same type
 
-  bool use_nvlamb = use_nvlamb_python.has_value() ? use_nvlamb_python.value() : false;
-
-  // Handle bias correction mode
-  float bias_correction1 = 1.0f, bias_correction2 = 1.0f;
-  if (bias_correction == 1) {
-    bias_correction1 = 1 - std::pow(beta1, step);
-    bias_correction2 = 1 - std::pow(beta2, step);
-  }
-
-  // Handle grad averaging mode
-  float beta3 = 1.0f;
-  if (grad_averaging == 1) beta3 = 1 - beta1;
-
-  std::vector<std::vector<at::Tensor>> grad_list(tensor_lists.begin(), tensor_lists.begin()+1);
-  std::vector<std::vector<at::Tensor>> param_list(tensor_lists.begin()+1, tensor_lists.begin()+2);
-
-  // Compute per tensor param norm
-  auto param_norm_tuple = multi_tensor_l2norm_cuda(chunk_size, noop_flag, param_list, true);
-
-  // We now in-place modify grad to store update before compute its norm
-  // Generally this is not a issue since people modify grad in step() method all the time
-  // We can also grab list of empty tensor to avoid this, but I'd like to save space/cpu code
-  DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
-      multi_tensor_apply<4>(
-        BLOCK_SIZE,
-        chunk_size,
-        noop_flag,
-        tensor_lists,
-        LAMBStage1Functor<scalar_t_0>(),
-        beta1,
-        beta2,
-        beta3, // 1-beta1 or 1 depends on averaging mode
-        bias_correction1,
-        bias_correction2,
-        epsilon,
-        (adamMode_t) mode,
-        weight_decay,
-        global_grad_norm.DATA_PTR<float>(),
-        max_grad_norm); )
-
-  // Compute update norms
-  auto update_norm_tuple = multi_tensor_l2norm_cuda(chunk_size, noop_flag, grad_list, true);
-
-  std::vector<std::vector<at::Tensor>> grad_param_list(tensor_lists.begin(), tensor_lists.begin()+2);
-
-  DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
-      multi_tensor_apply<2>(
-        BLOCK_SIZE,
-        chunk_size,
-       	noop_flag,
-        grad_param_list,
-        LAMBStage2Functor<scalar_t_0>(),
-        std::get<1>(param_norm_tuple).DATA_PTR<float>(),
-        std::get<1>(update_norm_tuple).DATA_PTR<float>(),
-        lr,
-	weight_decay,
-	use_nvlamb); )
+  DISPATCH_FLOAT_AND_HALF(tensor_lists[1][0].scalar_type(), 0, "lamb_stage_1",
+    DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 1, "lamb_stage_1",
+      DISPATCH_FLOAT_AND_HALF(tensor_lists[4][0].scalar_type(), 2, "lamb_stage_1",
+        multi_tensor_apply<5>(
+          BLOCK_SIZE,
+          chunk_size,
+          noop_flag,
+          tensor_lists,
+          DistOptLAMBStage1Functor<scalar_t_0, scalar_t_1, scalar_t_2>(),
+          per_tensor_beta1.DATA_PTR<scalar_t_2>(),
+          per_tensor_beta2.DATA_PTR<scalar_t_2>(),
+          per_tensor_beta3.DATA_PTR<scalar_t_2>(),
+          per_tensor_bias_correction.DATA_PTR<int>(),
+          step,
+          per_tensor_epsilon.DATA_PTR<scalar_t_2>(),
+          (adamMode_t) mode,
+          per_tensor_decay.DATA_PTR<scalar_t_2>(),
+          (scalar_t_2) global_grad_norm,
+          (scalar_t_2) max_global_grad_norm); )))
 
   AT_CUDA_CHECK(cudaGetLastError());
+}
 
+void multi_tensor_lamb_update_weights_cuda(
+  int chunk_size,
+  at::Tensor noop_flag,
+  std::vector<std::vector<at::Tensor>> tensor_lists,
+  at::Tensor per_tensor_param_norm,
+  at::Tensor per_tensor_update_norm,
+  const float learning_rate,
+  at::Tensor per_tensor_decay,
+  bool use_nvlamb)
+{
+  using namespace at;
+
+  DISPATCH_FLOAT_AND_HALF(tensor_lists[1][0].scalar_type(), 0, "lamb_stage_2",
+    DISPATCH_FLOAT_HALF_AND_BYTE(tensor_lists[2][0].scalar_type(), 1, "lamb_stage_2",
+      DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 2, "lamb_stage_2",
+        multi_tensor_apply<3>(
+          BLOCK_SIZE,
+          chunk_size,
+          noop_flag,
+          tensor_lists,
+          DistOptLAMBStage2Functor<scalar_t_0, scalar_t_1, scalar_t_2>(),
+          per_tensor_param_norm.DATA_PTR<scalar_t_2>(),
+          per_tensor_update_norm.DATA_PTR<scalar_t_2>(),
+          (scalar_t_2) learning_rate,
+          per_tensor_decay.DATA_PTR<scalar_t_2>(),
+          use_nvlamb); )))
+
+  AT_CUDA_CHECK(cudaGetLastError());
 }

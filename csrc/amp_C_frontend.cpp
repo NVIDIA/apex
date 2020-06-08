@@ -42,7 +42,7 @@ void multi_tensor_lamb_stage1_cuda(
     const float beta1,
     const float beta2,
     const float epsilon,
-    const float global_grad_norm,
+    at::Tensor global_grad_norm,
     const float max_global_grad_norm);
 
 void multi_tensor_lamb_stage2_cuda(
@@ -51,7 +51,9 @@ void multi_tensor_lamb_stage2_cuda(
     std::vector<std::vector<at::Tensor>> tensor_lists,
     at::Tensor per_tensor_param_norm,
     at::Tensor per_tensor_update_norm,
-    const float step_size);
+    const float lr,
+    const float weight_decay,
+    at::optional<bool> use_nvlamb_python);
 
 void multi_tensor_adam_cuda(
   int chunk_size,
@@ -106,7 +108,9 @@ void multi_tensor_lamb_cuda(
   const float weight_decay,
   const int grad_averaging,
   const int mode,
-  const float max_grad_norm);
+  at::Tensor global_grad_norm,
+  const float max_grad_norm,
+  at::optional<bool> use_nvlamb_python);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("multi_tensor_scale", &multi_tensor_scale_cuda,

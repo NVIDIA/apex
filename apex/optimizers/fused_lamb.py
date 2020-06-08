@@ -51,6 +51,8 @@ class FusedLAMB(torch.optim.Optimizer):
             method is called. (default: True)
         max_grad_norm (float, optional): value used to clip global grad norm
             (default: 1.0)
+        use_nvlamb (boolean, optional): Apply adaptive learning rate to 0.0
+            weight decay parameter (default: False)
 
     .. _Large Batch Optimization for Deep Learning - Training BERT in 76 minutes:
         https://arxiv.org/abs/1904.00962
@@ -62,7 +64,7 @@ class FusedLAMB(torch.optim.Optimizer):
                  betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01,
                  amsgrad=False, adam_w_mode=True,
                  grad_averaging=True, set_grad_none=True,
-                 max_grad_norm=1.0):
+                 max_grad_norm=1.0, use_nvlamb=False):
         if amsgrad:
             raise RuntimeError('FusedLAMB does not support the AMSGrad variant.')
         defaults = dict(lr=lr, bias_correction=bias_correction,
@@ -72,6 +74,7 @@ class FusedLAMB(torch.optim.Optimizer):
         super(FusedLAMB, self).__init__(params, defaults)
         if multi_tensor_applier.available:
             import amp_C
+            self.multi_tensor_l2norm=amp_C.multi_tensor_l2norm
             # Skip buffer
             self._dummy_overflow_buf = torch.cuda.IntTensor([0])
             self.multi_tensor_lamb = amp_C.multi_tensor_lamb
@@ -80,6 +83,7 @@ class FusedLAMB(torch.optim.Optimizer):
 
         self.adam_w_mode = 1 if adam_w_mode else 0
         self.set_grad_none = set_grad_none
+        self.use_nvlamb = use_nvlamb
 
     def zero_grad(self):
         if self.set_grad_none:
@@ -99,6 +103,37 @@ class FusedLAMB(torch.optim.Optimizer):
         loss = None
         if closure is not None:
             loss = closure()
+
+        # create separate grad lists for fp32 and fp16 params
+        g_all_32, g_all_16 = [], []
+        for group in self.param_groups:
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                if p.dtype == torch.float32:
+                    g_all_32.append(p.grad.data)
+                elif p.dtype == torch.float16:
+                    g_all_16.append(p.grad.data)
+                else:
+                    raise RuntimeError('FusedLAMB only support fp16 and fp32.')
+
+        g_norm_32, g_norm_16 = torch.zeros(1, device='cuda'), torch.zeros(1, device='cuda')
+        # compute grad norm for two lists
+        if len(g_all_32) > 0:
+            g_norm_32 = multi_tensor_applier(self.multi_tensor_l2norm,
+                                             self._dummy_overflow_buf,
+                                             [g_all_32], False)[0]
+        if len(g_all_16) > 0:
+            g_norm_16 = multi_tensor_applier(self.multi_tensor_l2norm,
+                                             self._dummy_overflow_buf,
+                                             [g_all_16], False)[0]
+
+        # blend two grad norms to get global grad norm
+        global_grad_norm = multi_tensor_applier(self.multi_tensor_l2norm,
+                                                self._dummy_overflow_buf,
+                                                [[g_norm_32, g_norm_16]],
+                                                False)[0]
+        max_grad_norm = self.defaults['max_grad_norm']
 
         for group in self.param_groups:
             bias_correction = 1 if group['bias_correction'] else 0
@@ -156,7 +191,9 @@ class FusedLAMB(torch.optim.Optimizer):
                                      group['weight_decay'],
                                      grad_averaging,
                                      self.adam_w_mode,
-                                     group['max_grad_norm'])
+                                     global_grad_norm,
+                                     max_grad_norm,
+                                     self.use_nvlamb)
             if(len(g_32) > 0):
                 multi_tensor_applier(self.multi_tensor_lamb,
                                      self._dummy_overflow_buf,
@@ -170,6 +207,8 @@ class FusedLAMB(torch.optim.Optimizer):
                                      group['weight_decay'],
                                      grad_averaging,
                                      self.adam_w_mode,
-                                     group['max_grad_norm'])
+                                     global_grad_norm,
+                                     max_grad_norm,
+                                     self.use_nvlamb)
 
         return loss

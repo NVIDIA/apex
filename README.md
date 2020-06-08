@@ -157,10 +157,8 @@ A Python-only build omits:
 - Fused kernels that improve the performance of `apex.parallel.DistributedDataParallel` and `apex.amp`.
 `DistributedDataParallel`, `amp`, and `SyncBatchNorm` will still be usable, but they may be slower.
 
-To enable PyProf support, you need to install the packages required by PyProf. To do so, add the "--pyprof" option at installation time:
-```
-$ pip install -v --no-cache-dir --global-option="--pyprof" --global-option="--cpp_ext" --global-option="--cuda_ext" ./
-```
+Pyprof support has been moved to its own [dedicated repository](https://github.com/NVIDIA/PyProf).
+The codebase is deprecated in Apex and will be removed soon.
 
 ### Windows support
 Windows support is experimental, and Linux is recommended.  `pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .` may work if you were able to build Pytorch from source
