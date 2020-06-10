@@ -494,7 +494,7 @@ bool dispatch_additive_masked_softmax_stream(output_t *dst, const input_t *src, 
         int blocks = (batch_count + batches_per_block - 1) / batches_per_block;
         dim3 threads(warp_size, warps_per_block, 1);
         // launch
-        kernel<<<blocks, threads, streamid>>>(dst, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride);
+        kernel<<<blocks, threads, 0, streamid>>>(dst, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride);
         return true;
     }
     return false;
