@@ -33,3 +33,5 @@ The `prune_trained_model` calculates the sparse mask and applies it to the weigh
 ```
 ASP.compute_sparse_masks()
 ```
+
+A more thorough example can be found in `./test/toy_problem.py`. 
