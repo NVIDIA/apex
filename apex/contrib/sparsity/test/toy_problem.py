@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import torch
 from apex.optimizers import FusedAdam
-from sparsity.apex.contrib.sparsity import ASP
+from apex.contrib.sparsity import ASP
 
 def build_model(args):
     od = OrderedDict()
