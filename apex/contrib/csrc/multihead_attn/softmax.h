@@ -465,7 +465,7 @@ bool dispatch_additive_masked_softmax(output_t *dst, const input_t *src, const i
         dim3 threads(warp_size, warps_per_block, 1);
  
         // launch
-        kernel<<<blocks, threads>>>(dst, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride);
+        kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride);
         return true;
     }
     return false;
