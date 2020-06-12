@@ -49,7 +49,7 @@ class DistributedFusedAdamV4(torch.optim.Optimizer):
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
                  dwu_num_ag_pg=0, revert_method=1, flat_mt=False,
                  dwu_num_chunks=4, predivide=True, e5m2_allgather=False,
-                 flatten_model=False):
+                 do_not_flatten_model=False):
         global fused_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
 
@@ -86,12 +86,12 @@ class DistributedFusedAdamV4(torch.optim.Optimizer):
         self._num_chunks = dwu_num_chunks
         self._predivide = predivide
         self._e5m2_allgather = e5m2_allgather
-        self._flatten_model = flatten_model
-        assert (self._e5m2_all_gather and self._flatten_model), "--dwu-e5m2-allgather and --dwu-flatten-model are mutually exclusive"
+        self._do_not_flatten_model = do_not_flatten_model
+        assert (not self._e5m2_all_gather or self._do_not_flatten_model), "--dwu-e5m2-allgather requires --dwu-do-not-flatten-model"
         self._full_pipeline = full_pipeline
-        assert (self._full_pipeline and self._flatten_model), "--dwu-full_pipeline and --dwu-flatten-model are mutually exclusive"
+        assert (not self._full_pipeline or self._do_not_flatten_model), "--dwu-full_pipeline requires --dwu-do-not-flatten-model"
         self._compute_L2_grad_norm = compute_L2_grad_norm
-        assert (not self._compute_L2_grad_norm and self._flatten_model), "--dwu-flatten-model requires --dwu-compute-L2-grad-norm"
+        assert (self._compute_L2_grad_norm or self._do_not_flatten_model), "either --dwu-compute-L2-grad-norm or --dwu-do-not-flatten-model is required"
         self._L2_grad_norm = None
         self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
         self._world_size = torch.distributed.get_world_size()
@@ -241,7 +241,7 @@ class DistributedFusedAdamV4(torch.optim.Optimizer):
                                 master_param_fragment.copy_(model_param_fragment)
         # Flatten model parameters so they are views into self._new_params
         # If we do allgather separately for each chunk, we avoid having to copy from self._new_params to model parameters every step
-        if self._flatten_model:
+        if not self._do_not_flatten_model:
             for p, grads_info in zip(self._model_params, self._grads_info):
                 flat_grad_start = grads_info["param_offset"]
                 flat_grad_end = flat_grad_start + grads_info["param_grads_size"]
@@ -396,7 +396,7 @@ class DistributedFusedAdamV4(torch.optim.Optimizer):
                 self._fp32_m_blocks[block_id],
                 self._fp32_v_blocks[block_id],
                 self._fp16_g_blocks[block_id])
-            if self._flatten_model:
+            if not self._do_not_flatten_model:
                 for chunk_id in range(self._num_chunks):
                     # Call all-gather for every chunk to avoid copy_ in step()
                     glob_chunk_id = block_id * self._num_chunks + chunk_id
@@ -404,13 +404,13 @@ class DistributedFusedAdamV4(torch.optim.Optimizer):
         if block_id == 0:
             for other_ag_stream in self._ag_st:
                 self._completion_st.wait_stream(other_ag_stream)
-            if not self._flatten_model:
+            if self._do_not_flatten_model:
                 # Call all-gather once per step.
                 with torch.cuda.stream(self._completion_st):
                     torch.distributed.all_gather(self._new_params_mega_shards, self._fp16_p, group=self._ag_pg[0], no_copy=True)
 
     def _pipeline_step(self):
-        if self._flatten_model:
+        if not self._do_not_flatten_model:
             # call step kernel and all-gather for every chunk to avoid copy_ in step()
             for block_id in range(self._num_blocks):
                 for chunk_id in range(self._num_chunks):
@@ -584,7 +584,7 @@ class DistributedFusedAdamV4(torch.optim.Optimizer):
             else:
                 # Copy self._new_params to model params
                 for p in self._model_params: self.state[p]['step'] += 1
-                if not self._flatten_model:
+                if self._do_not_flatten_model:
                     multi_tensor_applier(
                             fused_adam_cuda.maybe_cast_mt,
                             self._overflow_buf,
