@@ -87,7 +87,7 @@ class DistributedFusedAdamV4(torch.optim.Optimizer):
         self._predivide = predivide
         self._e5m2_allgather = e5m2_allgather
         self._do_not_flatten_model = do_not_flatten_model
-        assert (not self._e5m2_all_gather or self._do_not_flatten_model), "--dwu-e5m2-allgather requires --dwu-do-not-flatten-model"
+        assert (not self._e5m2_allgather or self._do_not_flatten_model), "--dwu-e5m2-allgather requires --dwu-do-not-flatten-model"
         self._full_pipeline = full_pipeline
         assert (not self._full_pipeline or self._do_not_flatten_model), "--dwu-full_pipeline requires --dwu-do-not-flatten-model"
         self._compute_L2_grad_norm = compute_L2_grad_norm
