@@ -246,7 +246,7 @@ class DistributedFusedAdamV4(torch.optim.Optimizer):
                 flat_grad_start = grads_info["param_offset"]
                 flat_grad_end = flat_grad_start + grads_info["param_grads_size"]
                 new_param_view = self._new_params[flat_grad_start:flat_grad_end]
-                new_param_view.copy_(p.view_as(-1))
+                new_param_view.copy_(p.view(-1))
                 p.set_(new_param_view)
 
         p_in, p_out = zip(*self._packed_flat_to_model_params)
