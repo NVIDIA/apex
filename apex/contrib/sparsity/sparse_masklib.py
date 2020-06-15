@@ -53,8 +53,8 @@ def m4n2_1d(mat, density):
   Below 2d-masking related code is targeted more for training (from scratch).
   2d-pruning of a weight tensor is done to accelerate DGRAD step during backprop
   phase of training algorithm. Acceleration comes from using SpMMA instructions in
-  Tensor Cores of NVIDIA Ampere GPU (note: this code does not do the acceleration,
-  GPU kernels are required for this).
+  Tensor Cores of NVIDIA Ampere GPU Architecture 
+  (note: this code does not do the acceleration, GPU kernels are required for this).
   1d pruning of weight tensor helps speed up FPROP step by pruning in 2:4 pattern
   along the horizontal (logical) direction.
   During DGRAD step, weight tensor is transposed. 2d pruning functions below, mask
