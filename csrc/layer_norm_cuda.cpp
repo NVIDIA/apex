@@ -130,7 +130,8 @@ std::vector<at::Tensor> layer_norm(
   int n1,n2;
   check_args(input,normalized_shape,n1,n2);
   at::Tensor output = at::empty_like(input);
-  at::Tensor mean = at::empty({n1}, input.options().dtype(input.scalar_type()==at::ScalarType::Half ? at::ScalarType::Float : input.scalar_type()));
+  at::Tensor mean = at::empty({n1}, input.options().dtype((input.scalar_type()==at::ScalarType::Half ||
+                                            input.scalar_type()==at::ScalarType::BFloat16) ? at::ScalarType::Float : input.scalar_type()));
   at::Tensor invvar = at::empty_like(mean);
   cuda_layer_norm(&output,&mean,&invvar,&input,n1,n2,
       normalized_shape,NULL,NULL,epsilon);
@@ -152,7 +153,8 @@ std::vector<at::Tensor> layer_norm_affine(
   int n1,n2;
   check_args(input,normalized_shape,gamma,beta,n1,n2);
   at::Tensor output = at::empty_like(input);
-  at::Tensor mean = at::empty({n1}, input.options().dtype(input.scalar_type()==at::ScalarType::Half ? at::ScalarType::Float : input.scalar_type()));
+  at::Tensor mean = at::empty({n1}, input.options().dtype((input.scalar_type()==at::ScalarType::Half ||
+                                            input.scalar_type()==at::ScalarType::BFloat16) ? at::ScalarType::Float : input.scalar_type()));
   at::Tensor invvar = at::empty_like(mean);
   cuda_layer_norm(&output,&mean,&invvar,&input,n1,n2,
       normalized_shape,&gamma,&beta,epsilon);
