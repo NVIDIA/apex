@@ -5,7 +5,7 @@ import collections
 from itertools import permutations
 
 
-""" compute density (helper fn to compute % NNZs in a tensor)"""
+""" compute density (helper fn to compute % NNZs in a tensor) """
 def fill(x):
     return float(x.nonzero().size(0))/torch.numel(x)
 
@@ -20,7 +20,7 @@ def reshape_1d(matrix, m):
     else:
         return matrix.view(-1,m), matrix.shape
 
-""" return all possible m:n patterns in a 1d vector. """
+""" return all possible m:n patterns in a 1d vector """
 valid_m4n2_1d_patterns = None
 def compute_valid_1d_patterns(m,n):
     # Early exit if patterns was already created.
@@ -49,8 +49,21 @@ def mn_1d_best(matrix, m, n):
 def m4n2_1d(mat, density):
     return mn_1d_best(mat, 4, 2)
 
-""" Comment: Following 2d masking related code (for training) can be removed or marked experimental (78 LOC) """
-""" m:n 2d structured greedy """
+"""
+  Below 2d-masking related code is targeted more for training (from scratch).
+  2d-pruning of a weight tensor is done to accelerate DGRAD step during backprop
+  phase of training algorithm. Acceleration comes from using SpMMA instructions in
+  Tensor Cores of NVIDIA Ampere GPU Architecture 
+  (note: this code does not do the acceleration, GPU kernels are required for this).
+  1d pruning of weight tensor helps speed up FPROP step by pruning in 2:4 pattern
+  along the horizontal (logical) direction.
+  During DGRAD step, weight tensor is transposed. 2d pruning functions below, mask
+  weight tensor such that their transposed versions are also 2:4 sparse along the
+  horizontal (logical) direction. Thus, with 2d pruning, weight tensors are 
+  2:4 sparse along row and column directions.
+ """
+
+""" m:n 2d structured pruning: greedy method to select mask """
 def mn_2d_greedy(matrix, m, n):
     # Convert to numpy
     mat = matrix.cpu().detach().numpy()
@@ -105,7 +118,7 @@ def compute_valid_2d_patterns(m,n):
     if m == 4  and n == 2: valid_m4n2_2d_patterns  = valid_patterns
     return valid_patterns
 
-""" m:n 2d structured best """
+""" m:n 2d structured pruning: exhaustive method to select best mask """
 def mn_2d_best(matrix, m, n):
     # Find all possible patterns.
     patterns = compute_valid_2d_patterns(m,n).cuda()
@@ -126,6 +139,7 @@ def mn_2d_best(matrix, m, n):
 
 def m4n2_2d_best(mat, density):
     return mn_2d_best(mat, 4, 2)
+
 
 """ returns a sparse mask """
 def create_mask(tensor, pattern="m4n2_1d", density=0.5):
