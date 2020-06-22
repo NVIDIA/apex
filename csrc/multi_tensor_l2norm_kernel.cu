@@ -194,7 +194,11 @@ struct MaxNormFunctor
 };
 
 
-__global__ void cleanup(
+__global__ void
+#ifdef __HIP_PLATFORM_HCC__
+__launch_bounds__(1024)
+#endif
+cleanup(
   float* output,
   float* output_per_tensor,
   float* ret,
@@ -231,7 +235,11 @@ __global__ void cleanup(
   }
 }
 
-__global__ void cleanup_v2(
+__global__ void
+#ifdef __HIP_PLATFORM_HCC__
+__launch_bounds__(1024)
+#endif
+cleanup_v2(
   float* output,
   float* output_per_tensor,
   float* ret,
