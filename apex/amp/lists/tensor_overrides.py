@@ -11,20 +11,20 @@ MODULE = torch.Tensor
 #     MODULE = torch.autograd.Variable
 
 
-FP16_FUNCS = [
+FP16_FUNCS = compat.filter_attrs(MODULE, [
     '__matmul__',
-]
+])
 
-FP32_FUNCS = [
+FP32_FUNCS = compat.filter_attrs(MODULE, [
     '__ipow__',
     '__pow__',
     '__rpow__',
 
     # Cast to fp32 before transfer to CPU
     'cpu',
-]
+])
 
-CASTS = [
+CASTS = compat.filter_attrs(MODULE, [
     '__add__',
     '__div__',
     '__eq__',
@@ -46,7 +46,7 @@ CASTS = [
     '__rtruediv__',
     '__sub__',
     '__truediv__',
-]
+])
 
 # None of these, but here to make code cleaner.
 SEQUENCE_CASTS = []
