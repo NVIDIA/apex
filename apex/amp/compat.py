@@ -42,5 +42,5 @@ def scalar_python_val(x):
             return x[0]
 
 # Accounts for the possibility that some ops may be removed from a namespace.
-def filter_attrs(module, attrs)
+def filter_attrs(module, attrs):
     return list(attrname for attrname in attrs if hasattr(module, attrname))
