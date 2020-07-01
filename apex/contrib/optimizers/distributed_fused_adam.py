@@ -44,8 +44,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             (default: True)
         model_parallel (boolean, optional): whether model parallelism is used
             (default: False)
-
-
+    
+    
     .. _Adam\: A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
     .. _On the Convergence of Adam and Beyond:
