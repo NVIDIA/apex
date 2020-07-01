@@ -33,7 +33,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             with bprop (default: True)
         num_prestats (integer, optional): number of fp64 stats that will be
             reduced during first fp16 gradient reduction block. 
-
+        step_supports_amp_scaling(boolean, optional): whether to use customized
+            gradient unscaling logic (default: True)
+    
     .. _Adam\: A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
     .. _On the Convergence of Adam and Beyond:
@@ -49,7 +51,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
                  dwu_num_ag_pg=0, revert_method=1, flat_mt=False,
                  dwu_num_chunks=4, predivide=True, e5m2_allgather=False,
-                 do_not_flatten_model=False):
+                 do_not_flatten_model=False,
+                 step_supports_amp_scaling=True):
         global fused_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
 
@@ -68,6 +71,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         self._overflow_buf = torch.cuda.IntTensor([0])
         self._has_overflow = False
+        self._step_supports_amp_scaling = step_supports_amp_scaling
 
         assert (len(self.param_groups) == 1), "More than one parameter group is not supported."
 
