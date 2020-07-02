@@ -62,11 +62,7 @@ with torch.no_grad():
     model_reference[0].bias.copy_(model[0].bias)
 model_reference.to(device)
 
-# Setup SyncBN
-#if not args.apex:
-#    model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
 model = model.to(device)
-
 model = DDP(model, device_ids=[args.local_rank], output_device=args.local_rank)
 
 global_batch_size = var_batch + 8
@@ -90,11 +86,6 @@ if weighted_gradient:
     output.backward(grad * 2 / global_batch_size)
 else:
     output.backward(grad / output.size(0))
-
-# Print stats
-#print('DDP stats ', model.module[1].running_mean, model.module[1].running_var)
-#print('DDP grads ', model.module[0].weight.grad.abs().sum())
-#print('DDP wgrad ', model.module[1].weight.grad)
 
 d_list = [torch.randn(8, 3, 8, 8, device=device) for i in range(int(os.environ['WORLD_SIZE']))]
 y_list = [torch.randn(8, 6, 8, 8, device=device) for i in range(int(os.environ['WORLD_SIZE']))]
@@ -134,8 +125,6 @@ if args.local_rank == 0:
     else:
         output_reference.backward(grad_tensor / output_reference.size(0))
 
-    #print('Reference stats ', model_reference[1].running_mean, model_reference[1].running_var)
-    #print('Reference wgrad ', model_reference[1].weight.grad)
     dgrad_tensor = dgrad_list[1:]
     dgrad_tensor.insert(0, data.grad)
     dgrad_tensor = torch.cat(dgrad_tensor, 0)
