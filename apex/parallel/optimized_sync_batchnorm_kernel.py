@@ -44,6 +44,8 @@ class SyncBatchnormFunction(Function):
                       process_group)
                 mean, var, inv_std = syncbn.welford_parallel(mean_all, var_all, count_all, eps)
             else:
+                device = mean.device
+                count_all = torch.cuda.IntTensor([count], device=device)
                 inv_std = 1.0 / torch.sqrt(var_biased + eps)
                 var = var_biased * (count) / (count-1) 
 
