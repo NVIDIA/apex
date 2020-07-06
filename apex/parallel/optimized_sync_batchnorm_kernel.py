@@ -28,16 +28,24 @@ class SyncBatchnormFunction(Function):
             if torch.distributed.is_initialized():
                 if not process_group:
                     process_group = torch.distributed.group.WORLD
+                device = mean.device
                 world_size = torch.distributed.get_world_size(process_group)
-                mean_all = torch.empty(world_size, mean.size(0), dtype=mean.dtype, device=mean.device)
-                var_all = torch.empty(world_size, var_biased.size(0), dtype=var_biased.dtype, device=var_biased.device)
+                mean_all = torch.empty(world_size, mean.size(0), dtype=mean.dtype, device=device)
+                var_all = torch.empty(world_size, var_biased.size(0), dtype=var_biased.dtype, device=device)
+                count_all = torch.cuda.IntTensor(world_size, device=device)
                 mean_l = [mean_all.narrow(0, i, 1) for i in range(world_size)]
                 var_l = [var_all.narrow(0, i, 1) for i in range(world_size)]
+                count_l = [count_all.narrow(0, i, 1) for i in range(world_size)]
                 torch.distributed.all_gather(mean_l, mean, process_group)
                 torch.distributed.all_gather(var_l, var_biased, process_group)
-                mean, var, inv_std = syncbn.welford_parallel(mean_all, var_all, count, eps)
-                # TODO(Jie): should do fp32 math instead!
+                torch.distributed.all_gather(
+                      count_l,
+                      torch.cuda.IntTensor([count], device=device),
+                      process_group)
+                mean, var, inv_std = syncbn.welford_parallel(mean_all, var_all, count_all, eps)
             else:
+                device = mean.device
+                count_all = torch.cuda.IntTensor([count], device=device)
                 inv_std = 1.0 / torch.sqrt(var_biased + eps)
                 var = var_biased * (count) / (count-1) 
 
@@ -52,7 +60,7 @@ class SyncBatchnormFunction(Function):
             mean = running_mean.data
             inv_std = 1.0 / torch.sqrt(running_variance.data + eps)
 
-        ctx.save_for_backward(input, weight, mean, inv_std, z, bias)
+        ctx.save_for_backward(input, weight, mean, inv_std, z, bias, count_all)
         ctx.process_group = process_group
         ctx.channel_last = channel_last
         ctx.world_size = world_size
@@ -71,7 +79,7 @@ class SyncBatchnormFunction(Function):
         # mini batch mean & var are calculated by forward path.
         # mu = 1./N*np.sum(h, axis = 0)
         # var = 1./N*np.sum((h-mu)**2, axis = 0)
-        saved_input, weight, mean, inv_std, z, bias = ctx.saved_tensors
+        saved_input, weight, mean, inv_std, z, bias, count = ctx.saved_tensors
         process_group = ctx.process_group
         channel_last = ctx.channel_last
         world_size = ctx.world_size
@@ -83,26 +91,24 @@ class SyncBatchnormFunction(Function):
         if isinstance(z, torch.Tensor) and ctx.needs_input_grad[1]:
             grad_z = grad_output.clone()
 
-        # TODO(jie): why do I have to clone here? life time of grad_output?
+        # TODO: update kernel to not pre_divide by item_num
         if channel_last:
-            mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn_c_last(grad_output, saved_input, mean, inv_std, weight)
+            sum_dy, sum_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn_c_last(grad_output, saved_input, mean, inv_std, weight)
         else:
-            mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output, saved_input, mean, inv_std, weight)
+            sum_dy, sum_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output, saved_input, mean, inv_std, weight)
 
         # calculate grad_input
         if ctx.needs_input_grad[0]:
 
             if torch.distributed.is_initialized():
                 torch.distributed.all_reduce(
-                    mean_dy, ReduceOp.SUM, process_group)
-                mean_dy = mean_dy / world_size
+                    sum_dy, ReduceOp.SUM, process_group)
                 torch.distributed.all_reduce(
-                    mean_dy_xmu, ReduceOp.SUM, process_group)
-                mean_dy_xmu = mean_dy_xmu / world_size
+                    sum_dy_xmu, ReduceOp.SUM, process_group)
             if channel_last:
-                grad_input = syncbn.batchnorm_backward_c_last(grad_output, saved_input, mean, inv_std, weight, mean_dy, mean_dy_xmu)
+                grad_input = syncbn.batchnorm_backward_c_last(grad_output, saved_input, mean, inv_std, weight, sum_dy, sum_dy_xmu, count)
             else:
-                grad_input = syncbn.batchnorm_backward(grad_output, saved_input, mean, inv_std, weight, mean_dy, mean_dy_xmu)
+                grad_input = syncbn.batchnorm_backward(grad_output, saved_input, mean, inv_std, weight, sum_dy, sum_dy_xmu, count)
 
         if weight is None or not ctx.needs_input_grad[2]:
             grad_weight = None
