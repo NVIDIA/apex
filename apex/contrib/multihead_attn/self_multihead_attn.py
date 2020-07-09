@@ -1,3 +1,5 @@
+import math
+
 import torch
 from torch import nn
 from torch.nn import Parameter
@@ -98,7 +100,11 @@ class SelfMultiheadAttn(nn.Module):
             nn.init.xavier_uniform_(self.k_weight)
             nn.init.xavier_uniform_(self.v_weight)
         else:
-            nn.init.xavier_uniform_(self.in_proj_weight)
+            # in_proj_weight has shape [3 * hidden, hidden] but it should be
+            # initialized like a [hidden, hidden] matrix.
+            # sqrt(6 / (hidden + hidden)) / sqrt(6 / (3 * hidden + hidden)) = sqrt(2)
+            # therefore xavier_uniform gain should be set to sqrt(2).
+            nn.init.xavier_uniform_(self.in_proj_weight, gain=math.sqrt(2))
         nn.init.xavier_uniform_(self.out_proj_weight)
         if self.bias:
             if self.separate_qkv_params:
