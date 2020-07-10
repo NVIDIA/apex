@@ -189,7 +189,12 @@ if "--cuda_ext" in sys.argv:
                               extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                                   'nvcc':['-O3'] + version_dependent_macros}))
         else:
-            print ("INFO: Skipping syncbn extension.")
+            print ("INFO: Building syncbn extension.")
+            ext_modules.append(
+                CUDAExtension(name='syncbn',
+                              sources=['csrc/syncbn.cpp',
+                                       'csrc/hip/welford.hip'],
+                              extra_compile_args=['-O3'] + version_dependent_macros))
 
 
         if not is_rocm_pytorch:

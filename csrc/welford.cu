@@ -11,6 +11,11 @@
 #include "type_shim.h"
 #include "compat.h"
 
+#if defined __HIP_PLATFORM_HCC__
+#define SHFL_DOWN __shfl_down
+#else
+#define SHFL_DOWN __shfl_down_sync
+#endif
 
 __device__ __forceinline__ int lastpow2(int n)
 {
@@ -47,7 +52,7 @@ __device__ __forceinline__ T warp_reduce_sum(T val)
 {
   #pragma unroll
   for(int i = WARP_SIZE/2; i > 0; i >>= 1)
-    val = val + __shfl_down_sync(0xffffffff, val, i);
+    val = val + SHFL_DOWN(0xffffffff, val, i);
   return val;
 }
 
@@ -129,10 +134,14 @@ __device__ __forceinline__ void warp_reduce_mean_m2n(T &mean, T &m2n, int &num)
 {
   #pragma unroll
   for(int i = WARP_SIZE/2; i > 0; i >>= 1) {
-    auto num_new = __shfl_down_sync(0xffffffff, num, i);
-    auto mean_new = __shfl_down_sync(0xffffffff, mean, i);
-    auto m2n_new = __shfl_down_sync(0xffffffff, m2n, i);
+    auto num_new = SHFL_DOWN(0xffffffff, num, i);
+    auto mean_new = SHFL_DOWN(0xffffffff, mean, i);
+    auto m2n_new = SHFL_DOWN(0xffffffff, m2n, i);
+#if defined __HIP_PLATFORM_HCC__
+    welford_merge_element<T, int>(num, mean, m2n, num_new, mean_new, m2n_new);
+#else
     welford_merge_element(num, mean, m2n, num_new, mean_new, m2n_new);
+#endif
   }
 }
 
