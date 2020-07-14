@@ -176,41 +176,41 @@ void multi_tensor_fused_adam_cuda(
   AT_ASSERTM(tl_sz == 4 || tl_sz == 5, "expected tensor lists of size 4 or 5");
 
   if (tl_sz == 5) {
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // p
-      DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 1, "dist_adam_cuda_kernel",  // g
-        multi_tensor_apply<5>(
-          BLOCK_SIZE,
-          chunk_size,
-          noop_flag,
-          tensor_lists,
-          DistAdamFunctor<5, scalar_t_0, scalar_t_1>(),
-          per_tensor_beta1.DATA_PTR<float>(),
-          per_tensor_beta2.DATA_PTR<float>().
-          per_tensor_bias_correction.DATA_PTR<float>(),
-          per_tensor_eps.DATA_PTR<float>(),
-          per_tensor_lr.DATA_PTR<float>(),
-          per_tensor_weight_decay.DATA_PTR<float>(),
-          grad_scale,
-          step,
-          (adamMode_t) mode)));
+    DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // g
+      using accscalar_t = at::acc_type<scalar_t_0, true>;
+      multi_tensor_apply<5>(
+        BLOCK_SIZE,
+        chunk_size,
+        noop_flag,
+        tensor_lists,
+        DistAdamFunctor<5, accscalar_t, scalar_t_0>(),
+        per_tensor_beta1.DATA_PTR<float>(),
+        per_tensor_beta2.DATA_PTR<float>().
+        per_tensor_bias_correction.DATA_PTR<float>(),
+        per_tensor_eps.DATA_PTR<float>(),
+        per_tensor_lr.DATA_PTR<float>(),
+        per_tensor_weight_decay.DATA_PTR<float>(),
+        grad_scale,
+        step,
+        (adamMode_t) mode));
   } else {
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // p
-      DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 1, "dist_adam_cuda_kernel",  // g
-        multi_tensor_apply<4>(
-          BLOCK_SIZE,
-          chunk_size,
-          noop_flag,
-          tensor_lists,
-          DistAdamFunctor<4, scalar_t_0, scalar_t_1>(),
-          per_tensor_beta1.DATA_PTR<float>(),
-          per_tensor_beta2.DATA_PTR<float>().
-          per_tensor_bias_correction.DATA_PTR<float>(),
-          per_tensor_eps.DATA_PTR<float>(),
-          per_tensor_lr.DATA_PTR<float>(),
-          per_tensor_weight_decay.DATA_PTR<float>(),
-          grad_scale,
-          step,
-          (adamMode_t) mode)));
+    DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // g
+      using accscalar_t = at::acc_type<scalar_t_0, true>;
+      multi_tensor_apply<4>(
+        BLOCK_SIZE,
+        chunk_size,
+        noop_flag,
+        tensor_lists,
+        DistAdamFunctor<4, accscalar_t, scalar_t_0>(),
+        per_tensor_beta1.DATA_PTR<float>(),
+        per_tensor_beta2.DATA_PTR<float>().
+        per_tensor_bias_correction.DATA_PTR<float>(),
+        per_tensor_eps.DATA_PTR<float>(),
+        per_tensor_lr.DATA_PTR<float>(),
+        per_tensor_weight_decay.DATA_PTR<float>(),
+        grad_scale,
+        step,
+        (adamMode_t) mode));
   }
   THCudaCheck(cudaGetLastError());
 }
