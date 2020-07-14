@@ -14,6 +14,17 @@
 #define BLOCK_SIZE 512
 #define ILP 4
 
+template<typename T>
+__device__ __forceinline__ bool is_aligned(T* p){
+  return ((uint64_t)p) % (ILP*sizeof(T)) == 0;
+}
+
+template<typename T>
+__device__ __forceinline__ void load_store(T* dst, T* src, int dst_offset, int src_offset){
+  typedef typename std::aligned_storage<ILP*sizeof(T), ILP*alignof(T)>::type LT;
+  ((LT*)dst)[dst_offset] = ((LT*)src)[src_offset];
+}
+
 typedef enum{
   ADAM_MODE_0   =0, // eps under square root
   ADAM_MODE_1   =1  // eps outside square root
@@ -28,7 +39,7 @@ struct DistAdamFunctor
     TensorListMetadata<DEPTH>& tl,
     const float* per_tensor_beta1,
     const float* per_tensor_beta2,
-    const int* per_tensor_bia_correction,
+    const int* per_tensor_bias_correction,
     const float* per_tensor_eps,
     const float* per_tensor_lr,
     const float* per_tensor_weight_decay,
@@ -47,7 +58,7 @@ struct DistAdamFunctor
     float lr = per_tensor_lr[tensor_num];
     float decay = per_tensor_weight_decay[tensor_num];
 
-    float beta1_correction, beta2_correction;
+    float bias_correction, bias_correction, step_size;
     if (per_tensor_bias_correction[tensor_num] == 1) {
       bias_correction1 = 1 - std::pow(b1, step);
       bias_correction2 = 1 - std::pow(b2, step);
