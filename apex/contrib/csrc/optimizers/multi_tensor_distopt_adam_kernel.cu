@@ -192,7 +192,8 @@ void multi_tensor_fused_adam_cuda(
         per_tensor_weight_decay.DATA_PTR<float>(),
         grad_scale,
         step,
-        (adamMode_t) mode));
+        (adamMode_t) mode);
+    );
   } else {
     DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // g
       using accscalar_t = at::acc_type<scalar_t_0, true>;
@@ -210,7 +211,8 @@ void multi_tensor_fused_adam_cuda(
         per_tensor_weight_decay.DATA_PTR<float>(),
         grad_scale,
         step,
-        (adamMode_t) mode));
+        (adamMode_t) mode);
+    );
   }
   THCudaCheck(cudaGetLastError());
 }
