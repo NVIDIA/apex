@@ -2,7 +2,6 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
-#include <THC/THCGeneral.h>
 // Another possibility:
 // #include <torch/all.h>
 
@@ -13,17 +12,6 @@
 
 #define BLOCK_SIZE 512
 #define ILP 4
-
-template<typename T>
-__device__ __forceinline__ bool is_aligned(T* p){
-  return ((uint64_t)p) % (ILP*sizeof(T)) == 0;
-}
-
-template<typename T>
-__device__ __forceinline__ void load_store(T* dst, T* src, int dst_offset, int src_offset){
-  typedef typename std::aligned_storage<ILP*sizeof(T), ILP*alignof(T)>::type LT;
-  ((LT*)dst)[dst_offset] = ((LT*)src)[src_offset];
-}
 
 typedef enum{
   ADAM_MODE_0   =0, // eps under square root
@@ -39,10 +27,10 @@ struct DistAdamFunctor
     TensorListMetadata<DEPTH>& tl,
     const float* per_tensor_beta1,
     const float* per_tensor_beta2,
-    const int* per_tensor_bias_correction,
+    const int* per_tensor_bia_correction,
     const float* per_tensor_eps,
+    const float* per_tensor_lr,
     const float* per_tensor_weight_decay,
-    const float lr,
     const float grad_scale,
     const int step,
     adamMode_t mode)
@@ -53,14 +41,18 @@ struct DistAdamFunctor
     int n = tl.sizes[tensor_loc];
 
     float b1 = per_tensor_beta1[tensor_num];
-    float b2 = per_tensor_beta2[tensor_num];
+    float b2 = per_tensor_beta1[tensor_num];
     float eps = per_tensor_eps[tensor_num];
+    float lr = per_tensor_lr[tensor_num];
     float decay = per_tensor_weight_decay[tensor_num];
 
-    float beta1_correction = 1.0f, beta2_correction = 1.0f;
+    float beta1_correction, beta2_correction;
     if (per_tensor_bias_correction[tensor_num] == 1) {
-      beta1_correction = 1 - std::pow(b1, step);
-      beta2_correction = 1 - std::pow(b2, step);
+      bias_correction1 = 1 - std::pow(b1, step);
+      bias_correction2 = 1 - std::pow(b2, step);
+      step_size = lr * std::sqrt(bias_correction2)/bias_correction1;
+    } else {
+      step_size = lr;
     }
 
     T* p = (T *)tl.addresses[0][tensor_loc];
@@ -105,16 +97,14 @@ struct DistAdamFunctor
           T scaled_grad = incoming_g[ii]/grad_scale;
           incoming_m[ii] = b1*incoming_m[ii] + (1-b1)*scaled_grad;
           incoming_v[ii] = b2*incoming_v[ii] + (1-b2)*scaled_grad*scaled_grad;
-          T next_m_unbiased = incoming_m[ii] / beta1_correction;
-	  T next_v_unbiased = incoming_v[ii] / beta2_correction;
-	  float denom;
+          float denom;
           if (mode == ADAM_MODE_0)
-            denom = sqrtf(next_v_unbiased + eps);
+            denom = sqrtf(incoming_v[ii] + eps);
           else // Mode 1
-            denom = sqrtf(next_v_unbiased) + eps;
-          float update = (next_m_unbiased / denom) + (decay * incoming_p[ii]);
-          incoming_p[ii] = incoming_p[ii] - (lr * update);
-	  if (DEPTH == 5)  tmp_g[ii] = static_cast<GRAD_T>(incoming_p[ii]);
+            denom = sqrtf(incoming_v[ii]) + eps;
+          float update = (incoming_m[ii]/denom) + (decay*incoming_p[ii]);
+          incoming_p[ii] = incoming_p[ii] - (step_size*update);
+          if (DEPTH == 5)  tmp_g[ii] = static_cast<GRAD_T>(incoming_p[ii]);
         }
         load_store(p, incoming_p, i_start, 0);
         load_store(m, incoming_m, i_start, 0);
@@ -150,22 +140,20 @@ struct DistAdamFunctor
             T scaled_grad = incoming_g[ii]/grad_scale;
             m[j] = b1*incoming_m[ii] + (1-b1)*scaled_grad;
             v[j] = b2*incoming_v[ii] + (1-b2)*scaled_grad*scaled_grad;
-            T next_m_unbiased = m[j] / beta1_correction;
-            T next_v_unbiased = v[j] / beta2_correction;
-	    float denom;
+            float denom;
             if (mode == ADAM_MODE_0)
-              denom = sqrtf(next_v_unbiased + eps);
+              denom = sqrtf(v[j] + eps);
             else // Mode 1
-              denom = sqrtf(next_v_unbiased) + eps;
-            float update = (next_m_unbiased / denom) + (decay * incoming_p[ii]);
-            p[j] = incoming_p[ii] - (lr * update);
-	    if (DEPTH == 5)  p_copy[j] = (GRAD_T) p[j];
+              denom = sqrtf(v[j]) + eps;
+            float update = (m[j]/denom) + (decay*incoming_p[ii]);
+            p[j] = incoming_p[ii] - (step_size*update);
+            if (DEPTH == 5)  p_copy[j] = (GRAD_T) p[j];
           }
         }
       }
     }
   }
-};
+}
 
 void multi_tensor_fused_adam_cuda(
   int chunk_size,
@@ -175,8 +163,8 @@ void multi_tensor_fused_adam_cuda(
   at::Tensor per_tensor_beta2,
   at::Tensor per_tensor_bias_correction,
   at::Tensor per_tensor_eps,
+  at::Tensor per_tensor_lr,
   at::Tensor per_tensor_weight_decay,
-  float lr,
   float grad_scale,
   int step,
   int mode)
@@ -187,43 +175,41 @@ void multi_tensor_fused_adam_cuda(
   AT_ASSERTM(tl_sz == 4 || tl_sz == 5, "expected tensor lists of size 4 or 5");
 
   if (tl_sz == 5) {
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // g
-      using accscalar_t = at::acc_type<scalar_t_0, true>;
-      multi_tensor_apply<5>(
-        BLOCK_SIZE,
-        chunk_size,
-        noop_flag,
-        tensor_lists,
-        DistAdamFunctor<5, accscalar_t, scalar_t_0>(),
-        per_tensor_beta1.DATA_PTR<float>(),
-        per_tensor_beta2.DATA_PTR<float>(),
-        per_tensor_bias_correction.DATA_PTR<int>(),
-        per_tensor_eps.DATA_PTR<float>(),
-        per_tensor_weight_decay.DATA_PTR<float>(),
-        lr,
-        grad_scale,
-        step,
-        (adamMode_t) mode);
-    );
+    DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // p
+      DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 1, "dist_adam_cuda_kernel",  // g
+        multi_tensor_apply<5>(
+          BLOCK_SIZE,
+          chunk_size,
+          noop_flag,
+          tensor_lists,
+          DistAdamFunctor<5, scalar_t_0, scalar_t_1>(),
+          per_tensor_beta1.DATA_PTR<float>(),
+          per_tensor_beta2.DATA_PTR<float>().
+          per_tensor_bias_correction.DATA_PTR<float>(),
+          per_tensor_eps.DATA_PTR<float>(),
+          per_tensor_lr.DATA_PTR<float>(),
+          per_tensor_weight_decay.DATA_PTR<float>(),
+          grad_scale,
+          step,
+          (adamMode_t) mode)));
   } else {
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // g
-      using accscalar_t = at::acc_type<scalar_t_0, true>;
-      multi_tensor_apply<4>(
-        BLOCK_SIZE,
-        chunk_size,
-        noop_flag,
-        tensor_lists,
-        DistAdamFunctor<4, accscalar_t, scalar_t_0>(),
-        per_tensor_beta1.DATA_PTR<float>(),
-        per_tensor_beta2.DATA_PTR<float>(),
-        per_tensor_bias_correction.DATA_PTR<int>(),
-        per_tensor_eps.DATA_PTR<float>(),
-        per_tensor_weight_decay.DATA_PTR<float>(),
-        lr,
-        grad_scale,
-        step,
-        (adamMode_t) mode);
-    );
+    DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // p
+      DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 1, "dist_adam_cuda_kernel",  // g
+        multi_tensor_apply<4>(
+          BLOCK_SIZE,
+          chunk_size,
+          noop_flag,
+          tensor_lists,
+          DistAdamFunctor<4, scalar_t_0, scalar_t_1>(),
+          per_tensor_beta1.DATA_PTR<float>(),
+          per_tensor_beta2.DATA_PTR<float>().
+          per_tensor_bias_correction.DATA_PTR<float>(),
+          per_tensor_eps.DATA_PTR<float>(),
+          per_tensor_lr.DATA_PTR<float>(),
+          per_tensor_weight_decay.DATA_PTR<float>(),
+          grad_scale,
+          step,
+          (adamMode_t) mode)));
   }
   THCudaCheck(cudaGetLastError());
 }
