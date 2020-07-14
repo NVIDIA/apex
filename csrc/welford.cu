@@ -327,15 +327,15 @@ __global__ void reduce_bn_kernel(
       const scalar_t* __restrict__ grad_output,
       const accscalar_t* __restrict__ mean,
       const accscalar_t* __restrict__ inv_std,
-      accscalar_t* __restrict__ mean_dy,
-      accscalar_t* __restrict__ mean_dy_xmu,
+      accscalar_t* __restrict__ sum_dy_o,
+      accscalar_t* __restrict__ sum_dy_xmu_o,
       layerscalar_t* __restrict__ grad_weight,
       layerscalar_t* __restrict__ grad_bias,
       const int bs,
       const int fs,
       const int ss) {
   static __shared__ int s_mem[64];
-  int total_item_num = bs * ss;
+  //int total_item_num = bs * ss;
 
   int thread_id = threadIdx.y*blockDim.x + threadIdx.x;
 
@@ -377,8 +377,10 @@ __global__ void reduce_bn_kernel(
     if (grad_weight != NULL) {
       grad_weight[blockIdx.x] = static_cast<layerscalar_t>(sum_dy_xmu * factor);
     }
-    mean_dy[blockIdx.x] = sum_dy / total_item_num;
-    mean_dy_xmu[blockIdx.x] = sum_dy_xmu / total_item_num;
+    //mean_dy[blockIdx.x] = sum_dy / total_item_num;
+    //mean_dy_xmu[blockIdx.x] = sum_dy_xmu / total_item_num;
+    sum_dy_o[blockIdx.x] = sum_dy;
+    sum_dy_xmu_o[blockIdx.x] = sum_dy_xmu;
   }
 }
 
@@ -390,16 +392,24 @@ __global__ void batchnorm_backward_kernel(
       const accscalar_t* __restrict__ mean,
       const accscalar_t* __restrict__ inv_std,
       const layerscalar_t* __restrict__ weight,
-      const accscalar_t* __restrict__ mean_dy,
-      const accscalar_t* __restrict__ mean_dy_xmu,
+      const accscalar_t* __restrict__ sum_dy,
+      const accscalar_t* __restrict__ sum_dy_xmu,
+      const int* __restrict__ numel,
       scalar_t* __restrict__ grad_input,
+      const int64_t world_size,
       const int ss,
       const int bs) {
+  int64_t div = 0;
+  for (int i = 0; i < world_size; i++) {
+    div += numel[i];
+  }
   auto m_c = static_cast<accscalar_t>(mean[blockIdx.x]);
-  auto m_dy_c = static_cast<accscalar_t>(mean_dy[blockIdx.x]);
+  //auto m_dy_c = static_cast<accscalar_t>(mean_dy[blockIdx.x]);
+  auto m_dy_c = static_cast<accscalar_t>(sum_dy[blockIdx.x]) / div;
   auto factor_1_c = inv_std[blockIdx.x];
   auto factor_2_c = (weight == NULL ? accscalar_t(1.0) : static_cast<accscalar_t>(weight[blockIdx.x])) * factor_1_c;
-  factor_1_c = factor_1_c * factor_1_c * mean_dy_xmu[blockIdx.x];
+  //factor_1_c = factor_1_c * factor_1_c * mean_dy_xmu[blockIdx.x];
+  factor_1_c = factor_1_c * factor_1_c * sum_dy_xmu[blockIdx.x] / div;
 
   for (int batch_offset = blockIdx.y*blockDim.y+threadIdx.y; batch_offset < bs; batch_offset += gridDim.y*blockDim.y) {
     int address_base = blockIdx.x*ss + batch_offset*gridDim.x*ss;
@@ -559,13 +569,13 @@ template <typename scalar_t>
 __global__ void welford_kernel_parallel(
       const scalar_t* __restrict__ mean,
       const scalar_t* __restrict__ var_biased,
+      const int* __restrict__ numel,
       scalar_t* __restrict__ out_mean,
       scalar_t* __restrict__ out_var,
       scalar_t* __restrict__ inv_std,
       const int world_size,
       const int feature_size,
-      const float eps,
-      const int numel) {
+      const float eps) {
 
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < feature_size; i += gridDim.x * blockDim.x) {
     // load data;
@@ -574,7 +584,7 @@ __global__ void welford_kernel_parallel(
     scalar_t m_2_n = 0;
     int count = 0;
     for (int j = 0; j < world_size; j++) {
-      welford_merge_element(count, x_mean, m_2_n, numel, mean[address], var_biased[address]*numel);
+      welford_merge_element(count, x_mean, m_2_n, numel[j], mean[address], var_biased[address]*numel[j]);
       address += feature_size;
     }
     out_mean[i] = x_mean;
@@ -694,8 +704,8 @@ __global__ void reduce_bn_c_last_kernel(
       const scalar_t* __restrict__ grad_output,
       const accscalar_t* __restrict__ mean,
       const accscalar_t* __restrict__ inv_std,
-      accscalar_t* __restrict__ mean_dy,
-      accscalar_t* __restrict__ mean_dy_xmu,
+      accscalar_t* __restrict__ sum_dy_o,
+      accscalar_t* __restrict__ sum_dy_xmu_o,
       layerscalar_t* __restrict__ grad_weight,
       layerscalar_t* __restrict__ grad_bias,
       volatile accscalar_t* staging_data,
@@ -814,8 +824,10 @@ __global__ void reduce_bn_c_last_kernel(
         if (grad_weight != NULL) {
           grad_weight[c_offset] = static_cast<layerscalar_t>(sum_dy_xmu_th * factor);
         }
-        mean_dy[c_offset] = sum_dy_th / reduction_size;
-        mean_dy_xmu[c_offset] = sum_dy_xmu_th / reduction_size;
+        //mean_dy[c_offset] = sum_dy_th / reduction_size;
+        //mean_dy_xmu[c_offset] = sum_dy_xmu_th / reduction_size;
+        sum_dy_o[c_offset] = sum_dy_th;
+        sum_dy_xmu_o[c_offset] = sum_dy_xmu_th;
       }
     }
   } else {
@@ -826,8 +838,10 @@ __global__ void reduce_bn_c_last_kernel(
       if (grad_weight != NULL) {
         grad_weight[c_offset] = static_cast<layerscalar_t>(sum_dy_xmu_th * factor);
       }
-      mean_dy[c_offset] = sum_dy_th / reduction_size;
-      mean_dy_xmu[c_offset] = sum_dy_xmu_th / reduction_size;
+      //mean_dy[c_offset] = sum_dy_th / reduction_size;
+      //mean_dy_xmu[c_offset] = sum_dy_xmu_th / reduction_size;
+      sum_dy_o[c_offset] = sum_dy_th;
+      sum_dy_xmu_o[c_offset] = sum_dy_xmu_th;
     }
   }
 }
@@ -844,11 +858,17 @@ __global__ void batchnorm_backward_c_last_kernel(
       const accscalar_t* __restrict__ mean,
       const accscalar_t* __restrict__ inv_std,
       const layerscalar_t* __restrict__ weight,
-      const accscalar_t* __restrict__ mean_dy,
-      const accscalar_t* __restrict__ mean_dy_xmu,
+      const accscalar_t* __restrict__ sum_dy,
+      const accscalar_t* __restrict__ sum_dy_xmu,
+      const int* __restrict__ numel,
       scalar_t* __restrict__ grad_input,
+      const int64_t world_size,
       const int reduction_size,
       const int stride) {
+  int64_t div = 0;
+  for (int i = 0; i < world_size; i++) {
+    div += numel[i];
+  }
   // tensor dimension (m,c)
   // loop along m dimension
   int inner_loop_stride = blockDim.y * gridDim.y;
@@ -858,10 +878,10 @@ __global__ void batchnorm_backward_c_last_kernel(
   int c_offset = blockIdx.x * blockDim.x + threadIdx.x;
 
   auto m_c = mean[c_offset];
-  auto m_dy_c = mean_dy[c_offset];
+  auto m_dy_c = sum_dy[c_offset] / div;
   auto factor_1_c = inv_std[c_offset];
   auto factor_2_c = (weight == NULL? accscalar_t(1.0) : static_cast<accscalar_t>(weight[c_offset])) * factor_1_c;
-  factor_1_c = factor_1_c * factor_1_c * mean_dy_xmu[c_offset];
+  factor_1_c = factor_1_c * factor_1_c * sum_dy_xmu[c_offset] / div;
 
   int loop_count = 1 + (reduction_size - 1) / (inner_loop_stride * PARALLEL_LOADS);
   int address_base = m_offset * stride + c_offset;
@@ -986,8 +1006,8 @@ std::vector<at::Tensor> reduce_bn_CUDA(
 
   auto scalar_type = promote_scalartype(input);
 
-  at::Tensor mean_dy = at::empty({feature_size}, mean.options());
-  at::Tensor mean_dy_xmu = at::empty({feature_size}, mean.options());
+  at::Tensor sum_dy = at::empty({feature_size}, mean.options());
+  at::Tensor sum_dy_xmu = at::empty({feature_size}, mean.options());
 
   at::Tensor grad_weight;
   at::Tensor grad_bias;
@@ -1018,8 +1038,8 @@ std::vector<at::Tensor> reduce_bn_CUDA(
           grad_output.DATA_PTR<scalar_t_0>(),
           mean.DATA_PTR<accscalar_t>(),
           inv_std.DATA_PTR<accscalar_t>(),
-          mean_dy.DATA_PTR<accscalar_t>(),
-          mean_dy_xmu.DATA_PTR<accscalar_t>(),
+          sum_dy.DATA_PTR<accscalar_t>(),
+          sum_dy_xmu.DATA_PTR<accscalar_t>(),
           weight.has_value() ? grad_weight.DATA_PTR<accscalar_t>() : NULL,
           weight.has_value() ? grad_bias.DATA_PTR<accscalar_t>() : NULL,
           batch_size,
@@ -1039,8 +1059,8 @@ std::vector<at::Tensor> reduce_bn_CUDA(
           grad_output.DATA_PTR<scalar_t_0>(),
           mean.DATA_PTR<accscalar_t>(),
           inv_std.DATA_PTR<accscalar_t>(),
-          mean_dy.DATA_PTR<accscalar_t>(),
-          mean_dy_xmu.DATA_PTR<accscalar_t>(),
+          sum_dy.DATA_PTR<accscalar_t>(),
+          sum_dy_xmu.DATA_PTR<accscalar_t>(),
           weight.has_value() ? grad_weight.DATA_PTR<scalar_t_0>() : NULL,
           weight.has_value() ? grad_bias.DATA_PTR<scalar_t_0>() : NULL,
           batch_size,
@@ -1049,7 +1069,7 @@ std::vector<at::Tensor> reduce_bn_CUDA(
     );
   }
 
-  return {mean_dy, mean_dy_xmu, grad_weight, grad_bias};
+  return {sum_dy, sum_dy_xmu, grad_weight, grad_bias};
 }
 
 at::Tensor batchnorm_backward_CUDA(
@@ -1058,8 +1078,9 @@ at::Tensor batchnorm_backward_CUDA(
     const at::Tensor mean,
     const at::Tensor inv_std,
     const at::optional<at::Tensor> weight,
-    const at::Tensor mean_dy,
-    const at::Tensor mean_dy_xmu) {
+    const at::Tensor sum_dy,
+    const at::Tensor sum_dy_xmu,
+    const at::Tensor count) {
   const auto batch_size = input.size(0);
   const auto feature_size = input.size(1);
 
@@ -1088,9 +1109,11 @@ at::Tensor batchnorm_backward_CUDA(
           mean.DATA_PTR<accscalar_t>(),
           inv_std.DATA_PTR<accscalar_t>(),
           weight.has_value() ? weight.value().DATA_PTR<accscalar_t>() : NULL,
-          mean_dy.DATA_PTR<accscalar_t>(),
-          mean_dy_xmu.DATA_PTR<accscalar_t>(),
+          sum_dy.DATA_PTR<accscalar_t>(),
+          sum_dy_xmu.DATA_PTR<accscalar_t>(),
+          count.DATA_PTR<int>(),
           grad_input.DATA_PTR<scalar_t_0>(),
+          count.numel(),
           space_size,
           batch_size);
     );
@@ -1108,9 +1131,11 @@ at::Tensor batchnorm_backward_CUDA(
           mean.DATA_PTR<accscalar_t>(),
           inv_std.DATA_PTR<accscalar_t>(),
           weight.has_value() ? weight.value().DATA_PTR<scalar_t_0>() : NULL,
-          mean_dy.DATA_PTR<accscalar_t>(),
-          mean_dy_xmu.DATA_PTR<accscalar_t>(),
+          sum_dy.DATA_PTR<accscalar_t>(),
+          sum_dy_xmu.DATA_PTR<accscalar_t>(),
+          count.DATA_PTR<int>(),
           grad_input.DATA_PTR<scalar_t_0>(),
+          count.numel(),
           space_size,
           batch_size);
     );
@@ -1121,7 +1146,7 @@ at::Tensor batchnorm_backward_CUDA(
 
 std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_nodes,
                                               const at::Tensor var_biased,
-                                              int numel,
+                                              const at::Tensor numel,
                                               const float eps) {
   const auto world_size = mean_feature_nodes.size(0);
   const auto feature_size = mean_feature_nodes.size(1);
@@ -1142,13 +1167,13 @@ std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_node
       welford_kernel_parallel<scalar_t_0><<<grid, block, 0, stream>>>(
           mean_feature_nodes.DATA_PTR<scalar_t_0>(),
           var_biased.DATA_PTR<scalar_t_0>(),
+          numel.DATA_PTR<int>(),
           out_mean.DATA_PTR<scalar_t_0>(),
           out_var.DATA_PTR<scalar_t_0>(),
           inv_std.DATA_PTR<scalar_t_0>(),
           world_size,
           feature_size,
-          eps,
-          numel);
+          eps);
     );
   }
 
@@ -1270,8 +1295,8 @@ std::vector<at::Tensor> reduce_bn_c_last_CUDA(
   const auto stride = input.size(input.ndimension()-1);
   const auto reduction_size = input.numel() / stride;
 
-  at::Tensor mean_dy = at::empty({stride}, mean.options());
-  at::Tensor mean_dy_xmu = at::empty({stride}, mean.options());
+  at::Tensor sumn_dy = at::empty({stride}, mean.options());
+  at::Tensor sum_dy_xmu = at::empty({stride}, mean.options());
 
   at::Tensor grad_weight;
   at::Tensor grad_bias;
@@ -1310,8 +1335,8 @@ std::vector<at::Tensor> reduce_bn_c_last_CUDA(
           grad_output.DATA_PTR<scalar_t_0>(),
           mean.DATA_PTR<accscalar_t>(),
           inv_std.DATA_PTR<accscalar_t>(),
-          mean_dy.DATA_PTR<accscalar_t>(),
-          mean_dy_xmu.DATA_PTR<accscalar_t>(),
+          sumn_dy.DATA_PTR<accscalar_t>(),
+          sum_dy_xmu.DATA_PTR<accscalar_t>(),
           weight.has_value() ? grad_weight.DATA_PTR<accscalar_t>() : NULL,
           weight.has_value() ?grad_bias.DATA_PTR<accscalar_t>() : NULL,
           staging_data_ptr,
@@ -1335,8 +1360,8 @@ std::vector<at::Tensor> reduce_bn_c_last_CUDA(
           grad_output.DATA_PTR<scalar_t_0>(),
           mean.DATA_PTR<accscalar_t>(),
           inv_std.DATA_PTR<accscalar_t>(),
-          mean_dy.DATA_PTR<accscalar_t>(),
-          mean_dy_xmu.DATA_PTR<accscalar_t>(),
+          sumn_dy.DATA_PTR<accscalar_t>(),
+          sum_dy_xmu.DATA_PTR<accscalar_t>(),
           weight.has_value() ? grad_weight.DATA_PTR<scalar_t_0>() : NULL,
           weight.has_value() ?grad_bias.DATA_PTR<scalar_t_0>() : NULL,
           staging_data_ptr,
@@ -1346,7 +1371,7 @@ std::vector<at::Tensor> reduce_bn_c_last_CUDA(
     );
   }
 
-  return {mean_dy, mean_dy_xmu, grad_weight, grad_bias};
+  return {sumn_dy, sum_dy_xmu, grad_weight, grad_bias};
 }
 
 at::Tensor batchnorm_backward_c_last_CUDA(
@@ -1355,8 +1380,9 @@ at::Tensor batchnorm_backward_c_last_CUDA(
     const at::Tensor mean,
     const at::Tensor inv_std,
     const at::optional<at::Tensor> weight,
-    const at::Tensor mean_dy,
-    const at::Tensor mean_dy_xmu) {
+    const at::Tensor sum_dy,
+    const at::Tensor sum_dy_xmu,
+    const at::Tensor count) {
   const auto stride = input.size(input.ndimension()-1);
   const auto reduction_size = input.numel() / stride;
 
@@ -1380,9 +1406,11 @@ at::Tensor batchnorm_backward_c_last_CUDA(
           mean.DATA_PTR<accscalar_t>(),
           inv_std.DATA_PTR<accscalar_t>(),
           weight.has_value() ? weight.value().DATA_PTR<accscalar_t>() : NULL,
-          mean_dy.DATA_PTR<accscalar_t>(),
-          mean_dy_xmu.DATA_PTR<accscalar_t>(),
+          sum_dy.DATA_PTR<accscalar_t>(),
+          sum_dy_xmu.DATA_PTR<accscalar_t>(),
+          count.DATA_PTR<int>(),
           grad_input.DATA_PTR<scalar_t_0>(),
+          count.numel(),
           reduction_size,
           stride);
     );
@@ -1401,9 +1429,11 @@ at::Tensor batchnorm_backward_c_last_CUDA(
           mean.DATA_PTR<accscalar_t>(),
           inv_std.DATA_PTR<accscalar_t>(),
           weight.has_value() ? weight.value().DATA_PTR<scalar_t_0>() : NULL,
-          mean_dy.DATA_PTR<accscalar_t>(),
-          mean_dy_xmu.DATA_PTR<accscalar_t>(),
+          sum_dy.DATA_PTR<accscalar_t>(),
+          sum_dy_xmu.DATA_PTR<accscalar_t>(),
+          count.DATA_PTR<int>(),
           grad_input.DATA_PTR<scalar_t_0>(),
+          count.numel(),
           reduction_size,
           stride);
     );

@@ -114,6 +114,11 @@ grad_sbn = grad_output_t.clone().detach()
 out_sbn = sbn(inp_sbn[start:finish])
 out_sbn.backward(grad_sbn[start:finish])
 
+count = [ space_size**2 * ( (i+1) * batch_size // args.world_size - i * batch_size // args.world_size ) for i in range(0, args.world_size)]
+count = torch.cuda.IntTensor(count)
+
+print("--- count : " , count)
+
 sbn_result = True
 bn_result = True
 
@@ -136,18 +141,20 @@ grad_output2_r = ref_tensor(grad)
 grad_bias_r = grad_output_r.sum(1)
 grad_weight_r = ((inp2_r - m.view(-1, 1, 1)) * torch.rsqrt(b_v.view(-1,1,1) + eps) * grad_output2_r).transpose(1,0).contiguous().view(feature_size, -1).sum(1)
 
+sum_dy_r = grad_output_r.sum(1)
 mean_dy_r = grad_output_r.mean(1)
 mean_dy_xmu_r = ((inp2_r - m.view(-1, 1, 1)) * grad_output2_r).transpose(1,0).contiguous().view(feature_size, -1).mean(1)
+sum_dy_xmu_r = ((inp2_r - m.view(-1, 1, 1)) * grad_output2_r).transpose(1,0).contiguous().view(feature_size, -1).sum(1)
 
 grad_input_r = (grad_output2_r - mean_dy_r.view(-1, 1, 1) - (inp2_r - m.view(-1, 1, 1)) / (b_v.view(-1,1,1) + eps) * mean_dy_xmu_r.view(-1, 1, 1) ) * torch.rsqrt(b_v.view(-1,1,1) + eps) * weight_r.view(-1,1,1)
 
-mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output_t, inp_t, mean, inv_std, weight_t)
-grad_input = syncbn.batchnorm_backward(grad_output_t, inp_t, mean, inv_std, weight_t, mean_dy, mean_dy_xmu)
+sum_dy, sum_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output_t, inp_t, mean, inv_std, weight_t)
+grad_input = syncbn.batchnorm_backward(grad_output_t, inp_t, mean, inv_std, weight_t, sum_dy, sum_dy_xmu, count)
 if args.local_rank == 0:
     sbn_result = compare("comparing bias grad: ", grad_bias, grad_bias_r, error) and sbn_result
     sbn_result = compare("comparing weight grad: ", grad_weight, grad_weight_r, error) and sbn_result
-    sbn_result = compare("comparing mean_dy grad: ", mean_dy, mean_dy_r, error) and sbn_result
-    sbn_result = compare("comparing mean_dy_xmu grad: ", mean_dy_xmu, mean_dy_xmu_r, error) and sbn_result
+    sbn_result = compare("comparing sum_dy grad: ", sum_dy, sum_dy_r, error) and sbn_result
+    sbn_result = compare("comparing sum_dy_xmu grad: ", sum_dy_xmu, sum_dy_xmu_r, error) and sbn_result
     sbn_result = compare("comparing input grad: ", grad_input, grad_input_r, error) and sbn_result
     compare("comparing bn input grad: ", inp_bn.grad, grad_input_r, error)
 
