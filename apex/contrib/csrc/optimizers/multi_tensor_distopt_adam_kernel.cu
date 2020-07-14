@@ -58,7 +58,7 @@ struct DistAdamFunctor
     float lr = per_tensor_lr[tensor_num];
     float decay = per_tensor_weight_decay[tensor_num];
 
-    float bias_correction, bias_correction, step_size;
+    float bias_correction1, bias_correction2, step_size;
     if (per_tensor_bias_correction[tensor_num] == 1) {
       bias_correction1 = 1 - std::pow(b1, step);
       bias_correction2 = 1 - std::pow(b2, step);
