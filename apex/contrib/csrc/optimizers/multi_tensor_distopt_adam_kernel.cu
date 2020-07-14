@@ -185,7 +185,7 @@ void multi_tensor_fused_adam_cuda(
         tensor_lists,
         DistAdamFunctor<5, accscalar_t, scalar_t_0>(),
         per_tensor_beta1.DATA_PTR<float>(),
-        per_tensor_beta2.DATA_PTR<float>().
+        per_tensor_beta2.DATA_PTR<float>(),
         per_tensor_bias_correction.DATA_PTR<float>(),
         per_tensor_eps.DATA_PTR<float>(),
         per_tensor_lr.DATA_PTR<float>(),
@@ -204,7 +204,7 @@ void multi_tensor_fused_adam_cuda(
         tensor_lists,
         DistAdamFunctor<4, accscalar_t, scalar_t_0>(),
         per_tensor_beta1.DATA_PTR<float>(),
-        per_tensor_beta2.DATA_PTR<float>().
+        per_tensor_beta2.DATA_PTR<float>(),
         per_tensor_bias_correction.DATA_PTR<float>(),
         per_tensor_eps.DATA_PTR<float>(),
         per_tensor_lr.DATA_PTR<float>(),
