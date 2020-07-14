@@ -12,7 +12,7 @@ void multi_tensor_fused_adam_cuda(
   at::Tensor per_tensor_weight_decay,
   float grad_scale,
   int step,
-  int mode)
+  int mode);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("multi_tensor_fused_adam", &multi_tensor_fused_adam_cuda,
