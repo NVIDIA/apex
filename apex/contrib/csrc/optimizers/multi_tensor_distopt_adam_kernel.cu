@@ -153,7 +153,7 @@ struct DistAdamFunctor
       }
     }
   }
-}
+};
 
 void multi_tensor_fused_adam_cuda(
   int chunk_size,
