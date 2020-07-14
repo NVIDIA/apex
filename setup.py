@@ -101,6 +101,25 @@ if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 4):
     version_ge_1_5 = ['-DVERSION_GE_1_5']
 version_dependent_macros = version_ge_1_1 + version_ge_1_3 + version_ge_1_5
 
+if "--distributed_adam" in sys.argv:
+    from torch.utils.cpp_extension import CUDAExtension
+    sys.argv.remove("--distributed_adam")
+
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension
+
+    if torch.utils.cpp_extension.CUDA_HOME is None:
+        raise RuntimeError("--distributed_adam was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        ext_modules.append(
+            CUDAExtension(name='distributed_adam_cuda',
+                          sources=['apex/contrib/csrc/optimizers/multi_tensor_distopt_adam.cpp',
+                                   'apex/contrib/csrc/optimizers/multi_tensor_distopt_adam_kernel.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
+                                              'nvcc':['-O3',
+                                                      '--use_fast_math'] + version_dependent_macros}))
+
 if "--distributed_lamb" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
     sys.argv.remove("--distributed_lamb")
