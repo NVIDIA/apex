@@ -102,7 +102,7 @@ class ASP:
                         print("[ASP] Sparsifying %s::%s of size=%s and type=%s for sparsity" % (module_name, p_name, str(p.size()), str(p.dtype)))
                     
                     mask = torch.ones_like(p).bool()
-                    buffname = name.split(".")[-1] # buffer names cannot contain "."
+                    buffname = p_name.split(".")[-1] # buffer names cannot contain "."
                     module.register_buffer('__%s_mma_mask' % buffname, mask)
                     if allow_recompute_mask:
                         pruned = torch.zeros_like(p).cpu()
