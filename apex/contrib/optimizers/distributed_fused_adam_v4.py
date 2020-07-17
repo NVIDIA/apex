@@ -10,7 +10,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
     """Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
     ``python setup.py install --cuda_ext --cpp_ext``.
+    
     It has been proposed in `Adam: A Method for Stochastic Optimization`_.
+    
     Arguments:
         params (iterable): iterable of parameters to optimize or dicts defining
             parameter groups.
@@ -113,6 +115,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         for group in self.param_groups:
             self._param_group = group
             prev = None
+            beta1, beta2 = group['betas']
             for p in group['params']:
                 torch.distributed.broadcast(p,0)
                 if not p.requires_grad:
