@@ -56,11 +56,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         global fused_adam_cuda, distributed_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
         distributed_adam_cuda = importlib.import_module("distributed_adam_cuda")
+        self.multi_tensor_fused_adam = distributed_adam_cuda.multi_tensor_fused_adam
 
         self._amp_scale_adjustment = amp_scale_adjustment
 
-        if use_mt:
-            raise RuntimeError('DistributedFusedAdam does not support use_mt.')
         if amsgrad:
             raise RuntimeError('DistributedFusedAdam does not support the AMSGrad variant.')
 
@@ -391,7 +390,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             combined_scale = self._param_group['max_grad_norm'] / (self.L2_grad_norm / self._global_scale + 1e-6)
             combined_scale = self._global_scale / min(1, combined_scale)
         
-        multi_tensor_applier(distributed_adam_cuda.multi_tensor_fused_adam,
+        multi_tensor_applier(self.multi_tensor_fused_adam,
                 self._overflow_buf,
                 self._contrib_tensor_list, # p, m, v, g, p_copy
                 self._contrib_beta1,
