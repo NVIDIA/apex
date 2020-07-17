@@ -407,7 +407,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self._contrib_beta1,
                 self._contrib_beta2,
                 self._contrib_bias_correction,
-                self._contrib_eps,
+                self._contrib_epsilon,
                 self._contrib_lr,
                 self._contrib_weight_decay,
                 combined_scale,
