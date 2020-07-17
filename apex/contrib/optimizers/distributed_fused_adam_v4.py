@@ -107,6 +107,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         for group in self.param_groups:
             self._param_group = group
             prev = None
+            beta1, beta2 = group['betas']
             for p in group['params']:
                 torch.distributed.broadcast(p,0)
                 if not p.requires_grad:
