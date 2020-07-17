@@ -57,7 +57,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  do_not_flatten_model=False,
                  step_supports_amp_scaling=True,
                  world=None):
-        global fused_adam_cuda
+        global fused_adam_cuda, distributed_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
         distributed_adam_cuda = importlib.import_module("distributed_adam_cuda")
 
