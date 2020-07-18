@@ -53,7 +53,7 @@ struct DistAdamFunctor
     int n = tl.sizes[tensor_loc];
 
     float b1 = per_tensor_beta1[tensor_num];
-    float b2 = per_tensor_beta1[tensor_num];
+    float b2 = per_tensor_beta2[tensor_num];
     float eps = per_tensor_eps[tensor_num];
     float lr = per_tensor_lr[tensor_num];
     float decay = per_tensor_weight_decay[tensor_num];
