@@ -217,8 +217,8 @@ void multi_tensor_fused_adam_cuda(
         per_tensor_beta2.DATA_PTR<float>(),
         per_tensor_bias_correction.DATA_PTR<int>(),
         per_tensor_eps.DATA_PTR<float>(),
-        per_tensor_lr.DATA_PTR<float>(),
         per_tensor_weight_decay.DATA_PTR<float>(),
+        lr,
         grad_scale,
         step,
         (adamMode_t) mode);
