@@ -41,8 +41,8 @@ struct DistAdamFunctor
     const float* per_tensor_beta2,
     const int* per_tensor_bias_correction,
     const float* per_tensor_eps,
-    const float* per_tensor_lr,
     const float* per_tensor_weight_decay,
+    const float lr,
     const float grad_scale,
     const int step,
     adamMode_t mode)
@@ -55,7 +55,6 @@ struct DistAdamFunctor
     float b1 = per_tensor_beta1[tensor_num];
     float b2 = per_tensor_beta2[tensor_num];
     float eps = per_tensor_eps[tensor_num];
-    float lr = per_tensor_lr[tensor_num];
     float decay = per_tensor_weight_decay[tensor_num];
 
     float bias_correction1, bias_correction2, step_size;
@@ -175,8 +174,8 @@ void multi_tensor_fused_adam_cuda(
   at::Tensor per_tensor_beta2,
   at::Tensor per_tensor_bias_correction,
   at::Tensor per_tensor_eps,
-  at::Tensor per_tensor_lr,
   at::Tensor per_tensor_weight_decay,
+  float lr,
   float grad_scale,
   int step,
   int mode)
@@ -199,8 +198,8 @@ void multi_tensor_fused_adam_cuda(
         per_tensor_beta2.DATA_PTR<float>(),
         per_tensor_bias_correction.DATA_PTR<int>(),
         per_tensor_eps.DATA_PTR<float>(),
-        per_tensor_lr.DATA_PTR<float>(),
         per_tensor_weight_decay.DATA_PTR<float>(),
+        lr,
         grad_scale,
         step,
         (adamMode_t) mode);
