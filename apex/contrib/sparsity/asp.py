@@ -6,7 +6,7 @@ torchvision_imported=True
 try:
     import torchvision
 except ImportError:
-    print("[ASP][Warning] torchvision cannot be imported, may infuence functionality of MaskRCNN/KeypointRCNN network from torchvision.")
+    print("[ASP][Warning] torchvision cannot be imported.")
     torchvision_imported=False
 
 def eligible_modules(model, whitelist_layer_types, allowed_layer_names, disallowed_layer_names):
@@ -78,7 +78,7 @@ class ASP:
         # function to extract variables that will be sparsified. 
         # idea is that you will add one of these functions for each module type that can be sparsified.
         if torchvision_imported:
-            print("[ASP] torchvision is imported, can work smoothly with the MaskRCNN/KeypointRCNN from torchvision.")
+            print("[ASP] torchvision is imported, can work with the MaskRCNN/KeypointRCNN from torchvision.")
             sparse_parameter_list = {torch.nn.Linear: ['weight'], torch.nn.Conv1d: ['weight'], torch.nn.Conv2d: ['weight'], torch.nn.Conv3d: ['weight'], torchvision.ops.misc.Conv2d: ['weight']}
         else:
             sparse_parameter_list = {torch.nn.Linear: ['weight'], torch.nn.Conv1d: ['weight'], torch.nn.Conv2d: ['weight'], torch.nn.Conv3d: ['weight']}
@@ -102,7 +102,7 @@ class ASP:
                         print("[ASP] Sparsifying %s::%s of size=%s and type=%s for sparsity" % (module_name, p_name, str(p.size()), str(p.dtype)))
                     
                     mask = torch.ones_like(p).bool()
-                    buffname = name.split(".")[-1] # buffer names cannot contain "."
+                    buffname = p_name.split(".")[-1] # buffer names cannot contain "."
                     module.register_buffer('__%s_mma_mask' % buffname, mask)
                     if allow_recompute_mask:
                         pruned = torch.zeros_like(p).cpu()
