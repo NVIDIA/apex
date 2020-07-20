@@ -115,6 +115,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             self._param_group = group
             prev = None
             beta1, beta2 = group['betas']
+            bias_correction = 1 if group['bias_correction'] else 0
+            eps = group['eps']
+            weight_decay = group['weight_decay']
             for p in group['params']:
                 torch.distributed.broadcast(p,0)
                 if not p.requires_grad:
@@ -125,10 +128,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self._group_properties.append((
                     beta1,
                     beta2,
-                    1 if group['bias_correction'] else 0,
-                    group['eps'],
-                    group['lr'],
-                    group['weight_decay']
+                    bias_correction,
+                    eps,
+                    weight_decay
                     ))
                 state = self.state[p]
                 if len(state) == 0:
@@ -269,12 +271,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._contrib_tensor_list = [p, m, v, g, p_copy]
 
         math_type = self._fp32_p.dtype
-        beta1, beta2, bias_correction, epsilon, lr, decay = list(zip(*self._contrib_group_properties))
+        beta1, beta2, bias_correction, epsilon, decay = list(zip(*self._contrib_group_properties))
         self._contrib_beta1 = torch.tensor(beta1, dtype=math_type, device='cuda')
         self._contrib_beta2 = torch.tensor(beta2, dtype=math_type, device='cuda')
         self._contrib_bias_correction = torch.tensor(bias_correction, dtype=torch.int, device='cuda')
         self._contrib_epsilon = torch.tensor(epsilon, dtype=math_type, device='cuda')
-        self._contrib_lr = torch.tensor(lr, dtype=math_type, device='cuda')
         self._contrib_weight_decay = torch.tensor(decay, dtype=math_type, device='cuda')
 
         p_in, p_out = zip(*self._packed_flat_to_model_params)
@@ -408,8 +409,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self._contrib_beta2,
                 self._contrib_bias_correction,
                 self._contrib_epsilon,
-                self._contrib_lr,
                 self._contrib_weight_decay,
+                self._param_group['lr'],
                 combined_scale,
                 self._param_state['step']+1,
                 self.eps_mode)
