@@ -131,7 +131,8 @@ class ASP:
             # prune gradients before step method
             with torch.no_grad():
                 for module_name, module, p_name, p, mask, pruned in cls.__sparse_parameters:
-                    p.grad.mul_(mask)
+                    if p.grad is not None: #thx pjudd
+                        p.grad.mul_(mask)
             # call original optimizer step method
             rval = opt_self.__step(*args, **kwargs)
             # prune parameters after step method
