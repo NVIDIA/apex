@@ -6,7 +6,7 @@ torchvision_imported=True
 try:
     import torchvision
 except ImportError:
-    print("[ASP][Warning] torchvision cannot be imported, may infuence functionality of MaskRCNN/KeypointRCNN network from torchvision.")
+    print("[ASP][Warning] torchvision cannot be imported.")
     torchvision_imported=False
 
 def eligible_modules(model, whitelist_layer_types, allowed_layer_names, disallowed_layer_names):
@@ -30,7 +30,7 @@ class ASP:
              verbosity=3,
              whitelist=[torch.nn.Linear, torch.nn.Conv1d, torch.nn.Conv2d, torch.nn.Conv3d], 
              allowed_layer_names=None, disallowed_layer_names=[],
-             allow_recompute_mask=False):
+             allow_recompute_mask=False, custom_layer_dict={}):
         """Call this method to modify your model to take advantage of sparse matrix multiplication.
         Note that this call alone only augments the model with additional buffers needed for sparse MMA,
         it does not enable use of sparse MMA. 
@@ -62,6 +62,7 @@ class ASP:
           disallowed_layer_names   If not [], only layer names that do not appear in this list are considered for sparsity.
           allow_recompute_mask     If True, stores pruned values so that dense weights can be restored.
                                    Pruned weights are stored in CPU memory, hence this option does not increase GPU memory usage.
+          custom_layer_dict        Dictionary of additional layer paremeters to sparsify. e.g. {CustomLinear: ['weight']} 
           Support for allow_recompute_mask can be removed, it is not part of our recipe -- AKM. 
         """
         assert (cls.__model is None), "ASP has been initialized already."
@@ -78,10 +79,13 @@ class ASP:
         # function to extract variables that will be sparsified. 
         # idea is that you will add one of these functions for each module type that can be sparsified.
         if torchvision_imported:
-            print("[ASP] torchvision is imported, can work smoothly with the MaskRCNN/KeypointRCNN from torchvision.")
+            print("[ASP] torchvision is imported, can work with the MaskRCNN/KeypointRCNN from torchvision.")
             sparse_parameter_list = {torch.nn.Linear: ['weight'], torch.nn.Conv1d: ['weight'], torch.nn.Conv2d: ['weight'], torch.nn.Conv3d: ['weight'], torchvision.ops.misc.Conv2d: ['weight']}
         else:
             sparse_parameter_list = {torch.nn.Linear: ['weight'], torch.nn.Conv1d: ['weight'], torch.nn.Conv2d: ['weight'], torch.nn.Conv3d: ['weight']}
+        if custom_layer_dict:
+            sparse_parameter_list.update(custom_layer_dict)
+            whitelist += list(custom_layer_dict.keys())
         for module_type in whitelist:
             assert (module_type in sparse_parameter_list), "Module %s :: Don't know how to sparsify module." % module.dtype()
 
@@ -131,7 +135,8 @@ class ASP:
             # prune gradients before step method
             with torch.no_grad():
                 for module_name, module, p_name, p, mask, pruned in cls.__sparse_parameters:
-                    p.grad.mul_(mask)
+                    if p.grad is not None: #thx pjudd
+                        p.grad.mul_(mask)
             # call original optimizer step method
             rval = opt_self.__step(*args, **kwargs)
             # prune parameters after step method
