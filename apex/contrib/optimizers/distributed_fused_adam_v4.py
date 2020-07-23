@@ -315,7 +315,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     self._rs_pg.append(grp)
                 if self._compute_L2_grad_norm:
                     self._l2_grad_norm_pg = grp
-                    torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
+                    #torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
         self._rs_st = [torch.cuda.Stream() for _ in range(self._num_rs_pg)]
         for rs_pg in self._rs_pg:
             torch.distributed.all_reduce(self._overflow_buf,group=rs_pg)
