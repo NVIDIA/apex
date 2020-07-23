@@ -298,6 +298,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 ar_rank = [ranks[i] for i in ar_idx]
                 if self._global_rank in ar_rank:
                     grp = torch.distributed.new_group(ranks=ar_rank)
+                    print("group for all reduce, ranks:", ar_rank)
                     for i in range(self._num_ar_pg):
                         self._ar_pg.append(grp)
             self._ar_st = [torch.cuda.Stream() for _ in range(self._num_ar_pg)]
@@ -311,11 +312,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             rs_ranks.append(rs_rank)
             if self._global_rank in rs_rank:
                 grp = torch.distributed.new_group(ranks=rs_rank)
+                print("group for all reduce, ranks:", rs_rank)
                 for i in range(self._num_rs_pg):
                     self._rs_pg.append(grp)
                 if self._compute_L2_grad_norm:
                     self._l2_grad_norm_pg = grp
-                    #torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
+                    torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
         self._rs_st = [torch.cuda.Stream() for _ in range(self._num_rs_pg)]
         for rs_pg in self._rs_pg:
             torch.distributed.all_reduce(self._overflow_buf,group=rs_pg)
