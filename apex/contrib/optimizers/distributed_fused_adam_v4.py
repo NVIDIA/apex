@@ -292,9 +292,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             for dev_i in range(self._group_size):
                 ar_idx = [dev_i+j*self._group_size for j in range(self._num_groups)]
                 ar_rank = [ranks[i] for i in ar_idx]
-                if self._global_rank in ar_rank:
-                    for i in range(self._num_ar_pg):
-                        grp = torch.distributed.new_group(ranks=ar_rank)
+                for i in range(self._num_ar_pg):
+                    grp = torch.distributed.new_group(ranks=ar_rank)
+                    if self._global_rank in ar_rank:
                         self._ar_pg.append(grp)
             self._ar_st = [torch.cuda.Stream() for _ in range(self._num_ar_pg)]
             for ar_pg in self._ar_pg:
@@ -305,12 +305,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             rs_idx = [group_i*self._group_size+j for j in range(self._group_size)]
             rs_rank = [ranks[i] for i in rs_idx]
             rs_ranks.append(rs_rank)
-            if self._global_rank in rs_rank:
-                for i in range(self._num_rs_pg):
-                    grp = torch.distributed.new_group(ranks=rs_rank)
+            for i in range(self._num_rs_pg):
+                grp = torch.distributed.new_group(ranks=rs_rank)
+                if self._global_rank in rs_rank:
                     self._rs_pg.append(grp)
-                if self._compute_L2_grad_norm:
-                    l2_grad_norm_pg = torch.distributed.new_group(ranks=rs_rank)
+            if self._compute_L2_grad_norm:
+                l2_grad_norm_pg = torch.distributed.new_group(ranks=rs_rank)
+                if self._global_rank in rs_rank:
                     self._l2_grad_norm_pg = l2_grad_norm_pg
                     torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
         self._rs_st = [torch.cuda.Stream() for _ in range(self._num_rs_pg)]
@@ -325,9 +326,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             self._ag_pg = []
             for group_i in range(self._num_groups):
                 ag_rank = rs_ranks[group_i]
-                if self._global_rank in ag_rank:
-                    for i in range(self._num_ag_pg):
-                        grp = torch.distributed.new_group(ranks=ag_rank)
+                for i in range(self._num_ag_pg):
+                    grp = torch.distributed.new_group(ranks=ag_rank)
+                    if self._global_rank in rs_rank:
                         self._ag_pg.append(grp)
             self._ag_st = [torch.cuda.Stream() for _ in range(self._num_ag_pg)]
             for ag_pg in self._ag_pg:
