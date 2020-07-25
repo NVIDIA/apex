@@ -103,7 +103,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._global_rank = torch.distributed.get_rank(group=self._default_group)
         self._local_rank = torch.distributed.get_rank(group=self._world)
         self._rank_in_group = self._local_rank % self._group_size
-        print("world_size:", self._world_size, ", group_size:", self._group_size, ", num_groups:", self._num_groups, ", rank:", torch.distributed.get_rank(), ", local_rank:", self._local_rank, ", rank_in_group:", self._rank_in_group)
+        print("world_size:", self._world_size, ", group_size:", self._group_size, ", num_groups:", self._num_groups, ", rank:", torch.distributed.get_rank(), ", global_rank:", self._global_rank, ", local_rank:", self._local_rank, ", rank_in_group:", self._rank_in_group)
 
         p_offset = 0
         p_i = 0
@@ -293,7 +293,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             for dev_i in range(self._group_size):
                 ar_idx = [dev_i+j*self._group_size for j in range(self._num_groups)]
                 ar_rank = [ranks[i] for i in ar_idx]
-                if self._global_rank in ar_rank:
+                if torch.distributed.get_rank() in ar_rank:
                     grp = torch.distributed.new_group(ranks=ar_rank)
                     print("group for all reduce, ranks:", ar_rank)
                     for i in range(self._num_ar_pg):
@@ -307,7 +307,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             rs_idx = [group_i*self._group_size+j for j in range(self._group_size)]
             rs_rank = [ranks[i] for i in rs_idx]
             rs_ranks.append(rs_rank)
-            if self._global_rank in rs_rank:
+            if torch.distributed.get_rank() in rs_rank:
                 grp = torch.distributed.new_group(ranks=rs_rank)
                 print("group for reduce scatter, ranks:", rs_rank)
                 for i in range(self._num_rs_pg):
@@ -327,7 +327,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             self._ag_pg = []
             for group_i in range(self._num_groups):
                 ag_rank = rs_ranks[group_i]
-                if self._global_rank in ag_rank:
+                if torch.distributed.get_rank() in ag_rank:
                     grp = torch.distributed.new_group(ranks=ag_rank)
                     for i in range(self._num_ag_pg):
                         self._ag_pg.append(grp)
