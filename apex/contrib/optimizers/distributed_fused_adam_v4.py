@@ -107,6 +107,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._global_rank = torch.distributed.get_rank()
         self._world_rank = torch.distributed.get_rank(group=self._world)
         self._group_rank = self._world_rank % self._group_size
+        print("world_size:", self._world_size, ", group_size:", self._group_size, ", num_groups:", self._num_groups, ", rank:", torch.distributed.get_rank(), ", global_rank:", self._global_rank, ", world_rank:", self._world_rank, ", group_rank:", self._group_rank)
 
         p_offset = 0
         p_i = 0
@@ -296,6 +297,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             for dev_i in range(self._group_size):
                 ar_idx = [dev_i+j*self._group_size for j in range(self._num_groups)]
                 ar_rank = [ranks[i] for i in ar_idx]
+                print("group for all reduce, ranks:", ar_rank)
                 for i in range(self._num_ar_pg):
                     grp = torch.distributed.new_group(ranks=ar_rank)
                     if self._global_rank in ar_rank:
@@ -309,6 +311,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             rs_idx = [group_i*self._group_size+j for j in range(self._group_size)]
             rs_rank = [ranks[i] for i in rs_idx]
             rs_ranks.append(rs_rank)
+            print("group for reduce scatter, ranks:", rs_rank)
             for i in range(self._num_rs_pg):
                 grp = torch.distributed.new_group(ranks=rs_rank)
                 if self._global_rank in rs_rank:
