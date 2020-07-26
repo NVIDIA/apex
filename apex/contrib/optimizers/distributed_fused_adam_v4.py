@@ -303,8 +303,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     if self._global_rank in ar_rank:
                         self._ar_pg.append(grp)
             self._ar_st = [torch.cuda.Stream() for _ in range(self._num_ar_pg)]
-            for ar_pg in self._ar_pg:
-                torch.distributed.all_reduce(self._overflow_buf,group=ar_pg)
+            #for ar_pg in self._ar_pg:
+            #    torch.distributed.all_reduce(self._overflow_buf,group=ar_pg)
 
         self._rs_pg, rs_ranks = [],[]
         for group_i in range(self._num_groups):
@@ -320,10 +320,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 l2_grad_norm_pg = torch.distributed.new_group(ranks=rs_rank)
                 if self._global_rank in rs_rank:
                     self._l2_grad_norm_pg = l2_grad_norm_pg
-                    torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
+                    #torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
         self._rs_st = [torch.cuda.Stream() for _ in range(self._num_rs_pg)]
-        for rs_pg in self._rs_pg:
-            torch.distributed.all_reduce(self._overflow_buf,group=rs_pg)
+        #for rs_pg in self._rs_pg:
+        #    torch.distributed.all_reduce(self._overflow_buf,group=rs_pg)
 
         if self._num_ag_pg == 0:
             self._ag_pg = self._rs_pg
@@ -338,8 +338,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     if self._global_rank in rs_rank:
                         self._ag_pg.append(grp)
             self._ag_st = [torch.cuda.Stream() for _ in range(self._num_ag_pg)]
-            for ag_pg in self._ag_pg:
-                torch.distributed.all_reduce(self._overflow_buf,group=ag_pg)
+            #for ag_pg in self._ag_pg:
+            #    torch.distributed.all_reduce(self._overflow_buf,group=ag_pg)
         self._l2_grad_norm_st = torch.cuda.Stream() if self._compute_L2_grad_norm else None
         self._completion_st = torch.cuda.Stream()
 
