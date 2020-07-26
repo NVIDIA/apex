@@ -37,7 +37,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             reduced during first fp16 gradient reduction block.
         step_supports_amp_scaling(boolean, optional): whether to use customized
             gradient unscaling logic (default: True)
-        world: current progress group (default: None, which means the default process group created by init_process_group will be used)
+        num_process_groups (integer, optional): number of process groups in
+            the app (default: 1)
+        process_group_id (integer, optional): process group id (default: 0)
+        process_group_size (integer, optional): size of process group
+            (default: 0)
+
 
     .. _Adam\: A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
@@ -56,7 +61,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  dwu_num_chunks=4, predivide=True, e5m2_allgather=False,
                  do_not_flatten_model=False,
                  step_supports_amp_scaling=True,
-                 world=None):
+                 num_process_groups=1,
+                 process_group_id=0,
+                 process_group_size=0):
         global fused_adam_cuda, distributed_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
         distributed_adam_cuda = importlib.import_module("distributed_adam_cuda")
@@ -95,15 +102,16 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._do_not_flatten_model = do_not_flatten_model
         self._compute_L2_grad_norm = compute_L2_grad_norm
         self._L2_grad_norm = None
+        self._num_process_groups = num_process_groups
+        self._process_group_id = process_group_id
+        self._process_group_size = dtorch.cuda.device_count() if process_group_size <= 0 else process_group_size
+        self._world_size = self._process_group_size # world: the current process group
         self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
-        self._default_group = c10d._get_default_group()
-        self._world = world if world is not None else self._default_group
-        self._world_size = torch.distributed.get_world_size(group=self._world)
         self._num_groups = self._world_size // self._group_size
         self._global_rank = torch.distributed.get_rank()
-        self._world_rank = torch.distributed.get_rank(group=self._world)
+        self._world_rank = self._global_rank / self._num_process_groups
         self._group_rank = self._world_rank % self._group_size
-        print("world_size:", self._world_size, ", group_size:", self._group_size, ", num_groups:", self._num_groups, ", rank:", torch.distributed.get_rank(), ", global_rank:", self._global_rank, ", world_rank:", self._world_rank, ", group_rank:", self._group_rank)
+        print("world_size:", self._world_size, ", group_size:", self._group_size, ", num_groups:", self._num_groups, ", global_rank:", self._global_rank, ", world_rank:", self._world_rank, ", group_rank:", self._group_rank)
 
         p_offset = 0
         p_i = 0
@@ -282,41 +290,44 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         p_in, p_out = zip(*self._packed_flat_to_model_params)
         self._packed_flat_to_model_params = [p_in, p_out]
 
-        # gather global ranks of all members of the current process group
-        ranks = list(c10d._pg_group_ranks[world].keys()) if world is not None else list(range(self._world_size))
-
         self._num_rs_pg = dwu_num_rs_pg
         self._num_ar_pg = dwu_num_ar_pg
         self._num_ag_pg = dwu_num_ag_pg
         if self._num_groups > 1:
             self._ar_pg = []
-            for dev_i in range(self._group_size):
-                ar_idx = [dev_i+j*self._group_size for j in range(self._num_groups)]
-                ar_rank = [ranks[i] for i in ar_idx]
-                print("group for all reduce, ranks:", ar_rank)
-                for i in range(self._num_ar_pg):
-                    grp = torch.distributed.new_group(ranks=ar_rank)
+            for i in range(self._num_process_groups):
+                # gather global ranks of all members of the current process group
+                ranks = [i+k*self._num_process_groups for k in range(self._process_group_size)]
+                for j in range(self._group_size):
+                    ar_idx = [j+k*self._group_size for k in range(self._num_groups)]
+                    ar_rank = [ranks[k] for k in ar_idx]
                     if self._global_rank in ar_rank:
-                        self._ar_pg.append(grp)
+                        print("group for all reduce, ranks:", ar_rank)
+                    for _ in range(self._num_ar_pg):
+                        grp = torch.distributed.new_group(ranks=ar_rank)
+                        if self._global_rank in ar_rank:
+                            self._ar_pg.append(grp)
             self._ar_st = [torch.cuda.Stream() for _ in range(self._num_ar_pg)]
             for ar_pg in self._ar_pg:
                 torch.distributed.all_reduce(self._overflow_buf,group=ar_pg)
 
         self._rs_pg, rs_ranks = [],[]
-        for group_i in range(self._num_groups):
-            rs_idx = [group_i*self._group_size+j for j in range(self._group_size)]
-            rs_rank = [ranks[i] for i in rs_idx]
-            rs_ranks.append(rs_rank)
-            print("group for reduce scatter, ranks:", rs_rank)
-            for i in range(self._num_rs_pg):
-                grp = torch.distributed.new_group(ranks=rs_rank)
+        for i in range(self._num_process_groups):
+            ranks = [i+k*self._num_process_groups for k in range(self._process_group_size)]
+            for j in range(self._num_groups):
+                rs_idx = [j*self._group_size+k for k in range(self._group_size)]
+                rs_ranks = [ranks[k] for k in rs_idx]
                 if self._global_rank in rs_rank:
-                    self._rs_pg.append(grp)
-            if self._compute_L2_grad_norm:
-                l2_grad_norm_pg = torch.distributed.new_group(ranks=rs_rank)
-                if self._global_rank in rs_rank:
-                    self._l2_grad_norm_pg = l2_grad_norm_pg
-                    torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
+                    print("group for reduce scatter, ranks:", rs_rank)
+                for _ in range(self._num_rs_pg):
+                    grp = torch.distributed.new_group(ranks=rs_rank)
+                    if self._global_rank in rs_rank:
+                        self._rs_pg.append(grp)
+                if self._compute_L2_grad_norm:
+                    l2_grad_norm_pg = torch.distributed.new_group(ranks=rs_rank)
+                    if self._global_rank in rs_rank:
+                        self._l2_grad_norm_pg = l2_grad_norm_pg
+                        torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
         self._rs_st = [torch.cuda.Stream() for _ in range(self._num_rs_pg)]
         for rs_pg in self._rs_pg:
             torch.distributed.all_reduce(self._overflow_buf,group=rs_pg)
@@ -327,12 +338,16 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             self._num_ag_pg = self._num_rs_pg
         else:
             self._ag_pg = []
-            for group_i in range(self._num_groups):
-                ag_rank = rs_ranks[group_i]
-                for i in range(self._num_ag_pg):
-                    grp = torch.distributed.new_group(ranks=ag_rank)
-                    if self._global_rank in rs_rank:
-                        self._ag_pg.append(grp)
+            for i in range(self._num_process_groups):
+                ranks = [i+k*self._num_process_groups for k in range(self._process_group_size)]
+                for j in range(self._num_groups):
+                    ag_rank = rs_ranks[j]
+                    if self._global_rank in ag_rank:
+                        print("group for all gather, ranks:", ag_rank)
+                    for _ in range(self._num_ag_pg):
+                        grp = torch.distributed.new_group(ranks=ag_rank)
+                        if self._global_rank in ag_rank:
+                            self._ag_pg.append(grp)
             self._ag_st = [torch.cuda.Stream() for _ in range(self._num_ag_pg)]
             for ag_pg in self._ag_pg:
                 torch.distributed.all_reduce(self._overflow_buf,group=ag_pg)
