@@ -109,7 +109,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
         self._num_groups = self._world_size // self._group_size
         self._global_rank = torch.distributed.get_rank()
-        self._world_rank = self._global_rank / self._num_process_groups
+        self._world_rank = self._global_rank // self._num_process_groups
         self._group_rank = self._world_rank % self._group_size
         print("world_size:", self._world_size, ", group_size:", self._group_size, ", num_groups:", self._num_groups, ", global_rank:", self._global_rank, ", world_rank:", self._world_rank, ", group_rank:", self._group_rank)
 
