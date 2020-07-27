@@ -2,6 +2,7 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
+#include <THC/THC.h>
 #include "compat.h"
 
 #include <assert.h>
@@ -29,7 +30,7 @@ template<typename T, typename U, typename... ArgTypes>
 __global__ void multi_tensor_apply_kernel(
     int chunk_size,
     volatile int* noop_flag,
-    T tl,
+    T* tl,
     U callable,
     ArgTypes... args)
 {
@@ -56,7 +57,7 @@ void multi_tensor_apply(
     for(int t = 0; t < tensor_lists[l].size(); t++)
     {
       // TODO:  Print which tensor fails.
-      bool contiguous_memory = tensor_lists[l][t].is_contiguous();
+      bool contiguous_memory = (tensor_lists[l][t].is_sparse()) ? tensor_lists[l][t]._values().is_contiguous() : tensor_lists[l][t].is_contiguous();
 #ifdef VERSION_GE_1_5
       contiguous_memory = (contiguous_memory || tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast));
 #endif
@@ -78,8 +79,15 @@ void multi_tensor_apply(
   for(int t = 0; t < ntensors; t++)
   {
     tl.sizes[loc_tensor_info] = tensor_lists[0][t].numel();
-    for(int d = 0; d < depth; d++)
-      tl.addresses[d][loc_tensor_info] = tensor_lists[d][t].data_ptr();
+    for(int d = 0; d < depth; d++) {
+      if (tensor_lists[d][t].is_sparse()) {
+        at::Tensor dst = at::zeros(tensor_lists[d][t].sizes(), tensor_lists[d][t].options().layout(at::kStrided));
+        dst.add_(tensor_lists[d][t]);
+        tl.addresses[d][loc_tensor_info] = dst.data_ptr();
+      } else {
+        tl.addresses[d][loc_tensor_info] = tensor_lists[d][t].data_ptr();
+      }
+    }
     loc_tensor_info++;
 
     int chunks_this_tensor = (tensor_lists[0][t].numel() + chunk_size - 1)/chunk_size;
@@ -97,11 +105,15 @@ void multi_tensor_apply(
       bool last_chunk = (t == ntensors - 1 && chunk == chunks_this_tensor - 1);
       if(tensors_full || blocks_full || last_chunk)
       {
+        auto storage = at::empty(sizeof(tl), c10::TensorOptions(at::kStrided).dtype(at::kByte).device(at::kCPU).pinned_memory(true));
+        auto tl_as_host_pinned_ptr = static_cast<decltype(tl)*>(storage.data_ptr());
+        memcpy(tl_as_host_pinned_ptr, &tl, sizeof(tl));
+        AT_CUDA_CHECK(THCCachingHostAllocator_recordEvent(tl_as_host_pinned_ptr, stream));
         // using accscalar_t = acc_type<scalar_t, true>;
         multi_tensor_apply_kernel<<<loc_block_info, block_size, 0, stream>>>(
           chunk_size,
           noop_flag.DATA_PTR<int>(),
-          tl,
+          tl_as_host_pinned_ptr,
           callable,
           args...);
 

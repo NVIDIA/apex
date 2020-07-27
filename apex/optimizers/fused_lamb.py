@@ -165,7 +165,7 @@ class FusedLAMB(torch.optim.Optimizer):
                     # Exponential moving average of gradient values
                     state['exp_avg_sq'] = torch.zeros_like(p.data)
 
-                if p.dtype == torch.float16:
+                if p.dtype in {torch.float16, torch.bfloat16}:
                     g_16.append(p.grad.data)
                     p_16.append(p.data)
                     m_16.append(state['exp_avg'])
@@ -176,7 +176,7 @@ class FusedLAMB(torch.optim.Optimizer):
                     m_32.append(state['exp_avg'])
                     v_32.append(state['exp_avg_sq'])
                 else:
-                    raise RuntimeError('FusedLAMB only support fp16 and fp32.')
+                    raise RuntimeError('FusedLAMB only support fp16, bfloat16 and fp32.')
 
             if(len(g_16) > 0):
                 multi_tensor_applier(self.multi_tensor_lamb,

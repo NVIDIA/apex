@@ -13,6 +13,8 @@ from torch.nn import Parameter
 from utils import common_init, HALF, FLOAT,\
     ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
 
+from apex.testing.common_utils import skipIfRocm
+
 class MyModel(torch.nn.Module):
     def __init__(self, unique):
         super(MyModel, self).__init__()
@@ -41,7 +43,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
 
     def tearDown(self):
         pass
-
+    
     def test_2models2losses1optimizer(self):
         model0 = MyModel(1)
         model1 = MyModel(2)

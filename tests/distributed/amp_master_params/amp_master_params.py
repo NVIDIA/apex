@@ -9,6 +9,7 @@ parser = argparse.ArgumentParser()
 # FOR DISTRIBUTED:  Parse for the local_rank argument, which will be supplied
 # automatically by torch.distributed.launch.
 parser.add_argument("--local_rank", default=0, type=int)
+parser.add_argument("--opt_level", default="O2", type=str)
 args = parser.parse_args()
 
 # FOR DISTRIBUTED:  If we are running under torch.distributed.launch,
@@ -42,7 +43,7 @@ y = torch.randn(N, D_out, device='cuda')
 model = torch.nn.Linear(D_in, D_out).cuda()
 optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 
-model, optimizer = amp.initialize(model, optimizer, opt_level="O2")
+model, optimizer = amp.initialize(model, optimizer, opt_level=args.opt_level)
 
 if args.distributed:
     # FOR DISTRIBUTED:  After amp.initialize, wrap the model with

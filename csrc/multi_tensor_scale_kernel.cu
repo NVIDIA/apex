@@ -32,21 +32,21 @@ struct ScaleFunctor
    __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorListMetadata<2>& tl,
+    TensorListMetadata<2>* tl,
     float scale)
   {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    int tensor_loc = tl->block_to_tensor[blockIdx.x];
+    int chunk_idx = tl->block_to_chunk[blockIdx.x];
+    int n = tl->sizes[tensor_loc];
 
-    in_t* in = (in_t*)tl.addresses[0][tensor_loc];
+    in_t* in = (in_t*)tl->addresses[0][tensor_loc];
     in += chunk_idx*chunk_size;
 
-    out_t* out = (out_t*)tl.addresses[1][tensor_loc];
+    out_t* out = (out_t*)tl->addresses[1][tensor_loc];
     out += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -121,8 +121,8 @@ void multi_tensor_scale_cuda(
   // If build times suffer, think about where to put this dispatch,
   // and what logic should be moved out of multi_tensor_apply.
 
-  DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_scale_cuda",
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[1][0].scalar_type(), 1, "multi_tensor_scale_cuda",
+  DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_scale_cuda",
+    DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(tensor_lists[1][0].scalar_type(), 1, "multi_tensor_scale_cuda",
       multi_tensor_apply<2>(
         BLOCK_SIZE,
         chunk_size,

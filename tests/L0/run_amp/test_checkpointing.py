@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from apex import amp
-
+from apex.testing.common_utils import skipIfRocm
 
 from utils import common_init, FLOAT
 
@@ -28,7 +28,7 @@ class MyModel(torch.nn.Module):
 class TestCheckpointing(unittest.TestCase):
     def setUp(self):
         self.initial_lr = 1e-3
-        self.test_opt_levels = ("O0", "O1", "O2", "O3")
+        self.test_opt_levels = ("O0", "O1", "O2", "O3", "O4", "O5")
 
     def seed(self):
         torch.manual_seed(2809)
@@ -161,6 +161,7 @@ class TestCheckpointing(unittest.TestCase):
                             # skip tests for different opt_levels
                             continue
 
+    @skipIfRocm
     def test_loss_scale_decrease(self):
         num_losses = 3
         nb_decrease_loss_scales = [0, 1, 2]
@@ -236,6 +237,7 @@ class TestCheckpointing(unittest.TestCase):
             state_dict = model.state_dict()
             for key in state_dict:
                 self.assertFalse('Half' in state_dict[key].type())
+                self.assertFalse('BFloat16' in state_dict[key].type())
 
             # Check, if model is still trainable
             # Create dummy data

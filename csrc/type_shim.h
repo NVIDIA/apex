@@ -105,6 +105,66 @@
       AT_ERROR(#NAME, " not implemented for '", toString(TYPE), "'");  \
   }
 
+// TODO: We might have come up with an optimal set of dispatch macros by
+// changing the signature to have an integer suffix of number of types
+// to dispatch for as defined in upstream (e.g AT_DISPATCH_FLOATING_TYPES_AND2)
+// Refactor once all the extension ops are enabled.
+#define DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(TYPE, LEVEL, NAME, ...) \
+  switch(TYPE) \
+  { \
+    case at::ScalarType::Float: \
+    { \
+      using scalar_t_##LEVEL = float; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::Half: \
+    { \
+      using scalar_t_##LEVEL = at::Half; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::BFloat16: \
+    { \
+      using scalar_t_##LEVEL = at::BFloat16; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    default: \
+      AT_ERROR(#NAME, " not implemented for '", toString(TYPE), "'");  \
+  }
+
+
+#define DISPATCH_DOUBLE_FLOAT_AND_HALF_AND_BFLOAT16(TYPE, LEVEL, NAME, ...) \
+  switch(TYPE) \
+  { \
+    case at::ScalarType::Double: \
+    { \
+      using scalar_t_##LEVEL = double; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::Float: \
+    { \
+      using scalar_t_##LEVEL = float; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::Half: \
+    { \
+      using scalar_t_##LEVEL = at::Half; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::BFloat16: \
+    { \
+      using scalar_t_##LEVEL = at::BFloat16; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    default: \
+      AT_ERROR(#NAME, " not implemented for '", toString(TYPE), "'");  \
+  }
 
 template<typename T>
 __device__ __forceinline__ T reduce_block_into_lanes
@@ -141,8 +201,13 @@ __device__ __forceinline__ T reduce_block_into_lanes
     // __SYNCWARP();
 
     #pragma unroll
-    for(int i = 16; i >= lanes; i >>= 1)
+    for(int i = 16; i >= lanes; i >>= 1) {
+#ifdef __HIP_PLATFORM_HCC__
+      final = final + __shfl_down(0xffffffff, final, i);
+#else
       final = final + __shfl_down_sync(0xffffffff, final, i);
+#endif
+    }
   }
 
   if(share_result)
@@ -191,8 +256,13 @@ __device__ __forceinline__ T reduce_block_into_lanes_max_op
     // __SYNCWARP();
 
     #pragma unroll
-    for(int i = 16; i >= lanes; i >>= 1)
+    for(int i = 16; i >= lanes; i >>= 1) {
+#ifdef __HIP_PLATFORM_HCC__
+      final = fmaxf(fabsf(final), fabsf(__shfl_down(0xffffffff, final, i)));
+#else
       final = fmaxf(fabsf(final), fabsf(__shfl_down_sync(0xffffffff, final, i)));
+#endif
+    }
   }
 
   if(share_result)

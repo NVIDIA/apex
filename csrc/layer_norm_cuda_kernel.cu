@@ -172,8 +172,8 @@ void cuWelfordMuSigma2(
     for (;  l+7 < n2;  l+=8*numx) {
       for (int k = 0;  k < 8;  k+=2) {
         float2 curr = __half22float2(*((__half2*)(lvals+l+k)));
-        cuWelfordOnlineSum(curr.x,mu,sigma2,count);
-	cuWelfordOnlineSum(curr.y,mu,sigma2,count);
+        cuWelfordOnlineSum<float>(curr.x,mu,sigma2,count);
+	cuWelfordOnlineSum<float>(curr.y,mu,sigma2,count);
       }
     }
     for (;  l < n2;  ++l) {
@@ -230,9 +230,15 @@ void cuWelfordMuSigma2(
 template<typename U> U rsqrt(U v) {
   return U(1) / sqrt(v);
 }
+#if defined __HIP_PLATFORM_HCC__
+__device__ float rsqrt(float v) {
+  return rsqrtf(v);
+}
+#else
 template<> float rsqrt(float v) {
   return rsqrtf(v);
 }
+#endif
 template<> double rsqrt(double v) {
   return rsqrt(v);
 }
@@ -293,7 +299,7 @@ void cuApplyLayerNorm(
   // 1) blockDim.x == warpSize
   // 2) Tensors are contiguous
   //
-  for (auto i1=blockIdx.y; i1 < n1; i1 += gridDim.y) {
+  for (int i1=blockIdx.y; i1 < n1; i1 += gridDim.y) {
     SharedMemory<U> shared;
     U* buf = shared.getPointer();
     U mu,sigma2;
@@ -531,7 +537,7 @@ void cuComputeGradInput(
     const T* gamma,
     T* grad_input)
 {
-  for (auto i1=blockIdx.y; i1 < n1; i1 += gridDim.y) {
+  for (int i1=blockIdx.y; i1 < n1; i1 += gridDim.y) {
     U sum_loss1 = U(0);
     U sum_loss2 = U(0);
     const U c_mean = mean[i1];
@@ -684,7 +690,7 @@ void cuda_layer_norm(
     double epsilon)
 {
     using namespace at;
-    DISPATCH_DOUBLE_FLOAT_AND_HALF(input->scalar_type(), 0, "layer_norm_cuda_kernel",
+    DISPATCH_DOUBLE_FLOAT_AND_HALF_AND_BFLOAT16(input->scalar_type(), 0, "layer_norm_cuda_kernel",
         using accscalar_t = at::acc_type<scalar_t_0, true>;
         HostApplyLayerNorm(
             output->DATA_PTR<scalar_t_0>(),
@@ -724,7 +730,8 @@ void HostLayerNormGradient(
       const int nshared2_a = 2 * sizeof(U) * threads2.y * threads2.y * (threads2.x + 1);
       const int nshared2_b = threads2.x * threads2.y * sizeof(U);
       const int nshared2 = nshared2_a > nshared2_b ? nshared2_a : nshared2_b;
-      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input->options().dtype(input->scalar_type()==at::ScalarType::Half ? at::ScalarType::Float : input->scalar_type()));
+      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input->options().dtype((input->scalar_type()==at::ScalarType::Half ||
+                                                                      input->scalar_type()==at::ScalarType::BFloat16) ? at::ScalarType::Float : input->scalar_type()));
       at::Tensor part_grad_beta = at::empty_like(part_grad_gamma);
       cuComputePartGradGammaBeta<<<blocks2, threads2, nshared2, stream>>>(
 		      dout,
@@ -787,7 +794,7 @@ void cuda_layer_norm_gradient(
     at::Tensor* grad_beta)
 {
     using namespace at;
-    DISPATCH_FLOAT_AND_HALF(input->scalar_type(), 0, "cuComputeGradInput",
+    DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(input->scalar_type(), 0, "cuComputeGradInput",
         using accscalar_t = at::acc_type<scalar_t_0, true>;
         HostLayerNormGradient(
 	    dout->DATA_PTR<scalar_t_0>(),

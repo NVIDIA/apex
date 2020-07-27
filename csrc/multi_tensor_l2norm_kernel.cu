@@ -30,7 +30,7 @@ struct L2NormFunctor
   __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorListMetadata<1>& tl,
+    TensorListMetadata<1>* tl,
     float* output,
     float* output_per_tensor,
     bool per_tensor,
@@ -40,11 +40,11 @@ struct L2NormFunctor
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    int tensor_loc = tl->block_to_tensor[blockIdx.x];
+    int chunk_idx = tl->block_to_chunk[blockIdx.x];
+    int n = tl->sizes[tensor_loc];
 
-    x_t* x = (x_t*)tl.addresses[0][tensor_loc];
+    x_t* x = (x_t*)tl->addresses[0][tensor_loc];
     x += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -103,7 +103,7 @@ struct L2NormFunctor
         *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
       output[blockIdx.x] += final;
       if(per_tensor)
-        output_per_tensor[(tl.start_tensor_this_launch + tensor_loc)*max_chunks_per_tensor + chunk_idx] = final;
+        output_per_tensor[(tl->start_tensor_this_launch + tensor_loc)*max_chunks_per_tensor + chunk_idx] = final;
     }
   }
 };
@@ -115,7 +115,7 @@ struct MaxNormFunctor
   __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorListMetadata<1>& tl,
+    TensorListMetadata<1>* tl,
     float* output,
     float* output_per_tensor,
     bool per_tensor,
@@ -125,11 +125,11 @@ struct MaxNormFunctor
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    int tensor_loc = tl->block_to_tensor[blockIdx.x];
+    int chunk_idx = tl->block_to_chunk[blockIdx.x];
+    int n = tl->sizes[tensor_loc];
 
-    x_t* x = (x_t*)tl.addresses[0][tensor_loc];
+    x_t* x = (x_t*)tl->addresses[0][tensor_loc];
     x += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -188,13 +188,17 @@ struct MaxNormFunctor
         *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
       output[blockIdx.x] = fmaxf(fabsf(output[blockIdx.x]), fabsf(final));
       if(per_tensor)
-        output_per_tensor[(tl.start_tensor_this_launch + tensor_loc)*max_chunks_per_tensor + chunk_idx] = final;
+        output_per_tensor[(tl->start_tensor_this_launch + tensor_loc)*max_chunks_per_tensor + chunk_idx] = final;
     }
   }
 };
 
 
-__global__ void cleanup(
+__global__ void
+#ifdef __HIP_PLATFORM_HCC__
+__launch_bounds__(1024)
+#endif
+cleanup(
   float* output,
   float* output_per_tensor,
   float* ret,
@@ -231,7 +235,11 @@ __global__ void cleanup(
   }
 }
 
-__global__ void cleanup_v2(
+__global__ void
+#ifdef __HIP_PLATFORM_HCC__
+__launch_bounds__(1024)
+#endif
+cleanup_v2(
   float* output,
   float* output_per_tensor,
   float* ret,
@@ -322,7 +330,7 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
     ret_per_tensor = at::empty({0}, float_options);
   }
 
-  DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_l2norm_cuda",
+  DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_l2norm_cuda",
     multi_tensor_apply<1>(
       BLOCK_SIZE,
       chunk_size,
@@ -391,7 +399,7 @@ void multi_tensor_norm_out_cuda(
   output_per_tensor = at::zeros({ntensors*max_chunks_per_tensor}, float_options);
 
   if (norm_type == 0) {
-    DISPATCH_FLOAT_AND_HALF(
+    DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(
       tensor_lists[0][0].scalar_type(), 0, "multi_tensor_maxnorm_cuda",
       multi_tensor_apply<1>(
         BLOCK_SIZE,
@@ -405,7 +413,7 @@ void multi_tensor_norm_out_cuda(
         max_chunks_per_tensor);)
   }
   else {
-    DISPATCH_FLOAT_AND_HALF(
+    DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(
       tensor_lists[0][0].scalar_type(), 0, "multi_tensor_l2norm_cuda",
       multi_tensor_apply<1>(
         BLOCK_SIZE,

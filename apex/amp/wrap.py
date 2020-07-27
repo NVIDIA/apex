@@ -51,7 +51,8 @@ def make_promote_wrapper(orig_fn, cast_fn, handle=None):
 
         if len(types) <= 1:
             return orig_fn(*args, **kwargs)
-        elif len(types) == 2 and types == set(['HalfTensor', 'FloatTensor']):
+        elif len(types) == 2 and (types == set(['HalfTensor', 'FloatTensor'])
+                                or types == set(['BFloat16Tensor', 'FloatTensor'])):
             new_args = utils.casted_args(cast_fn,
                                          args,
                                          kwargs)
@@ -79,7 +80,8 @@ def sequence_promote(mod, fn, handle, verbose=False):
         types = set([utils.type_string(x) for x in seq])
         if len(types) <= 1:
             return orig_fn(seq, *args, **kwargs)
-        elif types == set(['HalfTensor', 'FloatTensor']):
+        elif (types == set(['HalfTensor', 'FloatTensor']) or
+                types == set(['BFloat16Tensor', 'FloatTensor'])):
             cast_seq = utils.casted_args(maybe_float,
                                          seq, {})
             return orig_fn(cast_seq, *args, **kwargs)
@@ -102,6 +104,8 @@ def promote_match_arg0(mod, fn, handle, verbose=False):
 
         if utils.type_string(arg0) == 'HalfTensor':
             cast_fn = utils.maybe_half
+        if utils.type_string(arg0) == 'BFloat16Tensor':
+            cast_fn = utils.maybe_bfloat16
         elif utils.type_string(arg0) == 'FloatTensor':
             cast_fn = utils.maybe_float
         else:
@@ -119,12 +123,12 @@ def err_if_any_half(mod, fn, handle, custom_err_msg=None):
     @functools.wraps(orig_fn)
     def wrapper(*args, **kwargs):
         types = utils.collect_fp_tensor_types(args, kwargs)
-        if 'HalfTensor' in types:
+        if 'HalfTensor' in types or 'BFloat16Tensor' in types:
             if custom_err_msg:
                 raise NotImplementedError(custom_err_msg)
             else:
                 raise NotImplementedError('Cannot call in-place function ' +
-                                          '{} with fp16 arguments.'.format(fn))
+                                          '{} with fp16 or bfloat16 args.'.format(fn))
         else:
             return orig_fn(*args, **kwargs)
     utils.set_func_save(handle, mod, fn, wrapper)
@@ -137,9 +141,9 @@ def err_if_arg0_half(mod, fn, handle, verbose=False):
     @functools.wraps(orig_fn)
     def wrapper(arg0, *args, **kwargs):
         assert compat.is_tensor_like(arg0)
-        if utils.type_string(arg0) == 'HalfTensor':
+        if utils.type_string(arg0) in {'HalfTensor', 'BFloat16Tensor'}:
             raise NotImplementedError('Cannot call in-place method ' +
-                                      '{} on fp16 Tensors.'.format(fn))
+                                      '{} with fp16 or bfloat16 args.'.format(fn))
         else:
             cast_fn = utils.verbosify(utils.maybe_float, fn, verbose)
             new_args = utils.casted_args(cast_fn, args, kwargs)
@@ -219,7 +223,7 @@ def rnn_cast(backend, fn, handle, verbose=False):
         return fwd_wrapper
     utils.set_func_save(handle, backend, fn, rnn_wrapper)
 
-def new_rnn_cast(fn, handle, verbose=False):
+def new_rnn_cast(fn, cast_fn, handle, verbose=False):
     # Forward+backward compatibility around https://github.com/pytorch/pytorch/pull/15744
     # For rnn backend calls that route through _rnn_impls, we must patch the ref
     # that _rnn_impls stashed.  For rnn backend calls that directly invoke
@@ -232,7 +236,7 @@ def new_rnn_cast(fn, handle, verbose=False):
         assert isinstance(mod, rnn_compat.VariableFunctionsShim)
         fn = fn.lower()
     orig_fn = utils.get_func(mod, fn)
-    cast_fn = utils.verbosify(utils.maybe_half, fn, verbose)
+    cast_fn = utils.verbosify(cast_fn, fn, verbose)
     @functools.wraps(orig_fn)
     def wrapper(*args, **kwargs):
         # Exact call signature from modules/rnn.py
@@ -247,14 +251,20 @@ def new_rnn_cast(fn, handle, verbose=False):
         else:
             params_idx = 3 # PackedSequence case
 
+        if cast_fn == utils.maybe_half:
+            dtype = torch.half
+        elif cast_fn == utils.maybe_bfloat16:
+            dtype = torch.bfloat16
+        else:
+            raise RuntimeError("Unsupported cast_fn passed. Supports only maybe_half and maybe_bfloat16")
         new_args = []
         for i, arg in enumerate(args):
             if i == params_idx:
                 num_params = sum([x.numel() for x in arg])
                 fp16_weight_buf = args[0].new_empty((num_params,),
-                                                    dtype=torch.half)
+                                                    dtype=dtype)
                 casted_weights = utils.new_synthesize_flattened_rnn_weights(
-                    arg, fp16_weight_buf, fn, verbose)
+                    arg, fp16_weight_buf, fn, dtype, verbose)
                 new_args.append(casted_weights)
             elif utils.is_fp_tensor(arg):
                 new_args.append(cast_fn(arg))

@@ -14,6 +14,9 @@ for model_rank0, model_rank1, master_rank0, master_rank1 in zip(
         model_params_rank1,
         master_params_rank0,
         master_params_rank1):
+    # converting model params to float is a hack since allclose doesn't support bfloat16 yet.
+    model_rank0 = model_rank0.float()
+    model_rank1 = model_rank1.float()
     assert torch.allclose(model_rank0, model_rank1), "Model param mismatch"
     assert torch.allclose(master_rank0, master_rank1), "Master param mismatch"
     # Some debugging/investigation assistance code:
@@ -23,6 +26,6 @@ for model_rank0, model_rank1, master_rank0, master_rank1 in zip(
     # print(maxval.item(), maxind.item(), offending_val_half.item(), offending_val_float.item(),
     #       offending_val_float.half().item())
     # rtol needs to be > 2^-11 because of denormals...
-    assert torch.allclose(model_rank0, master_rank0.half(), rtol=.005), "Model-master mismatch"
+    assert torch.allclose(model_rank0, master_rank0, rtol=.005), "Model-master mismatch"
 
 print("OK:  Model and master params match across ranks.")

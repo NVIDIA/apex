@@ -80,10 +80,10 @@ def check_params_fp32(models):
     for model in models:
         for name, param in model.named_parameters():
             if param.is_floating_point():
-                if 'Half' in param.type():
+                if 'Half' in param.type() or 'BFloat16' in param.type():
                     warn_or_err("Found param {} with type {}, expected torch.cuda.FloatTensor.\n"
-                        "When using amp.initialize, you do not need to call .half() on your model\n"
-                        "before passing it, no matter what optimization level you choose.".format(
+                        "When using amp.initialize, you do not need to call .half() or .bfloat16()\n"
+                        "on your model before passing it, no matter what optimization level you choose.".format(
                         name, param.type()))
                 elif not param.is_cuda:
                     warn_or_err("Found param {} with type {}, expected torch.cuda.FloatTensor.\n"
@@ -137,7 +137,7 @@ class O2StateDictHook(object):
     def __call__(self, module, state_dict, prefix, local_metadata):
         for key in state_dict:
             param = state_dict[key]
-            if 'Half' in param.type():
+            if 'Half' in param.type() or 'BFloat16' in param.type():
                 param = param.to(torch.float32)
                 state_dict[key] = param
 
@@ -189,7 +189,7 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
 
         for model in models:
             # Patch the forward method to cast incoming data to the correct type, and
-            # outgoing data to float32, so "the user never needs to call .half()."
+            # outgoing data to float32, so "the user never needs to call .half()/.bfloat16()."
             # I like writing things explicitly more than decorators.
             def patch_forward(old_fwd):
                 def new_fwd(*args, **kwargs):
@@ -232,7 +232,9 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
 
     if properties.patch_torch_functions:
         # handle is unused here. It's accessible later through a global value anyway.
-        handle = amp_init(loss_scale=properties.loss_scale, verbose=(_amp_state.verbosity == 2))
+        handle = amp_init(loss_scale=properties.loss_scale,
+                          patch_type=properties.patch_torch_functions_type,
+                          verbose=(_amp_state.verbosity == 2))
         for optimizer in optimizers:
             # Disable Amp casting for the optimizer step, because it should only be
             # applied to FP32 master params anyway.

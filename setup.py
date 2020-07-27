@@ -6,6 +6,8 @@ import sys
 import warnings
 import os
 
+from torch.utils.hipify import hipify_python
+
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -124,51 +126,104 @@ if "--cuda_ext" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
     sys.argv.remove("--cuda_ext")
 
-    if torch.utils.cpp_extension.CUDA_HOME is None:
+    is_rocm_pytorch = False
+    if torch.__version__ >= '1.5':
+        from torch.utils.cpp_extension import ROCM_HOME
+        is_rocm_pytorch = True if ((torch.version.hip is not None) and (ROCM_HOME is not None)) else False
+
+    if torch.utils.cpp_extension.CUDA_HOME is None and (not is_rocm_pytorch):
         raise RuntimeError("--cuda_ext was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
-        check_cuda_torch_binary_vs_bare_metal(torch.utils.cpp_extension.CUDA_HOME)
+        if not is_rocm_pytorch:
+            check_cuda_torch_binary_vs_bare_metal(torch.utils.cpp_extension.CUDA_HOME)
 
-        ext_modules.append(
-            CUDAExtension(name='amp_C',
-                          sources=['csrc/amp_C_frontend.cpp',
-                                   'csrc/multi_tensor_sgd_kernel.cu',
-                                   'csrc/multi_tensor_scale_kernel.cu',
-                                   'csrc/multi_tensor_axpby_kernel.cu',
-                                   'csrc/multi_tensor_l2norm_kernel.cu',
-                                   'csrc/multi_tensor_lamb_stage_1.cu',
-                                   'csrc/multi_tensor_lamb_stage_2.cu',
-                                   'csrc/multi_tensor_adam.cu',
-                                   'csrc/multi_tensor_adagrad.cu',
-                                   'csrc/multi_tensor_novograd.cu',
-                                   'csrc/multi_tensor_lamb.cu'],
-                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
-                                              'nvcc':['-lineinfo',
-                                                      '-O3',
-                                                      # '--resource-usage',
-                                                      '--use_fast_math'] + version_dependent_macros}))
-        ext_modules.append(
-            CUDAExtension(name='syncbn',
-                          sources=['csrc/syncbn.cpp',
-                                   'csrc/welford.cu'],
-                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
-                                              'nvcc':['-O3'] + version_dependent_macros}))
+        if is_rocm_pytorch:
+            import shutil
+            with hipify_python.GeneratedFileCleaner(keep_intermediates=True) as clean_ctx:
+                hipify_python.hipify(project_directory=this_dir, output_directory=this_dir, includes="csrc/*",
+                                        show_detailed=True, is_pytorch_extension=True, clean_ctx=clean_ctx)
+            shutil.copy("csrc/compat.h", "csrc/hip/compat.h")
+            shutil.copy("csrc/type_shim.h", "csrc/hip/type_shim.h")
 
-        ext_modules.append(
-            CUDAExtension(name='fused_layer_norm_cuda',
-                          sources=['csrc/layer_norm_cuda.cpp',
-                                   'csrc/layer_norm_cuda_kernel.cu'],
-                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
-                                              'nvcc':['-maxrregcount=50',
-                                                      '-O3',
-                                                      '--use_fast_math'] + version_dependent_macros}))
+        if not is_rocm_pytorch:
+            ext_modules.append(
+                CUDAExtension(name='amp_C',
+                              sources=['csrc/amp_C_frontend.cpp',
+                                       'csrc/multi_tensor_sgd_kernel.cu',
+                                       'csrc/multi_tensor_scale_kernel.cu',
+                                       'csrc/multi_tensor_axpby_kernel.cu',
+                                       'csrc/multi_tensor_l2norm_kernel.cu',
+                                       'csrc/multi_tensor_lamb_stage_1.cu',
+                                       'csrc/multi_tensor_lamb_stage_2.cu',
+                                       'csrc/multi_tensor_adam.cu',
+                                       'csrc/multi_tensor_adagrad.cu',
+                                       'csrc/multi_tensor_novograd.cu',
+                                       'csrc/multi_tensor_lamb.cu'],
+                              extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                                  'nvcc':['-lineinfo',
+                                                          '-O3',
+                                                          # '--resource-usage',
+                                                          '--use_fast_math'] + version_dependent_macros}))
+        else:
+            print ("INFO: Building Multitensor apply extension")
+            ext_modules.append(
+                CUDAExtension(name='amp_C',
+                              sources=['csrc/amp_C_frontend.cpp',
+                                       'csrc/hip/multi_tensor_sgd_kernel.hip',
+                                       'csrc/hip/multi_tensor_scale_kernel.hip',
+                                       'csrc/hip/multi_tensor_axpby_kernel.hip',
+                                       'csrc/hip/multi_tensor_l2norm_kernel.hip',
+                                       'csrc/hip/multi_tensor_lamb_stage_1.hip',
+                                       'csrc/hip/multi_tensor_lamb_stage_2.hip',
+                                       'csrc/hip/multi_tensor_adam.hip',
+                                       'csrc/hip/multi_tensor_adagrad.hip',
+                                       'csrc/hip/multi_tensor_novograd.hip',
+                                       'csrc/hip/multi_tensor_lamb.hip'],
+                              extra_compile_args=['-O3'] + version_dependent_macros))
 
-        ext_modules.append(
-            CUDAExtension(name='mlp_cuda',
-                          sources=['csrc/mlp.cpp',
-                                   'csrc/mlp_cuda.cu'],
-                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
-                                              'nvcc':['-O3'] + version_dependent_macros}))
+        if not is_rocm_pytorch:
+            ext_modules.append(
+                CUDAExtension(name='syncbn',
+                              sources=['csrc/syncbn.cpp',
+                                       'csrc/welford.cu'],
+                              extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                                  'nvcc':['-O3'] + version_dependent_macros}))
+        else:
+            print ("INFO: Building syncbn extension.")
+            ext_modules.append(
+                CUDAExtension(name='syncbn',
+                              sources=['csrc/syncbn.cpp',
+                                       'csrc/hip/welford.hip'],
+                              extra_compile_args=['-O3'] + version_dependent_macros))
+
+
+        if not is_rocm_pytorch:
+            ext_modules.append(
+                CUDAExtension(name='fused_layer_norm_cuda',
+                              sources=['csrc/layer_norm_cuda.cpp',
+                                       'csrc/layer_norm_cuda_kernel.cu'],
+                              extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                                  'nvcc':['-maxrregcount=50',
+                                                          '-O3',
+                                                          '--use_fast_math'] + version_dependent_macros}))
+        else:
+            print ("INFO: Building FusedLayerNorm extension.")
+            ext_modules.append(
+                CUDAExtension(name='fused_layer_norm_cuda',
+                              sources=['csrc/layer_norm_cuda.cpp',
+                                       'csrc/hip/layer_norm_hip_kernel.hip'],
+                              extra_compile_args={'cxx' : ['-O3'] + version_dependent_macros,
+                                                  'nvcc' : []}))
+
+        if not is_rocm_pytorch:
+            ext_modules.append(
+                CUDAExtension(name='mlp_cuda',
+                              sources=['csrc/mlp.cpp',
+                                       'csrc/mlp_cuda.cu'],
+                              extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                                  'nvcc':['-O3'] + version_dependent_macros}))
+        else:
+            print ("INFO: Skipping MLP extension")
 
 if "--bnp" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
@@ -250,7 +305,7 @@ if "--deprecated_fused_lamb" in sys.argv:
                                               'nvcc':['-O3',
                                                       '--use_fast_math'] + version_dependent_macros}))
 
-# Check, if ATen/CUDAGenerator.h is found, otherwise use the new ATen/CUDAGeneratorImpl.h, due to breaking change in https://github.com/pytorch/pytorch/pull/36026 
+# Check, if ATen/CUDAGenerator.h is found, otherwise use the new ATen/CUDAGeneratorImpl.h, due to breaking change in https://github.com/pytorch/pytorch/pull/36026
 generator_flag = []
 torch_dir = torch.__path__[0]
 if os.path.exists(os.path.join(torch_dir, 'include', 'ATen', 'CUDAGenerator.h')):

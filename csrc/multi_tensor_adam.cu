@@ -26,7 +26,7 @@ struct AdamFunctor
    __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorListMetadata<4>& tl,
+    TensorListMetadata<4>* tl,
     const float beta1,
     const float beta2,
     const float beta1_correction,
@@ -40,24 +40,24 @@ struct AdamFunctor
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    int tensor_loc = tl->block_to_tensor[blockIdx.x];
 
     // potentially use to pass in list of scalar
-    // int tensor_num = tl.start_tensor_this_launch + tensor_loc;
+    // int tensor_num = tl->start_tensor_this_launch + tensor_loc;
 
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    int chunk_idx = tl->block_to_chunk[blockIdx.x];
+    int n = tl->sizes[tensor_loc];
 
-    T* g = (T*)tl.addresses[0][tensor_loc];
+    T* g = (T*)tl->addresses[0][tensor_loc];
     g += chunk_idx*chunk_size;
 
-    T* p = (T*)tl.addresses[1][tensor_loc];
+    T* p = (T*)tl->addresses[1][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    T* m = (T*)tl.addresses[2][tensor_loc];
+    T* m = (T*)tl->addresses[2][tensor_loc];
     m += chunk_idx*chunk_size;
 
-    T* v = (T*)tl.addresses[3][tensor_loc];
+    T* v = (T*)tl->addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -149,7 +149,7 @@ void multi_tensor_adam_cuda(
   }
 
   // Assume single type across p,g,m1,m2 now
-  DISPATCH_DOUBLE_FLOAT_AND_HALF(
+  DISPATCH_DOUBLE_FLOAT_AND_HALF_AND_BFLOAT16(
     tensor_lists[0][0].scalar_type(), 0, "adam",
     multi_tensor_apply<4>(
       BLOCK_SIZE,

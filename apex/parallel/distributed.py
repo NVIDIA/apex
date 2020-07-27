@@ -48,8 +48,8 @@ def apply_flat_dist_call(bucket, call, extra_args=None):
     for buf, synced in zip(bucket, unflatten(coalesced, bucket)):
         buf.copy_(synced)
 
-def split_half_float_double(tensors):
-    dtypes = ["torch.cuda.HalfTensor",  "torch.cuda.FloatTensor", "torch.cuda.DoubleTensor"]
+def split_half_float_double_bfloat16(tensors):
+    dtypes = ["torch.cuda.HalfTensor",  "torch.cuda.FloatTensor", "torch.cuda.DoubleTensor", "torch.cuda.BFloat16Tensor"]
     buckets = []
     for i, dtype in enumerate(dtypes):
         bucket = [t for t in tensors if t.type() == dtype]
@@ -240,7 +240,8 @@ class DistributedDataParallel(Module):
 
         self.param_type_to_tmp_i = {"torch.cuda.HalfTensor" : 0,
                                     "torch.cuda.FloatTensor" : 1,
-                                    "torch.cuda.DoubleTensor" : 2}
+                                    "torch.cuda.DoubleTensor" : 2,
+                                    "torch.cuda.BFloat16Tensor" : 3}
 
         if multi_tensor_applier.available:
             # TODO:  I really need to centralize the C++ backed imports
@@ -498,7 +499,7 @@ class DistributedDataParallel(Module):
         else:
             grads = [param.grad.data for param in self.module.parameters() if param.grad is not None]
 
-        split_buckets = split_half_float_double(grads)
+        split_buckets = split_half_float_double_bfloat16(grads)
 
         # If retain_allreduce_buffers is True and delay_allreduce is False,
         # this will only be done during the first backward pass, ignored by the
@@ -578,8 +579,8 @@ class DistributedDataParallel(Module):
                 if self.needs_refresh:
                     self.active_i_buckets = []
                     self.buckets = []
-                    self.tmp_buckets = [[], [], []] # [running half, float, double buckets]
-                    self.tmp_numels = [0, 0, 0]
+                    self.tmp_buckets = [[], [], [], []] # [running half, float, double, bfloat16 buckets]
+                    self.tmp_numels = [0, 0, 0, 0]
                     self.bucket_sizes = []
                     self.param_id_to_active_i = {id(param) : i for i, param in enumerate(param_list)}
                     self.param_id_to_bucket = {}
