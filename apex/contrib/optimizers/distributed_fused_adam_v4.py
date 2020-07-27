@@ -316,7 +316,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             ranks = [i+k*self._num_process_groups for k in range(self._process_group_size)]
             for j in range(self._num_groups):
                 rs_idx = [j*self._group_size+k for k in range(self._group_size)]
-                rs_ranks = [ranks[k] for k in rs_idx]
+                rs_rank = [ranks[k] for k in rs_idx]
                 if self._global_rank in rs_rank:
                     print("group for reduce scatter, ranks:", rs_rank)
                 for _ in range(self._num_rs_pg):
