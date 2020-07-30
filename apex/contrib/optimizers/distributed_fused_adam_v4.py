@@ -42,6 +42,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         process_group_id (integer, optional): process group id (default: 0)
         process_group_size (integer, optional): size of process group
             (default: 0)
+        clip_grad_norm (boolean, optional): whether to handle gradient clipping
+            (default: True)
 
 
     .. _Adam\: A Method for Stochastic Optimization:
@@ -63,7 +65,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  step_supports_amp_scaling=True,
                  num_process_groups=1,
                  process_group_id=0,
-                 process_group_size=0):
+                 process_group_size=0,
+                 clip_grad_norm=True):
         global fused_adam_cuda, distributed_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
         distributed_adam_cuda = importlib.import_module("distributed_adam_cuda")
@@ -102,6 +105,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._do_not_flatten_model = do_not_flatten_model
         self._compute_L2_grad_norm = compute_L2_grad_norm
         self._L2_grad_norm = None
+        self._clip_grad_norm = clip_grad_norm
         self._num_process_groups = num_process_groups
         self._process_group_id = process_group_id
         self._process_group_size = dtorch.cuda.device_count() if process_group_size <= 0 else process_group_size
@@ -418,7 +422,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
     def __launch_step_kernel(self):
         combined_scale = self._global_scale
-        if self._param_group['max_grad_norm'] > 0 and math.isfinite(self.L2_grad_norm):
+        if self._clip_grad_norm and self._param_group['max_grad_norm'] > 0 and math.isfinite(self.L2_grad_norm):
             combined_scale = self._param_group['max_grad_norm'] / (self.L2_grad_norm / self._global_scale + 1e-6)
             combined_scale = self._global_scale / min(1, combined_scale)
         
