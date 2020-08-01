@@ -281,7 +281,7 @@ if os.path.exists(os.path.join(torch_dir, 'include', 'ATen', 'CUDAGenerator.h'))
 # Check, if CUDA11 is installed for compute capability 8.0
 cc_flag = []
 _, bare_metal_major, _ = get_cuda_bare_metal_version(cpp_extension.CUDA_HOME)
-if int(bare_metal_major) == 11:
+if int(bare_metal_major) >= 11:
     cc_flag.append('-gencode')
     cc_flag.append('arch=compute_80,code=sm_80')
 
