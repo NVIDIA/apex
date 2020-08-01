@@ -1,3 +1,5 @@
+import math
+
 import torch
 from torch import nn
 from torch.nn import Parameter
@@ -76,7 +78,11 @@ class EncdecMultiheadAttn(nn.Module):
 
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.in_proj_weight_q)
-        nn.init.xavier_uniform_(self.in_proj_weight_kv)
+        # in_proj_weight_kv has shape [2 * hidden, hidden] but it should be
+        # initialized like a [hidden, hidden] matrix.
+        # sqrt(6 / (hidden + hidden)) / sqrt(6 / (2 * hidden + hidden)) = sqrt(1.5)
+        # therefore xavier_uniform gain should be set to sqrt(1.5).
+        nn.init.xavier_uniform_(self.in_proj_weight_kv, gain=math.sqrt(1.5))
         nn.init.xavier_uniform_(self.out_proj_weight)
         if self.bias:
             nn.init.constant_(self.in_proj_bias_q, 0.)
