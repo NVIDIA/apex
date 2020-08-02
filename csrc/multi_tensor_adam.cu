@@ -2,6 +2,7 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
+#include <c10/cuda/CUDAGuard.h>
 // Another possibility:
 // #include <torch/all.h>
 
@@ -149,6 +150,9 @@ void multi_tensor_adam_cuda(
   }
 
   // Assume single type across p,g,m1,m2 now
+  //check that a single tensor is cuda to set device guard, everything else should be checked in multi_tensor_apply checking
+  TORCH_CHECK(tensor_lists[0][0].device().type() == at::kCUDA, "expected input to be on cuda");
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(tensor_lists[0][0]));
   DISPATCH_DOUBLE_FLOAT_AND_HALF(
     tensor_lists[0][0].scalar_type(), 0, "adam",
     multi_tensor_apply<4>(

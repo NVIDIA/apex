@@ -2,6 +2,7 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
+#include <c10/cuda/CUDAGuard.h>
 #include "multi_tensor_apply.cuh"
 #include "compat.h"
 
@@ -152,6 +153,7 @@ void multi_tensor_sgd_cuda(
   float scale)
 {
   auto num_tensors = tensor_lists.size();
+  TORCH_CHECK(tensor_lists[0].size()>0, "expected non-empty inputs to multi_tensor_sgd_cuda\n");
   auto grad_type = tensor_lists[0][0].scalar_type();
   auto weight_type = tensor_lists[1][0].scalar_type();
 
@@ -159,6 +161,11 @@ void multi_tensor_sgd_cuda(
     for(int i = 0; i < tensor_lists[3].size(); i++)
         TORCH_CHECK(tensor_lists[3][i].scalar_type() == at::ScalarType::Half,
                  "Additional output tensors should always be fp16.");
+//check that a first tensor is on cuda, to be able to set device guard
+  TORCH_CHECK(tensor_lists[0][0].device().type() == at::kCUDA, "expected input to be on cuda");
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(tensor_lists[0][0]));
+  noop_flag=noop_flag.to(tensor_lists[0][0].device());
+
 
   // We have 3 possibilities to handle here, in terms of
   // grad_type, param_type, momentum_type, requires_fp16_copy
@@ -273,6 +280,5 @@ void multi_tensor_sgd_cuda(
     AT_ERROR("multi_tensor_sgd only supports some combinations of gradient & weight types. Given: ",
              "gradient: ", grad_type, ", weight: ", weight_type, ", num_lists: ", num_tensors);
   }
-
   AT_CUDA_CHECK(cudaGetLastError());
 }

@@ -77,6 +77,7 @@ class FusedSGD(Optimizer):
                  weight_decay=0, nesterov=False,
                  wd_after_momentum=False,
                  materialize_master_grads=True):
+        print("initializing sgd\n")
         if lr is not required and lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if momentum < 0.0:
