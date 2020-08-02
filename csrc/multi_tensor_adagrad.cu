@@ -2,7 +2,6 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
-#include <c10/cuda/CUDAGuard.h>
 // Another possibility:
 // #include <torch/all.h>
 
@@ -89,12 +88,6 @@ void multi_tensor_adagrad_cuda(
     std::vector<std::vector<at::Tensor>> tensor_lists, const float lr,
     const float epsilon, const int mode, const float weight_decay) {
   using namespace at;
-
-  TORCH_CHECK(tensor_lists[0].size()>0, "expected non-empty tensor list");
-  //check that a single tensor is cuda to set device guard, everything else should be checked in multi_tensor_apply checking
-  TORCH_CHECK(tensor_lists[0][0].device().type() == at::kCUDA, "expected input to be on cuda");
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(tensor_lists[0][0]));
-
 
   // Assume single type across p,g,h now
   DISPATCH_DOUBLE_FLOAT_AND_HALF(

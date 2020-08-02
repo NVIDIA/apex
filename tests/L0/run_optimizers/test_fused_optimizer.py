@@ -53,8 +53,6 @@ class TestFusedOptimizer(unittest.TestCase):
 
     def gen_single_type_test(self, param_type=torch.float, device='cuda'):
         nelem = 278011
-        #adam_option = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08,
-        #    'weight_decay':0, 'amsgrad':False}
 
         tensor = torch.rand(nelem, dtype=param_type, device=device)
         ref_param, tst_param, ref_optim, tst_optim = \
@@ -247,9 +245,7 @@ class TestFusedSGD(TestFusedOptimizer):
     @unittest.skipIf(torch.cuda.device_count()<2, "more than 1 GPU required")
     def test_multi_device(self):
         devices = ("cuda:0", "cuda:1")
-        for current_dev, tensor_dev in [("cuda:0", "cuda:1")]:  #product(devices, devices):
-            #torch.cuda.set_device(1)
-            print(current_dev, tensor_dev)
+        for current_dev, tensor_dev in product(devices, devices):
             with torch.cuda.device(current_dev):
                 self.gen_single_type_test(param_type=torch.float, device=tensor_dev)
 

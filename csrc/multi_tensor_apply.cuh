@@ -2,6 +2,7 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
+#include <c10/cuda/CUDAGuard.h>
 #include "compat.h"
 
 #include <assert.h>
@@ -71,6 +72,7 @@ void multi_tensor_apply(
 
   TensorListMetadata<depth> tl;
 
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(tensor_lists[0][0]));
   auto stream = at::cuda::getCurrentCUDAStream();
 
   tl.start_tensor_this_launch = 0;
