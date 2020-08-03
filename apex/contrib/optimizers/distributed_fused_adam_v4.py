@@ -132,7 +132,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             eps = group['eps']
             weight_decay = group['weight_decay']
             for p in group['params']:
-                torch.distributed.broadcast(p,0)
+                # broadcast from rank 0 of current process group
+                torch.distributed.broadcast(p, self._process_group_id)
                 if not p.requires_grad:
                     continue
                 self._model_params.append(p)
