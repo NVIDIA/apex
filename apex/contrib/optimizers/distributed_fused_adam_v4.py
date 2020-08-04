@@ -44,6 +44,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             (default: 0)
         clip_grad_norm (boolean, optional): whether to handle gradient clipping
             (default: True)
+        model_parallel (boolean, optional): whether model parallelism is used
+            (default: False)
 
 
     .. _Adam\: A Method for Stochastic Optimization:
@@ -66,11 +68,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  num_process_groups=1,
                  process_group_id=0,
                  process_group_size=0,
-                 clip_grad_norm=True):
+                 clip_grad_norm=True,
+                 model_parallel=False):
         global fused_adam_cuda, distributed_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
         distributed_adam_cuda = importlib.import_module("distributed_adam_cuda")
-        self.multi_tensor_fused_adam = distributed_adam_cuda.multi_tensor_fused_adam
+        self.multi_tensor_l2norm = amp_C.multi_tensor_l2norm
 
         self._amp_scale_adjustment = amp_scale_adjustment
 
@@ -106,6 +109,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._compute_L2_grad_norm = compute_L2_grad_norm
         self._L2_grad_norm = None
         self._clip_grad_norm = clip_grad_norm
+        self._model_parallel = model_parallel
         self._num_process_groups = num_process_groups
         self._process_group_id = process_group_id
         self._process_group_size = dtorch.cuda.device_count() if process_group_size <= 0 else process_group_size
@@ -252,6 +256,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._packed_flat_to_model_params = []
         self._contrib_tensor_list = []
         self._contrib_group_properties = []
+        self._non_parallel_grads = []
         for shard_id in range(self._group_size):
             for block_id in range(self._num_blocks):
                 for chunk_id in range(self._num_chunks):
@@ -280,6 +285,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                                 master_param_fragment.copy_(model_param_fragment)
                                 self._contrib_group_properties.append(group_props)
                                 self._contrib_tensor_list.append((master_param_fragment, opti_state_m_fragment, opti_state_v_fragment, opti_state_g_fragment, opti_state_p_fragment)) # p, m, v, g, p_copy
+                                if p.model_parallel is not None and not p.model_parallel:
+                                    self._non_parallel_grads.append(opti_state_g_fragment)
 
         p, m, v, g, p_copy = list(zip(*self._contrib_tensor_list))
         self._contrib_tensor_list = [p, m, v, g, p_copy]
@@ -420,6 +427,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 l2_grad_norm_sq = self._fp16_g.norm(dtype=torch.float32, p=2)**2
                 torch.distributed.all_reduce(l2_grad_norm_sq, group=self._l2_grad_norm_pg)
                 self._L2_grad_norm = l2_grad_norm_sq.sqrt().item()
+                if self._model_parallel:
+                    non_parallel_grad_norm_sq = torch.zeros([1], device='cuda')
+                    # for model_parallel_rank=0, keep all gradients
+                    # for the rest, subtract non_parallel gradients
+                    if self._process_group_id: # model_parallel_rank non zero
+                        non_parallel_grad_norm = multi_tensor_applier(self.multi_tensor_l2norm,
+                                                                      self._overflow_buf,
+                                                                      [self._non_parallel_grads], False)[0]
+                        non_parallel_grad_norm_sq = non_parallel_grad_norm**2
+                        torch.distributed.all_reduce(non_parallel_grad_norm_sq, group=self._l2_grad_norm_pg)
+                        self._L2_grad_norm -= non_parallel_grad_norm_sq.sqrt().item()
 
     def __launch_step_kernel(self):
         combined_scale = self._global_scale
@@ -427,7 +445,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             combined_scale = self._param_group['max_grad_norm'] / (self.L2_grad_norm / self._global_scale + 1e-6)
             combined_scale = self._global_scale / min(1, combined_scale)
         
-        multi_tensor_applier(self.multi_tensor_fused_adam,
+        multi_tensor_applier(distributed_adam_cuda.multi_tensor_fused_adam,
                 self._overflow_buf,
                 self._contrib_tensor_list, # p, m, v, g, p_copy
                 self._contrib_beta1,
