@@ -427,21 +427,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 l2_grad_norm_sq = self._fp16_g.norm(dtype=torch.float32, p=2)**2
                 torch.distributed.all_reduce(l2_grad_norm_sq, group=self._l2_grad_norm_pg)
                 self._L2_grad_norm = l2_grad_norm_sq.sqrt().item()
-                if self._model_parallel:
-                    non_parallel_grad_norm_sq = torch.zeros([1], device='cuda')
+                if self._model_parallel and self._process_group_id: # non zero model_parallel_rank
                     # for model_parallel_rank=0, keep all gradients
                     # for the rest, subtract non_parallel gradients
-                    if self._process_group_id: # model_parallel_rank non zero
-                        print("global_rank:", self._global_rank, ", # non_parallel_grad:", len(self._non_parallel_grads))
-                        non_parallel_grad_norm = multi_tensor_applier(self.multi_tensor_l2norm,
-                                                                      self._overflow_buf,
-                                                                      [self._non_parallel_grads], False)[0]
-                        print("global_rank:", self._global_rank, ", non_parallel_grad_norm:", non_parallel_grad_norm)
-                        non_parallel_grad_norm_sq = non_parallel_grad_norm**2
-                        torch.distributed.all_reduce(non_parallel_grad_norm_sq, group=self._l2_grad_norm_pg)
-                        overlap = non_parallel_grad_norm_sq.sqrt().item()
-                        print("global_rank:", self._global_rank, ", overlap:", overlap)
-                        self._L2_grad_norm -= overlap
+                    non_parallel_grad_norm_sq = torch.zeros([1], device='cuda')
+                    if len(self._non_parallel_grads): # non parallel grads exit
+                        non_parallel_grad_norm_sq = multi_tensor_applier(self.multi_tensor_l2norm,
+                                                                         self._overflow_buf,
+                                                                         [self._non_parallel_grads], False)[0]**2
+                    torch.distributed.all_reduce(non_parallel_grad_norm_sq, group=self._l2_grad_norm_pg)
+                    overlap = non_parallel_grad_norm_sq.sqrt().item()
+                    self._L2_grad_norm -= overlap
 
     def __launch_step_kernel(self):
         combined_scale = self._global_scale
