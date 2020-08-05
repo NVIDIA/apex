@@ -67,6 +67,33 @@ cublasStatus_t mlp_gemm(
     const float* beta,
     double* C,
     int ldc) {
+#ifdef __HIP_PLATFORM_HCC__
+  return rocblas_gemm_ex(
+      handle,
+      transa,
+      transb,
+      m,
+      n,
+      k,
+      alpha,
+      A,
+      rocblas_datatype_f64_r,
+      lda,
+      B,
+      rocblas_datatype_f64_r,
+      ldb,
+      beta,
+      C,
+      rocblas_datatype_f64_r,
+      ldc,
+      C,
+      rocblas_datatype_f64_r,
+      ldc,
+      rocblas_datatype_f64_r,
+      rocblas_gemm_algo_standard,
+      0,
+      0);  
+#else
   return cublasGemmEx(
       handle,
       transa,
@@ -87,6 +114,7 @@ cublasStatus_t mlp_gemm(
       ldc,
       CUDA_R_64F,
       CUBLAS_GEMM_DEFAULT);
+#endif
 }
 
 // FP32 Wrapper around cublas GEMMEx
@@ -105,6 +133,34 @@ cublasStatus_t mlp_gemm(
     const float* beta,
     float* C,
     int ldc) {
+#ifdef __HIP_PLATFORM_HCC__
+  return rocblas_gemm_ex(
+      handle,
+      transa,
+      transb,
+      m,
+      n,
+      k,
+      alpha,
+      A,
+      rocblas_datatype_f32_r,
+      lda,
+      B,
+      rocblas_datatype_f32_r,
+      ldb,
+      beta,
+      C,
+      rocblas_datatype_f32_r,
+      ldc,
+      C,
+      rocblas_datatype_f32_r,
+      ldc,
+      rocblas_datatype_f32_r,
+      rocblas_gemm_algo_standard,
+      0,
+      0);
+
+#else
   return cublasGemmEx(
       handle,
       transa,
@@ -125,6 +181,7 @@ cublasStatus_t mlp_gemm(
       ldc,
       CUDA_R_32F,
       CUBLAS_GEMM_DEFAULT);
+#endif
 }
 
 // FP16 Tensor core wrapper around cublas GEMMEx
@@ -143,6 +200,33 @@ cublasStatus_t mlp_gemm(
     float* beta,
     at::Half* C,
     int ldc) {
+#ifdef __HIP_PLATFORM_HCC__
+  return rocblas_gemm_ex(
+      handle,
+      transa,
+      transb,
+      m,
+      n,
+      k,
+      alpha,
+      A,
+      rocblas_datatype_f16_r,
+      lda,
+      B,
+      rocblas_datatype_f16_r,
+      ldb,
+      beta,
+      C,
+      rocblas_datatype_f16_r,
+      ldc,
+      C,
+      rocblas_datatype_f16_r,
+      ldc,
+      rocblas_datatype_f32_r,
+      rocblas_gemm_algo_standard,
+      0,
+      0);
+#else
   return cublasGemmEx(
       handle,
       transa,
@@ -163,6 +247,7 @@ cublasStatus_t mlp_gemm(
       ldc,
       CUDA_R_32F,
       CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+#endif
 }
 
 // Bias ADD. Assume input X is [features x batch size], column major.

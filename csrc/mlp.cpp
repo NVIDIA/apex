@@ -4,6 +4,14 @@
 
 #include <stdio.h>
 
+int SizeTToInt(size_t data)
+{
+    if (data > std::numeric_limits<int>::max()) {
+        throw std::runtime_error("Invalid cast.");
+    }
+    return static_cast<int>(data);
+}
+
 size_t get_mlp_reserved_space(int batch_size, int num_layers, const int* output_features);
 
 template <typename T>
@@ -62,7 +70,7 @@ std::vector<at::Tensor> mlp_forward(int use_bias, int activation, std::vector<at
   // create output/workspace tensor
   // TODO(deyuf): just get buffer?
   auto out = at::empty({batch_size, output_features.back()}, inputs[0].type());
-  auto reserved_space = at::empty({reserved_size}, inputs[0].type());
+  auto reserved_space = at::empty({SizeTToInt(reserved_size)}, inputs[0].type());
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(inputs[0].type(), "mlp_forward", [&] {
     std::vector<scalar_t*> w_ptr;
@@ -134,7 +142,7 @@ std::vector<at::Tensor> mlp_backward(
         get_mlp_bp_workspace_in_bytes<scalar_t>(batch_size, num_layers, output_features.data());
 
     // auto work_space = at::empty({work_size*4}, at::kByte);
-    auto work_space = at::empty({work_size / sizeof(scalar_t)}, inputs[0].type());
+    auto work_space = at::empty({SizeTToInt(work_size / sizeof(scalar_t))}, inputs[0].type());
 
     auto result = mlp_bp<scalar_t>(
         inputs[0].data_ptr<scalar_t>(),

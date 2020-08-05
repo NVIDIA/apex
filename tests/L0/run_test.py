@@ -9,7 +9,6 @@ ROCM_BLACKLIST = [
     'run_fused_layer_norm',
     'run_pyprof_nvtx',
     'run_pyprof_data',
-    'run_mlp'
 ]
 
 runner = unittest.TextTestRunner(verbosity=2)

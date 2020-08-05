@@ -223,7 +223,13 @@ if "--cuda_ext" in sys.argv:
                               extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                                   'nvcc':['-O3'] + version_dependent_macros}))
         else:
-            print ("INFO: Skipping MLP extension")
+            print ("INFO: Building MLP extension")
+            ext_modules.append(
+                CUDAExtension(name='mlp_cuda',
+                              sources=['csrc/mlp.cpp',
+                                       'csrc/hip/mlp_hip.hip'],
+                              extra_compile_args={'cxx' : ['-O3'] + version_dependent_macros,
+                                                  'nvcc' : []}))
 
 if "--bnp" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
