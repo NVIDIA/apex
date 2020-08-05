@@ -370,7 +370,7 @@ void multi_tensor_norm_out_cuda(
   const int norm_type)
 {
   auto float_options = tensor_lists[0][0].options().dtype(at::kFloat);
-  TORCH_CHECK(tensor_lists[0][0].device() == noop_flag.device(), "noop flag should be on the smae device as tensors");
+  TORCH_CHECK(tensor_lists[0][0].device() == noop_flag.device(), "noop flag should be on the same device as tensors");
   // we don't need global thus uses empty here
   auto output = at::empty({320}, float_options);
 
