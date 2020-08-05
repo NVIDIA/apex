@@ -253,7 +253,7 @@ class TestFusedSGD(TestFusedOptimizer):
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
 
-        def test_half(self):
+    def test_half(self):
         self.gen_single_type_test(param_type=torch.float16)
 
     @unittest.skipIf(torch.cuda.device_count()<2, "more than 1 GPU required")
