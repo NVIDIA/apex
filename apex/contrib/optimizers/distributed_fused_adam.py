@@ -447,9 +447,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         non_parallel_grad_norm = multi_tensor_applier(self.multi_tensor_l2norm,
                                                                       self._overflow_buf,
                                                                       [self._non_parallel_grads], False)[0]
+                        print("global_rank:", self._global_rank, ", non_parallel_grad_norm:", non_parallel_grad_norm)
                         non_parallel_grad_norm_sq = non_parallel_grad_norm**2
                         torch.distributed.all_reduce(non_parallel_grad_norm_sq, group=self._l2_grad_norm_pg)
-                        self._L2_grad_norm -= non_parallel_grad_norm_sq.sqrt().item()
+                        overlap = non_parallel_grad_norm_sq.sqrt().item()
+                        print("global_rank:", self._global_rank, ", overlap:", overlap)
+                        self._L2_grad_norm -= overlap
 
     def __launch_step_kernel(self):
         # If self._clip_grad_norm is False, we assume gradient clipping already 
