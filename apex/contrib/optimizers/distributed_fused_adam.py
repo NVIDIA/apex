@@ -439,17 +439,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     torch.distributed.all_reduce(non_parallel_grad_norm_sq, group=self._l2_grad_norm_pg)
                     l2_grad_norm_sq = l2_grad_norm_sq - non_parallel_grad_norm_sq
                 self._L2_grad_norm = l2_grad_norm_sq.sqrt().item()
-                if self._model_parallel and self._process_group_id: # non zero model_parallel_rank
-                    # for model_parallel_rank=0, keep all gradients
-                    # for the rest, subtract non_parallel gradients
-                    non_parallel_grad_norm_sq = torch.zeros([1], device='cuda')
-                    if len(self._non_parallel_grads): # non parallel grads exit
-                        non_parallel_grad_norm_sq = multi_tensor_applier(self.multi_tensor_l2norm,
-                                                                         self._overflow_buf,
-                                                                         [self._non_parallel_grads], False)[0]**2
-                    torch.distributed.all_reduce(non_parallel_grad_norm_sq, group=self._l2_grad_norm_pg)
-                    overlap = non_parallel_grad_norm_sq.sqrt().item()
-                    self._L2_grad_norm -= overlap
 
     def __launch_step_kernel(self):
         # If self._clip_grad_norm is False, we assume gradient clipping already 
