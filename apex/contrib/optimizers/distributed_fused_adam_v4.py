@@ -432,6 +432,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     # for model_parallel_rank=0, keep all gradients
                     # for the rest, subtract non_parallel gradients
                     if self._process_group_id: # model_parallel_rank non zero
+                        print("global_rank:", self._global_rank, ", # non_parallel_grad:", len(self._non_parallel_grads))
                         non_parallel_grad_norm = multi_tensor_applier(self.multi_tensor_l2norm,
                                                                       self._overflow_buf,
                                                                       [self._non_parallel_grads], False)[0]
