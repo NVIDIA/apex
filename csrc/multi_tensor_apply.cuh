@@ -52,7 +52,7 @@ void multi_tensor_apply(
   TORCH_CHECK(len0 > 0, "tensor_lists[0].size() is not > 0");
   auto ref_device = tensor_lists[0][0].device();
   TORCH_CHECK(ref_device.type() == at::kCUDA, "expected input to be on cuda");
-  for(int l = 0; l < tensor_lists.size(); l++) // No range-based for because I need indices
+  for (int l = 0; l < tensor_lists.size(); l++) // No range-based for because I need indices
   {
     TORCH_CHECK(tensor_lists[l].size() == len0, "Size mismatch among tensor lists");
     for(int t = 0; t < tensor_lists[l].size(); t++)
@@ -63,7 +63,7 @@ void multi_tensor_apply(
       contiguous_memory = (contiguous_memory || tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast));
 #endif
       TORCH_CHECK(contiguous_memory, "A tensor was not contiguous.");
-      TORCH_CHECK(tensor_lists[l][t].device()==ref_device, "A tensor was not on the same device as the first tensor");
+      TORCH_CHECK(tensor_lists[l][t].device() == ref_device, "A tensor was not on the same device as the first tensor");
       TORCH_CHECK(tensor_lists[l][t].numel() == tensor_lists[0][t].numel(), "Size mismatch");
     }
   }
