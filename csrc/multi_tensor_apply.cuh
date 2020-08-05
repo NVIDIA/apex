@@ -2,6 +2,7 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
+#include <c10/cuda/CUDAGuard.h>
 #include "compat.h"
 
 #include <assert.h>
@@ -34,7 +35,7 @@ __global__ void multi_tensor_apply_kernel(
     ArgTypes... args)
 {
   // Hand the chunk information to the user-supplied functor to process however it likes.
-  callable(chunk_size, noop_flag, tl, args...); 
+  callable(chunk_size, noop_flag, tl, args...);
 }
 
 template<int depth, typename T, typename... ArgTypes>
@@ -49,8 +50,9 @@ void multi_tensor_apply(
   TORCH_CHECK(tensor_lists.size() == depth, "tensor_lists.size() != depth");
   int len0 = tensor_lists[0].size();
   TORCH_CHECK(len0 > 0, "tensor_lists[0].size() is not > 0");
-
-  for(int l = 0; l < tensor_lists.size(); l++) // No range-based for because I need indices
+  auto ref_device = tensor_lists[0][0].device();
+  TORCH_CHECK(ref_device.type() == at::kCUDA, "expected input to be on cuda");
+  for (int l = 0; l < tensor_lists.size(); l++) // No range-based for because I need indices
   {
     TORCH_CHECK(tensor_lists[l].size() == len0, "Size mismatch among tensor lists");
     for(int t = 0; t < tensor_lists[l].size(); t++)
@@ -61,7 +63,7 @@ void multi_tensor_apply(
       contiguous_memory = (contiguous_memory || tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast));
 #endif
       TORCH_CHECK(contiguous_memory, "A tensor was not contiguous.");
-      TORCH_CHECK(tensor_lists[l][t].is_cuda(), "A tensor was not cuda.");
+      TORCH_CHECK(tensor_lists[l][t].device() == ref_device, "A tensor was not on the same device as the first tensor");
       TORCH_CHECK(tensor_lists[l][t].numel() == tensor_lists[0][t].numel(), "Size mismatch");
     }
   }
@@ -70,8 +72,9 @@ void multi_tensor_apply(
 
   TensorListMetadata<depth> tl;
 
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(tensor_lists[0][0]));
   auto stream = at::cuda::getCurrentCUDAStream();
-  
+
   tl.start_tensor_this_launch = 0;
   int loc_block_info = 0;
   int loc_tensor_info = 0;
@@ -90,7 +93,7 @@ void multi_tensor_apply(
       tl.block_to_tensor[loc_block_info] = loc_tensor_info - 1;
       tl.block_to_chunk[loc_block_info] = chunk;
       loc_block_info++;
-  
+
       bool tensors_full = (loc_tensor_info == depth_to_max_tensors[depth-1] &&
                            chunk == chunks_this_tensor - 1);
       bool blocks_full = (loc_block_info == depth_to_max_blocks[depth-1]);
@@ -112,7 +115,7 @@ void multi_tensor_apply(
         if(chunk == chunks_this_tensor - 1)
         {
           // std::cout << "Hit case 1 " << cond1 << " " << cond2 << " " << cond3 << std::endl;
-          loc_tensor_info = 0; 
+          loc_tensor_info = 0;
           tl.start_tensor_this_launch = t + 1;
         }
         else

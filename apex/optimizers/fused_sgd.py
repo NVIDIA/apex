@@ -98,7 +98,7 @@ class FusedSGD(Optimizer):
         if multi_tensor_applier.available:
             import amp_C
             # Skip buffer
-            self._dummy_overflow_buf = torch.cuda.IntTensor([0])
+            self._dummy_overflow_buf = torch.tensor([0], dtype=torch.int, device=self.param_groups[0]["params"][0].device)
             self.multi_tensor_sgd = amp_C.multi_tensor_sgd
         else:
             raise RuntimeError('apex.optimizers.FusedSGD requires cuda extensions')
