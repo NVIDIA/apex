@@ -435,7 +435,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                                                                          self._overflow_buf,
                                                                          [self._non_parallel_grads], False)[0]**2
                     torch.distributed.all_reduce(non_parallel_grad_norm_sq, group=self._l2_grad_norm_pg)
-                    l2_grad_norm_sq -= non_parallel_grad_norm_sq
+                    l2_grad_norm_sq = l2_grad_norm_sq - non_parallel_grad_norm_sq
                 self._L2_grad_norm = l2_grad_norm_sq.sqrt().item()
 
     def __launch_step_kernel(self):
