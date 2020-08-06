@@ -39,6 +39,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             gradient unscaling logic (default: True)
         num_process_groups (integer, optional): number of process groups in
             the app (default: 1)
+        current_process_group (object, optional): the process group to work on
+            (default: None)
         process_group_id (integer, optional): process group id (default: 0)
         process_group_size (integer, optional): size of process group
             (default: 0)
@@ -66,6 +68,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  do_not_flatten_model=False,
                  step_supports_amp_scaling=True,
                  num_process_groups=1,
+                 current_process_group=None,
                  process_group_id=0,
                  process_group_size=0,
                  clip_grad_norm=True,
@@ -111,8 +114,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._clip_grad_norm = clip_grad_norm
         self._model_parallel = model_parallel
         self._num_process_groups = num_process_groups
+        self._current_process_group = current_process_group if current_process_group is not None else c10d._get_default_group()
+        self._available_ranks = list(c10d._pg_group_ranks[self._current_process_group].keys())
         self._process_group_id = process_group_id
-        self._process_group_size = dtorch.cuda.device_count() if process_group_size <= 0 else process_group_size
+        self._process_group_size = torch.cuda.device_count() if process_group_size <= 0 else process_group_size
         self._world_size = self._process_group_size # world: the current process group
         self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
         self._num_groups = self._world_size // self._group_size
@@ -137,7 +142,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             weight_decay = group['weight_decay']
             for p in group['params']:
                 # broadcast from rank 0 of current process group
-                # torch.distributed.broadcast(p, self._process_group_id)
+                torch.distributed.broadcast(p, src=self._available_ranks[0], group=self._current_process_group)
                 if not p.requires_grad:
                     continue
                 self._model_params.append(p)
