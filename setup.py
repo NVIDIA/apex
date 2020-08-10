@@ -278,12 +278,6 @@ torch_dir = torch.__path__[0]
 if os.path.exists(os.path.join(torch_dir, 'include', 'ATen', 'CUDAGenerator.h')):
     generator_flag = ['-DOLD_GENERATOR']
 
-# Check, if CUDA11 is installed for compute capability 8.0
-cc_flag = []
-_, bare_metal_major, _ = get_cuda_bare_metal_version(cpp_extension.CUDA_HOME)
-if int(bare_metal_major) >= 11:
-    cc_flag.append('-gencode')
-    cc_flag.append('arch=compute_80,code=sm_80')
 
 if "--fast_multihead_attn" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
@@ -295,6 +289,13 @@ if "--fast_multihead_attn" in sys.argv:
     if torch.utils.cpp_extension.CUDA_HOME is None:
         raise RuntimeError("--fast_multihead_attn was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
+        # Check, if CUDA11 is installed for compute capability 8.0
+        cc_flag = []
+        _, bare_metal_major, _ = get_cuda_bare_metal_version(cpp_extension.CUDA_HOME)
+        if int(bare_metal_major) >= 11:
+            cc_flag.append('-gencode')
+            cc_flag.append('arch=compute_80,code=sm_80')
+
         subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
         ext_modules.append(
             CUDAExtension(name='fast_additive_mask_softmax_dropout',
