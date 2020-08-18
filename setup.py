@@ -269,16 +269,27 @@ if "--xentropy" in sys.argv:
     from torch.utils.cpp_extension import BuildExtension
     cmdclass['build_ext'] = BuildExtension
 
-    if torch.utils.cpp_extension.CUDA_HOME is None:
+    is_rocm_pytorch = check_if_rocm_pytorch()
+
+    if torch.utils.cpp_extension.CUDA_HOME is None and (not is_rocm_pytorch):
         raise RuntimeError("--xentropy was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
-        ext_modules.append(
-            CUDAExtension(name='xentropy_cuda',
-                          sources=['apex/contrib/csrc/xentropy/interface.cpp',
-                                   'apex/contrib/csrc/xentropy/xentropy_kernel.cu'],
-                          include_dirs=[os.path.join(this_dir, 'csrc')],
-                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
-                                              'nvcc':['-O3'] + version_dependent_macros}))
+        if not is_rocm_pytorch:
+            ext_modules.append(
+                CUDAExtension(name='xentropy_cuda',
+                              sources=['apex/contrib/csrc/xentropy/interface.cpp',
+                                       'apex/contrib/csrc/xentropy/xentropy_kernel.cu'],
+                              include_dirs=[os.path.join(this_dir, 'csrc')],
+                              extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                                  'nvcc':['-O3'] + version_dependent_macros}))
+        else:
+             ext_modules.append(
+                CUDAExtension(name='xentropy_cuda',
+                              sources=['apex/contrib/csrc/xentropy/interface.cpp',
+                                       'apex/contrib/csrc/xentropy/hip/xentropy_kernel.hip'],
+                              include_dirs=[os.path.join(this_dir, 'csrc/hip')],
+                              extra_compile_args=['-O3'] + version_dependent_macros))
+   
 
 if "--deprecated_fused_adam" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
