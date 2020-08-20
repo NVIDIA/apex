@@ -135,8 +135,8 @@ struct DistOptLAMBStage1Functor
     MATH_T clipped_global_grad_norm = global_grad_norm > max_global_grad_norm ? global_grad_norm / max_global_grad_norm : (MATH_T) 1.0;
 
     MATH_T beta1 = per_tensor_beta1[tensor_num];
-    MATH_T beta2 = per_tensor_beta1[tensor_num];
-    MATH_T beta3 = per_tensor_beta1[tensor_num];
+    MATH_T beta2 = per_tensor_beta2[tensor_num];
+    MATH_T beta3 = per_tensor_beta3[tensor_num];
     MATH_T beta1_correction, beta2_correction;
     if (per_tensor_bias_correction[tensor_num] == 1) {
         beta1_correction = 1 - pow(beta1, (MATH_T) step);
