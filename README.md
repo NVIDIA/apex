@@ -136,6 +136,12 @@ python3.6 setup.py install
 python3.6 setup.py install --cpp_ext --cuda_ext
 ```
 
+### To install Apex on ROCm using ninja and without cloning the source
+```
+pip3.6 install ninja
+pip3.6 install -v --install-option="--cpp_ext" --install-option="--cuda_ext" 'git+https://github.com/ROCmSoftwarePlatform/apex.git'
+```
+
 ### Linux
 
 For performance and full functionality, we recommend installing Apex with
