@@ -1,6 +1,7 @@
 import types
 import torch
 from .sparse_masklib import create_mask
+from sparse_linear import SparseLinear
 
 torchvision_imported=True
 try:
@@ -30,7 +31,8 @@ class ASP:
              verbosity=3,
              whitelist=[torch.nn.Linear, torch.nn.Conv1d, torch.nn.Conv2d, torch.nn.Conv3d], 
              allowed_layer_names=None, disallowed_layer_names=[],
-             allow_recompute_mask=False):
+             allow_recompute_mask=False,
+             train_mode=False):
         """Call this method to modify your model to take advantage of sparse matrix multiplication.
         Note that this call alone only augments the model with additional buffers needed for sparse MMA,
         it does not enable use of sparse MMA. 
@@ -62,8 +64,11 @@ class ASP:
           disallowed_layer_names   If not [], only layer names that do not appear in this list are considered for sparsity.
           allow_recompute_mask     If True, stores pruned values so that dense weights can be restored.
                                    Pruned weights are stored in CPU memory, hence this option does not increase GPU memory usage.
+          train_mode               If true, sparsity to be enabled during training (simulation), else, sparsity enabled only during inference (cuSparse).
           Support for allow_recompute_mask can be removed, it is not part of our recipe -- AKM. 
         """
+
+        
         assert (cls.__model is None), "ASP has been initialized already."
         cls.__model = model
         cls.__verbosity = verbosity
@@ -110,6 +115,11 @@ class ASP:
                     else:
                         pruned = None
                     cls.__sparse_parameters.append((module_name, module, p_name, p, mask, pruned))
+
+        if not train_mode: #add support for inference sparsity for torch.nn.Linear. //confirm: is this ok?
+            if torch.nn.Linear in sparse_parameter_list:
+                torch.nn.modules.Linear = SparseLinear
+            return
 
         for name, sparse_module in eligible_modules(model, tuple(whitelist), allowed_layer_names, disallowed_layer_names):
             add_sparse_attributes(name, sparse_module)
@@ -199,9 +209,10 @@ class ASP:
             return True
     
     @classmethod
-    def prune_trained_model(cls, model, optimizer):
+    def prune_trained_model(cls, model, optimizer, train_mode=False):
         # add mask buffers to model (init_model_for_pruning), augment optimizer (init_optimizer_for_pruning) and compute masks (compute_sparse_masks)
-        cls.init_model_for_pruning(model, mask_calculator="m4n2_1d", verbosity=2, whitelist=[torch.nn.Linear, torch.nn.Conv2d], allow_recompute_mask=False)
-        cls.init_optimizer_for_pruning(optimizer)
-        cls.compute_sparse_masks()
+        cls.init_model_for_pruning(model, mask_calculator="m4n2_1d", verbosity=2, whitelist=[torch.nn.Linear, torch.nn.Conv2d], allow_recompute_mask=False, train_mode=train_mode)
+        if train_mode:
+            cls.init_optimizer_for_pruning(optimizer)
+            cls.compute_sparse_masks()
 

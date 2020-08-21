@@ -101,6 +101,12 @@ if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 4):
     version_ge_1_5 = ['-DVERSION_GE_1_5']
 version_dependent_macros = version_ge_1_1 + version_ge_1_3 + version_ge_1_5
 
+if "--sparse_inf" in sys.argv:
+    sys.argv.remove("--sparse_inf")
+    ext_modules.append(
+        CppExtension('sparse_inf',
+                     ['csrc/sparse_matmul.cpp',]))
+
 if "--distributed_lamb" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
     sys.argv.remove("--distributed_lamb")
