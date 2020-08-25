@@ -61,7 +61,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  betas=(0.9, 0.999), eps=1e-8, eps_inside_sqrt = False,
                  weight_decay=0., max_grad_norm=0., amsgrad=False, use_mt=False,
                  amp_scale_adjustment=1.0, overlap_reductions=True,
-                 compute_L2_grad_norm=False, distributed_weight_update=0,
+                 compute_L2_grad_norm=False,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
                  dwu_num_ag_pg=0, revert_method=1, flat_mt=False,
                  dwu_num_chunks=4, predivide=True, e5m2_allgather=False,
