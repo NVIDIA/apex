@@ -1,4 +1,5 @@
 import torch
+from torch.utils import cpp_extension
 from setuptools import setup, find_packages
 import subprocess
 
@@ -9,6 +10,16 @@ import os
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
+def get_cuda_bare_metal_version(cuda_dir):
+    raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)
+    output = raw_output.split()
+    release_idx = output.index("release") + 1
+    release = output[release_idx].split(".")
+    bare_metal_major = release[0]
+    bare_metal_minor = release[1][0]
+
+    return raw_output, bare_metal_major, bare_metal_minor
+
 if not torch.cuda.is_available():
     # https://github.com/NVIDIA/apex/issues/486
     # Extension builds after https://github.com/pytorch/pytorch/pull/23408 attempt to query torch.cuda.get_device_capability(),
@@ -16,11 +27,16 @@ if not torch.cuda.is_available():
     print('\nWarning: Torch did not find available GPUs on this system.\n',
           'If your intention is to cross-compile, this is not an error.\n'
           'By default, Apex will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2),\n'
-          'Volta (compute capability 7.0), and Turing (compute capability 7.5).\n'
+          'Volta (compute capability 7.0), Turing (compute capability 7.5),\n'
+          'and, if the CUDA version is >= 11.0, Ampere (compute capability 8.0).\n'
           'If you wish to cross-compile for a single specific architecture,\n'
           'export TORCH_CUDA_ARCH_LIST="compute capability" before running setup.py.\n')
     if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None:
-        os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5"
+        _, bare_metal_major, _ = get_cuda_bare_metal_version(cpp_extension.CUDA_HOME)
+        if int(bare_metal_major) == 11:
+            os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5;8.0"
+        else:
+            os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5"
 
 print("\n\ntorch.__version__  = {}\n\n".format(torch.__version__))
 TORCH_MAJOR = int(torch.__version__.split('.')[0])
@@ -64,13 +80,18 @@ if "--cpp_ext" in sys.argv:
         CppExtension('apex_C',
                      ['csrc/flatten_unflatten.cpp',]))
 
-def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
+def get_cuda_bare_metal_version(cuda_dir):
     raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)
     output = raw_output.split()
     release_idx = output.index("release") + 1
     release = output[release_idx].split(".")
     bare_metal_major = release[0]
     bare_metal_minor = release[1][0]
+
+    return raw_output, bare_metal_major, bare_metal_minor
+
+def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
+    raw_output, bare_metal_major, bare_metal_minor = get_cuda_bare_metal_version(cuda_dir)
     torch_binary_major = torch.version.cuda.split(".")[0]
     torch_binary_minor = torch.version.cuda.split(".")[1]
 
@@ -84,6 +105,7 @@ def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
                            "In some cases, a minor-version mismatch will not cause later errors:  " +
                            "https://github.com/NVIDIA/apex/pull/323#discussion_r287021798.  "
                            "You can try commenting out this check (at your own risk).")
+
 
 # Set up macros for forward/backward compatibility hack around
 # https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
@@ -275,6 +297,7 @@ torch_dir = torch.__path__[0]
 if os.path.exists(os.path.join(torch_dir, 'include', 'ATen', 'CUDAGenerator.h')):
     generator_flag = ['-DOLD_GENERATOR']
 
+
 if "--fast_multihead_attn" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
     sys.argv.remove("--fast_multihead_attn")
@@ -285,6 +308,13 @@ if "--fast_multihead_attn" in sys.argv:
     if torch.utils.cpp_extension.CUDA_HOME is None:
         raise RuntimeError("--fast_multihead_attn was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
+        # Check, if CUDA11 is installed for compute capability 8.0
+        cc_flag = []
+        _, bare_metal_major, _ = get_cuda_bare_metal_version(cpp_extension.CUDA_HOME)
+        if int(bare_metal_major) >= 11:
+            cc_flag.append('-gencode')
+            cc_flag.append('arch=compute_80,code=sm_80')
+
         subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
         ext_modules.append(
             CUDAExtension(name='fast_additive_mask_softmax_dropout',
@@ -298,7 +328,7 @@ if "--fast_multihead_attn" in sys.argv:
                                                       '-U__CUDA_NO_HALF_CONVERSIONS__',
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
         ext_modules.append(
             CUDAExtension(name='fast_mask_softmax_dropout',
                           sources=['apex/contrib/csrc/multihead_attn/masked_softmax_dropout.cpp',
@@ -311,7 +341,7 @@ if "--fast_multihead_attn" in sys.argv:
                                                       '-U__CUDA_NO_HALF_CONVERSIONS__',
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
         ext_modules.append(
             CUDAExtension(name='fast_self_multihead_attn_bias_additive_mask',
                           sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_additive_mask.cpp',
@@ -324,7 +354,7 @@ if "--fast_multihead_attn" in sys.argv:
                                                       '-U__CUDA_NO_HALF_CONVERSIONS__',
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
         ext_modules.append(
             CUDAExtension(name='fast_self_multihead_attn_bias',
                           sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_bias.cpp',
@@ -337,7 +367,7 @@ if "--fast_multihead_attn" in sys.argv:
                                                       '-U__CUDA_NO_HALF_CONVERSIONS__',
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
         ext_modules.append(
             CUDAExtension(name='fast_self_multihead_attn',
                           sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn.cpp',
@@ -350,7 +380,7 @@ if "--fast_multihead_attn" in sys.argv:
                                                       '-U__CUDA_NO_HALF_CONVERSIONS__',
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
         ext_modules.append(
             CUDAExtension(name='fast_self_multihead_attn_norm_add',
                           sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add.cpp',
@@ -363,7 +393,7 @@ if "--fast_multihead_attn" in sys.argv:
                                                       '-U__CUDA_NO_HALF_CONVERSIONS__',
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
         ext_modules.append(
             CUDAExtension(name='fast_encdec_multihead_attn',
                           sources=['apex/contrib/csrc/multihead_attn/encdec_multihead_attn.cpp',
@@ -376,7 +406,7 @@ if "--fast_multihead_attn" in sys.argv:
                                                       '-U__CUDA_NO_HALF_CONVERSIONS__',
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
         ext_modules.append(
             CUDAExtension(name='fast_encdec_multihead_attn_norm_add',
                           sources=['apex/contrib/csrc/multihead_attn/encdec_multihead_attn_norm_add.cpp',
@@ -389,7 +419,7 @@ if "--fast_multihead_attn" in sys.argv:
                                                       '-U__CUDA_NO_HALF_CONVERSIONS__',
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
 
 setup(
     name='apex',

@@ -2,6 +2,7 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
+#include <c10/cuda/CUDAGuard.h>
 // Another possibility:
 // #include <torch/all.h>
 
@@ -335,13 +336,13 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
       max_chunks_per_tensor);)
 
   AT_CUDA_CHECK(cudaGetLastError());
-
   // AT_CUDA_CHECK(cudaDeviceSynchronize());
 
   // This involves one more small kernel launches, but will be negligible end to end.
   // I could get rid of these by hacking the functor + multi tensor harness with persistence
   // logic, but keeping it simple for now
   auto ret = at::empty({1}, output.options());
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(output));
   auto stream = at::cuda::getCurrentCUDAStream();
   cleanup<<<per_tensor ? ntensors : 1, 512, 0, stream>>>(
     output.DATA_PTR<float>(),
@@ -369,7 +370,7 @@ void multi_tensor_norm_out_cuda(
   const int norm_type)
 {
   auto float_options = tensor_lists[0][0].options().dtype(at::kFloat);
-
+  TORCH_CHECK(tensor_lists[0][0].device() == noop_flag.device(), "noop flag should be on the same device as tensors");
   // we don't need global thus uses empty here
   auto output = at::empty({320}, float_options);
 
