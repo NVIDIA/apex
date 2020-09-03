@@ -63,7 +63,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  amp_scale_adjustment=1.0, overlap_reductions=True,
                  compute_L2_grad_norm=False,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
-                 dwu_num_ag_pg=0, revert_method=1, flat_mt=False,
+                 dwu_num_ag_pg=0, flat_mt=False,
                  dwu_num_chunks=4, predivide=True, e5m2_allgather=False,
                  do_not_flatten_model=False,
                  step_supports_amp_scaling=True,
@@ -93,14 +93,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._has_overflow = False
         self._step_supports_amp_scaling = step_supports_amp_scaling
 
-        # Way to revert a step
-        # 3 -> undo kernel + double buffer (debug, print norm of difference)
-        # 2 -> double buffer fp32 parameters
-        # 1 -> undo kernel
-        self._revert_method = revert_method
-        if self._revert_method > 1:
-            print("revert_method -> double buffer fp32 parameters, will consume more memory")
-
         self._last_step = False
         self._overlap_reductions = overlap_reductions
         self._global_scale = None
@@ -124,7 +116,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._global_rank = torch.distributed.get_rank()
         self._world_rank = self._global_rank // self._num_process_groups
         self._group_rank = self._world_rank % self._group_size
-        print("world_size:", self._world_size, ", group_size:", self._group_size, ", num_groups:", self._num_groups, ", global_rank:", self._global_rank, ", world_rank:", self._world_rank, ", group_rank:", self._group_rank)
+        #print("world_size:", self._world_size, ", group_size:", self._group_size, ", num_groups:", self._num_groups, ", global_rank:", self._global_rank, ", world_rank:", self._world_rank, ", group_rank:", self._group_rank)
 
         p_offset = 0
         p_i = 0
@@ -191,7 +183,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._block_size = self._total_param_size // self._num_blocks
         self._chunk_size = self._block_size // self._num_chunks
         self._shard_size = self._chunk_size // self._group_size
-        print("self._net_total_param_size=%d, self._total_param_size=%d, dwu_min_page_size=%d, self._block_size=%d, self._chunk_size=%d, self._shard_size=%d" % (self._net_total_param_size, self._total_param_size,dwu_min_page_size,self._block_size,self._chunk_size,self._shard_size))
+        #print("self._net_total_param_size=%d, self._total_param_size=%d, dwu_min_page_size=%d, self._block_size=%d, self._chunk_size=%d, self._shard_size=%d" % (self._net_total_param_size, self._total_param_size,dwu_min_page_size,self._block_size,self._chunk_size,self._shard_size))
 
         self._low_param_i = [0]*self._num_blocks
         for block_id in range(self._num_blocks-1,-1,-1):
@@ -199,7 +191,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             while p_i > 0 and self._grads_info[p_i]["param_offset"] > block_id*self._block_size:
                 p_i -= 1
             self._low_param_i[block_id] = p_i
-        print(self._low_param_i)
+        #print(self._low_param_i)
 
         self._flat_grads = torch.zeros([self._total_param_size], dtype=torch.float16, device='cuda')
         self._new_params = torch.zeros([self._total_param_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
@@ -286,7 +278,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                                 opti_state_v_fragment = self._fp32_v_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
                                 opti_state_g_fragment = self._fp16_g_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
                                 opti_state_p_fragment = self._fp16_p_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
-                                print("model_param_fragment.size()=%s, new_param_packed_fragment.size()=%s, master_param_fragment.size()=%s" % (str(model_param_fragment.size()), str(new_param_packed_fragment.size()), str(master_param_fragment.size())))
+                                #print("model_param_fragment.size()=%s, new_param_packed_fragment.size()=%s, master_param_fragment.size()=%s" % (str(model_param_fragment.size()), str(new_param_packed_fragment.size()), str(master_param_fragment.size())))
                                 master_param_fragment.copy_(model_param_fragment)
                                 self._contrib_group_properties.append(group_props)
                                 self._contrib_tensor_list.append((master_param_fragment, opti_state_m_fragment, opti_state_v_fragment, opti_state_g_fragment, opti_state_p_fragment)) # p, m, v, g, p_copy
@@ -318,8 +310,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 for j in range(self._group_size):
                     ar_idx = [j+k*self._group_size for k in range(self._num_groups)]
                     ar_rank = [ranks[k] for k in ar_idx]
-                    if self._global_rank in ar_rank:
-                        print("group for all reduce, ranks:", ar_rank)
+                    #if self._global_rank in ar_rank:
+                    #    print("group for all reduce, ranks:", ar_rank)
                     for _ in range(self._num_ar_pg):
                         grp = torch.distributed.new_group(ranks=ar_rank)
                         if self._global_rank in ar_rank:
@@ -334,8 +326,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             for j in range(self._num_groups):
                 rs_idx = [j*self._group_size+k for k in range(self._group_size)]
                 rs_rank = [ranks[k] for k in rs_idx]
-                if self._global_rank in rs_rank:
-                    print("group for reduce scatter, ranks:", rs_rank)
+                #if self._global_rank in rs_rank:
+                #    print("group for reduce scatter, ranks:", rs_rank)
                 for _ in range(self._num_rs_pg):
                     grp = torch.distributed.new_group(ranks=rs_rank)
                     if self._global_rank in rs_rank:
@@ -359,8 +351,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 ranks = [i+k*self._num_process_groups for k in range(self._process_group_size)]
                 for j in range(self._num_groups):
                     ag_rank = rs_ranks[j]
-                    if self._global_rank in ag_rank:
-                        print("group for all gather, ranks:", ag_rank)
+                    #if self._global_rank in ag_rank:
+                    #    print("group for all gather, ranks:", ag_rank)
                     for _ in range(self._num_ag_pg):
                         grp = torch.distributed.new_group(ranks=ag_rank)
                         if self._global_rank in ag_rank:
