@@ -436,6 +436,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self._L2_grad_norm = l2_grad_norm_sq.sqrt().item()
 
     def __launch_step_kernel(self):
+        # If self._clip_grad_norm is False, we assume gradient clipping already 
+        # happened outside the optimizer and self._global_scale has already 
+        # been set to the combined scale, i.e. it's no longer the current loss
+        # scale used by the loss scaler. 
+        # For model parallelism cases in which we need to get global gradient 
+        # norm via all-reduce outside the optimizer to do the clipping. 
         combined_scale = self._global_scale
         if self._clip_grad_norm and self._param_group['max_grad_norm'] > 0 and math.isfinite(self.L2_grad_norm):
             combined_scale = self._param_group['max_grad_norm'] / (self.L2_grad_norm / self._global_scale + 1e-6)
@@ -582,3 +588,43 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._allgather_works = [None]*self._num_blocks
 
         return loss
+
+    def state_dict(self):
+        """
+        Returns a dict containing the current state of this :class:`DistributedFusedAdam` instance.
+        Example::
+            checkpoint = {}
+            checkpoint['model'] = model.state_dict()
+            checkpoint['optimizer'] = optimizer.state_dict()
+            torch.save(checkpoint, "saved.pth")
+        """
+        state_dict = super().state_dict()
+        # save loss_scale, master weights and moments
+        state_dict['loss_scale'] = self._global_scale
+        state_dict['fp32_p'] = self._fp32_p
+        state_dict['fp32_m'] = self._fp32_m
+        state_dict['fp32_v'] = self._fp32_v
+        return state_dict
+
+    def load_state_dict(self, state_dict):
+        """
+        Loads a state_dict created by an earlier call to state_dict().
+        If an DistributedFusedAdam instance was constructed from some ``init_optimizer``,
+        whose parameters in turn came from ``model``, it is expected that the user
+        will call ``model.load_state_dict()`` before
+        ``optimizer.load_state_dict()`` is called.
+        Example::
+            model = torch.nn.Linear(D_in, D_out).cuda().half()
+            optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+            optimizer = FP16_Optimizer(optimizer, static_loss_scale = 128.0)
+            ...
+            checkpoint = torch.load("saved.pth")
+            model.load_state_dict(checkpoint['model'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+        """
+        super().load_state_dict(state_dict)
+        # restore loss scale, master weights and moments
+        self.set_global_scale(state_dict['loss_scale'])
+        self._fp32_p.copy_(state_dict['fp32_p'])
+        self._fp32_m.copy_(state_dict['fp32_m'])
+        self._fp32_v.copy_(state_dict['fp32_v'])
