@@ -29,8 +29,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         amsgrad (boolean, optional): whether to use the AMSGrad variant of this
             algorithm from the paper `On the Convergence of Adam and Beyond`_
             (default: False) NOT SUPPORTED in FusedAdam!
-        use_mt (boolean, optional): use multi tensor apply for lower launch
-            latency. (default: False)
         overlap_reductions(boolean, optional): whether to overlap reductions
             with bprop (default: True)
         step_supports_amp_scaling(boolean, optional): whether to use customized
@@ -58,7 +56,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  lr=1e-3, bias_correction=True, betas=(0.9, 0.999),
                  eps=1e-8, eps_inside_sqrt=False,
                  weight_decay=0., max_grad_norm=0.,
-                 amsgrad=False, use_mt=False, flat_mt=False,
+                 amsgrad=False, flat_mt=False,
                  amp_scale_adjustment=1.0,
                  overlap_reductions=True,
                  compute_L2_grad_norm=False,
@@ -103,6 +101,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._do_not_flatten_model = do_not_flatten_model
         self._compute_L2_grad_norm = compute_L2_grad_norm
         self._L2_grad_norm = None
+        self._flat_mt = flat_mt
         self._init_done = False
         self._resume_from_checkpoint = False
 
