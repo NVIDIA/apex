@@ -21,20 +21,18 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             running averages of gradient and its square. (default: (0.9, 0.999))
         eps (float, optional): term added to the denominator to improve
             numerical stability. (default: 1e-8)
-        weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
-        amsgrad (boolean, optional): whether to use the AMSGrad variant of this
-            algorithm from the paper `On the Convergence of Adam and Beyond`_
-            (default: False) NOT SUPPORTED in FusedAdam!
         eps_inside_sqrt (boolean, optional): in the 'update parameters' step,
             adds eps to the bias-corrected second moment estimate before
             evaluating square root instead of adding it to the square root of
             second moment estimate as in the original paper. (default: False)
+        weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
+        amsgrad (boolean, optional): whether to use the AMSGrad variant of this
+            algorithm from the paper `On the Convergence of Adam and Beyond`_
+            (default: False) NOT SUPPORTED in FusedAdam!
         use_mt (boolean, optional): use multi tensor apply for lower launch
             latency. (default: False)
         overlap_reductions(boolean, optional): whether to overlap reductions
             with bprop (default: True)
-        num_prestats (integer, optional): number of fp64 stats that will be
-            reduced during first fp16 gradient reduction block.
         step_supports_amp_scaling(boolean, optional): whether to use customized
             gradient unscaling logic (default: True)
         num_process_groups (integer, optional): number of process groups in
@@ -57,14 +55,16 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     """
 
     def __init__(self, params,
-                 lr=1e-3, bias_correction = True,
-                 betas=(0.9, 0.999), eps=1e-8, eps_inside_sqrt = False,
-                 weight_decay=0., max_grad_norm=0., amsgrad=False, use_mt=False,
-                 amp_scale_adjustment=1.0, overlap_reductions=True,
+                 lr=1e-3, bias_correction=True, betas=(0.9, 0.999),
+                 eps=1e-8, eps_inside_sqrt=False,
+                 weight_decay=0., max_grad_norm=0.,
+                 amsgrad=False, use_mt=False, flat_mt=False,
+                 amp_scale_adjustment=1.0,
+                 overlap_reductions=True,
                  compute_L2_grad_norm=False,
-                 dwu_group_size=0, dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
-                 dwu_num_ag_pg=0, flat_mt=False,
-                 dwu_num_chunks=4, predivide=True, e5m2_allgather=False,
+                 dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
+                 dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0,
+                 predivide=True, e5m2_allgather=False,
                  do_not_flatten_model=False,
                  step_supports_amp_scaling=True,
                  num_process_groups=1,
@@ -89,10 +89,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         super(DistributedFusedAdam, self).__init__(params, defaults)
         self.eps_mode = 0 if  eps_inside_sqrt else 1
 
+        # Misc
         self._overflow_buf = torch.cuda.IntTensor([0])
         self._has_overflow = False
         self._step_supports_amp_scaling = step_supports_amp_scaling
-
         self._last_step = False
         self._overlap_reductions = overlap_reductions
         self._global_scale = None
@@ -103,6 +103,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._do_not_flatten_model = do_not_flatten_model
         self._compute_L2_grad_norm = compute_L2_grad_norm
         self._L2_grad_norm = None
+        self._init_done = False
+        self._resume_from_checkpoint = False
+
+        # Process group related
         self._clip_grad_norm = clip_grad_norm
         self._model_parallel = model_parallel
         self._num_process_groups = num_process_groups
@@ -117,7 +121,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._world_rank = self._global_rank // self._num_process_groups
         self._group_rank = self._world_rank % self._group_size
         #print("world_size:", self._world_size, ", group_size:", self._group_size, ", num_groups:", self._num_groups, ", global_rank:", self._global_rank, ", world_rank:", self._world_rank, ", group_rank:", self._group_rank)
+        self._num_rs_pg = dwu_num_rs_pg
+        self._num_ar_pg = dwu_num_ar_pg
+        self._num_ag_pg = dwu_num_ag_pg
 
+        # Master weight, moment, gradient buffers
+        self._fp32_p, self._fp32_m, self._fp32_v, self._fp16_p, self._fp16_g = None, None, None, None, None
+
+    def _first_step_init(self):
         p_offset = 0
         p_i = 0
         self._param_state = None
@@ -196,9 +207,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._flat_grads = torch.zeros([self._total_param_size], dtype=torch.float16, device='cuda')
         self._new_params = torch.zeros([self._total_param_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
         self._mega_shard_size = self._num_blocks * self._num_chunks * self._shard_size
-        self._fp32_p = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
-        self._fp32_m = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
-        self._fp32_v = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+        # initialize master weights, moments buffers if not loaded from checkpoint
+        if self._fp32_p is None:
+            self._fp32_p = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+            self._fp32_m = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+            self._fp32_v = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
         # FIXME: Rethink fp16 label since it's either uint8 or fp16
         self._fp16_p = torch.zeros([self._mega_shard_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
         self._fp16_g = torch.zeros([self._mega_shard_size], dtype=torch.float16, device='cuda')
@@ -279,7 +292,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                                 opti_state_g_fragment = self._fp16_g_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
                                 opti_state_p_fragment = self._fp16_p_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
                                 #print("model_param_fragment.size()=%s, new_param_packed_fragment.size()=%s, master_param_fragment.size()=%s" % (str(model_param_fragment.size()), str(new_param_packed_fragment.size()), str(master_param_fragment.size())))
-                                master_param_fragment.copy_(model_param_fragment)
+                                if not self._resume_from_checkpoint:
+                                    master_param_fragment.copy_(model_param_fragment)
                                 self._contrib_group_properties.append(group_props)
                                 self._contrib_tensor_list.append((master_param_fragment, opti_state_m_fragment, opti_state_v_fragment, opti_state_g_fragment, opti_state_p_fragment)) # p, m, v, g, p_copy
                                 if p.model_parallel is not None and not p.model_parallel:
@@ -369,6 +383,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         import inspect
         assert ('no_copy' in inspect.getfullargspec(torch.distributed.reduce_scatter).args), "This version of c10d does not support no_copy option"
 
+    def _init_everything(self):
+        if not self._init_done:
+            self._first_step_init()
+            self._init_done = True
 
     def set_last_step(self, last_step):
         self._last_step = last_step
@@ -546,6 +564,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def complete_reductions(self):
         """Complete reductions if full pipeline is not selected or overlap is not allowed.
         """
+        self._init_everything()
         if self._last_step:
             # zero out gradients that have not been completed yet
             for param_i, grad_generated in enumerate(self._grads_generated):
@@ -600,7 +619,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """
         state_dict = super().state_dict()
         # save loss_scale, master weights and moments
-        state_dict['loss_scale'] = self._global_scale
         state_dict['fp32_p'] = self._fp32_p
         state_dict['fp32_m'] = self._fp32_m
         state_dict['fp32_v'] = self._fp32_v
@@ -624,7 +642,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """
         super().load_state_dict(state_dict)
         # restore loss scale, master weights and moments
-        self.set_global_scale(state_dict['loss_scale'])
-        self._fp32_p.copy_(state_dict['fp32_p'])
-        self._fp32_m.copy_(state_dict['fp32_m'])
-        self._fp32_v.copy_(state_dict['fp32_v'])
+        self._fp32_p = state_dict['fp32_p'].to(device="cuda")
+        self._fp32_m = state_dict['fp32_m'].to(device="cuda")
+        self._fp32_v = state_dict['fp32_v'].to(device="cuda")
+        self._resume_from_checkpoint = True
