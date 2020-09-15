@@ -181,7 +181,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 prev = p
                 p_i += 1
         self._grads_generated = [False]*len(self._grads_info)
-        self._flat_mt = flat_mt
         self._grads = []
         if self._overlap_reductions:
             self._current_block = self._num_blocks
@@ -295,7 +294,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                                     master_param_fragment.copy_(model_param_fragment)
                                 self._contrib_group_properties.append(group_props)
                                 self._contrib_tensor_list.append((master_param_fragment, opti_state_m_fragment, opti_state_v_fragment, opti_state_g_fragment, opti_state_p_fragment)) # p, m, v, g, p_copy
-                                if p.model_parallel is not None and not p.model_parallel:
+                                if self._model_parallel and hasattr(p, 'model_parallel') and not p.model_parallel:
                                     self._non_parallel_grads.append(opti_state_g_fragment)
 
         p, m, v, g, p_copy = list(zip(*self._contrib_tensor_list))
@@ -312,9 +311,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         p_in, p_out = zip(*self._packed_flat_to_model_params)
         self._packed_flat_to_model_params = [p_in, p_out]
 
-        self._num_rs_pg = dwu_num_rs_pg
-        self._num_ar_pg = dwu_num_ar_pg
-        self._num_ag_pg = dwu_num_ag_pg
         if self._num_groups > 1:
             self._ar_pg = []
             for i in range(self._num_process_groups):
