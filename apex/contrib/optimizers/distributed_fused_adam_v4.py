@@ -57,7 +57,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  eps=1e-8, eps_inside_sqrt=False,
                  weight_decay=0., max_grad_norm=0.,
                  amsgrad=False, flat_mt=False,
-                 amp_scale_adjustment=1.0,
                  overlap_reductions=True,
                  compute_L2_grad_norm=False,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
@@ -76,8 +75,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         distributed_adam_cuda = importlib.import_module("distributed_adam_cuda")
         self.multi_tensor_l2norm = amp_C.multi_tensor_l2norm
 
-        self._amp_scale_adjustment = amp_scale_adjustment
-
         if amsgrad:
             raise RuntimeError('DistributedFusedAdam does not support the AMSGrad variant.')
 
@@ -85,9 +82,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         max_grad_norm=max_grad_norm)
         super(DistributedFusedAdam, self).__init__(params, defaults)
-        self.eps_mode = 0 if  eps_inside_sqrt else 1
 
         # Misc
+        self.eps_mode = 0 if eps_inside_sqrt else 1
         self._overflow_buf = torch.cuda.IntTensor([0])
         self._has_overflow = False
         self._step_supports_amp_scaling = step_supports_amp_scaling
@@ -104,6 +101,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._flat_mt = flat_mt
         self._init_done = False
         self._resume_from_checkpoint = False
+        self._step = 0
 
         # Process group related
         self._clip_grad_norm = clip_grad_norm
@@ -130,7 +128,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def _first_step_init(self):
         p_offset = 0
         p_i = 0
-        self._param_state = None
         self._model_params = []
         self._grads_info = []
         self._grad_accs = []
@@ -157,11 +154,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     eps,
                     weight_decay
                     ))
-                state = self.state[p]
-                if len(state) == 0:
-                    state['step'] = 0
-                if self._param_state is None:
-                    self._param_state = state
                 p_grads_size = p.numel()
                 def wrapper(param, param_i, param_grads_size, param_offset):
                     param_tmp = param.expand_as(param)
@@ -586,11 +578,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
+        self._step += 1
         self._pipeline_step()
 
         with torch.cuda.stream(self._completion_st):
             # Copy self._new_params to model params
-            for p in self._model_params: self.state[p]['step'] += 1
             multi_tensor_applier(
                     fused_adam_cuda.maybe_cast_mt,
                     self._overflow_buf,
@@ -612,8 +604,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             checkpoint['optimizer'] = optimizer.state_dict()
             torch.save(checkpoint, "saved.pth")
         """
-        state_dict = super().state_dict()
-        # save loss_scale, master weights and moments
+        # save step, master weights and first/second moments
+        state_dict = {}
+        state_dict['step'] = self._step
         state_dict['fp32_p'] = self._fp32_p
         state_dict['fp32_m'] = self._fp32_m
         state_dict['fp32_v'] = self._fp32_v
@@ -635,8 +628,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             model.load_state_dict(checkpoint['model'])
             optimizer.load_state_dict(checkpoint['optimizer'])
         """
-        super().load_state_dict(state_dict)
-        # restore loss scale, master weights and moments
+        # restore step, master weights and first/second moments
+        self._step = state_dict['step']
         self._fp32_p = state_dict['fp32_p'].to(device="cuda")
         self._fp32_m = state_dict['fp32_m'].to(device="cuda")
         self._fp32_v = state_dict['fp32_v'].to(device="cuda")
