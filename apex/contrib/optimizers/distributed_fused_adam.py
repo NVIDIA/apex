@@ -57,7 +57,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  eps=1e-8, eps_inside_sqrt=False,
                  weight_decay=0., max_grad_norm=0.,
                  amsgrad=False, flat_mt=False,
-                 amp_scale_adjustment=1.0,
                  overlap_reductions=True,
                  compute_L2_grad_norm=False,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
@@ -580,6 +579,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
+        self._step += 1
         self._pipeline_step()
 
         with torch.cuda.stream(self._completion_st):
