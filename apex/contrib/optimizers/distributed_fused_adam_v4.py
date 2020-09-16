@@ -452,6 +452,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             combined_scale = self._param_group['max_grad_norm'] / (self.L2_grad_norm / self._global_scale + 1e-6)
             combined_scale = self._global_scale / min(1, combined_scale)
         
+        self._step += 1
         multi_tensor_applier(distributed_adam_cuda.multi_tensor_fused_adam,
                 self._overflow_buf,
                 self._contrib_tensor_list, # p, m, v, g, p_copy
@@ -462,7 +463,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self._contrib_weight_decay,
                 self._param_group['lr'],
                 combined_scale,
-                self._param_state['step']+1,
+                self._step,
                 self.eps_mode)
 
     def _pipeline_step(self):
@@ -578,7 +579,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
-        self._step += 1
         self._pipeline_step()
 
         with torch.cuda.stream(self._completion_st):
