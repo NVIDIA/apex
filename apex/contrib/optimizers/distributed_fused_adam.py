@@ -579,7 +579,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
-        self._step += 1
         self._pipeline_step()
 
         with torch.cuda.stream(self._completion_st):
