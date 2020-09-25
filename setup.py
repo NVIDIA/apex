@@ -90,7 +90,7 @@ def get_cuda_bare_metal_version(cuda_dir):
 
     return raw_output, bare_metal_major, bare_metal_minor
 
-def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
+def check_cuda_torch_binary_vs_bare_metal(cuda_dir, ignore_minor):
     raw_output, bare_metal_major, bare_metal_minor = get_cuda_bare_metal_version(cuda_dir)
     torch_binary_major = torch.version.cuda.split(".")[0]
     torch_binary_minor = torch.version.cuda.split(".")[1]
@@ -98,13 +98,13 @@ def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
     print("\nCompiling cuda extensions with")
     print(raw_output + "from " + cuda_dir + "/bin\n")
 
-    if (bare_metal_major != torch_binary_major) or (bare_metal_minor != torch_binary_minor):
+    if (bare_metal_major != torch_binary_major) or (not ignore_minor and bare_metal_minor != torch_binary_minor):
         raise RuntimeError("Cuda extensions are being compiled with a version of Cuda that does " +
                            "not match the version used to compile Pytorch binaries.  " +
                            "Pytorch binaries were compiled with Cuda {}.\n".format(torch.version.cuda) +
                            "In some cases, a minor-version mismatch will not cause later errors:  " +
                            "https://github.com/NVIDIA/apex/pull/323#discussion_r287021798.  "
-                           "You can try commenting out this check (at your own risk).")
+                           "You can try --cuda_ignore_minor_version (at your own risk).")
 
 
 # Set up macros for forward/backward compatibility hack around
@@ -149,7 +149,10 @@ if "--cuda_ext" in sys.argv:
     if torch.utils.cpp_extension.CUDA_HOME is None:
         raise RuntimeError("--cuda_ext was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
-        check_cuda_torch_binary_vs_bare_metal(torch.utils.cpp_extension.CUDA_HOME)
+        ignore_minor = "--cuda_ignore_minor_version" in sys.argv
+        if ignore_minor:
+            sys.argv.remove("--cuda_ignore_minor_version")
+        check_cuda_torch_binary_vs_bare_metal(torch.utils.cpp_extension.CUDA_HOME, ignore_minor)
 
         ext_modules.append(
             CUDAExtension(name='amp_C',
