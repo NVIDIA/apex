@@ -64,7 +64,7 @@ std::vector<torch::Tensor> fwd_cuda(
 
   torch::Tensor input_lin_results = torch::empty({q_seq_len, sequences, output_lin_dim}, act_options);
   torch::Tensor softmax_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
-  torch::Tensor dropout_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
+ // torch::Tensor dropout_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
   torch::Tensor dropout_mask      = torch::empty({attn_batches, q_seq_len, k_seq_len},   mask_options);
   torch::Tensor matmul2_results   = torch::empty({q_seq_len, attn_batches, head_dim},    act_options);
   torch::Tensor outputs           = torch::empty_like(inputs, act_options);
@@ -133,23 +133,26 @@ std::vector<torch::Tensor> fwd_cuda(
                              k_seq_len,
                              attn_batches*q_seq_len);
   } else {
-      softmax_success = dispatch_additive_masked_softmax<half, half, float>(
+      softmax_success = dispatch_additive_masked_softmax_dropout<half, half, float>(
                              reinterpret_cast<half*>(softmax_results_ptr),
+                             (is_training) ? reinterpret_cast<uint8_t*>(dropout_mask.data_ptr<uint8_t*>()) : nullptr,
                              reinterpret_cast<const half*>(softmax_results_ptr),
                              pad_mask,
                              k_seq_len,
                              k_seq_len,
                              attn_batches*q_seq_len,
-                             attn_batches*q_seq_len/sequences);
+                             attn_batches*q_seq_len/sequences, 
+			     1.0f-dropout_prob,
+			     is_training);
   }
 
 
-  if (is_training) {
-    //use at:: function so that C++ version generates the same random mask as python version
-    auto dropout_tuple = at::_fused_dropout(softmax_results, 1.0f-dropout_prob);
-    dropout_results = std::get<0>(dropout_tuple);
-    dropout_mask = std::get<1>(dropout_tuple);
-  }
+  //if (is_training) {
+  //  //use at:: function so that C++ version generates the same random mask as python version
+  //  auto dropout_tuple = at::_fused_dropout(softmax_results, 1.0f-dropout_prob);
+  //  dropout_results = std::get<0>(dropout_tuple);
+  //  dropout_mask = std::get<1>(dropout_tuple);
+  //}
 
   // Matmul2
   gemm_switch_fp32accum(     state, 
@@ -162,7 +165,7 @@ std::vector<torch::Tensor> fwd_cuda(
                              static_cast<const half*>(v_lin_results_ptr), 
                              lead_dim, 
                              batch_stride, 
-                             (is_training) ? static_cast<const half*>(dropout_results.data_ptr()) : static_cast<const half*>(softmax_results.data_ptr()) , 
+                             (is_training) ? static_cast<const half*>(softmax_results.data_ptr()) : static_cast<const half*>(softmax_results.data_ptr()) , 
                              k_seq_len, 
                              k_seq_len*q_seq_len, 
                              beta_zero, 
