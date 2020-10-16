@@ -1155,6 +1155,10 @@ std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_node
   at::Tensor inv_std = at::empty_like(out_var);
   at::Tensor out_mean = at::empty_like(out_var);
 
+  at::Tensor mean_feature_nodes_ = mean_feature_nodes.contiguous();
+  at::Tensor var_biased_ = var_biased.contiguous();
+  at::Tensor numel_ = numel.contiguous();
+
   // TODO(jie): tile this for memory coalescing!
   const int block = std::min(h_last_pow2(feature_size), MAX_BLOCK_SIZE);
   const int grid = std::max<int>(1, feature_size / block);
@@ -1165,9 +1169,9 @@ std::vector<at::Tensor> welford_parallel_CUDA(const at::Tensor mean_feature_node
     using namespace at;
     DISPATCH_FLOAT_AND_HALF(mean_feature_nodes.scalar_type(), 0, "welford_parallel_kernel",
       welford_kernel_parallel<scalar_t_0><<<grid, block, 0, stream>>>(
-          mean_feature_nodes.DATA_PTR<scalar_t_0>(),
-          var_biased.DATA_PTR<scalar_t_0>(),
-          numel.DATA_PTR<int>(),
+          mean_feature_nodes_.DATA_PTR<scalar_t_0>(),
+          var_biased_.DATA_PTR<scalar_t_0>(),
+          numel_.DATA_PTR<int>(),
           out_mean.DATA_PTR<scalar_t_0>(),
           out_var.DATA_PTR<scalar_t_0>(),
           inv_std.DATA_PTR<scalar_t_0>(),
