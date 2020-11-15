@@ -104,7 +104,7 @@ def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
         sys.argv.remove("--skip-minor-ver-check")
         if not minor_match:
             print(f"--skip-minor-ver-check activated: Attempting to use cuda-{bare_metal_major}.{bare_metal_minor}, "
-                  "despite pytorch using cuda-{torch_binary_major}.{torch_binary_minor} - this may or may not work")
+                  f"despite pytorch using cuda-{torch_binary_major}.{torch_binary_minor} - this may or may not work")
         minor_match = True
     
     if not (major_match and minor_match):
