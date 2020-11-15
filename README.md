@@ -127,6 +127,9 @@ $ cd apex
 $ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 ```
 
+If the major version of cuda installed system-wide matches the one pytorch was built with, but the minor don't match, if the changes are minor it may still build and work successfully (e.g. apex builds fine with cuda-11.1, while pytorch was built with cuda-11.0). In such case add: `--global-option="--skip-minor-ver-check" to the `pip install` command above.
+
+
 Apex also supports a Python-only build (required with Pytorch 0.4) via
 ```
 $ pip install -v --no-cache-dir ./
