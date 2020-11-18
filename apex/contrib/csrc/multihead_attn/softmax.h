@@ -392,15 +392,19 @@ __global__ void additive_masked_softmax_dropout_warp_forward_vec4(output_t *dst,
     float4 rand_num;
     #pragma unroll
     for (int i = 0;i < WARP_BATCH;++i) {
+        if (i >= local_batches)
+            break;
 	#pragma unroll
         for (int it = 0;it < WARP_ITERATIONS;it+=ELEMENTS_PER_LDG_STG) {
+            int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
+            if (element_index < element_count) {
 		rand_num = uniform4(ph());
                 rands[i][it] = (rand_num.x <= p) > 0.5;  
                 rands[i][it+1] = (rand_num.y <= p) > 0.5;
                 rands[i][it+2] = (rand_num.z <= p) > 0.5;
                 rands[i][it+3] = (rand_num.w <= p) > 0.5;
                 copy_vector<uint8_t, ELEMENTS_PER_LDG_STG>(dropout_mask + i * element_count + it * WARP_SIZE, &rands[i][it]);
-
+	    }
         }
     }
 
@@ -1788,7 +1792,7 @@ __global__ void masked_scale_softmax_warp_backward_recompute(output_t *gradInput
             for (int element = 0;element < ELEMENTS_PER_LDG_STG;++element) {
     	//masking_value is a large negative value
                 elements_input[i][it + element] = -10000;
-    	    grad_reg[i][it] = acc_t(0);
+    	        grad_reg[i][it+element] = acc_t(0);
             }
     
             if (element_index < batch_element_count) {
