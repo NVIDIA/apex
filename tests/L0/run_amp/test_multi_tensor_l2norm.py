@@ -58,7 +58,6 @@ class TestMultiTensorL2Norm(unittest.TestCase):
         self.assertTrue(self.overflow_buf.item() == 0)
 
     @unittest.skipIf(disabled, "amp_C is unavailable")
-    @skipIfRocm
     def test_fuzz(self):
         input_size_pairs = (
             (7777*77, 555*555),
