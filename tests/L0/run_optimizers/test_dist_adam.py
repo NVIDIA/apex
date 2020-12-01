@@ -7,7 +7,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from apex import amp
 from apex.optimizers import FusedAdam
-from apex.contrib.optimizers.distributed_fused_adam_v4 import DistributedFusedAdam
+from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
 
 
 class TestModel(torch.nn.Module):
