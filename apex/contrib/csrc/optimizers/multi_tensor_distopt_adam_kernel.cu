@@ -41,8 +41,8 @@ struct DistAdamFunctor
     const float* per_tensor_beta2,
     const int* per_tensor_bias_correction,
     const float* per_tensor_eps,
-    const float* per_tensor_lr,
     const float* per_tensor_weight_decay,
+    const float lr,
     const float grad_scale,
     const int step,
     adamMode_t mode)
@@ -55,16 +55,12 @@ struct DistAdamFunctor
     float b1 = per_tensor_beta1[tensor_num];
     float b2 = per_tensor_beta2[tensor_num];
     float eps = per_tensor_eps[tensor_num];
-    float lr = per_tensor_lr[tensor_num];
     float decay = per_tensor_weight_decay[tensor_num];
 
-    float bias_correction1, bias_correction2, step_size;
+    float beta1_correction = 1.0f, beta2_correction = 1.0f;
     if (per_tensor_bias_correction[tensor_num] == 1) {
-      bias_correction1 = 1 - std::pow(b1, step);
-      bias_correction2 = 1 - std::pow(b2, step);
-      step_size = lr * std::sqrt(bias_correction2)/bias_correction1;
-    } else {
-      step_size = lr;
+      beta1_correction = 1 - std::pow(b1, step);
+      beta2_correction = 1 - std::pow(b2, step);
     }
 
     T* p = (T *)tl.addresses[0][tensor_loc];
@@ -109,14 +105,16 @@ struct DistAdamFunctor
           T scaled_grad = incoming_g[ii]/grad_scale;
           incoming_m[ii] = b1*incoming_m[ii] + (1-b1)*scaled_grad;
           incoming_v[ii] = b2*incoming_v[ii] + (1-b2)*scaled_grad*scaled_grad;
-          float denom;
+          T next_m_unbiased = incoming_m[ii] / beta1_correction;
+	  T next_v_unbiased = incoming_v[ii] / beta2_correction;
+	  float denom;
           if (mode == ADAM_MODE_0)
-            denom = sqrtf(incoming_v[ii] + eps);
+            denom = sqrtf(next_v_unbiased + eps);
           else // Mode 1
-            denom = sqrtf(incoming_v[ii]) + eps;
-          float update = (incoming_m[ii]/denom) + (decay*incoming_p[ii]);
-          incoming_p[ii] = incoming_p[ii] - (step_size*update);
-          if (DEPTH == 5)  tmp_g[ii] = static_cast<GRAD_T>(incoming_p[ii]);
+            denom = sqrtf(next_v_unbiased) + eps;
+          float update = (next_m_unbiased / denom) + (decay * incoming_p[ii]);
+          incoming_p[ii] = incoming_p[ii] - (lr * update);
+	  if (DEPTH == 5)  tmp_g[ii] = static_cast<GRAD_T>(incoming_p[ii]);
         }
         load_store(p, incoming_p, i_start, 0);
         load_store(m, incoming_m, i_start, 0);
@@ -152,14 +150,16 @@ struct DistAdamFunctor
             T scaled_grad = incoming_g[ii]/grad_scale;
             m[j] = b1*incoming_m[ii] + (1-b1)*scaled_grad;
             v[j] = b2*incoming_v[ii] + (1-b2)*scaled_grad*scaled_grad;
-            float denom;
+            T next_m_unbiased = m[j] / beta1_correction;
+            T next_v_unbiased = v[j] / beta2_correction;
+	    float denom;
             if (mode == ADAM_MODE_0)
-              denom = sqrtf(v[j] + eps);
+              denom = sqrtf(next_v_unbiased + eps);
             else // Mode 1
-              denom = sqrtf(v[j]) + eps;
-            float update = (m[j]/denom) + (decay*incoming_p[ii]);
-            p[j] = incoming_p[ii] - (step_size*update);
-            if (DEPTH == 5)  p_copy[j] = (GRAD_T) p[j];
+              denom = sqrtf(next_v_unbiased) + eps;
+            float update = (next_m_unbiased / denom) + (decay * incoming_p[ii]);
+            p[j] = incoming_p[ii] - (lr * update);
+	    if (DEPTH == 5)  p_copy[j] = (GRAD_T) p[j];
           }
         }
       }
@@ -175,8 +175,8 @@ void multi_tensor_fused_adam_cuda(
   at::Tensor per_tensor_beta2,
   at::Tensor per_tensor_bias_correction,
   at::Tensor per_tensor_eps,
-  at::Tensor per_tensor_lr,
   at::Tensor per_tensor_weight_decay,
+  float lr,
   float grad_scale,
   int step,
   int mode)
@@ -199,8 +199,8 @@ void multi_tensor_fused_adam_cuda(
         per_tensor_beta2.DATA_PTR<float>(),
         per_tensor_bias_correction.DATA_PTR<int>(),
         per_tensor_eps.DATA_PTR<float>(),
-        per_tensor_lr.DATA_PTR<float>(),
         per_tensor_weight_decay.DATA_PTR<float>(),
+        lr,
         grad_scale,
         step,
         (adamMode_t) mode);
