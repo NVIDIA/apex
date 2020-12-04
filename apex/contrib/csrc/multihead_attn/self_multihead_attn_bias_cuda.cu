@@ -361,7 +361,7 @@ std::vector<torch::Tensor> bwd_cuda(
 
   // Apply Dropout Mask and Scale by Dropout Probability 
   // Softmax Grad
-  dispatch_masked_scale_softmax_backward<half, half, float,false>(
+  dispatch_masked_scale_softmax_backward_stream<half, half, float,false>(
                              static_cast<half*>(matmul2_grads.data_ptr()), 
                              static_cast<half*>(matmul2_grads.data_ptr()), 
                              reinterpret_cast<half const*>(softmax_results.data_ptr()),
@@ -369,7 +369,7 @@ std::vector<torch::Tensor> bwd_cuda(
 			     1.0/(1.0-dropout_prob),
                              k_seq_len,
                              k_seq_len,
-                             attn_batches*q_seq_len);
+                             attn_batches*q_seq_len, stream);
 
   // Matmul1 Dgrad1
   gemm_switch_fp32accum(     state, 
