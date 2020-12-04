@@ -134,7 +134,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._is_accumulation_step = False
         self._last_step = False
         self._overlap_reductions = overlap_reductions
-
+        self._global_scale = None
         self._num_blocks = dwu_num_blocks
         self._num_chunks = dwu_num_chunks
         self._e5m2_allgather = e5m2_allgather
@@ -473,6 +473,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         local_contrib_l2_norm = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_update_frag_for_norm], True)[1] ** 2
         l2_norm.masked_scatter_(self._model_param_is_contrib, local_contrib_l2_norm)
         torch.distributed.all_reduce(l2_norm, group=self._ag_pg[0])
+        l2_norm = torch.sqrt(l2_norm)
         return l2_norm.masked_select(self._model_param_is_contrib)
 
     def _pipeline_step(self):
