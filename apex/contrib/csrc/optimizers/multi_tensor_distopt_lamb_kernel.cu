@@ -6,6 +6,7 @@
 // #include <torch/all.h>
 
 #include <assert.h>
+#include <algorithm>
 
 #include "type_shim.h"
 #include "multi_tensor_apply.cuh"
@@ -120,17 +121,25 @@ struct DistOptLAMBStage1Functor
     const MATH_T* per_tensor_epsilon,
     adamMode_t mode,
     const MATH_T* per_tensor_decay,
-    const float grad_scale)
+    const float global_scale,
+    const float global_grad_norm,
+    const float max_grad_norm)
   {
     // I'd like this kernel to propagate infs/nans.
-    // if(*noop_gmem == 1)
-    //   return;
+    if(*noop_gmem == 1)
+       return;
 
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
     int tensor_num = tl.start_tensor_this_launch + tensor_loc;
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
+    float combined_scale = global_scale;
+    if (max_grad_norm > 0) {
+        combined_scale = max_grad_norm / (global_grad_norm / global_scale + 1e-6);
+	combined_scale = global_scale / std::min(1, combined_scale);
+    }
+    
     MATH_T beta1 = per_tensor_beta1[tensor_num];
     MATH_T beta2 = per_tensor_beta2[tensor_num];
     MATH_T beta3 = 1 - beta1;
@@ -204,7 +213,7 @@ struct DistOptLAMBStage1Functor
         for(int ii = 0; ii < ILP; ii++)
         {
           if (mode == MOMENT_MODE_0) {
-            MATH_T scaled_grad = r_g[ii] / grad_scale;
+            MATH_T scaled_grad = r_g[ii] / combined_scale;
             // L2 on scaled grad
             scaled_grad = scaled_grad + decay*r_p[ii];
             r_m[ii] = r_m[ii] * beta1 + beta3 * scaled_grad;
@@ -215,7 +224,7 @@ struct DistOptLAMBStage1Functor
             r_p[ii] = next_m_unbiased / denom;
           }
           else {
-            MATH_T scaled_grad = r_g[ii] / grad_scale;
+            MATH_T scaled_grad = r_g[ii] / combined_scale;
             r_m[ii] = r_m[ii] * beta1 + beta3 * scaled_grad;
             r_v[ii] = r_v[ii] * beta2 + (1-beta2) * scaled_grad * scaled_grad;
             MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
@@ -274,7 +283,7 @@ struct DistOptLAMBStage1Functor
         for(int ii = 0; ii < ILP; ii++)
         {
           if (mode == MOMENT_MODE_0) {
-            MATH_T scaled_grad = r_g[ii] / grad_scale;
+            MATH_T scaled_grad = r_g[ii] / combined_scale;
             // L2 on scaled grad
             scaled_grad = scaled_grad + decay*r_p[ii];
             r_m[ii] = r_m[ii] * beta1 + beta3 * scaled_grad;
@@ -285,7 +294,7 @@ struct DistOptLAMBStage1Functor
             r_p[ii] = next_m_unbiased / denom;
           }
           else {
-            MATH_T scaled_grad = r_g[ii] / grad_scale;
+            MATH_T scaled_grad = r_g[ii] / combined_scale;
             r_m[ii] = r_m[ii] * beta1 + beta3 * scaled_grad;
             r_v[ii] = r_v[ii] * beta2 + (1-beta2) * scaled_grad * scaled_grad;
             MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
@@ -431,7 +440,9 @@ void multi_tensor_lamb_compute_update_term_cuda(
   at::Tensor per_tensor_epsilon,
   const int mode,
   at::Tensor per_tensor_decay,
-  const float grad_scale)
+  const float global_scale,
+  const float global_grad_norm,
+  const float max_grad_norm)
 {
   using namespace at;
 
@@ -452,7 +463,9 @@ void multi_tensor_lamb_compute_update_term_cuda(
           per_tensor_epsilon.DATA_PTR<scalar_t_2>(),
           (adamMode_t) mode,
           per_tensor_decay.DATA_PTR<scalar_t_2>(),
-          grad_scale); )))
+          global_scale,
+	  global_grad_norm,
+	  max_grad_norm); )))
 
   AT_CUDA_CHECK(cudaGetLastError());
 }
