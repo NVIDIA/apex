@@ -453,7 +453,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 l2_grad_norm_sq = torch.empty([1], device='cuda')
                 l2_grad_norm_sq = self._fp16_g.norm(dtype=torch.float32, p=2)**2
                 torch.distributed.all_reduce(l2_grad_norm_sq, group=self._l2_grad_norm_pg)
-                self._L2_grad_norm = l2_grad_norm_sq.sqrt().item()
+                self._L2_grad_norm = l2_grad_norm_sq.sqrt()#.item()
 
     def __compute_contrib_param_norm(self):
         if self._contrib_model_param_for_norm_fp16 is not None and self._contrib_model_param_for_norm_fp32 is not None:
@@ -483,12 +483,15 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         # scale used by the loss scaler.
         # For model parallelism cases in which we need to get global gradient
         # norm via all-reduce outside the optimizer to do the clipping.
-        combined_scale = self.global_scale
+        #combined_scale = self.global_scale
+        global_scale = self.global_scale
         max_grad_norm = self.defaults['max_grad_norm']
         global_grad_norm = self.L2_grad_norm
-        if self._clip_grad_norm and max_grad_norm > 0 and math.isfinite(global_grad_norm):
-            combined_scale = max_grad_norm / (global_grad_norm / self.global_scale + 1e-6)
-            combined_scale = self.global_scale / min(1, combined_scale)
+        # check global_grad_norm and fill overflow_buf
+        self._overflow_buf = torch.isinf(global_grad_norm) or torch.isnan(global_grad_norm):
+        #if self._clip_grad_norm and max_grad_norm > 0 and math.isfinite(global_grad_norm):
+        #    combined_scale = max_grad_norm / (global_grad_norm / self.global_scale + 1e-6)
+        #    combined_scale = self.global_scale / min(1, combined_scale)
 
         # Call step kernel once per step
         # Call all-gather once per step
@@ -508,7 +511,9 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     self._contrib_epsilon,
                     self._adam_w_mode,
                     self._contrib_weight_decay,
-                    combined_scale)
+                    global_scale,
+                    global_grad_norm,
+                    max_grad_norm)
             upd_norm = self.__compute_contrib_update_norm()
             multi_tensor_applier(self.multi_tensor_lamb_update_weights,
                     self._overflow_buf,
