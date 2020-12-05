@@ -488,7 +488,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         max_grad_norm = self.defaults['max_grad_norm']
         global_grad_norm = self.L2_grad_norm
         # check global_grad_norm and fill overflow_buf
-        self._overflow_buf = torch.isinf(global_grad_norm) or torch.isnan(global_grad_norm):
+        self._overflow_buf = torch.isinf(global_grad_norm) or torch.isnan(global_grad_norm)
         #if self._clip_grad_norm and max_grad_norm > 0 and math.isfinite(global_grad_norm):
         #    combined_scale = max_grad_norm / (global_grad_norm / self.global_scale + 1e-6)
         #    combined_scale = self.global_scale / min(1, combined_scale)
