@@ -137,7 +137,7 @@ struct DistOptLAMBStage1Functor
     float combined_scale = global_scale;
     if (max_grad_norm > 0) {
         combined_scale = max_grad_norm / (global_grad_norm / global_scale + 1e-6);
-	combined_scale = global_scale / std::min(1, combined_scale);
+	combined_scale = global_scale / std::min(1.0, combined_scale);
     }
     
     MATH_T beta1 = per_tensor_beta1[tensor_num];
