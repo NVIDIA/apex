@@ -58,6 +58,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             weight decay parameter (default: False)
         clip_grad_norm (boolean, optional): whether to handle gradient clipping
             (default: True)
+        step_supports_amp_scaling(boolean, optional): whether to use customized
+            gradient unscaling logic (default: True)
 
     .. _Large Batch Optimization for Deep Learning - Training BERT in 76 minutes:
         https://arxiv.org/abs/1904.00962
@@ -70,7 +72,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                  betas=(0.9, 0.999), eps=1e-8, 
                  weight_decay=0., max_grad_norm=0., 
                  adam_w_mode=True, use_nvlamb=False, clip_grad_norm=True,
-                 amp_scale_adjustment=1.0, overlap_reductions=True, 
+                 step_supports_amp_scaling=True, overlap_reductions=True,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
                  dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
                  e5m2_allgather=False):
@@ -92,7 +94,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 'adam_w_mode': adam_w_mode,
                 'use_nvlamb': use_nvlamb,
                 'clip_grad_norm': clip_grad_norm,
-                'amp_scale_adjustment': amp_scale_adjustment,
+                'step_supports_amp_scaling': step_supports_amp_scaling
                 'overlap_reductions': overlap_reductions,
                 'dwu_group_size': dwu_group_size,
                 'dwu_num_blocks': dwu_num_blocks,
@@ -111,15 +113,13 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                  betas=(0.9, 0.999), eps=1e-8, 
                  weight_decay=0., max_grad_norm=0., 
                  adam_w_mode=True, use_nvlamb=False, clip_grad_norm=True,
-                 amp_scale_adjustment=1.0, overlap_reductions=True, 
+                 step_supports_amp_scaling=True, overlap_reductions=True,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
                  dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
                  e5m2_allgather=False):
         global fused_adam_cuda, distributed_lamb_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
         distributed_lamb_cuda = importlib.import_module("distributed_lamb_cuda")
-
-        self._amp_scale_adjustment = amp_scale_adjustment
 
         self._overflow_buf = torch.cuda.IntTensor([0])
         self._has_overflow = False
@@ -131,6 +131,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._adam_w_mode = 1 if adam_w_mode else 0
         self._use_nvlamb = use_nvlamb
         self._clip_grad_norm = clip_grad_norm
+        self._step_supports_amp_scaling = step_supports_amp_scaling
         self._is_accumulation_step = False
         self._last_step = False
         self._overlap_reductions = overlap_reductions
