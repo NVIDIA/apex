@@ -94,7 +94,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 'adam_w_mode': adam_w_mode,
                 'use_nvlamb': use_nvlamb,
                 'clip_grad_norm': clip_grad_norm,
-                'step_supports_amp_scaling': step_supports_amp_scaling
+                'step_supports_amp_scaling': step_supports_amp_scaling,
                 'overlap_reductions': overlap_reductions,
                 'dwu_group_size': dwu_group_size,
                 'dwu_num_blocks': dwu_num_blocks,
