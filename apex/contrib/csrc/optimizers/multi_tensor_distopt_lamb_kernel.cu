@@ -7,7 +7,6 @@
 
 #include <assert.h>
 #include <algorithm>
-#include <iostream>
 
 #include "type_shim.h"
 #include "multi_tensor_apply.cuh"
@@ -128,7 +127,7 @@ struct DistOptLAMBStage1Functor
   {
     // I'd like this kernel to propagate infs/nans.
     if (*noop_gmem == 1.0) {
-	std::cout << "Skipped!" << std::endl;
+        printf("Skipped step kernel\n");
         return;
     }
 
@@ -339,7 +338,7 @@ struct DistOptLAMBStage2Functor
   {
     // I'd like this kernel to propagate infs/nans.
     if (*noop_gmem == 1.0) {
-        std::cout << "Skipped!" << std::endl;
+        printf("Skipped step kernel\n");
         return;
     }
 
