@@ -489,7 +489,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         max_grad_norm = self.defaults['max_grad_norm']
         global_grad_norm = self.L2_grad_norm
         # check global_grad_norm and fill overflow_buf
-        self._overflow_buf = torch.isinf(global_grad_norm) or torch.isnan(global_grad_norm)
+        self._overflow_buf = torch.full((1,), 1, dtype=torch.int, device="cuda") * (torch.isinf(global_grad_norm) or torch.isnan(global_grad_norm))
         #if self._clip_grad_norm and max_grad_norm > 0 and math.isfinite(global_grad_norm):
         #    combined_scale = max_grad_norm / (global_grad_norm / self.global_scale + 1e-6)
         #    combined_scale = self.global_scale / min(1, combined_scale)
@@ -613,6 +613,11 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 param_group['step'] = 1
 
         self._pipeline_step()
+
+        found_inf = self._overflow_buf.float()
+        optimizer_state = grad_scaler._per_optimizer_states[id(self)]
+        current_device = torch.device('cuda', torch.cuda.current_device())
+        optimizer_state["found_inf_per_device"][current_device] = found_inf
 
         with torch.cuda.stream(self._completion_st):
             # Copy self._new_params to model params

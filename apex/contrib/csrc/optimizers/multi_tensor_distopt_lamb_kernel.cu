@@ -7,6 +7,7 @@
 
 #include <assert.h>
 #include <algorithm>
+#include <iostream>
 
 #include "type_shim.h"
 #include "multi_tensor_apply.cuh"
@@ -126,8 +127,10 @@ struct DistOptLAMBStage1Functor
     const float max_grad_norm)
   {
     // I'd like this kernel to propagate infs/nans.
-    if(*noop_gmem == 1)
-       return;
+    if (*noop_gmem == 1.0) {
+	std::cout << "Skipped!" << std::endl;
+        return;
+    }
 
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
     int tensor_num = tl.start_tensor_this_launch + tensor_loc;
@@ -335,8 +338,10 @@ struct DistOptLAMBStage2Functor
     bool use_nvlamb)
   {
     // I'd like this kernel to propagate infs/nans.
-    // if(*noop_gmem == 1)
-    //   return;
+    if (*noop_gmem == 1.0) {
+        std::cout << "Skipped!" << std::endl;
+        return;
+    }
 
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
     int tensor_num = tl.start_tensor_this_launch + tensor_loc;
