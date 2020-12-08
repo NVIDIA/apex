@@ -121,7 +121,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
         distributed_lamb_cuda = importlib.import_module("distributed_lamb_cuda")
 
-        self._overflow_buf = torch.cuda.IntTensor([0])
+        self._overflow_buf, self._overflow_flag = torch.cuda.IntTensor([0]), torch.cuda.IntTensor([0])
         self._has_overflow = False
         self.multi_tensor_lamb_compute_update_term = distributed_lamb_cuda.multi_tensor_lamb_compute_update_term
         self.multi_tensor_lamb_update_weights = distributed_lamb_cuda.multi_tensor_lamb_update_weights
@@ -488,8 +488,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         global_scale = self.global_scale
         max_grad_norm = self.defaults['max_grad_norm']
         global_grad_norm = self.L2_grad_norm
-        # check global_grad_norm and fill overflow_buf
-        self._overflow_buf = torch.full((1,), 1, dtype=torch.int, device="cuda") * (torch.isinf(global_grad_norm) or torch.isnan(global_grad_norm))
+        # check global_grad_norm and fill overflow_flag
+        self._overflow_flag = torch.full((1,), 1, dtype=torch.int, device="cuda") * (torch.isinf(global_grad_norm) or torch.isnan(global_grad_norm))
         #if self._clip_grad_norm and max_grad_norm > 0 and math.isfinite(global_grad_norm):
         #    combined_scale = max_grad_norm / (global_grad_norm / self.global_scale + 1e-6)
         #    combined_scale = self.global_scale / min(1, combined_scale)
@@ -502,7 +502,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     self._reductions_works[block_id][chunk_id].wait()
             param_norm = self.__compute_contrib_param_norm()
             multi_tensor_applier(self.multi_tensor_lamb_compute_update_term,
-                    self._overflow_buf,
+                    self._overflow_flag,
                     self._contrib_compute_update_term_tensor_list, # g, p, m, v, u
                     self._contrib_beta1,
                     self._contrib_beta2,
@@ -517,7 +517,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     max_grad_norm)
             upd_norm = self.__compute_contrib_update_norm()
             multi_tensor_applier(self.multi_tensor_lamb_update_weights,
-                    self._overflow_buf,
+                    self._overflow_flag,
                     self._contrib_update_weights_tensor_list, # u, p, p_copy
                     param_norm,
                     upd_norm,
@@ -599,7 +599,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._current_block = self._num_blocks
         self._grads_generated = [False]*len(self._grads_info)
 
-    def step(self, closure=None):
+    def step(self, closure=None, grad_scaler=None):
         loss = None
         if closure is not None:
             loss = closure()
@@ -614,10 +614,11 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
         self._pipeline_step()
 
-        found_inf = self._overflow_buf.float()
-        optimizer_state = grad_scaler._per_optimizer_states[id(self)]
-        current_device = torch.device('cuda', torch.cuda.current_device())
-        optimizer_state["found_inf_per_device"][current_device] = found_inf
+        if grad_scaler is not None:
+            found_inf = self._overflow_flag.float()
+            optimizer_state = grad_scaler._per_optimizer_states[id(self)]
+            current_device = torch.device('cuda', torch.cuda.current_device())
+            optimizer_state["found_inf_per_device"][current_device] = found_inf
 
         with torch.cuda.stream(self._completion_st):
             # Copy self._new_params to model params
