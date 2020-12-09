@@ -9,7 +9,12 @@
 // #include "ATen/Type.h"
 #include "ATen/AccumulateType.h"
 #include <THC/THCGeneral.h>
+
+#if HIP_VERSION >= 310
+#include "multi_tensor_apply_hip.cuh"
+#else
 #include "multi_tensor_apply.cuh"
+#endif
 
 #define BLOCK_SIZE 512
 #define ILP 4
