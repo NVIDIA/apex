@@ -235,7 +235,7 @@ struct DistOptLAMBStage1Functor
             MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
             r_p[ii] = (next_m_unbiased/denom) + (decay*r_p[ii]);
 	    if (tensor_loc == 1 && i_start == 0 && ii == 0) {
-	        printf("tensor_loc:%d,tensor_num:%d,g:%.16f,grad_scale:%f,scaled_grad:%.16f,old_p:%.16f,old_m:%.8f,old_v:%.8f,beta1:%.8f,beta2:%.8f,beta3:%.8f,b1c:%.8f,b2c:%.8f,new_m:%.16f,new_v:%.16f,m_unbiased:%.16f,v_unbiased:%.16f,denom:%.16f,p:%.16f\n", tensor_loc, tensor_num, r_g[ii], grad_scale, scaled_grad, old_p, old_m, old_v, beta1, beta2, beta3, beta1_correction, beta2_correction, r_m[ii], r_v[ii], next_m_unbiased, next_v_unbiased, denom, r_p[ii]);
+	        printf("tensor_loc:%d,tensor_num:%d,g:%.16f,combined_scale:%f,scaled_grad:%.16f,old_p:%.16f,old_m:%.8f,old_v:%.8f,beta1:%.8f,beta2:%.8f,beta3:%.8f,b1c:%.8f,b2c:%.8f,new_m:%.16f,new_v:%.16f,m_unbiased:%.16f,v_unbiased:%.16f,denom:%.16f,p:%.16f\n", tensor_loc, tensor_num, r_g[ii], combined_scale, scaled_grad, old_p, old_m, old_v, beta1, beta2, beta3, beta1_correction, beta2_correction, r_m[ii], r_v[ii], next_m_unbiased, next_v_unbiased, denom, r_p[ii]);
 	    }
           }
         }
