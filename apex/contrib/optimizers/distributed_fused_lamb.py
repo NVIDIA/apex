@@ -56,8 +56,6 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             (default: 1.0)
         use_nvlamb (boolean, optional): Apply adaptive learning rate to 0.0
             weight decay parameter (default: False)
-        clip_grad_norm (boolean, optional): whether to handle gradient clipping
-            (default: True)
         step_supports_amp_scaling(boolean, optional): whether to use customized
             gradient unscaling logic (default: True)
 
@@ -71,7 +69,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                  lr=1e-3, bias_correction = True, grad_averaging=True,
                  betas=(0.9, 0.999), eps=1e-8, 
                  weight_decay=0., max_grad_norm=0., 
-                 adam_w_mode=True, use_nvlamb=False, clip_grad_norm=True,
+                 adam_w_mode=True, use_nvlamb=False,
                  step_supports_amp_scaling=True, overlap_reductions=True,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
                  dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
@@ -93,7 +91,6 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 'max_grad_norm': max_grad_norm,
                 'adam_w_mode': adam_w_mode,
                 'use_nvlamb': use_nvlamb,
-                'clip_grad_norm': clip_grad_norm,
                 'step_supports_amp_scaling': step_supports_amp_scaling,
                 'overlap_reductions': overlap_reductions,
                 'dwu_group_size': dwu_group_size,
@@ -112,7 +109,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                  lr=1e-3, bias_correction = True, grad_averaging=True,
                  betas=(0.9, 0.999), eps=1e-8, 
                  weight_decay=0., max_grad_norm=0., 
-                 adam_w_mode=True, use_nvlamb=False, clip_grad_norm=True,
+                 adam_w_mode=True, use_nvlamb=False,
                  step_supports_amp_scaling=True, overlap_reductions=True,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
                  dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
@@ -130,7 +127,6 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
         self._adam_w_mode = 1 if adam_w_mode else 0
         self._use_nvlamb = use_nvlamb
-        self._clip_grad_norm = clip_grad_norm
         self._step_supports_amp_scaling = step_supports_amp_scaling
         self._is_accumulation_step = False
         self._last_step = False
@@ -152,6 +148,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._grad_accs = []
         self._group_properties = []
         for group in self.param_groups:
+            group['step'] = 0
             prev = None
             beta1, beta2 = group['betas']
             for p in group['params']:
@@ -478,21 +475,19 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         return l2_norm.masked_select(self._model_param_is_contrib)
 
     def _pipeline_step(self):
-        # If self._clip_grad_norm is False, we assume gradient clipping already
-        # happened outside the optimizer and self._global_scale has already
-        # been set to the combined scale, i.e. it's no longer the current loss
-        # scale used by the loss scaler.
-        # For model parallelism cases in which we need to get global gradient
-        # norm via all-reduce outside the optimizer to do the clipping.
-        #combined_scale = self.global_scale
         global_scale = self.global_scale
         max_grad_norm = self.defaults['max_grad_norm']
         global_grad_norm = self.L2_grad_norm
+        
         # check global_grad_norm and fill overflow_flag
         self._overflow_flag = torch.full((1,), 1, dtype=torch.int, device="cuda") * (torch.isinf(global_grad_norm) or torch.isnan(global_grad_norm))
-        #if self._clip_grad_norm and max_grad_norm > 0 and math.isfinite(global_grad_norm):
-        #    combined_scale = max_grad_norm / (global_grad_norm / self.global_scale + 1e-6)
-        #    combined_scale = self.global_scale / min(1, combined_scale)
+        
+        # increment step counter if no overflow
+        if not self._overflow_flag:
+            # assume same step across group now to simplify things
+            # per parameter step can be easily support by making it tensor, or pass list into kernel
+            for group in self.param_groups:
+                group['step'] += 1
 
         # Call step kernel once per step
         # Call all-gather once per step
@@ -603,14 +598,6 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         loss = None
         if closure is not None:
             loss = closure()
-
-        # assume same step across group now to simplify things
-        # per parameter step can be easily support by making it tensor, or pass list into kernel
-        for param_group in self.param_groups:
-            if 'step' in param_group:
-                param_group['step'] += 1
-            else:
-                param_group['step'] = 1
 
         self._pipeline_step()
 
