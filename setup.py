@@ -202,20 +202,6 @@ if "--cuda_ext" in sys.argv:
                                            'csrc/hip/multi_tensor_novograd.hip',
                                            'csrc/hip/multi_tensor_lamb.hip',
                                          ]
-            #ext_modules.append(
-            #    CUDAExtension(name='amp_C',
-            #                  sources=['csrc/amp_C_frontend.cpp',
-            #                           'csrc/hip/multi_tensor_sgd_kernel.hip',
-            #                           'csrc/hip/multi_tensor_scale_kernel.hip',
-            #                           'csrc/hip/multi_tensor_axpby_kernel.hip',
-            #                           'csrc/hip/multi_tensor_l2norm_kernel.hip',
-            #                           'csrc/hip/multi_tensor_lamb_stage_1.hip',
-            #                           'csrc/hip/multi_tensor_lamb_stage_2.hip',
-            #                           'csrc/hip/multi_tensor_adam.hip',
-            #                           'csrc/hip/multi_tensor_adagrad.hip',
-            #                           'csrc/hip/multi_tensor_novograd.hip',
-            #                           'csrc/hip/multi_tensor_lamb.hip'],
-            #                  extra_compile_args=['-O3'] + version_dependent_macros))
             ext_modules.append(
                   CUDAExtension(name='amp_C',
                                 sources=multi_tensor_sources_v1_8 if torch.__version__ >= '1.8' else multi_tensor_sources_other,
@@ -236,12 +222,6 @@ if "--cuda_ext" in sys.argv:
                 CUDAExtension(name='syncbn',
                               sources=syncbn_sources_v1_8 if torch.__version__ >= '1.8' else syncbn_sources_other,
                               extra_compile_args=['-O3'] + version_dependent_macros))
-            #ext_modules.append(
-            #    CUDAExtension(name='syncbn',
-            #                  sources=['csrc/syncbn.cpp',
-            #                           'csrc/hip/welford.hip'],
-            #                  extra_compile_args=['-O3'] + version_dependent_macros))
-
 
         if not is_rocm_pytorch:
             ext_modules.append(
@@ -260,12 +240,6 @@ if "--cuda_ext" in sys.argv:
                  CUDAExtension(name='fused_layer_norm_cuda',
                                sources = layer_norm_sources_v1_8 if torch.__version__ >= '1.8' else layer_norm_sources_other,
                                extra_compile_args=['-O3'] + version_dependent_macros)) 
-            #ext_modules.append(
-            #    CUDAExtension(name='fused_layer_norm_cuda',
-            #                  sources=['csrc/layer_norm_cuda.cpp',
-            #                           'csrc/hip/layer_norm_hip_kernel.hip'],
-            #                  extra_compile_args={'cxx' : ['-O3'] + version_dependent_macros,
-            #                                      'nvcc' : []}))
 
         if not is_rocm_pytorch:
             ext_modules.append(
@@ -282,12 +256,6 @@ if "--cuda_ext" in sys.argv:
                 CUDAExtension(name='mlp_cuda',
                               sources = mlp_sources_v1_8 if torch.__version__ >= '1.8' else mlp_sources_other,
                               extra_compile_args=['-O3'] + version_dependent_macros))
-            #ext_modules.append(
-            #    CUDAExtension(name='mlp_cuda',
-            #                  sources=['csrc/mlp.cpp',
-            #                           'csrc/hip/mlp_hip.hip'],
-            #                  extra_compile_args={'cxx' : ['-O3'] + version_dependent_macros,
-            #                                      'nvcc' : []}))
 
 if "--bnp" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
@@ -341,12 +309,6 @@ if "--xentropy" in sys.argv:
                                sources = xentropy_sources_v1_8 if torch.__version__ >= '1.8' else xentropy_sources_other,
                                include_dirs=[os.path.join(this_dir, 'csrc') if torch.__version__ >= '1.8' else os.path.join(this_dir, 'csrc/hip')],
                                extra_compile_args=['-O3'] + version_dependent_macros))
-             #ext_modules.append(
-             #   CUDAExtension(name='xentropy_cuda',
-             #                 sources=['apex/contrib/csrc/xentropy/interface.cpp',
-             #                          'apex/contrib/csrc/xentropy/hip/xentropy_kernel.hip'],
-             #                 include_dirs=[os.path.join(this_dir, 'csrc/hip')],
-             #                 extra_compile_args=['-O3'] + version_dependent_macros))
    
 
 if "--deprecated_fused_adam" in sys.argv:
@@ -383,12 +345,6 @@ if "--deprecated_fused_adam" in sys.argv:
                               sources = fused_adam_sources_v1_8 if torch.__version__ >= '1.8' else fused_adam_sources_other,
                               include_dirs=[os.path.join(this_dir, 'csrc') if torch.__version__ >= '1.8' else os.path.join(this_dir, 'csrc/hip')],
                               extra_compile_args=['-O3'] + version_dependent_macros))
-            #ext_modules.append(
-            #    CUDAExtension(name='fused_adam_cuda',
-            #                  sources=['apex/contrib/csrc/optimizers/fused_adam_cuda.cpp',
-            #                           'apex/contrib/csrc/optimizers/hip/fused_adam_hip_kernel.hip'],
-            #                  include_dirs=[os.path.join(this_dir, 'csrc/hip')],
-            #                  extra_compile_args=['-O3'] + version_dependent_macros))
 
 if "--deprecated_fused_lamb" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
@@ -425,13 +381,6 @@ if "--deprecated_fused_lamb" in sys.argv:
                               sources = fused_lamb_sources_v1_8 if torch.__version__ >= '1.8' else fused_lamb_sources_other,
                               include_dirs = [os.path.join(this_dir, 'csrc') if torch.__version__ >= '1.8' else os.path.join(this_dir, 'csrc/hip')],
                               extra_compile_args=['-O3'] + version_dependent_macros))
-            #ext_modules.append(
-            #    CUDAExtension(name='fused_lamb_cuda',
-            #                  sources=['apex/contrib/csrc/optimizers/fused_lamb_cuda.cpp',
-            #                           'apex/contrib/csrc/optimizers/hip/fused_lamb_hip_kernel.hip',
-            #                           'csrc/hip/multi_tensor_l2norm_kernel.hip'],
-            #                  include_dirs=[os.path.join(this_dir, 'csrc/hip')],
-            #                  extra_compile_args=['-O3'] + version_dependent_macros))
 
 # Check, if ATen/CUDAGenerator.h is found, otherwise use the new ATen/CUDAGeneratorImpl.h, due to breaking change in https://github.com/pytorch/pytorch/pull/36026
 generator_flag = []
