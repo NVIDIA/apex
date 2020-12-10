@@ -101,6 +101,11 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 'dwu_num_ag_pg': dwu_num_ag_pg,
                 'e5m2_allgather': e5m2_allgather}
         self._init_done = False
+        self._resume_from_checkpoint = False
+        self._step = torch.cuda.IntTensor([0])
+
+        # Master weight, moment, gradient buffers
+        self._fp32_p, self._fp32_m, self._fp32_v, self._fp16_p, self._fp16_g = None, None, None, None, None
 
         import inspect
         assert ('no_copy' in inspect.getfullargspec(torch.distributed.reduce_scatter).args), "This version of c10d does not support no_copy option"
@@ -148,7 +153,6 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._grad_accs = []
         self._group_properties = []
         for group in self.param_groups:
-            group['step'] = 0
             prev = None
             beta1, beta2 = group['betas']
             for p in group['params']:
@@ -207,10 +211,12 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._flat_grads = torch.zeros([self._total_param_size], dtype=torch.float16, device='cuda')
         self._new_params = torch.zeros([self._total_param_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
         self._mega_shard_size = self._num_blocks * self._num_chunks * self._shard_size
-        self._fp32_p = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
-        self._fp32_m = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
-        self._fp32_v = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
-        self._fp32_u = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+        # initialize master weights, moments buffers if not loaded from checkpoint
+        if self._fp32_p is None:
+            self._fp32_p = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+            self._fp32_m = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+            self._fp32_v = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+            self._fp32_u = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
         # FIXME: Rethink fp16 label since it's either uint8 or fp16
         self._fp16_p = torch.zeros([self._mega_shard_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
         self._fp16_g = torch.zeros([self._mega_shard_size], dtype=torch.float16, device='cuda')
@@ -304,7 +310,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                                 opti_state_g_fragment = self._fp16_g_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
                                 opti_state_p_fragment = self._fp16_p_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
                                 #print("model_param_fragment.size()=%s, new_param_packed_fragment.size()=%s, master_param_fragment.size()=%s" % (str(model_param_fragment.size()), str(new_param_packed_fragment.size()), str(master_param_fragment.size())))
-                                master_param_fragment.copy_(model_param_fragment)
+                                if not self._resume_from_checkpoint:
+                                    master_param_fragment.copy_(model_param_fragment)
                                 self._contrib_group_properties.append(group_props)
                                 self._contrib_tensor_list.append((master_param_fragment, opti_state_m_fragment, opti_state_v_fragment, opti_state_u_fragment, opti_state_g_fragment, opti_state_p_fragment)) # p, m, v, u, g, p_copy
                                 self._contrib_update_frag_for_norm.append(opti_state_u_fragment)
@@ -484,10 +491,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         
         # increment step counter if no overflow
         if not self._overflow_flag:
-            # assume same step across group now to simplify things
-            # per parameter step can be easily support by making it tensor, or pass list into kernel
-            for group in self.param_groups:
-                group['step'] += 1
+            self._step += 1
 
         # Call step kernel once per step
         # Call all-gather once per step
@@ -503,7 +507,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     self._contrib_beta2,
                     self._contrib_beta3,
                     self._contrib_bias_correction,
-                    self.param_groups[0]['step'],
+                    self._step,
                     self._contrib_epsilon,
                     self._adam_w_mode,
                     self._contrib_weight_decay,
@@ -629,4 +633,42 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
         return loss
 
+    def state_dict(self):
+        """
+        Returns a dict containing the current state of this :class:`DistributedFusedAdam` instance.
+        Example::
+            checkpoint = {}
+            checkpoint['model'] = model.state_dict()
+            checkpoint['optimizer'] = optimizer.state_dict()
+            torch.save(checkpoint, "saved.pth")
+        """
+        # save step, master weights and first/second moments
+        state_dict = {}
+        state_dict['step'] = self._step
+        state_dict['fp32_p'] = self._fp32_p
+        state_dict['fp32_m'] = self._fp32_m
+        state_dict['fp32_v'] = self._fp32_v
+        return state_dict
 
+    def load_state_dict(self, state_dict):
+        """
+        Loads a state_dict created by an earlier call to state_dict().
+        If an DistributedFusedAdam instance was constructed from some ``init_optimizer``,
+        whose parameters in turn came from ``model``, it is expected that the user
+        will call ``model.load_state_dict()`` before
+        ``optimizer.load_state_dict()`` is called.
+        Example::
+            model = torch.nn.Linear(D_in, D_out).cuda().half()
+            optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+            optimizer = FP16_Optimizer(optimizer, static_loss_scale = 128.0)
+            ...
+            checkpoint = torch.load("saved.pth")
+            model.load_state_dict(checkpoint['model'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+        """
+        # restore step, master weights and first/second moments
+        self._step = state_dict['step']
+        self._fp32_p = state_dict['fp32_p'].to(device="cuda")
+        self._fp32_m = state_dict['fp32_m'].to(device="cuda")
+        self._fp32_v = state_dict['fp32_v'].to(device="cuda")
+        self._resume_from_checkpoint = True
