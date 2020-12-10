@@ -610,6 +610,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             optimizer_state = grad_scaler._per_optimizer_states[id(self)]
             current_device = torch.device('cuda', torch.cuda.current_device())
             optimizer_state["found_inf_per_device"][current_device] = found_inf
+            if found_inf:
+                return loss
 
         with torch.cuda.stream(self._completion_st):
             # Copy self._new_params to model params
