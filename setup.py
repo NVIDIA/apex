@@ -164,7 +164,7 @@ if "--cuda_ext" in sys.argv:
                               extra_compile_args = { 'cxx' : ['-O3'] + version_dependent_macros,
                                                      'nvcc': nvcc_args_multi_tensor if not is_rocm_pytorch else hipcc_args_multi_tensor}))
 
-        print ("INFO: Builidng syncbn extension.")
+        print ("INFO: Building syncbn extension.")
         ext_modules.append(
                 CUDAExtension(name='syncbn',
                               sources=['csrc/syncbn.cpp',
