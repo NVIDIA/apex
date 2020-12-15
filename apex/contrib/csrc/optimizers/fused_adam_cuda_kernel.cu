@@ -9,7 +9,6 @@
 // #include "ATen/Type.h"
 #include "ATen/AccumulateType.h"
 #include <THC/THCGeneral.h>
-
 #include "multi_tensor_apply.cuh"
 
 #define BLOCK_SIZE 512
