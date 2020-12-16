@@ -6,8 +6,6 @@ import sys
 import warnings
 import os
 
-from torch.utils.hipify import hipify_python
-
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
