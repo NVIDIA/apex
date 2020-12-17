@@ -1,6 +1,6 @@
 # Introduction to ASP
 
-This page documents the API for ASP (Automatic Sparsity), a tool that enables sparse training and inference for PyTorch models by adding 2 lines of Python.
+This serves as a quick-start for ASP (Automatic SParsity), a tool that enables sparse training and inference for PyTorch models by adding 2 lines of Python.
 
 ## Importing ASP
 ```
@@ -14,7 +14,7 @@ Apart from the import statement, it is sufficient to add just the following line
 ASP.prune_trained_model(model, optimizer)
 ```
 
-In a typical PyTorch training loop, it might look like this:
+In the context of a typical PyTorch training loop, it might look like this:
 ```
 ASP.prune_trained_model(model, optimizer)
 
@@ -27,21 +27,14 @@ for epoch in range(epochs):
 
 torch.save(...)
 ```
-The `prune_trained_model` calculates the sparse mask and applies it to the weights. This is done once, i.e., sparse locations in the weights matrix remain fixed after this step. In order to recompute the sparse mask in between training, say after an epoch, use the following method:
+The `prune_trained_model` step calculates the sparse mask and applies it to the weights. This is done once, i.e., sparse locations in the weights matrix remain fixed after this step. 
+
+## Generate a Sparse Network
+
+The following approach serves as a guiding example on how to generate a pruned model that can use Sparse Tensor Cores in the NVIDIA Ampere Architecture. This approach generates a model for deployment, i.e. inference mode.
 
 ```
-ASP.compute_sparse_masks()
-```
-
-A more thorough example can be found in `./test/toy_problem.py`. 
-
-
-
-
-The following approach serves as a guiding example on how to generate a pruned model that can use Sparse Tensor Core in NVIDIA Ampere Architecture. This approach generates a model for deployment, i.e. inference mode.
-
-```
-(1) Given a fully trained (dense) network, prune parameter values in 2:4 sparsepattern.
+(1) Given a fully trained (dense) network, prune parameter values in a 2:4 sparse pattern.
 (2) Fine-tune  the  pruned  model  with  optimization  method  and  hyper-parameters (learning-rate, schedule, number of epochs, etc.) exactly as those used to obtain the trained model.
 (3) (If required) Quantize the model.
 ```
@@ -68,3 +61,18 @@ for epoch in range(epochs): # train the pruned model for the same number of epoc
 
 torch.save(...) # saves the pruned checkpoint with sparsity masks 
 ```
+
+## Non-Standard Usage
+
+If your goal is to easily perpare a network for accelerated inference, please follow the recipe above.  However, ASP can also be used to perform experiments in advanced techniques like training with sparsity from initialization. For example, in order to recompute the sparse mask in between training steps, use the following method:
+
+```
+ASP.compute_sparse_masks()
+```
+
+A more thorough example can be found in `./test/toy_problem.py`. 
+
+
+
+
+
