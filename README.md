@@ -119,6 +119,7 @@ See the [Docker example folder](https://github.com/NVIDIA/apex/tree/master/examp
 * Python 3.6
 * Pytorch 1.5 or newer, The HIPExtensions require 1.5 or newer.
 * We recommend follow the instructions from [ROCm-Pytorch](https://github.com/ROCmSoftwarePlatform/pytorch) to install pytorch on ROCm.
+* Note: For pytorch versions < 1.8, building from source is no longer supported, please use the release package [ROCm-Apex v0.3](https://github.com/ROCmSoftwarePlatform/apex/releases/tag/v0.3) . 
 
 # Quick Start
 
