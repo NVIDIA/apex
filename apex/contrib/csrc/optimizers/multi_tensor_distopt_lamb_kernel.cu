@@ -330,6 +330,7 @@ struct DistOptLAMBStage2Functor
     TensorListMetadata<3>& tl,
     const MATH_T* per_tensor_param_norm,
     const MATH_T* per_tensor_update_norm,
+    const int* update_norm_offset,
     const MATH_T learning_rate,
     const MATH_T* per_tensor_decay,
     bool use_nvlamb)
@@ -351,7 +352,7 @@ struct DistOptLAMBStage2Functor
     if (use_nvlamb || (decay != (MATH_T) 0.0))
     {
       MATH_T param_norm = per_tensor_param_norm[tensor_num];
-      MATH_T update_norm = per_tensor_update_norm[tensor_num];
+      MATH_T update_norm = per_tensor_update_norm[update_norm_offset[tensor_num]];
       ratio = (update_norm != 0.0 && param_norm != 0.0) ? learning_rate * (param_norm / update_norm) : learning_rate;
     }
 
@@ -476,6 +477,7 @@ void multi_tensor_lamb_update_weights_cuda(
   std::vector<std::vector<at::Tensor>> tensor_lists,
   at::Tensor per_tensor_param_norm,
   at::Tensor per_tensor_update_norm,
+  at::Tensor update_norm_offset,
   const float learning_rate,
   at::Tensor per_tensor_decay,
   bool use_nvlamb)
@@ -493,7 +495,8 @@ void multi_tensor_lamb_update_weights_cuda(
           DistOptLAMBStage2Functor<scalar_t_0, scalar_t_1, scalar_t_2>(),
           per_tensor_param_norm.DATA_PTR<scalar_t_2>(),
           per_tensor_update_norm.DATA_PTR<scalar_t_2>(),
-          (scalar_t_2) learning_rate,
+          update_norm_offset.DATA_PTR<int>(),
+	  (scalar_t_2) learning_rate,
           per_tensor_decay.DATA_PTR<scalar_t_2>(),
           use_nvlamb); )))
 

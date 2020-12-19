@@ -22,6 +22,7 @@ void multi_tensor_lamb_update_weights_cuda(
   std::vector<std::vector<at::Tensor>> tensor_lists,
   at::Tensor per_tensor_param_norm,
   at::Tensor per_tensor_update_norm,
+  at::Tensor update_norm_offset,
   const float learning_rate,
   at::Tensor per_tensor_decay,
   bool use_nvlamb);
