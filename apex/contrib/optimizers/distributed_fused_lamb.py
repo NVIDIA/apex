@@ -479,7 +479,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         l2_norm.masked_scatter_(self._model_param_is_contrib, local_contrib_l2_norm)
         torch.distributed.all_reduce(l2_norm, group=self._ag_pg[0])
         l2_norm = torch.sqrt(l2_norm)
-        return l2_norm.masked_select(self._model_param_is_contrib)
+        return l2_norm, self._model_param_is_contrib.nonzero()
 
     def _pipeline_step(self):
         global_scale = self.global_scale
@@ -513,12 +513,13 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     global_scale,
                     global_grad_norm,
                     max_grad_norm)
-            upd_norm = self.__compute_contrib_update_norm()
+            upd_norm, upd_norm_offset = self.__compute_contrib_update_norm()
             multi_tensor_applier(self.multi_tensor_lamb_update_weights,
                     self._overflow_buf,
                     self._contrib_update_weights_tensor_list, # u, p, p_copy
                     param_norm,
                     upd_norm,
+                    upd_norm_offset,
                     self.param_groups[0]['lr'],
                     self._contrib_weight_decay,
                     self._use_nvlamb)
