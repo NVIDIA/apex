@@ -25,6 +25,7 @@ void multi_tensor_lamb_update_weights_cuda(
   at::Tensor update_norm_offset,
   const float learning_rate,
   at::Tensor per_tensor_decay,
+  const float global_grad_norm,
   bool use_nvlamb);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
