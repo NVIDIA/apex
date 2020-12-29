@@ -487,7 +487,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         global_grad_norm = self.L2_grad_norm
         
         # check global_grad_norm and fill overflow_buf
-        self._overflow_buf = torch.full((1,), 1, dtype=torch.int, device="cuda") * (torch.isinf(global_grad_norm) or torch.isnan(global_grad_norm))
+        #self._overflow_buf = torch.full((1,), 1, dtype=torch.int, device="cuda") * (torch.isinf(global_grad_norm) or torch.isnan(global_grad_norm))
         
         # increment step counter if no overflow
         self._step += self._overflow_buf
@@ -522,6 +522,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     upd_norm_offset,
                     self.param_groups[0]['lr'],
                     self._contrib_weight_decay,
+                    global_grad_norm,
                     self._use_nvlamb)
             torch.distributed.all_gather(self._new_params_mega_shards, self._fp16_p, group=self._ag_pg[0], no_copy=True)
 
