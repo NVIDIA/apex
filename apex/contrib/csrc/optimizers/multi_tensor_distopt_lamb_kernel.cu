@@ -485,6 +485,7 @@ void multi_tensor_lamb_update_weights_cuda(
   at::Tensor update_norm_offset,
   const float learning_rate,
   at::Tensor per_tensor_decay,
+  const float global_grad_norm,
   bool use_nvlamb)
 {
   using namespace at;
@@ -503,6 +504,7 @@ void multi_tensor_lamb_update_weights_cuda(
           update_norm_offset.DATA_PTR<long>(),
 	  (scalar_t_2) learning_rate,
           per_tensor_decay.DATA_PTR<scalar_t_2>(),
+	  (scalar_t_2) global_grad_norm,
           use_nvlamb); )))
 
   AT_CUDA_CHECK(cudaGetLastError());
