@@ -77,6 +77,7 @@ class TestFusedAdam(unittest.TestCase):
             if not apex_only:
                 self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
+    @skipIfRocm
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
 
@@ -87,6 +88,7 @@ class TestFusedAdam(unittest.TestCase):
     # Uses apex optimizers(controlled by apex_only flag) for both types.
     # Doesn't use upstream optimizer like other tests as they seem to be
     # numerically unstable for half types
+    @skipIfRocm
     def test_bfloat16(self):
         self.max_abs_diff = 1e-2
         self.gen_single_type_test(param_type=torch.bfloat16, apex_only=True)
