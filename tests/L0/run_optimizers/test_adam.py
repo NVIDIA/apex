@@ -5,6 +5,8 @@ import random
 import torch
 import apex
 
+from apex.testing.common_utils import skipIfRocm
+
 class TestFusedAdam(unittest.TestCase):
     def setUp(self, max_abs_diff=1e-3, max_rel_diff=1, iters=7):
         self.max_abs_diff = max_abs_diff
