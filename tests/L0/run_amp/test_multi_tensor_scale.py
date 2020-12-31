@@ -11,6 +11,8 @@ import torch.nn.functional as F
 from utils import common_init, HALF, FLOAT,\
     ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
 
+from apex.testing.common_utils import skipIfRocm
+
 try:
   import amp_C
   from amp_C import multi_tensor_scale 
@@ -88,6 +90,7 @@ class TestMultiTensorScale(unittest.TestCase):
     #     self.downscale(self.fp32, self.fp16, self.fp16_ref)
 
     @unittest.skipIf(disabled, "amp_C is unavailable")
+    @skipIfRocm
     def test_fuzz(self):
         input_size_pairs = (
             (7777*77, 555*555),

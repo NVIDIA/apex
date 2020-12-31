@@ -103,6 +103,7 @@ class TestMultiTensorAxpby(unittest.TestCase):
     #     self.assertTrue(self.overflow_buf.item())
 
     @unittest.skipIf(disabled, "amp_C is unavailable")
+    @skipIfRocm
     def test_fuzz(self):
         input_size_pairs = (
             (7777*77, 555*555),
