@@ -133,6 +133,9 @@ struct DistOptLAMBStage1Functor
 
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
     int tensor_num = tl.start_tensor_this_launch + tensor_loc;
+    if (tensor_loc == 0 && tensor_num == 0) {
+        printf("global grad norm:%.8f\n", global_grad_norm);
+    }
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
