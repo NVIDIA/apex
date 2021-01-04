@@ -126,16 +126,13 @@ struct DistOptLAMBStage1Functor
     const float max_grad_norm)
   {
     // I'd like this kernel to propagate infs/nans.
-    if (!isfinite(global_grad_norm))
-        return;
-    //if (*noop_gmem == 1)
+    //if (!isfinite(global_grad_norm))
     //    return;
+    if (*noop_gmem == 1)
+        return;
 
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
     int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    if (tensor_loc == 0 && tensor_num == 0) {
-        printf("global grad norm:%.8f\n", global_grad_norm);
-    }
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
@@ -342,10 +339,10 @@ struct DistOptLAMBStage2Functor
     bool use_nvlamb)
   {
     // I'd like this kernel to propagate infs/nans.
-    if (!isfinite(global_grad_norm))
-        return;
-    //if (*noop_gmem == 1)
+    //if (!isfinite(global_grad_norm))
     //    return;
+    if (*noop_gmem == 1)
+        return;
 
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
     int tensor_num = tl.start_tensor_this_launch + tensor_loc;
