@@ -122,11 +122,11 @@ struct DistOptLAMBStage1Functor
     adamMode_t mode,
     const MATH_T* per_tensor_decay,
     const float global_scale,
-    const float global_grad_norm,
+    const MATH_T* global_grad_norm,
     const float max_grad_norm)
   {
     // I'd like this kernel to propagate infs/nans.
-    //if (!isfinite(global_grad_norm))
+    //if (!isfinite(*global_grad_norm))
     //    return;
     if (*noop_gmem == 1)
         return;
@@ -138,7 +138,7 @@ struct DistOptLAMBStage1Functor
 
     float combined_scale = global_scale;
     if (max_grad_norm > 0) {
-        combined_scale = max_grad_norm / (global_grad_norm / global_scale + 1e-6);
+        combined_scale = max_grad_norm / (*global_grad_norm / global_scale + 1e-6);
 	combined_scale = global_scale / std::min((float) 1.0, combined_scale);
     }
     
@@ -335,11 +335,11 @@ struct DistOptLAMBStage2Functor
     const long* update_norm_offset,
     const MATH_T learning_rate,
     const MATH_T* per_tensor_decay,
-    const float global_grad_norm,
+    const MATH_T* global_grad_norm,
     bool use_nvlamb)
   {
     // I'd like this kernel to propagate infs/nans.
-    //if (!isfinite(global_grad_norm))
+    //if (!isfinite(*global_grad_norm))
     //    return;
     if (*noop_gmem == 1)
         return;
