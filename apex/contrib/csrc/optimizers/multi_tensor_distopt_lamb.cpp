@@ -12,7 +12,7 @@ void multi_tensor_lamb_compute_update_term_cuda(
   at::Tensor per_tensor_epsilon,
   const int mode,
   at::Tensor per_tensor_decay,
-  const float global_scale,
+  at::Tensor global_scale,
   at::Tensor global_grad_norm,
   const float max_grad_norm);
 
