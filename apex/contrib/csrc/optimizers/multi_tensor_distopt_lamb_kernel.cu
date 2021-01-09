@@ -121,7 +121,7 @@ struct DistOptLAMBStage1Functor
     const MATH_T* per_tensor_epsilon,
     adamMode_t mode,
     const MATH_T* per_tensor_decay,
-    const float global_scale,
+    const MATH_T* global_scale,
     const MATH_T* global_grad_norm,
     const float max_grad_norm)
   {
@@ -136,10 +136,10 @@ struct DistOptLAMBStage1Functor
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
-    float combined_scale = global_scale;
+    float combined_scale = *global_scale;
     if (max_grad_norm > 0) {
-        combined_scale = max_grad_norm / (*global_grad_norm / global_scale + 1e-6);
-	combined_scale = global_scale / std::min((float) 1.0, combined_scale);
+        combined_scale = max_grad_norm / (*global_grad_norm / *global_scale + 1e-6);
+	combined_scale = *global_scale / std::min((float) 1.0, combined_scale);
     }
     
     MATH_T beta1 = per_tensor_beta1[tensor_num];
@@ -446,7 +446,7 @@ void multi_tensor_lamb_compute_update_term_cuda(
   at::Tensor per_tensor_epsilon,
   const int mode,
   at::Tensor per_tensor_decay,
-  const float global_scale,
+  at::Tensor global_scale,
   at::Tensor global_grad_norm,
   const float max_grad_norm)
 {
@@ -469,7 +469,7 @@ void multi_tensor_lamb_compute_update_term_cuda(
           per_tensor_epsilon.DATA_PTR<scalar_t_2>(),
           (adamMode_t) mode,
           per_tensor_decay.DATA_PTR<scalar_t_2>(),
-          global_scale,
+          global_scale.DATA_PTR<scalar_t_2>(),
 	  global_grad_norm.DATA_PTR<scalar_t_2>(),
 	  max_grad_norm); )))
 
