@@ -117,7 +117,7 @@ struct DistOptLAMBStage1Functor
     const MATH_T* per_tensor_beta2,
     const MATH_T* per_tensor_beta3,
     const int* per_tensor_bias_correction,
-    const int* step,
+    int* step,
     const MATH_T* per_tensor_epsilon,
     adamMode_t mode,
     const MATH_T* per_tensor_decay,
