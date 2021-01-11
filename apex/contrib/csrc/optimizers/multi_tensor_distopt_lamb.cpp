@@ -8,7 +8,7 @@ void multi_tensor_lamb_compute_update_term_cuda(
   at::Tensor per_tensor_beta2,
   at::Tensor per_tensor_beta3,
   at::Tensor per_tensor_bias_correction,
-  const int step,
+  at::Tensor step,
   at::Tensor per_tensor_epsilon,
   const int mode,
   at::Tensor per_tensor_decay,
