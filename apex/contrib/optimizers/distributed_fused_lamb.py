@@ -607,6 +607,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._pipeline_step()
 
         if grad_scaler is not None:
+            found_inf = self._overflow_buf.float()
             optimizer_state = grad_scaler._per_optimizer_states[id(self)]
             current_device = torch.device('cuda', torch.cuda.current_device())
             optimizer_state["found_inf_per_device"][current_device] = found_inf

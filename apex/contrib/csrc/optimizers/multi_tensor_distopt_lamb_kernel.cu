@@ -117,7 +117,7 @@ struct DistOptLAMBStage1Functor
     const MATH_T* per_tensor_beta2,
     const MATH_T* per_tensor_beta3,
     const int* per_tensor_bias_correction,
-    const int step,
+    const int* step,
     const MATH_T* per_tensor_epsilon,
     adamMode_t mode,
     const MATH_T* per_tensor_decay,
@@ -147,8 +147,8 @@ struct DistOptLAMBStage1Functor
     MATH_T beta3 = 1 - beta1;
     MATH_T beta1_correction, beta2_correction;
     if (per_tensor_bias_correction[tensor_num] == 1) {
-        beta1_correction = 1 - pow(beta1, step);
-        beta2_correction = 1 - pow(beta2, step);
+        beta1_correction = 1 - pow(beta1, *step);
+        beta2_correction = 1 - pow(beta2, *step);
     } else {
         beta1_correction = (MATH_T) 1.0;
         beta2_correction = (MATH_T) 1.0;
@@ -442,7 +442,7 @@ void multi_tensor_lamb_compute_update_term_cuda(
   at::Tensor per_tensor_beta2,
   at::Tensor per_tensor_beta3,
   at::Tensor per_tensor_bias_correction,
-  const int step,
+  at::Tensor step,
   at::Tensor per_tensor_epsilon,
   const int mode,
   at::Tensor per_tensor_decay,
@@ -465,7 +465,7 @@ void multi_tensor_lamb_compute_update_term_cuda(
           per_tensor_beta2.DATA_PTR<scalar_t_2>(),
           per_tensor_beta3.DATA_PTR<scalar_t_2>(),
           per_tensor_bias_correction.DATA_PTR<int>(),
-          step,
+          step.DATA_PTR<int>(),
           per_tensor_epsilon.DATA_PTR<scalar_t_2>(),
           (adamMode_t) mode,
           per_tensor_decay.DATA_PTR<scalar_t_2>(),
