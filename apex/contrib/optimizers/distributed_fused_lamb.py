@@ -489,10 +489,11 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         global_grad_norm = self.L2_grad_norm
         
         # check global_grad_norm and fill overflow_buf
-        #self._overflow_buf = torch.full((1,), 1, dtype=torch.int, device="cuda") * (torch.isinf(global_grad_norm) or torch.isnan(global_grad_norm))
+        is_finite = (global_grad_norm + 1 > global_grad_norm)
+        self._overflow_buf = torch.full((1,), 1, dtype=torch.int, device="cuda") * (not is_finite)
         
         # increment step counter if no overflow
-        self._step += self._overflow_buf
+        self._step += is_finite
 
         # Call step kernel once per step
         # Call all-gather once per step
