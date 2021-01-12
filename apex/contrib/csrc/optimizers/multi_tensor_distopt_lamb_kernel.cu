@@ -126,8 +126,6 @@ struct DistOptLAMBStage1Functor
     const float max_grad_norm)
   {
     // I'd like this kernel to propagate infs/nans.
-    //if (!isfinite(*global_grad_norm))
-    //    return;
     if (*noop_gmem == 1)
         return;
 
@@ -339,8 +337,6 @@ struct DistOptLAMBStage2Functor
     bool use_nvlamb)
   {
     // I'd like this kernel to propagate infs/nans.
-    //if (!isfinite(*global_grad_norm))
-    //    return;
     if (*noop_gmem == 1)
         return;
 
