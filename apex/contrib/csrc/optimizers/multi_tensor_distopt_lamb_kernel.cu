@@ -6,7 +6,6 @@
 // #include <torch/all.h>
 
 #include <assert.h>
-#include <algorithm>
 
 #include "type_shim.h"
 #include "multi_tensor_apply.cuh"
