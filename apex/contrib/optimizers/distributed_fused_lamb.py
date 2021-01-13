@@ -198,7 +198,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._block_size = self._total_param_size // self._num_blocks
         self._chunk_size = self._block_size // self._num_chunks
         self._shard_size = self._chunk_size // self._group_size
-        print("self._net_total_param_size=%d, self._total_param_size=%d, dwu_min_page_size=%d, self._block_size=%d, self._chunk_size=%d, self._shard_size=%d" % (self._net_total_param_size, self._total_param_size,dwu_min_page_size,self._block_size,self._chunk_size,self._shard_size))
+        #print("self._net_total_param_size=%d, self._total_param_size=%d, dwu_min_page_size=%d, self._block_size=%d, self._chunk_size=%d, self._shard_size=%d" % (self._net_total_param_size, self._total_param_size,dwu_min_page_size,self._block_size,self._chunk_size,self._shard_size))
 
         self._low_param_i = [0]*self._num_blocks
         for block_id in range(self._num_blocks-1,-1,-1):
@@ -206,7 +206,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             while p_i > 0 and self._grads_info[p_i]["param_offset"] > block_id*self._block_size:
                 p_i -= 1
             self._low_param_i[block_id] = p_i
-        print(self._low_param_i)
+        #print(self._low_param_i)
 
         self._flat_grads = torch.zeros([self._total_param_size], dtype=torch.float16, device='cuda')
         self._new_params = torch.zeros([self._total_param_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
@@ -357,8 +357,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     if torch.distributed.get_rank() in ranks:
                         self._ar_pg.append(grp)
             self._ar_st = [torch.cuda.Stream() for _ in range(self._num_ar_pg)]
-            for ar_pg in self._ar_pg:
-                torch.distributed.all_reduce(self._overflow_buf,group=ar_pg)
+            #for ar_pg in self._ar_pg:
+            #    torch.distributed.all_reduce(self._overflow_buf,group=ar_pg)
         rs_ranks = []
         for group_i in range(self._num_groups):
             rs_ranks.append([group_i*self._group_size+j for j in range(self._group_size)])
@@ -372,10 +372,10 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             l2_grad_norm_pg = torch.distributed.new_group(ranks=ranks)
             if torch.distributed.get_rank() in ranks:
                 self._l2_grad_norm_pg = l2_grad_norm_pg
-                torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
+                #torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
         self._rs_st = [torch.cuda.Stream() for _ in range(self._num_rs_pg)]
-        for rs_pg in self._rs_pg:
-            torch.distributed.all_reduce(self._overflow_buf,group=rs_pg)
+        #for rs_pg in self._rs_pg:
+        #    torch.distributed.all_reduce(self._overflow_buf,group=rs_pg)
         if self._num_ag_pg == 0:
             self._ag_pg = self._rs_pg
             self._ag_st = self._rs_st
@@ -389,8 +389,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     if torch.distributed.get_rank() in ranks:
                         self._ag_pg.append(grp)
             self._ag_st = [torch.cuda.Stream() for _ in range(self._num_ag_pg)]
-            for ag_pg in self._ag_pg:
-                torch.distributed.all_reduce(self._overflow_buf,group=ag_pg)
+            #for ag_pg in self._ag_pg:
+            #    torch.distributed.all_reduce(self._overflow_buf,group=ag_pg)
         self._l2_grad_norm_st = torch.cuda.Stream()
         self._completion_st = torch.cuda.Stream()
 
