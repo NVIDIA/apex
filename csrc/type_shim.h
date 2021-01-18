@@ -175,15 +175,16 @@ __device__ __forceinline__ T reduce_block_into_lanes
 {
   int tid = threadIdx.x + threadIdx.y*blockDim.x;
   int blockSize = blockDim.x*blockDim.y; // blockSize is intended to be a multiple of 32.
+  auto double_warp_size = warpSize * 2;
 
-  if(blockSize >= 64)
+  if(blockSize >= double_warp_size)
   {
     x[tid] = val;
     __syncthreads();
   }
 
   #pragma unroll
-  for(int i = (blockSize >> 1); i >= 64; i >>= 1)
+  for(int i = (blockSize >> 1); i >= double_warp_size; i >>= 1)
   {
     if(tid < i)
       x[tid] = x[tid] + x[tid+i];
@@ -192,18 +193,18 @@ __device__ __forceinline__ T reduce_block_into_lanes
 
   T final;
 
-  if(tid < 32)
+  if(tid < warpSize)
   {
-    if(blockSize >= 64)
-      final = x[tid] + x[tid+32];
+    if(blockSize >= double_warp_size)
+      final = x[tid] + x[tid + warpSize];
     else
       final = val;
     // __SYNCWARP();
 
     #pragma unroll
-    for(int i = 16; i >= lanes; i >>= 1) {
+    for(int i = warpSize / 2; i >= lanes; i >>= 1) {
 #ifdef __HIP_PLATFORM_HCC__
-      final = final + __shfl_down(0xffffffff, final, i);
+      final = final + __shfl_down(final, i);
 #else
       final = final + __shfl_down_sync(0xffffffff, final, i);
 #endif
@@ -230,15 +231,16 @@ __device__ __forceinline__ T reduce_block_into_lanes_max_op
 {
   int tid = threadIdx.x + threadIdx.y*blockDim.x;
   int blockSize = blockDim.x*blockDim.y; // blockSize is intended to be a multiple of 32.
+  auto double_warp_size = warpSize * 2;
 
-  if(blockSize >= 64)
+  if(blockSize >= double_warp_size)
   {
     x[tid] = val;
     __syncthreads();
   }
 
   #pragma unroll
-  for(int i = (blockSize >> 1); i >= 64; i >>= 1)
+  for(int i = (blockSize >> 1); i >= double_warp_size; i >>= 1)
   {
     if(tid < i)
       x[tid] = fmaxf(fabsf(x[tid]), fabsf(x[tid+i]));
@@ -247,10 +249,10 @@ __device__ __forceinline__ T reduce_block_into_lanes_max_op
 
   T final;
 
-  if(tid < 32)
+  if(tid < warpSize)
   {
-    if(blockSize >= 64)
-      final = fmaxf(fabsf(x[tid]), fabsf(x[tid+32]));
+    if(blockSize >= double_warp_size)
+      final = fmaxf(fabsf(x[tid]), fabsf(x[tid + warpSize]));
     else
       final = val;
     // __SYNCWARP();
@@ -258,7 +260,7 @@ __device__ __forceinline__ T reduce_block_into_lanes_max_op
     #pragma unroll
     for(int i = 16; i >= lanes; i >>= 1) {
 #ifdef __HIP_PLATFORM_HCC__
-      final = fmaxf(fabsf(final), fabsf(__shfl_down(0xffffffff, final, i)));
+      final = fmaxf(fabsf(final), fabsf(__shfl_down(final, i)));
 #else
       final = fmaxf(fabsf(final), fabsf(__shfl_down_sync(0xffffffff, final, i)));
 #endif
