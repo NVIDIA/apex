@@ -76,7 +76,8 @@ class FusedSGD(Optimizer):
     def __init__(self, params, lr=required, momentum=0, dampening=0,
                  weight_decay=0, nesterov=False,
                  wd_after_momentum=False,
-                 materialize_master_grads=True):
+                 materialize_master_grads=True,
+                 set_grad_none=False):
         if lr is not required and lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if momentum < 0.0:
@@ -94,11 +95,12 @@ class FusedSGD(Optimizer):
         self.materialize_master_grads = materialize_master_grads
         self.most_recent_scale = 1.0
         self.scale_set_by_backward = False
+        self.set_grad_none = set_grad_none
 
         if multi_tensor_applier.available:
             import amp_C
             # Skip buffer
-            self._dummy_overflow_buf = torch.cuda.IntTensor([0])
+            self._dummy_overflow_buf = torch.tensor([0], dtype=torch.int, device=self.param_groups[0]["params"][0].device)
             self.multi_tensor_sgd = amp_C.multi_tensor_sgd
         else:
             raise RuntimeError('apex.optimizers.FusedSGD requires cuda extensions')
@@ -107,6 +109,14 @@ class FusedSGD(Optimizer):
         super(FusedSGD, self).__setstate__(state)
         for group in self.param_groups:
             group.setdefault('nesterov', False)
+
+    def zero_grad(self):
+        if self.set_grad_none:
+            for group in self.param_groups:
+                for p in group['params']:
+                    p.grad = None
+        else:
+            super(FusedSGD, self).zero_grad()
 
     def get_momentums(self, params):
         momentums = []

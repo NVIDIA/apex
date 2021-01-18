@@ -4,13 +4,15 @@ import importlib
 import amp_C
 from apex.multi_tensor_apply import multi_tensor_applier
 
+import torch.distributed.distributed_c10d as c10d
+
 class DistributedFusedAdam(torch.optim.Optimizer):
 
     """Implements Adam algorithm. Currently GPU-only.  Requires Apex to be installed via
     ``python setup.py install --cuda_ext --cpp_ext``.
-
+    
     It has been proposed in `Adam: A Method for Stochastic Optimization`_.
-
+    
     Arguments:
         params (iterable): iterable of parameters to optimize or dicts defining
             parameter groups.
@@ -19,20 +21,30 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             running averages of gradient and its square. (default: (0.9, 0.999))
         eps (float, optional): term added to the denominator to improve
             numerical stability. (default: 1e-8)
-        weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
-        amsgrad (boolean, optional): whether to use the AMSGrad variant of this
-            algorithm from the paper `On the Convergence of Adam and Beyond`_
-            (default: False) NOT SUPPORTED in FusedAdam!
         eps_inside_sqrt (boolean, optional): in the 'update parameters' step,
             adds eps to the bias-corrected second moment estimate before
             evaluating square root instead of adding it to the square root of
             second moment estimate as in the original paper. (default: False)
-        use_mt (boolean, optional): use multi tensor apply for lower launch
-            latency. (default: False)
+        weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
+        amsgrad (boolean, optional): whether to use the AMSGrad variant of this
+            algorithm from the paper `On the Convergence of Adam and Beyond`_
+            (default: False) NOT SUPPORTED in FusedAdam!
         overlap_reductions(boolean, optional): whether to overlap reductions
             with bprop (default: True)
-        num_prestats (integer, optional): number of fp64 stats that will be
-            reduced during first fp16 gradient reduction block. 
+        step_supports_amp_scaling(boolean, optional): whether to use customized
+            gradient unscaling logic (default: True)
+        num_process_groups (integer, optional): number of process groups in
+            the app (default: 1)
+        current_process_group (object, optional): the process group to work on
+            (default: None)
+        process_group_id (integer, optional): process group id (default: 0)
+        process_group_size (integer, optional): size of process group
+            (default: 0)
+        clip_grad_norm (boolean, optional): whether to handle gradient clipping
+            (default: True)
+        model_parallel (boolean, optional): whether model parallelism is used
+            (default: False)
+
 
     .. _Adam\: A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
@@ -41,22 +53,28 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     """
 
     def __init__(self, params,
-                 lr=1e-3, bias_correction = True,
-                 betas=(0.9, 0.999), eps=1e-8, eps_inside_sqrt = False,
-                 weight_decay=0., max_grad_norm=0., amsgrad=False, use_mt=False,
-                 amp_scale_adjustment=1.0, overlap_reductions=True, full_pipeline=True,
-                 compute_L2_grad_norm=False, distributed_weight_update=0,
-                 dwu_group_size=0, dwu_num_blocks=4, dwu_num_rs_pg=1, dwu_num_ar_pg=4,
-                 dwu_num_ag_pg=0, revert_method=1, flat_mt=False,
-                 dwu_num_chunks=4, predivide=True, e5m2_allgather=False,
-                 do_not_flatten_model=False):
-        global fused_adam_cuda
+                 lr=1e-3, bias_correction=True, betas=(0.9, 0.999),
+                 eps=1e-8, eps_inside_sqrt=False,
+                 weight_decay=0., max_grad_norm=0.,
+                 amsgrad=False, flat_mt=False,
+                 overlap_reductions=True,
+                 compute_L2_grad_norm=False,
+                 dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
+                 dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0,
+                 predivide=True, e5m2_allgather=False,
+                 do_not_flatten_model=False,
+                 step_supports_amp_scaling=True,
+                 num_process_groups=1,
+                 current_process_group=None,
+                 process_group_id=0,
+                 process_group_size=0,
+                 clip_grad_norm=True,
+                 model_parallel=False):
+        global fused_adam_cuda, distributed_adam_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
+        distributed_adam_cuda = importlib.import_module("distributed_adam_cuda")
+        self.multi_tensor_l2norm = amp_C.multi_tensor_l2norm
 
-        self._amp_scale_adjustment = amp_scale_adjustment
-
-        if use_mt:
-            raise RuntimeError('DistributedFusedAdam does not support use_mt.')
         if amsgrad:
             raise RuntimeError('DistributedFusedAdam does not support the AMSGrad variant.')
 
@@ -64,21 +82,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         max_grad_norm=max_grad_norm)
         super(DistributedFusedAdam, self).__init__(params, defaults)
-        self.eps_mode = 0 if  eps_inside_sqrt else 1
 
+        # Misc
+        self.eps_mode = 0 if eps_inside_sqrt else 1
         self._overflow_buf = torch.cuda.IntTensor([0])
         self._has_overflow = False
-
-        assert (len(self.param_groups) == 1), "More than one parameter group is not supported."
-
-        # Way to revert a step
-        # 3 -> undo kernel + double buffer (debug, print norm of difference)
-        # 2 -> double buffer fp32 parameters
-        # 1 -> undo kernel
-        self._revert_method = revert_method
-        if self._revert_method > 1:
-            print("revert_method -> double buffer fp32 parameters, will consume more memory")
-
+        self._step_supports_amp_scaling = step_supports_amp_scaling
         self._last_step = False
         self._overlap_reductions = overlap_reductions
         self._global_scale = None
@@ -87,33 +96,64 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._predivide = predivide
         self._e5m2_allgather = e5m2_allgather
         self._do_not_flatten_model = do_not_flatten_model
-        self._full_pipeline = full_pipeline
         self._compute_L2_grad_norm = compute_L2_grad_norm
         self._L2_grad_norm = None
-        self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
-        self._world_size = torch.distributed.get_world_size()
-        self._num_groups = self._world_size // self._group_size
-        self._rank_in_group = torch.distributed.get_rank() % self._group_size
+        self._flat_mt = flat_mt
+        self._init_done = False
+        self._resume_from_checkpoint = False
+        self._step = 0
 
+        # Process group related
+        self._clip_grad_norm = clip_grad_norm
+        self._model_parallel = model_parallel
+        self._num_process_groups = num_process_groups
+        self._current_process_group = current_process_group if current_process_group is not None else c10d._get_default_group()
+        self._available_ranks = list(c10d._pg_group_ranks[self._current_process_group].keys())
+        self._process_group_id = process_group_id
+        self._process_group_size = torch.cuda.device_count() if process_group_size <= 0 else process_group_size
+        self._world_size = self._process_group_size # world: the current process group
+        self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
+        self._num_groups = self._world_size // self._group_size
+        self._global_rank = torch.distributed.get_rank()
+        self._world_rank = self._global_rank // self._num_process_groups
+        self._group_rank = self._world_rank % self._group_size
+        #print("world_size:", self._world_size, ", group_size:", self._group_size, ", num_groups:", self._num_groups, ", global_rank:", self._global_rank, ", world_rank:", self._world_rank, ", group_rank:", self._group_rank)
+        self._num_rs_pg = dwu_num_rs_pg
+        self._num_ar_pg = dwu_num_ar_pg
+        self._num_ag_pg = dwu_num_ag_pg
+
+        # Master weight, moment, gradient buffers
+        self._fp32_p, self._fp32_m, self._fp32_v, self._fp16_p, self._fp16_g = None, None, None, None, None
+
+    def _first_step_init(self):
         p_offset = 0
         p_i = 0
-        self._param_state = None
         self._model_params = []
         self._grads_info = []
         self._grad_accs = []
+        self._group_properties = []
         for group in self.param_groups:
             self._param_group = group
             prev = None
+            beta1, beta2 = group['betas']
+            bias_correction = 1 if group['bias_correction'] else 0
+            eps = group['eps']
+            weight_decay = group['weight_decay']
             for p in group['params']:
-                torch.distributed.broadcast(p,0)
+                # broadcast from rank 0 of current process group
+                torch.distributed.broadcast(p, src=self._available_ranks[0], group=self._current_process_group)
                 if not p.requires_grad:
                     continue
                 self._model_params.append(p)
-                state = self.state[p]
-                if len(state) == 0:
-                    state['step'] = 0
-                if self._param_state is None:
-                    self._param_state = state
+                # Multiple param groups support: 
+                # store one hyperparam item per parameter tensor
+                self._group_properties.append((
+                    beta1,
+                    beta2,
+                    bias_correction,
+                    eps,
+                    weight_decay
+                    ))
                 p_grads_size = p.numel()
                 def wrapper(param, param_i, param_grads_size, param_offset):
                     param_tmp = param.expand_as(param)
@@ -133,7 +173,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 prev = p
                 p_i += 1
         self._grads_generated = [False]*len(self._grads_info)
-        self._flat_mt = flat_mt
         self._grads = []
         if self._overlap_reductions:
             self._current_block = self._num_blocks
@@ -145,7 +184,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._block_size = self._total_param_size // self._num_blocks
         self._chunk_size = self._block_size // self._num_chunks
         self._shard_size = self._chunk_size // self._group_size
-        print("self._net_total_param_size=%d, self._total_param_size=%d, dwu_min_page_size=%d, self._block_size=%d, self._chunk_size=%d, self._shard_size=%d" % (self._net_total_param_size, self._total_param_size,dwu_min_page_size,self._block_size,self._chunk_size,self._shard_size))
+        #print("self._net_total_param_size=%d, self._total_param_size=%d, dwu_min_page_size=%d, self._block_size=%d, self._chunk_size=%d, self._shard_size=%d" % (self._net_total_param_size, self._total_param_size,dwu_min_page_size,self._block_size,self._chunk_size,self._shard_size))
 
         self._low_param_i = [0]*self._num_blocks
         for block_id in range(self._num_blocks-1,-1,-1):
@@ -153,14 +192,16 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             while p_i > 0 and self._grads_info[p_i]["param_offset"] > block_id*self._block_size:
                 p_i -= 1
             self._low_param_i[block_id] = p_i
-        print(self._low_param_i)
+        #print(self._low_param_i)
 
         self._flat_grads = torch.zeros([self._total_param_size], dtype=torch.float16, device='cuda')
         self._new_params = torch.zeros([self._total_param_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
         self._mega_shard_size = self._num_blocks * self._num_chunks * self._shard_size
-        self._fp32_p = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
-        self._fp32_m = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
-        self._fp32_v = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+        # initialize master weights, moments buffers if not loaded from checkpoint
+        if self._fp32_p is None:
+            self._fp32_p = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+            self._fp32_m = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+            self._fp32_v = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
         # FIXME: Rethink fp16 label since it's either uint8 or fp16
         self._fp16_p = torch.zeros([self._mega_shard_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
         self._fp16_g = torch.zeros([self._mega_shard_size], dtype=torch.float16, device='cuda')
@@ -213,12 +254,15 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # 1) Copy model parameters into master buffer
         # 2) Create tensor lists for unpacking new parameter tensor after all-gather
         self._packed_flat_to_model_params = []
+        self._contrib_tensor_list = []
+        self._contrib_group_properties = []
+        self._non_parallel_grads = []
         for shard_id in range(self._group_size):
             for block_id in range(self._num_blocks):
                 for chunk_id in range(self._num_chunks):
                     flat_shard_start = (((block_id * self._num_chunks + chunk_id) * self._group_size) + shard_id) * self._shard_size
                     flat_shard_end = flat_shard_start + self._shard_size
-                    for p, grads_info in zip(self._model_params, self._grads_info):
+                    for (p, grads_info, group_props) in zip(self._model_params, self._grads_info, self._group_properties):
                         flat_grad_start = grads_info["param_offset"]
                         flat_grad_end = flat_grad_start + grads_info["param_grads_size"]
                         clipped_start = (lambda a,b: a if a > b else b)(flat_grad_start, flat_shard_start)
@@ -230,60 +274,90 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                             model_param_fragment = p.view(-1)[grad_offset:grad_offset+grad_length]
                             new_param_packed_fragment = self._new_params_mega_chunks[shard_id][block_id][chunk_id][shard_offset:shard_offset+grad_length]
                             self._packed_flat_to_model_params.append( (new_param_packed_fragment, model_param_fragment) )
-                            if shard_id == self._rank_in_group:
+                            if shard_id == self._group_rank:
                                 # copy model parameters into master buffer
                                 master_param_fragment = self._fp32_p_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
-                                print("model_param_fragment.size()=%s, new_param_packed_fragment.size()=%s, master_param_fragment.size()=%s" % (str(model_param_fragment.size()), str(new_param_packed_fragment.size()), str(master_param_fragment.size())))
-                                master_param_fragment.copy_(model_param_fragment)
+                                opti_state_m_fragment = self._fp32_m_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
+                                opti_state_v_fragment = self._fp32_v_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
+                                opti_state_g_fragment = self._fp16_g_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
+                                opti_state_p_fragment = self._fp16_p_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
+                                #print("model_param_fragment.size()=%s, new_param_packed_fragment.size()=%s, master_param_fragment.size()=%s" % (str(model_param_fragment.size()), str(new_param_packed_fragment.size()), str(master_param_fragment.size())))
+                                if not self._resume_from_checkpoint:
+                                    master_param_fragment.copy_(model_param_fragment)
+                                self._contrib_group_properties.append(group_props)
+                                self._contrib_tensor_list.append((master_param_fragment, opti_state_m_fragment, opti_state_v_fragment, opti_state_g_fragment, opti_state_p_fragment)) # p, m, v, g, p_copy
+                                if self._model_parallel and hasattr(p, 'model_parallel') and not p.model_parallel:
+                                    self._non_parallel_grads.append(opti_state_g_fragment)
+
+        p, m, v, g, p_copy = list(zip(*self._contrib_tensor_list))
+        self._contrib_tensor_list = [p, m, v, g, p_copy]
+
+        math_type = self._fp32_p.dtype
+        beta1, beta2, bias_correction, epsilon, decay = list(zip(*self._contrib_group_properties))
+        self._contrib_beta1 = torch.tensor(beta1, dtype=math_type, device='cuda')
+        self._contrib_beta2 = torch.tensor(beta2, dtype=math_type, device='cuda')
+        self._contrib_bias_correction = torch.tensor(bias_correction, dtype=torch.int, device='cuda')
+        self._contrib_epsilon = torch.tensor(epsilon, dtype=math_type, device='cuda')
+        self._contrib_weight_decay = torch.tensor(decay, dtype=math_type, device='cuda')
 
         p_in, p_out = zip(*self._packed_flat_to_model_params)
         self._packed_flat_to_model_params = [p_in, p_out]
 
-        self._distributed_weight_update = distributed_weight_update # Is this still needed?
-        self._num_rs_pg = dwu_num_rs_pg
-        self._num_ar_pg = dwu_num_ar_pg
-        self._num_ag_pg = dwu_num_ag_pg
         if self._num_groups > 1:
             self._ar_pg = []
-            for dev_i in range(self._group_size):
-                ranks = [dev_i+j*self._group_size for j in range(self._num_groups)]
-                for i in range(self._num_ar_pg):
-                    grp = torch.distributed.new_group(ranks=ranks)
-                    if torch.distributed.get_rank() in ranks:
-                        self._ar_pg.append(grp)
+            for i in range(self._num_process_groups):
+                # gather global ranks of all members of the current process group
+                ranks = [i+k*self._num_process_groups for k in range(self._process_group_size)]
+                for j in range(self._group_size):
+                    ar_idx = [j+k*self._group_size for k in range(self._num_groups)]
+                    ar_rank = [ranks[k] for k in ar_idx]
+                    #if self._global_rank in ar_rank:
+                    #    print("group for all reduce, ranks:", ar_rank)
+                    for _ in range(self._num_ar_pg):
+                        grp = torch.distributed.new_group(ranks=ar_rank)
+                        if self._global_rank in ar_rank:
+                            self._ar_pg.append(grp)
             self._ar_st = [torch.cuda.Stream() for _ in range(self._num_ar_pg)]
             for ar_pg in self._ar_pg:
                 torch.distributed.all_reduce(self._overflow_buf,group=ar_pg)
-        rs_ranks = []
-        for group_i in range(self._num_groups):
-            rs_ranks.append([group_i*self._group_size+j for j in range(self._group_size)])
-        self._rs_pg = []
-        for group_i in range(self._num_groups):
-            ranks = rs_ranks[group_i]
-            for i in range(self._num_rs_pg):
-                grp = torch.distributed.new_group(ranks=ranks)
-                if torch.distributed.get_rank() in ranks:
-                    self._rs_pg.append(grp)
-            if self._compute_L2_grad_norm:
-                l2_grad_norm_pg = torch.distributed.new_group(ranks=ranks)
-                if torch.distributed.get_rank() in ranks:
-                    self._l2_grad_norm_pg = l2_grad_norm_pg
-                    torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
+
+        self._rs_pg, rs_ranks = [],[]
+        for i in range(self._num_process_groups):
+            ranks = [i+k*self._num_process_groups for k in range(self._process_group_size)]
+            for j in range(self._num_groups):
+                rs_idx = [j*self._group_size+k for k in range(self._group_size)]
+                rs_rank = [ranks[k] for k in rs_idx]
+                #if self._global_rank in rs_rank:
+                #    print("group for reduce scatter, ranks:", rs_rank)
+                for _ in range(self._num_rs_pg):
+                    grp = torch.distributed.new_group(ranks=rs_rank)
+                    if self._global_rank in rs_rank:
+                        self._rs_pg.append(grp)
+                if self._compute_L2_grad_norm:
+                    l2_grad_norm_pg = torch.distributed.new_group(ranks=rs_rank)
+                    if self._global_rank in rs_rank:
+                        self._l2_grad_norm_pg = l2_grad_norm_pg
+                        torch.distributed.all_reduce(self._overflow_buf,group=self._l2_grad_norm_pg)
         self._rs_st = [torch.cuda.Stream() for _ in range(self._num_rs_pg)]
         for rs_pg in self._rs_pg:
             torch.distributed.all_reduce(self._overflow_buf,group=rs_pg)
+
         if self._num_ag_pg == 0:
             self._ag_pg = self._rs_pg
             self._ag_st = self._rs_st
             self._num_ag_pg = self._num_rs_pg
         else:
             self._ag_pg = []
-            for group_i in range(self._num_groups):
-                ranks = rs_ranks[group_i]
-                for i in range(self._num_ag_pg):
-                    grp = torch.distributed.new_group(ranks=ranks)
-                    if torch.distributed.get_rank() in ranks:
-                        self._ag_pg.append(grp)
+            for i in range(self._num_process_groups):
+                ranks = [i+k*self._num_process_groups for k in range(self._process_group_size)]
+                for j in range(self._num_groups):
+                    ag_rank = rs_ranks[j]
+                    #if self._global_rank in ag_rank:
+                    #    print("group for all gather, ranks:", ag_rank)
+                    for _ in range(self._num_ag_pg):
+                        grp = torch.distributed.new_group(ranks=ag_rank)
+                        if self._global_rank in ag_rank:
+                            self._ag_pg.append(grp)
             self._ag_st = [torch.cuda.Stream() for _ in range(self._num_ag_pg)]
             for ag_pg in self._ag_pg:
                 torch.distributed.all_reduce(self._overflow_buf,group=ag_pg)
@@ -296,6 +370,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         import inspect
         assert ('no_copy' in inspect.getfullargspec(torch.distributed.reduce_scatter).args), "This version of c10d does not support no_copy option"
 
+    def _init_everything(self):
+        if not self._init_done:
+            self._first_step_init()
+            self._init_done = True
 
     def set_last_step(self, last_step):
         self._last_step = last_step
@@ -350,46 +428,43 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 l2_grad_norm_sq = torch.empty([1], device='cuda')
                 l2_grad_norm_sq = self._fp16_g.norm(dtype=torch.float32, p=2)**2
                 torch.distributed.all_reduce(l2_grad_norm_sq, group=self._l2_grad_norm_pg)
+                # for model_parallel_rank=0, keep all gradients
+                # for the rest, subtract non_parallel gradients
+                if self._model_parallel and self._process_group_id: # non zero model_parallel_rank
+                    non_parallel_grad_norm_sq = torch.zeros([1], device='cuda')
+                    if len(self._non_parallel_grads): # non parallel grads exit
+                        non_parallel_grad_norm_sq = multi_tensor_applier(self.multi_tensor_l2norm,
+                                                                         self._overflow_buf,
+                                                                         [self._non_parallel_grads], False)[0]**2
+                    torch.distributed.all_reduce(non_parallel_grad_norm_sq, group=self._l2_grad_norm_pg)
+                    l2_grad_norm_sq = l2_grad_norm_sq - non_parallel_grad_norm_sq
                 self._L2_grad_norm = l2_grad_norm_sq.sqrt().item()
 
-    def __launch_step_kernel(self, p, p_copy, m, v, g):
+    def __launch_step_kernel(self):
+        # If self._clip_grad_norm is False, we assume gradient clipping already 
+        # happened outside the optimizer and self._global_scale has already 
+        # been set to the combined scale, i.e. it's no longer the current loss
+        # scale used by the loss scaler. 
+        # For model parallelism cases in which we need to get global gradient 
+        # norm via all-reduce outside the optimizer to do the clipping. 
         combined_scale = self._global_scale
-        if self._param_group['max_grad_norm'] > 0 and math.isfinite(self.L2_grad_norm):
+        if self._clip_grad_norm and self._param_group['max_grad_norm'] > 0 and math.isfinite(self.L2_grad_norm):
             combined_scale = self._param_group['max_grad_norm'] / (self.L2_grad_norm / self._global_scale + 1e-6)
             combined_scale = self._global_scale / min(1, combined_scale)
-        bias_correction = 1 if self._param_group['bias_correction'] else 0
-        beta1, beta2 = self._param_group['betas']
-        fused_adam_cuda.reversible_adam(
-                p, p_copy, m, v, g,
+        
+        self._step += 1
+        multi_tensor_applier(distributed_adam_cuda.multi_tensor_fused_adam,
+                self._overflow_buf,
+                self._contrib_tensor_list, # p, m, v, g, p_copy
+                self._contrib_beta1,
+                self._contrib_beta2,
+                self._contrib_bias_correction,
+                self._contrib_epsilon,
+                self._contrib_weight_decay,
                 self._param_group['lr'],
-                beta1,
-                beta2,
-                self._param_group['eps'],
                 combined_scale,
-                self._param_state['step']+1,
-                self.eps_mode,
-                bias_correction,
-                self._param_group['weight_decay'])
-
-    def _pipeline_block_step(self, block_id):
-        # Call step kernel once per block
-        ag_stream = self._ag_st[block_id%self._num_ag_pg]
-        with torch.cuda.stream(ag_stream):
-            for chunk_id in range(self._num_chunks):
-                self._reductions_works[block_id][chunk_id].wait()
-            self.__launch_step_kernel(
-                self._fp32_p_blocks[block_id],
-                self._fp16_p_blocks[block_id],
-                self._fp32_m_blocks[block_id],
-                self._fp32_v_blocks[block_id],
-                self._fp16_g_blocks[block_id])
-        # Call all-gather once per step.
-        # FIXME: Determine which is faster, one all-gather per block or a single all-gather at end
-        if block_id == 0:
-            for other_ag_stream in self._ag_st:
-                self._completion_st.wait_stream(other_ag_stream)
-            with torch.cuda.stream(self._completion_st):
-                torch.distributed.all_gather(self._new_params_mega_shards, self._fp16_p, group=self._ag_pg[0], no_copy=True)
+                self._step,
+                self.eps_mode)
 
     def _pipeline_step(self):
         # Call step kernel once per step
@@ -398,12 +473,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             for block_id in range(self._num_blocks):
                 for chunk_id in range(self._num_chunks):
                     self._reductions_works[block_id][chunk_id].wait()
-            self.__launch_step_kernel(
-                self._fp32_p,
-                self._fp16_p,
-                self._fp32_m,
-                self._fp32_v,
-                self._fp16_g)
+            self.__launch_step_kernel()
             torch.distributed.all_gather(self._new_params_mega_shards, self._fp16_p, group=self._ag_pg[0], no_copy=True)
 
     def _flatten_grad_mt(self, scale):
@@ -429,8 +499,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 while flush_block:
                     block_id = flush_block[0] // self._block_size
                     self._pipeline_block_reductions(block_id)
-                    if self._full_pipeline:
-                        self._pipeline_block_step(block_id)
                     flush_block = self._get_flush_block()
 
     def set_global_scale(self, global_scale):
@@ -484,7 +552,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def complete_reductions(self):
         """Complete reductions if full pipeline is not selected or overlap is not allowed.
         """
-
+        self._init_everything()
         if self._last_step:
             # zero out gradients that have not been completed yet
             for param_i, grad_generated in enumerate(self._grads_generated):
@@ -506,53 +574,19 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._current_block = self._num_blocks
         self._grads_generated = [False]*len(self._grads_info)
 
-    def revert_step(self):
-        """Revert effect of previously calling partial_step.
-        """
-        # Call undo kernel once per step
-        combined_scale = self._global_scale
-        if self._param_group['max_grad_norm'] > 0 and math.isfinite(self.L2_grad_norm):
-            combined_scale = self._param_group['max_grad_norm'] / (self.L2_grad_norm / self._global_scale + 1e-6)
-            combined_scale = self._global_scale / min(1, combined_scale)
-        bias_correction = 1 if self._param_group['bias_correction'] else 0
-        beta1, beta2 = self._param_group['betas']
-        fused_adam_cuda.maybe_adam_undo(
-                    torch.empty([0]),
-                    self._fp32_p,
-                    self._fp32_m,
-                    self._fp32_v,
-                    self._fp16_g,
-                    self._param_group['lr'],
-                    beta1,
-                    beta2,
-                    self._param_group['eps'],
-                    combined_scale,
-                    self._param_state['step']+1,
-                    self.eps_mode,
-                    bias_correction,
-                    self._param_group['weight_decay'])
-
-    def step(self, closure=None, skip_overflow_check=False):
+    def step(self, closure=None):
         loss = None
         if closure is not None:
             loss = closure()
 
-        if self._last_step or not self._overlap_reductions or not self._full_pipeline:
-            self._pipeline_step()
+        self._pipeline_step()
 
         with torch.cuda.stream(self._completion_st):
-            # Check for overflow
-            # Store state for loss scaler calculation
-            has_overflow = False if skip_overflow_check else self.strided_check_finite(self._new_params, stride=self._shard_size, start=0, end=self._net_total_param_size)
-            if has_overflow:
-                self.revert_step()
-            else:
-                # Copy self._new_params to model params
-                for p in self._model_params: self.state[p]['step'] += 1
-                multi_tensor_applier(
-                        fused_adam_cuda.maybe_cast_mt,
-                        self._overflow_buf,
-                        self._packed_flat_to_model_params)
+            # Copy self._new_params to model params
+            multi_tensor_applier(
+                    fused_adam_cuda.maybe_cast_mt,
+                    self._overflow_buf,
+                    self._packed_flat_to_model_params)
 
         torch.cuda.current_stream().wait_stream(self._completion_st)
 
@@ -561,4 +595,42 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         return loss
 
+    def state_dict(self):
+        """
+        Returns a dict containing the current state of this :class:`DistributedFusedAdam` instance.
+        Example::
+            checkpoint = {}
+            checkpoint['model'] = model.state_dict()
+            checkpoint['optimizer'] = optimizer.state_dict()
+            torch.save(checkpoint, "saved.pth")
+        """
+        # save step, master weights and first/second moments
+        state_dict = {}
+        state_dict['step'] = self._step
+        state_dict['fp32_p'] = self._fp32_p
+        state_dict['fp32_m'] = self._fp32_m
+        state_dict['fp32_v'] = self._fp32_v
+        return state_dict
 
+    def load_state_dict(self, state_dict):
+        """
+        Loads a state_dict created by an earlier call to state_dict().
+        If an DistributedFusedAdam instance was constructed from some ``init_optimizer``,
+        whose parameters in turn came from ``model``, it is expected that the user
+        will call ``model.load_state_dict()`` before
+        ``optimizer.load_state_dict()`` is called.
+        Example::
+            model = torch.nn.Linear(D_in, D_out).cuda().half()
+            optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+            optimizer = FP16_Optimizer(optimizer, static_loss_scale = 128.0)
+            ...
+            checkpoint = torch.load("saved.pth")
+            model.load_state_dict(checkpoint['model'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+        """
+        # restore step, master weights and first/second moments
+        self._step = state_dict['step']
+        self._fp32_p = state_dict['fp32_p'].to(device="cuda")
+        self._fp32_m = state_dict['fp32_m'].to(device="cuda")
+        self._fp32_v = state_dict['fp32_v'].to(device="cuda")
+        self._resume_from_checkpoint = True

@@ -76,7 +76,7 @@ class FusedLAMB(torch.optim.Optimizer):
             import amp_C
             self.multi_tensor_l2norm=amp_C.multi_tensor_l2norm
             # Skip buffer
-            self._dummy_overflow_buf = torch.cuda.IntTensor([0])
+            self._dummy_overflow_buf = torch.tensor([0], dtype=torch.int, device=self.param_groups[0]["params"][0].device)
             self.multi_tensor_lamb = amp_C.multi_tensor_lamb
         else:
             raise RuntimeError('apex.optimizers.FusedLAMB requires cuda extensions')
@@ -117,7 +117,8 @@ class FusedLAMB(torch.optim.Optimizer):
                 else:
                     raise RuntimeError('FusedLAMB only support fp16 and fp32.')
 
-        g_norm_32, g_norm_16 = torch.zeros(1, device='cuda'), torch.zeros(1, device='cuda')
+        device = self.param_groups[0]["params"][0].device
+        g_norm_32, g_norm_16 = torch.zeros(1, device=device), torch.zeros(1, device=device)
         # compute grad norm for two lists
         if len(g_all_32) > 0:
             g_norm_32 = multi_tensor_applier(self.multi_tensor_l2norm,

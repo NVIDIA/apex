@@ -160,6 +160,8 @@ void multi_tensor_sgd_cuda(
         TORCH_CHECK(tensor_lists[3][i].scalar_type() == at::ScalarType::Half,
                  "Additional output tensors should always be fp16.");
 
+  TORCH_CHECK(noop_flag.device() == tensor_lists[0][0].device(), "expected noop flag to be on the same device as tensors");
+
   // We have 3 possibilities to handle here, in terms of
   // grad_type, param_type, momentum_type, requires_fp16_copy
   // 1. fp16, fp16, fp16, No
