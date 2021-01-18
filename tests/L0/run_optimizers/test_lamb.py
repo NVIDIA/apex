@@ -228,6 +228,7 @@ class TestFusedLAMB(unittest.TestCase):
             with torch.cuda.device(current_dev):
                 self.gen_single_type_test(param_type=torch.float, device=tensor_dev)
 
+    @skipIfRocm
     def test_multi_params(self):
         sizes = [[4096, 1024], [4096], [4096, 2048], [32320, 1024], [1]]
         weight_decay = [0, 0.01]
