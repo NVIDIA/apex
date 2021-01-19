@@ -56,6 +56,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             (default: 1.0)
         use_nvlamb (boolean, optional): Apply adaptive learning rate to 0.0
             weight decay parameter (default: False)
+        clip_grad_norm (boolean, optional): whether to handle gradient clipping
+            (default: True)
 
     .. _Large Batch Optimization for Deep Learning - Training BERT in 76 minutes:
         https://arxiv.org/abs/1904.00962
@@ -67,7 +69,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                  lr=1e-3, bias_correction = True, grad_averaging=True,
                  betas=(0.9, 0.999), eps=1e-8, 
                  weight_decay=0., max_grad_norm=0., 
-                 adam_w_mode=True, use_nvlamb=False, 
+                 adam_w_mode=True, use_nvlamb=False, clip_grad_norm=True,
                  amp_scale_adjustment=1.0, overlap_reductions=True, 
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
                  dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
@@ -89,6 +91,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 'max_grad_norm': max_grad_norm,
                 'adam_w_mode': adam_w_mode,
                 'use_nvlamb': use_nvlamb,
+                'clip_grad_norm': clip_grad_norm,
                 'amp_scale_adjustment': amp_scale_adjustment,
                 'overlap_reductions': overlap_reductions,
                 'dwu_group_size': dwu_group_size,
@@ -107,7 +110,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                  lr=1e-3, bias_correction = True, grad_averaging=True,
                  betas=(0.9, 0.999), eps=1e-8, 
                  weight_decay=0., max_grad_norm=0., 
-                 adam_w_mode=True, use_nvlamb=False, 
+                 adam_w_mode=True, use_nvlamb=False, clip_grad_norm=True,
                  amp_scale_adjustment=1.0, overlap_reductions=True, 
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
                  dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
@@ -127,9 +130,11 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
         self._adam_w_mode = 1 if adam_w_mode else 0
         self._use_nvlamb = use_nvlamb
+        self._clip_grad_norm = clip_grad_norm
         self._is_accumulation_step = False
         self._last_step = False
         self._overlap_reductions = overlap_reductions
+        self._global_scale = None
         self._num_blocks = dwu_num_blocks
         self._num_chunks = dwu_num_chunks
         self._e5m2_allgather = e5m2_allgather
@@ -468,9 +473,23 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         local_contrib_l2_norm = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_update_frag_for_norm], True)[1] ** 2
         l2_norm.masked_scatter_(self._model_param_is_contrib, local_contrib_l2_norm)
         torch.distributed.all_reduce(l2_norm, group=self._ag_pg[0])
+        l2_norm = torch.sqrt(l2_norm)
         return l2_norm.masked_select(self._model_param_is_contrib)
 
     def _pipeline_step(self):
+        # If self._clip_grad_norm is False, we assume gradient clipping already
+        # happened outside the optimizer and self._global_scale has already
+        # been set to the combined scale, i.e. it's no longer the current loss
+        # scale used by the loss scaler.
+        # For model parallelism cases in which we need to get global gradient
+        # norm via all-reduce outside the optimizer to do the clipping.
+        combined_scale = self.global_scale
+        max_grad_norm = self.defaults['max_grad_norm']
+        global_grad_norm = self.L2_grad_norm
+        if self._clip_grad_norm and max_grad_norm > 0 and math.isfinite(global_grad_norm):
+            combined_scale = max_grad_norm / (global_grad_norm / self.global_scale + 1e-6)
+            combined_scale = self.global_scale / min(1, combined_scale)
+
         # Call step kernel once per step
         # Call all-gather once per step
         with torch.cuda.stream(self._completion_st):
@@ -478,7 +497,6 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 for chunk_id in range(self._num_chunks):
                     self._reductions_works[block_id][chunk_id].wait()
             param_norm = self.__compute_contrib_param_norm()
-            max_grad_norm = self.defaults['max_grad_norm']
             multi_tensor_applier(self.multi_tensor_lamb_compute_update_term,
                     self._overflow_buf,
                     self._contrib_compute_update_term_tensor_list, # g, p, m, v, u
@@ -490,8 +508,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     self._contrib_epsilon,
                     self._adam_w_mode,
                     self._contrib_weight_decay,
-                    self.L2_grad_norm,
-                    max_grad_norm)
+                    combined_scale)
             upd_norm = self.__compute_contrib_update_norm()
             multi_tensor_applier(self.multi_tensor_lamb_update_weights,
                     self._overflow_buf,
@@ -536,6 +553,15 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     block_id = flush_block[0] // self._block_size
                     self._pipeline_block_reductions(block_id)
                     flush_block = self._get_flush_block()
+
+    def set_global_scale(self, global_scale):
+        """Set global scale.
+        """
+        self._global_scale = global_scale
+
+    @property
+    def global_scale(self):
+        return self._global_scale
 
     @property
     def L2_grad_norm(self):

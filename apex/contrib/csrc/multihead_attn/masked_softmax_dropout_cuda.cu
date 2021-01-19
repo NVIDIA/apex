@@ -115,7 +115,7 @@ torch::Tensor bwd_cuda(
   // Apply Dropout Mask and Scale by Dropout Probability 
   // Softmax Grad
   if (padding_mask == nullptr) {
-      dispatch_masked_scale_softmax_backward<half, half, float,false>(
+      dispatch_masked_scale_softmax_backward_stream<half, half, float,false>(
                              static_cast<half*>(output_grads.data_ptr()), 
                              static_cast<half*>(output_grads.data_ptr()), 
                              reinterpret_cast<half const*>(softmax_results.data_ptr()),
@@ -123,9 +123,9 @@ torch::Tensor bwd_cuda(
 			     1.0/(1.0-dropout_prob),
                              k_seq_len,
                              k_seq_len,
-                             attn_batches*q_seq_len);
+                             attn_batches*q_seq_len, stream);
   } else{
-      dispatch_masked_scale_softmax_backward_masked_out<half, half, float,false>(
+      dispatch_masked_scale_softmax_backward_masked_out_stream<half, half, float,false>(
                              static_cast<half*>(output_grads.data_ptr()), 
                              static_cast<half*>(output_grads.data_ptr()), 
                              reinterpret_cast<half const*>(softmax_results.data_ptr()),
@@ -135,7 +135,7 @@ torch::Tensor bwd_cuda(
                              k_seq_len,
                              k_seq_len,
                              attn_batches*q_seq_len,
-			     heads); 
+			     heads, stream); 
   
   }
 //backward pass is completely in-place
