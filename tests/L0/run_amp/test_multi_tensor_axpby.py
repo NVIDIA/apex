@@ -12,8 +12,6 @@ from math import floor
 from utils import common_init, HALF, FLOAT,\
     ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
 
-from apex.testing.common_utils import skipIfRocm
-
 try:
   import amp_C
   from amp_C import multi_tensor_axpby
@@ -103,7 +101,6 @@ class TestMultiTensorAxpby(unittest.TestCase):
     #     self.assertTrue(self.overflow_buf.item())
 
     @unittest.skipIf(disabled, "amp_C is unavailable")
-    @skipIfRocm
     def test_fuzz(self):
         input_size_pairs = (
             (7777*77, 555*555),
@@ -143,7 +140,6 @@ class TestMultiTensorAxpby(unittest.TestCase):
 
     @unittest.skipIf(disabled, "amp_C is unavailable")
     @unittest.skipIf(not try_nhwc, "torch version is 1.4 or earlier, may not support nhwc")
-    @skipIfRocm
     def test_fuzz_nhwc(self):
         input_size_pairs = (
             ((7, 77, 7, 77), (5, 55, 5, 55)),

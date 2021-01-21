@@ -28,6 +28,9 @@ template<int n> struct TensorListMetadata
 
 
 template<typename T, typename U, typename... ArgTypes>
+#ifdef __HIP_PLATFORM_HCC__
+__launch_bounds__(1024)
+#endif
 __global__ void multi_tensor_apply_kernel(
     int chunk_size,
     volatile int* noop_flag,

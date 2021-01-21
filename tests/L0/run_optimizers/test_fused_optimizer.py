@@ -6,8 +6,6 @@ import torch
 import apex
 from itertools import product
 
-from apex.testing.common_utils import skipIfRocm
-
 class TestFusedOptimizer(unittest.TestCase):
     def setUp(self, max_abs_diff=1e-3, max_rel_diff=1, iters=7):
         self.max_abs_diff = max_abs_diff
@@ -87,7 +85,6 @@ class TestFusedAdam(TestFusedOptimizer):
         self.ref_optim = torch.optim.Adam
         self.fused_optim = apex.optimizers.FusedAdam
 
-    @skipIfRocm
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
 
@@ -98,12 +95,10 @@ class TestFusedAdam(TestFusedOptimizer):
     # Uses apex optimizers(controlled by apex_only flag) for both types.
     # Doesn't use upstream optimizer like other tests as they seem to be
     # numerically unstable for half types
-    @skipIfRocm
     def test_bfloat16(self):
         self.max_abs_diff = 1e-2
         self.gen_single_type_test(param_type=torch.bfloat16, apex_only=True)
 
-    @skipIfRocm
     @unittest.skipIf(torch.cuda.device_count()<2, "more than 1 GPU required")
     def test_multi_device(self):
         devices = ("cuda:0", "cuda:1")
@@ -196,7 +191,6 @@ class TestFusedAdagrad(TestFusedOptimizer):
         self.ref_optim = torch.optim.Adagrad
         self.fused_optim = apex.optimizers.FusedAdagrad
 
-    @skipIfRocm
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
 
@@ -204,7 +198,6 @@ class TestFusedAdagrad(TestFusedOptimizer):
     def test_half(self):
         self.gen_single_type_test(param_type=torch.float16)
 
-    @skipIfRocm
     @unittest.skipIf(torch.cuda.device_count()<2, "more than 1 GPU required")
     def test_multi_device(self):
         devices = ("cuda:0", "cuda:1")
@@ -213,7 +206,6 @@ class TestFusedAdagrad(TestFusedOptimizer):
                 self.gen_single_type_test(param_type=torch.float, device=tensor_dev)
 
 
-    @skipIfRocm
     def test_multi_params(self):
         sizes = [[4096, 1024], [4096], [4096, 2048], [32320, 1024], [1]]
         adagrad_option = {"lr": 5e-4, "eps": 1e-08, "weight_decay": 0}

@@ -11,11 +11,9 @@ import torch.nn.functional as F
 from utils import common_init, HALF, FLOAT,\
     ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
 
-from apex.testing.common_utils import skipIfRocm
-
 try:
   import amp_C
-  from amp_C import multi_tensor_scale 
+  from amp_C import multi_tensor_scale
   from apex.multi_tensor_apply import MultiTensorApply
   disabled = False
 except ImportError as err:
@@ -56,7 +54,7 @@ class TestMultiTensorScale(unittest.TestCase):
             out_list = [out.float() for out in out_list]
         self.assertTrue(all([torch.allclose(out, self.ref.to(out.dtype)) for out in out_list]))
         self.assertTrue(self.overflow_buf.item() == 0)
- 
+
     def find_inf(self, sizea, sizeb, applier, repeat_tensors, in_type, out_type, t, ind, val, inplace=False):
         self.overflow_buf.zero_()
         a = torch.cuda.FloatTensor(sizea).fill_(self.scale)
@@ -84,13 +82,12 @@ class TestMultiTensorScale(unittest.TestCase):
     # @unittest.skipIf(disabled, "amp_C is unavailable")
     # def test_fp16_to_fp16(self):
     #     self.downscale(self.fp16, self.fp16, self.fp16_ref)
-    # 
+    #
     # @unittest.skipIf(disabled, "amp_C is unavailable")
     # def test_fp32_to_fp16(self):
     #     self.downscale(self.fp32, self.fp16, self.fp16_ref)
 
     @unittest.skipIf(disabled, "amp_C is unavailable")
-    @skipIfRocm
     def test_fuzz(self):
         input_size_pairs = (
             (7777*77, 555*555),
@@ -102,7 +99,7 @@ class TestMultiTensorScale(unittest.TestCase):
             (33333, 555),
             (555, 33333))
         appliers = (
-            MultiTensorApply(2048*32), 
+            MultiTensorApply(2048*32),
             MultiTensorApply(333),
             MultiTensorApply(33333))
         repeat_tensors = (

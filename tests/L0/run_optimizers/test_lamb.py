@@ -5,7 +5,6 @@ import torch
 from torch.optim import Optimizer
 import apex
 from apex.multi_tensor_apply import multi_tensor_applier
-from apex.testing.common_utils import skipIfRocm
 from itertools import product
 
 class RefLAMB(Optimizer):
@@ -212,7 +211,6 @@ class TestFusedLAMB(unittest.TestCase):
                 self.assertLessEqual(max_abs_diff, self.max_abs_diff)
                 self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
-    @skipIfRocm
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
 
@@ -220,7 +218,6 @@ class TestFusedLAMB(unittest.TestCase):
     def test_half(self):
         self.gen_single_type_test(param_type=torch.float16)
 
-    @skipIfRocm
     @unittest.skipIf(torch.cuda.device_count()<2, "more than 1 GPU required")
     def test_multi_device(self):
         devices = ("cuda:0", "cuda:1")
@@ -228,7 +225,6 @@ class TestFusedLAMB(unittest.TestCase):
             with torch.cuda.device(current_dev):
                 self.gen_single_type_test(param_type=torch.float, device=tensor_dev)
 
-    @skipIfRocm
     def test_multi_params(self):
         sizes = [[4096, 1024], [4096], [4096, 2048], [32320, 1024], [1]]
         weight_decay = [0, 0.01]
@@ -249,7 +245,6 @@ class TestFusedLAMB(unittest.TestCase):
                 self.assertLessEqual(max_abs_diff, self.max_abs_diff)
                 self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
-    @skipIfRocm
     def test_lamb_option(self):
         nelem = 1
         tensor = torch.rand(nelem, dtype=torch.float, device='cuda')

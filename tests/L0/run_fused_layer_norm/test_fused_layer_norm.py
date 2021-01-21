@@ -6,7 +6,7 @@ import torch
 import apex
 from torch.autograd import Variable
 
-        
+
 class TestFusedLayerNorm(unittest.TestCase):
     def setUp(self):
         # bias and weight are set to 0 and 1 respectively, so no need to copy parameters from cpu module to the gpu one
@@ -33,10 +33,13 @@ class TestFusedLayerNorm(unittest.TestCase):
 
     def test_large_batch(self):
         self._test_same_output(65536)
-        
-        
+
+
 class TestFusedLayerNormElemWise(TestFusedLayerNorm):
     def setUp(self):
         self.module_cpu_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=True).cpu()
         self.module_cuda_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=True).cuda()
 
+
+if __name__ == '__main__':
+    unittest.main()

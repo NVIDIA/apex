@@ -11,8 +11,6 @@ import torch.nn.functional as F
 from utils import common_init, HALF, FLOAT,\
     ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
 
-from apex.testing.common_utils import skipIfRocm
-
 try:
   import amp_C
   from amp_C import multi_tensor_l2norm
@@ -69,7 +67,7 @@ class TestMultiTensorL2Norm(unittest.TestCase):
             (33333, 555),
             (555, 33333))
         appliers = (
-            MultiTensorApply(2048*32), 
+            MultiTensorApply(2048*32),
             MultiTensorApply(333),
             MultiTensorApply(33333))
         repeat_tensors = (
