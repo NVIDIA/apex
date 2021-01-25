@@ -157,3 +157,6 @@ if sbn_result_c_last:
     print("====SBN channel last single gpu passed tests")
 else:
     print("*SBN channel last single gpu failed*")
+
+assert sbn_result
+assert sbn_result_c_last

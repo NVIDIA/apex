@@ -60,7 +60,11 @@ inp = np.random.randn(batch_size, feature_size, space_size, space_size).astype(d
 grad = np.random.randn(batch_size, feature_size, space_size, space_size).astype(dtype)
 weight = np.random.randn(feature_size).astype(dtype)
 bias = np.random.randn(feature_size).astype(dtype)
+#count = torch.cuda.IntTensor([batch_size*space_size**2])
+count = [ space_size**2 * ( (i+1) * batch_size // args.world_size - i * batch_size // args.world_size ) for i in range(0, args.world_size)]
+count = torch.cuda.IntTensor(count)
 
+print("--- count : " , count)
 
 type_tensor = torch.cuda.FloatTensor
 if args.fp16:
@@ -153,7 +157,7 @@ mean_dy_xmu_r = ((inp2_r - m.view(-1, 1, 1)) * grad_output2_r).transpose(1,0).co
 grad_input_r = (grad_output2_r - mean_dy_r.view(-1, 1, 1) - (inp2_r - m.view(-1, 1, 1)) / (b_v.view(-1,1,1) + eps) * mean_dy_xmu_r.view(-1, 1, 1) ) * torch.rsqrt(b_v.view(-1,1,1) + eps) * weight_r.view(-1,1,1)
 
 mean_dy, mean_dy_xmu, grad_weight, grad_bias = syncbn.reduce_bn(grad_output_t, inp_t, mean, inv_std, weight_t)
-grad_input = syncbn.batchnorm_backward(grad_output_t, inp_t, mean, inv_std, weight_t, mean_dy, mean_dy_xmu)
+grad_input = syncbn.batchnorm_backward(grad_output_t, inp_t, mean, inv_std, weight_t, mean_dy, mean_dy_xmu, count)
 
 if args.local_rank == 0:
     sbn_result = compare("comparing bias grad: ", grad_bias, grad_bias_r, error) and sbn_result

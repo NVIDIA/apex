@@ -178,3 +178,5 @@ if sbn_result:
     print("====SBN two gpu passed tests")
 else:
     print("*SBN two gpu failed*")
+
+assert sbn_result
