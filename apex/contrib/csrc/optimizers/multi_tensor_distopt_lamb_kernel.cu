@@ -330,7 +330,7 @@ struct DistOptLAMBStage2Functor
     const MATH_T* per_tensor_param_norm,
     const MATH_T* per_tensor_update_norm,
     const long* update_norm_offset,
-    const MATH_T learning_rate,
+    const MATH_T* learning_rate,
     const MATH_T* per_tensor_decay,
     const MATH_T* global_grad_norm,
     bool use_nvlamb)
@@ -346,14 +346,14 @@ struct DistOptLAMBStage2Functor
 
     MATH_T decay = per_tensor_decay[tensor_num];
 
-    MATH_T ratio = learning_rate;
+    MATH_T ratio = *learning_rate;
     // nvlamb: apply adaptive learning rate to all parameters
     // otherwise, only apply to those with non-zero weight decay
     if (use_nvlamb || (decay != (MATH_T) 0.0))
     {
       MATH_T param_norm = per_tensor_param_norm[tensor_num];
       MATH_T update_norm = per_tensor_update_norm[update_norm_offset[tensor_num]];
-      ratio = (update_norm != 0.0 && param_norm != 0.0) ? learning_rate * (param_norm / update_norm) : learning_rate;
+      ratio = (update_norm != 0.0 && param_norm != 0.0) ? (*learning_rate) * (param_norm / update_norm) : (*learning_rate);
     }
 
     MATH_T* update = (MATH_T*)tl.addresses[0][tensor_loc];
@@ -478,7 +478,7 @@ void multi_tensor_lamb_update_weights_cuda(
   at::Tensor per_tensor_param_norm,
   at::Tensor per_tensor_update_norm,
   at::Tensor update_norm_offset,
-  const float learning_rate,
+  at::Tensor learning_rate,
   at::Tensor per_tensor_decay,
   at::Tensor global_grad_norm,
   bool use_nvlamb)
@@ -497,7 +497,7 @@ void multi_tensor_lamb_update_weights_cuda(
           per_tensor_param_norm.DATA_PTR<scalar_t_2>(),
           per_tensor_update_norm.DATA_PTR<scalar_t_2>(),
           update_norm_offset.DATA_PTR<long>(),
-	  (scalar_t_2) learning_rate,
+	  learning_rate.DATA_PTR<scalar_t_2>(),
           per_tensor_decay.DATA_PTR<scalar_t_2>(),
 	  global_grad_norm.DATA_PTR<scalar_t_2>(),
           use_nvlamb); )))
