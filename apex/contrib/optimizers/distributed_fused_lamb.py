@@ -464,7 +464,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 l2_grad_norm_sq = torch.empty([1], device='cuda')
                 l2_grad_norm_sq = self._fp16_g.norm(dtype=torch.float32, p=2)**2
                 torch.distributed.all_reduce(l2_grad_norm_sq, group=self._l2_grad_norm_pg)
-                self._L2_grad_norm = l2_grad_norm_sq.sqrt()#.item()
+                self._L2_grad_norm = l2_grad_norm_sq.sqrt()
 
     def __compute_contrib_param_norm(self):
         if self._contrib_model_param_for_norm_fp16 is not None and self._contrib_model_param_for_norm_fp32 is not None:
