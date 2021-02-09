@@ -146,6 +146,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._num_groups = self._world_size // self._group_size
         self._rank_in_group = torch.distributed.get_rank() % self._group_size
 
+        self._lr = torch.tensor(0.0, dtype=torch.float32, device='cuda')
+
         p_offset = 0
         p_i = 0
         self._model_params = []
@@ -393,11 +395,13 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             #    torch.distributed.all_reduce(self._overflow_buf,group=ag_pg)
         self._l2_grad_norm_st = torch.cuda.Stream()
         self._completion_st = torch.cuda.Stream()
+        self._step.record_stream(self._completion_st)
 
         self._reductions_works = [None]*self._num_blocks
         self._allgather_works = [None]*self._num_blocks
 
         self._offsets = self._model_param_is_contrib.nonzero().flatten().to(device="cuda")
+        self._one = torch.cuda.IntTensor([1])
 
     def _init_everything(self):
         if not self._init_done:
@@ -478,7 +482,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
     def __compute_contrib_update_norm(self):
         l2_norm = torch.zeros(size=[self._model_params_num], dtype=torch.float32, device='cuda')
         local_contrib_l2_norm = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_update_frag_for_norm], True)[1] ** 2
-        l2_norm.scatter(dim=0, index=self._offsets, src=local_contrib_l2_norm)
+        l2_norm.scatter_(dim=0, index=self._offsets, src=local_contrib_l2_norm)
         torch.distributed.all_reduce(l2_norm, group=self._ag_pg[0])
         l2_norm = torch.sqrt(l2_norm)
         return l2_norm
@@ -489,12 +493,12 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         global_grad_norm = self.L2_grad_norm
         
         # check global_grad_norm and fill overflow_buf
-        one = torch.ones([1], device='cuda', dtype=torch.int)
         is_finite = (global_grad_norm + 1 > global_grad_norm).int()
-        self._overflow_buf = one * (is_finite ^ one) # toggle between 0 and 1
-        
+        self._overflow_buf = self._one * (is_finite ^ self._one) # toggle between 0 and 1
+
         # increment step counter if no overflow
         self._step += is_finite
+        self._completion_st.wait_stream(torch.cuda.current_stream())
 
         # Call step kernel once per step
         # Call all-gather once per step
@@ -524,7 +528,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     param_norm,
                     upd_norm,
                     self._offsets,
-                    self.param_groups[0]['lr'],
+                    self._lr,
                     self._contrib_weight_decay,
                     global_grad_norm,
                     self._use_nvlamb)
@@ -615,6 +619,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             optimizer_state = grad_scaler._per_optimizer_states[id(self)]
             current_device = torch.device('cuda', torch.cuda.current_device())
             optimizer_state["found_inf_per_device"][current_device] = found_inf
+
+        self._completion_st.wait_stream(torch.cuda.current_stream())
 
         with torch.cuda.stream(self._completion_st):
             # Copy self._new_params to model params
