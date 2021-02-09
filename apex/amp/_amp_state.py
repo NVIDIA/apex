@@ -8,10 +8,7 @@ import torch
 TORCH_MAJOR = int(torch.__version__.split('.')[0])
 TORCH_MINOR = int(torch.__version__.split('.')[1])
 
-if TORCH_MAJOR == 0:
-    import collections.abc as container_abcs
-else:
-    from torch._six import container_abcs
+import collections.abc as container_abcs
 
 
 class AmpState(object):
