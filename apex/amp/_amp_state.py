@@ -4,7 +4,14 @@
 # http://effbot.org/pyfaq/how-do-i-share-global-variables-across-modules.htm
 import os
 import torch
-import collections.abc as container_abcs
+
+TORCH_MAJOR = int(torch.__version__.split('.')[0])
+TORCH_MINOR = int(torch.__version__.split('.')[1])
+
+if TORCH_MAJOR == 1 and TORCH_MINOR < 8:
+    from torch._six import container_abcs
+else:
+    import collections.abc as container_abcs
 
 
 class AmpState(object):
