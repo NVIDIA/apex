@@ -122,14 +122,14 @@ See the [Docker example folder](https://github.com/NVIDIA/apex/tree/master/examp
 For performance and full functionality, we recommend installing Apex with
 CUDA and C++ extensions via
 ```
-$ git clone https://github.com/NVIDIA/apex
-$ cd apex
-$ pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+git clone https://github.com/NVIDIA/apex
+cd apex
+pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 ```
 
 Apex also supports a Python-only build (required with Pytorch 0.4) via
 ```
-$ pip install -v --disable-pip-version-check --no-cache-dir ./
+pip install -v --disable-pip-version-check --no-cache-dir ./
 ```
 A Python-only build omits:
 - Fused kernels required to use `apex.optimizers.FusedAdam`.
