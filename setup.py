@@ -297,6 +297,38 @@ torch_dir = torch.__path__[0]
 if os.path.exists(os.path.join(torch_dir, 'include', 'ATen', 'CUDAGenerator.h')):
     generator_flag = ['-DOLD_GENERATOR']
 
+if "--fast_layer_norm" in sys.argv:
+    from torch.utils.cpp_extension import CUDAExtension
+    sys.argv.remove("--fast_layer_norm")
+
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension.with_options(use_ninja=False)
+
+    if torch.utils.cpp_extension.CUDA_HOME is None:
+        raise RuntimeError("--fast_layer_norm was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        # Check, if CUDA11 is installed for compute capability 8.0
+        cc_flag = []
+        _, bare_metal_major, _ = get_cuda_bare_metal_version(cpp_extension.CUDA_HOME)
+        if int(bare_metal_major) >= 11:
+            cc_flag.append('-gencode')
+            cc_flag.append('arch=compute_80,code=sm_80')
+
+        ext_modules.append(
+            CUDAExtension(name='fast_layer_norm',
+                          sources=['apex/contrib/csrc/layer_norm/ln_api.cpp',
+                                   'apex/contrib/csrc/layer_norm/ln_fwd_cuda_kernel.cu',
+                                   'apex/contrib/csrc/layer_norm/ln_bwd_semi_cuda_kernel.cu',
+                                   ],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
+                                              'nvcc':['-O3',
+                                                      '-gencode', 'arch=compute_70,code=sm_70',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '-I./apex/contrib/csrc/layer_norm/',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda',
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
 
 if "--fast_multihead_attn" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
