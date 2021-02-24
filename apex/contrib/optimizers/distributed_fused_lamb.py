@@ -146,7 +146,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._num_groups = self._world_size // self._group_size
         self._rank_in_group = torch.distributed.get_rank() % self._group_size
 
-        self._lr = torch.tensor(0.0, dtype=torch.float32, device='cuda')
+        self._lr = torch.tensor(lr, dtype=torch.float32, device='cuda')
 
         p_offset = 0
         p_i = 0
