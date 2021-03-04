@@ -32,7 +32,7 @@ struct SGDFunctor
    __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorListMetadata<N>* tl,
+    TensorListMetadata<N>& tl,
     float wd,
     float momentum,
     float dampening,
@@ -45,23 +45,23 @@ struct SGDFunctor
     // Early exit if we don't need to do anything
     if (*noop_gmem) return;
 
-    int tensor_loc = tl->block_to_tensor[blockIdx.x];
-    int chunk_idx = tl->block_to_chunk[blockIdx.x];
-    int n = tl->sizes[tensor_loc];
+    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    int chunk_idx = tl.block_to_chunk[blockIdx.x];
+    int n = tl.sizes[tensor_loc];
 
-    T_grad* grad_in = (T_grad*)tl->addresses[0][tensor_loc];
+    T_grad* grad_in = (T_grad*)tl.addresses[0][tensor_loc];
     grad_in += chunk_idx*chunk_size;
 
-    T_weight* weight_in = (T_weight*)tl->addresses[1][tensor_loc];
+    T_weight* weight_in = (T_weight*)tl.addresses[1][tensor_loc];
     weight_in += chunk_idx*chunk_size;
 
-    T_weight* mom_in = (T_weight*)tl->addresses[2][tensor_loc];
+    T_weight* mom_in = (T_weight*)tl.addresses[2][tensor_loc];
     mom_in += chunk_idx*chunk_size;
 
     at::Half *model_weights_out = nullptr;
     if(N == 4)
     {
-      model_weights_out = (at::Half*)tl->addresses[3][tensor_loc];
+      model_weights_out = (at::Half*)tl.addresses[3][tensor_loc];
       model_weights_out += chunk_idx*chunk_size;
     }
 

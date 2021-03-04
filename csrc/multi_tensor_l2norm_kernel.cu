@@ -31,7 +31,7 @@ struct L2NormFunctor
   __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorListMetadata<1>* tl,
+    TensorListMetadata<1>& tl,
     float* output,
     float* output_per_tensor,
     bool per_tensor,
@@ -41,11 +41,11 @@ struct L2NormFunctor
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl->block_to_tensor[blockIdx.x];
-    int chunk_idx = tl->block_to_chunk[blockIdx.x];
-    int n = tl->sizes[tensor_loc];
+    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    int chunk_idx = tl.block_to_chunk[blockIdx.x];
+    int n = tl.sizes[tensor_loc];
 
-    x_t* x = (x_t*)tl->addresses[0][tensor_loc];
+    x_t* x = (x_t*)tl.addresses[0][tensor_loc];
     x += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -104,7 +104,7 @@ struct L2NormFunctor
         *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
       output[blockIdx.x] += final;
       if(per_tensor)
-        output_per_tensor[(tl->start_tensor_this_launch + tensor_loc)*max_chunks_per_tensor + chunk_idx] = final;
+        output_per_tensor[(tl.start_tensor_this_launch + tensor_loc)*max_chunks_per_tensor + chunk_idx] = final;
     }
   }
 };
@@ -116,7 +116,7 @@ struct MaxNormFunctor
   __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
-    TensorListMetadata<1>* tl,
+    TensorListMetadata<1>& tl,
     float* output,
     float* output_per_tensor,
     bool per_tensor,
@@ -126,11 +126,11 @@ struct MaxNormFunctor
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl->block_to_tensor[blockIdx.x];
-    int chunk_idx = tl->block_to_chunk[blockIdx.x];
-    int n = tl->sizes[tensor_loc];
+    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    int chunk_idx = tl.block_to_chunk[blockIdx.x];
+    int n = tl.sizes[tensor_loc];
 
-    x_t* x = (x_t*)tl->addresses[0][tensor_loc];
+    x_t* x = (x_t*)tl.addresses[0][tensor_loc];
     x += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -189,7 +189,7 @@ struct MaxNormFunctor
         *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
       output[blockIdx.x] = fmaxf(fabsf(output[blockIdx.x]), fabsf(final));
       if(per_tensor)
-        output_per_tensor[(tl->start_tensor_this_launch + tensor_loc)*max_chunks_per_tensor + chunk_idx] = final;
+        output_per_tensor[(tl.start_tensor_this_launch + tensor_loc)*max_chunks_per_tensor + chunk_idx] = final;
     }
   }
 };
