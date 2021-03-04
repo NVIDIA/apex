@@ -3,3 +3,4 @@ dist
 build
 docs/build
 *~
+__pycache__
