@@ -499,6 +499,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         # increment step counter if no overflow
         self._step += is_finite
         self._completion_st.wait_stream(torch.cuda.current_stream())
+        self._completion_st.wait_stream(self._l2_grad_norm_st)
 
         # Call step kernel once per step
         # Call all-gather once per step
