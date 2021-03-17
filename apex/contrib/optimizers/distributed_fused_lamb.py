@@ -4,36 +4,38 @@ import importlib
 import amp_C
 from apex.multi_tensor_apply import multi_tensor_applier
 
+import torch.distributed.distributed_c10d as c10d
+
 class DistributedFusedLAMB(torch.optim.Optimizer):
 
     """Implements LAMB algorithm.
-
+    
     Currently GPU-only.  Requires Apex to be installed via
     ``pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./``.
-
+    
     This version of fused LAMB implements 2 fusions.
-
+      
       * Fusion of the LAMB update's elementwise operations
       * A multi-tensor apply launch that batches the elementwise updates applied to all the model's parameters into one or a few kernel launches.
-
+    
     :class:`apex.optimizers.FusedLAMB`'s usage is identical to any ordinary Pytorch optimizer::
-
+        
         opt = apex.optimizers.FusedLAMB(model.parameters(), lr = ....)
         ...
         opt.step()
-
+    
     :class:`apex.optimizers.FusedLAMB` may be used with or without Amp.  If you wish to use :class:`FusedLAMB` with Amp,
     you may choose any ``opt_level``::
-
+        
         opt = apex.optimizers.FusedLAMB(model.parameters(), lr = ....)
         model, opt = amp.initialize(model, opt, opt_level="O0" or "O1 or "O2")
         ...
         opt.step()
-
+    
     In general, ``opt_level="O1"`` is recommended.
-
+    
     LAMB was proposed in `Large Batch Optimization for Deep Learning: Training BERT in 76 minutes`_.
-
+    
     Arguments:
         params (iterable): iterable of parameters to optimize or dicts defining
             parameter groups.
@@ -58,12 +60,24 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             weight decay parameter (default: False)
         step_supports_amp_scaling(boolean, optional): whether to use customized
             gradient unscaling logic (default: True)
-
+    
     .. _Large Batch Optimization for Deep Learning - Training BERT in 76 minutes:
         https://arxiv.org/abs/1904.00962
     .. _On the Convergence of Adam and Beyond:
         https://openreview.net/forum?id=ryQu7f-RZ
     """
+
+    class AtomicCounter(object):
+        def __init__(self):
+            self.value = 0
+            self.order = []
+            import threading
+            self._lock = threading.Lock()
+
+        def add(self, idx):
+            with self._lock:
+                self.value += 1
+                self.order.append(idx)
 
     def __init__(self, params,
                  lr=1e-3, bias_correction = True, grad_averaging=True,
@@ -81,44 +95,6 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
         super(DistributedFusedLAMB, self).__init__(params, defaults)
 
-        self._init_args = {
-                'lr': lr,
-                'bias_correction': bias_correction,
-                'grad_averaging': grad_averaging,
-                'betas': betas,
-                'eps': eps,
-                'weight_decay': weight_decay,
-                'max_grad_norm': max_grad_norm,
-                'adam_w_mode': adam_w_mode,
-                'use_nvlamb': use_nvlamb,
-                'step_supports_amp_scaling': step_supports_amp_scaling,
-                'overlap_reductions': overlap_reductions,
-                'dwu_group_size': dwu_group_size,
-                'dwu_num_blocks': dwu_num_blocks,
-                'dwu_num_chunks': dwu_num_chunks,
-                'dwu_num_rs_pg': dwu_num_rs_pg,
-                'dwu_num_ar_pg': dwu_num_ar_pg,
-                'dwu_num_ag_pg': dwu_num_ag_pg,
-                'e5m2_allgather': e5m2_allgather}
-        self._init_done = False
-        self._resume_from_checkpoint = False
-        self._step = torch.cuda.IntTensor([0])
-
-        # Master weight, moment, gradient buffers
-        self._fp32_p, self._fp32_m, self._fp32_v, self._fp16_p, self._fp16_g = None, None, None, None, None
-
-        import inspect
-        assert ('no_copy' in inspect.getfullargspec(torch.distributed.reduce_scatter).args), "This version of c10d does not support no_copy option"
-
-    def __first_step_init__(self,
-                 lr=1e-3, bias_correction = True, grad_averaging=True,
-                 betas=(0.9, 0.999), eps=1e-8, 
-                 weight_decay=0., max_grad_norm=0., 
-                 adam_w_mode=True, use_nvlamb=False,
-                 step_supports_amp_scaling=True, overlap_reductions=True,
-                 dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
-                 dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
-                 e5m2_allgather=False):
         global fused_adam_cuda, distributed_lamb_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
         distributed_lamb_cuda = importlib.import_module("distributed_lamb_cuda")
@@ -130,6 +106,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         import amp_C
         self.multi_tensor_l2norm = amp_C.multi_tensor_l2norm
 
+        self._grad_averaging = grad_averaging
         self._adam_w_mode = 1 if adam_w_mode else 0
         self._use_nvlamb = use_nvlamb
         self._step_supports_amp_scaling = step_supports_amp_scaling
@@ -141,211 +118,24 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._num_chunks = dwu_num_chunks
         self._e5m2_allgather = e5m2_allgather
         self._L2_grad_norm = None
+        
+        self._current_process_group = c10d._get_default_group()
+        self._available_ranks = list(c10d._pg_group_ranks[self._current_process_group].keys())
         self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
         self._world_size = torch.distributed.get_world_size()
         self._num_groups = self._world_size // self._group_size
         self._rank_in_group = torch.distributed.get_rank() % self._group_size
 
-        self._lr = torch.tensor(lr, dtype=torch.float32, device='cuda')
+        self._lr = torch.tensor(0.0, dtype=torch.float32, device='cuda')
 
-        p_offset = 0
-        p_i = 0
-        self._model_params = []
-        self._grads_info = []
-        self._grad_accs = []
-        self._group_properties = []
-        for group in self.param_groups:
-            prev = None
-            beta1, beta2 = group['betas']
-            for p in group['params']:
-                torch.distributed.broadcast(p,0)
-                if not p.requires_grad:
-                    continue
-                self._model_params.append(p)
-                self._group_properties.append((
-                    group['weight_decay'],
-                    1 if group['bias_correction'] else 0,
-                    beta1,
-                    beta2,
-                    1.0 - beta1 if grad_averaging else 1.0,
-                    group['eps']
-                    ))
-                p_grads_size = p.numel()
-                def wrapper(param, param_i, param_grads_size, param_offset):
-                    param_tmp = param.expand_as(param)
-                    grad_acc = param_tmp.grad_fn.next_functions[0][0]
-                    def allreduce_hook(*unused):
-                        self._do_overlapped_reduction(param_i, param_grads_size, param_offset, param)
-                    grad_acc.register_hook(allreduce_hook)
-                    self._grad_accs.append(grad_acc)
-                self._grads_info.append({"param_grads_size":p_grads_size, "param_offset":p_offset})
-                wrapper(p, p_i, p_grads_size, p_offset)
-                p_offset += p_grads_size
-                # Only enforce 128b alignment (64 * fp16) for non-consecutive parameters
-                # RNN is one example of consecutive parameters:
-                # (weight_ih, weight_hh, bias_ih, bias_hh)
-                if prev is not None and (prev.data_ptr() + prev.numel() * prev.element_size() != p.data_ptr()):
-                    p_offset = ((p_offset + 63) // 64) * 64
-                prev = p
-                p_i += 1
-        self._grads_generated = [False]*len(self._grads_info)
-        self._grads_fp16, self._grads_fp32 = [], []
-        if self._overlap_reductions:
-            self._current_block = self._num_blocks
+        self._resume_from_checkpoint = False
+        self._step = torch.cuda.IntTensor([0])
 
-        self._net_total_param_size = p_offset
-        self._total_param_size = p_offset
-        dwu_min_page_size = 256 * self._num_blocks * self._num_chunks * self._group_size
-        self._total_param_size = ((self._total_param_size + dwu_min_page_size - 1) // dwu_min_page_size) * dwu_min_page_size
-        self._block_size = self._total_param_size // self._num_blocks
-        self._chunk_size = self._block_size // self._num_chunks
-        self._shard_size = self._chunk_size // self._group_size
-        #print("self._net_total_param_size=%d, self._total_param_size=%d, dwu_min_page_size=%d, self._block_size=%d, self._chunk_size=%d, self._shard_size=%d" % (self._net_total_param_size, self._total_param_size,dwu_min_page_size,self._block_size,self._chunk_size,self._shard_size))
+        # Master weight, moment, gradient buffers
+        self._fp32_p, self._fp32_m, self._fp32_v, self._fp16_p, self._fp16_g = None, None, None, None, None
 
-        self._low_param_i = [0]*self._num_blocks
-        for block_id in range(self._num_blocks-1,-1,-1):
-            p_i = len(self._grads_info)-1
-            while p_i > 0 and self._grads_info[p_i]["param_offset"] > block_id*self._block_size:
-                p_i -= 1
-            self._low_param_i[block_id] = p_i
-        #print(self._low_param_i)
-
-        self._flat_grads = torch.zeros([self._total_param_size], dtype=torch.float16, device='cuda')
-        self._new_params = torch.zeros([self._total_param_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
-        self._mega_shard_size = self._num_blocks * self._num_chunks * self._shard_size
-        # initialize master weights, moments buffers if not loaded from checkpoint
-        if self._fp32_p is None:
-            self._fp32_p = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
-            self._fp32_m = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
-            self._fp32_v = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
-            self._fp32_u = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
-        # FIXME: Rethink fp16 label since it's either uint8 or fp16
-        self._fp16_p = torch.zeros([self._mega_shard_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
-        self._fp16_g = torch.zeros([self._mega_shard_size], dtype=torch.float16, device='cuda')
-
-        self._individual_flat_grads = []
-        for p_i, (grads_info, p) in enumerate(zip(self._grads_info, self._model_params)):
-            self._individual_flat_grads.append(self._flat_grads[grads_info["param_offset"]:grads_info["param_offset"]+grads_info["param_grads_size"]].view_as(p))
-
-        def _flat_split(p):
-            def __blockify(p):
-                return [p[block_id*self._block_size:(block_id+1)*self._block_size] for block_id in range(self._num_blocks)]
-            def __chunkify(p):
-                return [p[chunk_id*self._chunk_size:(chunk_id+1)*self._chunk_size] for chunk_id in range(self._num_chunks)]
-            def __shardify(p):
-                return [p[shard_id*self._shard_size:(shard_id+1)*self._shard_size] for shard_id in range(self._group_size)]
-            list_of_blocks = __blockify(self._flat_grads)
-            list_of_list_of_chunks = [__chunkify(block) for block in list_of_blocks]
-            list_of_list_of_list_of_shards = [[__shardify(chunk) for chunk in chunks] for chunks in list_of_list_of_chunks]
-            return list_of_blocks, list_of_list_of_chunks, list_of_list_of_list_of_shards
-        self._flat_grads_blocks, self._flat_grads_chunks, self._flat_grads_shards = _flat_split(self._flat_grads)
-        def _full_packed_split(p):
-            def __shardify(p):
-                return [p[mega_shard*self._mega_shard_size:(mega_shard+1)*self._mega_shard_size] for mega_shard in range(self._group_size)]
-            def __blockify(p):
-                return [p[block_id*self._num_chunks*self._shard_size:(block_id+1)*self._num_chunks*self._shard_size] for block_id in range(self._num_blocks)]
-            def __chunkify(p):
-                return [p[chunk_id*self._shard_size:(chunk_id+1)*self._shard_size] for chunk_id in range(self._num_chunks)]
-            list_of_mega_shards = __shardify(p)
-            list_of_list_of_mega_blocks = [__blockify(mega_shard) for mega_shard in list_of_mega_shards]
-            list_of_list_of_list_of_mega_chunks = [[__chunkify(mega_block) for mega_block in mega_blocks] for mega_blocks in list_of_list_of_mega_blocks]
-            return list_of_mega_shards, list_of_list_of_mega_blocks, list_of_list_of_list_of_mega_chunks
-        self._new_params_mega_shards, self._new_params_mega_blocks, self._new_params_mega_chunks = _full_packed_split(self._new_params)
-        def _packed_split(p):
-            def __packed_blockify(p):
-                packed_block_size = self._num_chunks*self._shard_size
-                return [p[block_id*packed_block_size:(block_id+1)*packed_block_size] for block_id in range(self._num_blocks)]
-            def __packed_chunkify(p):
-                # in the packed format, each chunk contains one shard, so packed_chunk_size == self._shard_size
-                return [p[chunk_id*self._shard_size:(chunk_id+1)*self._shard_size] for chunk_id in range(self._num_chunks)]
-            list_of_blocks = __packed_blockify(p)
-            list_of_list_of_chunks = [__packed_chunkify(block) for block in list_of_blocks]
-            return list_of_blocks, list_of_list_of_chunks
-        self._fp32_p_blocks, self._fp32_p_chunks = _packed_split(self._fp32_p)
-        self._fp32_m_blocks, self._fp32_m_chunks = _packed_split(self._fp32_m)
-        self._fp32_v_blocks, self._fp32_v_chunks = _packed_split(self._fp32_v)
-        self._fp32_u_blocks, self._fp32_u_chunks = _packed_split(self._fp32_u)
-        self._fp16_p_blocks, self._fp16_p_chunks = _packed_split(self._fp16_p)
-        self._fp16_g_blocks, self._fp16_g_chunks = _packed_split(self._fp16_g)
-
-        # This paragraph does two things:
-        # 1) Copy model parameters into master buffer
-        # 2) Create tensor lists for unpacking new parameter tensor after all-gather
-        self._packed_flat_to_model_params_fp16 = []
-        self._packed_flat_to_model_params_fp32 = []
-        self._model_params_num = len(self._model_params)
-        self._contrib_tensor_list = []
-        self._contrib_min_param_i, self._contrib_max_param_i = -1, -1
-        self._contrib_update_frag_for_norm = []
-        self._contrib_model_param_for_norm_fp16 = []
-        self._contrib_model_param_for_norm_fp32 = []
-        self._contrib_model_param_for_norm_is_fp16 = []
-        self._model_param_is_contrib = [False]*self._model_params_num
-        self._contrib_group_properties = []
-        for shard_id in range(self._group_size):
-            for block_id in range(self._num_blocks):
-                for chunk_id in range(self._num_chunks):
-                    flat_shard_start = (((block_id * self._num_chunks + chunk_id) * self._group_size) + shard_id) * self._shard_size
-                    flat_shard_end = flat_shard_start + self._shard_size
-                    for param_i, (p, grads_info, group_props) in enumerate(zip(self._model_params, self._grads_info, self._group_properties)):
-                        flat_grad_start = grads_info["param_offset"]
-                        flat_grad_end = flat_grad_start + grads_info["param_grads_size"]
-                        clipped_start = (lambda a,b: a if a > b else b)(flat_grad_start, flat_shard_start)
-                        clipped_end = (lambda a,b: a if a < b else b)(flat_grad_end, flat_shard_end)
-                        if clipped_start < clipped_end:
-                            grad_offset = clipped_start - flat_grad_start
-                            grad_length = clipped_end - clipped_start
-                            shard_offset = clipped_start - flat_shard_start
-                            model_param_fragment = p.view(-1)[grad_offset:grad_offset+grad_length]
-                            new_param_packed_fragment = self._new_params_mega_chunks[shard_id][block_id][chunk_id][shard_offset:shard_offset+grad_length]
-                            if model_param_fragment.dtype == torch.float16:
-                                self._packed_flat_to_model_params_fp16.append( (new_param_packed_fragment, model_param_fragment) )
-                            else:
-                                self._packed_flat_to_model_params_fp32.append( (new_param_packed_fragment, model_param_fragment) )
-                            if shard_id == self._rank_in_group:
-                                self._model_param_is_contrib[param_i] = True
-                                # copy model parameters into master buffer
-                                master_param_fragment = self._fp32_p_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
-                                opti_state_m_fragment = self._fp32_m_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
-                                opti_state_v_fragment = self._fp32_v_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
-                                opti_state_u_fragment = self._fp32_u_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
-                                opti_state_g_fragment = self._fp16_g_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
-                                opti_state_p_fragment = self._fp16_p_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
-                                #print("model_param_fragment.size()=%s, new_param_packed_fragment.size()=%s, master_param_fragment.size()=%s" % (str(model_param_fragment.size()), str(new_param_packed_fragment.size()), str(master_param_fragment.size())))
-                                if not self._resume_from_checkpoint:
-                                    master_param_fragment.copy_(model_param_fragment)
-                                self._contrib_group_properties.append(group_props)
-                                self._contrib_tensor_list.append((master_param_fragment, opti_state_m_fragment, opti_state_v_fragment, opti_state_u_fragment, opti_state_g_fragment, opti_state_p_fragment)) # p, m, v, u, g, p_copy
-                                self._contrib_update_frag_for_norm.append(opti_state_u_fragment)
-                                if p.dtype == torch.float16:
-                                    self._contrib_model_param_for_norm_fp16.append(p)
-                                else:
-                                    self._contrib_model_param_for_norm_fp32.append(p)
-                                self._contrib_model_param_for_norm_is_fp16.append(True if p.dtype == torch.float16 else False)
-                                if self._contrib_min_param_i < 0: self._contrib_min_param_i = param_i
-                                self._contrib_max_param_i = param_i
-        self._contrib_model_param_for_norm_num = len(self._contrib_model_param_for_norm_is_fp16)
-        if len(self._contrib_model_param_for_norm_fp16) == 0: self._contrib_model_param_for_norm_fp16 = None
-        if len(self._contrib_model_param_for_norm_fp32) == 0: self._contrib_model_param_for_norm_fp32 = None
-        self._contrib_model_param_for_norm_is_fp32 = torch.tensor([not is_fp16 for is_fp16 in self._contrib_model_param_for_norm_is_fp16], dtype=torch.bool, device='cuda')
-        self._contrib_model_param_for_norm_is_fp16 = torch.tensor([is_fp16 for is_fp16 in self._contrib_model_param_for_norm_is_fp16], dtype=torch.bool, device='cuda')
-        self._model_param_is_contrib = torch.tensor(self._model_param_is_contrib, dtype=torch.bool, device='cuda')
-
-        p, m, v, u, g, p_copy = list(zip(*self._contrib_tensor_list))
-        self._contrib_compute_update_term_tensor_list = [g, p, m, v, u]
-        self._contrib_update_weights_tensor_list = [u, p, p_copy]
-
-        math_type = self._fp32_u.dtype
-        decay, bias_correction, beta1, beta2, beta3, epsilon = list(zip(*self._contrib_group_properties))
-        self._contrib_beta1 = torch.tensor(beta1, dtype=math_type, device='cuda')
-        self._contrib_beta2 = torch.tensor(beta2, dtype=math_type, device='cuda')
-        self._contrib_beta3 = torch.tensor(beta3, dtype=math_type, device='cuda')
-        self._contrib_bias_correction = torch.tensor(bias_correction, dtype=torch.int, device='cuda')
-        self._contrib_epsilon = torch.tensor(epsilon, dtype=math_type, device='cuda')
-        self._contrib_weight_decay = torch.tensor(decay, dtype=math_type, device='cuda')
-
-        self._packed_flat_to_model_params_fp16 = list(zip(*self._packed_flat_to_model_params_fp16)) if len(self._packed_flat_to_model_params_fp16) > 0 else None
-        self._packed_flat_to_model_params_fp32 = list(zip(*self._packed_flat_to_model_params_fp32)) if len(self._packed_flat_to_model_params_fp32) > 0 else None
+        #import inspect
+        #assert ('no_copy' in inspect.getfullargspec(torch.distributed.reduce_scatter).args), "This version of c10d does not support no_copy option"
 
         self._num_rs_pg = dwu_num_rs_pg
         self._num_ar_pg = dwu_num_ar_pg
@@ -400,13 +190,252 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._reductions_works = [None]*self._num_blocks
         self._allgather_works = [None]*self._num_blocks
 
-        self._offsets = self._model_param_is_contrib.nonzero().flatten().to(device="cuda")
         self._one = torch.cuda.IntTensor([1])
 
-    def _init_everything(self):
-        if not self._init_done:
-            self.__first_step_init__(**self._init_args)
-            self._init_done = True
+        self._first_step = True
+        self._lazy_init_stage1_done, self._lazy_init_stage2_done = False, False
+        self._param_order = self.AtomicCounter()
+
+    def _lazy_init_stage1(self):
+        if self._lazy_init_stage1_done: return
+
+        p_offset = 0
+        p_i = 0
+        self._model_params = []
+        self._grad_accs = []
+        self._group_properties = []
+        for group in self.param_groups:
+            prev = None
+            beta1, beta2 = group['betas']
+            beta3 = 1.0 - beta1 if self._grad_averaging else 1.0
+            bias_correction = 1 if group['bias_correction'] else 0
+            eps = group['eps']
+            weight_decay = group['weight_decay']
+            for p in group['params']:
+                torch.distributed.broadcast(p, 0)
+                if not p.requires_grad:
+                    continue
+                self._model_params.append(p)
+                self._group_properties.append((
+                    weight_decay,
+                    bias_correction,
+                    beta1,
+                    beta2,
+                    beta3,
+                    eps
+                    ))
+                p_grads_size = p.numel()
+                def wrapper(param, param_i):
+                    param_tmp = param.expand_as(param)
+                    grad_acc = param_tmp.grad_fn.next_functions[0][0]
+                    def allreduce_hook(*unused):
+                        if self._first_step:
+                            # first time
+                            self._param_order.add(param_i)
+                        else:
+                            idx = self._param_order.order.index(param_i)
+                            self._do_overlapped_reduction(idx, param)
+                    grad_acc.register_hook(allreduce_hook)
+                    self._grad_accs.append(grad_acc)
+                wrapper(p, p_i)
+                p_offset += p_grads_size
+                # Only enforce 128b alignment (64 * fp16) for non-consecutive parameters
+                # RNN is one example of consecutive parameters:
+                # (weight_ih, weight_hh, bias_ih, bias_hh)
+                if prev is not None and (prev.data_ptr() + prev.numel() * prev.element_size() != p.data_ptr()):
+                    p_offset = ((p_offset + 63) // 64) * 64
+                prev = p
+                p_i += 1
+        self._grads_generated = [False]*len(self._model_params)
+        self._grads_fp16, self._grads_fp32 = [], []
+        if self._overlap_reductions:
+            self._current_block = self._num_blocks
+
+        self._net_total_param_size = p_offset
+        self._total_param_size = p_offset
+        dwu_min_page_size = 256 * self._num_blocks * self._num_chunks * self._group_size
+        self._total_param_size = ((self._total_param_size + dwu_min_page_size - 1) // dwu_min_page_size) * dwu_min_page_size
+        self._block_size = self._total_param_size // self._num_blocks
+        self._chunk_size = self._block_size // self._num_chunks
+        self._shard_size = self._chunk_size // self._group_size
+        #print("self._net_total_param_size=%d, self._total_param_size=%d, dwu_min_page_size=%d, self._block_size=%d, self._chunk_size=%d, self._shard_size=%d" % (self._net_total_param_size, self._total_param_size,dwu_min_page_size,self._block_size,self._chunk_size,self._shard_size))
+
+        self._flat_grads = torch.zeros([self._total_param_size], dtype=torch.float16, device='cuda')
+        self._new_params = torch.zeros([self._total_param_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
+        self._mega_shard_size = self._num_blocks * self._num_chunks * self._shard_size
+        # initialize master weights, moments buffers if not loaded from checkpoint
+        if self._fp32_p is None:
+            self._fp32_p = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+            self._fp32_m = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+            self._fp32_v = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+            self._fp32_u = torch.zeros([self._mega_shard_size], dtype=torch.float32, device='cuda')
+        # FIXME: Rethink fp16 label since it's either uint8 or fp16
+        self._fp16_p = torch.zeros([self._mega_shard_size], dtype=torch.uint8 if self._e5m2_allgather else torch.float16, device='cuda')
+        self._fp16_g = torch.zeros([self._mega_shard_size], dtype=torch.float16, device='cuda')
+
+        def _flat_split(p):
+            def __blockify(p):
+                return [p[block_id*self._block_size:(block_id+1)*self._block_size] for block_id in range(self._num_blocks)]
+            def __chunkify(p):
+                return [p[chunk_id*self._chunk_size:(chunk_id+1)*self._chunk_size] for chunk_id in range(self._num_chunks)]
+            def __shardify(p):
+                return [p[shard_id*self._shard_size:(shard_id+1)*self._shard_size] for shard_id in range(self._group_size)]
+            list_of_blocks = __blockify(self._flat_grads)
+            list_of_list_of_chunks = [__chunkify(block) for block in list_of_blocks]
+            list_of_list_of_list_of_shards = [[__shardify(chunk) for chunk in chunks] for chunks in list_of_list_of_chunks]
+            return list_of_blocks, list_of_list_of_chunks, list_of_list_of_list_of_shards
+        self._flat_grads_blocks, self._flat_grads_chunks, self._flat_grads_shards = _flat_split(self._flat_grads)
+        def _full_packed_split(p):
+            def __shardify(p):
+                return [p[mega_shard*self._mega_shard_size:(mega_shard+1)*self._mega_shard_size] for mega_shard in range(self._group_size)]
+            def __blockify(p):
+                return [p[block_id*self._num_chunks*self._shard_size:(block_id+1)*self._num_chunks*self._shard_size] for block_id in range(self._num_blocks)]
+            def __chunkify(p):
+                return [p[chunk_id*self._shard_size:(chunk_id+1)*self._shard_size] for chunk_id in range(self._num_chunks)]
+            list_of_mega_shards = __shardify(p)
+            list_of_list_of_mega_blocks = [__blockify(mega_shard) for mega_shard in list_of_mega_shards]
+            list_of_list_of_list_of_mega_chunks = [[__chunkify(mega_block) for mega_block in mega_blocks] for mega_blocks in list_of_list_of_mega_blocks]
+            return list_of_mega_shards, list_of_list_of_mega_blocks, list_of_list_of_list_of_mega_chunks
+        self._new_params_mega_shards, self._new_params_mega_blocks, self._new_params_mega_chunks = _full_packed_split(self._new_params)
+        def _packed_split(p):
+            def __packed_blockify(p):
+                packed_block_size = self._num_chunks*self._shard_size
+                return [p[block_id*packed_block_size:(block_id+1)*packed_block_size] for block_id in range(self._num_blocks)]
+            def __packed_chunkify(p):
+                # in the packed format, each chunk contains one shard, so packed_chunk_size == self._shard_size
+                return [p[chunk_id*self._shard_size:(chunk_id+1)*self._shard_size] for chunk_id in range(self._num_chunks)]
+            list_of_blocks = __packed_blockify(p)
+            list_of_list_of_chunks = [__packed_chunkify(block) for block in list_of_blocks]
+            return list_of_blocks, list_of_list_of_chunks
+        self._fp32_p_blocks, self._fp32_p_chunks = _packed_split(self._fp32_p)
+        self._fp32_m_blocks, self._fp32_m_chunks = _packed_split(self._fp32_m)
+        self._fp32_v_blocks, self._fp32_v_chunks = _packed_split(self._fp32_v)
+        self._fp32_u_blocks, self._fp32_u_chunks = _packed_split(self._fp32_u)
+        self._fp16_p_blocks, self._fp16_p_chunks = _packed_split(self._fp16_p)
+        self._fp16_g_blocks, self._fp16_g_chunks = _packed_split(self._fp16_g)
+
+        self._lazy_init_stage1_done = True
+
+    def _lazy_init_stage2(self):
+        if self._lazy_init_stage2_done: return
+
+        self._param_order.order.reverse()
+
+        # re-order model_params, grad_accs, group_properties lists
+        self._model_params = [self._model_params[i] for i in self._param_order.order]
+        self._grad_accs = [self._grad_accs[i] for i in self._param_order.order]
+        self._group_properties = [self._group_properties[i] for i in self._param_order.order]
+
+        # re-collect grads info (size, offset) after ordering
+        prev = None
+        p_offset = 0
+        self._grads_info = []
+        self._individual_flat_grads = []
+        for i, p in enumerate(self._model_params):
+            p_grads_size = p.numel()
+            self._grads_info.append({"param_grads_size":p_grads_size, "param_offset":p_offset})
+            self._individual_flat_grads.append(self._flat_grads[p_offset:p_offset+p_grads_size].view_as(p))
+            # for the first iteration
+            self._do_overlapped_reduction(i, p)
+            p_offset += p_grads_size
+            # Only enforce 128b alignment (64 * fp16) for non-consecutive parameters
+            # RNN is one example of consecutive parameters:
+            # (weight_ih, weight_hh, bias_ih, bias_hh)
+            if prev is not None and (prev.data_ptr() + prev.numel() * prev.element_size() != p.data_ptr()):
+                p_offset = ((p_offset + 63) // 64) * 64
+            prev = p
+
+        self._low_param_i = [0]*self._num_blocks
+        for block_id in range(self._num_blocks-1,-1,-1):
+            p_i = len(self._grads_info)-1
+            while p_i > 0 and self._grads_info[p_i]["param_offset"] > block_id*self._block_size:
+                p_i -= 1
+            self._low_param_i[block_id] = p_i
+        #print("self._low_param_i", self._low_param_i)
+
+        # This paragraph does two things:
+        # 1) Copy model parameters into master buffer
+        # 2) Create tensor lists for unpacking new parameter tensor after all-gather
+        self._packed_flat_to_model_params_fp16 = []
+        self._packed_flat_to_model_params_fp32 = []
+        self._model_params_num = len(self._model_params)
+        self._contrib_tensor_list = []
+        self._contrib_min_param_i, self._contrib_max_param_i = -1, -1
+        self._contrib_update_frag_for_norm = []
+        self._contrib_model_param_for_norm_fp16 = []
+        self._contrib_model_param_for_norm_fp32 = []
+        self._contrib_model_param_for_norm_is_fp16 = []
+        self._model_param_is_contrib = []
+        self._contrib_group_properties = []
+        for shard_id in range(self._group_size):
+            for block_id in range(self._num_blocks):
+                for chunk_id in range(self._num_chunks):
+                    flat_shard_start = (((block_id * self._num_chunks + chunk_id) * self._group_size) + shard_id) * self._shard_size
+                    flat_shard_end = flat_shard_start + self._shard_size
+                    for param_i, (p, grads_info, group_props) in enumerate(zip(self._model_params, self._grads_info, self._group_properties)):
+                        flat_grad_start = grads_info["param_offset"]
+                        flat_grad_end = flat_grad_start + grads_info["param_grads_size"]
+                        clipped_start = (lambda a,b: a if a > b else b)(flat_grad_start, flat_shard_start)
+                        clipped_end = (lambda a,b: a if a < b else b)(flat_grad_end, flat_shard_end)
+                        if clipped_start < clipped_end:
+                            grad_offset = clipped_start - flat_grad_start
+                            grad_length = clipped_end - clipped_start
+                            shard_offset = clipped_start - flat_shard_start
+                            model_param_fragment = p.view(-1)[grad_offset:grad_offset+grad_length]
+                            new_param_packed_fragment = self._new_params_mega_chunks[shard_id][block_id][chunk_id][shard_offset:shard_offset+grad_length]
+                            if model_param_fragment.dtype == torch.float16:
+                                self._packed_flat_to_model_params_fp16.append( (new_param_packed_fragment, model_param_fragment) )
+                            else:
+                                self._packed_flat_to_model_params_fp32.append( (new_param_packed_fragment, model_param_fragment) )
+                            if shard_id == self._rank_in_group:
+                                self._model_param_is_contrib.append(param_i)
+                                # copy model parameters into master buffer
+                                master_param_fragment = self._fp32_p_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
+                                opti_state_m_fragment = self._fp32_m_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
+                                opti_state_v_fragment = self._fp32_v_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
+                                opti_state_u_fragment = self._fp32_u_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
+                                opti_state_g_fragment = self._fp16_g_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
+                                opti_state_p_fragment = self._fp16_p_chunks[block_id][chunk_id][shard_offset:shard_offset+grad_length]
+                                #print("model_param_fragment.size()=%s, new_param_packed_fragment.size()=%s, master_param_fragment.size()=%s" % (str(model_param_fragment.size()), str(new_param_packed_fragment.size()), str(master_param_fragment.size())))
+                                if not self._resume_from_checkpoint:
+                                    master_param_fragment.copy_(model_param_fragment)
+                                self._contrib_group_properties.append(group_props)
+                                self._contrib_tensor_list.append((master_param_fragment, opti_state_m_fragment, opti_state_v_fragment, opti_state_u_fragment, opti_state_g_fragment, opti_state_p_fragment)) # p, m, v, u, g, p_copy
+                                self._contrib_update_frag_for_norm.append(opti_state_u_fragment)
+                                if p.dtype == torch.float16:
+                                    self._contrib_model_param_for_norm_fp16.append(p)
+                                else:
+                                    self._contrib_model_param_for_norm_fp32.append(p)
+                                self._contrib_model_param_for_norm_is_fp16.append(True if p.dtype == torch.float16 else False)
+                                if self._contrib_min_param_i < 0: self._contrib_min_param_i = param_i
+                                self._contrib_max_param_i = param_i
+        self._contrib_model_param_for_norm_num = len(self._contrib_model_param_for_norm_is_fp16)
+        if len(self._contrib_model_param_for_norm_fp16) == 0: self._contrib_model_param_for_norm_fp16 = None
+        if len(self._contrib_model_param_for_norm_fp32) == 0: self._contrib_model_param_for_norm_fp32 = None
+        self._contrib_model_param_for_norm_is_fp32 = torch.tensor([not is_fp16 for is_fp16 in self._contrib_model_param_for_norm_is_fp16], dtype=torch.bool, device='cuda')
+        self._contrib_model_param_for_norm_is_fp16 = torch.tensor([is_fp16 for is_fp16 in self._contrib_model_param_for_norm_is_fp16], dtype=torch.bool, device='cuda')
+        self._offsets = torch.tensor(self._model_param_is_contrib, dtype=torch.int64, device='cuda')
+
+        p, m, v, u, g, p_copy = list(zip(*self._contrib_tensor_list))
+        self._contrib_compute_update_term_tensor_list = [g, p, m, v, u]
+        self._contrib_update_weights_tensor_list = [u, p, p_copy]
+
+        math_type = self._fp32_u.dtype
+        decay, bias_correction, beta1, beta2, beta3, epsilon = list(zip(*self._contrib_group_properties))
+        self._contrib_beta1 = torch.tensor(beta1, dtype=math_type, device='cuda')
+        self._contrib_beta2 = torch.tensor(beta2, dtype=math_type, device='cuda')
+        self._contrib_beta3 = torch.tensor(beta3, dtype=math_type, device='cuda')
+        self._contrib_bias_correction = torch.tensor(bias_correction, dtype=torch.int, device='cuda')
+        self._contrib_epsilon = torch.tensor(epsilon, dtype=math_type, device='cuda')
+        self._contrib_weight_decay = torch.tensor(decay, dtype=math_type, device='cuda')
+
+        self._packed_flat_to_model_params_fp16 = list(zip(*self._packed_flat_to_model_params_fp16)) if len(self._packed_flat_to_model_params_fp16) > 0 else None
+        self._packed_flat_to_model_params_fp32 = list(zip(*self._packed_flat_to_model_params_fp32)) if len(self._packed_flat_to_model_params_fp32) > 0 else None
+
+        self._lazy_init_stage2_done = True
+
+        self.complete_reductions()
+        self._first_step = False
 
     def set_is_accumulation_step(self, is_accumulation_step):
         self._is_accumulation_step = is_accumulation_step
@@ -442,7 +471,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             rs_stream = self._rs_st[glob_chunk_id%self._num_rs_pg]
             rs_stream.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(rs_stream):
-                works[chunk_id] = torch.distributed.reduce_scatter(self._fp16_g_chunks[block_id][chunk_id],self._flat_grads_shards[block_id][chunk_id],group=self._rs_pg[glob_chunk_id%self._num_rs_pg],async_op=True,no_copy=True)
+                works[chunk_id] = torch.distributed.reduce_scatter(self._fp16_g_chunks[block_id][chunk_id],self._flat_grads_shards[block_id][chunk_id],group=self._rs_pg[glob_chunk_id%self._num_rs_pg],async_op=True)#,no_copy=True)
 
         # Reduction across nodes for each rank
         if self._num_groups > 1:
@@ -533,7 +562,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     self._contrib_weight_decay,
                     global_grad_norm,
                     self._use_nvlamb)
-            torch.distributed.all_gather(self._new_params_mega_shards, self._fp16_p, group=self._ag_pg[0], no_copy=True)
+            torch.distributed.all_gather(self._new_params_mega_shards, self._fp16_p, group=self._ag_pg[0])#, no_copy=True)
 
     def _flatten_grad_mt(self, scale):
         if len(self._grads_fp16) > 0:
@@ -553,8 +582,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     scale)
             self._grads_fp32 = []
 
-    def _do_overlapped_reduction(self, param_i, param_grads_size, param_offset, param):
-        self._init_everything()
+    def _do_overlapped_reduction(self, param_i, param):
         if not self._is_accumulation_step:
             # handle overlapped reductions
             if param.dtype == torch.float16:
@@ -562,12 +590,13 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             else:
                 self._grads_fp32.append( (param.grad, self._individual_flat_grads[param_i]) )
             self._grads_generated[param_i]=True
-            if self._overlap_reductions and not self._last_step:
-                flush_block = self._get_flush_block()
-                while flush_block:
-                    block_id = flush_block[0] // self._block_size
-                    self._pipeline_block_reductions(block_id)
+            if not self._first_step and not self._last_step:
+                if self._overlap_reductions:
                     flush_block = self._get_flush_block()
+                    while flush_block:
+                        block_id = flush_block[0] // self._block_size
+                        self._pipeline_block_reductions(block_id)
+                        flush_block = self._get_flush_block()
 
     def set_global_scale(self, global_scale):
         """Set global scale.
@@ -586,8 +615,6 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
     def complete_reductions(self):
         """Complete reductions if full pipeline is not selected or overlap is not allowed.
         """
-
-        self._init_everything()
         if self._last_step:
             # zero out gradients that have not been completed yet
             for param_i, grad_generated in enumerate(self._grads_generated):
@@ -598,7 +625,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     self._flat_grads[param_offset:param_offset+param_size].zero_()
                     self._grads_generated[param_i] = True
 
-        if self._last_step or not self._overlap_reductions:
+        if self._first_step or self._last_step or not self._overlap_reductions:
             # nothing done so far, run full pipeline after reductions
             for block_id in range(self._num_blocks-1,-1,-1):
                 self._pipeline_block_reductions(block_id)
