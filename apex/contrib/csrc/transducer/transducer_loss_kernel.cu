@@ -13,7 +13,7 @@ __device__ __forceinline__ scalar_t logSumExp(scalar_t a, scalar_t b) {
     return (a >= b) ? a + std::log1p(exp(b-a)) : b + std::log1p(exp(a-b));
 }
 
-// vanilla transducer loss function (i.e. forward-backward algorithm)
+// Vanilla transducer loss function (i.e. forward-backward algorithm)
 // Detail of this loss function can be found in: 
 // [1] Sequence Transduction with Recurrent Neural Networks.
 
@@ -312,7 +312,7 @@ __global__ void transducer_loss_batch_load_forward(
 
 }
 
-// vanilla transudcer loss backward operation.
+// Vanilla transudcer loss backward operation.
 // Detail of this loss function can be found in: 
 // [1] Sequence Transduction with Recurrent Neural Networks.
 // For this backward kernel, bwd op for the preceding softmax is assumed to be handled elsewhere, 
@@ -373,7 +373,7 @@ __global__ void transducer_loss_backward(
     }
 }
 
-// fused transudcer loss backward operation.
+// Fused transudcer loss backward operation.
 // Detail of this loss function can be found in: 
 // [1] Sequence Transduction with Recurrent Neural Networks.
 // The bwd op of the preceding softmax layer is fused in this kernel. 

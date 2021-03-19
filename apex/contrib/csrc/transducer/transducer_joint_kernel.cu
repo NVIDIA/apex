@@ -506,7 +506,7 @@ __device__ void transducer_joint_single_vec_backward(
     }
 }
 
-// Cecotrized version of transducer_joint_combined_backward
+// Vecotrized version of transducer_joint_combined_backward
 // Call transducer_joint_single_vec_backward twice on two input tensors. 
 // The two bwd ops are launched together, the first op uses blockIdx.y < maxFLen, and the second op 
 // uses the rest.
