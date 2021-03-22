@@ -609,8 +609,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
     @property
     def L2_grad_norm(self):
-            torch.cuda.current_stream().wait_stream(self._l2_grad_norm_st)
-            return self._L2_grad_norm
+        torch.cuda.current_stream().wait_stream(self._l2_grad_norm_st)
+        return self._L2_grad_norm
 
     def complete_reductions(self):
         """Complete reductions if full pipeline is not selected or overlap is not allowed.
