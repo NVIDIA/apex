@@ -453,6 +453,31 @@ if "--fast_multihead_attn" in sys.argv:
                                                       '--expt-extended-lambda',
                                                       '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
 
+if "--transducer" in sys.argv:
+    from torch.utils.cpp_extension import CUDAExtension
+    sys.argv.remove("--transducer")
+
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension.with_options(use_ninja=False)
+
+    if torch.utils.cpp_extension.CUDA_HOME is None:
+        raise RuntimeError("--transducer was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        ext_modules.append(
+            CUDAExtension(name='transducer_joint_cuda',
+                          sources=['apex/contrib/csrc/transducer/transducer_joint.cpp',
+                                   'apex/contrib/csrc/transducer/transducer_joint_kernel.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3'] + version_dependent_macros}))
+        ext_modules.append(
+            CUDAExtension(name='transducer_loss_cuda',
+                          sources=['apex/contrib/csrc/transducer/transducer_loss.cpp',
+                                   'apex/contrib/csrc/transducer/transducer_loss_kernel.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3'] + version_dependent_macros}))
+
 setup(
     name='apex',
     version='0.1',
