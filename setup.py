@@ -458,7 +458,7 @@ if "--transducer" in sys.argv:
     sys.argv.remove("--transducer")
 
     from torch.utils.cpp_extension import BuildExtension
-    cmdclass['build_ext'] = BuildExtension
+    cmdclass['build_ext'] = BuildExtension.with_options(use_ninja=False)
 
     if torch.utils.cpp_extension.CUDA_HOME is None:
         raise RuntimeError("--transducer was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
