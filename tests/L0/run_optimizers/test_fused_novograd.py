@@ -4,7 +4,7 @@ import math
 import apex
 import unittest
 
-from .test_fused_optimizer import TestFusedOptimizer
+from test_fused_optimizer import TestFusedOptimizer
 from itertools import product
 
 class Novograd(Optimizer):
@@ -144,7 +144,6 @@ class TestFusedNovoGrad(TestFusedOptimizer):
         devices = ("cuda:1", "cuda:0")
         for current_dev, tensor_dev in product(devices, devices):
             with torch.cuda.device(current_dev):
-                print("Some info from the test", current_dev, tensor_dev)
                 torch.cuda.synchronize()
                 self.gen_single_type_test(param_type=torch.float, device=tensor_dev)
                 
@@ -166,3 +165,6 @@ class TestFusedNovoGrad(TestFusedOptimizer):
             max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+
+if __name__ == '__main__':
+    unittest.main()
