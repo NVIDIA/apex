@@ -87,7 +87,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                  step_supports_amp_scaling=True, overlap_reductions=True,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
                  dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
-                 e5m2_allgather=False):
+                 e5m2_allgather=False, verbose=True):
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         grad_averaging=grad_averaging,
@@ -117,6 +117,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._num_blocks = dwu_num_blocks
         self._num_chunks = dwu_num_chunks
         self._e5m2_allgather = e5m2_allgather
+        self._verbose = verbose
         self._L2_grad_norm = None
         
         self._current_process_group = c10d._get_default_group()
@@ -145,7 +146,16 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             for dev_i in range(self._group_size):
                 ranks = [dev_i+j*self._group_size for j in range(self._num_groups)]
                 for i in range(self._num_ar_pg):
+                    if self._verbose:
+                        print(f"creating new group {i}: {ranks}")
                     grp = torch.distributed.new_group(ranks=ranks)
+                    if grp != torch.distributed.GroupMember.NON_GROUP_MEMBER:
+                        if self._verbose:
+                            print(f"group {i}: init barrier (device: {torch.cuda.current_device()})")
+                        torch.distributed.barrier(group=grp, device_ids=[torch.cuda.current_device()])
+                    if self._verbose:
+                        print(f"created new group {i}")
+
                     if torch.distributed.get_rank() in ranks:
                         self._ar_pg.append(grp)
             self._ar_st = [torch.cuda.Stream() for _ in range(self._num_ar_pg)]
