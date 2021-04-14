@@ -87,7 +87,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                  step_supports_amp_scaling=True, overlap_reductions=True,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
                  dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
-                 e5m2_allgather=False, verbose=True):
+                 e5m2_allgather=False, verbose=False):
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         grad_averaging=grad_averaging,
