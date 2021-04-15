@@ -9,7 +9,7 @@ from apex.contrib.sparsity import ASP
 
 ## Initializing ASP
 
-Apart from the import statement, it is sufficient to add just the following line of code before the training phase to augment the model and the optimizer for sparse training/infercence:
+Apart from the import statement, it is sufficient to add just the following line of code before the training phase to augment the model and the optimizer for sparse training/inference:
 ```
 ASP.prune_trained_model(model, optimizer)
 ```
