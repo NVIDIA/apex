@@ -427,6 +427,11 @@ void multi_tensor_norm_out_cuda(
   // I could get rid of these by hacking the functor + multi tensor harness with persistence
   // logic, but keeping it simple for now
   auto ret = at::empty({1}, output.options());
+
+  // Adding the following device guard since it happens sometimes that the 
+  // tensors are on one device and the cuda stream is on another device which  
+  // results in ILLEGAL MEM ACCESS error. 
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(output));
   auto stream = at::cuda::getCurrentCUDAStream();
   cleanup_v2<<<ntensors, 512, 0, stream>>>(
     output.DATA_PTR<float>(),

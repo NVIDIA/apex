@@ -2,9 +2,11 @@ import unittest
 import os
 import random
 
+import math
 import torch
 import apex
 from itertools import product
+from torch.optim import Optimizer
 
 class TestFusedOptimizer(unittest.TestCase):
     def setUp(self, max_abs_diff=1e-3, max_rel_diff=1, iters=7):
@@ -16,7 +18,14 @@ class TestFusedOptimizer(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def gen_param_optim(self, tensors, options):
+    def gen_param_optim(self, tensors, options, tst_options=None):
+        
+        # Adding this to make backward compatible with existing tests. Just in
+        # case "tst_options" are not provided, it gets a copy of options
+        # which contains the parameters for the reference optimizer
+        if tst_options == None:
+            tst_options = options
+            
         ref_param = []
         tst_param = []
         for tensor in tensors:
@@ -24,7 +33,7 @@ class TestFusedOptimizer(unittest.TestCase):
             tst_param.append(torch.nn.Parameter(tensor.clone()))
 
         ref_optim = self.ref_optim(ref_param, **options)
-        tst_optim = self.fused_optim(tst_param, **options)
+        tst_optim = self.fused_optim(tst_param, **tst_options)
 
         return (ref_param, tst_param, ref_optim, tst_optim)
 
@@ -54,9 +63,18 @@ class TestFusedOptimizer(unittest.TestCase):
     def gen_single_type_test(self, param_type=torch.float, device='cuda'):
         nelem = 278011
 
+        # Some ref and test optimizers may require different set of options.
+        # This is a quick workaround to add that functionality while making 
+        # minimum changes in existing code.
+        # If there is no "tst_options" field provided, safe to initialize
+        # the test optimizer with the parameters of reference optimizer.
+        if not hasattr(self, 'tst_options'):
+            self.tst_options = self.options
+
         tensor = torch.rand(nelem, dtype=param_type, device=device)
+
         ref_param, tst_param, ref_optim, tst_optim = \
-            self.gen_param_optim([tensor], self.options)
+            self.gen_param_optim([tensor], self.options, self.tst_options)
 
         for i in range(self.iters):
             self.gen_grad(ref_param, tst_param)
@@ -88,7 +106,6 @@ class TestFusedAdam(TestFusedOptimizer):
         for current_dev, tensor_dev in product(devices, devices):
             with torch.cuda.device(current_dev):
                 self.gen_single_type_test(param_type=torch.float, device=tensor_dev)
-
 
     @unittest.skip('Disable until 8/1/2019 adam/adamw upstream picked')
     def test_multi_params(self):
@@ -262,9 +279,6 @@ class TestFusedSGD(TestFusedOptimizer):
         for current_dev, tensor_dev in product(devices, devices):
             with torch.cuda.device(current_dev):
                 self.gen_single_type_test(param_type=torch.float, device=tensor_dev)
-
-
-
 
 if __name__ == '__main__':
     unittest.main()
