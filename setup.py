@@ -488,6 +488,7 @@ if "--fast_bottleneck" in sys.argv:
     if torch.utils.cpp_extension.CUDA_HOME is None:
         raise RuntimeError("--fast_bottleneck was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
+        subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
         ext_modules.append(
             CUDAExtension(name='fast_bottleneck',
                           sources=['apex/contrib/csrc/bottleneck/bottleneck.cpp'],
