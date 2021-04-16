@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-size_t get_mlp_reserved_space(int batch_size, int num_layers, const int* output_features);
+size_t get_mlp_reserved_space(int64_t batch_size, int num_layers, const int* output_features);
 
 template <typename T>
 size_t get_mlp_bp_workspace_in_bytes(int batch_size, int num_layers, const int* output_features);

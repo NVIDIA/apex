@@ -763,7 +763,7 @@ __global__ void biasAdd_bprop(
     int nidx = 0;
     // Handle non-multiple of UNROLL_FACTOR residue
     for (; nidx < nSpan % UNROLL_FACTOR; nidx++) {
-      int row, col, flat_idx;
+      int64_t row, col, flat_idx;
       row = f;
       col = nStart + nidx;
       flat_idx = col * features + row;
@@ -772,7 +772,7 @@ __global__ void biasAdd_bprop(
 
     // Handle meat of work
     for (; (nidx + UNROLL_FACTOR - 1) < nSpan; nidx += UNROLL_FACTOR) {
-      int row, col, flat_idx;
+      int64_t row, col, flat_idx;
       row = f;
       col = nStart + nidx;
       flat_idx = col * features + row;
@@ -1112,7 +1112,7 @@ void get_y_offsets(
 }
 
 // Returns the reserved space (in elements) needed for the MLP
-size_t get_mlp_reserved_space(int batch_size, int num_layers, const int* output_features) {
+size_t get_mlp_reserved_space(int64_t batch_size, int num_layers, const int* output_features) {
   size_t res_space = 0;
   // Need to store output of every intermediate MLP - size equal to output_features[i] * batch_size
   // for all 'i' in [0, num_layers-1)
@@ -1123,7 +1123,7 @@ size_t get_mlp_reserved_space(int batch_size, int num_layers, const int* output_
 }
 
 // Returns the size of all fprop activations combined
-size_t get_all_activations_size(int batch_size, int num_layers, const int* output_features) {
+size_t get_all_activations_size(int64_t batch_size, int num_layers, const int* output_features) {
   size_t acts_size = 0;
   for (int l = 0; l < num_layers; l++) {
     acts_size += output_features[l] * batch_size;
