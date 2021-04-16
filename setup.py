@@ -291,7 +291,7 @@ if "--deprecated_fused_lamb" in sys.argv:
                                               'nvcc':['-O3',
                                                       '--use_fast_math'] + version_dependent_macros}))
 
-# Check, if ATen/CUDAGenerator.h is found, otherwise use the new ATen/CUDAGeneratorImpl.h, due to breaking change in https://github.com/pytorch/pytorch/pull/36026 
+# Check, if ATen/CUDAGenerator.h is found, otherwise use the new ATen/CUDAGeneratorImpl.h, due to breaking change in https://github.com/pytorch/pytorch/pull/36026
 generator_flag = []
 torch_dir = torch.__path__[0]
 if os.path.exists(os.path.join(torch_dir, 'include', 'ATen', 'CUDAGenerator.h')):
@@ -477,6 +477,22 @@ if "--transducer" in sys.argv:
                           include_dirs=[os.path.join(this_dir, 'csrc')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
+
+if "--fast_bottleneck" in sys.argv:
+    from torch.utils.cpp_extension import CUDAExtension
+    sys.argv.remove("--fast_bottleneck")
+
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension.with_options(use_ninja=False)
+
+    if torch.utils.cpp_extension.CUDA_HOME is None:
+        raise RuntimeError("--fast_bottleneck was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        ext_modules.append(
+            CUDAExtension(name='fast_bottleneck',
+                          sources=['apex/contrib/csrc/bottleneck/bottleneck.cpp'],
+                          include_dirs=['apex/contrib/csrc/cudnn-frontend/include'],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag}))
 
 setup(
     name='apex',
