@@ -21,7 +21,8 @@ int mlp_fp(
     T* Y,
     T* reserved_space,
     int use_bias,
-    int activation);
+    int activation,
+    void* lt_workspace);
 
 template <typename T>
 int mlp_bp(
@@ -60,9 +61,11 @@ std::vector<at::Tensor> mlp_forward(int use_bias, int activation, std::vector<at
   auto reserved_size = get_mlp_reserved_space(batch_size, num_layers, output_features.data());
 
   // create output/workspace tensor
-  // TODO(deyuf): just get buffer?
+  // TODO(deyuf): just get buffer? why empty with .type() gets GPU tensor?
   auto out = at::empty({batch_size, output_features.back()}, inputs[0].type());
   auto reserved_space = at::empty({reserved_size}, inputs[0].type());
+  // allocate fixed 4MB workspace for cublaslt for now, and this gets at least 4 MB
+  auto lt_workspace = at::empty({1 << 22}, inputs[0].type());
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(inputs[0].type(), "mlp_forward", [&] {
     std::vector<scalar_t*> w_ptr;
@@ -84,7 +87,8 @@ std::vector<at::Tensor> mlp_forward(int use_bias, int activation, std::vector<at
         out.data_ptr<scalar_t>(),
         reserved_space.data_ptr<scalar_t>(),
         use_bias,
-        activation);
+        activation,
+        (void*) (lt_workspace.data_ptr<scalar_t>()));
   });
 
   return {out, reserved_space};
@@ -162,3 +166,4 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &mlp_forward, "MLP forward");
   m.def("backward", &mlp_backward, "MLP backward");
 }
+

@@ -10,6 +10,9 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 
+// includes cublaslt
+#include <cublasLt.h>
+
 // constants for fused bias+relu kernel
 #define BIAS_RELU_FW_NTHREADS 128 // forward number of thread per block
 #define BIAS_RELU_BW_NTHREADS_X 32 // backward number of thread in feature dim
@@ -164,6 +167,268 @@ cublasStatus_t mlp_gemm(
       CUDA_R_32F,
       CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
+
+int mlp_gemm_lt(
+    cublasLtHandle_t ltHandle,
+    cublasOperation_t transa,
+    cublasOperation_t transb,
+    int m,
+    int n,
+    int k,
+    float *alpha, /* host pointer */
+    const at::Half* A,
+    int lda,
+    const at::Half* B,
+    int ldb,
+    float *beta, /* host pointer */
+    at::Half* C,
+    int ldc,
+    void *workspace,
+    size_t workspaceSize,
+    cudaStream_t stream,
+    bool use_bias,
+    bool use_relu,
+    const void* bias) {
+  cublasStatus_t status = CUBLAS_STATUS_SUCCESS;
+
+  cublasLtMatmulDescOpaque_t operationDesc = {};
+  cublasLtMatrixLayoutOpaque_t Adesc = {}, Bdesc = {}, Cdesc = {};
+  cublasLtMatmulPreferenceOpaque_t preference = {};
+
+  int returnedResults                             = 0;
+  cublasLtMatmulHeuristicResult_t heuristicResult = {};
+  cublasLtEpilogue_t epilogue = CUBLASLT_EPILOGUE_DEFAULT;
+
+  // Create operation descriptor; see cublasLtMatmulDescAttributes_t
+  // for details about defaults; here we just set the transforms for
+  // A and B.
+  status = cublasLtMatmulDescInit(&operationDesc, CUBLAS_COMPUTE_32F, CUDA_R_32F);
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+  status = cublasLtMatmulDescSetAttribute(&operationDesc, CUBLASLT_MATMUL_DESC_TRANSA, &transa, sizeof(transa));
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+  status = cublasLtMatmulDescSetAttribute(&operationDesc, CUBLASLT_MATMUL_DESC_TRANSB, &transb, sizeof(transa));
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+
+  if (use_bias) {
+    status = cublasLtMatmulDescSetAttribute(&operationDesc, CUBLASLT_MATMUL_DESC_BIAS_POINTER, &bias, sizeof(bias));
+    if (status != CUBLAS_STATUS_SUCCESS) {
+      goto CLEANUP;
+    }
+    if (use_relu) {
+      epilogue = CUBLASLT_EPILOGUE_RELU_BIAS;
+    } else {
+      epilogue = CUBLASLT_EPILOGUE_BIAS;
+    }
+  } else {
+    if (use_relu) {
+      epilogue = CUBLASLT_EPILOGUE_RELU;
+    }
+  }
+
+  status = cublasLtMatmulDescSetAttribute(&operationDesc, CUBLASLT_MATMUL_DESC_EPILOGUE, &epilogue, sizeof(epilogue));
+  if (status != CUBLAS_STATUS_SUCCESS) {
+    goto CLEANUP;
+  }
+
+  // Create matrix descriptors. Not setting any extra attributes.
+  status = cublasLtMatrixLayoutInit(
+    &Adesc, CUDA_R_16F, transa == CUBLAS_OP_N ? m : k, transa == CUBLAS_OP_N ? k : m, lda);
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+  status = cublasLtMatrixLayoutInit(
+    &Bdesc, CUDA_R_16F, transb == CUBLAS_OP_N ? k : n, transb == CUBLAS_OP_N ? n : k, ldb);
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+  status = cublasLtMatrixLayoutInit(&Cdesc, CUDA_R_16F, m, n, ldc);
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+
+  // Create preference handle; In general, extra attributes can be
+  // used here to disable tensor ops or to make sure algo selected
+  // will work with badly aligned A, B, C. However, for simplicity
+  // here we assume A,B,C are always well aligned (e.g., directly
+  // come from cudaMalloc)
+  status = cublasLtMatmulPreferenceInit(&preference);
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+  status = cublasLtMatmulPreferenceSetAttribute(
+    &preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &workspaceSize, sizeof(workspaceSize));
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+
+  // We just need the best available heuristic to try and run matmul.
+  // There is no guarantee that this will work. For example, if A is
+  // badly aligned, you can request more (e.g. 32) algos and try to
+  // run them one by one until something works.
+  status = cublasLtMatmulAlgoGetHeuristic(
+    ltHandle, &operationDesc, &Adesc, &Bdesc, &Cdesc, &Cdesc, &preference, 1, &heuristicResult, &returnedResults);
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+
+  if (returnedResults == 0) {
+    status = CUBLAS_STATUS_NOT_SUPPORTED;
+    goto CLEANUP;
+  }
+  status = cublasLtMatmul(ltHandle,
+                          &operationDesc,
+                          alpha,
+                          A,
+                          &Adesc,
+                          B,
+                          &Bdesc,
+                          beta,
+                          C,
+                          &Cdesc,
+                          C,
+                          &Cdesc,
+                          &heuristicResult.algo,
+                          workspace,
+                          workspaceSize,
+                          stream);
+
+CLEANUP:
+  // Descriptors are no longer needed as all GPU work was already
+  // enqueued.
+  return status == CUBLAS_STATUS_SUCCESS ? 0 : 1;
+}
+
+int mlp_gemm_lt(
+    cublasLtHandle_t ltHandle,
+    cublasOperation_t transa,
+    cublasOperation_t transb,
+    int m,
+    int n,
+    int k,
+    float *alpha, /* host pointer */
+    const double* A,
+    int lda,
+    const double* B,
+    int ldb,
+    float *beta, /* host pointer */
+    double* C,
+    int ldc,
+    void *workspace,
+    size_t workspaceSize,
+    cudaStream_t stream,
+    bool use_bias,
+    bool use_relu,
+    const void* bias) {
+  return 1;
+}
+
+int mlp_gemm_lt(
+    cublasLtHandle_t ltHandle,
+    cublasOperation_t transa,
+    cublasOperation_t transb,
+    int m,
+    int n,
+    int k,
+    float *alpha, /* host pointer */
+    const float *A,
+    int lda,
+    const float *B,
+    int ldb,
+    float *beta, /* host pointer */
+    float *C,
+    int ldc,
+    void *workspace,
+    size_t workspaceSize,
+    cudaStream_t stream,
+    bool use_bias,
+    bool use_relu,
+    const void* bias) {
+  cublasStatus_t status = CUBLAS_STATUS_SUCCESS;
+
+  cublasLtMatmulDescOpaque_t operationDesc = {};
+  cublasLtMatrixLayoutOpaque_t Adesc = {}, Bdesc = {}, Cdesc = {};
+  cublasLtMatmulPreferenceOpaque_t preference = {};
+
+  int returnedResults                             = 0;
+  cublasLtMatmulHeuristicResult_t heuristicResult = {};
+  cublasLtEpilogue_t epilogue = CUBLASLT_EPILOGUE_DEFAULT;
+
+  // Create operation descriptor; see cublasLtMatmulDescAttributes_t
+  // for details about defaults; here we just set the transforms for
+  // A and B.
+  status = cublasLtMatmulDescInit(&operationDesc, CUBLAS_COMPUTE_32F, CUDA_R_32F);
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+  status = cublasLtMatmulDescSetAttribute(&operationDesc, CUBLASLT_MATMUL_DESC_TRANSA, &transa, sizeof(transa));
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+  status = cublasLtMatmulDescSetAttribute(&operationDesc, CUBLASLT_MATMUL_DESC_TRANSB, &transb, sizeof(transa));
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+
+  if (use_bias) {
+    status = cublasLtMatmulDescSetAttribute(&operationDesc, CUBLASLT_MATMUL_DESC_BIAS_POINTER, &bias, sizeof(bias));
+    if (status != CUBLAS_STATUS_SUCCESS) {
+      goto CLEANUP;
+    }
+    if (use_relu) {
+      epilogue = CUBLASLT_EPILOGUE_RELU_BIAS;
+    } else {
+      epilogue = CUBLASLT_EPILOGUE_BIAS;
+    }
+  } else {
+    if (use_relu) {
+      epilogue = CUBLASLT_EPILOGUE_RELU;
+    }
+  }
+
+  status = cublasLtMatmulDescSetAttribute(&operationDesc, CUBLASLT_MATMUL_DESC_EPILOGUE, &epilogue, sizeof(epilogue));
+  if (status != CUBLAS_STATUS_SUCCESS) {
+    goto CLEANUP;
+  }
+
+  // Create matrix descriptors. Not setting any extra attributes.
+  status = cublasLtMatrixLayoutInit(
+    &Adesc, CUDA_R_32F, transa == CUBLAS_OP_N ? m : k, transa == CUBLAS_OP_N ? k : m, lda);
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+  status = cublasLtMatrixLayoutInit(
+    &Bdesc, CUDA_R_32F, transb == CUBLAS_OP_N ? k : n, transb == CUBLAS_OP_N ? n : k, ldb);
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+  status = cublasLtMatrixLayoutInit(&Cdesc, CUDA_R_32F, m, n, ldc);
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+
+  // Create preference handle; In general, extra attributes can be
+  // used here to disable tensor ops or to make sure algo selected
+  // will work with badly aligned A, B, C. However, for simplicity
+  // here we assume A,B,C are always well aligned (e.g., directly
+  // come from cudaMalloc)
+  status = cublasLtMatmulPreferenceInit(&preference);
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+  status = cublasLtMatmulPreferenceSetAttribute(
+    &preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &workspaceSize, sizeof(workspaceSize));
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+
+  // We just need the best available heuristic to try and run matmul.
+  // There is no guarantee that this will work. For example, if A is
+  // badly aligned, you can request more (e.g. 32) algos and try to
+  // run them one by one until something works.
+  status = cublasLtMatmulAlgoGetHeuristic(
+    ltHandle, &operationDesc, &Adesc, &Bdesc, &Cdesc, &Cdesc, &preference, 1, &heuristicResult, &returnedResults);
+  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
+
+  if (returnedResults == 0) {
+    status = CUBLAS_STATUS_NOT_SUPPORTED;
+    goto CLEANUP;
+  }
+
+  status = cublasLtMatmul(ltHandle,
+                          &operationDesc,
+                          alpha,
+                          A,
+                          &Adesc,
+                          B,
+                          &Bdesc,
+                          beta,
+                          C,
+                          &Cdesc,
+                          C,
+                          &Cdesc,
+                          &heuristicResult.algo,
+                          workspace,
+                          workspaceSize,
+                          stream);
+
+CLEANUP:
+  // Descriptors are no longer needed as all GPU work was already
+  // enqueued.
+  return status == CUBLAS_STATUS_SUCCESS ? 0 : 1;
+}
+
 
 // Bias ADD. Assume input X is [features x batch size], column major.
 // Bias is one 'features' long vector, with implicit broadcast.
@@ -979,7 +1244,8 @@ int mlp_fp(
     T* Y,
     T* reserved_space,
     int use_bias,
-    int activation) {
+    int activation,
+    void* lt_workspace) {
   T *weight, *input, *output, *bias;
   T *reserved_space_x, *reserved_space_y;
   reserved_space_x = NULL;
@@ -987,6 +1253,9 @@ int mlp_fp(
 
   // Get cublas handle from Pytorch
   cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
+  cublasLtHandle_t ltHandle;
+  cublasStatus_t lthandle_status;
+  lthandle_status = cublasLtCreate(&ltHandle);
   // Get the stream from cublas handle to reuse for biasReLU kernel.
   cudaStream_t stream;
   cublasGetStream(handle, &stream);
@@ -1004,9 +1273,37 @@ int mlp_fp(
     float one = 1.f;
     float zero = 0.f;
 
-    cublasStatus_t cublas_status;
-    // Call GEMM: fprop is Y = W'X
-    cublas_status = mlp_gemm(
+    // try with cublaslt first for supported case with valid handle
+    int cublaslt_status = 1;
+    if(lthandle_status == CUBLAS_STATUS_SUCCESS && activation < 2){
+      cublaslt_status = mlp_gemm_lt(
+        ltHandle,
+        CUBLAS_OP_T,
+        CUBLAS_OP_N,
+        ofeat,
+        batch_size,
+        ifeat,
+        &one,
+        weight,
+        ifeat,
+        input,
+        ifeat,
+        &zero,
+        output,
+        ofeat,
+        lt_workspace,
+        1 << 22,
+        stream,
+        use_bias == 1,
+        activation == 1,
+        bias);
+    }
+
+    // if cublaslt failed or not executed, fallback to cublas
+    if (cublaslt_status != 0) {
+      cublasStatus_t cublas_status;
+      // Call GEMM: fprop is Y = W'X
+      cublas_status = mlp_gemm(
         handle,
         CUBLAS_OP_T,
         CUBLAS_OP_N,
@@ -1022,44 +1319,47 @@ int mlp_fp(
         output,
         ofeat);
 
-    if (cublas_status != CUBLAS_STATUS_SUCCESS) {
-      printf("GEMM fprop failed with %d\n", cublas_status);
-      return 1;
-    }
-
-    const uint &input_size = ofeat;
-    int num_blocks = 0;
-    int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
-    // Call biasReLU
-    if(use_bias == 1) {
-      if (activation == 0) { // no activation
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAdd_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
-        biasAdd_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
-      } else if (activation == 1) { // relu
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAddRelu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
-        biasAddRelu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
-      } else if (activation == 2) { // sigmoid
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAdd_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
-        biasAdd_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Sigmoid_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
-        Sigmoid_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+      if (cublas_status != CUBLAS_STATUS_SUCCESS) {
+        printf("GEMM fprop failed with %d\n", cublas_status);
+        return 1;
       }
-    } else {
-      // don't need to do anything in case of no activation and no bias
-      if (activation == 1) { // relu
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Relu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
-        Relu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
-      } else if (activation == 2) { // sigmoid
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Sigmoid_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
-        Sigmoid_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+
+      const uint &input_size = ofeat;
+      int num_blocks = 0;
+      int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+      // Call biasReLU
+      if(use_bias == 1) {
+        if (activation == 0) { // no activation
+          cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAdd_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+          biasAdd_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
+        } else if (activation == 1) { // relu
+          cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAddRelu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+          biasAddRelu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
+        } else if (activation == 2) { // sigmoid
+          cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAdd_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+          biasAdd_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
+          cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Sigmoid_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+          Sigmoid_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+        }
+      } else {
+        // don't need to do anything in case of no activation and no bias
+        if (activation == 1) { // relu
+          cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Relu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+          Relu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+        } else if (activation == 2) { // sigmoid
+          cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Sigmoid_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+          Sigmoid_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+        }
       }
     }
-
     // Set current output as next layer input
     reserved_space_x = reserved_space_y;
     // Set next layer output
     reserved_space_y += ofeat * batch_size;
   }
+
+
+  if(lthandle_status == CUBLAS_STATUS_SUCCESS) cublasLtDestroy(ltHandle);
 
   return 0;
 }
@@ -1281,7 +1581,8 @@ template int mlp_fp<float>(
     float* Y,
     float* reserved_space,
     int use_bias,
-    int activation);
+    int activation,
+    void* lt_workspace);
 
 template int mlp_bp<float>(
     float* X,
@@ -1312,7 +1613,8 @@ template int mlp_fp<at::Half>(
     at::Half* Y,
     at::Half* reserved_space,
     int use_bias,
-    int activation);
+    int activation,
+    void* lt_workspace);
 
 template int mlp_bp<at::Half>(
     at::Half* X,
@@ -1343,7 +1645,8 @@ template int mlp_fp<double>(
     double* Y,
     double* reserved_space,
     int use_bias,
-    int activation);
+    int activation,
+    void* lt_workspace);
 
 template int mlp_bp<double>(
     double* X,
@@ -1375,3 +1678,4 @@ template size_t get_mlp_bp_workspace_in_bytes<double>(
     int batch_size,
     int num_layers,
     const int* output_features);
+
