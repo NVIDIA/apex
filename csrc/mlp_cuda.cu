@@ -1074,7 +1074,6 @@ __global__ void biasAddRelu_bprop_aligned(
     }
 
     // block result is in db_local now for all threadIdx.y == 0
-    // TODO: maybe not useful early exit here
     if(gridDim.y == 1) {
 #pragma unroll
       for(int ii=0;ii<ILP;ii++){

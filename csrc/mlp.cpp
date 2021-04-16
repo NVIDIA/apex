@@ -90,7 +90,6 @@ std::vector<at::Tensor> mlp_forward(int use_bias, int activation, std::vector<at
   auto reserved_size = get_mlp_reserved_space(batch_size, num_layers, output_features.data());
 
   // create output/workspace tensor
-  // TODO(deyuf): just get buffer? why empty with .type() gets GPU tensor?
   auto out = at::empty({batch_size, output_features.back()}, inputs[0].type());
   auto reserved_space = at::empty({reserved_size}, inputs[0].type());
   // allocate fixed 4MB workspace for cublaslt for now, and this gets at least 4 MB
@@ -139,7 +138,6 @@ std::vector<at::Tensor> mlp_backward(
   auto batch_size = inputs[0].size(0);
   auto input_features = inputs[0].size(1);
 
-  // TODO: not creating empty tensor for it?
   bool requires_grad = inputs[0].requires_grad();
 
   std::vector<int> output_features;
@@ -147,7 +145,6 @@ std::vector<at::Tensor> mlp_backward(
     output_features.push_back(inputs[i + 1].size(0));
   }
   // create outputs, length of inputs
-  // TODO: not create bias if not needed
   std::vector<at::Tensor> outputs;
   for (int i = 0; i < inputs.size(); i++) {
     outputs.push_back(at::empty(inputs[i].sizes(), inputs[i].type()));  // clone for testing now
