@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-size_t get_mlp_reserved_space(int batch_size, int num_layers, const int* output_features);
+size_t get_mlp_reserved_space(int64_t batch_size, int num_layers, const int* output_features);
 
 template <typename T>
 size_t get_mlp_bp_workspace_in_bytes(int batch_size, int num_layers, const int* output_features);
@@ -21,7 +21,8 @@ int mlp_fp(
     T* Y,
     T* reserved_space,
     int use_bias,
-    int activation);
+    int activation,
+    void* lt_workspace);
 
 template <typename T>
 int mlp_bp(
@@ -60,9 +61,10 @@ std::vector<at::Tensor> mlp_forward(int use_bias, int activation, std::vector<at
   auto reserved_size = get_mlp_reserved_space(batch_size, num_layers, output_features.data());
 
   // create output/workspace tensor
-  // TODO(deyuf): just get buffer?
   auto out = at::empty({batch_size, output_features.back()}, inputs[0].type());
   auto reserved_space = at::empty({reserved_size}, inputs[0].type());
+  // allocate fixed 4MB workspace for cublaslt for now, and this gets at least 4 MB
+  auto lt_workspace = at::empty({1 << 22}, inputs[0].type());
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(inputs[0].type(), "mlp_forward", [&] {
     std::vector<scalar_t*> w_ptr;
@@ -84,7 +86,8 @@ std::vector<at::Tensor> mlp_forward(int use_bias, int activation, std::vector<at
         out.data_ptr<scalar_t>(),
         reserved_space.data_ptr<scalar_t>(),
         use_bias,
-        activation);
+        activation,
+        (void*) (lt_workspace.data_ptr<scalar_t>()));
   });
 
   return {out, reserved_space};
@@ -106,7 +109,6 @@ std::vector<at::Tensor> mlp_backward(
   auto batch_size = inputs[0].size(0);
   auto input_features = inputs[0].size(1);
 
-  // TODO: not creating empty tensor for it?
   bool requires_grad = inputs[0].requires_grad();
 
   std::vector<int> output_features;
@@ -114,7 +116,6 @@ std::vector<at::Tensor> mlp_backward(
     output_features.push_back(inputs[i + 1].size(0));
   }
   // create outputs, length of inputs
-  // TODO: not create bias if not needed
   std::vector<at::Tensor> outputs;
   for (int i = 0; i < inputs.size(); i++) {
     outputs.push_back(at::empty(inputs[i].sizes(), inputs[i].type()));  // clone for testing now
@@ -162,3 +163,4 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &mlp_forward, "MLP forward");
   m.def("backward", &mlp_backward, "MLP backward");
 }
+
