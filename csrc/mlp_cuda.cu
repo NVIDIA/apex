@@ -1252,9 +1252,6 @@ int mlp_fp(
 
   // Get cublas handle from Pytorch
   cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
-//  cublasLtHandle_t ltHandle;
-//  cublasStatus_t lthandle_status;
-//  lthandle_status = cublasLtCreate(&ltHandle);
   // Get the stream from cublas handle to reuse for biasReLU kernel.
   cudaStream_t stream;
   cublasGetStream(handle, &stream);
