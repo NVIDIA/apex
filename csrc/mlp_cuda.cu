@@ -718,7 +718,7 @@ void get_biasAddRelu_bprop_grid_size(
   // Get number of SMs for efficient reduction.
   int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
   // can switch to occupancy calculation. use 4 below now for sm_70
-  int max_blocks_y = num_SMs * 4 / (*grid_x);
+  int max_blocks_y = (num_SMs * 4+(*grid_x)-1) / (*grid_x);
   // block_y should be from minimal work per thread
   int nRedSplits = (batch_size + block_y - 1) / block_y;
   // increase number of elem per thread redcution to not launch more than enough
@@ -1252,9 +1252,6 @@ int mlp_fp(
 
   // Get cublas handle from Pytorch
   cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
-  cublasLtHandle_t ltHandle;
-  cublasStatus_t lthandle_status;
-  lthandle_status = cublasLtCreate(&ltHandle);
   // Get the stream from cublas handle to reuse for biasReLU kernel.
   cudaStream_t stream;
   cublasGetStream(handle, &stream);
@@ -1274,28 +1271,29 @@ int mlp_fp(
 
     // try with cublaslt first for supported case with valid handle
     int cublaslt_status = 1;
-    if(lthandle_status == CUBLAS_STATUS_SUCCESS && activation < 2){
-      cublaslt_status = mlp_gemm_lt(
-        ltHandle,
-        CUBLAS_OP_T,
-        CUBLAS_OP_N,
-        ofeat,
-        batch_size,
-        ifeat,
-        &one,
-        weight,
-        ifeat,
-        input,
-        ifeat,
-        &zero,
-        output,
-        ofeat,
-        lt_workspace,
-        1 << 22,
-        stream,
-        use_bias == 1,
-        activation == 1,
-        bias);
+    if(activation < 1){
+        cublaslt_status = mlp_gemm_lt(
+          //ltHandle,
+          (cublasLtHandle_t)handle,
+          CUBLAS_OP_T,
+          CUBLAS_OP_N,
+          ofeat,
+          batch_size,
+          ifeat,
+          &one,
+          weight,
+          ifeat,
+          input,
+          ifeat,
+          &zero,
+          output,
+          ofeat,
+          lt_workspace,
+          1 << 22,
+          stream,
+          use_bias == 1,
+          activation == 1,
+          bias);
     }
 
     // if cublaslt failed or not executed, fallback to cublas
@@ -1356,9 +1354,6 @@ int mlp_fp(
     // Set next layer output
     reserved_space_y += ofeat * batch_size;
   }
-
-
-  if(lthandle_status == CUBLAS_STATUS_SUCCESS) cublasLtDestroy(ltHandle);
 
   return 0;
 }
