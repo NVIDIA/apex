@@ -43,6 +43,8 @@ class MLP(torch.nn.Module):
             self.activation = 1
         elif activation is 'sigmoid':
             self.activation = 2
+        elif activation is 'gelu':
+            self.activation = 3
         else:
             raise TypeError("activation must be relu or none.")
 

@@ -54,6 +54,22 @@ __device__ __inline__ float sigmoid(float a) {
   return (retf);
 }
 
+// Keep gelu in float only. When using half, cast to float before calling.
+__device__ __inline__ float gelu(float a) {
+  float retf = 0.5f * a * (1.f + tanhf(0.79788456f * (a +  0.044715f * a * a * a)));
+  return (retf);
+  // float retf = 1.f / (1.f + expf(-a));
+  // return (retf);
+}
+
+// Keep gelu in float only. When using half, cast to float before calling.
+__device__ __inline__ float gelu_back(float a) {
+  float tanh_outf = tanhf(0.79788456f * (a +  0.044715f * a * a * a));
+  float retf = 0.5f * a * (1.f - tanh_outf * tanh_outf) * (0.79788456f + 0.1070322243f * a * a) + 0.5f * (1.f + tanh_outf);
+  return (retf);
+}
+
+
 // FP64 Wrapper around cublas GEMMEx
 cublasStatus_t mlp_gemm(
     cublasHandle_t handle,
@@ -604,6 +620,47 @@ __global__ void Sigmoid_fprop(T *X, uint batch_size, uint features) {
   }
 }
 
+
+// Gelu. Assume input X is [features x batch size], column major.
+// Safe to call in-place.
+template <typename T>
+__global__ void Gelu_fprop(T *X, uint batch_size, uint features) {
+  T r_x[ILP];
+  if(is_aligned(X) && features % ILP ==0) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid*ILP < features * batch_size; tid += blockDim.x * gridDim.x) {
+      load_store(r_x, X, 0 , tid);
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        r_x[ii] = gelu(static_cast<float>(r_x[ii]));
+      }
+      load_store(X, r_x, tid , 0);
+    }
+  } else {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid < features * batch_size; tid += ILP * blockDim.x * gridDim.x) {
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          r_x[ii] = X[idx];
+        }
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        r_x[ii] = gelu(static_cast<float>(r_x[ii]));
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          X[idx] = r_x[ii];
+        }
+      }
+    }
+  }
+}
+
 // ReLU. Assume input X is [features x batch size], column major.
 // Safe to call in-place.
 template <typename T>
@@ -691,6 +748,58 @@ __global__ void Sigmoid_bprop(T *dY, T *Y, uint batch_size, uint features, T *dX
         float grad_out = r_dy[ii];
         float out = r_y[ii];
         float grad_i = out * ( 1.f - out) * grad_out;
+        r_dy[ii] = grad_i;
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          dX[idx] = r_dy[ii];
+        }
+      }
+    }
+  }
+}
+
+// Gelu. Assume input X is [features x batch size], column major.
+// Safe to call in-place.
+template <typename T>
+__global__ void Gelu_bprop(T *dY, T *Y, uint batch_size, uint features, T *dX) {
+  T r_dy[ILP];
+  T r_y[ILP];
+  if(is_aligned(dY) &&
+     is_aligned(Y) &&
+     is_aligned(dX) &&
+     features % ILP ==0) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid*ILP < features * batch_size; tid += blockDim.x * gridDim.x) {
+      load_store(r_dy, dY, 0 , tid);
+      load_store(r_y, Y, 0 , tid);
+#pragma unroll
+      for(int ii=0;ii<ILP;ii++){
+        float grad_out = r_dy[ii];
+        float out = r_y[ii];
+        float grad_i = gelu_back(out) * grad_out;
+        r_dy[ii] = grad_i;
+      }
+      load_store(dX, r_dy, tid, 0);
+    }
+  } else {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; tid < features * batch_size; tid += ILP * blockDim.x * gridDim.x) {
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        int idx = tid + ii * blockDim.x * gridDim.x;
+        if(idx < features * batch_size) {
+          r_dy[ii] = dY[idx];
+          r_y[ii] = Y[idx];
+        }
+      }
+#pragma unroll
+      for(int ii = 0; ii < ILP; ii++) {
+        float grad_out = r_dy[ii];
+        float out = r_y[ii];
+        float grad_i = gelu_back(out)* grad_out;
         r_dy[ii] = grad_i;
       }
 #pragma unroll
@@ -1272,28 +1381,28 @@ int mlp_fp(
     // try with cublaslt first for supported case with valid handle
     int cublaslt_status = 1;
     if(activation < 1){
-        cublaslt_status = mlp_gemm_lt(
-          //ltHandle,
-          (cublasLtHandle_t)handle,
-          CUBLAS_OP_T,
-          CUBLAS_OP_N,
-          ofeat,
-          batch_size,
-          ifeat,
-          &one,
-          weight,
-          ifeat,
-          input,
-          ifeat,
-          &zero,
-          output,
-          ofeat,
-          lt_workspace,
-          1 << 22,
-          stream,
-          use_bias == 1,
-          activation == 1,
-          bias);
+      cublaslt_status = mlp_gemm_lt(
+        // ltHandle,
+        (cublasLtHandle_t)handle,
+        CUBLAS_OP_T,
+        CUBLAS_OP_N,
+        ofeat,
+        batch_size,
+        ifeat,
+        &one,
+        weight,
+        ifeat,
+        input,
+        ifeat,
+        &zero,
+        output,
+        ofeat,
+        lt_workspace,
+        1 << 22,
+        stream,
+        use_bias == 1,
+        activation == 1,
+        bias);
     }
 
     // if cublaslt failed or not executed, fallback to cublas
@@ -1337,6 +1446,13 @@ int mlp_fp(
           biasAdd_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
           cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Sigmoid_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
           Sigmoid_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+        } else if (activation == 3) { // gelu
+          cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, biasAdd_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+          biasAdd_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, bias, batch_size, input_size);
+          cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Gelu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+          Gelu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+        } else {
+          assert(false && "Not implemented");
         }
       } else {
         // don't need to do anything in case of no activation and no bias
@@ -1346,6 +1462,11 @@ int mlp_fp(
         } else if (activation == 2) { // sigmoid
           cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Sigmoid_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
           Sigmoid_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+        } else if (activation == 3) { // gelu
+          cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Gelu_fprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+          Gelu_fprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(output, batch_size, input_size);
+        } else {
+          assert(false && "Not implemented");
         }
       }
     }
@@ -1494,6 +1615,26 @@ int mlp_bp(
         dim3 grid(grid_x, grid_y);
         biasAdd_bprop<T, 4><<<grid, block, 0, stream>>>(
           dy_gemm, yfeat, batch_size, db_scratch, semaphores, dbias);
+      } else if (activation == 3) { // gelu
+        // activation backward
+        int num_blocks = 0;
+        int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Gelu_bprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+        Gelu_bprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(dy, y, batch_size, yfeat, dy_gemm);
+
+        // bgrad, from dy_gemm
+        dim3 block(BIAS_RELU_BW_NTHREADS_X, BIAS_RELU_BW_NTHREADS_Y);
+        int grid_x, grid_y;
+        cudaMemsetAsync(semaphores, 0, semaphore_size, stream);
+
+        int block_x = BIAS_RELU_BW_NTHREADS_X;
+        int block_y = BIAS_RELU_RED_PER_THREAD * BIAS_RELU_BW_NTHREADS_Y;
+        get_biasAddRelu_bprop_grid_size(yfeat, batch_size, block_x, block_y, &grid_x, &grid_y);
+        dim3 grid(grid_x, grid_y);
+        biasAdd_bprop<T, 4><<<grid, block, 0, stream>>>(
+          dy_gemm, yfeat, batch_size, db_scratch, semaphores, dbias);
+      } else {
+        assert(false && "Not implemented");
       }
     } else { // no bias below
       if (activation == 0) {
@@ -1509,6 +1650,13 @@ int mlp_bp(
         int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
         cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Sigmoid_bprop<T>, BIAS_RELU_FW_NTHREADS, 0);
         Sigmoid_bprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(dy, y, batch_size, yfeat, dy_gemm);
+      } else if (activation == 3) { // gelu
+        int num_blocks = 0;
+        int num_SMs = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, Gelu_bprop<T>, BIAS_RELU_FW_NTHREADS, 0);
+        Gelu_bprop<<<num_SMs*num_blocks, BIAS_RELU_FW_NTHREADS, 0, stream>>>(dy, y, batch_size, yfeat, dy_gemm);
+      } else {
+        assert(false && "Not implemented");
       }
     }
 
