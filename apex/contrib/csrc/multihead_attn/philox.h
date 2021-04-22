@@ -18,8 +18,8 @@ public:
     if(STATE == 0) {
       uint4 counter_ = counter;
       uint2 key_ = key;
-      //7-round philox
-      for(int i = 0; i < 6; i++) {
+      //10-round philox
+      for(int i = 0; i < 9; i++) {
         counter_ = single_round(counter_, key_);
         key_.x += (kPhilox10A); key_.y += (kPhilox10B);
       }
