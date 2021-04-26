@@ -91,7 +91,7 @@ scripts as well.
 	# CSV output.
     python -m apex.pyprof.prof --csv net.dict
 
-	# Space seperated output.
+	# Space separated output.
     python -m apex.pyprof.prof net.dict
 
 	# Columnated output of width 130 with columns index,direction,kernel name,parameters,silicon time.
