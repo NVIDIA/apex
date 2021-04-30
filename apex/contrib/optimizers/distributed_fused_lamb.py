@@ -87,7 +87,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                  step_supports_amp_scaling=True, overlap_reductions=True,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
                  dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
-                 e5m2_allgather=False, verbose=False, clip_after_rs=True):
+                 e5m2_allgather=False, verbose=False, clip_after_ar=True):
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         grad_averaging=grad_averaging,
@@ -118,7 +118,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._num_chunks = dwu_num_chunks
         self._e5m2_allgather = e5m2_allgather
         self._verbose = verbose
-        self._clip_after_rs = clip_after_rs
+        self._clip_after_ar = clip_after_ar
         self._L2_grad_norm = None
         
         self._current_process_group = c10d._get_default_group()
@@ -471,7 +471,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         return flush_block
 
     def _pipeline_block_reductions(self, block_id):
-        if self._clip_after_rs:
+        if self._clip_after_ar:
             self._flatten_grad_mt(1.0/self._world_size)
 
             # Reduction within each node
@@ -577,7 +577,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
     def _pipeline_step(self):
         global_scale = self.global_scale
         # if clip before rs, set max_grad_norm to 0
-        max_grad_norm = self.defaults['max_grad_norm'] * self._clip_after_rs
+        max_grad_norm = self.defaults['max_grad_norm'] * self._clip_after_ar
         self._completion_st.wait_stream(self._l2_grad_norm_st)
         global_grad_norm = self.L2_grad_norm
 
