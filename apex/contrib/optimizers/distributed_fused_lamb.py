@@ -576,7 +576,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
     def _pipeline_step(self):
         global_scale = self.global_scale
-        # if clip before rs, set max_grad_norm to 0
+        # if clip before ar, set max_grad_norm to 0
         max_grad_norm = self.defaults['max_grad_norm'] * self._clip_after_ar
         self._completion_st.wait_stream(self._l2_grad_norm_st)
         global_grad_norm = self.L2_grad_norm
