@@ -7,4 +7,4 @@ try:
     del focal_loss_cuda
     del focal_loss
 except ImportError as err:
-    print("apex was installed without --focal-loss flag, contrib.focal_loss is not available")
+    print("apex was installed without --focal_loss flag, contrib.focal_loss is not available")
