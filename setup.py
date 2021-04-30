@@ -408,7 +408,8 @@ if "--focal_loss" in sys.argv:
                                    'apex/contrib/csrc/focal_loss/focal_loss_cuda_kernel.cu'],
                           include_dirs=[os.path.join(this_dir, 'csrc')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
-                                              'nvcc':['-O3'] + version_dependent_macros}))
+                                              'nvcc':['-O3', '--use_fast_math',
+                                                      '--ftz=false'] + version_dependent_macros}))
 
 if "--deprecated_fused_adam" in sys.argv:
     sys.argv.remove("--deprecated_fused_adam")
