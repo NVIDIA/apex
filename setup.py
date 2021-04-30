@@ -392,6 +392,24 @@ if "--xentropy" in sys.argv:
         )
     )
 
+if "--focal_loss" in sys.argv:
+    from torch.utils.cpp_extension import CUDAExtension
+    sys.argv.remove("--focal_loss")
+
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension
+
+    if torch.utils.cpp_extension.CUDA_HOME is None:
+        raise RuntimeError("--focal-loss was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        ext_modules.append(
+            CUDAExtension(name='focal_loss_cuda',
+                          sources=['apex/contrib/csrc/focal_loss/focal_loss_cuda.cpp',
+                                   'apex/contrib/csrc/focal_loss/focal_loss_cuda_kernel.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3'] + version_dependent_macros}))
+
 if "--deprecated_fused_adam" in sys.argv:
     sys.argv.remove("--deprecated_fused_adam")
     raise_if_cuda_home_none("--deprecated_fused_adam")
