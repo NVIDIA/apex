@@ -10,9 +10,10 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 
+#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
 // includes cublaslt
 #include <cublasLt.h>
-
+#endif
 // constants for fused bias+relu kernel
 #define BIAS_RELU_FW_NTHREADS 128 // forward number of thread per block
 #define BIAS_RELU_BW_NTHREADS_X 32 // backward number of thread in feature dim
@@ -167,7 +168,7 @@ cublasStatus_t mlp_gemm(
       CUDA_R_32F,
       CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
-
+#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
 int mlp_gemm_lt(
     cublasLtHandle_t ltHandle,
     cublasOperation_t transa,
@@ -428,7 +429,7 @@ CLEANUP:
   // enqueued.
   return status == CUBLAS_STATUS_SUCCESS ? 0 : 1;
 }
-
+#endif
 
 // Bias ADD. Assume input X is [features x batch size], column major.
 // Bias is one 'features' long vector, with implicit broadcast.
@@ -1271,6 +1272,7 @@ int mlp_fp(
 
     // try with cublaslt first for supported case with valid handle
     int cublaslt_status = 1;
+#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
     if(activation < 1){
         cublaslt_status = mlp_gemm_lt(
           //ltHandle,
@@ -1295,6 +1297,7 @@ int mlp_fp(
           activation == 1,
           bias);
     }
+#endif
 
     // if cublaslt failed or not executed, fallback to cublas
     if (cublaslt_status != 0) {
