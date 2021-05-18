@@ -332,102 +332,7 @@ int mlp_gemm_lt(
     bool use_bias,
     bool use_relu,
     const void* bias) {
-  cublasStatus_t status = CUBLAS_STATUS_SUCCESS;
-
-  cublasLtMatmulDescOpaque_t operationDesc = {};
-  cublasLtMatrixLayoutOpaque_t Adesc = {}, Bdesc = {}, Cdesc = {};
-  cublasLtMatmulPreferenceOpaque_t preference = {};
-
-  int returnedResults                             = 0;
-  cublasLtMatmulHeuristicResult_t heuristicResult = {};
-  cublasLtEpilogue_t epilogue = CUBLASLT_EPILOGUE_DEFAULT;
-
-  // Create operation descriptor; see cublasLtMatmulDescAttributes_t
-  // for details about defaults; here we just set the transforms for
-  // A and B.
-  status = cublasLtMatmulDescInit(&operationDesc, CUBLAS_COMPUTE_32F, CUDA_R_32F);
-  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
-  status = cublasLtMatmulDescSetAttribute(&operationDesc, CUBLASLT_MATMUL_DESC_TRANSA, &transa, sizeof(transa));
-  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
-  status = cublasLtMatmulDescSetAttribute(&operationDesc, CUBLASLT_MATMUL_DESC_TRANSB, &transb, sizeof(transa));
-  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
-
-  if (use_bias) {
-    status = cublasLtMatmulDescSetAttribute(&operationDesc, CUBLASLT_MATMUL_DESC_BIAS_POINTER, &bias, sizeof(bias));
-    if (status != CUBLAS_STATUS_SUCCESS) {
-      goto CLEANUP;
-    }
-    if (use_relu) {
-      epilogue = CUBLASLT_EPILOGUE_RELU_BIAS;
-    } else {
-      epilogue = CUBLASLT_EPILOGUE_BIAS;
-    }
-  } else {
-    if (use_relu) {
-      epilogue = CUBLASLT_EPILOGUE_RELU;
-    }
-  }
-
-  status = cublasLtMatmulDescSetAttribute(&operationDesc, CUBLASLT_MATMUL_DESC_EPILOGUE, &epilogue, sizeof(epilogue));
-  if (status != CUBLAS_STATUS_SUCCESS) {
-    goto CLEANUP;
-  }
-
-  // Create matrix descriptors. Not setting any extra attributes.
-  status = cublasLtMatrixLayoutInit(
-    &Adesc, CUDA_R_32F, transa == CUBLAS_OP_N ? m : k, transa == CUBLAS_OP_N ? k : m, lda);
-  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
-  status = cublasLtMatrixLayoutInit(
-    &Bdesc, CUDA_R_32F, transb == CUBLAS_OP_N ? k : n, transb == CUBLAS_OP_N ? n : k, ldb);
-  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
-  status = cublasLtMatrixLayoutInit(&Cdesc, CUDA_R_32F, m, n, ldc);
-  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
-
-  // Create preference handle; In general, extra attributes can be
-  // used here to disable tensor ops or to make sure algo selected
-  // will work with badly aligned A, B, C. However, for simplicity
-  // here we assume A,B,C are always well aligned (e.g., directly
-  // come from cudaMalloc)
-  status = cublasLtMatmulPreferenceInit(&preference);
-  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
-  status = cublasLtMatmulPreferenceSetAttribute(
-    &preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &workspaceSize, sizeof(workspaceSize));
-  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
-
-  // We just need the best available heuristic to try and run matmul.
-  // There is no guarantee that this will work. For example, if A is
-  // badly aligned, you can request more (e.g. 32) algos and try to
-  // run them one by one until something works.
-  status = cublasLtMatmulAlgoGetHeuristic(
-    ltHandle, &operationDesc, &Adesc, &Bdesc, &Cdesc, &Cdesc, &preference, 1, &heuristicResult, &returnedResults);
-  if (status != CUBLAS_STATUS_SUCCESS) goto CLEANUP;
-
-  if (returnedResults == 0) {
-    status = CUBLAS_STATUS_NOT_SUPPORTED;
-    goto CLEANUP;
-  }
-
-  status = cublasLtMatmul(ltHandle,
-                          &operationDesc,
-                          alpha,
-                          A,
-                          &Adesc,
-                          B,
-                          &Bdesc,
-                          beta,
-                          C,
-                          &Cdesc,
-                          C,
-                          &Cdesc,
-                          &heuristicResult.algo,
-                          workspace,
-                          workspaceSize,
-                          stream);
-
-CLEANUP:
-  // Descriptors are no longer needed as all GPU work was already
-  // enqueued.
-  return status == CUBLAS_STATUS_SUCCESS ? 0 : 1;
+  return 1;
 }
 #endif
 
@@ -1273,7 +1178,7 @@ int mlp_fp(
     // try with cublaslt first for supported case with valid handle
     int cublaslt_status = 1;
 #if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
-    if(activation < 1){
+    if(activation < 2){
         cublaslt_status = mlp_gemm_lt(
           //ltHandle,
           (cublasLtHandle_t)handle,
@@ -1675,4 +1580,3 @@ template size_t get_mlp_bp_workspace_in_bytes<double>(
     int batch_size,
     int num_layers,
     const int* output_features);
-
