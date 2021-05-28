@@ -76,12 +76,20 @@ def transducer_loss_reference(x, label, f_len, y_len, blank_idx, loss_grad):
     return alpha, beta, x.grad, loss
 
 
-def transducer_joint_reference(f, g, h_grad, f_len, g_len, pack_output):
+def transducer_joint_reference(f, g, h_grad, f_len, g_len, pack_output, relu, dropout, dropout_prob=0, mask=None):
+    if dropout and mask == None:
+        raise NotImplementedError("mask needs to supplied to test dropout.")
     B, T, H = f.size()
     U = g.size(1)
     f_expand = f.unsqueeze(dim=2)
     g_expand = g.unsqueeze(dim=1)
     h = f_expand + g_expand
+    if relu:
+        h = torch.nn.functional.relu(h)
+    if dropout:
+        h *= mask
+        scale = 1/(1-dropout_prob)
+        h *= scale
     h.backward(h_grad)
 
     if pack_output == False:
@@ -90,6 +98,7 @@ def transducer_joint_reference(f, g, h_grad, f_len, g_len, pack_output):
         for b in range(B):
             h[b, f_len[b]:] = -1
             h[b, :, g_len[b]:] = -1
+
         return h, f.grad, g.grad 
 
     # packing

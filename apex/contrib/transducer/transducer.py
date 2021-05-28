@@ -16,12 +16,19 @@ class TransducerJoint(torch.nn.Module):
         ignored if opt != 1. (default: 4) 
     """
 
-    def __init__(self, pack_output=False, opt=1, fwd_tile_size=4):
+    def __init__(self, pack_output=False, relu=False, dropout=False, opt=1, fwd_tile_size=4, dropout_prob=0, probe_mask=False):
         super(TransducerJoint, self).__init__() 
         self.pack_output = pack_output
+        self.relu = relu
+        self.dropout = dropout
+        self.dropout_prob = dropout_prob
         self.opt = opt
         self.fwd_tile_size = fwd_tile_size
         self.dummy_batch_offset = torch.empty(0)
+        masked = self.relu or self.dropout
+        self.mask_probe = [] if masked and probe_mask else None
+        if masked and opt != 1:
+            raise NotImplementedError("ReLU and dropout fusion is only supported with opt=1")
 
 
     def forward(self, f, g, f_len, g_len, batch_offset=None, packed_batch=0):
@@ -43,8 +50,9 @@ class TransducerJoint(torch.nn.Module):
         my_batch_offset = batch_offset if self.pack_output else self.dummy_batch_offset
         if self.pack_output and (batch_offset is None or packed_batch == 0):
             raise Exception("Please specify batch_offset and packed_batch when packing is enabled")
-        return TransducerJointFunc.apply(f, g, f_len, g_len, self.pack_output, my_batch_offset, 
-                                            packed_batch, self.opt, self.fwd_tile_size)
+        dropout =  self.dropout and self.training    # only dropout for training
+        return TransducerJointFunc.apply(f, g, f_len, g_len, self.pack_output, self.relu, dropout, my_batch_offset, 
+                                            packed_batch, self.opt, self.fwd_tile_size, self.dropout_prob, self.mask_probe)
 
 
 class TransducerLoss(torch.nn.Module):
@@ -139,23 +147,38 @@ class TransducerLossFunc(torch.autograd.Function):
 
 class TransducerJointFunc(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, f, g, f_len, g_len, pack_output, batch_offset, packed_batch, opt, 
-                fwd_tile_size):
+    def forward(ctx, f, g, f_len, g_len, pack_output, relu, dropout, batch_offset, packed_batch, opt, 
+                fwd_tile_size, dropout_prob, mask_probe):
         h = transducer_joint_cuda.forward(f, g, f_len, g_len, batch_offset, packed_batch, opt, 
-                                            pack_output, fwd_tile_size)
-        ctx.save_for_backward(f_len, g_len, batch_offset)
+                                            pack_output, relu, dropout, dropout_prob, fwd_tile_size)
+        masked = relu or dropout
+        if masked:
+            ctx.save_for_backward(h[1], f_len, g_len, batch_offset)
+            if mask_probe is not None:
+                mask_probe.append(h[1])
+        else:
+            ctx.save_for_backward(f_len, g_len, batch_offset)
+
         ctx.pack_output = pack_output
+        ctx.masked = relu or dropout
         ctx.max_f_len = f.size(1)
         ctx.max_g_len = g.size(1)
-        return h
+        ctx.scale = 1 / (1-dropout_prob) if dropout and dropout_prob != 1 else 1
+        return h[0]
 
     @staticmethod
     def backward(ctx, loss_grad):
-        f_len, g_len, batch_offset = ctx.saved_tensors
-        f_grad, g_grad = transducer_joint_cuda.backward(loss_grad, f_len, g_len, batch_offset, 
-                                                        ctx.max_f_len, ctx.max_g_len, 
-                                                        ctx.pack_output)
+        if ctx.masked:
+            mask, f_len, g_len, batch_offset = ctx.saved_tensors
+            inp = [loss_grad, mask]
+        else:
+            f_len, g_len, batch_offset = ctx.saved_tensors
+            inp = [loss_grad]
 
-        return f_grad, g_grad, None, None, None, None, None, None, None, None, None, None
+        f_grad, g_grad = transducer_joint_cuda.backward(   inp, f_len, g_len, batch_offset, 
+                                                            ctx.max_f_len, ctx.max_g_len, 
+                                                            ctx.pack_output, ctx.scale)
+
+        return f_grad, g_grad, None, None, None, None, None, None, None, None, None, None, None, None, None, None
 
 

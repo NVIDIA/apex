@@ -5,7 +5,7 @@
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
-torch::Tensor transducer_joint_cuda_forward(
+std::vector<torch::Tensor> transducer_joint_cuda_forward(
     torch::Tensor f,
     torch::Tensor g,
     torch::Tensor fLen,
@@ -14,19 +14,23 @@ torch::Tensor transducer_joint_cuda_forward(
     int64_t packedBatch,
     int opt,
     bool packOutput,
+    bool relu,
+    bool dropout,
+    float dropoutProb,
     int tileSize);
 
 
 std::vector<torch::Tensor> transducer_joint_cuda_backward(
-    torch::Tensor grad,
+    std::vector<torch::Tensor> in,
     torch::Tensor fLen,
     torch::Tensor gLen,
     torch::Tensor batchOffset,
     int maxFLen,
     int maxGLen,
-    bool packOutput);
+    bool packOutput,
+    float scale);
 
-torch::Tensor transducer_joint_forward(
+std::vector<torch::Tensor> transducer_joint_forward(
     torch::Tensor f,
     torch::Tensor g,
     torch::Tensor fLen,
@@ -35,6 +39,9 @@ torch::Tensor transducer_joint_forward(
     int64_t packedBatch,
     int opt,
     bool packOutput,
+    bool relu,
+    bool dropout,
+    float dropoutProb,
     int tileSize) {
     CHECK_INPUT(f);
     CHECK_INPUT(g);
@@ -51,30 +58,37 @@ torch::Tensor transducer_joint_forward(
         packedBatch,
         opt,
         packOutput,
+        relu,
+        dropout,
+        dropoutProb,
         tileSize);
 }
 
 std::vector<torch::Tensor> transducer_joint_backward(
-    torch::Tensor grad,
+    std::vector<torch::Tensor> in,
     torch::Tensor fLen,
     torch::Tensor gLen,
     torch::Tensor batchOffset,
     int maxFLen,
     int maxGLen,
-    bool packOutput) {
-    CHECK_INPUT(grad);
+    bool packOutput,
+    float scale) {
+    for (auto t : in){
+        CHECK_INPUT(t);
+    }
     CHECK_INPUT(fLen);
     CHECK_INPUT(gLen);
     if (packOutput)
         CHECK_INPUT(batchOffset);
     return transducer_joint_cuda_backward(
-        grad, 
+        in, 
         fLen, 
         gLen,
         batchOffset,
         maxFLen,
         maxGLen,
-        packOutput);
+        packOutput,
+        scale);
 }
 
 
