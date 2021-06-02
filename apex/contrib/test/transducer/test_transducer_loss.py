@@ -8,13 +8,13 @@ class TransducerLossTest(unittest.TestCase):
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-    def gen_input(self, scalar_t):
+    def gen_input(self, scalar_t, for_vector_kernel):
         self.B = 5
         T_min = 23
         T_max = 51
         U_min = 12
         U_max = 25
-        V = 16
+        V = 16 if for_vector_kernel else 14
         self.blank_idx = V - 1
         device = "cuda"
 
@@ -61,8 +61,8 @@ class TransducerLossTest(unittest.TestCase):
                     x_unpacked[b, t, u] = x[my_batch_offset + t*my_g_len + u]
         return x_unpacked
 
-    def run_transducer_loss(self, scalar_t, fuse_softmax_backward, packed_input):
-        self.gen_input(scalar_t)
+    def run_transducer_loss(self, scalar_t, fuse_softmax_backward, packed_input, for_vector_kernel):
+        self.gen_input(scalar_t, for_vector_kernel)
         my_loss = TransducerLoss(  fuse_softmax_backward=fuse_softmax_backward, 
                                     packed_input=packed_input) 
         if not packed_input:
@@ -90,28 +90,40 @@ class TransducerLossTest(unittest.TestCase):
     def test_transducer_loss_fp32(self):
         loss_tst, grad_tst = self.run_transducer_loss(  scalar_t=torch.float32,
                                                         fuse_softmax_backward=False,
-                                                        packed_input=False)
+                                                        packed_input=False,
+                                                        for_vector_kernel=False)
         self.assertTrue(torch.allclose(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5))
         self.assertTrue(torch.allclose(self.grad_ref, grad_tst, atol=1e-5, rtol=1e-5))
 
     def test_transducer_loss_fp16(self):
         loss_tst, grad_tst = self.run_transducer_loss(  scalar_t=torch.float16,
                                                         fuse_softmax_backward=False,
-                                                        packed_input=False)
+                                                        packed_input=False,
+                                                        for_vector_kernel=False)
         self.assertTrue(torch.allclose(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5))
         self.assertTrue(torch.allclose(self.grad_ref, grad_tst, atol=1e-4, rtol=1e-3))
 
     def test_transducer_loss_fp16_backward_fusion(self):
         loss_tst, grad_tst = self.run_transducer_loss(  scalar_t=torch.float16,
                                                         fuse_softmax_backward=True,
-                                                        packed_input=False)
+                                                        packed_input=False,
+                                                        for_vector_kernel=False)
         self.assertTrue(torch.allclose(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5))
         self.assertTrue(torch.allclose(self.grad_ref, grad_tst, atol=1e-4, rtol=1e-3))
 
     def test_transducer_loss_fp16_backward_fusion_packed(self):
         loss_tst, grad_tst = self.run_transducer_loss(  scalar_t=torch.float16,
                                                         fuse_softmax_backward=True,
-                                                        packed_input=True)
+                                                        packed_input=True,
+                                                        for_vector_kernel=False)
+        self.assertTrue(torch.allclose(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5))
+        self.assertTrue(torch.allclose(self.grad_ref, grad_tst, atol=1e-4, rtol=1e-3))
+
+    def test_transducer_loss_fp16_backward_fusion_packed_vec(self):
+        loss_tst, grad_tst = self.run_transducer_loss(  scalar_t=torch.float16,
+                                                        fuse_softmax_backward=True,
+                                                        packed_input=True,
+                                                        for_vector_kernel=True)
         self.assertTrue(torch.allclose(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5))
         self.assertTrue(torch.allclose(self.grad_ref, grad_tst, atol=1e-4, rtol=1e-3))
 
