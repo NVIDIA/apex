@@ -506,10 +506,12 @@ __global__ void transducer_loss_fused_vec_backward(
         if (tid == 0){
             commonFactor = std::log(lossGrad[batch]) + myAlpha[t*maxGLen + u] - myBeta[0];
             myBetaTU = myBeta[t*maxGLen + u];
-            myBetaTUp1 = myBeta[t*maxGLen + u + 1];
-            myBetaTp1U = myBeta[(t+1)*maxGLen + u];
-            if (u != myGLen - 1)
+            if (t != myFLen - 1)
+                myBetaTp1U = myBeta[(t+1)*maxGLen + u];
+            if (u != myGLen - 1){
+                myBetaTUp1 = myBeta[t*maxGLen + u + 1];
                 myLabelShared = myLabel[u];
+            }
         }
 
         __syncthreads();
