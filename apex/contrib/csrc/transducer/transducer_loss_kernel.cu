@@ -508,7 +508,8 @@ __global__ void transducer_loss_fused_vec_backward(
             myBetaTU = myBeta[t*maxGLen + u];
             myBetaTUp1 = myBeta[t*maxGLen + u + 1];
             myBetaTp1U = myBeta[(t+1)*maxGLen + u];
-            myLabelShared = myLabel[u];
+            if (u != myGLen - 1)
+                myLabelShared = myLabel[u];
         }
 
         __syncthreads();
