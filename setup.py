@@ -20,9 +20,13 @@ def get_cuda_bare_metal_version(cuda_dir):
 
     return raw_output, bare_metal_major, bare_metal_minor
 
+print("\n\ntorch.__version__  = {}\n\n".format(torch.__version__))
+TORCH_MAJOR = int(torch.__version__.split('.')[0])
+TORCH_MINOR = int(torch.__version__.split('.')[1])
+
 def check_if_rocm_pytorch():
     is_rocm_pytorch = False
-    if torch.__version__ >= '1.5':
+    if TORCH_MAJOR > 1 or (TORCH_MAJOR == 1 and TORCH_MINOR >= 5):
         from torch.utils.cpp_extension import ROCM_HOME
         is_rocm_pytorch = True if ((torch.version.hip is not None) and (ROCM_HOME is not None)) else False
 
@@ -52,10 +56,6 @@ elif not torch.cuda.is_available() and IS_ROCM_PYTORCH:
           'If your intention is to cross-compile, this is not an error.\n'
           'By default, Apex will cross-compile for the same gfx targets\n'
           'used by default in ROCm PyTorch\n')
-
-print("\n\ntorch.__version__  = {}\n\n".format(torch.__version__))
-TORCH_MAJOR = int(torch.__version__.split('.')[0])
-TORCH_MINOR = int(torch.__version__.split('.')[1])
 
 if TORCH_MAJOR == 0 and TORCH_MINOR < 4:
       raise RuntimeError("Apex requires Pytorch 0.4 or newer.\n" +
