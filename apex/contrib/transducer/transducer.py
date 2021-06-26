@@ -189,7 +189,7 @@ class TransducerJointFunc(torch.autograd.Function):
                                                             ctx.max_f_len, ctx.max_g_len, 
                                                             ctx.pack_output, ctx.scale)
 
-        return f_grad, g_grad, None, None, None, None, None, None, None, None, None, None, None, 
+        return f_grad, g_grad, None, None, None, None, None, None, None, None, None, None, None, \
                 None, None, None
 
 
