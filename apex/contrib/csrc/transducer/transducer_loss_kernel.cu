@@ -453,7 +453,7 @@ __global__ void transducer_loss_fused_backward(
 }
 
 
-// Fused transudcer loss backward operation.
+// Vectorized version of fused transudcer loss backward operation.
 // Detail of this loss function can be found in: 
 // [1] Sequence Transduction with Recurrent Neural Networks.
 // The bwd op of the preceding softmax layer is fused in this kernel. 
@@ -693,7 +693,8 @@ torch::Tensor transducer_loss_cuda_backward(
             constexpr int vecAlignment = std::alignment_of<vec_t>::value;
             // if all input and output tensors meet the alignment requirement
             bool memAlign = reinterpret_cast<uint64_t>(x.data_ptr<scalar_t>()) % vecAlignment == 0
-                                and reinterpret_cast<uint64_t>(xGrad.data_ptr<scalar_t>()) % vecAlignment == 0;
+                                and reinterpret_cast<uint64_t>(xGrad.data_ptr<scalar_t>()) 
+                                        % vecAlignment == 0;
 
             if (vectFactor > 1 and dictSize%vectFactor == 0 and memAlign){
                 transducer_loss_fused_vec_backward<scalar_t, acc_t, vec_t, vectFactor>

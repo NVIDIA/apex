@@ -211,22 +211,30 @@ __global__ void transducer_joint_forward(
     }
 }
 
-// Tiled version of the joint forward kernel
-// Detail of this joint function can be found in: 
-// [1] Sequence Transduction with Recurrent Neural Networks.
+/*
+Tiled version of the joint forward kernel
+Detail of this joint function can be found in: 
+[1] Sequence Transduction with Recurrent Neural Networks.
 
-// f is a tensor of shape [batch, T, H]
-// g is a tensor of shape [batch, U, H]
-// the transducer joint does
-// sum = f.unsqueeze(dim=2) + g.unsqueeze(dim=1)
-// The resultant tensor is of shape [batch, T, U, H]
-// Each thread is working on a tile of the shape of tileF x tileG in the result tensor.
-// The input for the tile is first loaded in the register and is reused tileG and tileF times. 
+f is a tensor of shape [batch, T, H]
+g is a tensor of shape [batch, U, H]
+the transducer joint does
+sum = f.unsqueeze(dim=2) + g.unsqueeze(dim=1)
+The resultant tensor is of shape [batch, T, U, H]
+Each thread is working on a tile of the shape of tileF x tileG in the result tensor.
+The input for the tile is first loaded in the register and is reused tileG and tileF times. 
 
-// This joint function can optionally pack the output where the output tensor with a shape of
-// [B, T, U, H] is packed into [B_packed, H].
-// Don't-care region (t > fLen) or (u > gLen) is removed.
-// To enable packing, the starting offset for each batch need to be specified with batchOffset.
+This joint function can optionally pack the output where the output tensor with a shape of
+[B, T, U, H] is packed into [B_packed, H].
+Don't-care region (t > fLen) or (u > gLen) is removed.
+To enable packing, the starting offset for each batch need to be specified with batchOffset.
+
+Optionally this joint function performs ReLU and/or dropout on the joint output, which is 
+controlled by arguments relu and dropout, respectively. philoxArgs is argument used for generating
+pseudorandom number. When at least one of operations in ReLU and dropout is activated, the joint
+function is a masked operation, which is controlled by the template argument masked. In this case, 
+masks are saved to backward.
+*/
 template <typename scalar_t, int tileF, int tileG, int U, class OffsetCal, bool masked>
 __global__ void transducer_joint_tiled_forward(
     const scalar_t *f,
@@ -266,7 +274,7 @@ __global__ void transducer_joint_tiled_forward(
     scalar_t *mySum = sum + myBatchOffset + t*strideF + u*hiddenSize + hOffset;
     uint8_t *myMask = mask + myBatchOffset + t*strideF + u*hiddenSize + hOffset;
 
-    // The following code is only needed for dropout. We try to by pass them as much as possible.
+    // The following code is only needed for dropout. We try to bypass them as much as possible.
     auto seeds = masked ? at::cuda::philox::unpack(philoxArgs) 
                             : std::make_tuple(static_cast<uint64_t>(0), static_cast<uint64_t>(0));
     uint64_t tid = masked ? (static_cast<uint64_t>(blockIdx.z)*gridDim.y*gridDim.x + 
@@ -275,8 +283,6 @@ __global__ void transducer_joint_tiled_forward(
     Philox ph(std::get<0>(seeds), tid, std::get<1>(seeds)); 
     scalar_t scale = masked ? ((p == 0) ? 0 : 1 / p) : 0;  
     bool dropoutMask[U];
-
-
 
     if (t < myFLen and u < myGLen and hOffset+h < hiddenSize){    
         // register buffers for tiled input reuse
@@ -345,12 +351,17 @@ __global__ void transducer_joint_tiled_forward(
     }
 }
 
-// Bwd operation (reduction) on one input tensor. Since the operation performed for the two input
-// tensors are exactly the same, only one kernel is needed, and the different indexing offsets
-// and strides are handled by OffsetCalBwd.
+/*
+Bwd operation (reduction) on one input tensor. Since the operation performed for the two input
+tensors are exactly the same, only one kernel is needed, and the different indexing offsets
+and strides are handled by OffsetCalBwd.
 
-// When packing is enabled in the fwd op, unpacking is needed to restore the gradients in a 
-// non-packed form.
+When packing is enabled in the fwd op, unpacking is needed to restore the gradients in a 
+non-packed form.
+
+When ReLU and/or dropout are performed in the fwd pass, this operation becomes a masked operation,
+and mask contains the mask information.
+*/
 template <typename scalar_t, typename acc_t, class OffsetCal, bool masked>
 __device__ void transducer_joint_single_backward(
     const scalar_t *grad,
@@ -431,10 +442,14 @@ __device__ void transducer_joint_single_backward(
     }
 }
 
-// Actual bwd (reduction) kernel get launched.
-// Call transducer_joint_single_backward twice on two input tensors. 
-// The two bwd ops are launched together, the first op uses blockIdx.y < maxFLen, and the second op 
-// uses the rest.
+/*
+Actual bwd (reduction) kernel get launched.
+Call transducer_joint_single_backward twice on two input tensors. 
+The two bwd ops are launched together, the first op uses blockIdx.y < maxFLen, and the second op 
+uses the rest.
+When ReLU and/or dropout are performed in the fwd pass, this operation becomes a masked operation,
+and mask contains the mask information.
+*/
 template <typename scalar_t, typename acc_t, class OffsetCal, bool masked>
 __global__ void transducer_joint_combined_backward(
     const scalar_t *grad,
@@ -482,11 +497,15 @@ __global__ void transducer_joint_combined_backward(
     }  
 }
 
-// Vectorized version of transducer_joint_single_backward
-// Doing exact same operation as transducer_joint_single_backward except the load and store are
-// vectorized.
-// When packing is enabled in the fwd op, unpacking is needed to restore the gradients in a 
-// non-packed form.
+/*
+Vectorized version of transducer_joint_single_backward
+Doing exact same operation as transducer_joint_single_backward except the load and store are
+vectorized.
+When packing is enabled in the fwd op, unpacking is needed to restore the gradients in a 
+non-packed form.
+When ReLU and/or dropout are performed in the fwd pass, this operation becomes a masked operation,
+and mask contains the mask information.
+*/
 template <typename scalar_t, typename acc_t, typename vec_t, int V, class OffsetCal, bool masked>
 __device__ void transducer_joint_single_vec_backward(
     const scalar_t *grad,
@@ -595,10 +614,14 @@ __device__ void transducer_joint_single_vec_backward(
     }
 }
 
-// Vecotrized version of transducer_joint_combined_backward
-// Call transducer_joint_single_vec_backward twice on two input tensors. 
-// The two bwd ops are launched together, the first op uses blockIdx.y < maxFLen, and the second op 
-// uses the rest.
+/*
+Vecotrized version of transducer_joint_combined_backward
+Call transducer_joint_single_vec_backward twice on two input tensors. 
+The two bwd ops are launched together, the first op uses blockIdx.y < maxFLen, and the second op 
+uses the rest.
+When ReLU and/or dropout are performed in the fwd pass, this operation becomes a masked operation,
+and mask contains the mask information.
+*/
 template <typename scalar_t, typename acc_t, typename vec_t, int V, class OffsetCal, bool masked>
 __global__ void transducer_joint_combined_vec_backward(
     const scalar_t *grad,
@@ -731,12 +754,14 @@ std::vector<torch::Tensor> transducer_joint_cuda_forward(
 
         at::PhiloxCudaState rng_engine_inputs;
         if (masked){
-            // set up PRG when the input is masked. rng_engine_inputs will be used as a space filler for non-masked calls.
+            // set up PRG when the input is masked. rng_engine_inputs will be used as a space filler 
+            // for non-masked calls.
             // Therefore no need to initialize.
             c10::optional<at::Generator> gen_;
-            auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(gen_, at::cuda::detail::getDefaultCUDAGenerator());
-            // counterOffset records how many cuRAND calls each thread makes. For a tiled kernel, each thread processes
-            // tileF * tileG output elements. 
+            auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(gen_, 
+                                                    at::cuda::detail::getDefaultCUDAGenerator());
+            // counterOffset records how many cuRAND calls each thread makes. For a tiled kernel, 
+            // each thread processes tileF * tileG output elements. 
             int64_t counterOffset = tileSize * tileSize;
             {
                 std::lock_guard<std::mutex> lock(gen->mutex_);
@@ -745,28 +770,34 @@ std::vector<torch::Tensor> transducer_joint_cuda_forward(
         }
 
         AT_DISPATCH_FLOATING_TYPES_AND_HALF(dtype, "transducer_joint_forward", ([&] {
-            void(*kernel)(const scalar_t*, const scalar_t*, const int*, const int*, const int64_t*, int64_t, int64_t, 
-                            int64_t, int64_t, bool, bool, bool, float, at::PhiloxCudaState, scalar_t*, uint8_t*);
+            void(*kernel)(const scalar_t*, const scalar_t*, const int*, const int*, const int64_t*, 
+                            int64_t, int64_t, int64_t, int64_t, bool, bool, bool, float, 
+                            at::PhiloxCudaState, scalar_t*, uint8_t*);
             if (masked){
                 switch (tileSize){
                     case 2:
-                        kernel = &transducer_joint_tiled_forward<scalar_t, 2, 2, 4, OffsetCalFwd, true>;
+                        kernel = &transducer_joint_tiled_forward<scalar_t, 2, 2, 4, OffsetCalFwd, 
+                                                                    true>;
                         break;
                     case 4:
-                        kernel = &transducer_joint_tiled_forward<scalar_t, 4, 4, 4, OffsetCalFwd, true>;
+                        kernel = &transducer_joint_tiled_forward<scalar_t, 4, 4, 4, OffsetCalFwd, 
+                                                                    true>;
                         break;
                 }
             }
             else{
                 switch (tileSize){
                     case 1:
-                        kernel = &transducer_joint_tiled_forward<scalar_t, 1, 1, 4, OffsetCalFwd, false>;
+                        kernel = &transducer_joint_tiled_forward<scalar_t, 1, 1, 4, OffsetCalFwd, 
+                                                                    false>;
                         break;
                     case 2:
-                        kernel = &transducer_joint_tiled_forward<scalar_t, 2, 2, 4, OffsetCalFwd, false>;
+                        kernel = &transducer_joint_tiled_forward<scalar_t, 2, 2, 4, OffsetCalFwd, 
+                                                                    false>;
                         break;
                     case 4:
-                        kernel = &transducer_joint_tiled_forward<scalar_t, 4, 4, 4, OffsetCalFwd, false>;
+                        kernel = &transducer_joint_tiled_forward<scalar_t, 4, 4, 4, OffsetCalFwd, 
+                                                                    false>;
                         break;
                 }
             }

@@ -60,7 +60,8 @@ class TransducerJointTest(unittest.TestCase):
             my_f_len = f_len[b]
             my_g_len = g_len[b]
             for t in range(my_f_len):
-                x_unpacked[b, t, :my_g_len] = x[my_batch_offset + t*my_g_len : my_batch_offset + t*my_g_len + my_g_len]
+                x_unpacked[b, t, :my_g_len] = x[my_batch_offset + t*my_g_len : 
+                                                my_batch_offset + t*my_g_len + my_g_len]
         return x_unpacked
         
     def run_transducer_joint(self, for_vector_kernel, pack_output, relu, dropout):
@@ -71,7 +72,8 @@ class TransducerJointTest(unittest.TestCase):
         f_ref.requires_grad = True
         g_ref.requires_grad = True
         
-        my_joint = TransducerJoint(pack_output=pack_output, relu=relu, dropout=dropout, dropout_prob=self.dropout_prob, probe_mask=True)
+        my_joint = TransducerJoint(pack_output=pack_output, relu=relu, dropout=dropout, 
+                                    dropout_prob=self.dropout_prob, probe_mask=True)
         if not pack_output:
             h_tst = my_joint(   f=self.f_tst, 
                                 g=self.g_tst, 
