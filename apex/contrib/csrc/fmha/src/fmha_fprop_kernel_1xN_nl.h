@@ -27,15 +27,17 @@
 
 #pragma once
 
-#include "fmha_kernel.h"
+#include "fmha.h"
 #include <fmha/kernel_traits.h>
 #include <fmha/gemm.h>
+
 
 namespace fmha {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Kernel_traits, bool Is_training, typename Params> inline __device__ void device_1xN(const Params &params) {
+template<int CHUNKS, typename Kernel_traits, bool Is_training, typename Params>
+inline __device__ void device_1xN_nl(const Params &params) {
 
     // The description of the CTA tile for the 1st batched GEMM.
     using Cta_tile_p = typename Kernel_traits::Cta_tile_p;
@@ -67,17 +69,23 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
     // The shared memory tile to swizzle O.
     using Smem_tile_o = typename Kernel_traits::Smem_tile_o;
 
+    // The global memory tile to store S/D.
     using Gmem_tile_s = typename Kernel_traits::Gmem_tile_s;
+
+    using Noloop = Noloop_traits<CHUNKS, Cta_tile_p>;
 
     // Shared memory.
     extern __shared__ char smem_[];
 
+    const int bidc = blockIdx.z;
     // The block index for the batch.
     const int bidb = blockIdx.y;
     // The block index for the head.
     const int bidh = blockIdx.x;
     // The thread index.
     const int tidx = threadIdx.x;
+
+    Noloop nl_traits(bidc);
 
     const BlockInfoPadded<Kernel_traits::THREADS> binfo(params, bidb, bidh, tidx);
     if( binfo.stop_early() )
@@ -87,7 +95,7 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
 
     Philox ph(std::get<0>(seeds), binfo.tidx_global, std::get<1>(seeds));
 
-    Mask<Cta_tile_p> mask(params, binfo, tidx);
+    fmha::Mask<Cta_tile_p> mask(params, binfo, tidx);
 
     // Allocate the global memory tile loader for Q.
     Gmem_tile_q gmem_q(params, 0, binfo, tidx);
@@ -116,12 +124,18 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
     // Allocate the shared memory tile loader for O. We use the same as K so be careful!!!
     Smem_tile_o smem_o(&smem_[Smem_tile_q::BYTES_PER_TILE], tidx);
 
+    Gmem_tile_s gmem_s(params.s_ptr, params, tidx);
+
+    nl_traits.move_all(gmem_q, gmem_o, gmem_s);
+
+
     // Trigger the loads for Q.
     gmem_q.load(smem_q);
     // Trigger the loads for K.
     gmem_k.load(smem_k);
     // Trigger the loads for K.
     gmem_v.load(smem_v);
+
 
     // Commit the data for Q and K to shared memory.
     gmem_q.commit(smem_q);
@@ -167,27 +181,23 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
 
     enum { BITS_PER_ELT_S = sizeof(fmha::A_type) * 8 };
 
-    Gmem_tile_s gmem_s(params.s_ptr, params, tidx);
 
     // Create the object to do the softmax.
-    using Softmax = fmha::Softmax< Cta_tile_p, Kernel_traits>;
+    using Softmax = fmha::Softmax<Cta_tile_p, Kernel_traits>;
     Softmax softmax(params, &smem_[Smem_tile_q::BYTES_PER_TILE + Smem_tile_o::BYTES_PER_TILE], bidb, tidx);
 
+    // The number of threads per row.
     enum { THREADS_PER_ROW = 32 };
-    enum { STEPS = Cta_tile_p::N / Cta_tile_p::M };
 
     // Load over the entire sequence length.
-    for( int l = 0; l < STEPS; l++ ) {
-        const int loop = l * Cta_tile_p::M;
-        if( loop >= binfo.actual_seqlen )
-            break;
+    for(int l = 0; l < nl_traits.num_steps_;l++) {
 
         // Declare the accumulators for the 1st gemm.
         fmha::Fragment_accumulator acc_p[Mma_tile_p::MMAS_M][Mma_tile_p::MMAS_N];
         fmha::Clear_accumulator<typename fmha::Accumulator_type, Cta_tile_p::WARPS_K>::apply(acc_p);
 
-    // Do this part of P^T = (Q * K^T)^T.
-    #pragma unroll
+        // Do this part of P^T = (Q * K^T)^T.
+        #pragma unroll
         for( int ki = 1; ki < Mma_tile_p::MMAS_K; ++ki ) {
 
             // Trigger the load from shared memory for the next series of Q values.
@@ -202,8 +212,17 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
             fmha::gemm(acc_p, frag_q[(ki - 1) & 1], frag_k[(ki - 1)]);
         }
 
+        // Trigger the load for the next Q values.
+        if( l < nl_traits.num_steps_- 1) {
+            smem_q.move_to_next_write_buffer();
+            gmem_q.move();
+            gmem_q.load(smem_q);
+        }
+
+
+
         // Load the mask for that iteration.
-        mask.load(l);
+        mask.load(nl_traits.loop_offset_ + l);
 
         // Convert from the accumulator type to FP32 for Softmax.
         softmax.unpack(acc_p);
@@ -215,6 +234,7 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
             // if we share K and V, it could be that V was not fully read yet but we write into smem for reduction
             __syncthreads();
         }
+
         // Compute the max.
         float p_max[Mma_tile_p::MMAS_M * 2];
         softmax.template reduce<fmha::Max_>(p_max);
@@ -231,7 +251,6 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
 
         // Finalize softmax on the accumulators of P^T.
         softmax.scale(p_sum);
-
         if( Is_training ) {
             auto encode_dropout = [](bool keep, float val) { return keep ? val : -val; };
             #pragma unroll
@@ -241,8 +260,7 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
                     #pragma unroll
                     for( int ni = 0; ni < Mma_tile_p::MMAS_N; ni++ ) {
                         float4 tmp = uniform4(ph());
-                        // We encode the dropout pattern in the sign bit of the non-negative softmax to distinguish from
-                        // pre-existing zeros
+                        // We encode the dropout pattern in the sign bit of the non-negative softmax to distinguish from pre-existing zeros
                         softmax.elt_[2 * mi + ii][4 * ni + 0] =
                             encode_dropout(tmp.x <= params.p_dropout, softmax.elt_[2 * mi + ii][4 * ni + 0]);
                         softmax.elt_[2 * mi + ii][4 * ni + 1] =
@@ -258,14 +276,7 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
             gmem_s.move();
         }
 
-        // Trigger the load for the next Q values.
-        if(l < STEPS - 1) {
-            smem_q.move_to_next_write_buffer();
-            gmem_q.move();
-            gmem_q.load(smem_q);
-        }
-
-        using Frag_p = fmha::Fragment_a< fmha::Row>;
+        using Frag_p = fmha::Fragment_a<fmha::Row>;
         Frag_p frag_p[Mma_tile_o::MMAS_K][Mma_tile_o::MMAS_M];
         softmax.pack(frag_p);
         #pragma unroll
@@ -318,19 +329,15 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
         gmem_o.move();
 
         // Commit the values for Q into shared memory.
-        if(l < STEPS - 1) {
+        if( l < nl_traits.num_steps_- 1) {
             gmem_q.commit(smem_q);
+            __syncthreads();
+            smem_q.load(frag_q[0], 0);
         }
-
-        // Make sure the data is in shared memory.
-        __syncthreads();
-
-        // Trigger the loads for the values of Q for the next iteration.
-        smem_q.load(frag_q[0], 0);
 
     }  // Outer loop over the sequence length.
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace fmha
+} // namespace fmha

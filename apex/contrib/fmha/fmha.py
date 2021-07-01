@@ -32,11 +32,14 @@ import fmhalib as mha
 
 class FMHAFun(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, qkv, cu_seqlens, seqlens, p_dropout, max_s, is_training):
-        context, S_dmask = mha.fwd(qkv, cu_seqlens, seqlens, p_dropout, max_s, is_training, None)
+    def forward(ctx, qkv, cu_seqlens, p_dropout, max_s, is_training):
+        batch_size = cu_seqlens.numel() - 1
+        if batch_size < 4:
+            context, S_dmask = mha.fwd_nl(qkv, cu_seqlens, p_dropout, max_s, is_training, None)
+        else:
+            context, S_dmask = mha.fwd(qkv, cu_seqlens, p_dropout, max_s, is_training, None)
         ctx.save_for_backward(qkv, S_dmask)
         ctx.cu_seqlens = cu_seqlens
-        ctx.seqlens = seqlens
         ctx.p_dropout = p_dropout
         ctx.max_s = max_s
         return context
@@ -44,7 +47,11 @@ class FMHAFun(torch.autograd.Function):
     @staticmethod
     def backward(ctx, dout):
         qkv, S_dmask = ctx.saved_tensors
-        dqkv, dp = mha.bwd(dout, qkv, S_dmask, ctx.cu_seqlens, ctx.seqlens, ctx.p_dropout, ctx.max_s)
+        batch_size = ctx.cu_seqlens.numel() - 1
+        if batch_size < 4:
+            dqkv, dp, _ = mha.bwd_nl(dout, qkv, S_dmask, ctx.cu_seqlens, ctx.p_dropout, ctx.max_s)
+        else:
+            dqkv, dp = mha.bwd(dout, qkv, S_dmask, ctx.cu_seqlens, ctx.p_dropout, ctx.max_s)
 
         return dqkv, None, None, None, None, None, None
 
@@ -60,8 +67,8 @@ class FMHA(torch.nn.Module):
         self.d = self.hidden_size // self.h
         assert self.d * self.h == self.hidden_size, "Invalid hidden size/num_heads"
 
-    def forward(self, qkv, cu_seqlens, seqlens, max_s, is_training=True):
+    def forward(self, qkv, cu_seqlens, max_s, is_training=True):
 
-        ctx = FMHAFun.apply(qkv.view(-1, 3, self.h, self.d), cu_seqlens, seqlens, self.p_dropout, max_s, is_training)
+        ctx = FMHAFun.apply(qkv.view(-1, 3, self.h, self.d), cu_seqlens, self.p_dropout, max_s, is_training)
 
         return ctx.view(-1, self.hidden_size)

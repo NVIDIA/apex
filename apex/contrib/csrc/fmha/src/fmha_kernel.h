@@ -40,77 +40,19 @@ namespace fmha {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int FMHA_VERSION> struct BlockInfo {};
-
-template <> struct BlockInfo<1> {
-
-    int actual_seqlen;
-    int bidx;
-    int sum_s;
-    int bidh;
-    int bidb;
-
-    template<typename Params>
-    __device__ BlockInfo( const Params &params,
-                          const int bidb,
-                          const int bidh,
-                          const int tidx )
-        : bidb( bidb ), bidh( bidh ) {
-
-        // The block index.
-        sum_s = params.b * params.s;
-        actual_seqlen = params.s;
-        bidx = bidb * params.h + bidh;
-    }
-
-    __device__ bool stop_early() const {
-        return false;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-template <> struct BlockInfo<2> {
-
-    int actual_seqlen;
-    int bidx;
-    int sum_s;
-    int bidh;
-    int bidb;
-
-    template<typename Params>
-    __device__ BlockInfo( const Params &params,
-                          const int bidb,
-                          const int bidh,
-                          const int tidx )
-        : bidb( bidb ), bidh( bidh ) {
-
-        // The block index.
-        sum_s = params.cu_seqlens[bidb];
-        actual_seqlen = params.cu_seqlens[bidb + 1] - sum_s;
-        bidx = sum_s * params.h + bidh;
-    }
-
-    __device__ bool stop_early() const {
-        return actual_seqlen == 0;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 template<int THREADS_PER_CTA>
 struct BlockInfoPadded {
 
     template<typename Params>
-    __device__ BlockInfoPadded( const Params &params,
-                          const int bidb,
-                          const int bidh,
-                          const int tidx )
-        : bidb( bidb ), bidh( bidh ), h(params.h) {
+    __device__ BlockInfoPadded(const Params &params,
+                               const int bidb,
+                               const int bidh,
+                               const int tidx)
+        : bidb(bidb), bidh(bidh), h(params.h) {
 
         // The block index.
         sum_s = params.cu_seqlens[bidb];
-        actual_seqlen = params.seqlens[bidb];
+        actual_seqlen = params.cu_seqlens[bidb + 1] - sum_s;
         bidx = sum_s * params.h + bidh;
 
         tidx_global = (bidb * params.h + bidh) * THREADS_PER_CTA + tidx;
@@ -129,5 +71,99 @@ struct BlockInfoPadded {
     int h;
 };
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<int CHUNKS, typename Cta_tile> 
+struct Noloop_traits{
+    // Interpretation of Cta_tile dims, i.e. Cta_tile_p:
+    enum{ STEP = Cta_tile::M };
+    enum{ SEQLEN = Cta_tile::N };
+
+    // The size of the subsequence this CTA is processing
+    enum { SUBSEQ = SEQLEN / CHUNKS };
+    static_assert(SUBSEQ * CHUNKS == SEQLEN);
+
+    // The number of steps to process the subsequence
+    enum { NUM_STEPS = SUBSEQ / STEP };
+    static_assert(NUM_STEPS  * Cta_tile::M == SUBSEQ);
+
+    inline __device__ Noloop_traits(const int bidc) 
+        : loop_offset_(NUM_STEPS * bidc)
+        , bidc_(bidc) {
+    }
+
+    template<typename ... Tiles> 
+    inline __device__ void move_all(Tiles & ... tiles) const {
+        using expand_type = int[];
+        for( int s = 0; s < loop_offset_; s++ ) {
+            expand_type{ (tiles.move(), 0)... };
+        }
+    }
+
+    inline __device__ int get_idx_dk() const {
+        //return bidc_;
+        return bidc_ * 2 + 0;
+    }
+
+    inline __device__ int get_idx_dv() const {
+        //return CHUNKS + bidc_;
+        return bidc_ * 2 + 1;
+    }
+
+    inline __device__ int offset_loop_count(const int l) {
+        // convert loop counter to position in the outer sequence
+        return (loop_offset_ + l) * STEP;
+    }
+
+    const int loop_offset_;
+    const uint32_t bidc_;
+    const int num_steps_ = NUM_STEPS;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<typename Cta_tile> 
+struct Noloop_traits<3, Cta_tile>{
+    // Interpretation of Cta_tile dims, i.e. Cta_tile_p:
+    enum{ STEP = Cta_tile::M };
+    enum{ SEQLEN = Cta_tile::N };
+
+    static_assert(STEP == 16 && SEQLEN == 512);
+
+    inline __device__ Noloop_traits(const int bidc)
+        : bidc_(bidc)
+        , num_steps_(bidc < 2 ? 11 : 10) 
+        , loop_offset_(bidc * 11) {
+    }
+
+    template<typename ... Tiles> 
+    inline __device__ void move_all(Tiles & ... tiles) const {
+        using expand_type = int[];
+        for( int s = 0; s < loop_offset_; s++ ) {
+            expand_type{ (tiles.move(), 0)... };
+        }
+    }
+
+    inline __device__ int get_idx_dk() const {
+        //return bidc_;
+        return bidc_ * 2 + 0;
+    }
+
+    inline __device__ int get_idx_dv() const {
+        //return CHUNKS + bidc_;
+        return bidc_ * 2 + 1;
+    }
+
+    inline __device__ int offset_loop_count(const int l) {
+        // convert loop counter to position in the outer sequence
+        return (loop_offset_ + l) * STEP;
+    }
+
+    const int loop_offset_;
+    const uint32_t bidc_;
+    const int  num_steps_;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 }  // namespace fmha
