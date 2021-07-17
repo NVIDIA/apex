@@ -39,7 +39,9 @@ template<
     // The number of rows of Q, K or V loaded by this tile.
     int ROWS,
     // The number of columns.
-    int COLS
+    int COLS,
+    // The number of matrics.
+    int NUM_MATS = 3
 >
 struct Gmem_tile_qkv {
 
@@ -74,7 +76,7 @@ struct Gmem_tile_qkv {
         // The row offset in the batched GEMM. For each seq element, we store QKV in that order.
         int64_t row_offset = (int64_t)row * params.qkv_stride_in_bytes;
         // Add the block index.
-        row_offset += (int64_t)((binfo.sum_s * 3 + qkv_offset) * binfo.h + binfo.bidh) * BYTES_PER_ROW;
+        row_offset += (int64_t)((binfo.sum_s * NUM_MATS + qkv_offset) * binfo.h + binfo.bidh) * BYTES_PER_ROW;
 
         // Assemble the final pointer.
         qkv_ptr_ += row_offset + col * BYTES_PER_LDG;
