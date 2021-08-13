@@ -24,7 +24,7 @@ class FastLayerNormFN(torch.autograd.Function):
         hidden_size = gamma.numel()
         xmat = x.view((-1, hidden_size))
         dymat = dy.view(xmat.shape)
-        dxmat, dgamma, dbeta = fast_layer_norm.ln_bwd(dymat, xmat, mu, rsigma, gamma)
+        dxmat, dgamma, dbeta, _, _ = fast_layer_norm.ln_bwd(dymat, xmat, mu, rsigma, gamma)
         dx = dxmat.view(x.shape)
         return dx, dgamma, dbeta, None
 

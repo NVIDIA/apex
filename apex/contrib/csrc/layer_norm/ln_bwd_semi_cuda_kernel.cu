@@ -1,438 +1,234 @@
-#include "utils.cuh"
+#include "ln.h"
+#include "ln_utils.cuh"
 #include "ln_kernel_traits.h"
-#include "ATen/cuda/CUDAContext.h"
+#include "ln_bwd_kernels.cuh"
 
-template<typename Ktraits>
-__global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(void * __restrict__ dx_,
-                                                                          void * __restrict__ dg_,
-                                                                          void * __restrict__ db_,
-                                                                          const void * __restrict__ dw_,
-                                                                          const void * __restrict__ x_,
-                                                                          const void * __restrict__ mu_,
-                                                                          const void * __restrict__ rs_,
-                                                                          const void * __restrict__ g_,
-                                                                          const int rows
-                                                                        ){
-  using Vec = typename Ktraits::Vec;
+using namespace layer_norm;
 
-  enum { BYTES_PER_LDG = Ktraits::BYTES_PER_LDG };
-  enum { ROWS_PER_CTA = Ktraits::ROWS_PER_CTA };
-  enum { WARPS_M = Ktraits::WARPS_M };
-  enum { WARPS_N = Ktraits::WARPS_N };
-  enum { THREADS_PER_ROW = Ktraits::THREADS_PER_ROW };
-  enum { COLS = Ktraits::COLS };
-  enum { BYTES_PER_ROW = Ktraits::BYTES_PER_ROW };
-  enum { LDGS = BYTES_PER_ROW / Ktraits::BYTES_PER_ROW_PER_CTA };
-  static_assert(LDGS * Ktraits::BYTES_PER_ROW_PER_CTA == BYTES_PER_ROW, "");
-  enum { NUM_ELTS = Vec::NUM_ELTS };
-  using vec_t = typename Ktraits::vec_t;
-  using base_t = typename Ktraits::base_t;
-  using compute_t = typename Ktraits::compute_t;
-  const int tidx = threadIdx.x;
-  const int bidx = blockIdx.x;
-  const int lane = tidx % THREADS_PER_WARP;
-  const int warp = tidx / THREADS_PER_WARP;
-  const int warp_m = warp / Ktraits::WARPS_N;
-  const int warp_n = warp % Ktraits::WARPS_N;
-  const int tid_r = warp_n * THREADS_PER_WARP + lane;
+template<
+    typename weight_t,
+    typename input_t,
+    typename output_t,
+    typename compute_t,
+    typename index_t,
+    int HIDDEN_SIZE, 
+    int CTAS_PER_ROW, 
+    int WARPS_M, 
+    int WARPS_N, 
+    int BYTES_PER_LDG_MAIN,
+    int BYTES_PER_LDG_FINAL
+>
+void launch_(LaunchParams<BwdParams> &launch_params, const bool configure_params){
 
-  const int r = bidx * Ktraits::ROWS_PER_CTA + warp_m;
-  const int c = warp_n * THREADS_PER_WARP + lane;
+    using Kernel_traits = Kernel_traits<weight_t,
+                                        input_t,
+                                        output_t,
+                                        compute_t,
+                                        index_t,
+                                        HIDDEN_SIZE,
+                                        CTAS_PER_ROW,
+                                        WARPS_M,
+                                        WARPS_N,
+                                        BYTES_PER_LDG_MAIN
+                                        >;
+    auto kernel = &ln_bwd_kernel<Kernel_traits>;
 
-  const char *dw_ptr = static_cast<const char *>(dw_);
-  const char *x_ptr = static_cast<const char *>(x_);
-  const char *g_ptr = static_cast<const char *>(g_);
-  char *dx_ptr = static_cast<char *>(dx_);
-  const compute_t *mu_ptr = static_cast<const compute_t *>(mu_);
-  const compute_t *rs_ptr = static_cast<const compute_t *>(rs_);
-  static_assert(COLS == THREADS_PER_ROW * LDGS * NUM_ELTS, "");
-
-  // smem for final reduction
-  //__shared__ compute_t smem_[ROWS_PER_CTA * COLS];
-  extern __shared__ compute_t smem_[];
-  // static_assert(sizeof(smem_dw_sum) == 32*1024,"");
-  // Using the grid stride loop we can assign multiple rows to each thread
-  // by using a number of CTAs smaller than rows / ROWS_PER_CTA
-  // We accumulate them here, one in smem, one in registers, because the smem
-  // capacity is limited compute_t * dw_sum = &smem_dw_sum[warp_m * COLS + tid_r
-  // * LDGS * NUM_ELTS];
-  compute_t dwy_sum[LDGS * NUM_ELTS];
-  compute_t dw_sum[LDGS * NUM_ELTS];
-
-  memset(dwy_sum, 0, sizeof(compute_t) * LDGS * NUM_ELTS);
-  memset(dw_sum, 0, sizeof(compute_t) * LDGS * NUM_ELTS);
-  // Debug 8 rows, 4B, 1024 cols
-
-  __shared__ compute_t smem_mdy[ROWS_PER_CTA * WARPS_N];
-  __shared__ compute_t smem_mdyy[ROWS_PER_CTA * WARPS_N];
-  compute_t *mdy_shared = &smem_mdy[warp_m * WARPS_N];
-  compute_t *mdyy_shared = &smem_mdyy[warp_m * WARPS_N];
-
-  constexpr float rn = 1.f / float(COLS);
-  Vec gamma[LDGS];
-  int col = c;
-#pragma unroll
-  for (int it = 0; it < LDGS; it++) {
-    gamma[it].load_from(g_ptr + col * BYTES_PER_LDG);
-    col += Ktraits::THREADS_PER_ROW;
-  }
-  // TODO if ROWS_PER_CTA does not divice rows, we might get divergence in the
-  // last blocks with syncthreads!
-  // grid stride over rows
-  #pragma unroll 1
-  for (int row = r; row < rows; row += gridDim.x * ROWS_PER_CTA) {
-    const compute_t mu_r = mu_ptr[row];
-    const compute_t rs_r = rs_ptr[row];
-    Vec dw[LDGS], x[LDGS], dx[LDGS];
-    int col = c;
-#pragma unroll
-    for (int it = 0; it < LDGS; it++) {
-      dw[it].load_from(dw_ptr + row * BYTES_PER_ROW + col * BYTES_PER_LDG);
-      x[it].load_from(x_ptr + row * BYTES_PER_ROW + col * BYTES_PER_LDG);
-      col += THREADS_PER_ROW;
-    }
-    // local reductions
-    compute_t dy[LDGS * NUM_ELTS];
-    compute_t y[LDGS * NUM_ELTS];
-
-    compute_t mdy_local = 0.f;
-    compute_t mdyy_local = 0.f;
-#pragma unroll
-    for (int it = 0; it < LDGS; it++) {
-#pragma unroll
-      for (int jt = 0; jt < Vec::NUM_ELTS; jt++) {
-        compute_t x_tmp = x[it].data.elt[jt];
-        compute_t y_tmp = rs_r * (x_tmp - mu_r);
-        compute_t dy_tmp = gamma[it].data.elt[jt] * dw[it].data.elt[jt];
-        compute_t dw_tmp = dw[it].data.elt[jt];
-
-        mdy_local += dy_tmp;
-        mdyy_local += dy_tmp * y_tmp;
-
-        dy[it * NUM_ELTS + jt] = dy_tmp;
-        y[it * NUM_ELTS + jt] = y_tmp;
-
-        dwy_sum[it * NUM_ELTS + jt] += dw_tmp * y_tmp;
-        dw_sum[it * NUM_ELTS + jt] += dw_tmp;
-      }
+    if( configure_params ) {
+        int ctas_per_sm;
+        cudaError status_ = cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+            &ctas_per_sm, kernel, Kernel_traits::THREADS_PER_CTA, Kernel_traits::SMEM_BYTES);
+        launch_params.params.ctas_per_col = launch_params.props->multiProcessorCount * ctas_per_sm / Kernel_traits::CTAS_PER_ROW;
+        launch_params.barrier_size = 0;
+        launch_params.workspace_bytes = 0;
+        if(Kernel_traits::CTAS_PER_ROW > 1) {
+            launch_params.barrier_size = 2 * launch_params.params.ctas_per_col;
+            launch_params.workspace_bytes = launch_params.params.ctas_per_col 
+                                          * Kernel_traits::WARPS_M  
+                                          * Kernel_traits::CTAS_PER_ROW 
+                                          * sizeof(typename Kernel_traits::reduce_t)
+                                          * 2;
+        }
+        return;
     }
 
-    // reduction across row for mdy, mdyy
-    if (WARPS_N == 1) { // no need to go through smem!
-#pragma unroll
-      for (int it = 1; it < THREADS_PER_WARP; it *= 2) {
-        mdy_local += __shfl_xor_sync(uint32_t(-1), mdy_local, it);
-        mdyy_local += __shfl_xor_sync(uint32_t(-1), mdyy_local, it);
-      }
+    if( Kernel_traits::SMEM_BYTES >= 48 * 1024 ) {
+        CHECK_CUDA(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, Kernel_traits::SMEM_BYTES));
+    }
+    auto stream = launch_params.stream;
+    auto ctas_per_col = launch_params.params.ctas_per_col;
 
-      mdy_local *= rn;
-      mdyy_local *= rn;
-
+    if( Kernel_traits::CTAS_PER_ROW == 1 ) {
+        kernel<<<ctas_per_col, Kernel_traits::THREADS_PER_CTA, Kernel_traits::SMEM_BYTES, stream>>>(launch_params.params);
     } else {
-
-#pragma unroll
-      for (int it = 16; it > 0; it /= 2) {
-        mdy_local += __shfl_down_sync(uint32_t(-1), mdy_local, it);
-        mdyy_local += __shfl_down_sync(uint32_t(-1), mdyy_local, it);
-      } // lane 0 holds the result!
-
-      if (lane == 0) {
-        mdy_shared[warp_n] = mdy_local;
-        mdyy_shared[warp_n] = mdyy_local;
-      }
-
-      __syncthreads();
-      if (warp_n == 0 && lane == 0) {
-        mdy_local = 0.f;
-        mdyy_local = 0.f;
-        for (int it = 0; it < WARPS_N; it++) {
-          mdy_local += mdy_shared[it];
-          mdyy_local += mdyy_shared[it];
-        }
-        mdy_shared[0] = mdy_local;
-        mdyy_shared[0] = mdyy_local;
-      }
-      __syncthreads();
-
-      mdy_local = mdy_shared[0] * rn;
-      mdyy_local = mdyy_shared[0] * rn;
+        dim3 grid(Kernel_traits::CTAS_PER_ROW * ctas_per_col);
+        dim3 block(Kernel_traits::THREADS_PER_CTA);
+        void *params_ = (void *)&launch_params.params;
+        cudaLaunchCooperativeKernel((void *)kernel, grid, block, (void **)&params_, Kernel_traits::SMEM_BYTES, stream);
     }
 
-#pragma unroll
-    for (int it = 0; it < LDGS; it++) {
-#pragma unroll
-      for (int jt = 0; jt < NUM_ELTS; jt++) {
-        compute_t dy_tmp = dy[it * NUM_ELTS + jt];
-        compute_t y_tmp = y[it * NUM_ELTS + jt];
-        compute_t dx_tmp =
-            compute_t(rs_r) * (dy_tmp - mdyy_local * y_tmp - mdy_local);
-        dx[it].data.elt[jt] = dx_tmp;
-      }
-    }
+    using Kernel_traits_f = layer_norm::Kernel_traits_finalize<HIDDEN_SIZE,
+                                                               weight_t,
+                                                               input_t,
+                                                               output_t,
+                                                               compute_t,
+                                                               index_t,
+                                                               32 * 32,  // THREADS_PER_CTA
+                                                               BYTES_PER_LDG_FINAL>;
 
-    col = c;
-#pragma unroll
-    for (int it = 0; it < LDGS; it++) {
-      dx[it].store_to(dx_ptr + row * BYTES_PER_ROW + col * BYTES_PER_LDG);
-      col += Ktraits::THREADS_PER_ROW;
-    }
-
-  } // end: grid stride loop
-
-  // Finalize reduction of part dgamma and dbeta for this CTA
-  // by reducing over the rows held across the WARPS_M warps
-
-  enum { NUM_RES = COLS / Ktraits::THREADS_PER_CTA };
-  static_assert(NUM_RES * Ktraits::THREADS_PER_CTA == COLS, "");
-
-  compute_t *smem_write;
-
-  smem_write = &smem_[warp_m * COLS + tid_r * NUM_ELTS];
-#pragma unroll
-  for (int it = 0; it < LDGS; it++) {
-#pragma unroll
-    for (int jt = 0; jt < NUM_ELTS; jt++) {
-      smem_write[jt] = dw_sum[it * NUM_ELTS + jt];
-    }
-    smem_write += THREADS_PER_ROW * NUM_ELTS;
-  }
-  __syncthreads();
-  compute_t cta_dw_sum[NUM_RES];
-  memset(cta_dw_sum, 0, sizeof(compute_t) * NUM_RES);
-  for (int it = 0; it < ROWS_PER_CTA; it++) {
-    for (int jt = 0; jt < NUM_RES; jt++) {
-      cta_dw_sum[jt] += smem_[it * COLS + tidx + jt * Ktraits::THREADS_PER_CTA];
-    }
-  }
-  __syncthreads();
-
-  smem_write = &smem_[warp_m * COLS + tid_r * NUM_ELTS];
-#pragma unroll
-  for (int it = 0; it < LDGS; it++) {
-#pragma unroll
-    for (int jt = 0; jt < NUM_ELTS; jt++) {
-      smem_write[jt] = dwy_sum[it * NUM_ELTS + jt];
-    }
-    smem_write += THREADS_PER_ROW * NUM_ELTS;
-  }
-  __syncthreads();
-  compute_t cta_dwy_sum[NUM_RES];
-  memset(cta_dwy_sum, 0, sizeof(compute_t) * NUM_RES);
-  for (int it = 0; it < ROWS_PER_CTA; it++) {
-    for (int jt = 0; jt < NUM_RES; jt++) {
-      cta_dwy_sum[jt] +=
-          smem_[it * COLS + tidx + jt * Ktraits::THREADS_PER_CTA];
-    }
-  }
-
-  compute_t *dgamma_part = static_cast<compute_t *>(dg_) + bidx * COLS + tidx;
-  for (int jt = 0; jt < NUM_RES; jt++) {
-    *dgamma_part = cta_dwy_sum[jt];
-    dgamma_part += Ktraits::THREADS_PER_CTA;
-  }
-
-  compute_t *dbeta_part = static_cast<compute_t *>(db_) + bidx * COLS + tidx;
-  for (int jt = 0; jt < NUM_RES; jt++) {
-    *dbeta_part = cta_dw_sum[jt];
-    dbeta_part += Ktraits::THREADS_PER_CTA;
-  }
+    auto kernel_f = &layer_norm::ln_bwd_finalize_kernel<Kernel_traits_f>;
+    kernel_f<<<Kernel_traits_f::CTAS, Kernel_traits_f::THREADS_PER_CTA, 0, stream>>>(launch_params.params);
 }
 
-template<typename Ktraits, typename out_t>
-__global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_finalize_kernel(void * __restrict__ dg_,
-                                                                                   void * __restrict__ db_,
-                                                                                   const void * __restrict__ dg_part_,
-                                                                                   const void * __restrict__ db_part_,
-                                                                                   const int rows
-                                                                                  ){
-    using Vec = typename Ktraits::Vec;
-    enum { NUM_ELTS = Vec::NUM_ELTS };
+// Create backward launch function and register. Macro signature:
+//  HIDDEN_SIZE, WTYPE, ITYPE, OTYPE, CTYPE, CTAS_PER_ROW, WARPS_M, WARPS_N, BYTES_PER_LDG, BYTES_PER_LDG_FINAL
 
+REGISTER_BWD_LAUNCHER(  768, fp32, fp32, fp32, fp32, 1, 4, 1, 16, 4);
+REGISTER_BWD_LAUNCHER(  768, fp16, fp16, fp16, fp32, 1, 4, 1, 16, 4);
+REGISTER_BWD_LAUNCHER(  768, fp16, fp32, fp16, fp32, 1, 4, 1, 16, 4);
+REGISTER_BWD_LAUNCHER(  768, bf16, bf16, bf16, fp32, 1, 4, 1, 16, 4);
+REGISTER_BWD_LAUNCHER(  768, bf16, fp32, bf16, fp32, 1, 4, 1, 16, 4);
 
-    using vec_t = typename Ktraits::vec_t;
-    using base_t = typename Ktraits::base_t;
-    using compute_t = typename Ktraits::compute_t;
+REGISTER_BWD_LAUNCHER( 1024, fp32, fp32, fp32, fp32, 1, 4, 1, 16, 4);
+REGISTER_BWD_LAUNCHER( 1024, fp16, fp16, fp16, fp32, 1, 4, 1, 16, 4);
+REGISTER_BWD_LAUNCHER( 1024, fp16, fp32, fp16, fp32, 1, 4, 1, 16, 4);
+REGISTER_BWD_LAUNCHER( 1024, bf16, bf16, bf16, fp32, 1, 4, 1, 16, 4);
+REGISTER_BWD_LAUNCHER( 1024, bf16, fp32, bf16, fp32, 1, 4, 1, 16, 4);
 
-    enum { BYTES_PER_LDG = Ktraits::BYTES_PER_LDG };
-    enum { ROWS_PER_CTA = Ktraits::ROWS_PER_CTA };
-    enum { WARPS_M = Ktraits::WARPS_M };
-    enum { WARPS_N = Ktraits::WARPS_N };
-    enum { THREADS_PER_ROW = Ktraits::THREADS_PER_ROW };
-    enum { COLS = Ktraits::COLS };
-    enum { BYTES_PER_ROW = Ktraits::BYTES_PER_ROW };
-    enum {VEC_COLS = BYTES_PER_ROW / BYTES_PER_LDG};
-    //dbg
-    static_assert(VEC_COLS == COLS / NUM_ELTS, ""); 
-    //static_assert(VEC_COLS == 1024,"");
-    const int tidx = threadIdx.x;
-    const int bidx = blockIdx.x;
-    const int lane = tidx % THREADS_PER_WARP;
-    const int warp = tidx / THREADS_PER_WARP;
-    const int warp_m = warp / Ktraits::WARPS_N;
-    const int warp_n = warp % Ktraits::WARPS_N;
-    const int tid_c = warp_n * THREADS_PER_WARP + lane;
-    const int c =bidx * THREADS_PER_ROW + tid_c;
-    const int r = warp_m;
-    
-    __shared__ compute_t smem_[(WARPS_M - 1) * THREADS_PER_ROW * NUM_ELTS];
-    
-    //Will probably run this with WARPS_N = 1 and grid = 1024 / (32*4) = 8, or NUM_ELTS=1 and grid = 32 
-    // and WARPS_M = 4 (or 1??)
-    for(int col = c; col < VEC_COLS; col += gridDim.x * THREADS_PER_ROW){
-      const char* dg_part_ptr = static_cast<const char*>(dg_part_) + r * BYTES_PER_ROW + col * BYTES_PER_LDG;
-      const char* db_part_ptr = static_cast<const char*>(db_part_) + r * BYTES_PER_ROW + col * BYTES_PER_LDG;
+REGISTER_BWD_LAUNCHER( 1536, fp32, fp32, fp32, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 1536, fp16, fp16, fp16, fp32, 1, 1, 4,  8, 4);
+REGISTER_BWD_LAUNCHER( 1536, fp16, fp32, fp16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 1536, bf16, bf16, bf16, fp32, 1, 1, 4,  8, 4);
+REGISTER_BWD_LAUNCHER( 1536, bf16, fp32, bf16, fp32, 1, 1, 4, 16, 4);
 
-      compute_t dg_sum[NUM_ELTS];
-      compute_t db_sum[NUM_ELTS];
-      memset(dg_sum, 0, sizeof(compute_t) * NUM_ELTS);
-      memset(db_sum, 0, sizeof(compute_t) * NUM_ELTS);
-      #pragma unroll
-      for(int row = r; row < rows;row += ROWS_PER_CTA){
-        Vec dg;
-        Vec db;
-        dg.load_from(dg_part_ptr);
-        db.load_from(db_part_ptr);
-        dg_part_ptr += ROWS_PER_CTA * BYTES_PER_ROW;
-        db_part_ptr += ROWS_PER_CTA * BYTES_PER_ROW;
+REGISTER_BWD_LAUNCHER( 2048, fp32, fp32, fp32, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 2048, fp16, fp16, fp16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 2048, fp16, fp32, fp16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 2048, bf16, bf16, bf16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 2048, bf16, fp32, bf16, fp32, 1, 1, 4, 16, 4);
 
-        #pragma unroll
-        for (int jt = 0; jt < NUM_ELTS; jt++) {
-          dg_sum[jt] += dg.data.elt[jt];
-          db_sum[jt] += db.data.elt[jt];
-        }
-      }
+REGISTER_BWD_LAUNCHER( 2304, fp32, fp32, fp32, fp32, 1, 1, 4,  8, 4);
+REGISTER_BWD_LAUNCHER( 2304, fp16, fp16, fp16, fp32, 1, 1, 4,  4, 4);
+REGISTER_BWD_LAUNCHER( 2304, fp16, fp32, fp16, fp32, 1, 1, 4,  8, 4);
+REGISTER_BWD_LAUNCHER( 2304, bf16, bf16, bf16, fp32, 1, 1, 4,  4, 4);
+REGISTER_BWD_LAUNCHER( 2304, bf16, fp32, bf16, fp32, 1, 1, 4,  8, 4);
 
-      // Finalize the reduction across rows of the CTA
-      compute_t * smem_write;
-      smem_write = smem_ + (warp_m -1) *THREADS_PER_ROW * NUM_ELTS + tid_c;
+REGISTER_BWD_LAUNCHER( 3072, fp32, fp32, fp32, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 3072, fp16, fp16, fp16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 3072, fp16, fp32, fp16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 3072, bf16, bf16, bf16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 3072, bf16, fp32, bf16, fp32, 1, 1, 4, 16, 4);
 
-      if (warp_m > 0) {
-#pragma unroll
-        for (int jt = 0; jt < NUM_ELTS; jt++) {
-          *smem_write = dg_sum[jt];
-          smem_write+=THREADS_PER_ROW;
-        }
-      }
-      __syncthreads();
-      compute_t *smem_read ;
-      smem_read = smem_ + tid_c ;
-      if (warp_m == 0) {
-#pragma unroll
-        for (int it = 0; it < WARPS_M - 1; it++) {
-#pragma unroll
-          for (int jt = 0; jt < NUM_ELTS; jt++) {
-            dg_sum[jt] += *smem_read;
-            smem_read += THREADS_PER_ROW;
-          }
-        }
-      }
+REGISTER_BWD_LAUNCHER( 3840, fp32, fp32, fp32, fp32, 1, 1, 4, 8, 4);
+REGISTER_BWD_LAUNCHER( 3840, fp16, fp16, fp16, fp32, 1, 1, 4, 4, 4);
+REGISTER_BWD_LAUNCHER( 3840, fp16, fp32, fp16, fp32, 1, 1, 4, 8, 4);
+REGISTER_BWD_LAUNCHER( 3840, bf16, bf16, bf16, fp32, 1, 1, 4, 4, 4);
+REGISTER_BWD_LAUNCHER( 3840, bf16, fp32, bf16, fp32, 1, 1, 4, 8, 4);
 
-      __syncthreads();
+REGISTER_BWD_LAUNCHER( 4096, fp32, fp32, fp32, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 4096, fp16, fp16, fp16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 4096, fp16, fp32, fp16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 4096, bf16, bf16, bf16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 4096, bf16, fp32, bf16, fp32, 1, 1, 4, 16, 4);
 
-      smem_write = smem_ + (warp_m -1) *THREADS_PER_ROW * NUM_ELTS + tid_c;
+REGISTER_BWD_LAUNCHER( 5120, fp32, fp32, fp32, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 5120, fp16, fp16, fp16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 5120, fp16, fp32, fp16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 5120, bf16, bf16, bf16, fp32, 1, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 5120, bf16, fp32, bf16, fp32, 1, 1, 4, 16, 4);
 
-      if (warp_m > 0) {
-#pragma unroll
-        for (int jt = 0; jt < NUM_ELTS; jt++) {
-          *smem_write = db_sum[jt];
-          smem_write+=THREADS_PER_ROW;
-        }
-      }
-      __syncthreads();
-      smem_read = smem_ + tid_c;
-      if (warp_m == 0) {
-#pragma unroll
-        for (int it = 0; it < WARPS_M - 1; it++) {
-#pragma unroll
-          for (int jt = 0; jt < NUM_ELTS; jt++) {
-            db_sum[jt] += *smem_read;
-            smem_read += THREADS_PER_ROW;
-          }
-        }
+REGISTER_BWD_LAUNCHER( 6144, fp32, fp32, fp32, fp32, 1, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER( 6144, fp16, fp16, fp16, fp32, 1, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER( 6144, fp16, fp32, fp16, fp32, 1, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER( 6144, bf16, bf16, bf16, fp32, 1, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER( 6144, bf16, fp32, bf16, fp32, 1, 1, 8, 16, 4);
 
-        using vout_t = typename Vec_type<sizeof(out_t) * NUM_ELTS>::Type;
-        union {
-          vout_t raw;
-          out_t elt[NUM_ELTS];
-        } dg_out, db_out;
+REGISTER_BWD_LAUNCHER( 8192, fp32, fp32, fp32, fp32, 2, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 8192, fp16, fp16, fp16, fp32, 2, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 8192, fp16, fp32, fp16, fp32, 2, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 8192, bf16, bf16, bf16, fp32, 2, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER( 8192, bf16, fp32, bf16, fp32, 2, 1, 4, 16, 4);
 
-        // out_t dg_out[NUM_ELTS], db_out[NUM_ELTS];
-#pragma unroll
-        for (int jt = 0; jt < NUM_ELTS; jt++) {
-          dg_out.elt[jt] = dg_sum[jt];
-          db_out.elt[jt] = db_sum[jt];
-        }
-        vout_t *dg_ptr = reinterpret_cast<vout_t *>(dg_) + col ;
-        vout_t *db_ptr = reinterpret_cast<vout_t *>(db_) + col ;
-        *dg_ptr = dg_out.raw;
-        *db_ptr = db_out.raw;
-      }
-    }
-}
+REGISTER_BWD_LAUNCHER(10240, fp32, fp32, fp32, fp32, 2, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(10240, fp16, fp16, fp16, fp32, 2, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(10240, fp16, fp32, fp16, fp32, 2, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(10240, bf16, bf16, bf16, fp32, 2, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(10240, bf16, fp32, bf16, fp32, 2, 1, 4, 16, 4);
 
-template<typename scalar_t>
-void launch(at::Tensor &dx, at::Tensor &dgamma, at::Tensor &dbeta,
-                 at::Tensor &dgamma_part, at::Tensor &dbeta_part,
-                 const at::Tensor &dw, const at::Tensor &x,
-                 const at::Tensor &mu, const at::Tensor &rsigma,
-                 const at::Tensor &gamma, const int rows, const int cols, const int gridx, cudaStream_t stream){
+REGISTER_BWD_LAUNCHER(12288, fp32, fp32, fp32, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(12288, fp16, fp16, fp16, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(12288, fp16, fp32, fp16, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(12288, bf16, bf16, bf16, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(12288, bf16, fp32, bf16, fp32, 4, 1, 4, 16, 4);
 
-  if (cols == 1024) {
-    using Ktraits = Kernel_traits<scalar_t, 1024, 4, 1>;
+REGISTER_BWD_LAUNCHER(12800, fp32, fp32, fp32, fp32, 5, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(12800, fp16, fp16, fp16, fp32, 5, 1, 4,  8, 4);
+REGISTER_BWD_LAUNCHER(12800, fp16, fp32, fp16, fp32, 5, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(12800, bf16, bf16, bf16, fp32, 5, 1, 4,  8, 4);
+REGISTER_BWD_LAUNCHER(12800, bf16, fp32, bf16, fp32, 5, 1, 4, 16, 4);
 
-    if (Ktraits::SMEM_BYTES >= 48 * 1024) {
-      AT_CUDA_CHECK(cudaFuncSetAttribute(
-          ln_bwd_kernel<Ktraits>, cudaFuncAttributeMaxDynamicSharedMemorySize,
-          Ktraits::SMEM_BYTES));
-    }
+REGISTER_BWD_LAUNCHER(15360, fp32, fp32, fp32, fp32, 4, 1, 4,  8, 4);
+REGISTER_BWD_LAUNCHER(15360, fp16, fp16, fp16, fp32, 4, 1, 4,  4, 4);
+REGISTER_BWD_LAUNCHER(15360, fp16, fp32, fp16, fp32, 4, 1, 4,  8, 4);
+REGISTER_BWD_LAUNCHER(15360, bf16, bf16, bf16, fp32, 4, 1, 4,  4, 4);
+REGISTER_BWD_LAUNCHER(15360, bf16, fp32, bf16, fp32, 4, 1, 4,  8, 4);
 
-    ln_bwd_kernel<Ktraits>
-        <<<gridx, Ktraits::THREADS_PER_CTA, Ktraits::SMEM_BYTES, stream>>>(
-            dx.data_ptr(), dgamma_part.data_ptr(), dbeta_part.data_ptr(),
-            dw.data_ptr(), x.data_ptr(), mu.data_ptr(), rsigma.data_ptr(),
-            gamma.data_ptr(), rows);
+REGISTER_BWD_LAUNCHER(16384, fp32, fp32, fp32, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(16384, fp16, fp16, fp16, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(16384, fp16, fp32, fp16, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(16384, bf16, bf16, bf16, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(16384, bf16, fp32, bf16, fp32, 4, 1, 4, 16, 4);
 
-    using Ktraits2 = Kernel_traits<float, 1024, 16, 1, 4>;
+REGISTER_BWD_LAUNCHER(18432, fp32, fp32, fp32, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(18432, fp16, fp16, fp16, fp32, 4, 1, 4,  8, 4);
+REGISTER_BWD_LAUNCHER(18432, fp16, fp32, fp16, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(18432, bf16, bf16, bf16, fp32, 4, 1, 4,  8, 4);
+REGISTER_BWD_LAUNCHER(18432, bf16, fp32, bf16, fp32, 4, 1, 4, 16, 4);
 
-    constexpr int grid2 =
-        DIVUP(1024, Ktraits2::THREADS_PER_ROW * Ktraits2::Vec::NUM_ELTS);
+REGISTER_BWD_LAUNCHER(20480, fp32, fp32, fp32, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(20480, fp16, fp16, fp16, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(20480, fp16, fp32, fp16, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(20480, bf16, bf16, bf16, fp32, 4, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(20480, bf16, fp32, bf16, fp32, 4, 1, 4, 16, 4);
 
-    ln_bwd_finalize_kernel<Ktraits2, scalar_t>
-        <<<grid2, Ktraits2::THREADS_PER_CTA, 0, stream>>>(
-            dgamma.data_ptr(), dbeta.data_ptr(), dgamma_part.data_ptr(),
-            dbeta_part.data_ptr(), gridx);
-  } else {
-    assert(false && "Not implemented");
-  }
+REGISTER_BWD_LAUNCHER(24576, fp32, fp32, fp32, fp32, 4, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(24576, fp16, fp16, fp16, fp32, 4, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(24576, fp16, fp32, fp16, fp32, 4, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(24576, bf16, bf16, bf16, fp32, 4, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(24576, bf16, fp32, bf16, fp32, 4, 1, 8, 16, 4);
 
-  AT_CUDA_CHECK(cudaPeekAtLastError());
-}
+REGISTER_BWD_LAUNCHER(25600, fp32, fp32, fp32, fp32, 5, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(25600, fp16, fp16, fp16, fp32, 5, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(25600, fp16, fp32, fp16, fp32, 5, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(25600, bf16, bf16, bf16, fp32, 5, 1, 4, 16, 4);
+REGISTER_BWD_LAUNCHER(25600, bf16, fp32, bf16, fp32, 5, 1, 4, 16, 4);
 
-void ln_bwd_cuda(at::Tensor &dx, at::Tensor &dgamma, at::Tensor &dbeta,
-                 const at::Tensor &dw, const at::Tensor &x,
-                 const at::Tensor &mu, const at::Tensor &rsigma,
-                 const at::Tensor &gamma, const int rows, const int cols, cudaStream_t stream) {
+REGISTER_BWD_LAUNCHER(30720, fp32, fp32, fp32, fp32, 4, 1, 8, 8, 4);
+REGISTER_BWD_LAUNCHER(30720, fp16, fp16, fp16, fp32, 4, 1, 8, 4, 4);
+REGISTER_BWD_LAUNCHER(30720, fp16, fp32, fp16, fp32, 4, 1, 8, 8, 4);
+REGISTER_BWD_LAUNCHER(30720, bf16, bf16, bf16, fp32, 4, 1, 8, 4, 4);
+REGISTER_BWD_LAUNCHER(30720, bf16, fp32, bf16, fp32, 4, 1, 8, 8, 4);
 
+REGISTER_BWD_LAUNCHER(32768, fp32, fp32, fp32, fp32, 4, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(32768, fp16, fp16, fp16, fp32, 4, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(32768, fp16, fp32, fp16, fp32, 4, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(32768, bf16, bf16, bf16, fp32, 4, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(32768, bf16, fp32, bf16, fp32, 4, 1, 8, 16, 4);
 
-  const auto dtype = x.scalar_type();
+REGISTER_BWD_LAUNCHER(40960, fp32, fp32, fp32, fp32, 4, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(40960, fp16, fp16, fp16, fp32, 4, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(40960, fp16, fp32, fp16, fp32, 4, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(40960, bf16, bf16, bf16, fp32, 4, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(40960, bf16, fp32, bf16, fp32, 4, 1, 8, 16, 4);
 
+REGISTER_BWD_LAUNCHER(49152, fp32, fp32, fp32, fp32, 8, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(49152, fp16, fp16, fp16, fp32, 8, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(49152, fp16, fp32, fp16, fp32, 8, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(49152, bf16, bf16, bf16, fp32, 8, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(49152, bf16, fp32, bf16, fp32, 8, 1, 8, 16, 4);
 
-  const auto props = at::cuda::getCurrentDeviceProperties();
-  const int smCount = props->multiProcessorCount;
-  // Launch 2 CTAs per SM 
-  const int grid = 2 * smCount;
+REGISTER_BWD_LAUNCHER(65536, fp32, fp32, fp32, fp32, 8, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(65536, fp16, fp16, fp16, fp32, 8, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(65536, fp16, fp32, fp16, fp32, 8, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(65536, bf16, bf16, bf16, fp32, 8, 1, 8, 16, 4);
+REGISTER_BWD_LAUNCHER(65536, bf16, fp32, bf16, fp32, 8, 1, 8, 16, 4);
 
-  //request workspace for two-step reduction. We always reduce in FP32.
-  auto opts = x.options();
-  auto dbeta_part = torch::empty({grid, cols}, opts.dtype(torch::kFloat32));
-  auto dgamma_part = torch::empty({grid, cols}, opts.dtype(torch::kFloat32));
-
-  if (dtype == torch::kFloat16) {
-    launch<half>(dx, dgamma, dbeta, dgamma_part, dbeta_part, dw, x, mu, rsigma, gamma, rows, cols, grid, stream);
-  } else if (dtype == torch::kFloat32) {
-    launch<float>(dx, dgamma, dbeta, dgamma_part, dbeta_part, dw, x, mu, rsigma, gamma, rows, cols, grid, stream);
-  } else {
-    assert(false && "Not implemented");
-  }
-
-}
