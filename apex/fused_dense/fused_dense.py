@@ -13,7 +13,7 @@ class FusedDenseFunc(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         input, weight = ctx.saved_tensors
-        grad_input, grad_weight, grad_b = fused_dense_cuda.linear_bias_backward(input, weight, grad_output)
+        grad_input, grad_weight, grad_bias = fused_dense_cuda.linear_bias_backward(input, weight, grad_output)
         return grad_input, grad_weight, grad_bias
 
 class DenseNoBiasFunc(torch.autograd.Function):
