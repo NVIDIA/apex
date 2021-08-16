@@ -210,6 +210,12 @@ if "--cuda_ext" in sys.argv:
                                    'csrc/mlp_cuda.cu'],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
+        ext_modules.append(
+            CUDAExtension(name='fused_dense_cuda',
+                          sources=['csrc/fused_dense.cpp',
+                                   'csrc/fused_dense_cuda.cu'],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3'] + version_dependent_macros}))
 
 if "--bnp" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
