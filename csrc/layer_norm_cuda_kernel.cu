@@ -276,6 +276,51 @@ struct SharedMemory <double>
 };
 }
 
+template<typename T, typename U, typename V> __device__
+void cuApplyLayerNorm_(
+  V* __restrict__ output_vals,
+  U* __restrict__ mean,
+  U* __restrict__ invvar,
+  const T* __restrict__ vals,
+  const int n1,
+  const int n2,
+  const U epsilon,
+  const V* __restrict__ gamma,
+  const V* __restrict__ beta
+  ) 
+{
+  // Assumptions:
+  // 1) blockDim.x == warpSize
+  // 2) Tensors are contiguous
+  //
+  for (auto i1=blockIdx.y; i1 < n1; i1 += gridDim.y) {
+    SharedMemory<U> shared;
+    U* buf = shared.getPointer();
+    U mu,sigma2;
+    cuWelfordMuSigma2(vals,n1,n2,i1,mu,sigma2,buf);
+    const T* lvals = vals + i1*n2;
+    V* ovals = output_vals + i1*n2;
+    U c_invvar = rsqrt(sigma2 + epsilon);
+    const int numx = blockDim.x * blockDim.y;
+    const int thrx = threadIdx.x + threadIdx.y * blockDim.x;
+    if (gamma != NULL && beta != NULL) {
+      for (int i = thrx;  i < n2;  i+=numx) {
+        U curr = static_cast<U>(lvals[i]);
+        ovals[i] = gamma[i] * static_cast<V>(c_invvar * (curr - mu)) + beta[i];
+      }
+    } else {
+      for (int i = thrx;  i < n2;  i+=numx) {
+        U curr = static_cast<U>(lvals[i]);
+        ovals[i] = static_cast<V>(c_invvar * (curr - mu));
+      }
+    }
+    if (threadIdx.x == 0 && threadIdx.y == 0) {
+      mean[i1] = mu;
+      invvar[i1] = c_invvar;
+    }
+  }
+}
+
 template<typename T, typename U> __global__
 void cuApplyLayerNorm(
   T* __restrict__ output_vals,
@@ -289,37 +334,25 @@ void cuApplyLayerNorm(
   const T* __restrict__ beta
   ) 
 {
-  // Assumptions:
-  // 1) blockDim.x == warpSize
-  // 2) Tensors are contiguous
-  //
-  for (auto i1=blockIdx.y; i1 < n1; i1 += gridDim.y) {
-    SharedMemory<U> shared;
-    U* buf = shared.getPointer();
-    U mu,sigma2;
-    cuWelfordMuSigma2(vals,n1,n2,i1,mu,sigma2,buf);
-    const T* lvals = vals + i1*n2;
-    T* ovals = output_vals + i1*n2;
-    U c_invvar = rsqrt(sigma2 + epsilon);
-    const int numx = blockDim.x * blockDim.y;
-    const int thrx = threadIdx.x + threadIdx.y * blockDim.x;
-    if (gamma != NULL && beta != NULL) {
-      for (int i = thrx;  i < n2;  i+=numx) {
-        U curr = static_cast<U>(lvals[i]);
-        ovals[i] = gamma[i] * static_cast<T>(c_invvar * (curr - mu)) + beta[i];
-      }
-    } else {
-      for (int i = thrx;  i < n2;  i+=numx) {
-        U curr = static_cast<U>(lvals[i]);
-        ovals[i] = static_cast<T>(c_invvar * (curr - mu));
-      }
-    }
-    if (threadIdx.x == 0 && threadIdx.y == 0) {
-      mean[i1] = mu;
-      invvar[i1] = c_invvar;
-    }
-  }
+  cuApplyLayerNorm_<T, U, U>(output_vals, mean, invvar, vals, n1, n2, epsilon, gamma, beta);
 }
+
+template<typename T, typename U, typename V> __global__
+void cuApplyLayerNorm(
+  T* __restrict__ output_vals,
+  U* __restrict__ mean,
+  U* __restrict__ invvar,
+  const T* __restrict__ vals,
+  const int n1,
+  const int n2,
+  const U epsilon,
+  const T* __restrict__ gamma,
+  const T* __restrict__ beta
+  ) 
+{
+  cuApplyLayerNorm_<T, U, V>(output_vals, mean, invvar, vals, n1, n2, epsilon, gamma, beta);
+}
+
 
 template<typename T, typename U> __device__
 void cuLoadWriteStridedInputs(
@@ -636,17 +669,17 @@ void cuComputeGradInput(
   }
 }
 
-template<typename T, typename U> 
+template<typename T, typename U, typename V> 
 void HostApplyLayerNorm(
-    T* output,
+    V* output,
     U* mean,
     U* invvar,
     const T* input,
     int n1,
     int n2,
     double epsilon,
-    const T* gamma,
-    const T* beta
+    const V* gamma,
+    const V* beta
     )
 {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
@@ -665,6 +698,22 @@ void HostApplyLayerNorm(
 		    n1,n2,
 		    U(epsilon),
                     gamma,beta);
+}
+
+template<typename T, typename U> 
+void HostApplyLayerNorm(
+    T* output,
+    U* mean,
+    U* invvar,
+    const T* input,
+    int n1,
+    int n2,
+    double epsilon,
+    const T* gamma,
+    const T* beta
+    )
+{
+    HostApplyLayerNorm<T, U, U>(output, mean, invvar, input, n1, n2, epsilon, gamma, beta);
 }
 
 void cuda_layer_norm(
