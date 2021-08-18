@@ -495,6 +495,41 @@ if "--fast_bottleneck" in sys.argv:
                           include_dirs=[os.path.join(this_dir, 'apex/contrib/csrc/cudnn-frontend/include')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag}))
 
+if "--megatron" in sys.argv:
+    from torch.utils.cpp_extension import CUDAExtension
+    sys.argv.remove("--megatron")
+
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension.with_options(use_ninja=False)
+
+    if torch.utils.cpp_extension.CUDA_HOME is None:
+        raise RuntimeError("--megatron was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        ext_modules.append(
+            CUDAExtension(name='scaled_upper_triang_masked_softmax_cuda',
+                          sources=['csrc/megatron/scaled_upper_triang_masked_softmax.cpp',
+                                   'csrc/megatron/scaled_upper_triang_masked_softmax_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda'] + version_dependent_macros}))
+
+        ext_modules.append(
+            CUDAExtension(name='scaled_masked_softmax_cuda',
+                          sources=['csrc/megatron/scaled_masked_softmax.cpp',
+                                   'csrc/megatron/scaled_masked_softmax_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda'] + version_dependent_macros}))
+
+
 setup(
     name='apex',
     version='0.1',
