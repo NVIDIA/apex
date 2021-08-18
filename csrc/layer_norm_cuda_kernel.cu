@@ -334,7 +334,7 @@ void cuApplyLayerNorm(
   const T* __restrict__ beta
   ) 
 {
-  cuApplyLayerNorm_<T, U, U>(output_vals, mean, invvar, vals, n1, n2, epsilon, gamma, beta);
+  cuApplyLayerNorm_<T, U, T>(output_vals, mean, invvar, vals, n1, n2, epsilon, gamma, beta);
 }
 
 template<typename T, typename U, typename V> __global__
@@ -713,7 +713,7 @@ void HostApplyLayerNorm(
     const T* beta
     )
 {
-    HostApplyLayerNorm<T, U, U>(output, mean, invvar, input, n1, n2, epsilon, gamma, beta);
+    HostApplyLayerNorm<T, U, T>(output, mean, invvar, input, n1, n2, epsilon, gamma, beta);
 }
 
 void cuda_layer_norm(
