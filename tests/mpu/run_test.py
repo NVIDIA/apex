@@ -35,3 +35,4 @@ if __name__ == '__main__':
             print(f"{len(errors)} out of {len(files)} tests failed")
             for (filename, log) in errors:
                 print(f"File: {filename}\nLog: {log}")
+            raise RuntimeError(f"{len(errors)} out of {len(files)} tests failed")
