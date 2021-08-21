@@ -6,12 +6,12 @@ import unittest
 
 def run_mpu_tests():
     python_executable_path = sys.executable
-    repository_root = subprocess.check_output(
-        "git rev-parse --show-toplevel").decode(sys.stdout.encoding).strip()
-    directory = os.path.abspath(os.path.join(repository_root, "tests/mpu"))
+    # repository_root = os.path.join(os.path.dirname(__file__), "../../../")
+    # directory = os.path.abspath(os.path.join(repository_root, "tests/mpu"))
+    directory = os.path.dirname(__file__)
     files = [
         os.path.join(directory, f) for f in os.listdir(directory)
-        if f.startswith("test_") and os.path.isfile(os.path.join(directory, f))
+        if f.startswith("run_") and os.path.isfile(os.path.join(directory, f))
     ]
     print("#######################################################")
     print(f"# Python executable path: {python_executable_path}")
@@ -35,10 +35,11 @@ def run_mpu_tests():
             print("### PASSED")
         else:
             print("### FAILED")
-            print(f"{len(errors)} out of {len(files)} tests failed")
+            short_msg = f"{len(errors)} out of {len(files)} tests failed"
+            print(short_msg)
             for (filename, log) in errors:
                 print(f"File: {filename}\nLog: {log}")
-            raise RuntimeError(f"{len(errors)} out of {len(files)} tests failed")
+            raise RuntimeError(short_msg)
 
 
 class TestMPU(unittest.TestCase):
