@@ -1,11 +1,14 @@
 import os
 import subprocess
 import sys
+import unittest
 
 
-if __name__ == '__main__':
+def run_mpu_tests():
     python_executable_path = sys.executable
-    directory = os.path.dirname(os.path.abspath(__file__))
+    repository_root = subprocess.check_output(
+        "git rev-parse --show-toplevel").decode(sys.stdout.encoding).strip()
+    directory = os.path.abspath(os.path.join(repository_root, "tests/mpu"))
     files = [
         os.path.join(directory, f) for f in os.listdir(directory)
         if f.startswith("test_") and os.path.isfile(os.path.join(directory, f))
@@ -36,3 +39,13 @@ if __name__ == '__main__':
             for (filename, log) in errors:
                 print(f"File: {filename}\nLog: {log}")
             raise RuntimeError(f"{len(errors)} out of {len(files)} tests failed")
+
+
+class TestMPU(unittest.TestCase):
+
+    def test_mpu(self):
+        run_mpu_tests()
+
+
+if __name__ == '__main__':
+    unittest.main()
