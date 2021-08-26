@@ -15,7 +15,7 @@
 import torch
 
 import apex
-from apex.mpu import global_vars
+from apex.mpu.tests import global_vars
 from apex.mpu.tests.commons import print_separator
 from apex.mpu.tests.commons import initialize_distributed
 from apex.mpu.tests.commons import TEST_SUCCESS_MESSAGE

@@ -20,8 +20,8 @@ import time
 
 import torch
 
-from apex.mpu.arguments import parse_args
 from apex.mpu.microbatches import build_num_microbatches_calculator
+from apex.mpu.tests.arguments import parse_args
 
 _GLOBAL_ARGS = None
 _GLOBAL_NUM_MICROBATCHES_CALCULATOR = None

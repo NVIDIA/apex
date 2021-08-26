@@ -17,8 +17,8 @@ import torch.nn.init as init
 from torch.nn.parameter import Parameter
 
 import apex
-from apex.mpu import global_vars
 from apex.mpu import layers
+from apex.mpu.tests import global_vars
 from apex.mpu.tests.commons import set_random_seed
 from apex.mpu.tests.commons import print_separator
 from apex.mpu.tests.commons import initialize_distributed
@@ -128,7 +128,9 @@ def test_initialize_affine_weight(tensor_model_parallel_size, device):
     if device == 'cpu':
         layers._initialize_affine_weight_cpu(weight, output_size, input_size,
                                              output_size_coeff, 0,
-                                             torch.nn.init.normal_)
+                                             torch.nn.init.normal_,
+                                             params_dtype=global_vars.get_args().params_dtype,
+                                             )
     else:
         layers._initialize_affine_weight_gpu(weight, torch.nn.init.normal_, 0)
 
@@ -155,7 +157,9 @@ def test_initialize_affine_weight(tensor_model_parallel_size, device):
     if device == 'cpu':
         apex.mpu.layers._initialize_affine_weight_cpu(weight, output_size, input_size,
                                                  input_size_coeff, 1,
-                                                 torch.nn.init.normal_)
+                                                 torch.nn.init.normal_,
+                                                 params_dtype=global_vars.get_args().params_dtype,
+                                                 )
 
     else:
         apex.mpu.layers._initialize_affine_weight_gpu(weight, torch.nn.init.normal_, 1)
@@ -212,7 +216,10 @@ def test_column_parallel_linear(tensor_model_parallel_size):
     # Network
     identity_layer = IdentityLayer2D(batch_size, input_size).cuda()
     linear_layer = apex.mpu.ColumnParallelLinear(
-        input_size, output_size, keep_master_weight_for_test=True).cuda()
+        input_size, output_size, keep_master_weight_for_test=True,
+        params_dtype=global_vars.get_args().params_dtype,
+        use_cpu_initialization=global_vars.get_args().use_cpu_initialization,
+    ).cuda()
     loss_weight = torch.randn([batch_size, output_size]).cuda()
     # Forward
     input_ = identity_layer()
@@ -279,7 +286,10 @@ def test_row_parallel_linear(tensor_model_parallel_size):
     # Network
     identity_layer = IdentityLayer2D(batch_size, input_size).cuda()
     linear_layer = apex.mpu.RowParallelLinear(
-        input_size, output_size, keep_master_weight_for_test=True).cuda()
+        input_size, output_size, keep_master_weight_for_test=True,
+        params_dtype=global_vars.get_args().params_dtype,
+        use_cpu_initialization=global_vars.get_args().use_cpu_initialization,
+    ).cuda()
     loss_weight = torch.randn([batch_size, output_size]).cuda()
     # Forward
     input_ = identity_layer()

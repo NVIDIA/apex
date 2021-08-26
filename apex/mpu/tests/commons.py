@@ -19,7 +19,7 @@ import numpy
 import torch
 
 from apex import mpu
-from apex.mpu import global_vars
+from apex.mpu.tests import global_vars
 
 
 TEST_SUCCESS_MESSAGE = ">> passed the test :-)"

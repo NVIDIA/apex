@@ -14,7 +14,11 @@
 # limitations under the License.
 import torch
 
-from .initialize import get_tensor_model_parallel_group, get_tensor_model_parallel_world_size, get_tensor_model_parallel_rank
+from .initialize import (
+    get_tensor_model_parallel_group,
+    get_tensor_model_parallel_world_size,
+    get_tensor_model_parallel_rank,
+)
 from .utils import split_tensor_along_last_dim
 
 
@@ -22,7 +26,7 @@ def _reduce(input_):
     """All-reduce the input tensor across model parallel group."""
 
     # Bypass the function if we are using only 1 GPU.
-    if get_tensor_model_parallel_world_size()==1:
+    if get_tensor_model_parallel_world_size() == 1:
         return input_
 
     # All-reduce.
@@ -37,7 +41,7 @@ def _split(input_):
 
     world_size = get_tensor_model_parallel_world_size()
     # Bypass the function if we are using only 1 GPU.
-    if world_size==1:
+    if world_size == 1:
         return input_
 
     # Split along last dimension.
@@ -55,7 +59,7 @@ def _gather(input_):
 
     world_size = get_tensor_model_parallel_world_size()
     # Bypass the function if we are using only 1 GPU.
-    if world_size==1:
+    if world_size == 1:
         return input_
 
     # Size and dimension.
@@ -139,6 +143,7 @@ class _GatherFromModelParallelRegion(torch.autograd.Function):
 # -----------------
 # Helper functions.
 # -----------------
+
 
 def copy_to_tensor_model_parallel_region(input_):
     return _CopyToModelParallelRegion.apply(input_)

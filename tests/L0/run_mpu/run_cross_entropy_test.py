@@ -22,7 +22,7 @@ from apex.mpu.tests.commons import initialize_distributed
 from apex.mpu.tests.commons import TEST_SUCCESS_MESSAGE
 from apex import mpu
 from apex.mpu.cross_entropy import vocab_parallel_cross_entropy
-from apex.mpu import global_vars
+from apex.mpu.tests import global_vars
 
 
 global_vars.set_global_variables()
