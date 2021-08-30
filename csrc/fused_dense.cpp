@@ -107,7 +107,7 @@ std::vector<at::Tensor> linear_gelu_linear_forward(at::Tensor input, at::Tensor 
   auto output2 = at::empty({batch_size, out_features}, input.type());
   //auto reserved_space = at::empty({reserved_size}, inputs[0].type());
   // allocate fixed 4MB workspace for cublaslt for now, and this gets at least 4 MB
-  auto lt_workspace = at::empty({1 << 25}, input.type());
+  auto lt_workspace = at::empty({1 << 22}, input.type());
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.type(), "linear_gelu_linear_forward", [&] {
     scalar_t* w1_ptr = weight1.data_ptr<scalar_t>();

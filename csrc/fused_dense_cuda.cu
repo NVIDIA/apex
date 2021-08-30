@@ -1295,7 +1295,6 @@ int linear_gelu_linear_forward_cuda(T *input, T *weight1, T *bias1, T *weight2, 
     true,
     static_cast<const void*>(gelu_in),
     static_cast<const void*>(bias1));
-//   std::cout<<"out_feat, batch, hidden "<<out_features<<" "<<batch_size<<" "<<hidden_features<<std::endl;
     status = gemm_bias_lt(
     (cublasLtHandle_t)handle,
     CUBLAS_OP_T,
@@ -1312,7 +1311,7 @@ int linear_gelu_linear_forward_cuda(T *input, T *weight1, T *bias1, T *weight2, 
     output2,
     out_features,
     lt_workspace,
-    1 << 25,
+    1 << 22,
     stream,
     true,
     static_cast<const void*>(bias2));
