@@ -1202,7 +1202,7 @@ int linear_bias_backward_cuda(T *input, T *weight, T *d_output, int in_features,
     const float beta_zero       = 0.0;
     const float beta_one       = 1.0;
     int status = 1;
-#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
+#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11600
     status = gemm_bgradb_lt(
     (cublasLtHandle_t)handle,
     CUBLAS_OP_N,
@@ -1432,7 +1432,6 @@ template int linear_gelu_linear_forward_cuda<float>(float *input, float *weight1
 
 template int linear_gelu_linear_forward_cuda<double>(double *input, double *weight1, double *bias1, double *weight2, double *bias2, int in_features, int hidden_features, int batch_size, int out_features, double *output1, double *output2, double *gelu_in, void *lt_workspace) ;
 
-//int linear_bias_gelu_backward_cuda(T *input, T *gelu_in, T *output1, T *weight1, T *weight2, T *d_output1, T *d_output2, int in_features, int batch_size, int hidden_features, int out_features, T *d_weight1, T *d_weight2, T *d_bias1, T *d_bias2, T *d_input, void *lt_workspace) {
 template int linear_gelu_linear_backward_cuda<at::Half>(at::Half *input, at::Half *gelu_in, at::Half *output1, at::Half *weight1, at::Half *weight2, at::Half *d_output1, at::Half *d_output2, int in_features, int batch_size, int hidden_features, int out_features, at::Half *d_weight1, at::Half *d_weight2, at::Half *d_bias1, at::Half *d_bias2, at::Half *d_input, void *lt_workspace);
 
 template int linear_gelu_linear_backward_cuda<float>(float *input, float *gelu_in, float *output1, float *weight1, float *weight2, float *d_output1, float *d_output2, int in_features, int batch_size, int hidden_features, int out_features, float *d_weight1, float *d_weight2, float *d_bias1, float *d_bias2, float *d_input, void *lt_workspace);
