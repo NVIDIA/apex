@@ -263,23 +263,15 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
     def _lazy_init_stage1(self):
         if self._lazy_init_stage1_done: return
 
-        p_offset = 0
         p_i = 0
         #self._model_params = []
         #self._grad_accs = []
         #self._group_properties = []
         for group in self.param_groups:
-            prev = None
-            beta1, beta2 = group['betas']
-            beta3 = 1.0 - beta1 if self._grad_averaging else 1.0
-            bias_correction = 1 if group['bias_correction'] else 0
-            eps = group['eps']
-            weight_decay = group['weight_decay']
             for p in group['params']:
                 torch.distributed.broadcast(p, 0)
                 if not p.requires_grad:
                     continue
-                p_grads_size = p.numel()
                 def wrapper(param, param_i):
                     param_tmp = param.expand_as(param)
                     grad_acc = param_tmp.grad_fn.next_functions[0][0]
@@ -297,14 +289,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     grad_acc.register_hook(allreduce_hook)
                     self._grad_accs.append(grad_acc)
                 wrapper(p, p_i)
-                p_offset += p_grads_size
-                # Only enforce 128b alignment (64 * fp16) for non-consecutive parameters
-                # RNN is one example of consecutive parameters:
-                # (weight_ih, weight_hh, bias_ih, bias_hh)
-                if prev is not None and (prev.data_ptr() + prev.numel() * prev.element_size() != p.data_ptr()):
-                    p_offset = ((p_offset + 63) // 64) * 64
-                prev = p
                 p_i += 1
+
         self._block_size = self._total_param_size // self._num_blocks
         self._chunk_size = self._block_size // self._num_chunks
         self._shard_size = self._chunk_size // self._group_size
