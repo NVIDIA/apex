@@ -1606,7 +1606,726 @@ std::vector<at::Tensor> bottleneck_backward(bool explicit_nhwc, int stride_1X1, 
   return outputs;
 }
 
+namespace {
+
+struct bottleneck_forward_status {
+
+  int64_t dimA[4];
+  int64_t filterdimA1[4];
+  int64_t filterdimA2[4];
+  int64_t filterdimA3[4];
+  int64_t filterdimA4[4];
+
+  int axis[4];
+
+  int64_t outdimA0[4];
+  int64_t outdimA1[4];
+  int64_t outdimA2[4];
+  int64_t outdimA3[4];
+  int64_t outdimA4[4];
+
+  int64_t padA[2];
+  int64_t padA1[2];
+  int64_t padA2[2];  // halo padding
+  int64_t dilationA[2];
+  int64_t convstrideA[2];
+  int64_t convstride1X1[2];
+
+  int64_t outdim0[4]; // halo input shape
+  int64_t outdim1[4];
+  int64_t outdim2[4];
+  int64_t outdim3[4];
+  int64_t outdim4[4]; // halo output shape
+
+  void init(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs) {
+    dimA[0] = dimA[1] = dimA[2] = dimA[3] = 0;
+    filterdimA1[0] = filterdimA1[1] = filterdimA1[2] = filterdimA1[3] = 0;
+    filterdimA2[0] = filterdimA2[1] = filterdimA2[2] = filterdimA2[3] = 0;
+    filterdimA3[0] = filterdimA3[1] = filterdimA3[2] = filterdimA3[3] = 0;
+    filterdimA4[0] = filterdimA4[1] = filterdimA4[2] = filterdimA4[3] = 0;
+
+    // All dim calculation after this order of n,c,h,w
+    if (explicit_nhwc) {
+      axis[0] = 0;
+      axis[1] = 3;
+      axis[2] = 1;
+      axis[3] = 2;
+    } else {
+      axis[0] = 0;
+      axis[1] = 1;
+      axis[2] = 2;
+      axis[3] = 3;
+    }
+
+    for (int dim=0;dim<4;dim++) {
+      dimA[dim] = inputs[0].size(axis[dim]);
+      filterdimA1[dim] = inputs[1].size(axis[dim]);
+      filterdimA2[dim] = inputs[2].size(axis[dim]);
+      filterdimA3[dim] = inputs[3].size(axis[dim]);
+    }
+    if (stride_1X1 != 1 || filterdimA3[0] != dimA[1]) {
+      for (int dim=0;dim<4;dim++) {
+	filterdimA4[dim] = inputs[10].size(axis[dim]);
+      }
+    }
+
+    // output dim in n,c,h,w used by backend
+    outdimA0[0] = outdimA0[1] = outdimA0[2] = outdimA0[3] = 0;
+    outdimA1[0] = outdimA1[1] = outdimA1[2] = outdimA1[3] = 0;
+    outdimA2[0] = outdimA2[1] = outdimA2[2] = outdimA2[3] = 0;
+    outdimA3[0] = outdimA3[1] = outdimA3[2] = outdimA3[3] = 0;
+    outdimA4[0] = outdimA4[1] = outdimA4[2] = outdimA4[3] = 0;
+
+    // use these fixed value for test run
+    padA[0] = 0; padA[1] = 0;
+    padA1[0] = 1; padA1[1] = 1;
+    padA2[0] = 0; padA2[1] = 1;
+    dilationA[0] = 1; dilationA[1] = 1;
+    convstrideA[0] = 1; convstrideA[1] = 1;
+    convstride1X1[0] = stride_1X1; convstride1X1[1] = stride_1X1;
+
+    // compute output from pad/stride/dilation
+    outdimA1[0] = dimA[0];
+    outdimA1[1] = filterdimA1[0];
+    for (int dim = 0; dim < 2; dim++) {
+      outdimA1[dim + 2] = getFwdConvOutputDim(dimA[dim + 2], padA[dim], filterdimA1[dim + 2], convstride1X1[dim], dilationA[dim]);
+    }
+
+    outdimA2[0] = outdimA1[0];
+    outdimA2[1] = filterdimA2[0];
+    for (int dim = 0; dim < 2; dim++) {
+      outdimA2[dim + 2] = getFwdConvOutputDim(outdimA1[dim + 2], padA1[dim], filterdimA2[dim + 2], convstrideA[dim], dilationA[dim]);
+    }
+
+    for (int dim = 0; dim < 4; dim++) {
+      if (dim == 2) {
+	outdimA0[dim] = 3;
+	outdimA4[dim] = 1;
+      } else {
+        outdimA0[dim] = outdimA1[dim];
+	outdimA4[dim] = outdimA2[dim];
+      }
+    }
+
+    outdimA3[0] = outdimA2[0];
+    outdimA3[1] = filterdimA3[0];
+    for (int dim = 0; dim < 2; dim++) {
+      outdimA3[dim + 2] = getFwdConvOutputDim(outdimA2[dim + 2], padA[dim], filterdimA3[dim + 2], convstrideA[dim], dilationA[dim]);
+    }
+
+    // Create output tensor in the correct shape in pytorch's view
+    outdim1[0] = outdim1[1] = outdim1[2] = outdim1[3] = 0;
+    outdim2[0] = outdim2[1] = outdim2[2] = outdim2[3] = 0;
+    outdim3[0] = outdim3[1] = outdim3[2] = outdim3[3] = 0;
+    if (explicit_nhwc) {
+      axis[0] = 0;
+      axis[1] = 2;
+      axis[2] = 3;
+      axis[3] = 1;
+    }
+    for (int dim=0;dim<4;dim++) {
+      outdim0[dim] = outdimA0[axis[dim]];
+      outdim1[dim] = outdimA1[axis[dim]];
+      outdim2[dim] = outdimA2[axis[dim]];
+      outdim3[dim] = outdimA3[axis[dim]];
+      outdim4[dim] = outdimA4[axis[dim]];
+    }
+  }
+};
+
+bottleneck_forward_status forward_state;
+
+} // end of anonymous namespace
+
+std::vector<at::Tensor> bottleneck_forward_init(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs) {
+  // NB! Bottleneck_forward and bottleneck_backward are NOT thread safe method.
+  // NB! We use a global object to store state.
+  forward_state.init(explicit_nhwc, stride_1X1, inputs);
+
+  // create output vector
+  std::vector<at::Tensor> outputs;
+  auto output_format = explicit_nhwc ? at::MemoryFormat::Contiguous : at::MemoryFormat::ChannelsLast;
+
+  printf("outdim1 = (%d,%d,%d,%d)\n",forward_state.outdim1[0],forward_state.outdim1[1],forward_state.outdim1[2],forward_state.outdim1[3]);
+  auto out1 = at::empty(forward_state.outdim1, inputs[0].type(), output_format);
+  auto out2 = at::empty(forward_state.outdim2, inputs[0].type(), output_format);
+  auto out3 = at::empty(forward_state.outdim3, inputs[0].type(), output_format);
+
+  outputs.push_back(out1);
+  outputs.push_back(out2);
+  outputs.push_back(out3);
+
+  return outputs;
+}
+
+// inputs contains x,w,z,b,(i)
+void bottleneck_forward_out1(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs) {
+
+  std::cout << std::fixed;
+
+  // run
+  at::Half* x = inputs[0].data_ptr<at::Half>();
+  at::Half* w = inputs[1].data_ptr<at::Half>();
+  at::Half* z = inputs[4].data_ptr<at::Half>();
+  at::Half* b = inputs[7].data_ptr<at::Half>();
+  auto out1 = outputs[0];
+  at::Half* y1 = out1.data_ptr<at::Half>();
+
+  run_conv_scale_bias_add_activation(forward_state.dimA,
+                                     forward_state.padA,
+                                     forward_state.convstride1X1,
+                                     forward_state.dilationA,
+                                     forward_state.filterdimA1,
+                                     forward_state.outdimA1,
+                                     CUDNN_DATA_HALF,
+                                     x,
+                                     w,
+                                     y1,
+                                     z,
+                                     b,
+                                     nullptr);
+
+  DEBUG_MSG("[DEBUG] new relu1 : " << out1.to(at::kFloat).sum().item<float>());
+}
+
+// computes halo (top or bottom) from fat halo input.
+// fat halo input is 3 pixels wide in H.
+at::Tensor bottleneck_forward_out2_halo(bool explicit_nhwc, at::Tensor fat_halo_y1, std::vector<at::Tensor> inputs) {
+
+  auto output_format = explicit_nhwc ? at::MemoryFormat::Contiguous : at::MemoryFormat::ChannelsLast;
+
+  // run
+  at::Half* w = inputs[2].data_ptr<at::Half>();
+  at::Half* z = inputs[5].data_ptr<at::Half>();
+  at::Half* b = inputs[8].data_ptr<at::Half>();
+  
+  at::Half* y1 = fat_halo_y1.data_ptr<at::Half>();
+
+  auto halo_y2 = at::empty(forward_state.outdim4, inputs[0].type(), output_format);
+  at::Half* y2 = halo_y2.data_ptr<at::Half>();
+
+  run_conv_scale_bias_add_activation(forward_state.outdimA0,
+                                     forward_state.padA2,
+                                     forward_state.convstrideA,
+                                     forward_state.dilationA,
+                                     forward_state.filterdimA2,
+                                     forward_state.outdimA4,
+                                     CUDNN_DATA_HALF,
+                                     y1,
+                                     w,
+                                     y2,
+                                     z,
+                                     b,
+                                     nullptr);
+
+  return halo_y2;
+}
+
+void bottleneck_forward_out2(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs) {
+
+  std::cout << std::fixed;
+
+  // from _out1 method
+  at::Half* x = inputs[0].data_ptr<at::Half>();
+  auto out1 = outputs[0];
+  at::Half* y1 = out1.data_ptr<at::Half>();
+
+  // run
+  at::Half* w = inputs[2].data_ptr<at::Half>();
+  at::Half* z = inputs[5].data_ptr<at::Half>();
+  at::Half* b = inputs[8].data_ptr<at::Half>();
+  auto out2 = outputs[1];
+  at::Half* y2 = out2.data_ptr<at::Half>();
+
+  printf("forward_state.outdimA1 = {%d,%d,%d,%d}\n",forward_state.outdimA1[0],forward_state.outdimA1[1],forward_state.outdimA1[2],forward_state.outdimA1[3]);
+  printf("forward_state.padA1 = {%d,%d}\n",forward_state.padA1[0],forward_state.padA1[1]);
+  printf("forward_state.convstrideA = {%d,%d}\n",forward_state.convstrideA[0],forward_state.convstrideA[1]);
+  printf("forward_state.dilationA = {%d,%d}\n",forward_state.dilationA[0],forward_state.dilationA[1]);
+  printf("forward_state.filterdimA2 = {%d,%d,%d,%d}\n",forward_state.filterdimA2[0],forward_state.filterdimA2[1],forward_state.filterdimA2[2],forward_state.filterdimA2[3]);
+  printf("forward_state.outdimA2 = {%d,%d,%d,%d}\n",forward_state.outdimA2[0],forward_state.outdimA2[1],forward_state.outdimA2[2],forward_state.outdimA2[3]);
+  run_conv_scale_bias_add_activation(forward_state.outdimA1,
+                                     forward_state.padA1,
+                                     forward_state.convstrideA,
+                                     forward_state.dilationA,
+                                     forward_state.filterdimA2,
+                                     forward_state.outdimA2,
+                                     CUDNN_DATA_HALF,
+                                     y1,
+                                     w,
+                                     y2,
+                                     z,
+                                     b,
+                                     nullptr);
+  DEBUG_MSG("[DEBUG] new relu2 : " << out2.to(at::kFloat).sum().item<float>());
+}
+
+void bottleneck_forward_rest(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs) {
+
+  std::cout << std::fixed;
+
+  // from _out1 method
+  at::Half* x = inputs[0].data_ptr<at::Half>();
+
+  // create output of conv3
+  auto out3 = outputs[2];
+  at::Half* y3 = out3.data_ptr<at::Half>();
+
+  // create output of conv4 that may exist
+  auto identity = at::empty_like(out3);
+  at::Half* yi = identity.data_ptr<at::Half>();
+
+  at::Half *w, *z, *b;
+
+  if (stride_1X1 != 1 || forward_state.filterdimA3[0] != forward_state.dimA[1]){
+
+    w = inputs[10].data_ptr<at::Half>();
+    z = inputs[11].data_ptr<at::Half>();
+    b = inputs[12].data_ptr<at::Half>();
+    run_conv_scale_bias(forward_state.dimA,
+                        forward_state.padA,
+                        forward_state.convstride1X1,
+                        forward_state.dilationA,
+                        forward_state.filterdimA4,
+                        forward_state.outdimA3,
+                        CUDNN_DATA_HALF,
+                        x,
+                        w,
+                        yi,
+                        z,
+                        b);
+    DEBUG_MSG("[DEBUG] new downsample : " << identity.to(at::kFloat).sum().item<float>());
+  }
+  else {
+    yi = x;
+  }
+
+  auto out2 = outputs[1];
+  at::Half* y2 = out2.data_ptr<at::Half>();
+
+  w = inputs[3].data_ptr<at::Half>();
+  z = inputs[6].data_ptr<at::Half>();
+  b = inputs[9].data_ptr<at::Half>();
+
+  run_conv_scale_bias_add_activation(forward_state.outdimA2,
+                                     forward_state.padA,
+                                     forward_state.convstrideA,
+                                     forward_state.dilationA,
+                                     forward_state.filterdimA3,
+                                     forward_state.outdimA3,
+                                     CUDNN_DATA_HALF,
+                                     y2,
+                                     w,
+                                     y3,
+                                     z,
+                                     b,
+                                     yi);
+  DEBUG_MSG("[DEBUG] new relu3 : " << out3.to(at::kFloat).sum().item<float>());
+}
+
+namespace {
+
+struct bottleneck_backward_state {
+
+  int64_t dimA[4];
+  int64_t filterdimA1[4];
+  int64_t filterdimA2[4];
+  int64_t filterdimA3[4];
+  int64_t filterdimA4[4];
+
+  int axis[4];
+
+  int64_t outdimA1[4];
+  int64_t outdimA2[4];
+  int64_t outdimA3[4];
+
+  int64_t padA[2];
+  int64_t padA1[2];
+  int64_t dilationA[2];
+  int64_t convstrideA[2];
+  int64_t convstride1X1[2];
+
+  int64_t outdim1[4];
+  int64_t outdim2[4];
+  int64_t outdim3[4];
+
+  void init(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs) {
+    // setup dimensions
+    dimA[0] = dimA[1] = dimA[2] = dimA[3] = 0;
+    filterdimA1[0] = filterdimA1[1] = filterdimA1[2] = filterdimA1[3] = 0;
+    filterdimA2[0] = filterdimA2[1] = filterdimA2[2] = filterdimA2[3] = 0;
+    filterdimA3[0] = filterdimA3[1] = filterdimA3[2] = filterdimA3[3] = 0;
+    filterdimA4[0] = filterdimA4[1] = filterdimA4[2] = filterdimA4[3] = 0;
+
+    // All dim calculation after this order of n,c,h,w
+    if (explicit_nhwc) {
+      axis[0] = 0;
+      axis[1] = 3;
+      axis[2] = 1;
+      axis[3] = 2;
+    } else {
+      axis[0] = 0;
+      axis[1] = 1;
+      axis[2] = 2;
+      axis[3] = 3;
+    }
+
+    for (int dim=0;dim<4;dim++) {
+      dimA[dim] = inputs[0].size(axis[dim]);
+      filterdimA1[dim] = inputs[1].size(axis[dim]);
+      filterdimA2[dim] = inputs[2].size(axis[dim]);
+      filterdimA3[dim] = inputs[3].size(axis[dim]);
+    }
+    if (stride_1X1 != 1 || filterdimA3[0] != dimA[1]) {
+      for (int dim=0;dim<4;dim++) {
+        filterdimA4[dim] = inputs[14].size(axis[dim]);
+      }
+    }
+
+    // output dim in n,c,h,w used by backend
+    outdimA1[0] = outdimA1[1] = outdimA1[2] = outdimA1[3] = 0;
+    outdimA2[0] = outdimA2[1] = outdimA2[2] = outdimA2[3] = 0;
+    outdimA3[0] = outdimA3[1] = outdimA3[2] = outdimA3[3] = 0;
+
+    // use these fixed value for test run
+    padA[0] = 0; padA[1] = 0;
+    padA1[0] = 1; padA1[1] = 1;
+    dilationA[0] = 1; dilationA[1] = 1;
+    convstrideA[0] = 1; convstrideA[1] = 1;
+    convstride1X1[0] = stride_1X1; convstride1X1[1] = stride_1X1;
+
+    // compute output from pad/stride/dilation
+    outdimA1[0] = dimA[0];
+    outdimA1[1] = filterdimA1[0];
+    for (int dim = 0; dim < 2; dim++) {
+      outdimA1[dim + 2] = getFwdConvOutputDim(dimA[dim + 2], padA[dim], filterdimA1[dim + 2], convstride1X1[dim], dilationA[dim]);
+    }
+
+    outdimA2[0] = outdimA1[0];
+    outdimA2[1] = filterdimA2[0];
+    for (int dim = 0; dim < 2; dim++) {
+      outdimA2[dim + 2] = getFwdConvOutputDim(outdimA1[dim + 2], padA1[dim], filterdimA2[dim + 2], convstrideA[dim], dilationA[dim]);
+    }
+
+    outdimA3[0] = outdimA2[0];
+    outdimA3[1] = filterdimA3[0];
+    for (int dim = 0; dim < 2; dim++) {
+      outdimA3[dim + 2] = getFwdConvOutputDim(outdimA2[dim + 2], padA[dim], filterdimA3[dim + 2], convstrideA[dim], dilationA[dim]);
+    }
+
+    // Create output tensor in the correct shape in pytorch's view
+    outdim1[0] = outdim1[1] = outdim1[2] = outdim1[3] = 0;
+    outdim2[0] = outdim2[1] = outdim2[2] = outdim2[3] = 0;
+    outdim3[0] = outdim3[1] = outdim3[2] = outdim3[3] = 0;
+    if (explicit_nhwc) {
+      axis[0] = 0;
+      axis[1] = 2;
+      axis[2] = 3;
+      axis[3] = 1;
+    }
+    for (int dim=0;dim<4;dim++) {
+      outdim1[dim] = outdimA1[axis[dim]];
+      outdim2[dim] = outdimA2[axis[dim]];
+      outdim3[dim] = outdimA3[axis[dim]];
+    }
+  }
+};
+
+bottleneck_backward_state backward_state;
+
+}
+
+std::vector<at::Tensor> bottleneck_backward_init(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs) {
+
+  std::cout << std::fixed;
+
+  backward_state.init(explicit_nhwc, stride_1X1, inputs);
+
+  // create output vector
+  std::vector<at::Tensor> outputs;
+  auto output_format = explicit_nhwc ? at::MemoryFormat::Contiguous : at::MemoryFormat::ChannelsLast;
+
+  auto grad_x = at::empty_like(inputs[0]);
+  auto wgrad1 = at::empty_like(inputs[1]);
+  auto wgrad2 = at::empty_like(inputs[2]);
+  auto wgrad3 = at::empty_like(inputs[3]);
+
+  outputs.push_back(grad_x);
+  outputs.push_back(wgrad1);
+  outputs.push_back(wgrad2);
+  outputs.push_back(wgrad3);
+  if (stride_1X1 != 1 || backward_state.filterdimA3[0] != backward_state.dimA[1]) {
+    auto wgrad4 = at::empty_like(inputs[14]);
+    outputs.push_back(wgrad4);
+  }
+
+  return outputs;
+}
+
+at::Tensor bottleneck_backward_grad_out2(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs) {
+
+  bool requires_grad = inputs[0].requires_grad();
+
+  std::cout << std::fixed;
+  auto output_format = explicit_nhwc ? at::MemoryFormat::Contiguous : at::MemoryFormat::ChannelsLast;
+
+  // dconv3+drelu2+dscale2
+  at::Half* conv_in = inputs[13].data_ptr<at::Half>();
+  at::Half* dy3 = inputs[10].data_ptr<at::Half>();
+
+  DEBUG_MSG("[DEBUG] new dconv3 : " << inputs[10].to(at::kFloat).sum().item<float>());
+
+  // wgrad
+  auto wgrad3 = outputs[3];
+  at::Half* dw3 = wgrad3.data_ptr<at::Half>();
+  run_dconv(backward_state.outdimA2,
+            backward_state.padA,
+            backward_state.convstrideA,
+            backward_state.dilationA,
+            backward_state.filterdimA3,
+            backward_state.outdimA3,
+            CUDNN_DATA_HALF,
+            conv_in,
+            dw3,
+            dy3,
+            CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
+
+  // dgrad
+  auto grad_out2 = at::empty(backward_state.outdim2, inputs[0].type(), output_format);
+  at::Half* dy2 = grad_out2.data_ptr<at::Half>();
+  at::Half* w = inputs[3].data_ptr<at::Half>();
+  at::Half* z = inputs[5].data_ptr<at::Half>();
+
+  at::Half* relu2 = inputs[13].data_ptr<at::Half>();
+
+  run_dconv_drelu_dscale(backward_state.outdimA2,
+                         backward_state.padA,
+                         backward_state.convstrideA,
+                         backward_state.dilationA,
+                         backward_state.filterdimA3,
+                         backward_state.outdimA3,
+                         CUDNN_DATA_HALF,
+                         dy2,
+                         w,
+                         dy3,
+                         z,
+                         relu2);
+
+  // do halo exchange of dy2 here
+
+  DEBUG_MSG("[DEBUG] new dconv2 : " << grad_out2.to(at::kFloat).sum().item<float>());
+
+  return grad_out2;
+}
+
+void bottleneck_backward_rest(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2) {
+
+  bool requires_grad = inputs[0].requires_grad();
+
+  std::cout << std::fixed;
+  auto output_format = explicit_nhwc ? at::MemoryFormat::Contiguous : at::MemoryFormat::ChannelsLast;
+
+  // dgrad
+  at::Half* dy2 = grad_out2.data_ptr<at::Half>();
+
+  // dconv2+drelu1+dscale1
+  at::Half* conv_in = inputs[12].data_ptr<at::Half>();
+
+  // wgrad
+
+  auto wgrad2 = outputs[2];
+  at::Half* dw2 = wgrad2.data_ptr<at::Half>();
+  printf("outdimA1 = (%d,%d,%d,%d)\n",backward_state.outdimA1[0],backward_state.outdimA1[1],backward_state.outdimA1[2],backward_state.outdimA1[3]);
+  run_dconv(backward_state.outdimA1,
+            backward_state.padA1,
+            backward_state.convstrideA,
+            backward_state.dilationA,
+            backward_state.filterdimA2,
+            backward_state.outdimA2,
+            CUDNN_DATA_HALF,
+            conv_in,
+            dw2,
+            dy2,
+            CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
+
+  // dgrad
+  auto grad_out1 = at::empty(backward_state.outdim1, inputs[0].type(), output_format);
+  at::Half* dy1 = grad_out1.data_ptr<at::Half>();
+  at::Half* w = inputs[2].data_ptr<at::Half>();
+  at::Half* z = inputs[4].data_ptr<at::Half>();
+
+  at::Half* relu1 = inputs[12].data_ptr<at::Half>();
+  // fused dgrad
+  run_dconv_drelu_dscale(backward_state.outdimA1,
+                         backward_state.padA1,
+                         backward_state.convstrideA,
+                         backward_state.dilationA,
+                         backward_state.filterdimA2,
+                         backward_state.outdimA2,
+                         CUDNN_DATA_HALF,
+                         dy1,
+                         w,
+                         dy2,
+                         z,
+                         relu1);
+
+/*
+  // backward strided conv cannot be fused
+  // if stride == 1 but channel changes, we can fuse here
+  if (stride_1X1 != 1){
+    // dgrad
+    run_dconv(outdimA1,
+              padA1,
+              convstride1X1,
+              dilationA,
+              filterdimA2,
+              outdimA2,
+              CUDNN_DATA_HALF,
+              dy1,
+              w,
+              dy2,
+              CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR);
+
+    // mul fused mask
+    grad_out1.mul_(inputs[15]);
+  }
+  else {
+    at::Half* relu1 = inputs[12].data_ptr<at::Half>();
+    // fused dgrad
+    run_dconv_drelu_dscale(outdimA1,
+                           padA1,
+                           convstride1X1,
+                           dilationA,
+                           filterdimA2,
+                           outdimA2,
+                           CUDNN_DATA_HALF,
+                           dy1,
+                           w,
+                           dy2,
+                           z,
+                           relu1);
+  }
+*/
+  DEBUG_MSG("[DEBUG] new dconv1 : " << grad_out1.to(at::kFloat).sum().item<float>());
+
+  // create grads of conv4 that may exist
+  auto grad_x_conv4 = at::empty_like(inputs[0]);
+  at::Half* dx_conv4 = grad_x_conv4.data_ptr<at::Half>();
+  at::Tensor wgrad4;
+
+  // x used for dconv1 and dconv4 wgrad
+  at::Half* x = inputs[0].data_ptr<at::Half>();
+
+  if (stride_1X1 != 1 || backward_state.filterdimA3[0] != backward_state.dimA[1]){
+    w = inputs[14].data_ptr<at::Half>();
+    at::Half* dy_conv4 = inputs[11].data_ptr<at::Half>();
+    if (requires_grad) {
+      run_dconv(backward_state.dimA,
+                backward_state.padA,
+                backward_state.convstride1X1,
+                backward_state.dilationA,
+                backward_state.filterdimA4,
+                backward_state.outdimA3,
+                CUDNN_DATA_HALF,
+                dx_conv4,
+                w,
+                dy_conv4,
+                CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR);
+      // we don't print here since we can't hook out this grad in pytorch alone to compare, due to addition with dx
+      // DEBUG_MSG("[DEBUG] new dx_identity : " << grad_x_conv4.to(at::kFloat).sum().item<float>());
+    }
+    // wgrad
+    wgrad4 = outputs[4];
+    at::Half* dw4 = wgrad4.data_ptr<at::Half>();
+    run_dconv(backward_state.dimA,
+              backward_state.padA,
+              backward_state.convstride1X1,
+              backward_state.dilationA,
+              backward_state.filterdimA4,
+              backward_state.outdimA3,
+              CUDNN_DATA_HALF,
+              x,
+              dw4,
+              dy_conv4,
+              CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
+  }
+  else {
+    // if there is no downsample, dx_conv4 is fork of drelu3
+    dx_conv4 = inputs[11].data_ptr<at::Half>();
+  }
+
+  // dconv1+add
+  // wgrad
+  auto wgrad1 = outputs[1];
+  at::Half* dw1 = wgrad1.data_ptr<at::Half>();
+  run_dconv(backward_state.dimA,
+            backward_state.padA,
+            backward_state.convstride1X1,
+            backward_state.dilationA,
+            backward_state.filterdimA1,
+            backward_state.outdimA1,
+            CUDNN_DATA_HALF,
+            x,
+            dw1,
+            dy1,
+            CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
+
+  // dgrad
+  w = inputs[1].data_ptr<at::Half>();
+  auto grad_x = outputs[0];
+  at::Half* dx = grad_x.data_ptr<at::Half>();
+
+  // backward strided conv cannot be fused
+  // if stride == 1 but channel changes, we can fuse here
+  if (requires_grad){
+    if (stride_1X1 != 1){
+      run_dconv(backward_state.dimA,
+                backward_state.padA,
+                backward_state.convstride1X1,
+                backward_state.dilationA,
+                backward_state.filterdimA1,
+                backward_state.outdimA1,
+                CUDNN_DATA_HALF,
+                dx,
+                w,
+                dy1,
+                CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR);
+      // add 2 together
+      grad_x.add_(grad_x_conv4);
+    }
+    else {
+      run_dconv_add(backward_state.dimA,
+                    backward_state.padA,
+                    backward_state.convstride1X1,
+                    backward_state.dilationA,
+                    backward_state.filterdimA1,
+                    backward_state.outdimA1,
+                    CUDNN_DATA_HALF,
+                    dx,
+                    w,
+                    dy1,
+                    dx_conv4);
+    }
+  }
+
+  DEBUG_MSG("[DEBUG] new dx : " << grad_x.to(at::kFloat).sum().item<float>());
+  DEBUG_MSG("[DEBUG] new wgrad1 : " << wgrad1.to(at::kFloat).sum().item<float>());
+  DEBUG_MSG("[DEBUG] new wgrad2 : " << wgrad2.to(at::kFloat).sum().item<float>());
+  DEBUG_MSG("[DEBUG] new wgrad3 : " << wgrad3.to(at::kFloat).sum().item<float>());
+
+  if (stride_1X1 != 1 || backward_state.filterdimA3[0] != backward_state.dimA[1]) {
+    DEBUG_MSG("[DEBUG] new wgrad4 : " << wgrad4.to(at::kFloat).sum().item<float>());
+  }
+}
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &bottleneck_forward, "Bottleneck block forward");
   m.def("backward", &bottleneck_backward, "Bottleneck block backward");
+  m.def("forward_init", &bottleneck_forward_init, "Bottleneck block init");
+  m.def("forward_out1", &bottleneck_forward_out1, "Bottleneck block forward");
+  m.def("forward_out2", &bottleneck_forward_out2, "Bottleneck block forward");
+  m.def("forward_out2_halo", &bottleneck_forward_out2_halo, "Bottleneck block forward");
+  m.def("forward_rest", &bottleneck_forward_rest, "Bottleneck block forward");
+  m.def("backward_init", &bottleneck_backward_init, "Bottleneck block backward init");
+  m.def("backward_grad_out2", &bottleneck_backward_grad_out2, "Bottleneck block backward");
+  m.def("backward_rest", &bottleneck_backward_rest, "Bottleneck block backward");
 }
