@@ -6,7 +6,7 @@
 
 
 template <typename T>
-int linear_bias_forward_cuda(at::Tensor input, T *weight, at::Tensor bias, int in_features, int batch_size, int out_features, T *output, void *lt_workspace);
+int linear_bias_forward_cuda(at::Tensor input, T *weight, at::Tensor bias, int in_features, int batch_size, int out_features, at::Tensor output, void *lt_workspace);
 
 template <typename T>
 int linear_bias_backward_cuda(T *input, T *weight, T *d_output, int in_features, int batch_size, int out_features, T *d_weight, T *d_bias, T *d_input,  void *lt_workspace);
@@ -42,7 +42,8 @@ at::Tensor linear_bias_forward(at::Tensor input, at::Tensor weight, at::Tensor b
         in_features,
         batch_size,
         out_features,
-        out.data_ptr<scalar_t>(),
+        out,
+        //out.data_ptr<scalar_t>(),
        // reserved_space.data_ptr<scalar_t>(),
         (void*) (lt_workspace.data_ptr<scalar_t>()));
   });
@@ -61,7 +62,7 @@ std::vector<at::Tensor> linear_bias_backward(at::Tensor input, at::Tensor weight
 
   // create output/workspace tensor
   auto d_weight = at::empty({out_features, in_features}, input.type());
-#if defined(CUBLAS_VERSION) && CUBLAS_VERSION < 11600
+#if defined(CUDA_VERSION) && CUDA_VERSION < 11000
   auto d_bias = d_output.view({-1, out_features}).sum(0, false);
 #else                                                                              
   auto d_bias = at::empty({out_features}, input.type());

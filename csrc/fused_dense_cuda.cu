@@ -1139,7 +1139,7 @@ CLEANUP:
 #endif
 
 template <typename T>
-int linear_bias_forward_cuda(at::Tensor input, T *weight, at::Tensor bias, int in_features, int batch_size, int out_features, T *output, void *lt_workspace) {
+int linear_bias_forward_cuda(at::Tensor input, T *weight, at::Tensor bias, int in_features, int batch_size, int out_features, at::Tensor output, void *lt_workspace) {
     cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
     // Get the stream from cublas handle to reuse for biasReLU kernel.
     cudaStream_t stream;
@@ -1162,7 +1162,7 @@ int linear_bias_forward_cuda(at::Tensor input, T *weight, at::Tensor bias, int i
     input.data_ptr<T>(),
     in_features,
     &beta_zero, /* host pointer */
-    output,
+    output.data_ptr<T>(),
     out_features,
     lt_workspace,
     1 << 22,
@@ -1171,7 +1171,7 @@ int linear_bias_forward_cuda(at::Tensor input, T *weight, at::Tensor bias, int i
     static_cast<const void*>(bias.data_ptr<T>()));
 #endif
     if (status != 0){
-        input.copy_(bias);
+        output.copy_(bias);
         status = gemm_bias(
           handle,
           CUBLAS_OP_T,
@@ -1185,7 +1185,7 @@ int linear_bias_forward_cuda(at::Tensor input, T *weight, at::Tensor bias, int i
           input.data_ptr<T>(),
           in_features,
           &beta_one,
-          output,
+          output.data_ptr<T>(),
           out_features);
     }
     return status;
@@ -1413,11 +1413,11 @@ int linear_gelu_linear_backward_cuda(T *input, T *gelu_in, T *output1, T *weight
 }
 
 
-template int linear_bias_forward_cuda<at::Half>(at::Tensor input, at::Half *weight, at::Tensor bias, int in_features, int batch_size, int out_features, at::Half *output, void *lt_workspace);
+template int linear_bias_forward_cuda<at::Half>(at::Tensor input, at::Half *weight, at::Tensor bias, int in_features, int batch_size, int out_features, at::Tensor output, void *lt_workspace);
 
-template int linear_bias_forward_cuda<float>(at::Tensor input, float *weight, at::Tensor bias, int in_features, int batch_size, int out_features, float *output, void *lt_workspace);
+template int linear_bias_forward_cuda<float>(at::Tensor input, float *weight, at::Tensor bias, int in_features, int batch_size, int out_features, at::Tensor output, void *lt_workspace);
 
-template int linear_bias_forward_cuda<double>(at::Tensor input, double *weight, at::Tensor bias, int in_features, int batch_size, int out_features, double *output, void *lt_workspace);
+template int linear_bias_forward_cuda<double>(at::Tensor input, double *weight, at::Tensor bias, int in_features, int batch_size, int out_features, at::Tensor output, void *lt_workspace);
 
 template int linear_bias_backward_cuda<at::Half>(at::Half *input, at::Half *weight, at::Half *d_output, int in_features, int batch_size, int out_features, at::Half *d_weight, at::Half *d_bias, at::Half *d_input,  void *lt_workspace) ;
 
