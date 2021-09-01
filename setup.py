@@ -203,6 +203,7 @@ if "--cuda_ext" in sys.argv:
                                    'csrc/multi_tensor_adagrad.cu',
                                    'csrc/multi_tensor_novograd.cu',
                                    'csrc/multi_tensor_lamb.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc': nvcc_args_multi_tensor if not IS_ROCM_PYTORCH else hipcc_args_multi_tensor}))
 
@@ -211,6 +212,7 @@ if "--cuda_ext" in sys.argv:
             CUDAExtension(name='syncbn',
                           sources=['csrc/syncbn.cpp',
                                    'csrc/welford.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
 
@@ -221,6 +223,7 @@ if "--cuda_ext" in sys.argv:
             CUDAExtension(name='fused_layer_norm_cuda',
                           sources=['csrc/layer_norm_cuda.cpp',
                                    'csrc/layer_norm_cuda_kernel.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc': nvcc_args_layer_norm if not IS_ROCM_PYTORCH else hipcc_args_layer_norm}))
 
@@ -229,6 +232,7 @@ if "--cuda_ext" in sys.argv:
             CUDAExtension(name='mlp_cuda',
                           sources=['csrc/mlp.cpp',
                                    'csrc/mlp_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
 
