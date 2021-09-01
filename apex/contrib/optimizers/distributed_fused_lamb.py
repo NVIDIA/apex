@@ -86,7 +86,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                  adam_w_mode=True, use_nvlamb=False,
                  step_supports_amp_scaling=True, overlap_reductions=True,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
-                 dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, 
+                 dwu_num_rs_pg=1, dwu_num_ar_pg=4, dwu_num_ag_pg=0, fused_norm=False,                 
                  e5m2_allgather=False, verbose=False, clip_after_ar=True,
                  set_param_views_to_flat_buffer=False, skip_allgather=False):
         defaults = dict(lr=lr, bias_correction=bias_correction,
@@ -123,6 +123,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._L2_grad_norm = None
         self._set_flat_param_view = set_param_views_to_flat_buffer
         self._skip_ag = skip_allgather
+        self._fused_norm = fused_norm 
         self._current_process_group = c10d._get_default_group()
         self._available_ranks = list(c10d._pg_group_ranks[self._current_process_group].keys())
         self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
@@ -360,6 +361,17 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             self._grad_accs = [self._grad_accs[i] for i in self._param_order.order]
             self._group_properties = [self._group_properties[i] for i in self._param_order.order]
 
+        def _get_flat_view(param):
+            if param.is_contiguous(memory_format=torch.channels_last):
+                K, C, H, W = param.shape
+                pv = param.as_strided(size=(K,H,W,C), stride=(H*W*C, W*C, C, 1))
+            elif param.is_contiguous(memory_format=torch.channels_last_3d):
+                K, C, D, H, W = param.shape
+                pv = param.as_strided(size=(K,D,H,W,C), stride=(D*H*W*C, H*W*C, W*C, C, 1))
+            else:
+                pv = param
+            return pv.view(-1)
+
         # re-collect grads info (size, offset) after ordering
         prev = None
         p_offset = 0
@@ -415,7 +427,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                             grad_offset = clipped_start - flat_grad_start
                             grad_length = clipped_end - clipped_start
                             shard_offset = clipped_start - flat_shard_start
-                            model_param_fragment = p.view(-1)[grad_offset:grad_offset+grad_length]
+                            pf = _get_flat_view(p)
+                            model_param_fragment = pf[grad_offset:grad_offset+grad_length]
                             new_param_packed_fragment = self._new_params_mega_chunks[shard_id][block_id][chunk_id][shard_offset:shard_offset+grad_length]
                             if model_param_fragment.dtype == torch.float16:
                                 self._packed_flat_to_model_params_fp16.append( (new_param_packed_fragment, model_param_fragment) )
@@ -536,7 +549,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             # Compute L2 grad norm
             self._l2_grad_norm_st.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(self._l2_grad_norm_st):
-                self._L2_grad_norm = self._flat_grads.norm(dtype=torch.float16, p=2).float()
+                if not self._fused_norm:
+                    self._L2_grad_norm = self._flat_grads.norm(dtype=torch.float16, p=2).float()
             torch.cuda.current_stream().wait_stream(self._l2_grad_norm_st)
 
             # Apply clipping & pre-reduction scaling on grads
@@ -657,19 +671,34 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
     def _flatten_grad_mt(self, scale):
         if len(self._grads_fp16) > 0:
             self._overflow_buf.zero_()
-            multi_tensor_applier(
-                    amp_C.multi_tensor_scale,
-                    self._overflow_buf,
-                    list(zip(*self._grads_fp16)),
-                    scale)
+            if not self._fused_norm:
+                multi_tensor_applier(
+                        amp_C.multi_tensor_scale,
+                        self._overflow_buf,
+                        list(zip(*self._grads_fp16)),
+                        scale)
+            else:
+                self._L2_grad_norm=multi_tensor_applier(
+                        amp_C.multi_tensor_l2norm_scale,
+                        self._overflow_buf,
+                        list(zip(*self._grads_fp16)),
+                        scale, False)[0].float()
+
             self._grads_fp16 = []
         if len(self._grads_fp32) > 0:
             self._overflow_buf.zero_()
-            multi_tensor_applier(
-                    amp_C.multi_tensor_scale,
-                    self._overflow_buf,
-                    list(zip(*self._grads_fp32)),
-                    scale)
+            if not self._fused_norm:
+                multi_tensor_applier(
+                        amp_C.multi_tensor_scale,
+                        self._overflow_buf,
+                        list(zip(*self._grads_fp32)),
+                        scale)
+            else:
+                self._L2_grad_norm=multi_tensor_applier(
+                        amp_C.multi_tensor_l2norm_scale,
+                        self._overflow_buf,
+                        list(zip(*self._grads_fp32)),
+                        scale, False)[0].float()
             self._grads_fp32 = []
 
     def _do_overlapped_reduction(self, param_i, param):
