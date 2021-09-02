@@ -177,6 +177,7 @@ if "--cuda_ext" in sys.argv:
                                    'csrc/multi_tensor_scale_kernel.cu',
                                    'csrc/multi_tensor_axpby_kernel.cu',
                                    'csrc/multi_tensor_l2norm_kernel.cu',
+                                   'csrc/multi_tensor_l2norm_scale_kernel.cu',
                                    'csrc/multi_tensor_lamb_stage_1.cu',
                                    'csrc/multi_tensor_lamb_stage_2.cu',
                                    'csrc/multi_tensor_adam.cu',
@@ -208,6 +209,12 @@ if "--cuda_ext" in sys.argv:
             CUDAExtension(name='mlp_cuda',
                           sources=['csrc/mlp.cpp',
                                    'csrc/mlp_cuda.cu'],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3'] + version_dependent_macros}))
+        ext_modules.append(
+            CUDAExtension(name='fused_dense_cuda',
+                          sources=['csrc/fused_dense.cpp',
+                                   'csrc/fused_dense_cuda.cu'],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
 
