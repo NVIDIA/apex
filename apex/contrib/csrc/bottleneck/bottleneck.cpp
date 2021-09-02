@@ -1931,6 +1931,7 @@ struct bottleneck_backward_state {
   int64_t filterdimA2[4];
   int64_t filterdimA3[4];
   int64_t filterdimA4[4];
+  int64_t filterdimA2hh[4]; // Cin,Cout,1,3
 
   int axis[4];
 
@@ -1939,6 +1940,8 @@ struct bottleneck_backward_state {
   int64_t outdimA3[4];
   int64_t outdimA1h[4]; // output: grad_out1 halo (H=3)
   int64_t outdimA2h[4]; // input : grad_out2 halo cells (H=3)
+  int64_t outdimA1hh[4]; // input: grad_out2 halo (H=1)
+  int64_t outdimA2hh[4]; // input: out1 halo (H=1)
 
   int64_t padA[2];
   int64_t padA1[2];
@@ -1947,11 +1950,12 @@ struct bottleneck_backward_state {
   int64_t convstrideA[2];
   int64_t convstride1X1[2];
 
+  int64_t filterdim2hh[4]; // Cin,1,3,Cout
+
   int64_t outdim1[4];
   int64_t outdim2[4];
   int64_t outdim3[4];
   int64_t outdim1h[4];
-  int64_t outdim2hh[4];
 
   void init(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs) {
     // setup dimensions
@@ -1960,6 +1964,7 @@ struct bottleneck_backward_state {
     filterdimA2[0] = filterdimA2[1] = filterdimA2[2] = filterdimA2[3] = 0;
     filterdimA3[0] = filterdimA3[1] = filterdimA3[2] = filterdimA3[3] = 0;
     filterdimA4[0] = filterdimA4[1] = filterdimA4[2] = filterdimA4[3] = 0;
+    filterdimA2hh[0] = filterdimA2hh[1] = filterdimA2hh[2] = filterdimA2hh[3] = 0;
 
     // All dim calculation after this order of n,c,h,w
     if (explicit_nhwc) {
@@ -1986,16 +1991,27 @@ struct bottleneck_backward_state {
       }
     }
 
+    for (int dim=0;dim<4;dim++) {
+      if (dim == 2) {
+        filterdimA2hh[dim] = 1;
+      } else {
+        filterdimA2hh[dim] = filterdimA2[dim];
+      }
+    }
+
     // output dim in n,c,h,w used by backend
     outdimA1[0] = outdimA1[1] = outdimA1[2] = outdimA1[3] = 0;
     outdimA2[0] = outdimA2[1] = outdimA2[2] = outdimA2[3] = 0;
     outdimA3[0] = outdimA3[1] = outdimA3[2] = outdimA3[3] = 0;
     outdimA1h[0] = outdimA1h[1] = outdimA1h[2] = outdimA1h[3] = 0;
     outdimA2h[0] = outdimA2h[1] = outdimA2h[2] = outdimA2h[3] = 0;
+    outdimA1hh[0] = outdimA1hh[1] = outdimA1hh[2] = outdimA1hh[3] = 0;
+    outdimA2hh[0] = outdimA2hh[1] = outdimA2hh[2] = outdimA2hh[3] = 0;
 
     // use these fixed value for test run
     padA[0] = 0; padA[1] = 0;
     padA1[0] = 1; padA1[1] = 1;
+    padA2[0] = 0; padA2[1] = 1;
     dilationA[0] = 1; dilationA[1] = 1;
     convstrideA[0] = 1; convstrideA[1] = 1;
     convstride1X1[0] = stride_1X1; convstride1X1[1] = stride_1X1;
@@ -2023,9 +2039,13 @@ struct bottleneck_backward_state {
       if (dim == 2) {
 	outdimA1h[dim] = 3;
 	outdimA2h[dim] = 3;
+        outdimA1hh[dim] = 1;
+        outdimA2hh[dim] = 1;
       } else {
 	outdimA1h[dim] = outdimA1[dim];
 	outdimA2h[dim] = outdimA2[dim];
+        outdimA1hh[dim] = outdimA1[dim];
+        outdimA2hh[dim] = outdimA2[dim];
       }
     }
 
@@ -2034,6 +2054,7 @@ struct bottleneck_backward_state {
     outdim2[0] = outdim2[1] = outdim2[2] = outdim2[3] = 0;
     outdim3[0] = outdim3[1] = outdim3[2] = outdim3[3] = 0;
     outdim1h[0] = outdim1h[1] = outdim1h[2] = outdim1h[3] = 0;
+    filterdim2hh[0] = filterdim2hh[1] = filterdim2hh[2] = filterdim2hh[3] = 0;
     if (explicit_nhwc) {
       axis[0] = 0;
       axis[1] = 2;
@@ -2045,6 +2066,7 @@ struct bottleneck_backward_state {
       outdim2[dim] = outdimA2[axis[dim]];
       outdim3[dim] = outdimA3[axis[dim]];
       outdim1h[dim] = outdimA1h[axis[dim]];
+      filterdim2hh[dim] = filterdimA2hh[axis[dim]];
     }
   }
 };
@@ -2153,6 +2175,8 @@ at::Tensor bottleneck_backward_grad_out1(bool explicit_nhwc, int stride_1X1, std
   at::Half* z = inputs[4].data_ptr<at::Half>();
 
   at::Half* relu1 = inputs[12].data_ptr<at::Half>();
+  //printf("relu.shape = [%d,%d,%d,%d]\n",inputs[12].size(0),inputs[12].size(1),inputs[12].size(2),inputs[12].size(3));
+
   // fused dgrad
   run_dconv_drelu_dscale(backward_state.outdimA1,
                          backward_state.padA1,
@@ -2171,7 +2195,7 @@ at::Tensor bottleneck_backward_grad_out1(bool explicit_nhwc, int stride_1X1, std
 }
 
 // perform backward data 3x3 convolution (grad_out * w_rot180) on grad_out2 input of shape [N,3,W,C] with padding=(1,1) to produce output of shape [N,3,W,C]
-at::Tensor bottleneck_backward_grad_out1_halo(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2_halo) {
+at::Tensor bottleneck_backward_grad_out1_halo(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2_halo, at::Tensor relu1_halo) {
 
   bool requires_grad = inputs[0].requires_grad();
 
@@ -2187,10 +2211,12 @@ at::Tensor bottleneck_backward_grad_out1_halo(bool explicit_nhwc, int stride_1X1
   at::Half* w = inputs[2].data_ptr<at::Half>();
   at::Half* z = inputs[4].data_ptr<at::Half>();
 
-  at::Half* relu1 = inputs[12].data_ptr<at::Half>();
+  at::Half* relu1h = relu1_halo.data_ptr<at::Half>();
+  //printf("relu.shape = [%d,%d,%d,%d]\n",relu1_halo.size(0),relu1_halo.size(1),relu1_halo.size(2),relu1_halo.size(3));
   // fused dgrad
   //printf("backward_state.outdimA1h = {%d,%d,%d,%d}\n",backward_state.outdimA1h[0],backward_state.outdimA1h[1],backward_state.outdimA1h[2],backward_state.outdimA1h[3]);
   //printf("backward_state.outdimA2h = {%d,%d,%d,%d}\n",backward_state.outdimA2h[0],backward_state.outdimA2h[1],backward_state.outdimA2h[2],backward_state.outdimA2h[3]);
+  //printf("backward_state.filterdimA2 = {%d,%d,%d,%d}\n",backward_state.filterdimA2[0],backward_state.filterdimA2[1],backward_state.filterdimA2[2],backward_state.filterdimA2[3]);
   run_dconv_drelu_dscale(backward_state.outdimA1h,
                          backward_state.padA1,
                          backward_state.convstrideA,
@@ -2202,7 +2228,7 @@ at::Tensor bottleneck_backward_grad_out1_halo(bool explicit_nhwc, int stride_1X1
                          w,
                          dy2h,
                          z,
-                         relu1);
+                         relu1h);
 
   return grad_out1_halo;
 }
@@ -2221,9 +2247,9 @@ at::Tensor bottleneck_backward_wgrad2(bool explicit_nhwc, int stride_1X1, std::v
   at::Half* conv_in = inputs[12].data_ptr<at::Half>();
 
   // wgrad
-
   auto wgrad2 = outputs[2];
   at::Half* dw2 = wgrad2.data_ptr<at::Half>();
+  
   //printf("outdimA1 = (%d,%d,%d,%d)\n",backward_state.outdimA1[0],backward_state.outdimA1[1],backward_state.outdimA1[2],backward_state.outdimA1[3]);
   run_dconv(backward_state.outdimA1,
             backward_state.padA1,
@@ -2238,6 +2264,46 @@ at::Tensor bottleneck_backward_wgrad2(bool explicit_nhwc, int stride_1X1, std::v
             CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
 
   return wgrad2;
+}
+
+// compute halo cells for input volume of dimension [N,1,W,C] with padding=(0,1) to produce output volume of dimension [N,1,W,C]
+// input and grad_out2_halo tensors are all of same shape
+// output tensor is of shape [Cin,1,3,Cout] (regular filter dims are [Cin,3,3,Cout]
+at::Tensor bottleneck_backward_wgrad2_halo(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor input, at::Tensor grad_out2_halo) {
+
+  bool requires_grad = inputs[0].requires_grad();
+
+  std::cout << std::fixed;
+  auto output_format = explicit_nhwc ? at::MemoryFormat::Contiguous : at::MemoryFormat::ChannelsLast;
+
+  // dgrad
+  at::Half* dy2 = grad_out2_halo.data_ptr<at::Half>();
+
+  // dconv2+drelu1+dscale1
+  at::Half* conv_in = input.data_ptr<at::Half>();
+
+  // wgrad
+  auto wgrad2_halo = at::empty(backward_state.filterdim2hh, input.type(), output_format);
+  at::Half* dw2 = wgrad2_halo.data_ptr<at::Half>();
+
+  //printf("backward_state.outdimA1hh = {%d,%d,%d,%d}\n",backward_state.outdimA1hh[0],backward_state.outdimA1hh[1],backward_state.outdimA1hh[2],backward_state.outdimA1hh[3]);
+  //printf("backward_state.outdimA2hh = {%d,%d,%d,%d}\n",backward_state.outdimA2hh[0],backward_state.outdimA2hh[1],backward_state.outdimA2hh[2],backward_state.outdimA2hh[3]);
+  //printf("backward_state.filterdim2hh = {%d,%d,%d,%d}\n",backward_state.filterdim2hh[0],backward_state.filterdim2hh[1],backward_state.filterdim2hh[2],backward_state.filterdim2hh[3]);
+  //printf("backward_state.filterdimA2hh = {%d,%d,%d,%d}\n",backward_state.filterdimA2hh[0],backward_state.filterdimA2hh[1],backward_state.filterdimA2hh[2],backward_state.filterdimA2hh[3]);
+  //printf("backward_state.padA2 = {%d,%d}\n",backward_state.padA2[0],backward_state.padA2[1]);
+  run_dconv(backward_state.outdimA1hh,  // N,C,1,W
+            backward_state.padA2, // 0, 1
+            backward_state.convstrideA,
+            backward_state.dilationA,
+            backward_state.filterdimA2hh,  // Cin,Cout,1,3
+            backward_state.outdimA2hh,  // N,C,1,W
+            CUDNN_DATA_HALF,
+            conv_in,
+            dw2,
+            dy2,
+            CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
+
+  return wgrad2_halo;
 }
 
 void bottleneck_backward_rest(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2, at::Tensor grad_out1, at::Tensor wgrad2) {
@@ -2415,5 +2481,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("backward_grad_out1", &bottleneck_backward_grad_out1, "Bottleneck block backward");
   m.def("backward_grad_out1_halo", &bottleneck_backward_grad_out1_halo, "Bottleneck block backward");
   m.def("backward_wgrad2", &bottleneck_backward_wgrad2, "Bottleneck block backward");
+  m.def("backward_wgrad2_halo", &bottleneck_backward_wgrad2_halo, "Bottleneck block backward");
   m.def("backward_rest", &bottleneck_backward_rest, "Bottleneck block backward");
 }
