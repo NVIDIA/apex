@@ -583,6 +583,10 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                             self._reductions_works[block_id][chunk_id].wait()
                     # Since the packed format is contiguous after reductions, only one norm is needed
                     l2_grad_norm_sq = torch.empty([1], device='cuda')
+                    if self._full_ar:
+                        l2_grad_norm_sq = self._flat_grads_shards[self._rank_in_group].norm(dtype=torch.float32, p=2)**2
+                    else:
+                        l2_grad_norm_sq = self._fp16_g.norm(dtype=torch.float32, p=2)**2
                     l2_grad_norm_sq = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [self._contrib_compute_update_term_tensor_list[0]], False)[0] ** 2
                     torch.distributed.all_reduce(l2_grad_norm_sq, group=self._l2_grad_norm_pg)
                     self._L2_grad_norm = l2_grad_norm_sq.sqrt()
