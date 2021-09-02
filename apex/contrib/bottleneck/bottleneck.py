@@ -354,7 +354,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                     btm_halo = all_halos[ctx.local_rank+1][:,:1,:,:]
                     fat_halo[:,:2,:,:].copy_(grad_out2[:,Hs-2:,:,:])
                     fat_halo[:,2:,:,:].copy_(btm_halo)
-                    relu_halo[:,:2,:,:].copy_(relu1[:,Hs-2,:,:])
+                    relu_halo[:,:2,:,:].copy_(relu1[:,Hs-2:,:,:])
                     relu_halo[:,2:,:,:].zero_()
                     btm_grad_out1_halo = fast_bottleneck.backward_grad_out1_halo(ctx.nhwc, ctx.stride_1x1, t_list, grads, fat_halo, relu_halo)
                     btm_grad_out1_halo = btm_grad_out1_halo[:,1:2,:,:]
