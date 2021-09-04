@@ -129,7 +129,7 @@ cublasStatus_t gemm_bias(
 }
 
 
-#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
+#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11600
 
 
 int gemm_bias_lt(
@@ -1148,7 +1148,7 @@ int linear_bias_forward_cuda(at::Tensor input, T *weight, at::Tensor bias, int i
     const float beta_zero       = 0.0;
     const float beta_one       = 1.0;
     int status = 1;
-#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
+#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11600
     status = gemm_bias_lt(
     (cublasLtHandle_t)handle,
     CUBLAS_OP_T,
@@ -1200,7 +1200,6 @@ int linear_bias_backward_cuda(T *input, T *weight, T *d_output, int in_features,
     cublasGetStream(handle, &stream);
     const float alpha          = 1.0;
     const float beta_zero       = 0.0;
-    const float beta_one       = 1.0;
     int status = 1;
 #if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11600
     status = gemm_bgradb_lt(
@@ -1273,7 +1272,7 @@ int linear_gelu_linear_forward_cuda(T *input, T *weight1, T *bias1, T *weight2, 
     const float alpha          = 1.0;
     const float beta_zero       = 0.0;
     int status = 1;
-#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
+#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11600
     status = gemm_bias_gelu_lt(
     (cublasLtHandle_t)handle,
     CUBLAS_OP_T,
@@ -1329,9 +1328,8 @@ int linear_gelu_linear_backward_cuda(T *input, T *gelu_in, T *output1, T *weight
     cublasGetStream(handle, &stream);
     const float alpha          = 1.0;
     const float beta_zero       = 0.0;
-    const float beta_one       = 1.0;
     int status = 1;
-#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
+#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11600
 //wgrad for first gemm
     status = gemm_bgradb_lt(
     (cublasLtHandle_t)handle,
