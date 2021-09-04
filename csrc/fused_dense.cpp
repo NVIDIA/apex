@@ -62,7 +62,7 @@ std::vector<at::Tensor> linear_bias_backward(at::Tensor input, at::Tensor weight
 
   // create output/workspace tensor
   auto d_weight = at::empty({out_features, in_features}, input.type());
-#if defined(CUDA_VERSION) && CUDA_VERSION < 11600
+#if defined(CUBLAS_VERSION) && CUBLAS_VERSION < 11600
   auto d_bias = d_output.view({-1, out_features}).sum(0, false);
 #else                                                                              
   auto d_bias = at::empty({out_features}, input.type());
