@@ -4,6 +4,16 @@ from torch.nn.modules.batchnorm import _BatchNorm
 
 import bnp
 
+def check_if_rocm_pytorch():
+    is_rocm_pytorch = False
+    if torch.__version__ >= '1.5':
+        from torch.utils.cpp_extension import ROCM_HOME
+        is_rocm_pytorch = True if ((torch.version.hip is not None) and (ROCM_HOME is not None)) else False
+
+    return is_rocm_pytorch
+
+IS_ROCM_PYTORCH = check_if_rocm_pytorch()
+
 class bn_NHWC_impl(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, s, b, rm, riv, mini_m, mini_riv, ret_cta, mom, epsilon, fuse_relu, is_train, bn_group, my_data, pair_data, magic, pair_data2, pair_data3, fwd_occup, fwd_grid_x, bwd_occup, bwd_grid_x, multi_stream):
@@ -54,7 +64,11 @@ class bn_addrelu_NHWC_impl(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, z, s, b, rm, riv, mini_m, mini_riv, grid_dim_y, ret_cta, mom, epsilon, is_train, bn_group, my_data, pair_data, magic, pair_data2, pair_data3, fwd_occup, fwd_grid_x, bwd_occup, bwd_grid_x, multi_stream):
         if is_train:
-            bitmask = torch.cuda.IntTensor(((x.numel()+31)//32) * 2 * grid_dim_y)
+            if IS_ROCM_PYTORCH:
+                nhw = x.shape[0] * x.shape[1] * x.shape[2]
+                bitmask = torch.cuda.LongTensor(((nhw + 3) & ~3) * grid_dim_y)
+            else:
+                bitmask = torch.cuda.IntTensor(((x.numel()+31)//32) * 2 * grid_dim_y)
             ctx.save_for_backward(x, s, b, rm, riv, mini_m, mini_riv, bitmask)
             ctx.epsilon = epsilon
             ctx.momentum = mom

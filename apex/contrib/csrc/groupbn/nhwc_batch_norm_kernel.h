@@ -26,14 +26,60 @@
 #ifndef MXNET_OPERATOR_NN_CUDNN_NHWC_BATCH_NORM_KERNEL_H_
 #define MXNET_OPERATOR_NN_CUDNN_NHWC_BATCH_NORM_KERNEL_H_
 
+#ifdef __HIP_PLATFORM_HCC__
+#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
+#include <hip/hip_fp16.h>
+#endif
 #include <stdint.h>
 #include <algorithm>
+
+#ifdef __HIP_PLATFORM_HCC__
+using bitmask_t = uint64_t;
+#define BITMASK_OFFSET 1
+#define ONE_BITMASK 1UL
+#else
+using bitmask_t = unsigned int;
+#define BITMASK_OFFSET 2
+#define ONE_BITMASK 1U
+#endif
 
 #define DEVICE_FUNCTION static inline __device__
 
 // CTA margin used by cooperative launch. Can be overridden by env var NHWC_BATCHNORM_LAUNCH_MARGIN.
 #define NHWC_BATCHNORM_LAUNCH_MARGIN_MIN     3
 #define NHWC_BATCHNORM_LAUNCH_MARGIN_DEFAULT NHWC_BATCHNORM_LAUNCH_MARGIN_MIN
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+DEVICE_FUNCTION void syncwarp() {
+#ifdef __HIP_PLATFORM_HCC__
+    __builtin_amdgcn_wave_barrier();
+#else
+    __syncwarp();
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+DEVICE_FUNCTION T shfl_sync(T var, int src_lane) {
+#ifdef __HIP_PLATFORM_HCC__
+    return __shfl(var, src_lane);
+#else
+    return __shfl_sync(0xFFFFFFFFU, var, src_lane);
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+DEVICE_FUNCTION bitmask_t ballot(int predicate) {
+#ifdef __HIP_PLATFORM_HCC__
+    return __ballot(predicate);
+#else
+    return __ballot_sync(0xFFFFFFFFU, predicate);
+#endif
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -55,12 +101,20 @@ struct PackedStorage<uint16_t, ELEMENTS_PER_LDG> {
 
 template< int N >
 DEVICE_FUNCTION void from_float(int (&dst)[N], const float (&src)[2*N]) {
+    // Convert from two f32s to two f16s (mantissa LSB rounds to nearest even)
+    // (From 64-bit to 32-bit)
+    half *dst_ = (half *) dst;
     #pragma unroll
     for (int i = 0; i < N; ++i) {
+#ifdef __HIP_PLATFORM_HCC__
+        dst_[2*i] = __float2half(src[2*i]);
+        dst_[2*i+1] = __float2half(src[2*i+1]);
+#else
         uint16_t lo, hi;
         asm volatile("cvt.rn.f16.f32 %0, %1;" : "=h"(lo) : "f"(src[2*i+0]));
         asm volatile("cvt.rn.f16.f32 %0, %1;" : "=h"(hi) : "f"(src[2*i+1]));
         asm volatile("mov.b32 %0, {%1, %2};"  : "=r"(dst[i]) : "h"(lo), "h"(hi));
+#endif
     }
 }
 
@@ -78,12 +132,19 @@ DEVICE_FUNCTION void from_float(float (&dst)[N], const float (&src)[N]) {
 
 template< int N >
 DEVICE_FUNCTION void to_float(float (&dst)[2*N], int (&src)[N]) {
+    // Convert from two f16s to two f32s (From 32-bit to 64-bit)
     #pragma unroll
     for (int i = 0; i < N; ++i) {
+#ifdef __HIP_PLATFORM_HCC__
+        half *src_ = (half *) src;
+        dst[2*i] = __half2float(src_[2*i]);
+        dst[2*i+1] = __half2float(src_[2*i+1]);
+#else
         uint16_t lo, hi;
         asm volatile("mov.b32 {%0, %1}, %2;" : "=h"(lo), "=h"(hi) : "r"(src[i]));
         asm volatile("cvt.f32.f16 %0, %1;"   : "=f"(dst[2*i+0])   : "h"(lo));
         asm volatile("cvt.f32.f16 %0, %1;"   : "=f"(dst[2*i+1])   : "h"(hi));
+#endif
     }
 }
 
@@ -106,9 +167,13 @@ DEVICE_FUNCTION void ldg(int (&dst)[1], const uint16_t *gmem) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void ldg_stream(int (&dst)[1], const uint16_t *gmem) {
+#ifdef __HIP_PLATFORM_HCC__
+    dst[0] = __ldg((const int*) gmem);
+#else
     unsigned int tmp;
     asm volatile ("ld.global.cs.nc.s32 %0, [%1];"  : "=r"(tmp) : "l" ((const uint *)gmem));
     dst[0] = tmp;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -122,11 +187,17 @@ DEVICE_FUNCTION void ldg(int (&dst)[2], const uint16_t *gmem) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void ldg_stream(int (&dst)[2], const uint16_t *gmem) {
+#ifdef __HIP_PLATFORM_HCC__
+    int2 tmp = __ldg((const int2*) gmem);
+    dst[0] = tmp.x;
+    dst[1] = tmp.y;
+#else
     int2 tmp;
     asm volatile ("ld.global.cs.nc.v2.s32 {%0,%1}, [%2];"
         : "=r"(tmp.x), "=r"(tmp.y) : "l"((const int2 *)gmem));
     dst[0] = tmp.x;
     dst[1] = tmp.y;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -156,22 +227,42 @@ DEVICE_FUNCTION void stg(uint16_t *gmem, int (&src)[1]) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void stg_stream(uint16_t *gmem, int (&src)[1]) {
+#ifdef __HIP_PLATFORM_HCC__
+    reinterpret_cast<int*>(gmem)[0] = src[0];
+#else
     unsigned int tmp = src[0];
     asm volatile ("st.global.cs.s32 [%0], %1;"
         :: "l"((uint *)gmem) , "r"(tmp));
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void stg(uint16_t *gmem, int (&src)[2]) {
+#ifdef __HIP_PLATFORM_HCC__
+    half *gmem_ = (half *) gmem;
+    half *src_ = (half *) src;
+    for (int i = 0; i < 4; i++) {
+      gmem_[i] = src_[i];
+    }
+#else
     reinterpret_cast<int2*>(gmem)[0] = make_int2(src[0], src[1]);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void stg_stream(uint16_t *gmem, int (&src)[2]) {
+#ifdef __HIP_PLATFORM_HCC__
+    half *gmem_ = (half *) gmem;
+    half *src_ = (half *) src;
+    for (int i = 0; i < 4; i++) {
+      gmem_[i] = src_[i];
+    }
+#else
     asm volatile ("st.global.cs.v2.s32 [%0], {%1,%2};"
         :: "l"((uint *)gmem) , "r"(src[0]), "r"( src[1]));
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -194,28 +285,65 @@ DEVICE_FUNCTION void stg_stream(uint16_t *gmem, float (&src)[N]) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#ifdef __HIP_PLATFORM_HCC__
+DEVICE_FUNCTION void stg(uint16_t *gmem, float (&src)[4]) {
+    half *gmem_ = (half *) gmem;
+    gmem_[0] = __float2half(src[0]);
+    gmem_[1] = __float2half(src[1]);
+    gmem_[2] = __float2half(src[2]);
+    gmem_[3] = __float2half(src[3]);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+DEVICE_FUNCTION void stg_stream(uint16_t *gmem, float (&src)[4]) {
+    half *gmem_ = (half *) gmem;
+    gmem_[0] = __float2half(src[0]);
+    gmem_[1] = __float2half(src[1]);
+    gmem_[2] = __float2half(src[2]);
+    gmem_[3] = __float2half(src[3]);
+}
+#endif
+
 DEVICE_FUNCTION void read_from_gmem(float (&dst)[2], const float *gmem, int idx) {
+#ifdef __HIP_PLATFORM_HCC__
+    dst[0] = gmem[2*idx];
+    dst[1] = gmem[2*idx+1];
+#else
     float2 tmp = __ldg(reinterpret_cast<const float2*>(&gmem[2*idx]));
     dst[0] = tmp.x;
     dst[1] = tmp.y;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void read_from_gmem(float (&dst)[4], const float *gmem, int idx) {
+#ifdef __HIP_PLATFORM_HCC__
+    dst[0] = gmem[4*idx];
+    dst[1] = gmem[4*idx+1];
+    dst[2] = gmem[4*idx+2];
+    dst[3] = gmem[4*idx+3];
+#else
     float4 tmp = __ldg(reinterpret_cast<const float4*>(&gmem[4*idx]));
     dst[0] = tmp.x;
     dst[1] = tmp.y;
     dst[2] = tmp.z;
     dst[3] = tmp.w;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void read_from_smem(float (&x)[2], const float *smem, int idx) {
+#ifdef __HIP_PLATFORM_HCC__
+    x[0] = smem[2*idx];
+    x[1] = smem[2*idx+1];
+#else
     float2 tmp = *(const float2*) &smem[2*idx];
     x[0] = tmp.x;
     x[1] = tmp.y;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -227,43 +355,79 @@ DEVICE_FUNCTION void read_from_smem(int (&x)[1], const int *smem, int idx) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void read_from_smem(float (&x)[4], const float *smem, int idx) {
+#ifdef __HIP_PLATFORM_HCC__
+    x[0] = smem[4*idx];
+    x[1] = smem[4*idx+1];
+    x[2] = smem[4*idx+2];
+    x[3] = smem[4*idx+3];
+#else
     float4 tmp = *(const float4*) &smem[4*idx];
     x[0] = tmp.x;
     x[1] = tmp.y;
     x[2] = tmp.z;
     x[3] = tmp.w;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void read_from_smem(int (&x)[2], const int *smem, int idx) {
+#ifdef __HIP_PLATFORM_HCC__
+    x[0] = smem[2*idx];
+    x[1] = smem[2*idx+1];
+#else
     int2 tmp = *(const int2*) &smem[2*idx];
     x[0] = tmp.x;
     x[1] = tmp.y;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void write_to_gmem(float *gmem, int idx, const float (&src)[2]) {
+#ifdef __HIP_PLATFORM_HCC__
+    gmem[2*idx] = src[0];
+    gmem[2*idx+1] = src[1];
+#else
     reinterpret_cast<float2*>(&gmem[2*idx])[0] = make_float2(src[0], src[1]);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void write_to_gmem(float *gmem, int idx, const float (&src)[4]) {
+#ifdef __HIP_PLATFORM_HCC__
+    gmem[4*idx] = src[0];
+    gmem[4*idx+1] = src[1];
+    gmem[4*idx+2] = src[2];
+    gmem[4*idx+3] = src[3];
+#else
     reinterpret_cast<float4*>(&gmem[4*idx])[0] = make_float4(src[0], src[1], src[2], src[3]);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void scaled_write_to_gmem(float *gmem, int idx, const float (&src)[4], const float coeff) {
+#ifdef __HIP_PLATFORM_HCC__
+    gmem[4*idx] = src[0]*coeff;
+    gmem[4*idx+1] = src[1]*coeff;
+    gmem[4*idx+2] = src[2]*coeff;
+    gmem[4*idx+3] = src[3]*coeff;
+#else
     reinterpret_cast<float4*>(&gmem[4*idx])[0] = make_float4(src[0]*coeff, src[1]*coeff, src[2]*coeff, src[3]*coeff);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void write_to_smem(float *smem, int idx, const float (&x)[2]) {
+#ifdef __HIP_PLATFORM_HCC__
+    smem[2*idx] = x[0];
+    smem[2*idx+1] = x[1];
+#else
     reinterpret_cast<float2*>(&smem[2*idx])[0] = make_float2(x[0], x[1]);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -275,13 +439,25 @@ DEVICE_FUNCTION void write_to_smem(int *smem, int idx, const int (&x)[1]) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void write_to_smem(float *smem, int idx, const float (&x)[4]) {
+#ifdef __HIP_PLATFORM_HCC__
+    smem[4*idx] = x[0];
+    smem[4*idx+1] = x[1];
+    smem[4*idx+2] = x[2];
+    smem[4*idx+3] = x[3];
+#else
     reinterpret_cast<float4*>(&smem[4*idx])[0] = make_float4(x[0], x[1], x[2], x[3]);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEVICE_FUNCTION void write_to_smem(int *smem, int idx, const int (&x)[2]) {
+#ifdef __HIP_PLATFORM_HCC__
+    smem[2*idx] = x[0];
+    smem[2*idx+1] = x[1];
+#else
     reinterpret_cast<int2*>(&smem[2*idx])[0] = make_int2(x[0], x[1]);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -370,7 +546,11 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw,
                                         const int magic,
                                         const int sync_iters) {
     // The size of a warp.
+#ifdef __HIP_PLATFORM_HCC__
+    const int THREADS_PER_WARP = 64;
+#else
     const int THREADS_PER_WARP = 32;
+#endif
     // The number of warps in a CTA.
     const int WARPS_PER_CTA = THREADS_PER_CTA / THREADS_PER_WARP;
     // The number of threads per pixel.
@@ -388,10 +568,19 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw,
     // total size of data per sync iter
     const int data_total = MAX_OFFSET*THREADS_PER_PIXEL*ELEMENTS_PER_LDG*2;
 
+#ifdef __HIP_PLATFORM_HCC__
+    for (int offset = THREADS_PER_PIXEL; offset <= THREADS_PER_WARP >> 1; offset <<= 1) {
+        for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
+            x[i] += shfl_sync(x[i], offset + lane_id);
+        }
+    }
+#else
     #pragma unroll
     for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
-        x[i] += __shfl_sync(0xffffffffU, x[i], THREADS_PER_PIXEL+lane_id);
+        x[i] += shfl_sync(x[i], THREADS_PER_PIXEL+lane_id);
     }
+#endif
+
 
     // The warp leaders, write to SMEM.
     if (lane_id < THREADS_PER_PIXEL) {
@@ -416,17 +605,25 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw,
             add(x, y);
         }
 
-        for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
-            x[i] += __shfl_sync(0xffffffffU, x[i], THREADS_PER_PIXEL+lane_id);
+#ifdef __HIP_PLATFORM_HCC__
+        for (int offset = THREADS_PER_WARP >> 1; offset >= THREADS_PER_PIXEL; offset >>= 1) {            for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
+                x[i] += shfl_sync(x[i], offset + lane_id);
+            }
         }
+#else
+        for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
+            x[i] += shfl_sync(x[i], THREADS_PER_PIXEL+lane_id);
+        }
+#endif
 
         // Make sure the data was read from SMEM.
-        __syncwarp();
+        syncwarp();
 
         // Store the final values.
         if (threadIdx.x < THREADS_PER_PIXEL) {
         // probably could do it earlier, before sync
 
+#ifndef __HIP_PLATFORM_HCC__ // bn_group > 1 is not enabled on HIP
         for (int sync_iter=0; sync_iter < sync_iters; ++sync_iter) {
             //float* params_pair_data = (reinterpret_cast<float**>(params_pair_datas))[sync_iter];
             void* params_pair_data = params_pair_datas[sync_iter];
@@ -469,6 +666,7 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw,
 
             add(x, other);
         }
+#endif
         // finally, after syncing up and accounting for partial sums from
         // other GPUs as required, write the result
 
@@ -483,7 +681,11 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw,
 template< int THREADS_PER_CTA >
 DEVICE_FUNCTION void parallel_sums_8x4(float *smem, float (&x)[4], int nhw) {
     // The size of a warp.
+#ifdef __HIP_PLATFORM_HCC__
+    const int THREADS_PER_WARP = 64;
+#else
     const int THREADS_PER_WARP = 32;
+#endif
     // The number of warps in a CTA.
     const int WARPS_PER_CTA = THREADS_PER_CTA / THREADS_PER_WARP;
     // The number of threads per pixel.
@@ -496,8 +698,8 @@ DEVICE_FUNCTION void parallel_sums_8x4(float *smem, float (&x)[4], int nhw) {
 
     #pragma unroll
     for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
-        x[i] += __shfl_sync(0xffffffffU, x[i], THREADS_PER_PIXEL+lane_id);
-        x[i] += __shfl_sync(0xffffffffU, x[i], THREADS_PER_PIXEL*2+lane_id);
+        x[i] += shfl_sync(x[i], THREADS_PER_PIXEL+lane_id);
+        x[i] += shfl_sync(x[i], THREADS_PER_PIXEL*2+lane_id);
     }
 
     // The warp leaders, write to SMEM.
@@ -524,12 +726,12 @@ DEVICE_FUNCTION void parallel_sums_8x4(float *smem, float (&x)[4], int nhw) {
         }
 
         for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
-            x[i] += __shfl_sync(0xffffffffU, x[i], THREADS_PER_PIXEL+lane_id);
-            x[i] += __shfl_sync(0xffffffffU, x[i], THREADS_PER_PIXEL*2+lane_id);
+            x[i] += shfl_sync(x[i], THREADS_PER_PIXEL+lane_id);
+            x[i] += shfl_sync(x[i], THREADS_PER_PIXEL*2+lane_id);
         }
 
         // Make sure the data was read from SMEM.
-        __syncwarp();
+        syncwarp();
 
         // Store the final values.
         if (threadIdx.x < THREADS_PER_PIXEL) {
@@ -543,7 +745,7 @@ DEVICE_FUNCTION void parallel_sums_8x4(float *smem, float (&x)[4], int nhw) {
 template< int THREADS_PER_CTA, int THREADS_PER_PIXEL, int ELEMENTS_PER_LDG >
 DEVICE_FUNCTION void parallel_sums(float *smem, float (&x)[ELEMENTS_PER_LDG], int nhw) {
     // The size of a warp.
-    const int THREADS_PER_WARP = 32;
+    const int THREADS_PER_WARP = warpSize;
     // The number of warps in a CTA.
     const int WARPS_PER_CTA = THREADS_PER_CTA / THREADS_PER_WARP;
     // The number of pixels computed by a single warp.
@@ -560,7 +762,7 @@ DEVICE_FUNCTION void parallel_sums(float *smem, float (&x)[ELEMENTS_PER_LDG], in
     // Compute the parallel sums.
     for (int offset = PIXELS_PER_WARP/2; offset > 0; offset /= 2) {
         // NOP.
-        __syncwarp();
+        syncwarp();
 
         // Read the running sum from the other thread.
         float y[ELEMENTS_PER_LDG];
@@ -572,7 +774,7 @@ DEVICE_FUNCTION void parallel_sums(float *smem, float (&x)[ELEMENTS_PER_LDG], in
         add(x, y);
 
         // NOP.
-        __syncwarp();
+        syncwarp();
 
         // Update the sum in SMEM.
         if (offset > 1 && nhw_in_warp < offset) {
@@ -600,7 +802,7 @@ DEVICE_FUNCTION void parallel_sums(float *smem, float (&x)[ELEMENTS_PER_LDG], in
     // We have the running mean and running m2. Let's build the mean/var of the CTA.
     for (int offset = WARPS_PER_CTA/2; offset > 0; offset /= 2) {
         // NOP.
-        __syncwarp();
+        syncwarp();
 
         // Read the mean and variance from the other pixel.
         float y[ELEMENTS_PER_LDG];
@@ -612,7 +814,7 @@ DEVICE_FUNCTION void parallel_sums(float *smem, float (&x)[ELEMENTS_PER_LDG], in
         add(x, y);
 
         // NOP.
-        __syncwarp();
+        syncwarp();
 
         // Store the mean/var for the different pixels.
         if (nhw < offset) {
@@ -684,8 +886,12 @@ DEVICE_FUNCTION void inter_block_sync(int* gmem_retired_ctas, int expected_count
         int retired_ctas = -1;
         do {
             __threadfence();
+#ifdef __HIP_PLATFORM_HCC__
+            retired_ctas = __ldg((const int*) gmem_retired_ctas);
+#else
             asm volatile ("ld.global.cg.b32 %0, [%1];"
                 : "=r"(retired_ctas) : "l"(gmem_retired_ctas));
+#endif
         } while (retired_ctas != 0);
     }
     __syncthreads();
@@ -806,7 +1012,7 @@ struct NhwcBatchNormFwdParams {
     // saved mean/var (refer BN API from cudnn doc)
     float *gmem_saved_mean, *gmem_saved_var;
     // ReLU bitmask
-    unsigned int *gmem_relu_bitmask;
+    bitmask_t *gmem_relu_bitmask;
     // The dimensions.
     int nhw, c;
     // factor to scale sum of squared errors to get saved variance.  Must be 1/nhw.
@@ -861,7 +1067,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
     const int C_ELEMENTS_PER_CTA = THREADS_PER_PIXEL*ELEMENTS_PER_LDG;
 
     // Shared memory to do CTA-wide parallel sums.
-    __shared__ float smem[THREADS_PER_PIXEL*(THREADS_PER_CTA/32)*ELEMENTS_PER_LDG];
+    __shared__ float smem[THREADS_PER_PIXEL*(THREADS_PER_CTA/warpSize)*ELEMENTS_PER_LDG];
 
     // Compute the NHW coordinate of the thread in the CTA.
     const int thread_in_cta_nhw = threadIdx.x / THREADS_PER_PIXEL;
@@ -877,6 +1083,10 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
 
     // Shared memory buffer to store the extra pixels.
     extern __shared__ PackedStorageType smem_storage_packed[];
+
+#ifdef __HIP_PLATFORM_HCC__
+    const half zero_h = __float2half(0.0F);
+#endif
 
     for (int c_blk_index = blockIdx.y; c_blk_index < params.c_blks; c_blk_index += gridDim.y) {
         // The position in the NHW dimension where the CTA starts.
@@ -960,11 +1170,15 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
                     zero_array(x_storage[i]);
                     is_valid[i] = 0.f;
                     if (((unsigned int)idx < (unsigned int)params.nhw) && is_valid_c) {
+#ifndef __HIP_PLATFORM_HCC__
                         if (loop_i == OUTER_LOOPS - 1) {
                             ldg_stream(x_storage[i], &gmem_src[idx*params.c]);
                         } else {
+#endif
                             ldg(x_storage[i], &gmem_src[idx*params.c]);
+#ifndef __HIP_PLATFORM_HCC__
                         }
+#endif
                         is_valid[i] = 1.f;
                     }
                 }
@@ -1089,7 +1303,11 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         }
 
         // Run the parallel sum accross the CTA to get the local sum.
+#ifdef __HIP_PLATFORM_HCC__
+        ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
         ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
             smem, m1, thread_in_cta_nhw);
         __syncthreads();
 
@@ -1106,7 +1324,11 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         }
 
         // Run the parallel sum accross the CTA to get the local adjusted variance.
+#ifdef __HIP_PLATFORM_HCC__
+        ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
         ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
             smem, m2, thread_in_cta_nhw);
 
         // The workspace in global memory is distributed across the different CTA.
@@ -1152,14 +1374,22 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
             add(m1, tmp);
         }
 
+#ifndef __HIP_PLATFORM_HCC__
         if (params.sync_iters>0)
         {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
                 smem, m1, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+3, params.magic, params.sync_iters);
         } else {
+#endif
+#ifdef __HIP_PLATFORM_HCC__
+            ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
                 smem, m1, thread_in_cta_nhw);
+#ifndef __HIP_PLATFORM_HCC__
         }
+#endif
         __syncthreads();
 
         // The values in shared memory correspond to the CTA-wide sums.
@@ -1209,14 +1439,22 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
             }
         }
 
+#ifndef __HIP_PLATFORM_HCC__
         if (params.sync_iters>0)
         {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
                 smem, m2, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+2, params.magic, params.sync_iters);
         } else {
+#endif
+#ifdef __HIP_PLATFORM_HCC__
+            ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
                 smem, m2, thread_in_cta_nhw);
+#ifndef __HIP_PLATFORM_HCC__
         }
+#endif
         __syncthreads();
 
         read_from_smem(m2, smem, thread_in_cta_c);
@@ -1263,8 +1501,12 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         // The base pointer to write to.
         uint16_t *const gmem_dst = &params.gmem_dst[thread_c];
 
-        unsigned int *const gmem_relu_bitmask = params.gmem_relu_bitmask +
+        bitmask_t *const gmem_relu_bitmask = params.gmem_relu_bitmask +
+#ifdef __HIP_PLATFORM_HCC__
+                                     ((params.nhw + 3) & ~3) * c_blk_index;
+#else
                                      ((params.nhw + 31) & ~31) * 2 * c_blk_index;
+#endif
 
         // Store the elements in registers.
         #pragma unroll 1
@@ -1289,23 +1531,31 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
                     float x1_math[ELEMENTS_PER_LDG];
                     ldg_stream(x1_math, &gmem_src1[(is_valid ? idx : 0)*params.c]);
                     add(x_math, x1_math);
-                    unsigned int relu_mask;
+                    bitmask_t relu_mask;
+#ifdef __HIP_PLATFORM_HCC__
+                    int lane_id = threadIdx.x & 63;
+#else
                     int lane_id = threadIdx.x & 31;
+#endif
                     #pragma unroll
-                    for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
-                        bool rectified = x_math[i] < 0.0F;
-                        unsigned int local_relu_mask = __ballot_sync(0xFFFFFFFFU, rectified);
-                        if (lane_id == i) {
+                    for (int j = 0; j < ELEMENTS_PER_LDG; ++j) {
+#ifdef __HIP_PLATFORM_HCC__
+                        bool rectified = __hle(__float2half(x_math[j]), zero_h);
+#else
+                        bool rectified = x_math[j] < 0;
+#endif
+                        bitmask_t local_relu_mask = ballot(rectified);
+                        if (lane_id == j) {
                             // Thread 0 remembers the relu_mask from the first time through this
                             // loop, Thread 1 the next, Thread 2 the next, and Thread 3 the last.
                             relu_mask = local_relu_mask;
                         }
                         if (rectified) {
-                            x_math[i] = 0.0F;
+                            x_math[j] = 0.0F;
                         }
                     }
                     if (is_valid_nhw && (lane_id < ELEMENTS_PER_LDG)) {
-                        gmem_relu_bitmask[idx * 2 + lane_id] = relu_mask;
+                        gmem_relu_bitmask[idx * BITMASK_OFFSET + lane_id] = relu_mask;
                     }
                 } else if (USE_RELU) {
                     relu_activation(x_math);
@@ -1352,21 +1602,29 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
                     float x1_math[ELEMENTS_PER_LDG];
                     ldg_stream(x1_math, &gmem_src1[(is_valid ? idx : 0)*params.c]);
                     add(x_math, x1_math);
-                    unsigned int relu_mask;
+                    bitmask_t relu_mask;
+#ifdef __HIP_PLATFORM_HCC__
+                    int lane_id = threadIdx.x & 63;
+#else
                     int lane_id = threadIdx.x & 31;
+#endif
                     #pragma unroll
-                    for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
-                        bool rectified = x_math[i] < 0.0F;
-                        unsigned int local_relu_mask = __ballot_sync(0xFFFFFFFFU, rectified);
-                        if (lane_id == i) {
+                    for (int j = 0; j < ELEMENTS_PER_LDG; ++j) {
+#ifdef __HIP_PLATFORM_HCC__
+                        bool rectified = __hle(__float2half(x_math[j]), zero_h);
+#else
+                        bool rectified = x_math[j] < 0;
+#endif
+                        bitmask_t local_relu_mask = ballot(rectified);
+                        if (lane_id == j) {
                             relu_mask = local_relu_mask;
                         }
                         if (rectified) {
-                            x_math[i] = 0.0F;
+                            x_math[j] = 0.0F;
                         }
                     }
                     if (is_valid_nhw && (lane_id < ELEMENTS_PER_LDG)) {
-                        gmem_relu_bitmask[idx * 2 + lane_id] = relu_mask;
+                        gmem_relu_bitmask[idx * BITMASK_OFFSET + lane_id] = relu_mask;
                     }
                 } else if (USE_RELU) {
                     relu_activation(x_math);
@@ -1395,7 +1653,7 @@ struct NhwcBatchNormBwdParams {
     // The mean/inv-var saved from fwd pass
     float *gmem_saved_mean, *gmem_saved_var;
     // ReLU bitmask
-    unsigned int *gmem_relu_bitmask;
+    bitmask_t *gmem_relu_bitmask;
     // The dimensions.
     int nhw, c;
     // factor to scale sum of squared errors to get saved variance.  Must be 1/nhw.
@@ -1536,7 +1794,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
     const int C_ELEMENTS_PER_CTA = THREADS_PER_PIXEL*ELEMENTS_PER_LDG;
 
     // Shared memory to do CTA-wide parallel sums.
-    __shared__ float smem[THREADS_PER_PIXEL*(THREADS_PER_CTA/32)*ELEMENTS_PER_LDG];
+    __shared__ float smem[THREADS_PER_PIXEL*(THREADS_PER_CTA/warpSize)*ELEMENTS_PER_LDG];
 
     // The adapter for the storage.
     typedef PackedStorage<Storage, ELEMENTS_PER_LDG> PackedStorage_;
@@ -1691,7 +1949,11 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         }
 
         // dscale parallel sum
+#ifdef __HIP_PLATFORM_HCC__
+        ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
         ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
             smem, dscale, thread_in_cta_nhw);
         __syncthreads();
         // The values in shared memory correspond to the CTA-wide sums.
@@ -1699,7 +1961,11 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         __syncthreads();
 
         // dbias parallel sum
+#ifdef __HIP_PLATFORM_HCC__
+        ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
         ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
             smem, dbias, thread_in_cta_nhw);
         __syncthreads();
         // The values in shared memory correspond to the CTA-wide sums.
@@ -1740,13 +2006,21 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         }
 
         // dscale parallel sum
+#ifndef __HIP_PLATFORM_HCC__
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
                 smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+1, params.magic, params.sync_iters);
         } else {
+#endif
+#ifdef __HIP_PLATFORM_HCC__
+            ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
                 smem, dscale, thread_in_cta_nhw);
+#ifndef __HIP_PLATFORM_HCC__
         }
+#endif
 
         __syncthreads();
         // The values in shared memory correspond to the CTA-wide sums.
@@ -1754,13 +2028,21 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         __syncthreads();
 
         // dbias parallel sum
+#ifndef __HIP_PLATFORM_HCC__
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
                 smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+0, params.magic, params.sync_iters);
         } else {
+#endif
+#ifdef __HIP_PLATFORM_HCC__
+            ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
                 smem, dbias, thread_in_cta_nhw);
+#ifndef __HIP_PLATFORM_HCC__
         }
+#endif
 
         __syncthreads();
         // The values in shared memory correspond to the CTA-wide sums.
@@ -1900,7 +2182,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
     const int C_ELEMENTS_PER_CTA = THREADS_PER_PIXEL*ELEMENTS_PER_LDG;
 
     // Shared memory to do CTA-wide parallel sums.
-    __shared__ float smem[THREADS_PER_PIXEL*(THREADS_PER_CTA/32)*ELEMENTS_PER_LDG];
+    __shared__ float smem[THREADS_PER_PIXEL*(THREADS_PER_CTA/warpSize)*ELEMENTS_PER_LDG];
 
     // The adapter for the storage.
     typedef PackedStorage<Storage, ELEMENTS_PER_LDG> PackedStorage_;
@@ -2081,7 +2363,11 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         }
 
         // dscale parallel sum
+#ifdef __HIP_PLATFORM_HCC__
+        ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
         ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
             smem, dscale, thread_in_cta_nhw);
         __syncthreads();
         // The values in shared memory correspond to the CTA-wide sums.
@@ -2089,7 +2375,11 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         __syncthreads();
 
         // dbias parallel sum
+#ifdef __HIP_PLATFORM_HCC__
+        ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
         ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
             smem, dbias, thread_in_cta_nhw);
         __syncthreads();
         // The values in shared memory correspond to the CTA-wide sums.
@@ -2130,13 +2420,21 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         }
 
         // dscale parallel sum
+#ifndef __HIP_PLATFORM_HCC__
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
                 smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+1, params.magic, params.sync_iters);
         } else {
+#endif
+#ifdef __HIP_PLATFORM_HCC__
+            ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
                 smem, dscale, thread_in_cta_nhw);
+#ifndef __HIP_PLATFORM_HCC__
         }
+#endif
 
         __syncthreads();
         // The values in shared memory correspond to the CTA-wide sums.
@@ -2144,13 +2442,21 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         __syncthreads();
 
         // dbias parallel sum
+#ifndef __HIP_PLATFORM_HCC__
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
                 smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+0, params.magic, params.sync_iters);
         } else {
+#endif
+#ifdef __HIP_PLATFORM_HCC__
+            ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
                 smem, dbias, thread_in_cta_nhw);
+#ifndef __HIP_PLATFORM_HCC__
         }
+#endif
 
         __syncthreads();
         // The values in shared memory correspond to the CTA-wide sums.
@@ -2288,7 +2594,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
     const int C_ELEMENTS_PER_CTA = THREADS_PER_PIXEL*ELEMENTS_PER_LDG;
 
     // Shared memory to do CTA-wide parallel sums.
-    __shared__ float smem[THREADS_PER_PIXEL*(THREADS_PER_CTA/32)*ELEMENTS_PER_LDG];
+    __shared__ float smem[THREADS_PER_PIXEL*(THREADS_PER_CTA/warpSize)*ELEMENTS_PER_LDG];
 
     // The adapter for the storage.
     typedef PackedStorage<Storage, ELEMENTS_PER_LDG> PackedStorage_;
@@ -2353,8 +2659,12 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
             cta_nhw_smem -= offset;
         }
 
-        const unsigned int *const gmem_relu_bitmask = params.gmem_relu_bitmask +
+        const bitmask_t *const gmem_relu_bitmask = params.gmem_relu_bitmask +
+#ifdef __HIP_PLATFORM_HCC__
+                                      ((params.nhw + 3) & ~3) * c_blk_index;
+#else
                                       ((params.nhw + 31) & ~31) * 2 * c_blk_index;
+#endif
 
         #pragma unroll 1
         for (int loop_i = 0; loop_i < OUTER_LOOPS; ++loop_i) {
@@ -2363,11 +2673,15 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
             // Update the number of elements loaded by this CTA. TODO: Skip if <= 0!!!
             cta_count += max(0, min(PIXELS_PER_CTA_IN_REGISTERS, params.nhw-nhw_regs));
 
+#ifdef __HIP_PLATFORM_HCC__
+            int lane_id = threadIdx.x & 63;
+#else
             int lane_id = threadIdx.x & 31;
+#endif
 
             // Read the elements from memory.
             float is_valid[PIXELS_PER_THREAD_IN_REGISTERS];
-            unsigned int relu_mask[PIXELS_PER_THREAD_IN_REGISTERS];
+            bitmask_t relu_mask[PIXELS_PER_THREAD_IN_REGISTERS];
             #pragma unroll
             for (int i = 0; i < PIXELS_PER_THREAD_IN_REGISTERS; ++i) {
                 const int idx = nhw_regs + thread_in_cta_nhw + i*PIXELS_PER_LDG;
@@ -2389,7 +2703,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
                     }
 
                     if (lane_id < ELEMENTS_PER_LDG) {
-                        relu_mask[i] = gmem_relu_bitmask[idx * 2 + lane_id];
+                        relu_mask[i] = gmem_relu_bitmask[idx * BITMASK_OFFSET + lane_id];
                     }
                 }
             }
@@ -2403,8 +2717,8 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
                 bool rectified[ELEMENTS_PER_LDG];
                 #pragma unroll
                 for (int j = 0; j < ELEMENTS_PER_LDG; ++j) {
-                    rectified[j] = ((__shfl_sync(0xFFFFFFFFU, relu_mask[i], j) &
-                                    (1U << lane_id)) != 0);
+                    rectified[j] = ((shfl_sync(relu_mask[i], j) &
+                                    (ONE_BITMASK << lane_id)) != 0);
                 }
                 to_float(x_math, x_storage[i]);
                 to_float(dy_math, dy_storage[i]);
@@ -2444,8 +2758,12 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
                 const bool is_pixel_valid = is_pixel_valid_nhw && is_valid_c;
                 PackedStorageType x_storage_local[PACKED_ELEMENTS_PER_LDG],
                                   dy_storage_local[PACKED_ELEMENTS_PER_LDG];
-                unsigned int relu_mask;
+                bitmask_t relu_mask;
+#ifdef __HIP_PLATFORM_HCC__
+                int lane_id = threadIdx.x & 63;
+#else
                 int lane_id = threadIdx.x & 31;
+#endif
                 zero_array(x_storage_local);
                 zero_array(dy_storage_local);
                 if (is_pixel_valid_nhw) {
@@ -2454,14 +2772,14 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
                         ldg_stream(dy_storage_local, &gmem_dy[idx*params.c]);
                     }
                     if (lane_id < ELEMENTS_PER_LDG) {
-                        relu_mask = gmem_relu_bitmask[idx * 2 + lane_id];
+                        relu_mask = gmem_relu_bitmask[idx * BITMASK_OFFSET + lane_id];
                     }
                 }
                 bool rectified[ELEMENTS_PER_LDG];
                 #pragma unroll
                 for (int j = 0; j < ELEMENTS_PER_LDG; ++j) {
-                    rectified[j] = ((__shfl_sync(0xFFFFFFFFU, relu_mask, j) &
-                                    (1U << lane_id)) != 0);
+                    rectified[j] = ((shfl_sync(relu_mask, j) &
+                                    (ONE_BITMASK << lane_id)) != 0);
                 }
 
                 // The offset to store in SMEM.
@@ -2499,7 +2817,11 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         }
 
         // dscale parallel sum
+#ifdef __HIP_PLATFORM_HCC__
+        ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
         ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
             smem, dscale, thread_in_cta_nhw);
         __syncthreads();
         // The values in shared memory correspond to the CTA-wide sums.
@@ -2507,7 +2829,11 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         __syncthreads();
 
         // dbias parallel sum
+#ifdef __HIP_PLATFORM_HCC__
+        ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
         ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
             smem, dbias, thread_in_cta_nhw);
         __syncthreads();
         // The values in shared memory correspond to the CTA-wide sums.
@@ -2548,13 +2874,21 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         }
 
         // dscale parallel sum
+#ifndef __HIP_PLATFORM_HCC__
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
                 smem, dscale, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+1, params.magic, params.sync_iters);
         } else {
+#endif
+#ifdef __HIP_PLATFORM_HCC__
+            ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
                 smem, dscale, thread_in_cta_nhw);
+#ifndef __HIP_PLATFORM_HCC__
         }
+#endif
 
         __syncthreads();
         // The values in shared memory correspond to the CTA-wide sums.
@@ -2562,13 +2896,21 @@ __global__ __launch_bounds__(THREADS_PER_CTA, DESIRED_OCCUPANCY)
         __syncthreads();
 
         // dbias parallel sum
+#ifndef __HIP_PLATFORM_HCC__
         if (params.sync_iters>0) {
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatchX<THREADS_PER_CTA>(
                 smem, dbias, thread_in_cta_nhw, params.my_data, params.pair_datas, 4*c_blk_index+0, params.magic, params.sync_iters);
         } else {
+#endif
+#ifdef __HIP_PLATFORM_HCC__
+            ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::template dispatch<THREADS_PER_CTA>(
+#else
             ParallelSums<THREADS_PER_PIXEL, ELEMENTS_PER_LDG>::dispatch<THREADS_PER_CTA>(
+#endif
                 smem, dbias, thread_in_cta_nhw);
+#ifndef __HIP_PLATFORM_HCC__
         }
+#endif
 
         __syncthreads();
         // The values in shared memory correspond to the CTA-wide sums.

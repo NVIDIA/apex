@@ -243,7 +243,7 @@ if "--bnp" in sys.argv:
     from torch.utils.cpp_extension import BuildExtension
     cmdclass['build_ext'] = BuildExtension
 
-    if torch.utils.cpp_extension.CUDA_HOME is None:
+    if torch.utils.cpp_extension.CUDA_HOME is None and not IS_ROCM_PYTORCH:
         raise RuntimeError("--bnp was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
         ext_modules.append(
@@ -252,7 +252,8 @@ if "--bnp" in sys.argv:
                                    'apex/contrib/csrc/groupbn/ipc.cu',
                                    'apex/contrib/csrc/groupbn/interface.cpp',
                                    'apex/contrib/csrc/groupbn/batch_norm_add_relu.cu'],
-                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'apex/contrib/csrc/groupbn')],
                           extra_compile_args={'cxx': [] + version_dependent_macros,
                                               'nvcc':['-DCUDA_HAS_FP16=1',
                                                       '-D__CUDA_NO_HALF_OPERATORS__',

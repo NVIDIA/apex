@@ -26,7 +26,7 @@
 #ifndef MXNET_OPERATOR_NN_CUDNN_NHWC_BATCH_NORM_ADD_RELU_H_
 #define MXNET_OPERATOR_NN_CUDNN_NHWC_BATCH_NORM_ADD_RELU_H_
 
-#include <cudnn.h>
+#include "dnn.h"
 
 #include <algorithm>
 #include <vector>
@@ -34,7 +34,15 @@
 
 #include "nhwc_batch_norm_kernel.h"
 #include "cuda_utils.h"
+#include "c10/macros/Macros.h"
 
+#ifdef __HIP_PLATFORM_HCC__
+using bitmask_t = uint64_t;
+using bitmask_pyt_t = int64_t;
+#else
+using bitmask_t = unsigned int;
+using bitmask_pyt_t = int32_t;
+#endif
 
 #define VERBOSE_DEFAULT false
 
@@ -62,8 +70,8 @@ class NhwcBatchNormAddRelu {
   dim3 calc_fwd_grid(int *loop, const int grid_dim_x);
   dim3 calc_bwd_grid(int *loop, const int grid_dim_x);
 
-  void setInputDescriptor(const cudnnTensorFormat_t format,
-                                  const cudnnDataType_t     data_type,
+  void setInputDescriptor(const dnnTensorFormat_t format,
+                                  const dnnDataType_t     data_type,
                                   int n, int c, int h, int w, int bn_group) {
     m_ = n * h * w;
     int m_bn_adjusted = m_ * bn_group;
@@ -77,8 +85,8 @@ class NhwcBatchNormAddRelu {
     setTensorDescriptor(X_tensor_desc_, format, data_type, n, c, h, w);
   }
 
-  void setOutputDescriptor(const cudnnTensorFormat_t format,
-                                   const cudnnDataType_t     data_type,
+  void setOutputDescriptor(const dnnTensorFormat_t format,
+                                   const dnnDataType_t     data_type,
                                    int n, int c, int h, int w) {
     setTensorDescriptor(Y_tensor_desc_, format, data_type, n, c, h, w);
   }
@@ -121,13 +129,20 @@ class NhwcBatchNormAddRelu {
     eps_ = eps;
   }
 
-  void processCudnnStatus(const cudnnStatus_t& status,
+  void processCudnnStatus(const dnnStatus_t& status,
                           const std::string& string = std::string(),
                           bool verbose = VERBOSE_DEFAULT) {
-    if (status != CUDNN_STATUS_SUCCESS)
+#ifdef __HIP_PLATFORM_HCC__
+    if (status != DNN_STATUS_SUCCESS)
+      LOG(FATAL) << string << " " << miopenGetErrorString(status);
+    else if (verbose)
+      LOG(INFO) << string << " " << miopenGetErrorString(status);
+#else
+    if (status != DNN_STATUS_SUCCESS)
       LOG(FATAL) << string << " " << cudnnGetErrorString(status);
     else if (verbose)
       LOG(INFO) << string << " " << cudnnGetErrorString(status);
+#endif
   }
 
   void checkCudaStatus(const std::string& string = std::string(),
@@ -150,8 +165,8 @@ class NhwcBatchNormAddRelu {
     return retired_cta_bytes;
   }
 
-  cudnnTensorDescriptor_t  X_tensor_desc_ = nullptr;
-  cudnnTensorDescriptor_t  Y_tensor_desc_ = nullptr;
+  dnnTensorDescriptor_t  X_tensor_desc_ = nullptr;
+  dnnTensorDescriptor_t  Y_tensor_desc_ = nullptr;
 
   void*  X_ = nullptr;
   void* dX_ = nullptr;
@@ -185,24 +200,36 @@ class NhwcBatchNormAddRelu {
   std::string name_;
 
  private:
-  void setTensorDescriptor(cudnnTensorDescriptor_t descriptor,
-                           cudnnTensorFormat_t format,
-                           cudnnDataType_t     data_type,
+  void setTensorDescriptor(dnnTensorDescriptor_t descriptor,
+                           dnnTensorFormat_t format,
+                           dnnDataType_t     data_type,
                            int n, int c, int h, int w) {
-    cudnnStatus_t status = CUDNN_STATUS_SUCCESS;
+    dnnStatus_t status = DNN_STATUS_SUCCESS;
+#ifdef __HIP_PLATFORM_HCC__
+    status = miopenSet4dTensorDescriptor(descriptor, data_type, n, c, h, w);
+#else
     status = cudnnSetTensor4dDescriptor(descriptor, format, data_type, n, c, h, w);
+#endif
     processCudnnStatus(status, "set tensor descriptor");
   }
 
-  void createTensorDescriptor(cudnnTensorDescriptor_t *descriptor) {
-    cudnnStatus_t status = CUDNN_STATUS_SUCCESS;
+  void createTensorDescriptor(dnnTensorDescriptor_t *descriptor) {
+    dnnStatus_t status = DNN_STATUS_SUCCESS;
+#ifdef __HIP_PLATFORM_HCC__
+    status = miopenCreateTensorDescriptor(descriptor);
+#else
     status = cudnnCreateTensorDescriptor(descriptor);
+#endif
     processCudnnStatus(status, "create tensor_descriptor");
   }
 
-  void destroyTensorDescriptor(cudnnTensorDescriptor_t descriptor) {
-    cudnnStatus_t status = CUDNN_STATUS_SUCCESS;
+  void destroyTensorDescriptor(dnnTensorDescriptor_t descriptor) {
+    dnnStatus_t status = DNN_STATUS_SUCCESS;
+#ifdef __HIP_PLATFORM_HCC__
+    status = miopenDestroyTensorDescriptor(descriptor);
+#else
     status = cudnnDestroyTensorDescriptor(descriptor);
+#endif
     processCudnnStatus(status, "destroy tensor_descriptor");
   }
 
@@ -210,7 +237,7 @@ class NhwcBatchNormAddRelu {
   float *partial_sums_ = nullptr;
   int *partial_counts_ = nullptr;
   int *retired_ctas_   = nullptr;
-  unsigned int *relu_bitmask_ = nullptr;
+  bitmask_t *relu_bitmask_ = nullptr;
 
   void _setFwdParams(NhwcBatchNormFwdParams *params) const;
   void _setFwdInferenceParams(NhwcBatchNormFwdInferenceParams *params) const;
@@ -261,6 +288,58 @@ class NhwcBatchNormAddRelu {
   // needless register spills.
   void _fwdKernelLauncher(cudaStream_t stream, NhwcBatchNormFwdParams params,
                                 dim3 grid_dim, int outer_loops, const int occupancy, const bool coop) {
+#ifdef __HIP_PLATFORM_HCC__
+#define LAUNCH_FWD_KERNEL(OUTER_LOOPS, USE_RELU, USE_ADD_RELU, COMPILED_FOR_OCCUPANCY, COOP) \
+    do { \
+        CHECK(SMEM_SIZE_FWD <= MAX_SMEM_WITHOUT_OPT_IN) << \
+            "Nhwc batchnormaddrelu kernel smem too big."; \
+        auto fwd_func = nhwc_batch_norm_fwd< \
+                        StorageType, \
+                        THREADS_PER_CTA, \
+                        THREADS_PER_PIXEL, \
+                        PIXELS_PER_THREAD_IN_REGISTERS_FWD, \
+                        PIXELS_PER_THREAD_IN_SMEM_FWD, \
+                        ELEMENTS_PER_LDG, \
+                        USE_ONLINE_APPROACH, \
+                        OUTER_LOOPS, \
+                        USE_RELU, \
+                        USE_ADD_RELU, \
+                        COMPILED_FOR_OCCUPANCY>; \
+        if (COMPILED_FOR_OCCUPANCY > 1) { \
+            hipFuncSetAttribute((void *) fwd_func, hipFuncAttributePreferredSharedMemoryCarveout, 100); \
+            checkCudaStatus(name_ + " fwd ser coop kernel (cudaFuncSetAttribute carveout)"); \
+        } \
+        void *params_ptr = static_cast<void*>(&params); \
+        using FWD_FUNC = decltype(nhwc_batch_norm_fwd< \
+                        StorageType, \
+                        THREADS_PER_CTA, \
+                        THREADS_PER_PIXEL, \
+                        PIXELS_PER_THREAD_IN_REGISTERS_FWD, \
+                        PIXELS_PER_THREAD_IN_SMEM_FWD, \
+                        ELEMENTS_PER_LDG, \
+                        USE_ONLINE_APPROACH, \
+                        OUTER_LOOPS, \
+                        USE_RELU, \
+                        USE_ADD_RELU, \
+                        COMPILED_FOR_OCCUPANCY>); \
+        if (COOP) { \
+            hipLaunchCooperativeKernel<FWD_FUNC>(fwd_func, \
+                grid_dim, \
+                THREADS_PER_CTA, \
+                &params_ptr, \
+                SMEM_SIZE_FWD, \
+                stream); \
+        } else { \
+            hipLaunchKernel((void *) fwd_func, \
+                grid_dim, \
+                THREADS_PER_CTA, \
+                &params_ptr, \
+                SMEM_SIZE_FWD, \
+                stream); \
+        } \
+        checkCudaStatus(name_ + " fwd ser coop kernel"); \
+    } while (0)
+#else
 #define LAUNCH_FWD_KERNEL(OUTER_LOOPS, USE_RELU, USE_ADD_RELU, COMPILED_FOR_OCCUPANCY, COOP) \
     do { \
         CHECK(SMEM_SIZE_FWD <= MAX_SMEM_WITHOUT_OPT_IN) << \
@@ -311,6 +390,7 @@ class NhwcBatchNormAddRelu {
         } \
         checkCudaStatus(name_ + " fwd ser coop kernel"); \
     } while (0)
+#endif
 
     // Don't try for an occupancy > 2 as this will squeeze register use and create spills.
     if (outer_loops == 1) {
@@ -331,7 +411,56 @@ class NhwcBatchNormAddRelu {
 
   void _bwdKernelLauncher(cudaStream_t stream, NhwcBatchNormBwdParams params,
                                 dim3 grid_dim, int outer_loops, const int occupancy, const bool coop) {
+#ifdef __HIP_PLATFORM_HCC__
 #define LAUNCH_BWD_ADD_RELU_KERNEL(OUTER_LOOPS, COMPILED_FOR_OCCUPANCY, COOP) \
+    do { \
+        CHECK(SMEM_SIZE_BWD <= MAX_SMEM_WITHOUT_OPT_IN) << \
+            "Nhwc batchnormaddrelu kernel smem too big."; \
+        auto bwd_add_relu_func = nhwc_batch_norm_bwd_add_relu< \
+                        StorageType, \
+                        THREADS_PER_CTA, \
+                        THREADS_PER_PIXEL, \
+                        PIXELS_PER_THREAD_IN_REGISTERS_BWD, \
+                        PIXELS_PER_THREAD_IN_SMEM_BWD, \
+                        ELEMENTS_PER_LDG, \
+                        USE_ONLINE_APPROACH, \
+                        OUTER_LOOPS, \
+                        COMPILED_FOR_OCCUPANCY>; \
+        if (COMPILED_FOR_OCCUPANCY > 1) { \
+            hipFuncSetAttribute((void *) bwd_add_relu_func, \
+                             hipFuncAttributePreferredSharedMemoryCarveout, 100); \
+            checkCudaStatus(name_ + \
+                " bwd-add-relu coop serial kernel (cudaFuncSetAttribute carveout)"); \
+        } \
+        void *params_ptr = static_cast<void*>(&params); \
+        using BWD_ADD_RELU_FUNC = decltype(nhwc_batch_norm_bwd_add_relu< \
+                        StorageType, \
+                        THREADS_PER_CTA, \
+                        THREADS_PER_PIXEL, \
+                        PIXELS_PER_THREAD_IN_REGISTERS_BWD, \
+                        PIXELS_PER_THREAD_IN_SMEM_BWD, \
+                        ELEMENTS_PER_LDG, \
+                        USE_ONLINE_APPROACH, \
+                        OUTER_LOOPS, \
+                        COMPILED_FOR_OCCUPANCY>); \
+        if (COOP) { \
+            hipLaunchCooperativeKernel<BWD_ADD_RELU_FUNC>(bwd_add_relu_func, \
+                grid_dim, \
+                THREADS_PER_CTA, \
+                &params_ptr, \
+                SMEM_SIZE_BWD, \
+                stream); \
+        } else { \
+            hipLaunchKernel((void *) bwd_add_relu_func, \
+                grid_dim, \
+                THREADS_PER_CTA, \
+                &params_ptr, \
+                SMEM_SIZE_BWD, \
+                stream); \
+        } \
+        checkCudaStatus(name_ + " bwd-add-relu coop serial kernel"); \
+  } while (0)
+#else
     do { \
         CHECK(SMEM_SIZE_BWD <= MAX_SMEM_WITHOUT_OPT_IN) << \
             "Nhwc batchnormaddrelu kernel smem too big."; \
@@ -379,6 +508,7 @@ class NhwcBatchNormAddRelu {
         } \
         checkCudaStatus(name_ + " bwd-add-relu coop serial kernel"); \
   } while (0)
+#endif
 
     // Don't try for an occupancy > 2 as this will squeeze register use and create spills.
     if (outer_loops == 1) {
@@ -399,7 +529,7 @@ class NhwcBatchNormAddRelu {
   // Calculate the expected fwd kernel occupancy, as dictated by shared memory usage.
   static int smem_driven_fwd_occupancy(int device_id, const int max_cta_per_sm) {
     using namespace at::cuda::utils;
-    int fwd_reduction_bytes = THREADS_PER_PIXEL*(THREADS_PER_CTA/32)*ELEMENTS_PER_LDG*sizeof(float);
+    int fwd_reduction_bytes = THREADS_PER_PIXEL*(THREADS_PER_CTA/C10_WARP_SIZE)*ELEMENTS_PER_LDG*sizeof(float);
     int fwd_smem_bytes = SMEM_SIZE_FWD + fwd_reduction_bytes;
     int occupancy = MaxSharedMemoryPerMultiprocessor(device_id) / fwd_smem_bytes;
     return std::min(max_cta_per_sm, occupancy);
@@ -408,7 +538,7 @@ class NhwcBatchNormAddRelu {
   // Calculate the expected bwd kernel occupancy, as dictated by shared memory usage.
   static int smem_driven_bwd_occupancy(int device_id, const int max_cta_per_sm) {
     using namespace at::cuda::utils;
-    int bwd_reduction_bytes = THREADS_PER_PIXEL*(THREADS_PER_CTA/32)*ELEMENTS_PER_LDG*sizeof(float);
+    int bwd_reduction_bytes = THREADS_PER_PIXEL*(THREADS_PER_CTA/C10_WARP_SIZE)*ELEMENTS_PER_LDG*sizeof(float);
     int bwd_smem_bytes = SMEM_SIZE_BWD + bwd_reduction_bytes;
     int occupancy = MaxSharedMemoryPerMultiprocessor(device_id) / bwd_smem_bytes;
     return std::min(max_cta_per_sm, occupancy);
@@ -427,9 +557,13 @@ const std::vector<size_t> NhwcBatchNormAddRelu::numWorkspaceBytes() const {
   const size_t num_mean_bytes     = c_ * sizeof(float);
   const size_t num_variance_bytes = num_mean_bytes;
 
+#ifdef __HIP_PLATFORM_HCC__
+  int elems_per_group = ((m_ + 3) & ~3);
+#else
   int elems_per_group = ((m_ + 31) & ~31) * 2;
+#endif
   int group_count = div_up(c_, C_ELEMENTS_PER_CTA);
-  const size_t bitmask_bytes = elems_per_group * group_count * sizeof(unsigned int);
+  const size_t bitmask_bytes = elems_per_group * group_count * sizeof(bitmask_t);
 
   const size_t size_sums          = grid_y*grid_x*THREADS_PER_PIXEL*\
       ELEMENTS_PER_LDG*2*sizeof(float);
@@ -447,7 +581,7 @@ void NhwcBatchNormAddRelu::setWorkspacePointers(
 
   minibatch_mean_     = static_cast<float*>(workspace[0]);
   minibatch_variance_ = static_cast<float*>(workspace[1]);
-  relu_bitmask_       = static_cast<unsigned int*>(workspace[2]);
+  relu_bitmask_       = static_cast<bitmask_t*>(workspace[2]);
   retired_ctas_       = static_cast<int*>(workspace[3]);
   partial_sums_       = static_cast<float*>(workspace[4]);
   partial_counts_     = static_cast<int*>(workspace[5]);
