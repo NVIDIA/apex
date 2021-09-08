@@ -1,3 +1,14 @@
+"""L0 Tests Runner.
+
+How to run this script?
+
+1. Run all the tests: `python /path/to/apex/tests/L0/run_test.py`
+2. Run one of the tests (e.g. fused layer norm):
+    `python /path/to/apex/tests/L0/run_test.py --include run_fused_layer_norm`
+3. Run two or more of the tests (e.g. optimizers and fused layer norm):
+    `python /path/to/apex/tests/L0/run_test.py --include run_optimizers run_fused_layer_norm`
+"""
+import argparse
 import os
 import unittest
 import sys
@@ -16,10 +27,26 @@ TEST_DIRS = [
 ]
 
 
-def main():
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="L0 test runner",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--include",
+        nargs="+",
+        choices=TEST_DIRS,
+        default=TEST_DIRS,
+        help="select a set of tests to run (defaults to ALL tests).",
+    )
+    args, _ = parser.parse_known_args()
+    return args
+
+
+def main(args):
     runner = unittest.TextTestRunner(verbosity=2)
     errcode = 0
-    for test_dir in TEST_DIRS:
+    for test_dir in args.include:
         test_dir = os.path.join(TEST_ROOT, test_dir)
         print(test_dir)
         suite = unittest.TestLoader().discover(test_dir)
@@ -35,4 +62,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+    main(args)

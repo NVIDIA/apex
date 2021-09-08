@@ -1,42 +1,95 @@
 import unittest
-import os
-import random
 
 import torch
-import apex
-from torch.autograd import Variable
 
-        
+import apex
+
+
 class TestFusedLayerNorm(unittest.TestCase):
+    dtype = torch.float
+    elementwise_affine = False
+    normalized_shape = [32, 16]
+
     def setUp(self):
         # bias and weight are set to 0 and 1 respectively, so no need to copy parameters from cpu module to the gpu one
-        self.module_cpu_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=False).cpu()
-        self.module_cuda_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=False).cuda()
+        self.module_cpu_ = apex.normalization.FusedLayerNorm(
+            normalized_shape=self.normalized_shape, elementwise_affine=self.elementwise_affine).cpu()
+        self.module_cuda_ = apex.normalization.FusedLayerNorm(
+            normalized_shape=self.normalized_shape, elementwise_affine=self.elementwise_affine).to(device="cuda", dtype=self.dtype)
 
-    def _test_same_output(self, batch_size):
+    def _check_same_output(self, batch_size, contiguous):
         torch.cuda.manual_seed(42)
-        self.input_ = torch.randn((batch_size, *self.module_cpu_.normalized_shape), device="cpu").requires_grad_(True)
-        self.input_cuda_ = self.input_.cuda().detach().requires_grad_(True)
-        out_cpu_ = self.module_cpu_(self.input_)
+        if contiguous:
+            input_shape = [batch_size] + self.normalized_shape
+            input_ = torch.randn(input_shape, device="cpu").requires_grad_(True)
+            input_cuda_ = input_.to(device="cuda", dtype=self.dtype).detach().requires_grad_(True)
+            self.assertTrue(input_.is_contiguous())
+            self.assertTrue(input_cuda_.is_contiguous())
+        else:
+            input_shape = [batch_size] + self.normalized_shape
+            input_shape = [batch_size * 3] + [self.normalized_shape[0] * 5, self.normalized_shape[1] * 3]
+            input_src_ = torch.randn(input_shape, device="cpu")
+            input_ = input_src_[::3, ::5, ::3].detach().requires_grad_(True)
+            input_cuda_ = input_src_.to(device="cuda", dtype=self.dtype)[::3, ::5, ::3].detach().requires_grad_(True)
+            # make sure that tensors are NOT contiguous.
+            self.assertFalse(input_.is_contiguous())
+            self.assertFalse(input_cuda_.is_contiguous())
+        out_cpu_ = self.module_cpu_(input_)
         gO = torch.rand_like(out_cpu_)
         out_cpu_.backward(gO)
-        out_cuda_ = self.module_cuda_(self.input_cuda_)
-        gO = gO.cuda()
+        out_cuda_ = self.module_cuda_(input_cuda_)
+        gO = gO.to(device="cuda", dtype=self.dtype)
         out_cuda_.backward(gO)
-        assert out_cpu_.is_cuda == False
-        assert out_cuda_.is_cuda == True
-        torch.testing.assert_allclose(out_cpu_, out_cuda_.cpu())
-        torch.testing.assert_allclose(self.input_.grad, self.input_cuda_.grad.cpu())
+        self.assertFalse(out_cpu_.is_cuda)
+        self.assertTrue(out_cuda_.is_cuda)
+        # TODO (mkozuki): `torch.testing.assert_allclose` is deprecated.
+        # Use `torch.testing.assert_close`.
+        # See https://github.com/pytorch/pytorch/issues/61844
+        torch.testing.assert_allclose(out_cpu_.to(device="cuda", dtype=self.dtype), out_cuda_)
+        torch.testing.assert_allclose(input_.grad.to(device="cuda", dtype=self.dtype), input_cuda_.grad)
+
+    def _test_same_output(self, batch_size):
+        for contiguous in (True, False):
+            with self.subTest(contiguous=contiguous):
+                self._check_same_output(batch_size, contiguous)
 
     def test_layer_norm(self):
         self._test_same_output(16)
 
     def test_large_batch(self):
         self._test_same_output(65536)
-        
-        
-class TestFusedLayerNormElemWise(TestFusedLayerNorm):
-    def setUp(self):
-        self.module_cpu_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=True).cpu()
-        self.module_cuda_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=True).cuda()
 
+
+class TestFusedLayerNormElemWise(TestFusedLayerNorm):
+    elementwise_affine = True
+
+
+class TestFusedLayerNormElemWiseHalf(TestFusedLayerNormElemWise):
+    dtype = torch.half
+
+    def test_large_batch(self):
+        self.skipTest("Skip to save time")
+
+
+# Megatron style Layer Norm
+class TestFusedLayerNormElemWiseMixedDtypes(TestFusedLayerNorm):
+    def setUp(self):
+        self.module_cpu_ = apex.normalization.MixedFusedLayerNorm(
+            normalized_shape=self.normalized_shape, elementwise_affine=True).cpu()
+        self.module_cuda_ = apex.normalization.MixedFusedLayerNorm(
+            normalized_shape=self.normalized_shape, elementwise_affine=True).to(device="cuda", dtype=self.dtype)
+
+    def test_init_exception(self):
+        with self.assertRaisesRegex(RuntimeError, "MixedFusedLayerNorm does not support `elementwise_affine = False`"):
+            apex.normalization.MixedFusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=False).cuda()
+
+
+class TestFusedLayerNormElemWiseMixedDtypesHalf(TestFusedLayerNormElemWiseMixedDtypes):
+    dtype = torch.half
+
+    def test_large_batch(self):
+        self.skipTest("Skip to save time")
+
+
+class TestFusedLayerNormElemWiseMixedDtypesBFloat16(TestFusedLayerNormElemWiseMixedDtypesHalf):
+    dtype = torch.bfloat16
