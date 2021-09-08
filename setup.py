@@ -120,6 +120,18 @@ if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 4):
     version_ge_1_5 = ['-DVERSION_GE_1_5']
 version_dependent_macros = version_ge_1_1 + version_ge_1_3 + version_ge_1_5
 
+
+def raise_if_nvcc_unavailable(extension_name):
+    if CUDA_HOME is not None:
+        return
+    msg = (
+        f"{extension_name} was requested, but nvcc was not found.  Are you sure your environment "
+        "has nvcc available?  If you're installing within a container from https://hub.docker.com"
+        "/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc."
+    )
+    raise RuntimeError(msg)
+
+
 if "--distributed_adam" in sys.argv:
     sys.argv.remove("--distributed_adam")
 
