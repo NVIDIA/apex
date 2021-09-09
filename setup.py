@@ -296,8 +296,10 @@ if "--fmha" in sys.argv:
     sys.argv.remove("--fmha")
     raise_if_nvcc_unavailable("--fmha")
 
+    # NOTE (mkozuki): `cc_flag`, a list of flags used in `--fast_layer_norm` extension
+    # which contains `-gencode arch=compute_80,code=sm_80` if cuda>=11 is removed
+    # as those flags are hardcoded for fmha extension
     # Check, if CUDA11 is installed for compute capability 8.0
-    cc_flag = []
     _, bare_metal_major, _ = get_cuda_bare_metal_version(CUDA_HOME)
     if int(bare_metal_major) < 11:
         raise RuntimeError("--fmha only supported on SM80")
@@ -324,7 +326,7 @@ if "--fmha" in sys.argv:
                                                   '-U__CUDA_NO_HALF_CONVERSIONS__',
                                                   '--expt-relaxed-constexpr',
                                                   '--expt-extended-lambda',
-                                                  '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag},
+                                                  '--use_fast_math'] + version_dependent_macros + generator_flag},
                       include_dirs=[os.path.join(this_dir, "apex/contrib/csrc"), os.path.join(this_dir, "apex/contrib/csrc/fmha/src")]))
 
 
