@@ -9,6 +9,9 @@ class TestFusedLayerNorm(unittest.TestCase):
     dtype = torch.float
     elementwise_affine = False
     normalized_shape = [32, 16]
+    rtol, atol = None, None
+    fwd_thresholds = dict(rtol=None, atol=None)
+    bwd_thresholds = dict(rtol=None, atol=None)
 
     def setUp(self):
         # bias and weight are set to 0 and 1 respectively, so no need to copy parameters from cpu module to the gpu one
@@ -45,8 +48,10 @@ class TestFusedLayerNorm(unittest.TestCase):
         # TODO (mkozuki): `torch.testing.assert_allclose` is deprecated.
         # Use `torch.testing.assert_close`.
         # See https://github.com/pytorch/pytorch/issues/61844
-        torch.testing.assert_allclose(out_cpu_.to(device="cuda", dtype=self.dtype), out_cuda_)
-        torch.testing.assert_allclose(input_.grad.to(device="cuda", dtype=self.dtype), input_cuda_.grad)
+        torch.testing.assert_allclose(
+            out_cpu_.to(device="cuda", dtype=self.dtype), out_cuda_, **self.fwd_thresholds)
+        torch.testing.assert_allclose(
+            input_.grad.to(device="cuda", dtype=self.dtype), input_cuda_.grad, **self.bwd_thresholds)
 
     def _test_same_output(self, batch_size):
         for contiguous in (True, False):
@@ -91,5 +96,10 @@ class TestFusedLayerNormElemWiseMixedDtypesHalf(TestFusedLayerNormElemWiseMixedD
         self.skipTest("Skip to save time")
 
 
+# NOTE (mkozuki): With the larger threshold values, still flaky.
 class TestFusedLayerNormElemWiseMixedDtypesBFloat16(TestFusedLayerNormElemWiseMixedDtypesHalf):
     dtype = torch.bfloat16
+    # Use thresholds larger than those used in pytorch, see
+    # https://github.com/pytorch/pytorch/blob/72274e2a2fd55019ec860e1743dbdc5b0c5a5624/torch/testing/_asserts.py#L26
+    fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
+    bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
