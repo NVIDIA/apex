@@ -501,7 +501,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='pytorch-extension',
-    version='0.1',
+    version='0.2',
     author="Artit Wangperawong",
     author_email="artitw@gmail.com",
     packages=find_packages(exclude=('build',
