@@ -495,9 +495,15 @@ if "--fast_bottleneck" in sys.argv:
                           include_dirs=[os.path.join(this_dir, 'apex/contrib/csrc/cudnn-frontend/include')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag}))
 
+
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 setup(
-    name='apex',
-    version='0.1',
+    name='pytorch-extension',
+    version='0.2',
+    author="Artit Wangperawong",
+    author_email="artitw@gmail.com",
     packages=find_packages(exclude=('build',
                                     'csrc',
                                     'include',
@@ -507,7 +513,11 @@ setup(
                                     'tests',
                                     'examples',
                                     'apex.egg-info',)),
-    description='PyTorch Extensions written by NVIDIA',
+    description='Package for A PyTorch Extension by NVIDIA',
+    keywords='artificial intelligence pytorch data science deep machine learning',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/artitw/apex",
     ext_modules=ext_modules,
     cmdclass={'build_ext': BuildExtension} if ext_modules else {},
     extras_require=extras,

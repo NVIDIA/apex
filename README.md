@@ -1,10 +1,8 @@
 # Introduction
 
-This repository holds NVIDIA-maintained utilities to streamline
-mixed precision and distributed training in Pytorch.
+This is a Python package available on [PyPI](https://pypi.org/project/pytorch-extension/) for NVIDIA-maintained utilities to streamline mixed precision and distributed training in Pytorch.
 Some of the code here will be included in upstream Pytorch eventually.
-The intention of Apex is to make up-to-date utilities available to
-users as quickly as possible.
+The intention of Apex is to make up-to-date utilities available to users as quickly as possible.
 
 ## Full API Documentation: [https://nvidia.github.io/apex](https://nvidia.github.io/apex)
 
@@ -106,30 +104,18 @@ CUDA 9 or newer
 
 PyTorch 0.4 or newer.  The CUDA and C++ extensions require pytorch 1.0 or newer.
 
-We recommend the latest stable release, obtainable from
-[https://pytorch.org/](https://pytorch.org/).  We also test against the latest master branch, obtainable from [https://github.com/pytorch/pytorch](https://github.com/pytorch/pytorch).
-
-It's often convenient to use Apex in Docker containers.  Compatible options include:
-* [NVIDIA Pytorch containers from NGC](https://ngc.nvidia.com/catalog/containers/nvidia%2Fpytorch), which come with Apex preinstalled.  To use the latest Amp API, you may need to `pip uninstall apex` then reinstall Apex using the **Quick Start** commands below.
-* [official Pytorch -devel Dockerfiles](https://hub.docker.com/r/pytorch/pytorch/tags), e.g. `docker pull pytorch/pytorch:nightly-devel-cuda10.0-cudnn7`, in which you can install Apex using the **Quick Start** commands.
-
-See the [Docker example folder](https://github.com/NVIDIA/apex/tree/master/examples/docker) for details.
-
 # Quick Start
 
 ### Linux
 
-For performance and full functionality, we recommend installing Apex with
-CUDA and C++ extensions via
+For performance and full functionality, we recommend installing with CUDA and C++ extensions according to
 ```
-git clone https://github.com/NVIDIA/apex
-cd apex
-pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" pytorch-extension
 ```
 
-Apex also supports a Python-only build (required with Pytorch 0.4) via
+For a Python-only build (required with Pytorch 0.4):
 ```
-pip install -v --disable-pip-version-check --no-cache-dir ./
+pip install -v --disable-pip-version-check --no-cache-dir pytorch-extension
 ```
 A Python-only build omits:
 - Fused kernels required to use `apex.optimizers.FusedAdam`.
@@ -142,5 +128,5 @@ Pyprof support has been moved to its own [dedicated repository](https://github.c
 The codebase is deprecated in Apex and will be removed soon.
 
 ### Windows support
-Windows support is experimental, and Linux is recommended.  `pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .` may work if you were able to build Pytorch from source
-on your system.  `pip install -v --no-cache-dir .` (without CUDA/C++ extensions) is more likely to work.  If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
+Windows support is experimental, and Linux is recommended.  `pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" pytorch-extension` may work if you were able to build Pytorch from source
+on your system.  `pip install -v --disable-pip-version-check --no-cache-dir pytorch-extension` (without CUDA/C++ extensions) is more likely to work.  If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
