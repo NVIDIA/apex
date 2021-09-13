@@ -100,4 +100,4 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
 def vocab_parallel_cross_entropy(vocab_parallel_logits, target):
     """Helper function for the cross entropy."""
-    return _VocabParallelCrossEntropy.apply((vocab_parallel_logits), target)
+    return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target)
