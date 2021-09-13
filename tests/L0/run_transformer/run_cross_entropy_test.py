@@ -51,8 +51,11 @@ def tensor_sharded_cross_entropy(batch_size, seq_length, vocab_size, logits_scal
     logits_parallel = tensor_parallel.scatter_to_tensor_model_parallel_region(logits)
     target = torch.cuda.LongTensor(
         size=(batch_size, seq_length)).random_(0, vocab_size)
+    logits_parallel_ = logits_parallel.clone().detach()
     loss = vocab_parallel_cross_entropy(logits_parallel, target).mean()
     loss.backward()
+    # check for mutation
+    assert torch.all(logits_parallel_ == logits_parallel)
     return loss, identity.weight.grad
 
 
