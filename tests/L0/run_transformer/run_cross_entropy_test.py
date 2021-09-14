@@ -55,7 +55,7 @@ def tensor_sharded_cross_entropy(batch_size, seq_length, vocab_size, logits_scal
     loss = vocab_parallel_cross_entropy(logits_parallel, target).mean()
     loss.backward()
     # check for mutation
-    assert torch.all(logits_parallel_ == logits_parallel)
+    assert torch.equal(logits_parallel_, logits_parallel)
     return loss, identity.weight.grad
 
 
