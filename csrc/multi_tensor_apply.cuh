@@ -62,6 +62,9 @@ void multi_tensor_apply(
 #ifdef VERSION_GE_1_5
       contiguous_memory = (contiguous_memory || tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast));
 #endif
+#ifdef VERSION_GE_1_9
+      contiguous_memory = (contiguous_memory || tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast3D));
+#endif
       TORCH_CHECK(contiguous_memory, "A tensor was not contiguous.");
       TORCH_CHECK(tensor_lists[l][t].device() == ref_device, "A tensor was not on the same device as the first tensor");
       TORCH_CHECK(tensor_lists[l][t].numel() == tensor_lists[0][t].numel(), "Size mismatch");
