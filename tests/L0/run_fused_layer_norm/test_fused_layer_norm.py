@@ -99,7 +99,18 @@ class TestFusedLayerNormElemWiseMixedDtypesHalf(TestFusedLayerNormElemWiseMixedD
 # NOTE (mkozuki): With the larger threshold values, still flaky.
 class TestFusedLayerNormElemWiseMixedDtypesBFloat16(TestFusedLayerNormElemWiseMixedDtypesHalf):
     dtype = torch.bfloat16
+    # NOTE (mkozuki): [BFloat16 Layer Norm flakiness]
     # Use thresholds larger than those used in pytorch, see
     # https://github.com/pytorch/pytorch/blob/72274e2a2fd55019ec860e1743dbdc5b0c5a5624/torch/testing/_asserts.py#L26
     fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
     bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
+
+
+class TestFusedLayerNormElemWiseBFloat16(TestFusedLayerNormElemWise):
+    dtype = torch.bfloat16
+    # See [BFloat16 Layer Norm flakiness]
+    fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
+    bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
+
+    def test_large_batch(self):
+        self.skipTest("Skip to save time")
