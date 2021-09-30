@@ -4,3 +4,5 @@ build
 docs/build
 *~
 __pycache__
+*.so
+.vscode
