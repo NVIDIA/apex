@@ -19,6 +19,14 @@ from .cross_entropy import vocab_parallel_cross_entropy
 
 from .data import broadcast_data
 
+from .enums import (
+    LayerType,
+    AttnType,
+    AttnMaskType,
+)
+
+from .fused_softmax import FusedScaleMaskSoftmax
+
 from .initialize import (
     is_unitialized,
     destroy_model_parallel,
@@ -84,6 +92,12 @@ __all__ = [
     "vocab_parallel_cross_entropy",
     # data.py
     "broadcast_data",
+    # enums.py
+    "LayerType",
+    "AttnType",
+    "AttnMaskType",
+    # fused_softmax.py
+    "FusedScaleMaskSoftmax",
     # initialize.py
     "is_unitialized",
     "destroy_model_parallel",
