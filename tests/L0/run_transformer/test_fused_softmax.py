@@ -7,8 +7,8 @@ import unittest
 
 import torch
 
-from apex.mpu.enums import AttnMaskType
-from apex.mpu.fused_softmax import FusedScaleMaskSoftmax
+from apex.transformer import AttnMaskType
+from apex.transformer.functional import FusedScaleMaskSoftmax
 
 
 def attention_mask_func(attention_scores, attention_mask):

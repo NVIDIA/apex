@@ -16,13 +16,13 @@ import torch
 import torch.nn.init as init
 from torch.nn.parameter import Parameter
 
-import apex
-from apex.mpu import layers
-from apex.mpu.tests import global_vars
-from apex.mpu.tests.commons import set_random_seed
-from apex.mpu.tests.commons import print_separator
-from apex.mpu.tests.commons import initialize_distributed
-from apex.mpu.tests.commons import TEST_SUCCESS_MESSAGE
+from apex.transformer import initialize
+from apex.transformer.tensor_shard import layers
+from apex.transformer.tensor_shard.tests import global_vars
+from apex.transformer.tensor_shard.tests.commons import set_random_seed
+from apex.transformer.tensor_shard.tests.commons import print_separator
+from apex.transformer.tensor_shard.tests.commons import initialize_distributed
+from apex.transformer.tensor_shard.tests.commons import TEST_SUCCESS_MESSAGE
 
 
 global_vars.set_global_variables()
@@ -34,8 +34,8 @@ def test_parallel_embedding(tensor_model_parallel_size):
         print('> testing parallel embedding with model parallel size {} ...'.
               format(tensor_model_parallel_size))
 
-    apex.mpu.initialize_model_parallel(tensor_model_parallel_size)
-    tensor_model_parallel_size = apex.mpu.get_tensor_model_parallel_world_size()
+    initialize.initialize_model_parallel(tensor_model_parallel_size)
+    tensor_model_parallel_size = initialize.get_tensor_model_parallel_world_size()
 
     batch_size = 17
     seq_length = 23
@@ -83,7 +83,7 @@ def test_parallel_embedding(tensor_model_parallel_size):
 
     weight_grad_orig = torch.split(embedding_original.weight.grad,
                                    hidden_size // tensor_model_parallel_size,
-                                   1)[apex.mpu.get_tensor_model_parallel_rank()]
+                                   1)[initialize.get_tensor_model_parallel_rank()]
     error = embedding_parallel.weight.grad.sub(weight_grad_orig).abs().max()
     print('   error in grad (parallel) on global rank {}: {}'.format(
         torch.distributed.get_rank(), error))
@@ -91,7 +91,7 @@ def test_parallel_embedding(tensor_model_parallel_size):
 
     weight_grad_orig = torch.split(embedding_original.weight.grad,
                                    vocab_size // tensor_model_parallel_size,
-                                   0)[apex.mpu.get_tensor_model_parallel_rank()]
+                                   0)[initialize.get_tensor_model_parallel_rank()]
     error = embedding_vocab_parallel.weight.grad.sub(
         weight_grad_orig).abs().max()
     print('   error in grad (vocab parallel) on global rank {}: {}'.format(
@@ -99,7 +99,7 @@ def test_parallel_embedding(tensor_model_parallel_size):
     assert error < 1.0e-12, 'error: {}'.format(error)
 
     # Reset groups
-    apex.mpu.destroy_model_parallel()
+    initialize.destroy_model_parallel()
 
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:
@@ -108,11 +108,11 @@ def test_parallel_embedding(tensor_model_parallel_size):
 
 def test_initialize_affine_weight(tensor_model_parallel_size, device):
 
-    apex.mpu.initialize_model_parallel(tensor_model_parallel_size)
+    initialize.initialize_model_parallel(tensor_model_parallel_size)
     if torch.distributed.get_rank() == 0:
         print('> testing initialize_affine_weight with model parallel '
               'size: {}'.format(tensor_model_parallel_size))
-    tensor_model_parallel_size = apex.mpu.get_tensor_model_parallel_world_size()
+    tensor_model_parallel_size = initialize.get_tensor_model_parallel_world_size()
 
     seed = 12345
     input_size_coeff = 13
@@ -138,7 +138,7 @@ def test_initialize_affine_weight(tensor_model_parallel_size, device):
     set_random_seed(seed)
     master_weight = torch.empty(output_size, input_size)
     torch.nn.init.normal_(master_weight)
-    rank = apex.mpu.get_tensor_model_parallel_rank()
+    rank = initialize.get_tensor_model_parallel_rank()
     my_weight = torch.split(master_weight, output_size_coeff,
                             dim=0)[rank].contiguous().clone()
 
@@ -155,20 +155,18 @@ def test_initialize_affine_weight(tensor_model_parallel_size, device):
     weight = torch.empty(output_size, input_size_coeff)
     set_random_seed(seed)
     if device == 'cpu':
-        apex.mpu.layers._initialize_affine_weight_cpu(weight, output_size, input_size,
-                                                 input_size_coeff, 1,
-                                                 torch.nn.init.normal_,
-                                                 params_dtype=global_vars.get_args().params_dtype,
-                                                 )
+        layers._initialize_affine_weight_cpu(
+            weight, output_size, input_size, input_size_coeff, 1, torch.nn.init.normal_,
+            params_dtype=global_vars.get_args().params_dtype)
 
     else:
-        apex.mpu.layers._initialize_affine_weight_gpu(weight, torch.nn.init.normal_, 1)
+        layers._initialize_affine_weight_gpu(weight, torch.nn.init.normal_, 1)
 
     # Target.
     set_random_seed(seed)
     master_weight = torch.empty(output_size, input_size)
     torch.nn.init.normal_(master_weight)
-    rank = apex.mpu.get_tensor_model_parallel_rank()
+    rank = initialize.get_tensor_model_parallel_rank()
     my_weight = torch.split(master_weight, input_size_coeff,
                             dim=1)[rank].contiguous().clone()
 
@@ -180,7 +178,7 @@ def test_initialize_affine_weight(tensor_model_parallel_size, device):
     assert error < 1.0e-6
 
     # Reset groups
-    apex.mpu.destroy_model_parallel()
+    initialize.destroy_model_parallel()
 
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:
@@ -199,11 +197,11 @@ class IdentityLayer2D(torch.nn.Module):
 
 def test_column_parallel_linear(tensor_model_parallel_size):
 
-    apex.mpu.initialize_model_parallel(tensor_model_parallel_size)
+    initialize.initialize_model_parallel(tensor_model_parallel_size)
     if torch.distributed.get_rank() == 0:
         print('> testing ColumnParallelLinear with model parallel '
               'size: {}'.format(tensor_model_parallel_size))
-    tensor_model_parallel_size = apex.mpu.get_tensor_model_parallel_world_size()
+    tensor_model_parallel_size = initialize.get_tensor_model_parallel_world_size()
 
     seed = 12345
     set_random_seed(seed)
@@ -215,7 +213,7 @@ def test_column_parallel_linear(tensor_model_parallel_size):
 
     # Network
     identity_layer = IdentityLayer2D(batch_size, input_size).cuda()
-    linear_layer = apex.mpu.ColumnParallelLinear(
+    linear_layer = layers.ColumnParallelLinear(
         input_size, output_size, keep_master_weight_for_test=True,
         params_dtype=global_vars.get_args().params_dtype,
         use_cpu_initialization=global_vars.get_args().use_cpu_initialization,
@@ -236,7 +234,7 @@ def test_column_parallel_linear(tensor_model_parallel_size):
     dLdb = torch.matmul(torch.ones(batch_size, 1).cuda().t(), dLdY).view(-1)
     dLdX = torch.matmul(dLdY, A)
 
-    rank = apex.mpu.get_tensor_model_parallel_rank()
+    rank = initialize.get_tensor_model_parallel_rank()
     my_dLdA = torch.split(dLdA, output_size_coeff,
                           dim=0)[rank].contiguous().clone()
     error = my_dLdA.sub(linear_layer.weight.grad).abs().max()
@@ -260,7 +258,7 @@ def test_column_parallel_linear(tensor_model_parallel_size):
     assert error < 1.0e-6
 
     # Reset groups
-    apex.mpu.destroy_model_parallel()
+    initialize.destroy_model_parallel()
 
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:
@@ -269,11 +267,11 @@ def test_column_parallel_linear(tensor_model_parallel_size):
 
 def test_row_parallel_linear(tensor_model_parallel_size):
 
-    apex.mpu.initialize_model_parallel(tensor_model_parallel_size)
+    initialize.initialize_model_parallel(tensor_model_parallel_size)
     if torch.distributed.get_rank() == 0:
         print('> testing RowParallelLinear with model parallel '
               'size: {}'.format(tensor_model_parallel_size))
-    tensor_model_parallel_size = apex.mpu.get_tensor_model_parallel_world_size()
+    tensor_model_parallel_size = initialize.get_tensor_model_parallel_world_size()
 
     seed = 12345
     set_random_seed(seed)
@@ -285,7 +283,7 @@ def test_row_parallel_linear(tensor_model_parallel_size):
 
     # Network
     identity_layer = IdentityLayer2D(batch_size, input_size).cuda()
-    linear_layer = apex.mpu.RowParallelLinear(
+    linear_layer = layers.RowParallelLinear(
         input_size, output_size, keep_master_weight_for_test=True,
         params_dtype=global_vars.get_args().params_dtype,
         use_cpu_initialization=global_vars.get_args().use_cpu_initialization,
@@ -306,7 +304,7 @@ def test_row_parallel_linear(tensor_model_parallel_size):
     dLdb = torch.matmul(torch.ones(batch_size, 1).cuda().t(), dLdY).view(-1)
     dLdX = torch.matmul(dLdY, A)
 
-    rank = apex.mpu.get_tensor_model_parallel_rank()
+    rank = initialize.get_tensor_model_parallel_rank()
     my_dLdA = torch.split(dLdA, input_size_coeff,
                           dim=1)[rank].contiguous().clone()
     error = my_dLdA.sub(linear_layer.weight.grad).abs().max()
@@ -328,7 +326,7 @@ def test_row_parallel_linear(tensor_model_parallel_size):
     assert error < 1.0e-6
 
     # Reset groups
-    apex.mpu.destroy_model_parallel()
+    initialize.destroy_model_parallel()
 
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:
@@ -348,8 +346,8 @@ class IdentityLayer3D(torch.nn.Module):
 def parallel_self_attention(tensor_model_parallel_size, num_att_heads_per_partition,
                             hidden_size_per_att_head, dropout_prob, batch_size,
                             sequence_length):
-    apex.mpu.initialize_model_parallel(tensor_model_parallel_size)
-    tensor_model_parallel_size = apex.mpu.get_tensor_model_parallel_world_size()
+    initialize.initialize_model_parallel(tensor_model_parallel_size)
+    tensor_model_parallel_size = initialize.get_tensor_model_parallel_world_size()
 
     seed = 12345
     set_random_seed(seed)
@@ -361,7 +359,7 @@ def parallel_self_attention(tensor_model_parallel_size, num_att_heads_per_partit
     # Network
     identity_layer = IdentityLayer3D(batch_size, sequence_length,
                                      hidden_size).cuda()
-    attention_layer = apex.mpu.BertParallelSelfAttention(hidden_size, num_att_heads,
+    attention_layer = initialize.BertParallelSelfAttention(hidden_size, num_att_heads,
                                                     dropout_prob).cuda()
     loss_weight = torch.randn([batch_size, sequence_length, hidden_size]).cuda()
     attention_mask = torch.randn([batch_size, 1, 1, sequence_length]).cuda()
@@ -372,8 +370,8 @@ def parallel_self_attention(tensor_model_parallel_size, num_att_heads_per_partit
     # Backward
     loss.backward()
 
-    rank = apex.mpu.get_tensor_model_parallel_rank()
-    apex.mpu.destroy_model_parallel()
+    rank = initialize.get_tensor_model_parallel_rank()
+    initialize.destroy_model_parallel()
     return rank, hidden_size, tensor_model_parallel_size, loss, \
         attention_layer, identity_layer
 
@@ -433,8 +431,8 @@ def test_parallel_self_attention(tensor_model_parallel_size):
 def parallel_transformer(tensor_model_parallel_size, num_att_heads_per_partition,
                          hidden_size_per_att_head, batch_size, sequence_length):
 
-    apex.mpu.initialize_model_parallel(tensor_model_parallel_size)
-    tensor_model_parallel_size = apex.mpu.get_tensor_model_parallel_world_size()
+    initialize.initialize_model_parallel(tensor_model_parallel_size)
+    tensor_model_parallel_size = initialize.get_tensor_model_parallel_world_size()
 
     seed = 12345
     set_random_seed(seed)
@@ -447,7 +445,7 @@ def parallel_transformer(tensor_model_parallel_size, num_att_heads_per_partition
     # Network
     identity_layer = IdentityLayer3D(batch_size, sequence_length,
                                      hidden_size).cuda()
-    transformer_layer = apex.mpu.BertParallelTransformerLayer(
+    transformer_layer = initialize.BertParallelTransformerLayer(
         hidden_size, intermediate_size, num_att_heads, 0.0, 0.0,
         torch.nn.functional.relu, 1.0e-5).cuda()
 
@@ -460,8 +458,8 @@ def parallel_transformer(tensor_model_parallel_size, num_att_heads_per_partition
     # Backward
     loss.backward()
 
-    rank = apex.mpu.get_tensor_model_parallel_rank()
-    apex.mpu.destroy_model_parallel()
+    rank = initialize.get_tensor_model_parallel_rank()
+    initialize.destroy_model_parallel()
     return rank, hidden_size, tensor_model_parallel_size, loss, \
         transformer_layer, identity_layer
 
@@ -519,7 +517,7 @@ if __name__ == '__main__':
         test_initialize_affine_weight(tensor_model_parallel_size, 'cpu')
         tensor_model_parallel_size *= 2
     # Reset groups
-    apex.mpu.destroy_model_parallel()
+    initialize.destroy_model_parallel()
 
     print_separator('test initialize affine weight gpu')
     tensor_model_parallel_size = 1

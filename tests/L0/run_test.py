@@ -23,7 +23,13 @@ TEST_DIRS = [
     "run_pyprof_nvtx",
     "run_pyprof_data",
     "run_mlp",
-    "run_mpu",
+    "run_transformer",
+]
+DEFAULT_TEST_DIRS = [
+    "run_optimizers",
+    "run_fused_layer_norm",
+    "run_mlp",
+    "run_transformer",
 ]
 
 
@@ -36,7 +42,7 @@ def parse_args():
         "--include",
         nargs="+",
         choices=TEST_DIRS,
-        default=TEST_DIRS,
+        default=DEFAULT_TEST_DIRS,
         help="select a set of tests to run (defaults to ALL tests).",
     )
     args, _ = parser.parse_known_args()

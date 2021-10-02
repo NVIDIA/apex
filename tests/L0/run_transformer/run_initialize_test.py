@@ -14,11 +14,11 @@
 # limitations under the License.
 import torch
 
-import apex
-from apex.mpu.tests import global_vars
-from apex.mpu.tests.commons import print_separator
-from apex.mpu.tests.commons import initialize_distributed
-from apex.mpu.tests.commons import TEST_SUCCESS_MESSAGE
+from apex.transformer import initialize
+from apex.transformer.tensor_shard.tests import global_vars
+from apex.transformer.tensor_shard.tests.commons import print_separator
+from apex.transformer.tensor_shard.tests.commons import initialize_distributed
+from apex.transformer.tensor_shard.tests.commons import TEST_SUCCESS_MESSAGE
 
 
 global_vars.set_global_variables()
@@ -33,9 +33,9 @@ def test_initialize_model_parallel(tensor_model_parallel_size):
         tensor_model_parallel_size,
         torch.distributed.get_world_size(),
     )
-    assert not apex.mpu.model_parallel_is_initialized()
-    apex.mpu.initialize_model_parallel(tensor_model_parallel_size_)
-    assert apex.mpu.model_parallel_is_initialized()
+    assert not initialize.model_parallel_is_initialized()
+    initialize.initialize_model_parallel(tensor_model_parallel_size_)
+    assert initialize.model_parallel_is_initialized()
 
     # Checks.
     def check(group, world_size, rank):
@@ -45,19 +45,19 @@ def test_initialize_model_parallel(tensor_model_parallel_size):
     # Model parallel.
     world_size = tensor_model_parallel_size_
     rank = torch.distributed.get_rank() % tensor_model_parallel_size_
-    assert world_size == apex.mpu.get_tensor_model_parallel_world_size()
-    assert rank == apex.mpu.get_tensor_model_parallel_rank()
-    check(apex.mpu.get_tensor_model_parallel_group(), world_size, rank)
+    assert world_size == initialize.get_tensor_model_parallel_world_size()
+    assert rank == initialize.get_tensor_model_parallel_rank()
+    check(initialize.get_tensor_model_parallel_group(), world_size, rank)
 
     # Data parallel.
     world_size = torch.distributed.get_world_size() // tensor_model_parallel_size_
     rank = torch.distributed.get_rank() // tensor_model_parallel_size
-    assert world_size == apex.mpu.get_data_parallel_world_size()
-    assert rank == apex.mpu.get_data_parallel_rank()
-    check(apex.mpu.get_data_parallel_group(), world_size, rank)
+    assert world_size == initialize.get_data_parallel_world_size()
+    assert rank == initialize.get_data_parallel_rank()
+    check(initialize.get_data_parallel_group(), world_size, rank)
 
     # Reset groups
-    apex.mpu.destroy_model_parallel()
+    initialize.destroy_model_parallel()
 
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:
@@ -73,16 +73,16 @@ def test_get_tensor_model_parallel_src_rank(tensor_model_parallel_size_):
         tensor_model_parallel_size_,
         torch.distributed.get_world_size(),
     )
-    assert not apex.mpu.model_parallel_is_initialized()
-    apex.mpu.initialize_model_parallel(tensor_model_parallel_size)
-    assert apex.mpu.model_parallel_is_initialized()
+    assert not initialize.model_parallel_is_initialized()
+    initialize.initialize_model_parallel(tensor_model_parallel_size)
+    assert initialize.model_parallel_is_initialized()
 
     # Checks
-    src_rank = torch.distributed.get_rank() - apex.mpu.get_tensor_model_parallel_rank()
-    assert apex.mpu.get_tensor_model_parallel_src_rank() == src_rank
+    src_rank = torch.distributed.get_rank() - initialize.get_tensor_model_parallel_rank()
+    assert initialize.get_tensor_model_parallel_src_rank() == src_rank
 
     # Reset groups
-    apex.mpu.destroy_model_parallel()
+    initialize.destroy_model_parallel()
 
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:

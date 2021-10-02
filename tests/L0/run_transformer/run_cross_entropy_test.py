@@ -15,14 +15,15 @@
 import torch
 import torch.nn.functional as F
 
-from apex.mpu.tests.commons import set_random_seed
-from apex.mpu.tests.commons import IdentityLayer
-from apex.mpu.tests.commons import print_separator
-from apex.mpu.tests.commons import initialize_distributed
-from apex.mpu.tests.commons import TEST_SUCCESS_MESSAGE
-from apex import mpu
-from apex.mpu.cross_entropy import vocab_parallel_cross_entropy
-from apex.mpu.tests import global_vars
+from apex.transformer.tensor_shard.tests.commons import set_random_seed
+from apex.transformer.tensor_shard.tests.commons import IdentityLayer
+from apex.transformer.tensor_shard.tests.commons import print_separator
+from apex.transformer.tensor_shard.tests.commons import initialize_distributed
+from apex.transformer.tensor_shard.tests.commons import TEST_SUCCESS_MESSAGE
+from apex.transformer import initialize
+from apex.transformer import tensor_shard
+from apex.transformer.tensor_shard.cross_entropy import vocab_parallel_cross_entropy
+from apex.transformer.tensor_shard.tests import global_vars
 
 
 global_vars.set_global_variables()
@@ -43,13 +44,11 @@ def torch_cross_entropy(batch_size, seq_length, vocab_size,
     return loss, identity.weight.grad
 
 
-def mpu_cross_entropy(batch_size, seq_length, vocab_size,
-                      logits_scale, seed):
+def tensor_sharded_cross_entropy(batch_size, seq_length, vocab_size, logits_scale, seed):
     set_random_seed(seed)
-    identity = IdentityLayer((batch_size, seq_length, vocab_size),
-                             scale=logits_scale).cuda()
+    identity = IdentityLayer((batch_size, seq_length, vocab_size), scale=logits_scale).cuda()
     logits = identity()
-    logits_parallel = mpu.scatter_to_tensor_model_parallel_region(logits)
+    logits_parallel = tensor_shard.scatter_to_tensor_model_parallel_region(logits)
     target = torch.cuda.LongTensor(
         size=(batch_size, seq_length)).random_(0, vocab_size)
     loss = vocab_parallel_cross_entropy(logits_parallel, target).mean()
@@ -63,8 +62,8 @@ def test_cross_entropy(tensor_model_parallel_size):
         print('> testing cross entropy with model parallel size {} ...'.
               format(tensor_model_parallel_size))
 
-    mpu.initialize_model_parallel(tensor_model_parallel_size)
-    tensor_model_parallel_size = mpu.get_tensor_model_parallel_world_size()
+    initialize.initialize_model_parallel(tensor_model_parallel_size)
+    tensor_model_parallel_size = initialize.get_tensor_model_parallel_world_size()
 
     batch_size = 13
     seq_length = 17
@@ -73,12 +72,8 @@ def test_cross_entropy(tensor_model_parallel_size):
     vocab_size = vocab_size_per_partition * tensor_model_parallel_size
     seed = 1234
 
-    loss_torch, grad_torch = torch_cross_entropy(batch_size, seq_length,
-                                                 vocab_size, logits_scale,
-                                                 seed)
-    loss_mpu, grad_mpu = mpu_cross_entropy(batch_size, seq_length,
-                                           vocab_size, logits_scale,
-                                           seed)
+    loss_torch, grad_torch = torch_cross_entropy(batch_size, seq_length, vocab_size, logits_scale, seed)
+    loss_mpu, grad_mpu = tensor_sharded_cross_entropy(batch_size, seq_length, vocab_size, logits_scale, seed)
 
     error = loss_torch.sub_(loss_mpu).abs().max()
     print('   max error in loss on global rank {}: {}'.format(
@@ -91,7 +86,7 @@ def test_cross_entropy(tensor_model_parallel_size):
     assert error < 1.0e-6
 
     # Reset groups
-    mpu.destroy_model_parallel()
+    initialize.destroy_model_parallel()
 
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:

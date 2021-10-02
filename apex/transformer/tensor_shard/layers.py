@@ -21,9 +21,9 @@ import torch.nn.functional as F
 import torch.nn.init as init
 from torch.nn.parameter import Parameter
 
-from .initialize import get_tensor_model_parallel_group
-from .initialize import get_tensor_model_parallel_rank
-from .initialize import get_tensor_model_parallel_world_size
+from ..initialize import get_tensor_model_parallel_group
+from ..initialize import get_tensor_model_parallel_rank
+from ..initialize import get_tensor_model_parallel_world_size
 from .mappings import copy_to_tensor_model_parallel_region
 from .mappings import gather_from_tensor_model_parallel_region
 from .mappings import reduce_from_tensor_model_parallel_region

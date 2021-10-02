@@ -18,8 +18,8 @@ import random
 import numpy
 import torch
 
-from apex import mpu
-from apex.mpu.tests import global_vars
+from apex import transformer
+from apex.transformer.tensor_shard.tests import global_vars
 
 
 TEST_SUCCESS_MESSAGE = ">> passed the test :-)"
@@ -39,7 +39,7 @@ def set_random_seed(seed):
     random.seed(seed)
     numpy.random.seed(seed)
     torch.manual_seed(seed)
-    mpu.model_parallel_cuda_manual_seed(seed)
+    transformer.tensor_shard.model_parallel_cuda_manual_seed(seed)
 
 
 def initialize_distributed(backend='nccl'):
