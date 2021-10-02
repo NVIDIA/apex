@@ -135,6 +135,9 @@ def _prep_inputs(batch_size, normalized_shape, dtype):
     return native, fused
 
 
+autocast_dtypes = (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
+
+
 class TestAutocastFusedLayerNorm(unittest.TestCase):
     bf16_fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
     bf16_bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
@@ -163,6 +166,6 @@ class TestAutocastFusedLayerNorm(unittest.TestCase):
         torch.testing.assert_allclose(native_x.grad, fused_x.grad, **tols)
 
     def test_autocast(self):
-        for (dtype, elementwise_affine) in itertools.product((torch.half, torch.bfloat16), (True, False)):
+        for (dtype, elementwise_affine) in itertools.product(autocast_dtypes, (True, False)):
             with self.subTest(f"{dtype}-{elementwise_affine}"):
                 self._run_test(dtype, elementwise_affine)

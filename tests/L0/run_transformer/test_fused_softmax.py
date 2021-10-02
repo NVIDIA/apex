@@ -16,6 +16,9 @@ def attention_mask_func(attention_scores, attention_mask):
     return attention_scores
 
 
+autocast_dtypes = (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
+
+
 class TestFusedScaleMaskSoftmax(unittest.TestCase):
 
     def _setup_fused_softmax(self, input_in_fp16, input_in_bf16, scale=None, softmax_in_fp32=False, attn_mask_type=AttnMaskType.padding):
@@ -65,7 +68,7 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 torch.testing.assert_allclose(actual, reference)
 
     def test_autocast_fused_scale_mask_softmax(self):
-        for dtype in (torch.bfloat16, torch.float16):
+        for dtype in autocast_dtypes:
             with self.subTest(f"{dtype}"):
                 input_in_fp16 = dtype == torch.half
                 input_in_bf16 = dtype == torch.bfloat16
@@ -115,7 +118,7 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 torch.testing.assert_allclose(actual, reference)
 
     def test_autocast_fused_upper_triangle_mask_softmax(self):
-        for dtype in (torch.bfloat16, torch.float16):
+        for dtype in autocast_dtypes:
             with self.subTest(f"{dtype}"):
                 input_in_fp16 = dtype == torch.half
                 input_in_bf16 = dtype == torch.bfloat16
