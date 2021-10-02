@@ -15,15 +15,15 @@
 import torch
 import torch.nn.functional as F
 
-from apex.transformer.tensor_shard.tests.commons import set_random_seed
-from apex.transformer.tensor_shard.tests.commons import IdentityLayer
-from apex.transformer.tensor_shard.tests.commons import print_separator
-from apex.transformer.tensor_shard.tests.commons import initialize_distributed
-from apex.transformer.tensor_shard.tests.commons import TEST_SUCCESS_MESSAGE
-from apex.transformer import initialize
-from apex.transformer import tensor_shard
-from apex.transformer.tensor_shard.cross_entropy import vocab_parallel_cross_entropy
-from apex.transformer.tensor_shard.tests import global_vars
+from apex.transformer.tensor_parallel.tests.commons import set_random_seed
+from apex.transformer.tensor_parallel.tests.commons import IdentityLayer
+from apex.transformer.tensor_parallel.tests.commons import print_separator
+from apex.transformer.tensor_parallel.tests.commons import initialize_distributed
+from apex.transformer.tensor_parallel.tests.commons import TEST_SUCCESS_MESSAGE
+from apex.transformer import parallel_state
+from apex.transformer import tensor_parallel
+from apex.transformer.tensor_parallel.cross_entropy import vocab_parallel_cross_entropy
+from apex.transformer.tensor_parallel.tests import global_vars
 
 
 global_vars.set_global_variables()
@@ -48,7 +48,7 @@ def tensor_sharded_cross_entropy(batch_size, seq_length, vocab_size, logits_scal
     set_random_seed(seed)
     identity = IdentityLayer((batch_size, seq_length, vocab_size), scale=logits_scale).cuda()
     logits = identity()
-    logits_parallel = tensor_shard.scatter_to_tensor_model_parallel_region(logits)
+    logits_parallel = tensor_parallel.scatter_to_tensor_model_parallel_region(logits)
     target = torch.cuda.LongTensor(
         size=(batch_size, seq_length)).random_(0, vocab_size)
     loss = vocab_parallel_cross_entropy(logits_parallel, target).mean()
@@ -62,8 +62,8 @@ def test_cross_entropy(tensor_model_parallel_size):
         print('> testing cross entropy with model parallel size {} ...'.
               format(tensor_model_parallel_size))
 
-    initialize.initialize_model_parallel(tensor_model_parallel_size)
-    tensor_model_parallel_size = initialize.get_tensor_model_parallel_world_size()
+    parallel_state.initialize_model_parallel(tensor_model_parallel_size)
+    tensor_model_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
 
     batch_size = 13
     seq_length = 17
@@ -86,7 +86,7 @@ def test_cross_entropy(tensor_model_parallel_size):
     assert error < 1.0e-6
 
     # Reset groups
-    initialize.destroy_model_parallel()
+    parallel_state.destroy_model_parallel()
 
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:

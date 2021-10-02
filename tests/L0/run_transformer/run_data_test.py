@@ -17,12 +17,12 @@ import operator
 
 import torch
 
-from apex.transformer import initialize
-from apex.transformer.tensor_shard import data as data_utils
-from apex.transformer.tensor_shard.tests import global_vars
-from apex.transformer.tensor_shard.tests.commons import print_separator
-from apex.transformer.tensor_shard.tests.commons import initialize_distributed
-from apex.transformer.tensor_shard.tests.commons import TEST_SUCCESS_MESSAGE
+from apex.transformer import parallel_state
+from apex.transformer.tensor_parallel import data as data_utils
+from apex.transformer.tensor_parallel.tests import global_vars
+from apex.transformer.tensor_parallel.tests.commons import print_separator
+from apex.transformer.tensor_parallel.tests.commons import initialize_distributed
+from apex.transformer.tensor_parallel.tests.commons import TEST_SUCCESS_MESSAGE
 
 global_vars.set_global_variables()
 
@@ -33,9 +33,9 @@ def test_broadcast_data(tensor_model_parallel_size):
         print('> testing broadcast_data with model parallel size {} ...'.
               format(tensor_model_parallel_size))
 
-    initialize.initialize_model_parallel(tensor_model_parallel_size)
-    torch.manual_seed(1234 + initialize.get_data_parallel_rank())
-    tensor_model_parallel_size = initialize.get_tensor_model_parallel_world_size()
+    parallel_state.initialize_model_parallel(tensor_model_parallel_size)
+    torch.manual_seed(1234 + parallel_state.get_data_parallel_rank())
+    tensor_model_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
 
     key_size_t = {
         'key1': [7, 11],
@@ -53,7 +53,7 @@ def test_broadcast_data(tensor_model_parallel_size):
         data_t[key] = data[key].clone()
     data['keyX'] = torch.FloatTensor(size=(5, )).random_(0, 1000)
     data_t['keyX'] = data['keyX'].clone()
-    if initialize.get_tensor_model_parallel_rank() != 0:
+    if parallel_state.get_tensor_model_parallel_rank() != 0:
         data = None
 
     data_utils._check_data_types(keys, data_t, torch.int64)
@@ -74,7 +74,7 @@ def test_broadcast_data(tensor_model_parallel_size):
         assert data_b[key].sub(tensor).abs().max() == 0
 
     # Reset groups
-    initialize.destroy_model_parallel()
+    parallel_state.destroy_model_parallel()
 
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:

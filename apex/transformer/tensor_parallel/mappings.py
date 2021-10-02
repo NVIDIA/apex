@@ -14,9 +14,9 @@
 # limitations under the License.
 import torch
 
-from ..initialize import get_tensor_model_parallel_group
-from ..initialize import get_tensor_model_parallel_world_size
-from ..initialize import get_tensor_model_parallel_rank
+from ..parallel_state import get_tensor_model_parallel_group
+from ..parallel_state import get_tensor_model_parallel_world_size
+from ..parallel_state import get_tensor_model_parallel_rank
 from .utils import split_tensor_along_last_dim
 
 

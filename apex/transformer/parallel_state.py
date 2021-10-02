@@ -17,7 +17,7 @@ import torch
 
 # TODO (mkozuki): Consider dissecting utils as this utils import is here
 # only for ensure_divisibility
-from .tensor_shard import utils
+from .tensor_parallel import utils
 
 
 # Intra-layer model parallel group that the current rank belongs to.

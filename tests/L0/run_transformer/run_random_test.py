@@ -14,12 +14,12 @@
 # limitations under the License.
 import torch
 
-from apex.transformer import initialize
-from apex.transformer import tensor_shard
-from apex.transformer.tensor_shard.tests import global_vars
-from apex.transformer.tensor_shard.tests.commons import print_separator
-from apex.transformer.tensor_shard.tests.commons import initialize_distributed
-from apex.transformer.tensor_shard.tests.commons import TEST_SUCCESS_MESSAGE
+from apex.transformer import parallel_state
+from apex.transformer import tensor_parallel
+from apex.transformer.tensor_parallel.tests import global_vars
+from apex.transformer.tensor_parallel.tests.commons import print_separator
+from apex.transformer.tensor_parallel.tests.commons import initialize_distributed
+from apex.transformer.tensor_parallel.tests.commons import TEST_SUCCESS_MESSAGE
 
 
 global_vars.set_global_variables()
@@ -31,8 +31,8 @@ def test_set_cuda_rng_state(tensor_model_parallel_size):
         print('> testing set_rng_state with size {} ...'.
               format(tensor_model_parallel_size))
 
-    initialize.initialize_model_parallel(tensor_model_parallel_size)
-    tensor_model_parallel_size = initialize.get_tensor_model_parallel_world_size()
+    parallel_state.initialize_model_parallel(tensor_model_parallel_size)
+    tensor_model_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
 
     size = 123
     seed = 1234
@@ -59,10 +59,10 @@ def test_set_cuda_rng_state(tensor_model_parallel_size):
     assert max_diff > 0
 
     # Reset the rng state and do the same stuff.
-    tensor_shard.random._set_cuda_rng_state(rng_state)
+    tensor_parallel.random._set_cuda_rng_state(rng_state)
     for _ in range(5):
         torch.randn(size, out=tensor)
-    tensor_shard.random._set_cuda_rng_state(rng_state)
+    tensor_parallel.random._set_cuda_rng_state(rng_state)
     for _ in range(5):
         torch.randn(size, out=tensor)
     result_2 = tensor.clone()
@@ -80,7 +80,7 @@ def test_set_cuda_rng_state(tensor_model_parallel_size):
     assert error == 0
 
     # Reset groups
-    initialize.destroy_model_parallel()
+    parallel_state.destroy_model_parallel()
 
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:
@@ -93,8 +93,8 @@ def test_cuda_rng_tracker(tensor_model_parallel_size):
         print('> testing cuda rng tracker with size {} ...'.
               format(tensor_model_parallel_size))
 
-    initialize.initialize_model_parallel(tensor_model_parallel_size)
-    tensor_model_parallel_size = initialize.get_tensor_model_parallel_world_size()
+    parallel_state.initialize_model_parallel(tensor_model_parallel_size)
+    tensor_model_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
 
     seed_1 = 1234
     seed_2 = 4321
@@ -118,19 +118,19 @@ def test_cuda_rng_tracker(tensor_model_parallel_size):
     # Now if we interleave seed_1 and seed_2,
     # we should still get the same tensors
     torch.cuda.manual_seed(seed_1)
-    tensor_shard.random.get_cuda_rng_tracker().add('test', seed_2)
+    tensor_parallel.random.get_cuda_rng_tracker().add('test', seed_2)
 
     torch.randn(size, out=tensor)
     result_11 = tensor.clone()
 
-    with tensor_shard.random.get_cuda_rng_tracker().fork('test'):
+    with tensor_parallel.random.get_cuda_rng_tracker().fork('test'):
         torch.randn(size, out=tensor)
         result_21 = tensor.clone()
 
     torch.randn(size, out=tensor)
     result_12 = tensor.clone()
 
-    with tensor_shard.random.get_cuda_rng_tracker().fork('test'):
+    with tensor_parallel.random.get_cuda_rng_tracker().fork('test'):
         torch.randn(size, out=tensor)
         result_22 = tensor.clone()
 
@@ -148,10 +148,10 @@ def test_cuda_rng_tracker(tensor_model_parallel_size):
     assert error < 1.0e-6
 
     # Reset the tracker
-    tensor_shard.random.get_cuda_rng_tracker().reset()
+    tensor_parallel.random.get_cuda_rng_tracker().reset()
 
     # Reset groups
-    initialize.destroy_model_parallel()
+    parallel_state.destroy_model_parallel()
 
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:
@@ -165,22 +165,22 @@ def test_model_parallel_cuda_manual_seed(tensor_model_parallel_size):
             '> testing model parallel cuda manual seed with size {} ...'.format(
                 tensor_model_parallel_size))
 
-    initialize.initialize_model_parallel(tensor_model_parallel_size)
-    tensor_model_parallel_size = initialize.get_tensor_model_parallel_world_size()
+    parallel_state.initialize_model_parallel(tensor_model_parallel_size)
+    tensor_model_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
 
-    tensor_shard.random.model_parallel_cuda_manual_seed(12345)
+    tensor_parallel.random.model_parallel_cuda_manual_seed(12345)
     assert torch.cuda.initial_seed() == 12345
-    with tensor_shard.random.get_cuda_rng_tracker().fork():
+    with tensor_parallel.random.get_cuda_rng_tracker().fork():
         assert (
             torch.cuda.initial_seed() ==
-            12345 + 2718 + initialize.get_tensor_model_parallel_rank()
+            12345 + 2718 + parallel_state.get_tensor_model_parallel_rank()
         )
 
     # Reset the tracker
-    tensor_shard.random.get_cuda_rng_tracker().reset()
+    tensor_parallel.random.get_cuda_rng_tracker().reset()
 
     # Reset groups
-    initialize.destroy_model_parallel()
+    parallel_state.destroy_model_parallel()
 
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:

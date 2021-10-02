@@ -23,10 +23,10 @@ from torch import _C
 from torch.cuda import _lazy_call, device as device_ctx_manager
 from torch.utils.checkpoint import detach_variable
 
-from ..initialize import get_data_parallel_rank
-from ..initialize import get_tensor_model_parallel_group
-from ..initialize import get_tensor_model_parallel_rank
-from ..initialize import get_tensor_model_parallel_world_size
+from ..parallel_state import get_data_parallel_rank
+from ..parallel_state import get_tensor_model_parallel_group
+from ..parallel_state import get_tensor_model_parallel_rank
+from ..parallel_state import get_tensor_model_parallel_world_size
 from .memory import allocate_mem_buff
 
 

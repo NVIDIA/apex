@@ -1,9 +1,9 @@
-from . import tensor_shard
+from . import tensor_parallel
 from . import functional
 from .enums import LayerType
 from .enums import AttnType
 from .enums import AttnMaskType
-from .initialize import (
+from .parallel_state import (
     is_unitialized,
     destroy_model_parallel,
     get_data_parallel_group,

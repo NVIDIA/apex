@@ -1,6 +1,6 @@
 import torch
 
-from apex.transformer.tensor_shard import utils
+from apex.transformer.tensor_parallel import utils
 
 
 def test_divide():
