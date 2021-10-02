@@ -206,6 +206,30 @@ if "--cuda_ext" in sys.argv:
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
 
+        ext_modules.append(
+            CUDAExtension(name='scaled_upper_triang_masked_softmax_cuda',
+                          sources=['csrc/megatron/scaled_upper_triang_masked_softmax.cpp',
+                                   'csrc/megatron/scaled_upper_triang_masked_softmax_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda'] + version_dependent_macros}))
+
+        ext_modules.append(
+            CUDAExtension(name='scaled_masked_softmax_cuda',
+                          sources=['csrc/megatron/scaled_masked_softmax.cpp',
+                                   'csrc/megatron/scaled_masked_softmax_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda'] + version_dependent_macros}))
+
 if "--bnp" in sys.argv:
     sys.argv.remove("--bnp")
 
@@ -494,6 +518,7 @@ if "--fast_bottleneck" in sys.argv:
                           sources=['apex/contrib/csrc/bottleneck/bottleneck.cpp'],
                           include_dirs=[os.path.join(this_dir, 'apex/contrib/csrc/cudnn-frontend/include')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag}))
+
 
 setup(
     name='apex',

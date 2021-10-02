@@ -34,6 +34,32 @@
   }
 
 
+#define DISPATCH_FLOAT_HALF_AND_BFLOAT(TYPE, LEVEL, NAME, ...) \
+  switch(TYPE) \
+  { \
+    case at::ScalarType::Float: \
+    { \
+      using scalar_t_##LEVEL = float; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::Half: \
+    { \
+      using scalar_t_##LEVEL = at::Half; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    case at::ScalarType::BFloat16: \
+    { \
+      using scalar_t_##LEVEL = at::BFloat16; \
+      __VA_ARGS__; \
+      break; \
+    } \
+    default: \
+      AT_ERROR(#NAME, " not implemented for '", toString(TYPE), "'");  \
+  }
+
+
 #define DISPATCH_FLOAT_HALF_AND_BYTE(TYPE, LEVEL, NAME, ...) \
   switch(TYPE) \
   { \
@@ -104,6 +130,160 @@
     default: \
       AT_ERROR(#NAME, " not implemented for '", toString(TYPE), "'");  \
   }
+
+
+  #define DISPATCH_HALF_AND_BFLOAT(TYPE, NAME, ...)			\
+  switch(TYPE)								\
+    {									\
+    case at::ScalarType::Half:						\
+      {									\
+	using scalar_t = at::Half;					\
+	__VA_ARGS__;							\
+	break;								\
+      }									\
+    case at::ScalarType::BFloat16:					\
+      {									\
+	using scalar_t = at::BFloat16;					\
+	__VA_ARGS__;							\
+	break;								\
+      }									\
+    default:								\
+      AT_ERROR(#NAME, " not implemented for '", toString(TYPE), "'");	\
+  }
+
+
+  #define DISPATCH_FLOAT_HALF_AND_BFLOAT_INOUT_TYPES(TYPEIN, TYPEOUT, NAME, ...) \
+  switch(TYPEIN)							\
+    {									\
+    case at::ScalarType::Float:						\
+      {									\
+	using scalar_t_in = float;					\
+	switch(TYPEOUT)							\
+	  {								\
+	  case at::ScalarType::Float:					\
+	    {								\
+	      using scalar_t_out = float;				\
+	      __VA_ARGS__;						\
+	      break;							\
+	    }								\
+	  case at::ScalarType::Half:					\
+	    {								\
+	      using scalar_t_out = at::Half;				\
+	      __VA_ARGS__;						\
+	      break;							\
+	    }								\
+	  case at::ScalarType::BFloat16:				\
+	    {								\
+	      using scalar_t_out = at::BFloat16;			\
+	      __VA_ARGS__;						\
+	      break;							\
+	    }								\
+	  default:							\
+	    AT_ERROR(#NAME, " not implemented for '", toString(TYPEOUT), "'"); \
+	  }								\
+	break;								\
+      }									\
+    case at::ScalarType::Half:						\
+      {									\
+	using scalar_t_in = at::Half;					\
+	using scalar_t_out = at::Half;					\
+	__VA_ARGS__;							\
+	break;								\
+      }									\
+    case at::ScalarType::BFloat16:					\
+      {									\
+	using scalar_t_in = at::BFloat16;				\
+	using scalar_t_out = at::BFloat16;				\
+	__VA_ARGS__;							\
+	break;								\
+      }									\
+    default:								\
+      AT_ERROR(#NAME, " not implemented for '", toString(TYPEIN), "'");	\
+    }
+
+
+  #define DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT_INOUT_TYPES(TYPEIN, TYPEOUT, NAME, ...) \
+  switch(TYPEIN)							\
+    {									\
+    case at::ScalarType::Double:						\
+      {									\
+	using scalar_t_in = double;					\
+	switch(TYPEOUT)							\
+	  {								\
+	  case at::ScalarType::Double:					\
+	    {								\
+	      using scalar_t_out = double;				\
+	      __VA_ARGS__;						\
+	      break;							\
+	    }								\
+	  case at::ScalarType::Float:					\
+	    {								\
+	      using scalar_t_out = float;				\
+	      __VA_ARGS__;						\
+	      break;							\
+	    }								\
+	  case at::ScalarType::Half:					\
+	    {								\
+	      using scalar_t_out = at::Half;				\
+	      __VA_ARGS__;						\
+	      break;							\
+	    }								\
+	  case at::ScalarType::BFloat16:				\
+	    {								\
+	      using scalar_t_out = at::BFloat16;			\
+	      __VA_ARGS__;						\
+	      break;							\
+	    }								\
+	  default:							\
+	    AT_ERROR(#NAME, " not implemented for '", toString(TYPEOUT), "'"); \
+	  }								\
+	break;								\
+      }									\
+    case at::ScalarType::Float:						\
+      {									\
+	using scalar_t_in = float;					\
+	switch(TYPEOUT)							\
+	  {								\
+	  case at::ScalarType::Float:					\
+	    {								\
+	      using scalar_t_out = float;				\
+	      __VA_ARGS__;						\
+	      break;							\
+	    }								\
+	  case at::ScalarType::Half:					\
+	    {								\
+	      using scalar_t_out = at::Half;				\
+	      __VA_ARGS__;						\
+	      break;							\
+	    }								\
+	  case at::ScalarType::BFloat16:				\
+	    {								\
+	      using scalar_t_out = at::BFloat16;			\
+	      __VA_ARGS__;						\
+	      break;							\
+	    }								\
+	  default:							\
+	    AT_ERROR(#NAME, " not implemented for '", toString(TYPEOUT), "'"); \
+	  }								\
+	break;								\
+      }									\
+    case at::ScalarType::Half:						\
+      {									\
+	using scalar_t_in = at::Half;					\
+	using scalar_t_out = at::Half;					\
+	__VA_ARGS__;							\
+	break;								\
+      }									\
+    case at::ScalarType::BFloat16:					\
+      {									\
+	using scalar_t_in = at::BFloat16;				\
+	using scalar_t_out = at::BFloat16;				\
+	__VA_ARGS__;							\
+	break;								\
+      }									\
+    default:								\
+      AT_ERROR(#NAME, " not implemented for '", toString(TYPEIN), "'");	\
+    }
 
 
 template<typename T>

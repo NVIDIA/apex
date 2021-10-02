@@ -130,12 +130,13 @@ std::vector<at::Tensor> layer_norm(
   int n1,n2;
   check_args(input,normalized_shape,n1,n2);
   at::Tensor output = at::empty_like(input);
-  at::Tensor mean = at::empty({n1}, input.options().dtype(input.scalar_type()==at::ScalarType::Half ? at::ScalarType::Float : input.scalar_type()));
+  at::Tensor mean = at::empty({n1}, input.options().dtype(input.scalar_type()==at::ScalarType::Half || input.scalar_type()==at::ScalarType::BFloat16 ? at::ScalarType::Float : input.scalar_type()));
   at::Tensor invvar = at::empty_like(mean);
   cuda_layer_norm(&output,&mean,&invvar,&input,n1,n2,
       normalized_shape,NULL,NULL,epsilon);
   return {output, mean, invvar};
 }
+
 std::vector<at::Tensor> layer_norm_affine(
     at::Tensor input,
     #ifdef VERSION_GE_1_1
@@ -152,10 +153,32 @@ std::vector<at::Tensor> layer_norm_affine(
   int n1,n2;
   check_args(input,normalized_shape,gamma,beta,n1,n2);
   at::Tensor output = at::empty_like(input);
-  at::Tensor mean = at::empty({n1}, input.options().dtype(input.scalar_type()==at::ScalarType::Half ? at::ScalarType::Float : input.scalar_type()));
+  const auto stats_dtype = (input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16) ? at::ScalarType::Float : input.scalar_type();
+  at::Tensor mean = at::empty({n1}, input.options().dtype(stats_dtype));
   at::Tensor invvar = at::empty_like(mean);
   cuda_layer_norm(&output,&mean,&invvar,&input,n1,n2,
       normalized_shape,&gamma,&beta,epsilon);
+  return {output, mean, invvar};
+}
+
+std::vector<at::Tensor> layer_norm_affine_mixed_dtypes(
+    at::Tensor input,
+    #ifdef VERSION_GE_1_1
+    at::IntArrayRef normalized_shape,
+    #else
+    at::IntList normalized_shape,
+    #endif
+    at::Tensor gamma,
+    at::Tensor beta,
+    double epsilon) {
+  CHECK_INPUT(input);
+  int n1, n2;
+  check_args(input, normalized_shape, n1, n2);
+  at::Tensor output = at::empty_like(input, gamma.options().dtype(gamma.scalar_type()));
+  at::Tensor mean = at::empty({n1}, input.options().dtype(input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16 ? at::ScalarType::Float : input.scalar_type()));
+  at::Tensor invvar = at::empty_like(mean);
+   cuda_layer_norm(&output, &mean, &invvar, &input, n1, n2,
+      normalized_shape, &gamma, &beta, epsilon);
   return {output, mean, invvar};
 }
 
@@ -202,6 +225,7 @@ at::Tensor layer_norm_gradient(
       &grad_input,NULL,NULL);
   return grad_input;
 }
+
 std::vector<at::Tensor> layer_norm_gradient_affine(
     at::Tensor dout,
     at::Tensor mean,
@@ -237,5 +261,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &layer_norm, "LayerNorm forward (CUDA)");
   m.def("backward_affine", &layer_norm_gradient_affine, "LayerNorm backward (CUDA)");
   m.def("backward", &layer_norm_gradient, "LayerNorm backward (CUDA)");
+
+  m.def("forward_affine_mixed_dtypes", &layer_norm_affine_mixed_dtypes, "LayerNorm forward with mixed dtypes (CUDA) compatible with Megatron's implementation");
 }
 
