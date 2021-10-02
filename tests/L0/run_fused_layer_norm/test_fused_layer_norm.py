@@ -1,3 +1,4 @@
+import itertools
 import unittest
 
 import torch
@@ -114,3 +115,54 @@ class TestFusedLayerNormElemWiseBFloat16(TestFusedLayerNormElemWise):
 
     def test_large_batch(self):
         self.skipTest("Skip to save time")
+
+
+def _prep_layers(normalized_shape, elementwise_affine, dtype):
+    native = torch.nn.LayerNorm(
+        normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+    ).to(device="cuda", dtype=dtype)
+    fused = apex.normalization.FusedLayerNorm(
+        normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+    ).cuda()
+    return native, fused
+
+
+def _prep_inputs(batch_size, normalized_shape, dtype):
+    shape = (batch_size, *normalized_shape)
+    fused = torch.randn(shape).cuda().requires_grad_(True)
+    with torch.no_grad():
+        native = fused.clone().to(dtype).requires_grad_(True)
+    return native, fused
+
+
+class TestAutocastFusedLayerNorm(unittest.TestCase):
+    bf16_fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
+    bf16_bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
+
+    def setUp(self):
+        self.batch_size = 16
+        self.normalized_shape = [32, 16]
+
+    def _run_test(self, dtype, elementwise_affine):
+        native, fused = _prep_layers(self.normalized_shape, elementwise_affine, dtype)
+        native_x, fused_x = _prep_inputs(self.batch_size, self.normalized_shape, dtype)
+
+        expected = native(native_x)
+        with torch.cuda.amp.autocast(dtype=dtype):
+            actual = fused(fused_x)
+        tols = {'rtol': None, 'atol': None} if dtype == torch.half else TestAutocastFusedLayerNorm.bf16_fwd_thresholds
+        torch.testing.assert_allclose(actual, expected, **tols)
+
+        g_native = torch.rand_like(expected)
+        with torch.no_grad():
+            g_fused = g_native.clone()
+        expected.backward(g_native)
+        actual.backward(g_fused)
+
+        tols = {'rtol': None, 'atol': None} if dtype == torch.half else TestAutocastFusedLayerNorm.bf16_bwd_thresholds
+        torch.testing.assert_allclose(native_x.grad, fused_x.grad, **tols)
+
+    def test_autocast(self):
+        for (dtype, elementwise_affine) in itertools.product((torch.half, torch.bfloat16), (True, False)):
+            with self.subTest(f"{dtype}-{elementwise_affine}"):
+                self._run_test(dtype, elementwise_affine)

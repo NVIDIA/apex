@@ -1,10 +1,12 @@
-import math
-import torch
+import importlib
 import numbers
+
+import torch
 from torch.nn.parameter import Parameter
 from torch.nn import init
 from torch.nn import functional as F
-import importlib
+
+from apex._autocast_utils import _cast_if_autocast_enabled
 
 global fused_layer_norm_cuda
 fused_layer_norm_cuda = None
@@ -79,12 +81,22 @@ class FusedLayerNormFunction(torch.autograd.Function):
         return grad_input, None, None
 
 
-def fused_layer_norm_affine(input, normalized_shape, weight, bias, eps=1e-6):
-    return FusedLayerNormAffineFunction.apply(input, weight, bias, normalized_shape, eps)
+def fused_layer_norm_affine(input, weight, bias, normalized_shape, eps=1e-6):
+    args = _cast_if_autocast_enabled(input, weight, bias, normalized_shape, eps)
+    with torch.cuda.amp.autocast(enabled=False):
+        return FusedLayerNormAffineFunction.apply(*args)
 
 
 def fused_layer_norm(input, normalized_shape, eps=1e-6):
-    return FusedLayerNormFunction.apply(input, normalized_shape, eps)
+    args = _cast_if_autocast_enabled(input, normalized_shape, eps)
+    with torch.cuda.amp.autocast(enabled=False):
+        return FusedLayerNormFunction.apply(*args)
+
+
+def mixed_dtype_fused_layer_norm_affine(input, weight, bias, normalized_shape, eps=1e-6):
+    args = _cast_if_autocast_enabled(input, weight, bias, normalized_shape, eps)
+    with torch.cuda.amp.autocast(enabled=False):
+        return FusedLayerNormAffineMixedDtypesFunction.apply(*args)
 
 
 class FusedLayerNorm(torch.nn.Module):
@@ -175,9 +187,9 @@ class FusedLayerNorm(torch.nn.Module):
         if not input.is_cuda:
             return F.layer_norm(input, self.normalized_shape, self.weight, self.bias, self.eps)
         if self.elementwise_affine:
-            return FusedLayerNormAffineFunction.apply(input, self.weight, self.bias, self.normalized_shape, self.eps)
+            return fused_layer_norm_affine(input, self.weight, self.bias, self.normalized_shape, self.eps)
         else:
-            return FusedLayerNormFunction.apply(input, self.normalized_shape, self.eps)
+            return fused_layer_norm(input, self.normalized_shape, self.eps)
 
     def extra_repr(self):
         return "{normalized_shape}, eps={eps}, " "elementwise_affine={elementwise_affine}".format(**self.__dict__)
@@ -203,4 +215,4 @@ class MixedFusedLayerNorm(FusedLayerNorm):
         # NOTE (mkozuki): CPU path is here mainly for unittest sake.
         if not input.is_cuda:
             return F.layer_norm(input, self.normalized_shape, self.weight, self.bias, self.eps)
-        return FusedLayerNormAffineMixedDtypesFunction.apply(input, self.weight, self.bias, self.normalized_shape, self.eps)
+        return mixed_dtype_fused_layer_norm_affine(input, self.weight, self.bias, self.normalized_shape, self.eps)
