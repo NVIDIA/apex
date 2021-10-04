@@ -85,6 +85,10 @@ void multi_tensor_apply(
   for(int t = 0; t < ntensors; t++)
   {
     tl.sizes[loc_tensor_info] = tensor_lists[0][t].numel();
+    // skip empty tensors
+    if (tl.sizes[loc_tensor_info] == 0) {
+      continue;
+    }
     for(int d = 0; d < depth; d++) {
       if (tensor_lists[d][t].is_sparse()) {
         at::Tensor dst = at::zeros(tensor_lists[d][t].sizes(), tensor_lists[d][t].options().layout(at::kStrided));
