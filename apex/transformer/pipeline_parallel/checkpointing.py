@@ -15,8 +15,10 @@
 """Input/output checkpointing."""
 
 import os
+import pathlib
 import random
 import sys
+import typing
 
 import numpy as np
 import torch
@@ -73,7 +75,7 @@ def check_checkpoint_args(checkpoint_args, args_value, vocab_file):
         _compare("pipeline_model_parallel_size")
 
 
-def ensure_directory_exists(filename):
+def ensure_directory_exists(filename: typing.Union[str, pathlib.Path]):
     """Build filename's path if it does not already exists."""
     dirname = os.path.dirname(filename)
     if not os.path.exists(dirname):
@@ -147,7 +149,18 @@ def read_metadata(tracker_filename):
     return max_iter, release
 
 
-def save_checkpoint(iteration, model, optimizer, lr_scheduler):
+import typing  # NOQA
+import pathlib  # NOQA
+def save_checkpoint(
+        save_dir: typing.Union[str, pathlib.Path],
+        iteration: int,
+        model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        lr_scheduler: torch.optim.lr_scheduler._LRScheduler,
+        *,
+        no_save_optim: bool = False,
+        no_save_rng: bool = False,
+):
     """Save a model checkpoint."""
     # Only rank zero of the data parallel writes to the disk.
     model = unwrap_model(model)
@@ -158,7 +171,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
 
         # Arguments, iteration, and model.
         state_dict = {}
-        state_dict["args"] = args
+        # state_dict["args"] = args
         state_dict["checkpoint_version"] = 3.0
         state_dict["iteration"] = iteration
         if len(model) == 1:
@@ -169,14 +182,14 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
                 state_dict["model%d" % i] = model[i].state_dict_for_save_checkpoint()
 
         # Optimizer stuff.
-        if not args.no_save_optim:
+        if not no_save_optim:
             if optimizer is not None:
                 state_dict["optimizer"] = optimizer.state_dict()
             if lr_scheduler is not None:
                 state_dict["lr_scheduler"] = lr_scheduler.state_dict()
 
         # RNG states.
-        if not args.no_save_rng:
+        if not no_save_rng:
             state_dict["random_rng_state"] = random.getstate()
             state_dict["np_rng_state"] = np.random.get_state()
             state_dict["torch_rng_state"] = torch.get_rng_state()
@@ -184,7 +197,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
             state_dict["rng_tracker_states"] = tensor_parallel.random.get_cuda_rng_tracker().get_states()
 
         # Save.
-        checkpoint_name = get_checkpoint_name(args.save, iteration)
+        checkpoint_name = get_checkpoint_name(save_dir, iteration)
         ensure_directory_exists(checkpoint_name)
         torch.save(state_dict, checkpoint_name)
 
@@ -198,7 +211,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
 
     # And update the latest iteration
     if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-        tracker_filename = get_checkpoint_tracker_filename(args.save)
+        tracker_filename = get_checkpoint_tracker_filename(save_dir)
         with open(tracker_filename, "w") as f:
             f.write(str(iteration))
 
@@ -288,7 +301,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg="load", strict=True
         :attr:`state_dict` of the checkpoint match the names of
         parameters and buffers in model.
     """
-    args = get_args()
+    # args = get_args()
     load_dir = getattr(args, load_arg)
 
     model = unwrap_model(model)
