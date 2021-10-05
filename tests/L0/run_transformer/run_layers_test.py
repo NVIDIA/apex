@@ -265,6 +265,85 @@ def test_column_parallel_linear(tensor_model_parallel_size):
         print(' >> passed the test :-)')
 
 
+def test_column_parallel_linear_with_async_allreduce_autocast(tensor_model_parallel_size):
+    autocast_dtypes = (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
+
+    for dtype in autocast_dtypes:
+        parallel_state.initialize_model_parallel(tensor_model_parallel_size)
+        tensor_model_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
+
+        seed = 12345
+        set_random_seed(seed)
+        input_size_coeff = 13
+        input_size = input_size_coeff * tensor_model_parallel_size
+        output_size_coeff = 17
+        output_size = output_size_coeff * tensor_model_parallel_size
+        batch_size = 7
+
+        # Network
+        identity_layer = IdentityLayer2D(batch_size, input_size).cuda()
+        linear_layer = layers.ColumnParallelLinear(
+            input_size, output_size, keep_master_weight_for_test=True,
+            params_dtype=global_vars.get_args().params_dtype,
+            use_cpu_initialization=global_vars.get_args().use_cpu_initialization,
+        ).cuda()
+        # Forward
+        loss_weight = torch.randn([batch_size, output_size]).cuda()
+        with torch.cuda.amp.autocast(dtype=dtype):
+            output, _ = linear_layer(identity_layer())
+            loss = torch.mul(output, loss_weight).sum()
+        assert output.dtype == dtype
+        # Backward
+        loss.backward()
+        torch.distributed.barrier()
+
+        # Reset groups
+        parallel_state.destroy_model_parallel()
+
+        torch.distributed.barrier()
+        if torch.distributed.get_rank() == 0:
+            print(' >> passed the test :-)')
+
+
+def test_column_parallel_linear_with_async_allreduce_custom_amp(tensor_model_parallel_size):
+    dtypes = (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
+
+    for dtype in dtypes:
+        parallel_state.initialize_model_parallel(tensor_model_parallel_size)
+        tensor_model_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
+
+        seed = 12345
+        set_random_seed(seed)
+        input_size_coeff = 13
+        input_size = input_size_coeff * tensor_model_parallel_size
+        output_size_coeff = 17
+        output_size = output_size_coeff * tensor_model_parallel_size
+        batch_size = 7
+
+        # Network
+        identity_layer = IdentityLayer2D(batch_size, input_size).to(device="cuda", dtype=dtype)
+        linear_layer = layers.ColumnParallelLinear(
+            input_size, output_size, keep_master_weight_for_test=True,
+            params_dtype=global_vars.get_args().params_dtype,
+            use_cpu_initialization=global_vars.get_args().use_cpu_initialization,
+        ).to(device="cuda", dtype=dtype)
+        # Forward
+        loss_weight = torch.randn([batch_size, output_size]).cuda()
+        output, _ = linear_layer(identity_layer())
+        loss = torch.mul(output, loss_weight).sum()
+        loss.backward()
+        torch.distributed.barrier()
+
+        assert output.dtype == dtype
+
+        # Reset groups
+        parallel_state.destroy_model_parallel()
+
+        torch.distributed.barrier()
+        if torch.distributed.get_rank() == 0:
+            print(' >> passed the test :-)')
+
+
 def test_row_parallel_linear(tensor_model_parallel_size):
 
     parallel_state.initialize_model_parallel(tensor_model_parallel_size)
@@ -543,6 +622,16 @@ if __name__ == '__main__':
     while tensor_model_parallel_size <= world_size:
         test_row_parallel_linear(tensor_model_parallel_size)
         tensor_model_parallel_size *= 2
+
+    print_separator("test ColumnParallelLinearWithAsyncAllreduce - autocast")
+    tensor_model_parallel_size = 1
+    while tensor_model_parallel_size <= world_size:
+        test_column_parallel_linear_with_async_allreduce_autocast(tensor_model_parallel_size)
+
+    print_separator("test ColumnParallelLinearWithAsyncAllreduce - custom AMP")
+    tensor_model_parallel_size = 1
+    while tensor_model_parallel_size <= world_size:
+        test_column_parallel_linear_with_async_allreduce_custom_amp(tensor_model_parallel_size)
 
     # Deleted
     #print_separator('test parallel self-attention')
