@@ -21,6 +21,7 @@ import torch.nn.functional as F
 import torch.nn.init as init
 from torch.nn.parameter import Parameter
 
+from ..._autocast_utils import _cast_if_autocast_enabled
 from ..parallel_state import get_tensor_model_parallel_group
 from ..parallel_state import get_tensor_model_parallel_rank
 from ..parallel_state import get_tensor_model_parallel_world_size
@@ -221,7 +222,7 @@ class ColumnParallelLinearWithAsyncAllreduce(torch.autograd.Function):
         input, weight = ctx.saved_tensors
         use_bias = ctx.use_bias
         grad_input = grad_output.matmul(weight)
-        # Asyncronous all-reduce
+        # Asynchronous all-reduce
         handle = torch.distributed.all_reduce(
                 grad_input, group=get_tensor_model_parallel_group(), async_op=True)
         # Delay the start of weight gradient computation shortly (3us) to have
@@ -231,6 +232,12 @@ class ColumnParallelLinearWithAsyncAllreduce(torch.autograd.Function):
         grad_bias = grad_output.sum(dim=0) if use_bias else None
         handle.wait()
         return grad_input, grad_weight, grad_bias
+
+
+def column_parallel_linear(input, weight, bias):
+    args = _cast_if_autocast_enabled(input, weight, bias)
+    with torch.cuda.amp.autocast(enabled=False):
+        return ColumnParallelLinearWithAsyncAllreduce.apply(*args)
 
 
 class ColumnParallelLinear(torch.nn.Module):
@@ -336,8 +343,7 @@ class ColumnParallelLinear(torch.nn.Module):
             input_shape = input_.shape
             input_ = input_.view(input_shape[0] * input_shape[1],input_shape[2])
             # Matrix multiply with asynchronous all-reduce execution
-            output_parallel = ColumnParallelLinearWithAsyncAllreduce.apply(
-                    input_, self.weight, bias)
+            output_parallel = column_parallel_linear(input_, self.weight, bias)
             output_parallel = output_parallel.view(
                     input_shape[0], input_shape[1], output_parallel.shape[1])
         else:
