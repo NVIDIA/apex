@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# TODO (mkozuki): Deal with args.
 """Input/output checkpointing."""
 
 import os
@@ -22,7 +21,8 @@ import sys
 import numpy as np
 import torch
 
-import apex.mpu
+from .. import parallel_state
+from .. import tensor_parallel
 from .utils import print_rank_0
 from .utils import unwrap_model
 from .utils import update_num_microbatches
@@ -87,18 +87,19 @@ def get_checkpoint_name(checkpoints_path, iteration, release=False):
     else:
         directory = "iter_{:07d}".format(iteration)
     # Use both the tensor and pipeline MP rank.
-    if apex.mpu.get_pipeline_model_parallel_world_size() == 1:
+    if parallel_state.get_pipeline_model_parallel_world_size() == 1:
         return os.path.join(
             checkpoints_path,
             directory,
-            "mp_rank_{:02d}".format(apex.mpu.get_tensor_model_parallel_rank()),
+            "mp_rank_{:02d}".format(parallel_state.get_tensor_model_parallel_rank()),
             "model_optim_rng.pt",
         )
     return os.path.join(
         checkpoints_path,
         directory,
         "mp_rank_{:02d}_{:03d}".format(
-            apex.mpu.get_tensor_model_parallel_rank(), apex.mpu.get_pipeline_model_parallel_rank()
+            parallel_state.get_tensor_model_parallel_rank(),
+            parallel_state.get_pipeline_model_parallel_rank(),
         ),
         "model_optim_rng.pt",
     )
@@ -122,7 +123,7 @@ def read_metadata(tracker_filename):
         except ValueError:
             release = metastring == "release"
             if not release:
-                apex.ppu.utils.print_rank_0("ERROR: Invalid metadata file {}. Exiting".format(tracker_filename))
+                print_rank_0("ERROR: Invalid metadata file {}. Exiting".format(tracker_filename))
                 sys.exit()
     assert iteration > 0 or release, "error parsing metadata file {}".format(tracker_filename)
 
@@ -153,7 +154,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
 
     print_rank_0("saving checkpoint at iteration {:7d} to {}".format(iteration, args.save))
 
-    if not torch.distributed.is_initialized() or apex.mpu.get_data_parallel_rank() == 0:
+    if not torch.distributed.is_initialized() or parallel_state.get_data_parallel_rank() == 0:
 
         # Arguments, iteration, and model.
         state_dict = {}
@@ -164,7 +165,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
             state_dict["model"] = model[0].state_dict_for_save_checkpoint()
         else:
             for i in range(len(model)):
-                apex.mpu.set_virtual_pipeline_model_parallel_rank(i)
+                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                 state_dict["model%d" % i] = model[i].state_dict_for_save_checkpoint()
 
         # Optimizer stuff.
@@ -180,7 +181,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
             state_dict["np_rng_state"] = np.random.get_state()
             state_dict["torch_rng_state"] = torch.get_rng_state()
             state_dict["cuda_rng_state"] = torch.cuda.get_rng_state()
-            state_dict["rng_tracker_states"] = apex.mpu.get_cuda_rng_tracker().get_states()
+            state_dict["rng_tracker_states"] = tensor_parallel.random.get_cuda_rng_tracker().get_states()
 
         # Save.
         checkpoint_name = get_checkpoint_name(args.save, iteration)
@@ -366,7 +367,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg="load", strict=True
         model[0].load_state_dict(state_dict["model"], strict=strict)
     else:
         for i in range(len(model)):
-            apex.mpu.set_virtual_pipeline_model_parallel_rank(i)
+            parallel_state.set_virtual_pipeline_model_parallel_rank(i)
             model[i].load_state_dict(state_dict["model%d" % i], strict=strict)
 
     # Fix up query/key/value matrix ordering if needed
@@ -400,7 +401,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg="load", strict=True
             # Check for empty states array
             if not state_dict["rng_tracker_states"]:
                 raise KeyError
-            apex.mpu.get_cuda_rng_tracker().set_states(state_dict["rng_tracker_states"])
+            parallel_state.get_cuda_rng_tracker().set_states(state_dict["rng_tracker_states"])
         except KeyError:
             print_rank_0(
                 "Unable to load rng state from checkpoint {}. "
@@ -438,7 +439,7 @@ def load_biencoder_checkpoint(
         iteration = int(f.read().strip())
 
     checkpoint_name = get_checkpoint_name(load_path, iteration, False)
-    if apex.mpu.get_data_parallel_rank() == 0:
+    if parallel_state.get_data_parallel_rank() == 0:
         print(
             "global rank {} is loading checkpoint {}".format(
                 torch.distributed.get_rank(), checkpoint_name
@@ -457,7 +458,7 @@ def load_biencoder_checkpoint(
     model[0].load_state_dict(ret_state_dict)
     torch.distributed.barrier()
 
-    if apex.mpu.get_data_parallel_rank() == 0:
+    if parallel_state.get_data_parallel_rank() == 0:
         print(" successfully loaded {}".format(checkpoint_name))
 
     return model

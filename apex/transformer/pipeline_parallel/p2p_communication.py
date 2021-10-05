@@ -15,62 +15,58 @@
 
 from functools import reduce
 import operator
+import typing
 
 import torch
 
-import apex.mpu
+from .. import parallel_state
 
 
 def _communicate(
-    tensor_send_next,
-    tensor_send_prev,
-    recv_prev,
-    recv_next,
-    use_ring_exchange=False,
-    tensor_shape=None,
-    override_scatter_gather_tensors_in_pipeline=False,
-    dtype_=None,
+    tensor_send_next: typing.Optional[torch.Tensor],
+    tensor_send_prev: typing.Optional[torch.Tensor],
+    recv_prev: bool,
+    recv_next: bool,
+    use_ring_exchange: bool = False, tensor_shape: typing.Optional[typing.Union[torch.Size, typing.List[int]]] = None,
+    override_scatter_gather_tensors_in_pipeline: bool = False,
+    dtype_: typing.Optional[torch.dtype] = None,
+    *,
+    scatter_gather_tensors_in_pipeline: bool = True,
+    params_dtype: torch.dtype = torch.float,
+    fp32_residual_connection: bool = False,
 ):
     """Communicate tensors between stages. Used as helper method in other
     communication methods that are used in megatron/schedules.py.
 
     Takes the following arguments:
-        tensor_send_next: tensor to send to next rank (no tensor sent if
-                          set to None).
-        tensor_send_prev: tensor to send to prev rank (no tensor sent if
-                          set to None).
-        recv_prev: boolean for whether tensor should be received from
-                   previous rank.
-        recv_next: boolean for whether tensor should be received from
-                   next rank.
-        use_ring_exchange: boolean for whether torch.distributed.ring_exchange()
-                           API should be used.
-        tensor_shape: optional, use when the input sequence contains less
-                      tokens than the default sequence length
-        override_scatter_gather_tensors_in_pipeline: optional, this is used
-                                                     when tensor_shape is
-                                                     provided to overwide
-                                                     scatter gather tensors
-        dtype_: optional, this is used when tensor_shape is provied and what
-                is the type of tensor_shape
+        tensor_send_next: tensor to send to next rank (no tensor sent if set to None).
+        tensor_send_prev: tensor to send to prev rank (no tensor sent if set to None).
+        recv_prev: boolean for whether tensor should be received from previous rank.
+        recv_next: boolean for whether tensor should be received from next rank.
+        use_ring_exchange: boolean for whether torch.distributed.ring_exchange() API should be used.
+        tensor_shape: optional, use when the input sequence contains less tokens than the default sequence length
+        override_scatter_gather_tensors_in_pipeline:
+            optional, this is used when tensor_shape is provided to override scatter gather tensors
+        dtype_: optional, this is used when tensor_shape is provided and what is the type of tensor_shape
+
     Returns:
         (tensor_recv_prev, tensor_recv_next)
     """
-
     # Create placeholder tensors for receive in forward and backward directions
     # if needed.
     tensor_recv_prev = None
     tensor_recv_next = None
     if tensor_shape is None:
-        tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
-    if not override_scatter_gather_tensors_in_pipeline and args.scatter_gather_tensors_in_pipeline:
+        # tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
+        raise RuntimeError("`tensor_shape` must be provided")
+    if not override_scatter_gather_tensors_in_pipeline and scatter_gather_tensors_in_pipeline:
         tensor_chunk_shape = (
-            reduce(operator.mul, tensor_shape, 1) // apex.mpu.get_tensor_model_parallel_world_size()
+            reduce(operator.mul, tensor_shape, 1) // parallel_state.get_tensor_model_parallel_world_size()
         )
     else:
         tensor_chunk_shape = tensor_shape
-    dtype = args.params_dtype
-    if args.fp32_residual_connection:
+    dtype = params_dtype
+    if fp32_residual_connection:
         dtype = torch.float
 
     requires_grad = True
@@ -94,12 +90,12 @@ def _communicate(
         )
 
     # Split tensor into smaller chunks if using scatter-gather optimization.
-    if not override_scatter_gather_tensors_in_pipeline and args.scatter_gather_tensors_in_pipeline:
+    if not override_scatter_gather_tensors_in_pipeline and scatter_gather_tensors_in_pipeline:
         if tensor_send_next is not None:
-            tensor_send_next = apex.mpu.split_tensor_into_1d_equal_chunks(tensor_send_next)
+            tensor_send_next = parallel_state.split_tensor_into_1d_equal_chunks(tensor_send_next)
 
         if tensor_send_prev is not None:
-            tensor_send_prev = apex.mpu.split_tensor_into_1d_equal_chunks(tensor_send_prev)
+            tensor_send_prev = parallel_state.split_tensor_into_1d_equal_chunks(tensor_send_prev)
 
     # Send tensors in both the forward and backward directions as appropriate.
     if use_ring_exchange:
@@ -108,7 +104,7 @@ def _communicate(
             tensor_recv_prev=tensor_recv_prev,
             tensor_send_next=tensor_send_next,
             tensor_recv_next=tensor_recv_next,
-            group=apex.mpu.get_pipeline_model_parallel_group(),
+            group=parallel_state.get_pipeline_model_parallel_group(),
         )
     else:
         ops = []
@@ -116,28 +112,28 @@ def _communicate(
             send_prev_op = torch.distributed.P2POp(
                 torch.distributed.isend,
                 tensor_send_prev,
-                apex.mpu.get_pipeline_model_parallel_prev_rank(),
+                parallel_state.get_pipeline_model_parallel_prev_rank(),
             )
             ops.append(send_prev_op)
         if tensor_recv_prev is not None:
             recv_prev_op = torch.distributed.P2POp(
                 torch.distributed.irecv,
                 tensor_recv_prev,
-                apex.mpu.get_pipeline_model_parallel_prev_rank(),
+                parallel_state.get_pipeline_model_parallel_prev_rank(),
             )
             ops.append(recv_prev_op)
         if tensor_send_next is not None:
             send_next_op = torch.distributed.P2POp(
                 torch.distributed.isend,
                 tensor_send_next,
-                apex.mpu.get_pipeline_model_parallel_next_rank(),
+                parallel_state.get_pipeline_model_parallel_next_rank(),
             )
             ops.append(send_next_op)
         if tensor_recv_next is not None:
             recv_next_op = torch.distributed.P2POp(
                 torch.distributed.irecv,
                 tensor_recv_next,
-                apex.mpu.get_pipeline_model_parallel_next_rank(),
+                parallel_state.get_pipeline_model_parallel_next_rank(),
             )
             ops.append(recv_next_op)
         if len(ops) > 0:
@@ -148,15 +144,15 @@ def _communicate(
     torch.cuda.synchronize()
 
     # If using scatter-gather optimization, gather smaller chunks.
-    if not override_scatter_gather_tensors_in_pipeline and args.scatter_gather_tensors_in_pipeline:
+    if not override_scatter_gather_tensors_in_pipeline and scatter_gather_tensors_in_pipeline:
         if recv_prev:
             tensor_recv_prev = (
-                apex.mpu.gather_split_1d_tensor(tensor_recv_prev).view(tensor_shape).requires_grad_()
+                parallel_state.gather_split_1d_tensor(tensor_recv_prev).view(tensor_shape).requires_grad_()
             )
 
         if recv_next:
             tensor_recv_next = (
-                apex.mpu.gather_split_1d_tensor(tensor_recv_next).view(tensor_shape).requires_grad_()
+                parallel_state.gather_split_1d_tensor(tensor_recv_next).view(tensor_shape).requires_grad_()
             )
 
     return tensor_recv_prev, tensor_recv_next
@@ -167,7 +163,7 @@ def recv_forward(
 ):
     """Receive tensor from previous rank in pipeline (forward receive)."""
 
-    if apex.mpu.is_pipeline_first_stage():
+    if parallel_state.is_pipeline_first_stage():
         input_tensor = None
     else:
         if timers is not None:
@@ -188,7 +184,7 @@ def recv_forward(
 
 def recv_backward(timers=None):
     """Receive tensor from next rank in pipeline (backward receive)."""
-    if apex.mpu.is_pipeline_last_stage():
+    if parallel_state.is_pipeline_last_stage():
         output_tensor_grad = None
     else:
         if timers is not None:
@@ -206,7 +202,7 @@ def send_forward(
 ):
     """Send tensor to next rank in pipeline (forward send)."""
 
-    if not apex.mpu.is_pipeline_last_stage():
+    if not parallel_state.is_pipeline_last_stage():
         if timers is not None:
             timers("forward-send").start()
         _communicate(
@@ -223,7 +219,7 @@ def send_forward(
 
 def send_backward(input_tensor_grad, timers=None):
     """Send tensor to previous rank in pipeline (backward send)."""
-    if not apex.mpu.is_pipeline_first_stage():
+    if not parallel_state.is_pipeline_first_stage():
         if timers is not None:
             timers("backward-send").start()
         _communicate(
@@ -238,7 +234,7 @@ def send_backward(input_tensor_grad, timers=None):
 
 def send_forward_recv_backward(output_tensor, timers=None):
     """Batched send and recv with next rank in pipeline."""
-    if apex.mpu.is_pipeline_last_stage():
+    if parallel_state.is_pipeline_last_stage():
         output_tensor_grad = None
     else:
         if timers is not None:
@@ -253,7 +249,7 @@ def send_forward_recv_backward(output_tensor, timers=None):
 
 def send_backward_recv_forward(input_tensor_grad, timers=None):
     """Batched send and recv with previous rank in pipeline."""
-    if apex.mpu.is_pipeline_first_stage():
+    if parallel_state.is_pipeline_first_stage():
         input_tensor = None
     else:
         if timers is not None:

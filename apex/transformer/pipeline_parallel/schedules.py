@@ -18,7 +18,7 @@ from contextlib import contextmanager
 import torch
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 
-import apex.mpu
+from .. import parallel_state
 from .utils import get_num_microbatches
 from .utils import unwrap_model
 from .utils import get_timers
@@ -29,7 +29,7 @@ def get_forward_backward_func(
     virtual_pipeline_model_parallel_size,
     pipeline_model_parallel_size,
 ):
-    if apex.mpu.get_pipeline_model_parallel_world_size() > 1:
+    if parallel_state.get_pipeline_model_parallel_world_size() > 1:
         if virtual_pipeline_model_parallel_size is not None:
             forward_backward_func = forward_backward_pipelining_with_interleaving
             assert get_num_microbatches() % pipeline_model_parallel_size == 0, (
@@ -56,7 +56,7 @@ def forward_step(forward_step_func, data_iterator, model, input_tensor, losses_r
     unwrapped_model = unwrap_model(model, (DDP,))
     unwrapped_model.set_input_tensor(input_tensor)
     output_tensor, loss_func = forward_step_func(data_iterator, model)
-    if apex.mpu.is_pipeline_last_stage():
+    if parallel_state.is_pipeline_last_stage():
         output_tensor = loss_func(output_tensor)
         loss, loss_reduced = output_tensor
         output_tensor = loss / get_num_microbatches()
@@ -155,8 +155,8 @@ def forward_backward_pipelining_with_interleaving(
     if not forward_only:
         output_tensor_grads = [[] for _ in range(len(model))]
 
-    pipeline_parallel_size = apex.mpu.get_pipeline_model_parallel_world_size()
-    pipeline_parallel_rank = apex.mpu.get_pipeline_model_parallel_rank()
+    pipeline_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
+    pipeline_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
 
     # Compute number of warmup and remaining microbatches.
     num_model_chunks = len(model)
@@ -193,10 +193,10 @@ def forward_backward_pipelining_with_interleaving(
         (run set_virtual_pipeline_model_parallel_rank() before calling
         forward_step())."""
         model_chunk_id = get_model_chunk_id(microbatch_id, forward=True)
-        apex.mpu.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
+        parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
         # forward step
-        if apex.mpu.is_pipeline_first_stage():
+        if parallel_state.is_pipeline_first_stage():
             if len(input_tensors[model_chunk_id]) == len(output_tensors[model_chunk_id]):
                 input_tensors[model_chunk_id].append(None)
         input_tensor = input_tensors[model_chunk_id][-1]
@@ -221,9 +221,9 @@ def forward_backward_pipelining_with_interleaving(
         (run set_virtual_pipeline_model_parallel_rank() before calling
         backward_step())."""
         model_chunk_id = get_model_chunk_id(microbatch_id, forward=False)
-        apex.mpu.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
+        parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
-        if apex.mpu.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage():
             if len(output_tensor_grads[model_chunk_id]) == 0:
                 output_tensor_grads[model_chunk_id].append(None)
         input_tensor = input_tensors[model_chunk_id].pop(0)
@@ -236,7 +236,7 @@ def forward_backward_pipelining_with_interleaving(
         return input_tensor_grad
 
     # Run warmup forward passes.
-    apex.mpu.set_virtual_pipeline_model_parallel_rank(0)
+    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
     input_tensors[0].append(p2p_communication.recv_forward(timers=timers))
     for k in range(num_warmup_microbatches):
         output_tensor = forward_step_helper(k)
@@ -244,14 +244,14 @@ def forward_backward_pipelining_with_interleaving(
         # Determine if tensor should be received from previous stage.
         next_forward_model_chunk_id = get_model_chunk_id(k + 1, forward=True)
         recv_prev = True
-        if apex.mpu.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
             if next_forward_model_chunk_id == 0:
                 recv_prev = False
         if k == (num_microbatches - 1):
             recv_prev = False
 
         # Don't send tensor downstream if on last stage.
-        if apex.mpu.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage():
             output_tensor = None
 
         # Send and receive tensors as appropriate (send tensors computed
@@ -259,7 +259,7 @@ def forward_backward_pipelining_with_interleaving(
         if k == (num_warmup_microbatches - 1) and not forward_only and not all_warmup_microbatches:
             input_tensor_grad = None
             recv_next = True
-            if apex.mpu.is_pipeline_last_stage(ignore_virtual=True):
+            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                 recv_next = False
             (
                 input_tensor,
@@ -294,19 +294,19 @@ def forward_backward_pipelining_with_interleaving(
         # Determine if current stage has anything to send in either direction,
         # otherwise set tensor to None.
         forward_model_chunk_id = get_model_chunk_id(forward_k, forward=True)
-        apex.mpu.set_virtual_pipeline_model_parallel_rank(forward_model_chunk_id)
-        if apex.mpu.is_pipeline_last_stage():
+        parallel_state.set_virtual_pipeline_model_parallel_rank(forward_model_chunk_id)
+        if parallel_state.is_pipeline_last_stage():
             output_tensor = None
 
         backward_model_chunk_id = get_model_chunk_id(backward_k, forward=False)
-        apex.mpu.set_virtual_pipeline_model_parallel_rank(backward_model_chunk_id)
-        if apex.mpu.is_pipeline_first_stage():
+        parallel_state.set_virtual_pipeline_model_parallel_rank(backward_model_chunk_id)
+        if parallel_state.is_pipeline_first_stage():
             input_tensor_grad = None
 
         # Determine if peers are sending, and where in data structure to put
         # received tensors.
         recv_prev = True
-        if apex.mpu.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
             # First stage is ahead of last stage by (pipeline_parallel_size - 1).
             next_forward_model_chunk_id = get_model_chunk_id(
                 forward_k - (pipeline_parallel_size - 1), forward=True
@@ -318,7 +318,7 @@ def forward_backward_pipelining_with_interleaving(
             next_forward_model_chunk_id = get_model_chunk_id(forward_k + 1, forward=True)
 
         recv_next = True
-        if apex.mpu.is_pipeline_last_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
             # Last stage is ahead of first stage by (pipeline_parallel_size - 1).
             next_backward_model_chunk_id = get_model_chunk_id(
                 backward_k - (pipeline_parallel_size - 1), forward=False
@@ -363,7 +363,7 @@ def forward_backward_pipelining_with_interleaving(
             input_tensor_grad = backward_step_helper(k)
             next_backward_model_chunk_id = get_model_chunk_id(k + 1, forward=False)
             recv_next = True
-            if apex.mpu.is_pipeline_last_stage(ignore_virtual=True):
+            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                 if next_backward_model_chunk_id == (num_model_chunks - 1):
                     recv_next = False
             if k == (num_microbatches - 1):
@@ -392,7 +392,7 @@ def forward_backward_pipelining_without_interleaving(
     # Compute number of warmup microbatches.
     num_microbatches = get_num_microbatches()
     num_warmup_microbatches = (
-        apex.mpu.get_pipeline_model_parallel_world_size() - apex.mpu.get_pipeline_model_parallel_rank() - 1
+        parallel_state.get_pipeline_model_parallel_world_size() - parallel_state.get_pipeline_model_parallel_rank() - 1
     )
     num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
     num_microbatches_remaining = num_microbatches - num_warmup_microbatches

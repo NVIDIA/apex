@@ -26,7 +26,8 @@ _TRAIN_START_TIME = time.time()  # NOQA
 import torch
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 
-import apex.mpu
+from .. import parallel_state
+from .schedules import get_forward_backward_func
 from .utils import get_current_global_batch_size
 from .utils import get_num_microbatches
 from .utils import get_timers
@@ -34,21 +35,21 @@ from .utils import is_last_rank
 from .utils import print_rank_0
 from .utils import print_rank_last
 from .utils import update_num_microbatches
+from .utils import unwrap_model
 
-from megatron import get_args
-from megatron import get_tensorboard_writer
-from megatron.checkpointing import load_checkpoint
-from megatron.checkpointing import save_checkpoint
-from megatron.initialize import initialize_megatron
-from megatron.initialize import write_args_to_tensorboard
-from megatron.learning_rates import AnnealingLR
-from megatron.model import DistributedDataParallel as LocalDDP
-from megatron.utils import check_adlr_autoresume_termination
-from megatron.utils import unwrap_model
-from megatron.data.data_samplers import build_pretraining_data_loader
-from megatron.utils import calc_params_l2_norm
-from megatron.schedules import get_forward_backward_func
-from megatron.utils import report_memory
+# from megatron import get_args
+# from megatron import get_tensorboard_writer
+# from megatron.checkpointing import load_checkpoint
+# from megatron.checkpointing import save_checkpoint
+# from megatron.initialize import initialize_megatron
+# from megatron.initialize import write_args_to_tensorboard
+# from megatron.learning_rates import AnnealingLR
+# from megatron.model import DistributedDataParallel as LocalDDP
+# from megatron.utils import check_adlr_autoresume_termination
+# from megatron.data.data_samplers import build_pretraining_data_loader
+# from megatron.utils import calc_params_l2_norm
+# from megatron.schedules import get_forward_backward_func
+# from megatron.utils import report_memory
 
 
 def print_datetime(string):
@@ -199,20 +200,20 @@ def get_model(model_provider_func, wrap_with_ddp=True):
 
     # Build model.
     if (
-        apex.mpu.get_pipeline_model_parallel_world_size() > 1
+        parallel_state.get_pipeline_model_parallel_world_size() > 1
         and args.virtual_pipeline_model_parallel_size is not None
     ):
         model = []
         for i in range(args.virtual_pipeline_model_parallel_size):
-            apex.mpu.set_virtual_pipeline_model_parallel_rank(i)
+            parallel_state.set_virtual_pipeline_model_parallel_rank(i)
             # Set pre_process and post_process only after virtual rank is set.
-            pre_process = apex.mpu.is_pipeline_first_stage()
-            post_process = apex.mpu.is_pipeline_last_stage()
+            pre_process = parallel_state.is_pipeline_first_stage()
+            post_process = parallel_state.is_pipeline_last_stage()
             this_model = model_provider_func(pre_process=pre_process, post_process=post_process)
             model.append(this_model)
     else:
-        pre_process = apex.mpu.is_pipeline_first_stage()
-        post_process = apex.mpu.is_pipeline_last_stage()
+        pre_process = parallel_state.is_pipeline_first_stage()
+        post_process = parallel_state.is_pipeline_last_stage()
         model = model_provider_func(pre_process=pre_process, post_process=post_process)
 
     if not isinstance(model, list):
@@ -224,15 +225,15 @@ def get_model(model_provider_func, wrap_with_ddp=True):
     # are set for all params so the optimizer can use them.
     for model_module in model:
         for param in model_module.parameters():
-            apex.mpu.set_defaults_if_not_set_tensor_model_parallel_attributes(param)
+            parallel_state.set_defaults_if_not_set_tensor_model_parallel_attributes(param)
 
     # Print number of parameters.
-    if apex.mpu.get_data_parallel_rank() == 0:
+    if parallel_state.get_data_parallel_rank() == 0:
         print(
             " > number of parameters on (tensor, pipeline) "
             "model parallel rank ({}, {}): {}".format(
-                apex.mpu.get_tensor_model_parallel_rank(),
-                apex.mpu.get_pipeline_model_parallel_rank(),
+                parallel_state.get_tensor_model_parallel_rank(),
+                parallel_state.get_pipeline_model_parallel_rank(),
                 sum(
                     [
                         sum([p.nelement() for p in model_module.parameters()])
@@ -259,7 +260,7 @@ def get_model(model_provider_func, wrap_with_ddp=True):
                     model_module,
                     device_ids=[i],
                     output_device=i,
-                    process_group=apex.mpu.get_data_parallel_group(),
+                    process_group=parallel_state.get_data_parallel_group(),
                 )
                 for model_module in model
             ]
@@ -350,7 +351,7 @@ def setup_model_and_optimizer(model_provider_func):
         args.iteration = 0
 
     # We only support local DDP with multiple micro-batches.
-    if len(model) > 1 or apex.mpu.get_pipeline_model_parallel_world_size() > 1:
+    if len(model) > 1 or parallel_state.get_pipeline_model_parallel_world_size() > 1:
         assert args.DDP_impl == "local"
 
     # get model without FP16 and/or TorchDDP wrappers
@@ -400,12 +401,12 @@ def train_step(forward_step_func, data_iterator, model, optimizer, lr_scheduler)
     # (BERT and GPT-2).
     timers("backward-embedding-all-reduce").start()
     if (
-        apex.mpu.is_pipeline_first_stage(ignore_virtual=True)
-        or apex.mpu.is_pipeline_last_stage(ignore_virtual=True)
-    ) and apex.mpu.get_pipeline_model_parallel_world_size() > 1:
-        if apex.mpu.is_pipeline_first_stage(ignore_virtual=True):
+        parallel_state.is_pipeline_first_stage(ignore_virtual=True)
+        or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+    ) and parallel_state.get_pipeline_model_parallel_world_size() > 1:
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
             unwrapped_model = model[0]
-        elif apex.mpu.is_pipeline_last_stage(ignore_virtual=True):
+        elif parallel_state.is_pipeline_last_stage(ignore_virtual=True):
             unwrapped_model = model[-1]
         unwrapped_model = unwrap_model(unwrapped_model, (DDP, LocalDDP, Float16Module))
 
@@ -415,7 +416,7 @@ def train_step(forward_step_func, data_iterator, model, optimizer, lr_scheduler)
                 grad = word_embeddings_weight.main_grad
             else:
                 grad = word_embeddings_weight.grad
-            torch.distributed.all_reduce(grad, group=apex.mpu.get_embedding_group())
+            torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
     timers("backward-embedding-all-reduce").stop()
 
     # Update parameters.
@@ -435,7 +436,7 @@ def train_step(forward_step_func, data_iterator, model, optimizer, lr_scheduler)
     if args.empty_unused_memory_level >= 2:
         torch.cuda.empty_cache()
 
-    if apex.mpu.is_pipeline_last_stage(ignore_virtual=True):
+    if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
         # Average loss across microbatches.
         loss_reduced = {}
         for key in losses_reduced[0]:
@@ -645,7 +646,7 @@ def train(
         )
         iteration += 1
         args.consumed_train_samples += (
-            apex.mpu.get_data_parallel_world_size() * args.micro_batch_size * get_num_microbatches()
+            parallel_state.get_data_parallel_world_size() * args.micro_batch_size * get_num_microbatches()
         )
 
         # Logging.
@@ -737,7 +738,7 @@ def evaluate(forward_step_func, data_iterator, model, verbose=False):
             if args.empty_unused_memory_level >= 1:
                 torch.cuda.empty_cache()
 
-            if apex.mpu.is_pipeline_last_stage(ignore_virtual=True):
+            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                 # Reduce across processes.
                 for loss_dict in loss_dicts:
                     for key in loss_dict:
@@ -746,7 +747,7 @@ def evaluate(forward_step_func, data_iterator, model, verbose=False):
                         )
 
             args.consumed_valid_samples += (
-                apex.mpu.get_data_parallel_world_size() * args.micro_batch_size * get_num_microbatches()
+                parallel_state.get_data_parallel_world_size() * args.micro_batch_size * get_num_microbatches()
             )
     # Move model back to the train mode.
     for model_module in model:
@@ -817,7 +818,7 @@ def build_train_valid_test_data_iterators(build_train_valid_test_datasets_provid
             )
 
     # Data loader only on rank 0 of each model parallel group.
-    if apex.mpu.get_tensor_model_parallel_rank() == 0:
+    if parallel_state.get_tensor_model_parallel_rank() == 0:
 
         # Number of train/valid/test samples.
         if args.train_samples:
@@ -857,7 +858,7 @@ def build_train_valid_test_data_iterators(build_train_valid_test_datasets_provid
 
     # Broadcast num tokens.
     torch.distributed.broadcast(
-        flags, apex.mpu.get_tensor_model_parallel_src_rank(), group=apex.mpu.get_tensor_model_parallel_group()
+        flags, parallel_state.get_tensor_model_parallel_src_rank(), group=parallel_state.get_tensor_model_parallel_group()
     )
     args.do_train = flags[0].item()
     args.do_valid = flags[1].item()

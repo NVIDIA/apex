@@ -16,24 +16,19 @@
 """General utilities."""
 
 import torch
-from torch.nn.parallel import DistributedDataParallel as torchDDP
+from torch.nn.parallel import DistributedDataParallel
 
 from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
-import apex.mpu
-
+from .. import parallel_state
 from .timers import Timers
-
-from megatron.global_vars import get_adlr_autoresume
-
-# from .microbatches import build_num_microbatches_calculator
 
 
 _GLOBAL_ARGS = None
 _GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
 _GLOBAL_TOKENIZER = None
 _GLOBAL_TENSORBOARD_WRITER = None
-_GLOBAL_ADLR_AUTORESUME = None
+_GLOBAL_AUTORESUME = None
 _GLOBAL_TIMERS = None
 
 
@@ -53,6 +48,10 @@ def get_num_microbatches():
 
 def get_current_global_batch_size():
     return _GLOBAL_NUM_MICROBATCHES_CALCULATOR.get_current_global_batch_size()
+
+
+def get_autoresume():
+    return _GLOBAL_AUTORESUME
 
 
 def _set_timers():
@@ -99,7 +98,7 @@ def param_is_not_shared(param: torch.nn.Parameter) -> bool:
     return getattr(param, "shared", False)
 
 
-def unwrap_model(model, module_instances=(torchDDP)):
+def unwrap_model(model, module_instances=(DistributedDataParallel,)):
     return_list = True
     if not isinstance(model, list):
         model = [model]
@@ -114,7 +113,7 @@ def unwrap_model(model, module_instances=(torchDDP)):
     return unwrapped_model
 
 
-def calc_params_l2_norm(model, bf16: bool):
+def calc_params_l2_norm(model: torch.nn.Module, bf16: bool):
     """Calculate l2 norm of parameters """
     # args = get_args()
     if not isinstance(model, list):
@@ -124,7 +123,7 @@ def calc_params_l2_norm(model, bf16: bool):
     for model_ in model:
         for param in model_.parameters():
             is_not_shared = param_is_not_shared(param)
-            is_not_tp_duplicate = apex.mpu.param_is_not_tensor_parallel_duplicate(param)
+            is_not_tp_duplicate = parallel_state.param_is_not_tensor_parallel_duplicate(param)
             if is_not_shared and is_not_tp_duplicate:
                 if bf16:
                     params_data.append(param.data.float())
@@ -138,7 +137,7 @@ def calc_params_l2_norm(model, bf16: bool):
     norm_2 = norm * norm
     # Sum across all model-parallel GPUs.
     torch.distributed.all_reduce(
-        norm_2, op=torch.distributed.ReduceOp.SUM, group=apex.mpu.get_model_parallel_group()
+        norm_2, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
     )
     return norm_2.item() ** 0.5
 
@@ -146,9 +145,9 @@ def calc_params_l2_norm(model, bf16: bool):
 def average_losses_across_data_parallel_group(losses):
     """Reduce a tensor of losses across all GPUs."""
     averaged_losses = torch.cat([loss.clone().detach().view(1) for loss in losses])
-    torch.distributed.all_reduce(averaged_losses, group=apex.mpu.get_data_parallel_group())
+    torch.distributed.all_reduce(averaged_losses, group=parallel_state.get_data_parallel_group())
     averaged_losses = averaged_losses / torch.distributed.get_world_size(
-        group=apex.mpu.get_data_parallel_group()
+        group=parallel_state.get_data_parallel_group()
     )
 
     return averaged_losses
@@ -162,7 +161,7 @@ def report_memory(name):
     string += " | max allocated: {}".format(torch.cuda.max_memory_allocated() / mega_bytes)
     string += " | reserved: {}".format(torch.cuda.memory_reserved() / mega_bytes)
     string += " | max reserved: {}".format(torch.cuda.max_memory_reserved() / mega_bytes)
-    if apex.mpu.get_data_parallel_rank() == 0:
+    if parallel_state.get_data_parallel_rank() == 0:
         print("[Rank {}] {}".format(torch.distributed.get_rank(), string), flush=True)
 
 
