@@ -27,7 +27,8 @@ def _communicate(
     tensor_send_prev: typing.Optional[torch.Tensor],
     recv_prev: bool,
     recv_next: bool,
-    use_ring_exchange: bool = False, tensor_shape: typing.Optional[typing.Union[torch.Size, typing.List[int]]] = None,
+    use_ring_exchange: bool = False,
+    tensor_shape: typing.Optional[typing.Union[torch.Size, typing.List[int]]] = None,
     override_scatter_gather_tensors_in_pipeline: bool = False,
     dtype_: typing.Optional[torch.dtype] = None,
     *,
@@ -61,7 +62,8 @@ def _communicate(
         raise RuntimeError("`tensor_shape` must be provided")
     if not override_scatter_gather_tensors_in_pipeline and scatter_gather_tensors_in_pipeline:
         tensor_chunk_shape = (
-            reduce(operator.mul, tensor_shape, 1) // parallel_state.get_tensor_model_parallel_world_size()
+            reduce(operator.mul, tensor_shape, 1)
+            // parallel_state.get_tensor_model_parallel_world_size()
         )
     else:
         tensor_chunk_shape = tensor_shape
@@ -147,12 +149,16 @@ def _communicate(
     if not override_scatter_gather_tensors_in_pipeline and scatter_gather_tensors_in_pipeline:
         if recv_prev:
             tensor_recv_prev = (
-                parallel_state.gather_split_1d_tensor(tensor_recv_prev).view(tensor_shape).requires_grad_()
+                parallel_state.gather_split_1d_tensor(tensor_recv_prev)
+                .view(tensor_shape)
+                .requires_grad_()
             )
 
         if recv_next:
             tensor_recv_next = (
-                parallel_state.gather_split_1d_tensor(tensor_recv_next).view(tensor_shape).requires_grad_()
+                parallel_state.gather_split_1d_tensor(tensor_recv_next)
+                .view(tensor_shape)
+                .requires_grad_()
             )
 
     return tensor_recv_prev, tensor_recv_next

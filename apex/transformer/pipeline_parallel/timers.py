@@ -14,16 +14,16 @@ class _Timer:
 
     def start(self):
         """Start the timer."""
-        assert not self.started_, 'timer has already been started'
+        assert not self.started_, "timer has already been started"
         torch.cuda.synchronize()
         self.start_time = time.time()
         self.started_ = True
 
     def stop(self):
         """Stop the timer."""
-        assert self.started_, 'timer is not started'
+        assert self.started_, "timer is not started"
         torch.cuda.synchronize()
-        self.elapsed_ += (time.time() - self.start_time)
+        self.elapsed_ += time.time() - self.start_time
         self.started_ = False
 
     def reset(self):
@@ -67,19 +67,17 @@ class Timers:
         assert normalizer > 0.0
         for name in names:
             value = self.timers[name].elapsed(reset=reset) / normalizer
-            writer.add_scalar(name + '-time', value, iteration)
+            writer.add_scalar(name + "-time", value, iteration)
 
     def log(self, names, normalizer=1.0, reset=True):
         """Log a group of timers."""
         assert normalizer > 0.0
-        string = 'time (ms)'
+        string = "time (ms)"
         for name in names:
-            elapsed_time = self.timers[name].elapsed(
-                reset=reset) * 1000.0 / normalizer
-            string += ' | {}: {:.2f}'.format(name, elapsed_time)
+            elapsed_time = self.timers[name].elapsed(reset=reset) * 1000.0 / normalizer
+            string += " | {}: {:.2f}".format(name, elapsed_time)
         if torch.distributed.is_initialized():
-            if torch.distributed.get_rank() == (
-                    torch.distributed.get_world_size() - 1):
+            if torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1):
                 print(string, flush=True)
         else:
             print(string, flush=True)

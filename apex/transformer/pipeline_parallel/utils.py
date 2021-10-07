@@ -34,12 +34,12 @@ _GLOBAL_TIMERS = None
 
 def _ensure_var_is_initialized(var, name):
     """Make sure the input variable is not None."""
-    assert var is not None, '{} is not initialized.'.format(name)
+    assert var is not None, "{} is not initialized.".format(name)
 
 
 def _ensure_var_is_not_initialized(var, name):
     """Make sure the input variable is not None."""
-    assert var is None, '{} is already initialized.'.format(name)
+    assert var is None, "{} is already initialized.".format(name)
 
 
 def get_num_microbatches():
@@ -57,13 +57,13 @@ def get_autoresume():
 def _set_timers():
     """Initialize timers."""
     global _GLOBAL_TIMERS
-    _ensure_var_is_not_initialized(_GLOBAL_TIMERS, 'timers')
+    _ensure_var_is_not_initialized(_GLOBAL_TIMERS, "timers")
     _GLOBAL_TIMERS = Timers()
 
 
 def get_timers():
     """Return timers."""
-    _ensure_var_is_initialized(_GLOBAL_TIMERS, 'timers')
+    _ensure_var_is_initialized(_GLOBAL_TIMERS, "timers")
     return _GLOBAL_TIMERS
 
 
@@ -81,8 +81,7 @@ def print_rank_0(message: str) -> None:
 
 
 def is_last_rank():
-    return torch.distributed.get_rank() == (
-        torch.distributed.get_world_size() - 1)
+    return torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1)
 
 
 def print_rank_last(message):
