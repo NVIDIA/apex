@@ -20,8 +20,8 @@ from torch.nn.parallel import DistributedDataParallel
 
 from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
-from .. import parallel_state
-from .timers import Timers
+from apex.transformer import parallel_state
+from apex.transformer.pipeline_parallel.timers import Timers
 
 
 _GLOBAL_ARGS = None
@@ -257,3 +257,17 @@ def get_ltor_masks_and_position_ids(
     attention_mask = attention_mask < 0.5
 
     return attention_mask, loss_mask, position_ids
+
+
+def calc_model_chunk_id(
+        num_model_chunks: int,
+        microbatch_id: int,
+        forward: bool,
+) -> int:
+    """Helper function to get the model chunk ID given the iteration number."""
+    pipeline_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
+    microbatch_id_in_group = microbatch_id % (pipeline_parallel_size * num_model_chunks)
+    model_chunk_id = microbatch_id_in_group // pipeline_parallel_size
+    if not forward:
+        model_chunk_id = num_model_chunks - model_chunk_id - 1
+    return model_chunk_id

@@ -14,10 +14,10 @@
 # limitations under the License.
 import torch
 
-from ..parallel_state import get_tensor_model_parallel_group
-from ..parallel_state import get_tensor_model_parallel_world_size
-from ..parallel_state import get_tensor_model_parallel_rank
-from .utils import split_tensor_along_last_dim
+from apex.transformer.parallel_state import get_tensor_model_parallel_group
+from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
+from apex.transformer.parallel_state import get_tensor_model_parallel_rank
+from apex.transformer.tensor_parallel.utils import split_tensor_along_last_dim
 
 
 def _reduce(input_):

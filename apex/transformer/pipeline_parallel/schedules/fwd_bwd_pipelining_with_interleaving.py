@@ -1,12 +1,21 @@
+import torch
+
 from apex.transformer import parallel_state
-from .. import p2p_communication
-from ..utils import get_num_microbatches
-from .common import forward_step
-from .common import backward_step
+from apex.transformer.pipeline_parallel import p2p_communication
+from apex.transformer.pipeline_parallel.utils import calc_model_chunk_id
+from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
+from apex.transformer.pipeline_parallel.schedules.common import forward_step
+from apex.transformer.pipeline_parallel.schedules.common import backward_step
 
 
+# TODO (mkozuki): Fix data iterators handling
 def forward_backward_pipelining_with_interleaving(
-    forward_step_func, data_iterator, model, optimizer, timers, forward_only
+        forward_step_func: FwdStepFunc,
+        data_iterators: Batch,
+        model: torch.nn.Module,
+        optimizer: torch.optim.optimizer.Optimizer,
+        forward_only: bool,
 ):
     """Run interleaved 1F1B schedule (model split into model chunks), with
     communication between pipeline stages as needed.
@@ -56,7 +65,8 @@ def forward_backward_pipelining_with_interleaving(
         """Helper method to run forward step with model split into chunks
         (run set_virtual_pipeline_model_parallel_rank() before calling
         forward_step())."""
-        model_chunk_id = get_model_chunk_id(microbatch_id, forward=True)
+        # model_chunk_id = get_model_chunk_id(microbatch_id, forward=True)
+        model_chunk_id = calc_model_chunk_id(num_model_chunks, microbatch_id, True)
         parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
         # forward step
@@ -67,7 +77,7 @@ def forward_backward_pipelining_with_interleaving(
         input_tensor = input_tensors[model_chunk_id][-1]
         output_tensor = forward_step(
             forward_step_func,
-            data_iterator[model_chunk_id],
+            data_iterators[model_chunk_id],
             model[model_chunk_id],
             input_tensor,
             losses_reduced,
@@ -102,7 +112,7 @@ def forward_backward_pipelining_with_interleaving(
 
     # Run warmup forward passes.
     parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-    input_tensors[0].append(p2p_communication.recv_forward(timers=timers))
+    input_tensors[0].append(p2p_communication.recv_forward())
     for k in range(num_warmup_microbatches):
         output_tensor = forward_step_helper(k)
 
@@ -134,13 +144,10 @@ def forward_backward_pipelining_with_interleaving(
                 input_tensor_grad,
                 recv_prev=recv_prev,
                 recv_next=recv_next,
-                timers=timers,
             )
             output_tensor_grads[num_model_chunks - 1].append(output_tensor_grad)
         else:
-            input_tensor = p2p_communication.send_forward_recv_forward(
-                output_tensor, recv_prev=recv_prev, timers=timers
-            )
+            input_tensor = p2p_communication.send_forward_recv_forward(output_tensor, recv_prev=recv_prev)
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
 
     # Run 1F1B in steady state.
@@ -208,7 +215,6 @@ def forward_backward_pipelining_with_interleaving(
             input_tensor_grad,
             recv_prev=recv_prev,
             recv_next=recv_next,
-            timers=timers,
         )
 
         # Put input_tensor and output_tensor_grad in data structures in the
@@ -221,9 +227,7 @@ def forward_backward_pipelining_with_interleaving(
     # Run cooldown backward passes (flush out pipeline).
     if not forward_only:
         if all_warmup_microbatches:
-            output_tensor_grads[num_model_chunks - 1].append(
-                p2p_communication.recv_backward(timers=timers)
-            )
+            output_tensor_grads[num_model_chunks - 1].append(p2p_communication.recv_backward())
         for k in range(num_microbatches_remaining, num_microbatches):
             input_tensor_grad = backward_step_helper(k)
             next_backward_model_chunk_id = get_model_chunk_id(k + 1, forward=False)
@@ -234,9 +238,7 @@ def forward_backward_pipelining_with_interleaving(
             if k == (num_microbatches - 1):
                 recv_next = False
             output_tensor_grads[next_backward_model_chunk_id].append(
-                p2p_communication.send_backward_recv_backward(
-                    input_tensor_grad, recv_next=recv_next, timers=timers
-                )
+                p2p_communication.send_backward_recv_backward(input_tensor_grad, recv_next=recv_next)
             )
 
     return losses_reduced

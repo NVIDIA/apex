@@ -14,9 +14,9 @@
 # limitations under the License.
 import torch
 
-from ..parallel_state import get_tensor_model_parallel_group
-from ..parallel_state import get_tensor_model_parallel_rank
-from ..parallel_state import get_tensor_model_parallel_src_rank
+from apex.transformer.parallel_state import get_tensor_model_parallel_group
+from apex.transformer.parallel_state import get_tensor_model_parallel_rank
+from apex.transformer.parallel_state import get_tensor_model_parallel_src_rank
 
 
 _MAX_DATA_DIM = 5

@@ -1,13 +1,18 @@
 import torch
 
-from .common import placeholder_handler
-from .common import forward_step
-from .common import backward_step
-from ..utils import get_num_microbatches
+from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
+from apex.transformer.pipeline_parallel.schedules.common import placeholder_handler
+from apex.transformer.pipeline_parallel.schedules.common import forward_step
+from apex.transformer.pipeline_parallel.schedules.common import backward_step
 
 
 def forward_backward_no_pipelining(
-    forward_step_func, data_iterator, model, optimizer, timers, forward_only
+        forward_step_func: FwdStepFunc,
+        batch: Batch,
+        model: torch.nn.Module,
+        optimizer: torch.optim.optimizer.Optimizer,
+        forward_only: bool,
 ):
     """Run forward and backward passes with no pipeline parallelism
     (no inter-stage communication).
@@ -26,15 +31,14 @@ def forward_backward_no_pipelining(
     with context_handler():
         for i in range(get_num_microbatches() - 1):
             output_tensor = forward_step(
-                forward_step_func, data_iterator, model, input_tensor, losses_reduced
-            )
+                forward_step_func, batch, model, input_tensor, losses_reduced)
             if not forward_only:
                 backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad)
 
     # Run computation for last microbatch out of context handler (want to
     # synchronize gradients).
     output_tensor = forward_step(
-        forward_step_func, data_iterator, model, input_tensor, losses_reduced
+        forward_step_func, batch, model, input_tensor, losses_reduced
     )
     if not forward_only:
         backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad)

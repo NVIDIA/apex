@@ -19,7 +19,7 @@ import typing
 
 import torch
 
-from .. import parallel_state
+from apex.transformer import parallel_state
 
 
 def _communicate(

@@ -14,17 +14,7 @@
 # limitations under the License.
 import torch
 
-
-def ensure_divisibility(numerator, denominator):
-    """Ensure that numerator is divisible by the denominator."""
-    assert numerator % denominator == 0, "{} is not divisible by {}".format(numerator, denominator)
-
-
-def divide(numerator, denominator):
-    """Ensure that numerator is divisible by the denominator and return
-    the division value."""
-    ensure_divisibility(numerator, denominator)
-    return numerator // denominator
+from apex.transformer.utils import divide
 
 
 def split_tensor_along_last_dim(tensor, num_partitions, contiguous_split_chunks=False):
@@ -48,9 +38,9 @@ def split_tensor_along_last_dim(tensor, num_partitions, contiguous_split_chunks=
 
 
 class VocabUtility:
-    """Split the vocabulary into `world_size` chunks amd return the
-        first and last index of the vocabulary belonging to the `rank`
-        partition: Note that indecies in [fist, last)"""
+    """Split the vocabulary into `world_size` chunks and return the
+    first and last index of the vocabulary belonging to the `rank`
+    partition: Note that indices in [fist, last)"""
 
     @staticmethod
     def vocab_range_from_per_partition_vocab_size(per_partition_vocab_size, rank, world_size):

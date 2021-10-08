@@ -1,10 +1,18 @@
+# NOTE (mkozuki): For simplicity, tentatively `timers` related operations are commented out.
 from contextlib import contextmanager
+from typing import Any, Callable, List, Tuple, Union, Optional
+
 import torch
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import get_timers
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import unwrap_model
+
+
+Batch = Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor, ...]]
+LossFunc = Callable[[torch.Tensor], torch.Tensor]
+FwdStepFunc = Callable[[Batch, torch.nn.Module], Tuple[torch.Tensor], LossFunc]
 
 
 @contextmanager
@@ -15,28 +23,40 @@ def placeholder_handler():
         pass
 
 
-def forward_step(forward_step_func, data_iterator, model, input_tensor, losses_reduced):
+def forward_step(
+        forward_step_func: FwdStepFunc,
+        batch: Batch,
+        model: torch.nn.Module,
+        input_tensor: Optional[torch.Tensor],
+        losses_reduced: List[torch.Tensor],
+):
     """Forward step for passed-in model.
 
     If first stage, input tensor is obtained from data_iterator, otherwise
     passed-in input_tensor is used.
 
-    Returns output tensor."""
-    timers = get_timers()
+    Returns output tensor.
 
-    timers("forward-compute").start()
+    Args:
+        forward_step_func: Model specific function. This takes a minibatch and model as its arguments and
+            returns the model's output and the loss function.
+        batch: minibatch
+        model: unwrappable model
+    """
+    # timers = get_timers()
+    # timers("forward-compute").start()
     unwrapped_model = unwrap_model(model)
     # NOTE (mkozuki): The passed `model` is expected to implement `set_input_tensor`.
     # See https://github.com/NVIDIA/Megatron-LM/blob/5ac5571ba0265af4c491ee0af1508ca7589450c6/megatron/model/transformer.py#L679  # NOQA
     # for the details of `set_input_tensor`.
     unwrapped_model.set_input_tensor(input_tensor)
-    output_tensor, loss_func = forward_step_func(data_iterator, model)
+    output_tensor, loss_func = forward_step_func(batch, model)
     if parallel_state.is_pipeline_last_stage():
         output_tensor = loss_func(output_tensor)
         loss, loss_reduced = output_tensor
         output_tensor = loss / get_num_microbatches()
         losses_reduced.append(loss_reduced)
-    timers("forward-compute").stop()
+    # timers("forward-compute").stop()
 
     return output_tensor
 

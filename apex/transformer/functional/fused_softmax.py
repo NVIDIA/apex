@@ -15,7 +15,7 @@
 import torch
 
 from apex._autocast_utils import _cast_if_autocast_enabled
-from ..enums import AttnMaskType
+from apex.transformer.enums import AttnMaskType
 
 
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):

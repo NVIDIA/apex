@@ -1,8 +1,8 @@
-from ... import parallel_state
-from ..utils import get_num_microbatches
-from .fwd_bwd_no_pipelining import forward_backward_no_pipelining
-from .fwd_bwd_pipelining_with_interleaving import forward_backward_pipelining_with_interleaving
-from .fwd_bwd_pipelining_without_interleaving import (
+from apex.transformer import parallel_state
+from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import forward_backward_pipelining_with_interleaving
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
     forward_backward_pipelining_without_interleaving,
 )
 

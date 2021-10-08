@@ -1,19 +1,25 @@
+import torch
+
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import p2p_communication
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-from apex.transformer.pipeline_parallel.utils import get_timers
-from .common import forward_step
-from .common import backward_step
+from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
+from apex.transformer.pipeline_parallel.schedules.common import forward_step
+from apex.transformer.pipeline_parallel.schedules.common import backward_step
 
 
 def forward_backward_pipelining_without_interleaving(
-    forward_step_func, data_iterator, model, optimizer, timers, forward_only
+        forward_step_func: FwdStepFunc,
+        batch: Batch,
+        model: torch.nn.Module,
+        optimizer: torch.optim.optimizer.Optimizer,
+        forward_only: bool,
 ):
     """Run non-interleaved 1F1B schedule, with communication between pipeline
     stages.
 
     Returns dictionary with losses if the last stage, empty dict otherwise."""
-    timers = get_timers()
+    # timers = get_timers()
 
     assert len(model) == 1
     model = model[0]
@@ -38,11 +44,9 @@ def forward_backward_pipelining_without_interleaving(
 
     # Run warmup forward passes.
     for i in range(num_warmup_microbatches):
-        input_tensor = p2p_communication.recv_forward(timers=timers)
-        output_tensor = forward_step(
-            forward_step_func, data_iterator, model, input_tensor, losses_reduced
-        )
-        p2p_communication.send_forward(output_tensor, timers=timers)
+        input_tensor = p2p_communication.recv_forward()
+        output_tensor = forward_step(forward_step_func, batch, model, input_tensor, losses_reduced)
+        p2p_communication.send_forward(output_tensor)
 
         if not forward_only:
             input_tensors.append(input_tensor)
@@ -52,25 +56,21 @@ def forward_backward_pipelining_without_interleaving(
     # If all microbatches are run in warmup / cooldown phase, then no need to
     # receive this tensor here.
     if num_microbatches_remaining > 0:
-        input_tensor = p2p_communication.recv_forward(timers=timers)
+        input_tensor = p2p_communication.recv_forward()
 
     # Run 1F1B in steady state.
     for i in range(num_microbatches_remaining):
         last_iteration = i == (num_microbatches_remaining - 1)
 
-        output_tensor = forward_step(
-            forward_step_func, data_iterator, model, input_tensor, losses_reduced
-        )
+        output_tensor = forward_step(forward_step_func, batch, model, input_tensor, losses_reduced)
         if forward_only:
-            p2p_communication.send_forward(output_tensor, timers=timers)
+            p2p_communication.send_forward(output_tensor)
 
             if not last_iteration:
-                input_tensor = p2p_communication.recv_forward(timers=timers)
+                input_tensor = p2p_communication.recv_forward()
 
         else:
-            output_tensor_grad = p2p_communication.send_forward_recv_backward(
-                output_tensor, timers=timers
-            )
+            output_tensor_grad = p2p_communication.send_forward_recv_backward(output_tensor)
 
             # Add input_tensor and output_tensor to end of list.
             input_tensors.append(input_tensor)
@@ -87,11 +87,9 @@ def forward_backward_pipelining_without_interleaving(
 
             if last_iteration:
                 input_tensor = None
-                p2p_communication.send_backward(input_tensor_grad, timers=timers)
+                p2p_communication.send_backward(input_tensor_grad)
             else:
-                input_tensor = p2p_communication.send_backward_recv_forward(
-                    input_tensor_grad, timers=timers
-                )
+                input_tensor = p2p_communication.send_backward_recv_forward(input_tensor_grad)
 
     # Run cooldown backward passes.
     if not forward_only:
@@ -99,12 +97,12 @@ def forward_backward_pipelining_without_interleaving(
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
 
-            output_tensor_grad = p2p_communication.recv_backward(timers=timers)
+            output_tensor_grad = p2p_communication.recv_backward()
 
             input_tensor_grad = backward_step(
                 optimizer, input_tensor, output_tensor, output_tensor_grad
             )
 
-            p2p_communication.send_backward(input_tensor_grad, timers=timers)
+            p2p_communication.send_backward(input_tensor_grad)
 
     return losses_reduced
