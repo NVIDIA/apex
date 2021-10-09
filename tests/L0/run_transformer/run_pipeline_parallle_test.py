@@ -1,14 +1,16 @@
 import torch
 import torch.nn as nn
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from apex.transformer import parallel_state
+from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
-from apex.transformer.tensor_parallel.tests import global_vars
-from apex.transformer.tensor_parallel.tests.commons import set_random_seed
-from apex.transformer.tensor_parallel.tests.commons import print_separator
-from apex.transformer.tensor_parallel.tests.commons import initialize_distributed
-from apex.transformer.tensor_parallel.tests.commons import TEST_SUCCESS_MESSAGE
+from apex.transformer.testing import global_vars
+from apex.transformer.testing.commons import set_random_seed
+from apex.transformer.testing.commons import print_separator
+from apex.transformer.testing.commons import initialize_distributed
+from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 
 
 global_vars.set_global_variables()
@@ -29,15 +31,18 @@ class MyLayer(nn.Module):
         self.input_tensor = input_tensor
 
     def forward(self, x):
-        input_ = self.input_tensor
-        return self.layer(input_)
+        if parallel_state.is_pipeline_first_stage():
+            input = x
+        else:
+            input = self.input_tensor
+        return self.layer(input)
 
 
 class MyModel(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.layers = nn.ModuleList([MyLayer() for _ in range(N_LAYERS)])
+        self.layer = MyLayer()
 
     def set_input_tensor(self, input_tensor):
         self.layer.set_input_tensor(input_tensor)
@@ -48,7 +53,12 @@ class MyModel(nn.Module):
 
 def fwd_step_func(batch, model):
     y = model(batch)
-    return y, torch.mean
+
+    # note (mkozuki): I don't think this function is nice buf I do think this is enough for now
+    # just to check the sanity of ported pipeline functions.
+    def loss_func(x):
+        return torch.mean(x), {'avg': torch.mean(x)}
+    return y, loss_func
 
 
 def test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size):
@@ -57,19 +67,38 @@ def test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size):
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_rank()
 
     model = MyModel().cuda()
+    model = DDP(model)
     forward_only = False
     batch = torch.randn(HIDDEN_SIZE, HIDDEN_SIZE).cuda()
 
     update_num_microbatches(0)
     forward_backward_pipelining_without_interleaving(fwd_step_func, batch, model, forward_only)
 
+    # TODO (mkozuki): Check grads are not None
+    torch.distributed.barrier()
+
 
 if __name__ == "__main__":
+    failures = []
+
     initialize_distributed()
     world_size = torch.distributed.get_world_size()
+    args = global_vars.get_args()
+    setup_microbatch_calculator(
+        args.rank,
+        args.rampup_batch_size,
+        args.global_batch_size,
+        args.micro_batch_size,
+        args.data_parallel_size,
+    )
     pipeline_model_parallel_size = 1
     while pipeline_model_parallel_size <= min(world_size, N_MAX_DEVICES):
-        test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size)
-        pipeline_model_parallel_size *= 2
-    # Reset groups
-    parallel_state.destroy_model_parallel()
+        try:
+            test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size)
+        except Exception as e:
+            failures.append("pipeline w/o interleaving: {str(e)}")
+            break
+        else:
+            pipeline_model_parallel_size *= 2
+        finally:
+            parallel_state.destroy_model_parallel()
