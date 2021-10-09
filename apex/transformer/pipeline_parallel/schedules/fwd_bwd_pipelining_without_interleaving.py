@@ -26,7 +26,8 @@ def forward_backward_pipelining_without_interleaving(
 
     model = listify_model(model)
     if len(model) != 1:
-        raise RuntimeError("`model` for pipeline model parallel without interleaving must be a `nn.Module`")
+        msg = "`model` is expected be a `nn.Module`, but {type(model)}"
+        raise RuntimeError(msg)
     model = model[0]
 
     # Compute number of warmup microbatches.

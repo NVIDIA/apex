@@ -22,7 +22,9 @@ def forward_backward_no_pipelining(
     Returns dictionary with losses.
     """
     model = listify_model(model)
-    assert len(model) == 1
+    if len(model) != 1:
+        msg = "`model` is expected be a `nn.Module`, but {type(model)}"
+        raise RuntimeError(msg)
     model = model[0]
 
     context_handler = placeholder_handler

@@ -11,10 +11,9 @@ from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 
 
-# TODO (mkozuki): Fix data iterators handling
 def forward_backward_pipelining_with_interleaving(
         forward_step_func: FwdStepFunc,
-        data_iterators: Batch,
+        batch: List[Batch],
         model: List[torch.nn.Module],
         forward_only: bool,
 ):
@@ -24,6 +23,9 @@ def forward_backward_pipelining_with_interleaving(
     Returns dictionary with losses if the last stage, empty dict otherwise."""
     if not isinstance(model, list):
         raise RuntimeError("`model` must be a list of `nn.Module`'s'")
+    if len(batch) != len(model):
+        msg = f"`batch` and `model` must have the same number of elements. Actual {len(batch)} and {len(model)}"
+        raise RuntimeError(msg)
     input_tensors = [[] for _ in range(len(model))]
     output_tensors = [[] for _ in range(len(model))]
     losses_reduced = []
@@ -80,7 +82,7 @@ def forward_backward_pipelining_with_interleaving(
         input_tensor = input_tensors[model_chunk_id][-1]
         output_tensor = forward_step(
             forward_step_func,
-            data_iterators[model_chunk_id],
+            batch[model_chunk_id],
             model[model_chunk_id],
             input_tensor,
             losses_reduced,
