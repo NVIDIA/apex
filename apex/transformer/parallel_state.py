@@ -17,7 +17,7 @@ import torch
 
 # TODO (mkozuki): Consider dissecting utils as this utils import is here
 # only for ensure_divisibility
-from apex.transformer.tensor_parallel import utils
+from apex.transformer.utils import ensure_divisibility
 
 
 # Intra-layer model parallel group that the current rank belongs to.
@@ -85,7 +85,7 @@ def initialize_model_parallel(
     tensor_model_parallel_size = min(tensor_model_parallel_size_, world_size)
     pipeline_model_parallel_size = min(pipeline_model_parallel_size_, world_size)
     # TODO (mkozuki): Consider moving `ensure_divisibility` to this file.
-    utils.ensure_divisibility(world_size, tensor_model_parallel_size * pipeline_model_parallel_size)
+    ensure_divisibility(world_size, tensor_model_parallel_size * pipeline_model_parallel_size)
     data_parallel_size = world_size // (tensor_model_parallel_size * pipeline_model_parallel_size)
 
     num_tensor_model_parallel_groups = world_size // tensor_model_parallel_size
