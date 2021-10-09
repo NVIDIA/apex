@@ -1,7 +1,10 @@
+from typing import List, Union
+
 import torch
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import p2p_communication
+from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
@@ -11,7 +14,7 @@ from apex.transformer.pipeline_parallel.schedules.common import backward_step
 def forward_backward_pipelining_without_interleaving(
         forward_step_func: FwdStepFunc,
         batch: Batch,
-        model: torch.nn.Module,
+        model: Union[torch.nn.Module, List[torch.nn.Module]],
         forward_only: bool,
 ):
     """Run non-interleaved 1F1B schedule, with communication between pipeline
@@ -21,8 +24,10 @@ def forward_backward_pipelining_without_interleaving(
     """
     # timers = get_timers()
 
-    # assert len(model) == 1
-    # model = model[0]
+    model = listify_model(model)
+    if len(model) != 1:
+        raise RuntimeError("`model` for pipeline model parallel without interleaving must be a `nn.Module`")
+    model = model[0]
 
     # Compute number of warmup microbatches.
     num_microbatches = get_num_microbatches()

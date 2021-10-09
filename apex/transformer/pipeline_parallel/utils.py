@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """Utilities for pipeline model parallel."""
-from typing import Optional, List
+from typing import Optional, List, Union
 
 import torch
 from torch.nn.parallel import DistributedDataParallel
@@ -32,6 +32,12 @@ _GLOBAL_TOKENIZER = None
 _GLOBAL_TENSORBOARD_WRITER = None
 _GLOBAL_AUTORESUME = None
 _GLOBAL_TIMERS = None
+
+
+def listify_model(model: Union[torch.nn.Module, List[torch.nn.Module]]) -> List[torch.nn.Module]:
+    if isinstance(model, list):
+        return model
+    return [model]
 
 
 def _ensure_var_is_initialized(var, name):

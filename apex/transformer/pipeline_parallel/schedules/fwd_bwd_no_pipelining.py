@@ -1,5 +1,8 @@
+from typing import List, Union
+
 import torch
 
+from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import placeholder_handler
@@ -10,7 +13,7 @@ from apex.transformer.pipeline_parallel.schedules.common import backward_step
 def forward_backward_no_pipelining(
         forward_step_func: FwdStepFunc,
         batch: Batch,
-        model: torch.nn.Module,
+        model: Union[torch.nn.Module, List[torch.nn.Module]],
         forward_only: bool,
 ):
     """Run forward and backward passes with no pipeline parallelism
@@ -18,6 +21,7 @@ def forward_backward_no_pipelining(
 
     Returns dictionary with losses.
     """
+    model = listify_model(model)
     assert len(model) == 1
     model = model[0]
 

@@ -1,3 +1,5 @@
+from typing import List
+
 import torch
 
 from apex.transformer import parallel_state
@@ -13,13 +15,15 @@ from apex.transformer.pipeline_parallel.schedules.common import backward_step
 def forward_backward_pipelining_with_interleaving(
         forward_step_func: FwdStepFunc,
         data_iterators: Batch,
-        model: torch.nn.Module,
+        model: List[torch.nn.Module],
         forward_only: bool,
 ):
     """Run interleaved 1F1B schedule (model split into model chunks), with
     communication between pipeline stages as needed.
 
     Returns dictionary with losses if the last stage, empty dict otherwise."""
+    if not isinstance(model, list):
+        raise RuntimeError("`model` must be a list of `nn.Module`'s'")
     input_tensors = [[] for _ in range(len(model))]
     output_tensors = [[] for _ in range(len(model))]
     losses_reduced = []
