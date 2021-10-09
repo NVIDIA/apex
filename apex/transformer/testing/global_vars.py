@@ -20,8 +20,8 @@ import time
 
 import torch
 
-from apex.transformer.tensor_parallel.microbatches import build_num_microbatches_calculator
-from apex.transformer.tensor_parallel.tests.arguments import parse_args
+from apex.transformer.microbatches import build_num_microbatches_calculator
+from .arguments import parse_args
 
 _GLOBAL_ARGS = None
 _GLOBAL_NUM_MICROBATCHES_CALCULATOR = None

@@ -19,7 +19,7 @@ import numpy
 import torch
 
 from apex import transformer
-from apex.transformer.tensor_parallel.tests import global_vars
+from .tests import global_vars
 
 
 TEST_SUCCESS_MESSAGE = ">> passed the test :-)"
