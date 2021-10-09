@@ -15,35 +15,41 @@
 """Megatron number of micro-batches calculators."""
 from abc import ABC
 from abc import abstractmethod
+from typing import Optional, List
 
 
-def build_num_microbatches_calculator(args):
-
+def build_num_microbatches_calculator(
+        rank: int,
+        rampup_batch_size: Optional[List[int]],
+        global_batch_size: int,
+        micro_batch_size: int,
+        data_parallel_size: int,
+):
     # Constant num micro-batches.
-    if args.rampup_batch_size is None:
+    if rampup_batch_size is None:
         num_microbatches_calculator = ConstantNumMicroBatches(
-            args.global_batch_size, args.micro_batch_size, args.data_parallel_size
+            global_batch_size, micro_batch_size, data_parallel_size
         )
-        if args.rank == 0:
+        if rank == 0:
             print(
                 "setting number of micro-batches to constant {}".format(num_microbatches_calculator.get()), flush=True
             )
 
     else:
-        assert len(args.rampup_batch_size) == 3, (
+        assert len(rampup_batch_size) == 3, (
             "expected the following "
             "format: --rampup-batch-size <start batch size> "
             "<batch size incerement> <ramp-up samples>"
         )
-        start_batch_size = int(args.rampup_batch_size[0])
-        batch_size_increment = int(args.rampup_batch_size[1])
-        ramup_samples = int(args.rampup_batch_size[2])
-        if args.rank == 0:
+        start_batch_size = int(rampup_batch_size[0])
+        batch_size_increment = int(rampup_batch_size[1])
+        ramup_samples = int(rampup_batch_size[2])
+        if rank == 0:
             print(
                 "will use batch size rampup starting from global batch "
                 "size {} to global batch size {} with batch size increments "
                 "{} over {} samples.".format(
-                    start_batch_size, args.global_batch_size, batch_size_increment, ramup_samples
+                    start_batch_size, global_batch_size, batch_size_increment, ramup_samples
                 ),
                 flush=True,
             )
@@ -51,9 +57,9 @@ def build_num_microbatches_calculator(args):
             start_batch_size,
             batch_size_increment,
             ramup_samples,
-            args.global_batch_size,
-            args.micro_batch_size,
-            args.data_parallel_size,
+            global_batch_size,
+            micro_batch_size,
+            data_parallel_size,
         )
 
     return num_microbatches_calculator

@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""General utilities."""
+"""Utilities for pipeline model parallel."""
+from typing import Optional, List
 
 import torch
 from torch.nn.parallel import DistributedDataParallel
@@ -21,8 +22,8 @@ from torch.nn.parallel import DistributedDataParallel
 from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
 from apex.transformer import parallel_state
-from apex.transformer.pipeline_parallel.timers import Timers
 from apex.transformer.microbatches import build_num_microbatches_calculator
+from apex.transformer.pipeline_parallel.timers import Timers
 
 
 _GLOBAL_ARGS = None
@@ -43,12 +44,30 @@ def _ensure_var_is_not_initialized(var, name):
     assert var is None, "{} is already initialized.".format(name)
 
 
+def setup_microbatch_calculator(
+        rank: int,
+        rampup_batch_size: Optional[List[int]],
+        global_batch_size: int,
+        micro_batch_size: int,
+        data_parallel_size: int,
+) -> None:
+    global _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+    _ensure_var_is_not_initialized(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'num microbatches calculator')
+
+    _GLOBAL_NUM_MICROBATCHES_CALCULATOR = build_num_microbatches_calculator(
+        rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size)
+
+
 def get_num_microbatches():
     return _GLOBAL_NUM_MICROBATCHES_CALCULATOR.get()
 
 
 def get_current_global_batch_size():
     return _GLOBAL_NUM_MICROBATCHES_CALCULATOR.get_current_global_batch_size()
+
+
+def update_num_microbatches(consumed_samples, consistency_check=True):
+    _GLOBAL_NUM_MICROBATCHES_CALCULATOR.update(consumed_samples, consistency_check)
 
 
 def get_autoresume():
@@ -66,10 +85,6 @@ def get_timers():
     """Return timers."""
     _ensure_var_is_initialized(_GLOBAL_TIMERS, "timers")
     return _GLOBAL_TIMERS
-
-
-def update_num_microbatches(consumed_samples, consistency_check=True):
-    _GLOBAL_NUM_MICROBATCHES_CALCULATOR.update(consumed_samples, consistency_check)
 
 
 def print_rank_0(message: str) -> None:
