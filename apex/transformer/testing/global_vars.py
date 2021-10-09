@@ -80,7 +80,7 @@ def set_global_variables(extra_args_provider=None, args_defaults={},
     args = _parse_args(extra_args_provider=extra_args_provider,
                        defaults=args_defaults,
                        ignore_unknown_args=ignore_unknown_args)
-    _build_num_microbatches_calculator(args)
+    # _build_num_microbatches_calculator(args)
     # if args.vocab_file:
     #     _ = _build_tokenizer(args)
     _set_tensorboard_writer(args)

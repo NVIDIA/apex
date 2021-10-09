@@ -19,7 +19,7 @@ import numpy
 import torch
 
 from apex import transformer
-from .tests import global_vars
+from apex.transformer.testing import global_vars
 
 
 TEST_SUCCESS_MESSAGE = ">> passed the test :-)"
