@@ -22,6 +22,7 @@ from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.timers import Timers
+from apex.transformer.microbatches import build_num_microbatches_calculator
 
 
 _GLOBAL_ARGS = None

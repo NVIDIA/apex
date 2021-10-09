@@ -21,8 +21,8 @@ def forward_backward_pipelining_without_interleaving(
     """
     # timers = get_timers()
 
-    assert len(model) == 1
-    model = model[0]
+    # assert len(model) == 1
+    # model = model[0]
 
     # Compute number of warmup microbatches.
     num_microbatches = get_num_microbatches()
