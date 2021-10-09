@@ -12,7 +12,7 @@ from apex.transformer.pipeline_parallel.utils import unwrap_model
 
 Batch = Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor, ...]]
 LossFunc = Callable[[torch.Tensor], torch.Tensor]
-FwdStepFunc = Callable[[Batch, torch.nn.Module], Tuple[torch.Tensor], LossFunc]
+FwdStepFunc = Callable[[Batch, torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
 
 
 @contextmanager
