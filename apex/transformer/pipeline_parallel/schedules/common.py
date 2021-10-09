@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from typing import Any, Callable, List, Tuple, Union, Optional
 
+
 import torch
 
 from apex.transformer import parallel_state
