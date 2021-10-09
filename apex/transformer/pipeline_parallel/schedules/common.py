@@ -5,7 +5,6 @@ from typing import Any, Callable, List, Tuple, Union, Optional
 import torch
 
 from apex.transformer import parallel_state
-from apex.transformer.pipeline_parallel.utils import get_timers
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import unwrap_model
 
@@ -42,6 +41,10 @@ def forward_step(
             returns the model's output and the loss function.
         batch: minibatch
         model: unwrappable model
+        input_tensor:
+        losses_reduced:
+    Returns:
+        output_tensor
     """
     # timers = get_timers()
     # timers("forward-compute").start()
@@ -61,7 +64,7 @@ def forward_step(
     return output_tensor
 
 
-def backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad):
+def backward_step(input_tensor, output_tensor, output_tensor_grad):
     """Backward step through passed-in output tensor.
 
     If last stage, output_tensor_grad is None, otherwise gradient of loss
@@ -69,25 +72,27 @@ def backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad):
 
     Returns gradient of loss with respect to input tensor (None if first
     stage).
+
+    Args:
+        input_tensor:
+        output_tensor:
+        output_tensor_grad:
+    Returns:
+        input_tensor_grad
     """
 
-    timers = get_timers()
-    timers("backward-compute").start()
-
+    # timers = get_timers()
+    # timers("backward-compute").start()
     # Retain the grad on the input_tensor.
     if input_tensor is not None:
         input_tensor.retain_grad()
-
     # Backward pass.
-    if output_tensor_grad is None:
-        output_tensor = optimizer.scale_loss(output_tensor)
+    # if output_tensor_grad is None:
+    #     output_tensor = optimizer.scale_loss(output_tensor)
     torch.autograd.backward(output_tensor, grad_tensors=output_tensor_grad)
-
-    # Collect the grad of the input_tensor.
     input_tensor_grad = None
     if input_tensor is not None:
         input_tensor_grad = input_tensor.grad
-
-    timers("backward-compute").stop()
+    # timers("backward-compute").stop()
 
     return input_tensor_grad

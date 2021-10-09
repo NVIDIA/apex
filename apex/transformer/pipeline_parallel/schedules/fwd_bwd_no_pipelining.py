@@ -11,7 +11,6 @@ def forward_backward_no_pipelining(
         forward_step_func: FwdStepFunc,
         batch: Batch,
         model: torch.nn.Module,
-        optimizer: torch.optim.optimizer.Optimizer,
         forward_only: bool,
 ):
     """Run forward and backward passes with no pipeline parallelism
@@ -33,7 +32,7 @@ def forward_backward_no_pipelining(
             output_tensor = forward_step(
                 forward_step_func, batch, model, input_tensor, losses_reduced)
             if not forward_only:
-                backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad)
+                backward_step(input_tensor, output_tensor, output_tensor_grad)
 
     # Run computation for last microbatch out of context handler (want to
     # synchronize gradients).
@@ -41,6 +40,6 @@ def forward_backward_no_pipelining(
         forward_step_func, batch, model, input_tensor, losses_reduced
     )
     if not forward_only:
-        backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad)
+        backward_step(input_tensor, output_tensor, output_tensor_grad)
 
     return losses_reduced

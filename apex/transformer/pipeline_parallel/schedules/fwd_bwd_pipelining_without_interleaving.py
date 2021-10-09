@@ -12,13 +12,13 @@ def forward_backward_pipelining_without_interleaving(
         forward_step_func: FwdStepFunc,
         batch: Batch,
         model: torch.nn.Module,
-        optimizer: torch.optim.optimizer.Optimizer,
         forward_only: bool,
 ):
     """Run non-interleaved 1F1B schedule, with communication between pipeline
     stages.
 
-    Returns dictionary with losses if the last stage, empty dict otherwise."""
+    Returns list of losses if the last stage, empty dict otherwise.
+    """
     # timers = get_timers()
 
     assert len(model) == 1
@@ -82,7 +82,7 @@ def forward_backward_pipelining_without_interleaving(
             output_tensor = output_tensors.pop(0)
 
             input_tensor_grad = backward_step(
-                optimizer, input_tensor, output_tensor, output_tensor_grad
+                input_tensor, output_tensor, output_tensor_grad
             )
 
             if last_iteration:
@@ -100,7 +100,7 @@ def forward_backward_pipelining_without_interleaving(
             output_tensor_grad = p2p_communication.recv_backward()
 
             input_tensor_grad = backward_step(
-                optimizer, input_tensor, output_tensor, output_tensor_grad
+                input_tensor, output_tensor, output_tensor_grad
             )
 
             p2p_communication.send_backward(input_tensor_grad)

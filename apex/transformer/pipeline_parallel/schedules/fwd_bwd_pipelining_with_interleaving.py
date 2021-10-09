@@ -14,7 +14,6 @@ def forward_backward_pipelining_with_interleaving(
         forward_step_func: FwdStepFunc,
         data_iterators: Batch,
         model: torch.nn.Module,
-        optimizer: torch.optim.optimizer.Optimizer,
         forward_only: bool,
 ):
     """Run interleaved 1F1B schedule (model split into model chunks), with
@@ -105,7 +104,7 @@ def forward_backward_pipelining_with_interleaving(
         output_tensor = output_tensors[model_chunk_id].pop(0)
         output_tensor_grad = output_tensor_grads[model_chunk_id].pop(0)
         input_tensor_grad = backward_step(
-            optimizer, input_tensor, output_tensor, output_tensor_grad
+            input_tensor, output_tensor, output_tensor_grad
         )
 
         return input_tensor_grad
