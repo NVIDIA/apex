@@ -48,7 +48,7 @@ class _Timer:
         return elapsed_
 
 
-class Timers:
+class _Timers:
     """Group of timers."""
 
     def __init__(self):
