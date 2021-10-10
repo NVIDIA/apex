@@ -34,6 +34,9 @@ _GLOBAL_AUTORESUME = None
 _GLOBAL_TIMERS = None
 
 
+Shape = Union[List[int], torch.Size]
+
+
 def listify_model(model: Union[torch.nn.Module, List[torch.nn.Module]]) -> List[torch.nn.Module]:
     if isinstance(model, list):
         return model

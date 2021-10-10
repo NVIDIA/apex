@@ -69,7 +69,16 @@ def test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size):
     model = MyModel().cuda()
     model = DDP(model)
     forward_only = False
-    batch = torch.randn(HIDDEN_SIZE, HIDDEN_SIZE).cuda()
+    args = global_vars.get_args()
+    # setup_microbatch_calculator(
+    #     args.rank,
+    #     args.rampup_batch_size,
+    #     args.global_batch_size,
+    #     args.micro_batch_size,
+    #     args.data_parallel_size,
+    # )
+    tensor_shape = torch.Size([args.global_batch_size, HIDDEN_SIZE])
+    batch = torch.randn(tensor_shape).cuda()
 
     update_num_microbatches(0)
     forward_backward_pipelining_without_interleaving(fwd_step_func, batch, model, forward_only)

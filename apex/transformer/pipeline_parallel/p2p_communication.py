@@ -20,6 +20,7 @@ import typing
 import torch
 
 from apex.transformer import parallel_state
+from apex.transformr.pipeline_parallel.utils import Shape
 
 
 def _communicate(
@@ -28,7 +29,7 @@ def _communicate(
     recv_prev: bool,
     recv_next: bool,
     use_ring_exchange: bool = False,
-    tensor_shape: typing.Optional[typing.Union[torch.Size, typing.List[int]]] = None,
+    tensor_shape: typing.Optional[Shape] = None,
     override_scatter_gather_tensors_in_pipeline: bool = False,
     dtype_: typing.Optional[torch.dtype] = None,
     *,
@@ -164,9 +165,7 @@ def _communicate(
     return tensor_recv_prev, tensor_recv_next
 
 
-def recv_forward(
-    tensor_shape=None, override_scatter_gather_tensors_in_pipeline=False, dtype_=None, timers=None
-):
+def recv_forward(tensor_shape=None, override_scatter_gather_tensors_in_pipeline=False, dtype_=None, timers=None):
     """Receive tensor from previous rank in pipeline (forward receive)."""
 
     if parallel_state.is_pipeline_first_stage():
