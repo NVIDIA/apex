@@ -25,6 +25,47 @@ from apex.transformr.pipeline_parallel.utils import Shape
 from apex.transformer.pipeline_parallel._timers import _Timers
 
 
+def _run_p2pops(
+        tensor_send_prev: Union[torch.Tensor, None],
+        tensor_send_next: Union[torch.Tensor, None],
+        tensor_recv_prev: Union[torch.Tensor, None],
+        tensor_recv_next: Union[torch.Tensor, None],
+):
+    ops = []
+    if tensor_send_prev is not None:
+        send_prev_op = torch.distributed.P2POp(
+            torch.distributed.isend,
+            tensor_send_prev,
+            parallel_state.get_pipeline_model_parallel_prev_rank(),
+        )
+        ops.append(send_prev_op)
+    if tensor_recv_prev is not None:
+        recv_prev_op = torch.distributed.P2POp(
+            torch.distributed.irecv,
+            tensor_recv_prev,
+            parallel_state.get_pipeline_model_parallel_prev_rank(),
+        )
+        ops.append(recv_prev_op)
+    if tensor_send_next is not None:
+        send_next_op = torch.distributed.P2POp(
+            torch.distributed.isend,
+            tensor_send_next,
+            parallel_state.get_pipeline_model_parallel_next_rank(),
+        )
+        ops.append(send_next_op)
+    if tensor_recv_next is not None:
+        recv_next_op = torch.distributed.P2POp(
+            torch.distributed.irecv,
+            tensor_recv_next,
+            parallel_state.get_pipeline_model_parallel_next_rank(),
+        )
+        ops.append(recv_next_op)
+    if len(ops) > 0:
+        reqs = torch.distributed.batch_isend_irecv(ops)
+        for req in reqs:
+            req.wait()
+
+
 def _communicate(
     tensor_send_next: Optional[torch.Tensor],
     tensor_send_prev: Optional[torch.Tensor],
@@ -116,39 +157,7 @@ def _communicate(
             group=parallel_state.get_pipeline_model_parallel_group(),
         )
     else:
-        ops = []
-        if tensor_send_prev is not None:
-            send_prev_op = torch.distributed.P2POp(
-                torch.distributed.isend,
-                tensor_send_prev,
-                parallel_state.get_pipeline_model_parallel_prev_rank(),
-            )
-            ops.append(send_prev_op)
-        if tensor_recv_prev is not None:
-            recv_prev_op = torch.distributed.P2POp(
-                torch.distributed.irecv,
-                tensor_recv_prev,
-                parallel_state.get_pipeline_model_parallel_prev_rank(),
-            )
-            ops.append(recv_prev_op)
-        if tensor_send_next is not None:
-            send_next_op = torch.distributed.P2POp(
-                torch.distributed.isend,
-                tensor_send_next,
-                parallel_state.get_pipeline_model_parallel_next_rank(),
-            )
-            ops.append(send_next_op)
-        if tensor_recv_next is not None:
-            recv_next_op = torch.distributed.P2POp(
-                torch.distributed.irecv,
-                tensor_recv_next,
-                parallel_state.get_pipeline_model_parallel_next_rank(),
-            )
-            ops.append(recv_next_op)
-        if len(ops) > 0:
-            reqs = torch.distributed.batch_isend_irecv(ops)
-            for req in reqs:
-                req.wait()
+        _run_p2pops(tensor_send_prev, tensor_send_next, tensor_recv_prev, tensor_recv_next)
     # To protect against race condition when using batch_isend_irecv().
     torch.cuda.synchronize()
 
