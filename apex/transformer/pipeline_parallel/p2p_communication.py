@@ -114,10 +114,10 @@ def _communicate(
     tensor_recv_next = None
     if tensor_shape is None:
         # In megatron, `tensor_shape` is set to `(args.seq_length, args.micro_batch_size, args.hidden_size)`
-        raise RuntimeError("`tensor_shape` must be specified")
+        raise RuntimeError(
+            "`tensor_shape` must be specified. Common `tensor_shape` is `(seq_length, micro_batch_size, hidden_size)`")
     if not override_scatter_gather_tensors_in_pipeline and scatter_gather_tensors_in_pipeline:
         tensor_chunk_shape = (reduce(operator.mul, tensor_shape, 1) // parallel_state.get_tensor_model_parallel_world_size(),)
-        print(f"tensor_chunk_shape: {tensor_chunk_shape}")
     else:
         tensor_chunk_shape = tensor_shape
     dtype = params_dtype or torch.float
