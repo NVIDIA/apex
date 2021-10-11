@@ -41,7 +41,6 @@ from .random import (
     init_checkpointed_activations_memory_buffer,
     model_parallel_cuda_manual_seed,
     reset_checkpointed_activations_memory_buffer,
-    gather_split_1d_tensor,
 )
 
 from apex.transformer.tensor_parallel.utils import split_tensor_along_last_dim
@@ -70,7 +69,6 @@ __all__ = [
     "init_checkpointed_activations_memory_buffer",
     "model_parallel_cuda_manual_seed",
     "reset_checkpointed_activations_memory_buffer",
-    "gather_split_1d_tensor",
     # utils.py
     "split_tensor_along_last_dim",
 ]

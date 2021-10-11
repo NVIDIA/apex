@@ -22,6 +22,7 @@ import torch
 from apex._autocast_utils import _get_current_dtype
 from apex.transformer import parallel_state
 from apex.transformer.utils import split_tensor_into_1d_equal_chunks
+from apex.transformer.utils import gather_split_1d_tensor
 from apex.transformer.pipeline_parallel.utils import Shape
 from apex.transformer.pipeline_parallel._timers import _Timers
 
@@ -169,14 +170,14 @@ def _communicate(
     if not override_scatter_gather_tensors_in_pipeline and scatter_gather_tensors_in_pipeline:
         if recv_prev:
             tensor_recv_prev = (
-                parallel_state.gather_split_1d_tensor(tensor_recv_prev)
+                gather_split_1d_tensor(tensor_recv_prev)
                 .view(tensor_shape)
                 .requires_grad_()
             )
 
         if recv_next:
             tensor_recv_next = (
-                parallel_state.gather_split_1d_tensor(tensor_recv_next)
+                gather_split_1d_tensor(tensor_recv_next)
                 .view(tensor_shape)
                 .requires_grad_()
             )
