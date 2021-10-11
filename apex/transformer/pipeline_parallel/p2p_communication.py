@@ -68,8 +68,8 @@ def _run_p2pops(
             req.wait()
 
 
-# NOTE (mkozuki): Leaving `params_dytpe` as it is for future development
-# in PyTorch, especially AMP. But basically all model parameters are assumed to be torch.float32.
+# NOTE (mkozuki): Leaving `params_dytpe` as it is for future development in PyTorch, especially APEX O2 style AMP.
+# But as of v1.10, basically all tensors are torch.float32 except for output tensors of `autocast` compatible layers.
 def _communicate(
     tensor_send_next: Optional[torch.Tensor],
     tensor_send_prev: Optional[torch.Tensor],
@@ -194,21 +194,20 @@ def recv_forward(
 ) -> torch.Tensor:
     """Receive tensor from previous rank in pipeline (forward receive)."""
     if parallel_state.is_pipeline_first_stage():
-        input_tensor = None
-    else:
-        if timers is not None:
-            timers("forward-recv").start()
-        input_tensor, _ = _communicate(
-            tensor_send_next=None,
-            tensor_send_prev=None,
-            recv_prev=True,
-            recv_next=False,
-            tensor_shape=tensor_shape,
-            override_scatter_gather_tensors_in_pipeline=override_scatter_gather_tensors_in_pipeline,
-            dtype_=_get_current_dtype(dtype),
-        )
-        if timers is not None:
-            timers("forward-recv").stop()
+        return None
+    if timers is not None:
+        timers("forward-recv").start()
+    input_tensor, _ = _communicate(
+        tensor_send_next=None,
+        tensor_send_prev=None,
+        recv_prev=True,
+        recv_next=False,
+        tensor_shape=tensor_shape,
+        override_scatter_gather_tensors_in_pipeline=override_scatter_gather_tensors_in_pipeline,
+        dtype_=_get_current_dtype(dtype),
+    )
+    if timers is not None:
+        timers("forward-recv").stop()
     return input_tensor
 
 
@@ -220,20 +219,19 @@ def recv_backward(
 ):
     """Receive tensor from next rank in pipeline (backward receive)."""
     if parallel_state.is_pipeline_last_stage():
-        output_tensor_grad = None
-    else:
-        if timers is not None:
-            timers("backward-recv").start()
-        _, output_tensor_grad = _communicate(
-            tensor_send_next=None,
-            tensor_send_prev=None,
-            recv_prev=False,
-            recv_next=True,
-            tensor_shape=tensor_shape,
-            dtype_=_get_current_dtype(dtype),
-        )
-        if timers is not None:
-            timers("backward-recv").stop()
+        return None
+    if timers is not None:
+        timers("backward-recv").start()
+    _, output_tensor_grad = _communicate(
+        tensor_send_next=None,
+        tensor_send_prev=None,
+        recv_prev=False,
+        recv_next=True,
+        tensor_shape=tensor_shape,
+        dtype_=_get_current_dtype(dtype),
+    )
+    if timers is not None:
+        timers("backward-recv").stop()
     return output_tensor_grad
 
 
@@ -246,20 +244,21 @@ def send_forward(
         timers: _Timers = None,
 ) -> None:
     """Send tensor to next rank in pipeline (forward send)."""
-    if not parallel_state.is_pipeline_last_stage():
-        if timers is not None:
-            timers("forward-send").start()
-        _communicate(
-            tensor_send_next=output_tensor,
-            tensor_send_prev=None,
-            recv_prev=False,
-            recv_next=False,
-            override_scatter_gather_tensors_in_pipeline=override_scatter_gather_tensors_in_pipeline,
-            tensor_shape=tensor_shape,
-            dtype_=_get_current_dtype(dtype),
-        )
-        if timers is not None:
-            timers("forward-send").stop()
+    if parallel_state.is_pipeline_last_stage():
+        return
+    if timers is not None:
+        timers("forward-send").start()
+    _communicate(
+        tensor_send_next=output_tensor,
+        tensor_send_prev=None,
+        recv_prev=False,
+        recv_next=False,
+        override_scatter_gather_tensors_in_pipeline=override_scatter_gather_tensors_in_pipeline,
+        tensor_shape=tensor_shape,
+        dtype_=_get_current_dtype(dtype),
+    )
+    if timers is not None:
+        timers("forward-send").stop()
 
 
 def send_backward(
@@ -270,19 +269,20 @@ def send_backward(
         timers: _Timers = None,
 ) -> None:
     """Send tensor to previous rank in pipeline (backward send)."""
-    if not parallel_state.is_pipeline_first_stage():
-        if timers is not None:
-            timers("backward-send").start()
-        _communicate(
-            tensor_send_next=None,
-            tensor_send_prev=input_tensor_grad,
-            recv_prev=False,
-            recv_next=False,
-            tensor_shape=tensor_shape,
-            dtype_=_get_current_dtype(dtype),
-        )
-        if timers is not None:
-            timers("backward-send").stop()
+    if parallel_state.is_pipeline_first_stage():
+        return
+    if timers is not None:
+        timers("backward-send").start()
+    _communicate(
+        tensor_send_next=None,
+        tensor_send_prev=input_tensor_grad,
+        recv_prev=False,
+        recv_next=False,
+        tensor_shape=tensor_shape,
+        dtype_=_get_current_dtype(dtype),
+    )
+    if timers is not None:
+        timers("backward-send").stop()
 
 
 def send_forward_recv_backward(
@@ -294,20 +294,19 @@ def send_forward_recv_backward(
 ) -> None:
     """Batched send and recv with next rank in pipeline."""
     if parallel_state.is_pipeline_last_stage():
-        output_tensor_grad = None
-    else:
-        if timers is not None:
-            timers("forward-send-backward-recv").start()
-        _, output_tensor_grad = _communicate(
-            tensor_send_next=output_tensor,
-            tensor_send_prev=None,
-            recv_prev=False,
-            recv_next=True,
-            tensor_shape=tensor_shape,
-            dtype_=_get_current_dtype(dtype),
-        )
-        if timers is not None:
-            timers("forward-send-backward-recv").stop()
+        return None
+    if timers is not None:
+        timers("forward-send-backward-recv").start()
+    _, output_tensor_grad = _communicate(
+        tensor_send_next=output_tensor,
+        tensor_send_prev=None,
+        recv_prev=False,
+        recv_next=True,
+        tensor_shape=tensor_shape,
+        dtype_=_get_current_dtype(dtype),
+    )
+    if timers is not None:
+        timers("forward-send-backward-recv").stop()
     return output_tensor_grad
 
 
@@ -320,20 +319,19 @@ def send_backward_recv_forward(
 ) -> torch.Tensor:
     """Batched send and recv with previous rank in pipeline."""
     if parallel_state.is_pipeline_first_stage():
-        input_tensor = None
-    else:
-        if timers is not None:
-            timers("backward-send-forward-recv").start()
-        input_tensor, _ = _communicate(
-            tensor_send_next=None,
-            tensor_send_prev=input_tensor_grad,
-            recv_prev=True,
-            recv_next=False,
-            tensor_shape=tensor_shape,
-            dtype_=_get_current_dtype(dtype),
-        )
-        if timers is not None:
-            timers("backward-send-forward-recv").stop()
+        return None
+    if timers is not None:
+        timers("backward-send-forward-recv").start()
+    input_tensor, _ = _communicate(
+        tensor_send_next=None,
+        tensor_send_prev=input_tensor_grad,
+        recv_prev=True,
+        recv_next=False,
+        tensor_shape=tensor_shape,
+        dtype_=_get_current_dtype(dtype),
+    )
+    if timers is not None:
+        timers("backward-send-forward-recv").stop()
     return input_tensor
 
 
