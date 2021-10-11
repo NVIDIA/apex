@@ -60,22 +60,15 @@ def fwd_step_func(batch, model):
 
 # note (mkozuki): This currently only checks the functionality of `forward_backward_pipelining_without_interleaving`.
 # i.e. checks whether we can run 1F1B for one minibatch
-def test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size):
+def test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size, forward_only: bool):
     # global batch_size, micro_batch_size, hidden_size
-    print_separator("pipeline without interleaving")
     parallel_state.initialize_model_parallel(1, pipeline_model_parallel_size, None)
-    pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_rank()
+    pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
+    torch.distributed.barrier()
+    print_separator(f"pipeline without interleaving - pipeline model parallel size: {pipeline_model_parallel_size}, forward_only: {forward_only}")
 
     model = MyModel().cuda()
     model = DDP(model)
-    forward_only = False
-    # setup_microbatch_calculator(
-    #     args.rank,
-    #     args.rampup_batch_size,
-    #     args.global_batch_size,
-    #     args.micro_batch_size,
-    #     args.data_parallel_size,
-    # )
     tensor_shape = [batch_size, hidden_size]
     batch = torch.randn(tensor_shape).cuda()
     tensor_shape[0] = micro_batch_size
@@ -84,13 +77,13 @@ def test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size):
     forward_backward_pipelining_without_interleaving(
         fwd_step_func, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
 
-    for p in model.parameters():
-        assert p.grad is not None
+    if not forward_only:
+        for p in model.parameters():
+            assert p.grad is not None
     torch.distributed.barrier()
 
 
 if __name__ == "__main__":
-    # # # # # # # # global batch_size, micro_batch_size
     failures = []
 
     initialize_distributed()
@@ -105,17 +98,18 @@ if __name__ == "__main__":
         args.micro_batch_size,
         args.data_parallel_size,
     )
-    pipeline_model_parallel_size = 1
-    while pipeline_model_parallel_size <= min(world_size, 4):
-        try:
-            test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size)
-        except Exception as e:
-            failures.append(f"pipeline parallel size - {pipeline_model_parallel_size}, w/o interleaving: {str(e)}")
-            break
-        else:
-            pipeline_model_parallel_size *= 2
-        finally:
-            parallel_state.destroy_model_parallel()
+    for forward_only in (True, False):
+        pipeline_model_parallel_size = 2
+        while pipeline_model_parallel_size <= min(world_size, 4):
+            try:
+                test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size, forward_only)
+            except Exception as e:
+                failures.append(f"pipeline parallel size - {pipeline_model_parallel_size}, w/o interleaving: {str(e)}")
+                break
+            else:
+                pipeline_model_parallel_size *= 2
+            finally:
+                parallel_state.destroy_model_parallel()
     if failures:
 
         raise RuntimeError("\n".join(failures))
