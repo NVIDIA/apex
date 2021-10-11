@@ -66,6 +66,8 @@ def _run_p2pops(
             req.wait()
 
 
+# NOTE (mkozuki): Leaving `params_dytpe` as it is for future development
+# in PyTorch, especially AMP. But basically all model parameters are assumed to be torch.float32.
 def _communicate(
     tensor_send_next: Optional[torch.Tensor],
     tensor_send_prev: Optional[torch.Tensor],
@@ -77,7 +79,7 @@ def _communicate(
     dtype_: torch.dtype = torch.float,
     *,
     scatter_gather_tensors_in_pipeline: bool = True,
-    params_dtype: torch.dtype = torch.float,
+    params_dtype: Optional[torch.dtype] = None,
     fp32_residual_connection: bool = False,
 ) -> Tuple[Union[torch.Tensor, None], Union[torch.Tensor, None]]:
     """Base function for communication of tensors between stages.
@@ -115,7 +117,7 @@ def _communicate(
         tensor_chunk_shape = reduce(operator.mul, tensor_shape, 1) // parallel_state.get_tensor_model_parallel_world_size()
     else:
         tensor_chunk_shape = tensor_shape
-    dtype = params_dtype
+    dtype = params_dtype or torch.float
     if fp32_residual_connection:
         dtype = torch.float
 

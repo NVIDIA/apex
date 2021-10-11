@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import Union, Tuple, List, Optional
 
 import torch
 
@@ -11,20 +11,48 @@ from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 
 
+# note (mkozuki): This is WIP.
+def _infer_tensor_shape(
+        tensor_shape: Optional[Union[List[int], Tuple[int, ...]]] = None,
+        batch_dim: int = 1,
+        requires_conjecture: bool = False,
+) -> Tuple[int, ...]:
+    if not requires_conjecture:
+        return tuple(tensor_shape)
+    if not isinstance(tensor_shape, list):
+        tensor_shape = list(tensor_shape)
+    tensor_shape[batch_dim] /= get_num_microbatches()
+    return tuple(tensor_shape)
+
+
 def forward_backward_pipelining_without_interleaving(
         forward_step_func: FwdStepFunc,
         batch: Batch,
         model: Union[torch.nn.Module, List[torch.nn.Module]],
+        *,
         forward_only: bool,
-        tensor_shape: Union[List[int], torch.Size],
+        tensor_shape: Optional[Union[List[int], torch.Size]] = None,
 ):
     """Run non-interleaved 1F1B schedule, with communication between pipeline
     stages.
 
-    Returns list of losses if the last stage, empty dict otherwise.
+    Args:
+        forward_step_func: A function which takes a minibatch and model as its arguments and
+            returns model's forward output and the loss function.
+            The loss function is supposed to take one `torch.Tensor` and
+            return a `torch.Tensor` of loss and a dictionary of `str` and `torch.Tensor`.
+        batch: A minibatch, i.e., a list of `torch.Tensor`'s.
+        model: A `torch.nn.Module` or a list of `torch.nn.Module`.
+        forward_only:
+        tensor_shape: Shape of tensor.
+
+    Returns:
+        a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
     """
     # timers = get_timers()
 
+    # note (mkozuki): Uncomment to give users more freedom
+    # tensor_shape = _infer_tensor_shape(tensor_shape or batch.shape, batch_dim, tensor_shape is None)
     model = listify_model(model)
     if len(model) != 1:
         msg = "`model` is expected be a `nn.Module`, but {type(model)}"
@@ -83,8 +111,7 @@ def forward_backward_pipelining_without_interleaving(
             input_tensors.append(input_tensor)
             output_tensors.append(output_tensor)
 
-            # Pop input_tensor and output_tensor from the start of the list for
-            # the backward pass.
+            # Pop input_tensor and output_tensor from the start of the list for the backward pass.
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
 
