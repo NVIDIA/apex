@@ -21,7 +21,7 @@ import torch
 
 from apex._autocast_utils import _get_current_dtype
 from apex.transformer import parallel_state
-from apex.transformer import split_tensor_into_1d_equal_chunks
+from apex.transformer.utils import split_tensor_into_1d_equal_chunks
 from apex.transformer.pipeline_parallel.utils import Shape
 from apex.transformer.pipeline_parallel._timers import _Timers
 

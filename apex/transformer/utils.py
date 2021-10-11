@@ -1,3 +1,4 @@
+"""Utility functions used by both `pipeline_parallel` and `tensor_parallel`"""
 import torch
 
 from apex.transformer.parallel_state import get_tensor_model_parallel_rank
