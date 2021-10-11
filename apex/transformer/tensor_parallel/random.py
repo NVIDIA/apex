@@ -28,6 +28,7 @@ from apex.transformer.parallel_state import get_tensor_model_parallel_group
 from apex.transformer.parallel_state import get_tensor_model_parallel_rank
 from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
 from apex.transformer.tensor_parallel.memory import allocate_mem_buff
+from apex.transformer.utils import split_tensor_into_1d_equal_chunks
 
 
 # Default name for the model parallel rng tracker.
@@ -108,13 +109,13 @@ def _set_cuda_rng_state(new_state, device=-1):
     _lazy_call(cb)
 
 
-def split_tensor_into_1d_equal_chunks(tensor):
-    """Break a tensor into equal 1D chunks."""
-    data = tensor.view(-1)
-    partition_size = torch.numel(data) // get_tensor_model_parallel_world_size()
-    start_index = partition_size * get_tensor_model_parallel_rank()
-    end_index = start_index + partition_size
-    return data[start_index:end_index]
+# def split_tensor_into_1d_equal_chunks(tensor):
+#     """Break a tensor into equal 1D chunks."""
+#     data = tensor.view(-1)
+#     partition_size = torch.numel(data) // get_tensor_model_parallel_world_size()
+#     start_index = partition_size * get_tensor_model_parallel_rank()
+#     end_index = start_index + partition_size
+#     return data[start_index:end_index]
 
 
 def gather_split_1d_tensor(tensor):
