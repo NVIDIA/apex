@@ -23,7 +23,7 @@ from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
 from apex.transformer import parallel_state
 from apex.transformer.microbatches import build_num_microbatches_calculator
-from apex.transformer.pipeline_parallel.timers import Timers
+from apex.transformer.pipeline_parallel._timers import _Timers
 
 
 _GLOBAL_ARGS = None
@@ -87,7 +87,7 @@ def _set_timers():
     """Initialize timers."""
     global _GLOBAL_TIMERS
     _ensure_var_is_not_initialized(_GLOBAL_TIMERS, "timers")
-    _GLOBAL_TIMERS = Timers()
+    _GLOBAL_TIMERS = _Timers()
 
 
 def get_timers():

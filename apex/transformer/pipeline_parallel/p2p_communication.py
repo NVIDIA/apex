@@ -21,7 +21,8 @@ import torch
 
 from apex._autocast_utils import _get_current_dtype
 from apex.transformer import parallel_state
-from apex.transformr.pipeline_parallel.utils import Shape
+from apex.transformer import split_tensor_into_1d_equal_chunks
+from apex.transformer.pipeline_parallel.utils import Shape
 from apex.transformer.pipeline_parallel._timers import _Timers
 
 
@@ -114,7 +115,8 @@ def _communicate(
         # In megatron, `tensor_shape` is set to `(args.seq_length, args.micro_batch_size, args.hidden_size)`
         raise RuntimeError("`tensor_shape` must be specified")
     if not override_scatter_gather_tensors_in_pipeline and scatter_gather_tensors_in_pipeline:
-        tensor_chunk_shape = reduce(operator.mul, tensor_shape, 1) // parallel_state.get_tensor_model_parallel_world_size()
+        tensor_chunk_shape = (reduce(operator.mul, tensor_shape, 1) // parallel_state.get_tensor_model_parallel_world_size(),)
+        print(f"tensor_chunk_shape: {tensor_chunk_shape}")
     else:
         tensor_chunk_shape = tensor_shape
     dtype = params_dtype or torch.float
@@ -131,23 +133,23 @@ def _communicate(
             tensor_chunk_shape,
             requires_grad=requires_grad,
             device=torch.cuda.current_device(),
-            dtype_=dtype,
+            dtype=dtype,
         )
     if recv_next:
         tensor_recv_next = torch.empty(
             tensor_chunk_shape,
             requires_grad=requires_grad,
             device=torch.cuda.current_device(),
-            dtype_=dtype,
+            dtype=dtype,
         )
 
     # Split tensor into smaller chunks if using scatter-gather optimization.
     if not override_scatter_gather_tensors_in_pipeline and scatter_gather_tensors_in_pipeline:
         if tensor_send_next is not None:
-            tensor_send_next = parallel_state.split_tensor_into_1d_equal_chunks(tensor_send_next)
+            tensor_send_next = split_tensor_into_1d_equal_chunks(tensor_send_next)
 
         if tensor_send_prev is not None:
-            tensor_send_prev = parallel_state.split_tensor_into_1d_equal_chunks(tensor_send_prev)
+            tensor_send_prev = split_tensor_into_1d_equal_chunks(tensor_send_prev)
 
     # Send tensors in both the forward and backward directions as appropriate.
     if use_ring_exchange:

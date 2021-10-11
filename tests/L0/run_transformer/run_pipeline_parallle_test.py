@@ -61,7 +61,7 @@ def fwd_step_func(batch, model):
 # note (mkozuki): This currently only checks the functionality of `forward_backward_pipelining_without_interleaving`.
 # i.e. checks whether we can run 1F1B for one minibatch
 def test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size):
-    global batch_size, micro_batch_size, hidden_size
+    # global batch_size, micro_batch_size, hidden_size
     print_separator("pipeline without interleaving")
     parallel_state.initialize_model_parallel(1, pipeline_model_parallel_size, None)
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_rank()
@@ -90,7 +90,7 @@ def test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size):
 
 
 if __name__ == "__main__":
-    global batch_size, micro_batch_size
+    # # # # # # # # global batch_size, micro_batch_size
     failures = []
 
     initialize_distributed()
