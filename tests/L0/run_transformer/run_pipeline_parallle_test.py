@@ -44,6 +44,7 @@ class MyLayer(nn.Module):
         self.input_tensor = input_tensor
 
     def forward(self, x):
+        # note (mkozuki): The latter condition is for no pipelining
         if parallel_state.is_pipeline_first_stage() or x is not None:
             input = x
         else:
