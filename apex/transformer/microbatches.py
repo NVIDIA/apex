@@ -92,6 +92,8 @@ class ConstantNumMicroBatches(NumMicroBatchesCalculator):
         assert self.num_micro_batches >= 1
         self.current_global_batch_size = global_batch_size
 
+        self.micro_batch_size = micro_batch_size
+
     def update(self, consumed_samples, consistency_check):
         pass
 
