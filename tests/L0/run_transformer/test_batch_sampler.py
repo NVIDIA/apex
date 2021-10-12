@@ -1,12 +1,11 @@
 import unittest
 
 import torch
-from torch.utils import data
 from torch.utils.data import Dataset
-from torch.utils.data import IterableDataset
-from torch.utils.data import Sampler
 from torch.utils.data import BatchSampler
 from torch.utils.data import DataLoader
+
+from apex.transformer.pipeline_parallel.utils import split_batch_into_microbatch
 
 
 class MyIterableDataset(Dataset):
@@ -79,13 +78,12 @@ class MegatronPretrainingRandomSampler:
 
 # Samples 8 tensors in total.
 # First sample 4 tensors twice, then sample 2 tensors fourth.
-class TestBatchSamplerBehavior(unittest.Testcase):
+class TestBatchSamplerBehavior(unittest.TestCase):
     def test_batch_sampler_behavior(self):
         dataset = MyIterableDataset(0, 100)
 
         for num_workers in (1, 2, 4):
             with self.subTest(f"{num_workers}"):
-                print(f"num_workers: {num_workers}")
                 torch.manual_seed(42)
                 loader = DataLoader(dataset, batch_sampler=MegatronPretrainingRandomSampler(100, 0, 4, 0, 1), num_workers=num_workers)
                 samples = []
@@ -102,3 +100,38 @@ class TestBatchSamplerBehavior(unittest.Testcase):
                     if i == 4 - 1:
                         break
                 torch.testing.assert_allclose(torch.cat(samples), torch.cat(samples2))
+
+    def test_split_batch(self):
+
+        class MyIterableDataset(Dataset):
+            def __init__(self, start, end):
+                super().__init__()
+                assert end > start, "this example code only works with end >= start"
+                self.start = start
+                self.end = end
+                self.samples = list(range(self.start, self.end))
+
+            def __len__(self):
+                return self.end - self.start
+
+            def __iter__(self):
+                return iter(range(self.start, self.end))
+
+            def __getitem__(self, index):
+                return (torch.tensor([index, index]), torch.tensor([index // 2, index // 2]))
+
+        dataset = MyIterableDataset(0, 100)
+        torch.manual_seed(42)
+        loader = DataLoader(dataset, batch_sampler=MegatronPretrainingRandomSampler(100, 0, 4, 0, 1), num_workers=2)
+        batch = next(iter(loader))
+        # samples = None
+        # for i, batch in enumerate(loader):
+        #     # samples = batch
+        #     if i == 0:
+        #         break
+
+        microbatches = list(split_batch_into_microbatch(batch, _micro_batch_size=1, _global_batch_size=4))
+        print(batch)
+        print(microbatches)
+        self.assertEqual(len(microbatches), 4 // 1)
+        self.assertEqual(len(microbatches[0][0]), 1)
