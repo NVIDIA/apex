@@ -26,7 +26,7 @@ batch_size, micro_batch_size = None, None
 hidden_size = 16
 fwd_bwd_functions = {
     "no_pipelining": forward_backward_no_pipelining,
-    # "no_interleaving": forward_backward_pipelining_without_interleaving,
+    "no_interleaving": forward_backward_pipelining_without_interleaving,
     # "interleaving": forward_backward_pipelining_with_interleaving,
 }
 
@@ -138,7 +138,9 @@ if __name__ == "__main__":
     )
     for name, forward_backward_func in fwd_bwd_functions.items():
         for forward_only in (True, False):
-            if name == "no_pipelining" and not forward_only:
+            # if name == "no_pipelining" and not forward_only:
+            # TODO (mkozuki): Check with backward
+            if not forward_only:
                 continue
             n_tests += 1
             print_separator(f"{name} - {forward_only}")

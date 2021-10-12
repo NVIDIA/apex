@@ -25,7 +25,7 @@ def forward_backward_pipelining_without_interleaving(
     This pipeline parallel scheduling consists of three steps:
         1. warmup
         2. 1F1B a.k.a. steady state
-        3. cooldown
+        3. cooldown if not forward_only
 
     Args:
         forward_step_func: A function which takes a minibatch and model as its arguments and
@@ -61,6 +61,14 @@ def forward_backward_pipelining_without_interleaving(
     num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
     num_microbatches_remaining = num_microbatches - num_warmup_microbatches
 
+    # TODO (mkozuki): Remove once debug gets done
+    print(
+        f">>> rank: {torch.distributed.get_rank()}, "
+        f"num_microbatches: {num_microbatches}, "
+        f"num_warmup_microbatches: {num_warmup_microbatches}, "
+        f"num_microbatches_remaining: {num_microbatches_remaining} -- "
+    )
+
     # Input, output tensors only need to be saved when doing backward passes
     input_tensors = None
     output_tensors = None
@@ -68,6 +76,7 @@ def forward_backward_pipelining_without_interleaving(
         input_tensors = []
         output_tensors = []
     losses_reduced = []
+    print(f" rank {torch.distributed.get_rank()} start pipelining")
 
     ###################################################################################################################
     # Run warmup forward passes.
