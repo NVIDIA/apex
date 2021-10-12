@@ -2,6 +2,7 @@ from typing import List, Union
 
 import torch
 
+from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
@@ -11,6 +12,9 @@ from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 
 
+# TODO (mkozuki): Confirm this will be used or not.
+# TODO (mkozuki): Fix if necessary. Currently I'm seeing failure if `not forward_only` and
+#   the last `backward_step` seems to fail. However, note the possibility of my test script is wrong.
 def forward_backward_no_pipelining(
         forward_step_func: FwdStepFunc,
         batch: Batch,
@@ -36,7 +40,7 @@ def forward_backward_no_pipelining(
         **kwargs: Added to handle `tensor_shape` which has no effect on this function.
 
     Returns:
-        a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
+        a list of dictionaries of loss `torch.Tensor`s if the last stage, empty list otherwise.
     """
     model = listify_model(model)
     if len(model) != 1:
