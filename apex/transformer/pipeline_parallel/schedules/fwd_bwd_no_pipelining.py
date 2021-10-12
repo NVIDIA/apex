@@ -4,6 +4,7 @@ import torch
 
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import placeholder_handler
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
@@ -27,7 +28,7 @@ def forward_backward_no_pipelining(
             returns model's forward output and the loss function.
             The loss function is supposed to take one `torch.Tensor` and
             return a `torch.Tensor` of loss and a dictionary of `str` and `torch.Tensor`.
-        batch: A minibatch, i.e., a list of `torch.Tensor`'s.
+        batch: A List of torch.Tensors
         model: A `torch.nn.Module` or a list of `torch.nn.Module`.
 
     Keyword args:
@@ -49,17 +50,18 @@ def forward_backward_no_pipelining(
 
     losses_reduced = []
     input_tensor, output_tensor_grad = None, None
+    num_micro_batches = get_num_microbatches()
     with context_handler():
-        for i in range(get_num_microbatches() - 1):
+        for i in range(num_micro_batches - 1):
             output_tensor = forward_step(
-                forward_step_func, batch, model, input_tensor, losses_reduced)
+                forward_step_func, get_kth_microbatch(batch, i), model, input_tensor, losses_reduced)
             if not forward_only:
                 backward_step(input_tensor, output_tensor, output_tensor_grad)
 
     # Run computation for last microbatch out of context handler (want to
     # synchronize gradients).
     output_tensor = forward_step(
-        forward_step_func, batch, model, input_tensor, losses_reduced
+        forward_step_func, get_kth_microbatch(batch, num_micro_batches - 1), model, input_tensor, losses_reduced
     )
     if not forward_only:
         backward_step(input_tensor, output_tensor, output_tensor_grad)

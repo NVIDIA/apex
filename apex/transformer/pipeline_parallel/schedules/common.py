@@ -1,6 +1,6 @@
 # NOTE (mkozuki): For simplicity, tentatively `timers` related operations are commented out.
 from contextlib import contextmanager
-from typing import Any, Callable, List, Tuple, Union, Optional
+from typing import Callable, List, Tuple, Union, Optional
 
 
 import torch

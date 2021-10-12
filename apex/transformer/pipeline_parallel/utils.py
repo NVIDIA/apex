@@ -99,6 +99,11 @@ def split_batch_into_microbatch(
         yield [x[i * micro_batch_size:(i + 1) * micro_batch_size] for x in batch]
 
 
+def get_kth_microbatch(batch, k):
+    micro_batch_size = get_micro_batch_size()
+    return [x[k * micro_batch_size:(k + 1) * micro_batch_size] for x in batch]
+
+
 def get_autoresume():
     return _GLOBAL_AUTORESUME
 

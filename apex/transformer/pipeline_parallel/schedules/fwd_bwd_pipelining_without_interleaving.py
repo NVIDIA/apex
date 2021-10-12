@@ -4,6 +4,7 @@ import torch
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import p2p_communication
+from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
@@ -82,7 +83,7 @@ def forward_backward_pipelining_without_interleaving(
     # Run warmup forward passes.
     for i in range(num_warmup_microbatches):
         input_tensor = p2p_communication.recv_forward(tensor_shape=tensor_shape)
-        output_tensor = forward_step(forward_step_func, batch, model, input_tensor, losses_reduced)
+        output_tensor = forward_step(forward_step_func, get_kth_microbatch(batch, i), model, input_tensor, losses_reduced)
         p2p_communication.send_forward(output_tensor, tensor_shape=tensor_shape)
 
         if not forward_only:
@@ -99,7 +100,7 @@ def forward_backward_pipelining_without_interleaving(
     for i in range(num_microbatches_remaining):
         last_iteration = i == (num_microbatches_remaining - 1)
 
-        output_tensor = forward_step(forward_step_func, batch, model, input_tensor, losses_reduced)
+        output_tensor = forward_step(forward_step_func, get_kth_microbatch(batch, i + num_warmup_microbatches), model, input_tensor, losses_reduced)
         if forward_only:
             p2p_communication.send_forward(output_tensor, tensor_shape=tensor_shape)
 

@@ -4,6 +4,7 @@ import torch
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import p2p_communication
+from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import calc_model_chunk_id
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
@@ -82,7 +83,7 @@ def forward_backward_pipelining_with_interleaving(
             model_chunk_id = num_model_chunks - model_chunk_id - 1
         return model_chunk_id
 
-    def forward_step_helper(microbatch_id):
+    def forward_step_helper(microbatch_id, cur_iter):
         """Helper method to run forward step with model split into chunks
         (run set_virtual_pipeline_model_parallel_rank() before calling
         forward_step())."""
@@ -98,7 +99,7 @@ def forward_backward_pipelining_with_interleaving(
         input_tensor = input_tensors[model_chunk_id][-1]
         output_tensor = forward_step(
             forward_step_func,
-            batch[model_chunk_id],
+            get_kth_microbatch(batch[model_chunk_id], cur_iter),
             model[model_chunk_id],
             input_tensor,
             losses_reduced,
@@ -135,7 +136,7 @@ def forward_backward_pipelining_with_interleaving(
     parallel_state.set_virtual_pipeline_model_parallel_rank(0)
     input_tensors[0].append(p2p_communication.recv_forward(tensor_shape=tensor_shape))
     for k in range(num_warmup_microbatches):
-        output_tensor = forward_step_helper(k)
+        output_tensor = forward_step_helper(k, k)
 
         # Determine if tensor should be received from previous stage.
         next_forward_model_chunk_id = get_model_chunk_id(k + 1, forward=True)
@@ -176,7 +177,7 @@ def forward_backward_pipelining_with_interleaving(
     for k in range(num_microbatches_remaining):
         # Forward pass.
         forward_k = k + num_warmup_microbatches
-        output_tensor = forward_step_helper(forward_k)
+        output_tensor = forward_step_helper(forward_k, forward_k)
 
         # Backward pass.
         backward_k = k
