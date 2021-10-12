@@ -43,8 +43,10 @@ def forward_backward_pipelining_without_interleaving(
             return a `torch.Tensor` of loss and a dictionary of `str` and `torch.Tensor`.
         batch: A minibatch, i.e., a list of `torch.Tensor`'s.
         model: A `torch.nn.Module` or a list of `torch.nn.Module`.
+
+    Keyword args:
         forward_only:
-        tensor_shape: Shape of tensor.
+        tensor_shape: Shape of tensor. Required for P2P communication.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
@@ -55,7 +57,7 @@ def forward_backward_pipelining_without_interleaving(
     # tensor_shape = _infer_tensor_shape(tensor_shape or batch.shape, batch_dim, tensor_shape is None)
     model = listify_model(model)
     if len(model) != 1:
-        msg = "`model` is expected be a `nn.Module`, but {type(model)}"
+        msg = f"`model` is expected be a `nn.Module`, but {type(model)}"
         raise RuntimeError(msg)
     model = model[0]
 
