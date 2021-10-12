@@ -1,10 +1,15 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.distributed as dist
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import forward_backward_pipelining_with_interleaving
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import print_separator
@@ -16,12 +21,20 @@ global_vars.set_global_variables()
 
 batch_size, micro_batch_size = None, None
 hidden_size = 16
+fwd_bwd_functions = {
+    "no_pipelining": forward_backward_no_pipelining,
+    "no_interleaving": forward_backward_pipelining_without_interleaving,
+    "interleaving": forward_backward_pipelining_with_interleaving,
+}
 
 
+# note (mkozuki): `pre_process` and `post_process` are a placeholder until interleaving schedule test comes.
 class MyLayer(nn.Module):
 
-    def __init__(self):
+    def __init__(self, pre_process: bool = False, post_process: bool = False):
         super().__init__()
+        self.pre_process = pre_process
+        self.post_process = post_process
         self.layer = nn.Sequential(nn.Linear(hidden_size, hidden_size))
 
     def set_input_tensor(self, input_tensor):
@@ -37,14 +50,16 @@ class MyLayer(nn.Module):
 
 class MyModel(nn.Module):
 
-    def __init__(self):
+    def __init__(self, pre_process: bool, post_process: bool) -> None:
         super().__init__()
-        self.layer = MyLayer()
+        self.pre_process = pre_process
+        self.post_process = post_process
+        self.layer = MyLayer(pre_process=pre_process, post_process=post_process)
 
-    def set_input_tensor(self, input_tensor):
+    def set_input_tensor(self, input_tensor: Optional[torch.Tensor]) -> None:
         self.layer.set_input_tensor(input_tensor)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.layer(x)
 
 
@@ -60,21 +75,29 @@ def fwd_step_func(batch, model):
 
 # note (mkozuki): This currently only checks the functionality of `forward_backward_pipelining_without_interleaving`.
 # i.e. checks whether we can run 1F1B for one minibatch
-def test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size, forward_only: bool):
-    # global batch_size, micro_batch_size, hidden_size
+def forward_backward_func_template(
+        name: str,
+        forward_backward_func,
+        pipeline_model_parallel_size: int,
+        forward_only: bool,
+) -> None:
     parallel_state.initialize_model_parallel(1, pipeline_model_parallel_size, None)
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
     torch.distributed.barrier()
-    print_separator(f"pipeline without interleaving - pipeline model parallel size: {pipeline_model_parallel_size}, forward_only: {forward_only}")
+    if dist.get_rank() == 0:
+        print_separator(
+            f"forward backward func: {name} - pipeline model parallel size: "
+            f"{pipeline_model_parallel_size}, forward_only: {forward_only}"
+        )
 
-    model = MyModel().cuda()
+    model = MyModel(False, False).cuda()
     model = DDP(model)
     tensor_shape = [batch_size, hidden_size]
     batch = torch.randn(tensor_shape).cuda()
     tensor_shape[0] = micro_batch_size
 
     update_num_microbatches(0)
-    forward_backward_pipelining_without_interleaving(
+    forward_backward_func(
         fwd_step_func, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
 
     if not forward_only:
@@ -98,18 +121,28 @@ if __name__ == "__main__":
         args.micro_batch_size,
         args.data_parallel_size,
     )
-    for forward_only in (True, False):
-        pipeline_model_parallel_size = 2
-        while pipeline_model_parallel_size <= min(world_size, 4):
-            try:
-                test_pipeline_parallel_no_interleaving(pipeline_model_parallel_size, forward_only)
-            except Exception as e:
-                failures.append(f"pipeline parallel size - {pipeline_model_parallel_size}, w/o interleaving: {str(e)}")
-                break
-            else:
-                pipeline_model_parallel_size *= 2
-            finally:
-                parallel_state.destroy_model_parallel()
+    for name, forward_backward_func in fwd_bwd_functions.items():
+        for forward_only in (True, False):
+            pipeline_model_parallel_size = 2
+            while pipeline_model_parallel_size <= min(world_size, 4):
+                try:
+                    forward_backward_func_template(
+                        name,
+                        forward_backward_func,
+                        pipeline_model_parallel_size,
+                        forward_only,
+                    )
+                except Exception as e:
+                    failures.append(
+                        f"\t# {name} failed with pipeline size: {pipeline_model_parallel_size} "
+                        f"and forward_only: {forward_only}\n"
+                        f"{str(e)}"
+                    )
+                    break
+                else:
+                    pipeline_model_parallel_size *= 2
+                finally:
+                    parallel_state.destroy_model_parallel()
     if failures:
 
         raise RuntimeError("\n".join(failures))
