@@ -1,4 +1,4 @@
-from typing import List, Union, Optional
+from typing import List, Union
 
 import torch
 
@@ -10,14 +10,14 @@ from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 
 
-# note (mkozuki): tensor_shape is here for consistency with the other two pipeline parallel functions.
 def forward_backward_no_pipelining(
         forward_step_func: FwdStepFunc,
         batch: Batch,
         model: Union[torch.nn.Module, List[torch.nn.Module]],
         *,
         forward_only: bool,
-        tensor_shape: Optional[Union[List[int], torch.Size]] = None,
+        # tensor_shape: Optional[Union[List[int], torch.Size]] = None,
+        **kwargs,
 ):
     """Run forward and backward passes with no pipeline parallelism
     (no inter-stage communication).
@@ -29,8 +29,10 @@ def forward_backward_no_pipelining(
             return a `torch.Tensor` of loss and a dictionary of `str` and `torch.Tensor`.
         batch: A minibatch, i.e., a list of `torch.Tensor`'s.
         model: A `torch.nn.Module` or a list of `torch.nn.Module`.
+
+    Keyword args:
         forward_only:
-        tensor_shape: Shape of tensor.
+        **kwargs: Added to handle `tensor_shape` which has no effect on this function.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
