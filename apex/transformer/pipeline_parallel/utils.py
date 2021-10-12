@@ -83,20 +83,21 @@ def update_num_microbatches(consumed_samples, consistency_check=True):
     _GLOBAL_NUM_MICROBATCHES_CALCULATOR.update(consumed_samples, consistency_check)
 
 
-def split_batch_into_microbatch(
-        batch: List[torch.Tensor],
-        *,
-        _micro_batch_size: Optional[int] = None,
-        _global_batch_size: Optional[int] = None,
-) -> List[List[torch.Tensor]]:
-    micro_batch_size = _micro_batch_size
-    global_batch_size = _global_batch_size
-    if micro_batch_size is None:
-        micro_batch_size = get_micro_batch_size()
-    if global_batch_size is None:
-        global_batch_size = get_current_global_batch_size()
-    for i in range(0, global_batch_size, micro_batch_size):
-        yield [x[i * micro_batch_size:(i + 1) * micro_batch_size] for x in batch]
+# note (mkozuki): Comment out in favor of `get_kth_microbatch`
+# def split_batch_into_microbatch(
+#         batch: List[torch.Tensor],
+#         *,
+#         _micro_batch_size: Optional[int] = None,
+#         _global_batch_size: Optional[int] = None,
+# ) -> List[List[torch.Tensor]]:
+#     micro_batch_size = _micro_batch_size
+#     global_batch_size = _global_batch_size
+#     if micro_batch_size is None:
+#         micro_batch_size = get_micro_batch_size()
+#     if global_batch_size is None:
+#         global_batch_size = get_current_global_batch_size()
+#     for i in range(0, global_batch_size, micro_batch_size):
+#         yield [x[i * micro_batch_size:(i + 1) * micro_batch_size] for x in batch]
 
 
 def get_kth_microbatch(batch, k):
@@ -307,17 +308,3 @@ def get_ltor_masks_and_position_ids(
     attention_mask = attention_mask < 0.5
 
     return attention_mask, loss_mask, position_ids
-
-
-def calc_model_chunk_id(
-        num_model_chunks: int,
-        microbatch_id: int,
-        forward: bool,
-) -> int:
-    """Helper function to get the model chunk ID given the iteration number."""
-    pipeline_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
-    microbatch_id_in_group = microbatch_id % (pipeline_parallel_size * num_model_chunks)
-    model_chunk_id = microbatch_id_in_group // pipeline_parallel_size
-    if not forward:
-        model_chunk_id = num_model_chunks - model_chunk_id - 1
-    return model_chunk_id

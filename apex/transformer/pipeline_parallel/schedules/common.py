@@ -44,6 +44,7 @@ def forward_step(
         model: unwrappable model
         input_tensor:
         losses_reduced:
+
     Returns:
         output_tensor
     """

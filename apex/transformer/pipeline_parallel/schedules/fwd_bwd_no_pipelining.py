@@ -17,11 +17,11 @@ def forward_backward_no_pipelining(
         model: Union[torch.nn.Module, List[torch.nn.Module]],
         *,
         forward_only: bool,
-        # tensor_shape: Optional[Union[List[int], torch.Size]] = None,
         **kwargs,
 ):
-    """Run forward and backward passes with no pipeline parallelism
-    (no inter-stage communication).
+    """Run forward and backward passes with no pipeline parallelism (no inter-stage communication).
+
+    This pipeline parallel scheduling handles the last microbatch differently to synchronize gradients.
 
     Args:
         forward_step_func: A function which takes a minibatch and model as its arguments and
@@ -53,8 +53,9 @@ def forward_backward_no_pipelining(
     num_micro_batches = get_num_microbatches()
     with context_handler():
         for i in range(num_micro_batches - 1):
+            cur_micro_batch = get_kth_microbatch(batch, i)
             output_tensor = forward_step(
-                forward_step_func, get_kth_microbatch(batch, i), model, input_tensor, losses_reduced)
+                forward_step_func, cur_micro_batch, model, input_tensor, losses_reduced)
             if not forward_only:
                 backward_step(input_tensor, output_tensor, output_tensor_grad)
 

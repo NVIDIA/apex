@@ -1,4 +1,4 @@
-from typing import Union, Tuple, List, Optional
+from typing import Union, List, Optional
 
 import torch
 
@@ -12,20 +12,6 @@ from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 
 
-# note (mkozuki): This is WIP.
-def _infer_tensor_shape(
-        tensor_shape: Optional[Union[List[int], Tuple[int, ...]]] = None,
-        batch_dim: int = 1,
-        requires_conjecture: bool = False,
-) -> Tuple[int, ...]:
-    if not requires_conjecture:
-        return tuple(tensor_shape)
-    if not isinstance(tensor_shape, list):
-        tensor_shape = list(tensor_shape)
-    tensor_shape[batch_dim] /= get_num_microbatches()
-    return tuple(tensor_shape)
-
-
 def forward_backward_pipelining_without_interleaving(
         forward_step_func: FwdStepFunc,
         batch: Batch,
@@ -34,8 +20,12 @@ def forward_backward_pipelining_without_interleaving(
         forward_only: bool,
         tensor_shape: Optional[Union[List[int], torch.Size]] = None,
 ):
-    """Run non-interleaved 1F1B schedule, with communication between pipeline
-    stages.
+    """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
+
+    This pipeline parallel scheduling consists of three steps:
+        1. warmup
+        2. 1F1B a.k.a. steady state
+        3. cooldown
 
     Args:
         forward_step_func: A function which takes a minibatch and model as its arguments and
@@ -54,8 +44,6 @@ def forward_backward_pipelining_without_interleaving(
     """
     # timers = get_timers()
 
-    # note (mkozuki): Uncomment to give users more freedom
-    # tensor_shape = _infer_tensor_shape(tensor_shape or batch.shape, batch_dim, tensor_shape is None)
     model = listify_model(model)
     if len(model) != 1:
         msg = f"`model` is expected be a `nn.Module`, but {type(model)}"
@@ -69,6 +57,7 @@ def forward_backward_pipelining_without_interleaving(
         - parallel_state.get_pipeline_model_parallel_rank()
         - 1
     )
+    # note (mkozuki): It's possible that all the microbatches are consumed in warmup.
     num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
     num_microbatches_remaining = num_microbatches - num_warmup_microbatches
 
@@ -80,10 +69,13 @@ def forward_backward_pipelining_without_interleaving(
         output_tensors = []
     losses_reduced = []
 
+    ###################################################################################################################
     # Run warmup forward passes.
+    ###################################################################################################################
     for i in range(num_warmup_microbatches):
         input_tensor = p2p_communication.recv_forward(tensor_shape=tensor_shape)
-        output_tensor = forward_step(forward_step_func, get_kth_microbatch(batch, i), model, input_tensor, losses_reduced)
+        cur_microbatch = get_kth_microbatch(batch, i)
+        output_tensor = forward_step(forward_step_func, cur_microbatch, model, input_tensor, losses_reduced)
         p2p_communication.send_forward(output_tensor, tensor_shape=tensor_shape)
 
         if not forward_only:
@@ -96,11 +88,15 @@ def forward_backward_pipelining_without_interleaving(
     if num_microbatches_remaining > 0:
         input_tensor = p2p_communication.recv_forward(tensor_shape=tensor_shape)
 
+    ###################################################################################################################
     # Run 1F1B in steady state.
+    ###################################################################################################################
     for i in range(num_microbatches_remaining):
         last_iteration = i == (num_microbatches_remaining - 1)
 
-        output_tensor = forward_step(forward_step_func, get_kth_microbatch(batch, i + num_warmup_microbatches), model, input_tensor, losses_reduced)
+        output_tensor = forward_step(
+            forward_step_func, get_kth_microbatch(batch, i + num_warmup_microbatches),
+            model, input_tensor, losses_reduced)
         if forward_only:
             p2p_communication.send_forward(output_tensor, tensor_shape=tensor_shape)
 
@@ -126,9 +122,12 @@ def forward_backward_pipelining_without_interleaving(
                 input_tensor = None
                 p2p_communication.send_backward(input_tensor_grad, tensor_shape=tensor_shape)
             else:
-                input_tensor = p2p_communication.send_backward_recv_forward(input_tensor_grad, tensor_shape=tensor_shape)
+                input_tensor = p2p_communication.send_backward_recv_forward(
+                    input_tensor_grad, tensor_shape=tensor_shape)
 
+    ###################################################################################################################
     # Run cooldown backward passes.
+    ###################################################################################################################
     if not forward_only:
         for i in range(num_warmup_microbatches):
             input_tensor = input_tensors.pop(0)

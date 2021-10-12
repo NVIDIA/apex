@@ -5,13 +5,13 @@ import torch
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import p2p_communication
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
-from apex.transformer.pipeline_parallel.utils import calc_model_chunk_id
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 
 
+# TODO (mkozuki): Reduce cyclomatic complexity
 def forward_backward_pipelining_with_interleaving(
         forward_step_func: FwdStepFunc,
         batch: List[Batch],
@@ -20,8 +20,15 @@ def forward_backward_pipelining_with_interleaving(
         forward_only: bool,
         tensor_shape: Optional[Union[List[int], torch.Size]] = None,
 ):
-    """Run interleaved 1F1B schedule (model split into model chunks), with
-    communication between pipeline stages as needed.
+    """Run interleaved 1F1B schedule with communication between pipeline stages as needed.
+
+    This function assumes `batch` and `model` is a list of `Batch`'s and a list of `torch.nn.Module`, respectively.
+    This means that model is split into model chunks.
+
+    This pipeline parallel scheduling consists of three steps:
+        1. warmup
+        2. 1F1B a.k.a. steady state
+        3. cooldown
 
     Args:
         forward_step_func: A function which takes a minibatch and model as its arguments and
@@ -40,20 +47,22 @@ def forward_backward_pipelining_with_interleaving(
     """
     if not isinstance(model, list):
         raise RuntimeError("`model` must be a list of `nn.Module`'s'")
+    # TODO (mkozuki): Sanity check the following condition.
     if len(batch) != len(model):
         msg = f"`batch` and `model` must have the same number of elements. Actual {len(batch)} and {len(model)}"
         raise RuntimeError(msg)
-    input_tensors = [[] for _ in range(len(model))]
-    output_tensors = [[] for _ in range(len(model))]
+
+    num_model_chunks = len(model)
+    input_tensors = [[] for _ in range(num_model_chunks)]
+    output_tensors = [[] for _ in range(num_model_chunks)]
     losses_reduced = []
     if not forward_only:
-        output_tensor_grads = [[] for _ in range(len(model))]
+        output_tensor_grads = [[] for _ in range(num_model_chunks)]
 
     pipeline_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
     pipeline_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
 
     # Compute number of warmup and remaining microbatches.
-    num_model_chunks = len(model)
     num_microbatches = get_num_microbatches() * num_model_chunks
     all_warmup_microbatches = False
     if forward_only:
@@ -74,6 +83,9 @@ def forward_backward_pipelining_with_interleaving(
             num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
     num_microbatches_remaining = num_microbatches - num_warmup_microbatches
 
+    ###################################################################################################################
+    # Helper function definitions.
+    ###################################################################################################################
     def get_model_chunk_id(microbatch_id: int, forward: bool) -> int:
         """Helper function to get the model chunk ID given the iteration number."""
         pipeline_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
@@ -87,13 +99,13 @@ def forward_backward_pipelining_with_interleaving(
         """Helper method to run forward step with model split into chunks
         (run set_virtual_pipeline_model_parallel_rank() before calling
         forward_step())."""
-        # model_chunk_id = get_model_chunk_id(microbatch_id, forward=True)
-        model_chunk_id = calc_model_chunk_id(num_model_chunks, microbatch_id, True)
+        model_chunk_id = get_model_chunk_id(microbatch_id, forward=True)
         parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
         # forward step
-        if parallel_state.is_pipeline_first_stage() and len(input_tensors[model_chunk_id]) == len(
-            output_tensors[model_chunk_id]
+        if (
+                parallel_state.is_pipeline_first_stage() and
+                len(input_tensors[model_chunk_id]) == len(output_tensors[model_chunk_id])
         ):
             input_tensors[model_chunk_id].append(None)
         input_tensor = input_tensors[model_chunk_id][-1]
@@ -126,13 +138,13 @@ def forward_backward_pipelining_with_interleaving(
         input_tensor = input_tensors[model_chunk_id].pop(0)
         output_tensor = output_tensors[model_chunk_id].pop(0)
         output_tensor_grad = output_tensor_grads[model_chunk_id].pop(0)
-        input_tensor_grad = backward_step(
-            input_tensor, output_tensor, output_tensor_grad
-        )
+        input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad)
 
         return input_tensor_grad
 
+    ###################################################################################################################
     # Run warmup forward passes.
+    ###################################################################################################################
     parallel_state.set_virtual_pipeline_model_parallel_rank(0)
     input_tensors[0].append(p2p_communication.recv_forward(tensor_shape=tensor_shape))
     for k in range(num_warmup_microbatches):
@@ -173,7 +185,9 @@ def forward_backward_pipelining_with_interleaving(
             input_tensor = p2p_communication.send_forward_recv_forward(output_tensor, recv_prev=recv_prev, tensor_shape=tensor_shape)
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
 
+    ###################################################################################################################
     # Run 1F1B in steady state.
+    ###################################################################################################################
     for k in range(num_microbatches_remaining):
         # Forward pass.
         forward_k = k + num_warmup_microbatches
@@ -248,7 +262,9 @@ def forward_backward_pipelining_with_interleaving(
         if recv_next:
             output_tensor_grads[next_backward_model_chunk_id].append(output_tensor_grad)
 
+    ###################################################################################################################
     # Run cooldown backward passes (flush out pipeline).
+    ###################################################################################################################
     if not forward_only:
         if all_warmup_microbatches:
             output_tensor_grads[num_model_chunks - 1].append(p2p_communication.recv_backward(tensor_shape=tensor_shape))
