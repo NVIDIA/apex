@@ -84,20 +84,20 @@ def update_num_microbatches(consumed_samples, consistency_check=True):
 
 
 # note (mkozuki): Comment out in favor of `get_kth_microbatch`
-# def split_batch_into_microbatch(
-#         batch: List[torch.Tensor],
-#         *,
-#         _micro_batch_size: Optional[int] = None,
-#         _global_batch_size: Optional[int] = None,
-# ) -> List[List[torch.Tensor]]:
-#     micro_batch_size = _micro_batch_size
-#     global_batch_size = _global_batch_size
-#     if micro_batch_size is None:
-#         micro_batch_size = get_micro_batch_size()
-#     if global_batch_size is None:
-#         global_batch_size = get_current_global_batch_size()
-#     for i in range(0, global_batch_size, micro_batch_size):
-#         yield [x[i * micro_batch_size:(i + 1) * micro_batch_size] for x in batch]
+def _split_batch_into_microbatch(
+        batch: List[torch.Tensor],
+        *,
+        _micro_batch_size: Optional[int] = None,
+        _global_batch_size: Optional[int] = None,
+) -> List[List[torch.Tensor]]:
+    micro_batch_size = _micro_batch_size
+    global_batch_size = _global_batch_size
+    if micro_batch_size is None:
+        micro_batch_size = get_micro_batch_size()
+    if global_batch_size is None:
+        global_batch_size = get_current_global_batch_size()
+    for i in range(0, global_batch_size, micro_batch_size):
+        yield [x[i * micro_batch_size:(i + 1) * micro_batch_size] for x in batch]
 
 
 def get_kth_microbatch(batch, k):

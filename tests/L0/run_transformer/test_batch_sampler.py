@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import BatchSampler
 from torch.utils.data import DataLoader
 
-from apex.transformer.pipeline_parallel.utils import split_batch_into_microbatch
+from apex.transformer.pipeline_parallel.utils import _split_batch_into_microbatch as split_batch_into_microbatch
 
 
 class MyIterableDataset(Dataset):
