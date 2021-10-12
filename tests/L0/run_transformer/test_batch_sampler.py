@@ -122,7 +122,8 @@ class TestBatchSamplerBehavior(unittest.TestCase):
 
         dataset = MyIterableDataset(0, 100)
         torch.manual_seed(42)
-        loader = DataLoader(dataset, batch_sampler=MegatronPretrainingRandomSampler(100, 0, 4, 0, 1), num_workers=2)
+        global_batch_size = 16
+        loader = DataLoader(dataset, batch_sampler=MegatronPretrainingRandomSampler(100, 0, global_batch_size, 0, 1), num_workers=2)
         batch = next(iter(loader))
         # samples = None
         # for i, batch in enumerate(loader):
@@ -130,8 +131,13 @@ class TestBatchSamplerBehavior(unittest.TestCase):
         #     if i == 0:
         #         break
 
-        microbatches = list(split_batch_into_microbatch(batch, _micro_batch_size=1, _global_batch_size=4))
-        print(batch)
-        print(microbatches)
-        self.assertEqual(len(microbatches), 4 // 1)
-        self.assertEqual(len(microbatches[0][0]), 1)
+        for _micro_batch_size in (1, 2, 4, 8):
+            microbatches = list(split_batch_into_microbatch(
+                batch,
+                _micro_batch_size=_micro_batch_size,
+                _global_batch_size=global_batch_size,
+            ))
+            print(batch)
+            print(microbatches)
+            self.assertEqual(len(microbatches), global_batch_size // _micro_batch_size)
+            self.assertEqual(len(microbatches[0][0]), _micro_batch_size)
