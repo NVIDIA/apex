@@ -8,7 +8,7 @@ from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import unwrap_model
-from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes  # NOQA
+from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
 
 Batch = Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor, ...]]
