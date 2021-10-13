@@ -29,6 +29,7 @@ def forward_backward_pipelining_with_interleaving(
         1. warmup
         2. 1F1B a.k.a. steady state
         3. cooldown
+    Note that if `forward_only` this scheduling consists of only warmup phase.
 
     Args:
         forward_step_func: A function which takes a minibatch and model as its arguments and
