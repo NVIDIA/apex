@@ -2,13 +2,14 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
+from apex.transformer.pipeline_parallel.schedules.common import build_model
+from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import forward_backward_pipelining_with_interleaving
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
@@ -34,7 +35,7 @@ fwd_bwd_functions = {
 # note (mkozuki): `pre_process` and `post_process` are a placeholder until interleaving schedule test comes.
 class MyLayer(nn.Module):
 
-    def __init__(self, pre_process: bool = False, post_process: bool = False):
+    def __init__(self, pre_process: bool, post_process: bool):
         super().__init__()
         self.pre_process = pre_process
         self.post_process = post_process
@@ -54,7 +55,7 @@ class MyLayer(nn.Module):
 
 class MyModel(nn.Module):
 
-    def __init__(self, pre_process: bool, post_process: bool) -> None:
+    def __init__(self, pre_process: bool = False, post_process: bool = False) -> None:
         super().__init__()
         self.pre_process = pre_process
         self.post_process = post_process
@@ -65,6 +66,10 @@ class MyModel(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.layer(x)
+
+
+def model_provider_func(pre_process, post_process) -> MyModel:
+    return MyModel(pre_process, post_process)
 
 
 def process_batch(batch):
@@ -99,8 +104,22 @@ def forward_backward_func_template(
     parallel_state.initialize_model_parallel(1, pipeline_model_parallel_size, None)
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
 
-    model = MyModel(False, False).cuda()
-    model = DDP(model)
+    # NOTE (mkozuki): `virtual_pipeline_model_parallel_size` is necessary to enable interleaving scheduling
+    # In megatron, `args.virtual_pipeline_model_parallel_size` is computed in megatron/arguments.py and
+    # used ubiquitously but this test uses custom model so it's safe to abuse.
+    virtual_pipeline_model_parallel_size = 2 if name == "interleaving" else None
+    model = build_model(
+        model_provider_func,
+        wrap_with_ddp=True,
+        virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
+    )
+    assert isinstance(model, list)
+    assert len(model) == (1 or virtual_pipeline_model_parallel_size)
+    _param_groups = _get_params_for_weight_decay_optimization(model)
+    assert isinstance(_param_groups, tuple)
+    assert len(_param_groups) == 2
+    torch.optim.Adam(_param_groups)
+
     tensor_shape = [batch_size, hidden_size]
     batch = (torch.randn(tensor_shape).cuda(),)
     tensor_shape[0] = micro_batch_size

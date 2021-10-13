@@ -7,6 +7,7 @@ import torch
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import unwrap_model
 
 
@@ -16,12 +17,24 @@ FwdStepFunc = Callable[[Batch, torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
 
 
 def build_model(
-        model_provider_func: Callable[[], torch.nn.Module],
+        model_provider_func: Callable[[bool, bool], torch.nn.Module],
         wrap_with_ddp: bool = True,
         virtual_pipeline_model_parallel_size: Optional[int] = None,
 ) -> List[torch.nn.Module]:
-    """Build the model."""
-    # Build model.
+    """Build the model satisfying pipeline model parallel requirements.
+
+
+    Args:
+        model_provider_func: A function with two keyword arguments of `pre_process` and `post_process`
+            returning a `nn.Module`.
+        wrap_with_ddp: If :obj:`True`, wrap the instantiated model
+            with `torch.nn.parallel.distributed.DistributedDataParallel`, a.k.a. `DDP`.
+        virtual_pipeline_model_parallel_size: Specify when using interleaving scheduling pipeline model parallel.
+
+    Returns:
+        a list of `nn.Module`(s). If `virtual_pipeline_model_parallel_size` is not None,
+        the list has multiple models, otherwise one.
+    """
     if (
             parallel_state.get_pipeline_model_parallel_world_size() > 1 and
             virtual_pipeline_model_parallel_size is not None
@@ -83,10 +96,13 @@ def build_model(
     return model
 
 
-def _get_params_for_weight_decay_optimization(modules: List[torch.nn.Module]) -> Dict[str, torch.nn.Parameter]:
+def _get_params_for_weight_decay_optimization(
+        model: Union[torch.nn.Module, List[torch.nn.Module]],
+) -> Dict[str, torch.nn.Parameter]:
     """Divide params into with-weight-decay and without-weight-decay groups.
     Layernorms and baises will have no weight decay but the rest will.
     """
+    modules = listify_model(model)
     from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
     weight_decay_params = {'params': []}
     no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
