@@ -2,7 +2,6 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-import torch.distributed as dist
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
@@ -18,6 +17,7 @@ from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import print_separator
 from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
+from apex.transformer.testing.standalone_gpt import gpt_model_provider
 
 
 global_vars.set_global_variables()
@@ -93,6 +93,7 @@ def fwd_step_func(batch, model):
     return y, loss_func
 
 
+# TODO (mkozuki): Add a case with `autocast` and `GradScaler`.
 # Run forward & backward for one minibatch.
 def forward_backward_func_template(
         name: str,
