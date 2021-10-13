@@ -95,6 +95,7 @@ def forward_backward_func_template(
         pipeline_model_parallel_size: int,
         forward_only: bool,
 ) -> None:
+    print_separator(f"name: {name}, forward_only: {forward_only}, pipeline model parallel size: {pipeline_model_parallel_size}")
     parallel_state.initialize_model_parallel(1, pipeline_model_parallel_size, None)
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
 
@@ -144,7 +145,7 @@ if __name__ == "__main__":
             if not forward_only:
                 continue
             n_tests += 1
-            print_separator(f"{name} - {forward_only}")
+            # print_separator(f"{name} - {forward_only}")
             pipeline_model_parallel_size = 2
             while pipeline_model_parallel_size <= min(world_size, 4):
                 try:
