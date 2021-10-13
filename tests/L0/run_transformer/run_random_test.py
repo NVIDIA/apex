@@ -16,10 +16,10 @@ import torch
 
 from apex.transformer import parallel_state
 from apex.transformer import tensor_parallel
-from apex.transformer.tensor_parallel.tests import global_vars
-from apex.transformer.tensor_parallel.tests.commons import print_separator
-from apex.transformer.tensor_parallel.tests.commons import initialize_distributed
-from apex.transformer.tensor_parallel.tests.commons import TEST_SUCCESS_MESSAGE
+from apex.transformer.testing import global_vars
+from apex.transformer.testing.commons import print_separator
+from apex.transformer.testing.commons import initialize_distributed
+from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 
 
 global_vars.set_global_variables()

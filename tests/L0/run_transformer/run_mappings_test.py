@@ -1,9 +1,9 @@
 import torch
 
 from apex.transformer import parallel_state
-from apex.transformer.tensor_parallel.tests.commons import initialize_distributed
 from apex.transformer.tensor_parallel import mappings
-from apex.transformer.tensor_parallel.tests import global_vars
+from apex.transformer.testing import global_vars
+from apex.transformer.testing.commons import initialize_distributed
 
 global_vars.set_global_variables()
 

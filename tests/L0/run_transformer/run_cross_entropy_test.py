@@ -15,15 +15,15 @@
 import torch
 import torch.nn.functional as F
 
-from apex.transformer.tensor_parallel.tests.commons import set_random_seed
-from apex.transformer.tensor_parallel.tests.commons import IdentityLayer
-from apex.transformer.tensor_parallel.tests.commons import print_separator
-from apex.transformer.tensor_parallel.tests.commons import initialize_distributed
-from apex.transformer.tensor_parallel.tests.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer import parallel_state
 from apex.transformer import tensor_parallel
 from apex.transformer.tensor_parallel.cross_entropy import vocab_parallel_cross_entropy
-from apex.transformer.tensor_parallel.tests import global_vars
+from apex.transformer.testing import global_vars
+from apex.transformer.testing.commons import set_random_seed
+from apex.transformer.testing.commons import IdentityLayer
+from apex.transformer.testing.commons import print_separator
+from apex.transformer.testing.commons import initialize_distributed
+from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 
 
 global_vars.set_global_variables()
