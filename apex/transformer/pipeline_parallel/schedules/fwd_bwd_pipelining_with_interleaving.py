@@ -52,6 +52,8 @@ def forward_backward_pipelining_with_interleaving(
         msg = f"`batch` and `model` must have the same number of elements. Actual {len(batch)} and {len(model)}"
         raise RuntimeError(msg)
 
+    print("Start calculating some params")
+
     num_model_chunks = len(model)
     input_tensors = [[] for _ in range(num_model_chunks)]
     output_tensors = [[] for _ in range(num_model_chunks)]
@@ -82,6 +84,15 @@ def forward_backward_pipelining_with_interleaving(
             num_warmup_microbatches += (num_model_chunks - 1) * pipeline_parallel_size
             num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
     num_microbatches_remaining = num_microbatches - num_warmup_microbatches
+
+
+    # TODO (mkozuki): Remove once debug gets done
+    print(
+        f">>> rank: {torch.distributed.get_rank()}, "
+        f"num_microbatches: {num_microbatches}, "
+        f"num_warmup_microbatches: {num_warmup_microbatches}, "
+        f"num_microbatches_remaining: {num_microbatches_remaining} -- "
+    )
 
     ###################################################################################################################
     # Helper function definitions.

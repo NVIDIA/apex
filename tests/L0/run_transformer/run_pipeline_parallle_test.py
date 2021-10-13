@@ -121,10 +121,11 @@ def forward_backward_func_template(
     torch.optim.Adam(_param_groups)
 
     tensor_shape = [batch_size, hidden_size]
-    batch = (torch.randn(tensor_shape).cuda(),)
+    if virtual_pipeline_model_parallel_size is None:
+        batch = (torch.randn(tensor_shape).cuda(),)
+    else:
+        batch = [(torch.randn(tensor_shape).cuda(),) for _ in range(virtual_pipeline_model_parallel_size)]
     tensor_shape[0] = micro_batch_size
-
-    print(f"\tCalling forward_backward_func")
 
     update_num_microbatches(0)
     forward_backward_func(
