@@ -2,13 +2,13 @@
 from contextlib import contextmanager
 from typing import Callable, Dict, List, Tuple, Union, Optional
 
-
 import torch
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import unwrap_model
+from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes  # NOQA
 
 
 Batch = Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor, ...]]
@@ -67,7 +67,7 @@ def build_model(
     # are set for all params so the optimizer can use them.
     for model_module in model:
         for param in model_module.parameters():
-            parallel_state.set_defaults_if_not_set_tensor_model_parallel_attributes(param)
+            set_defaults_if_not_set_tensor_model_parallel_attributes(param)
 
     # Print number of parameters.
     if parallel_state.get_data_parallel_rank() == 0:
