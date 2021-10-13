@@ -1,6 +1,6 @@
 # NOTE (mkozuki): For simplicity, tentatively `timers` related operations are commented out.
 from contextlib import contextmanager
-from typing import Callable, List, Tuple, Union, Optional
+from typing import Callable, Dict, List, Tuple, Union, Optional
 
 
 import torch
@@ -13,6 +13,99 @@ from apex.transformer.pipeline_parallel.utils import unwrap_model
 Batch = Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor, ...]]
 LossFunc = Callable[[torch.Tensor], torch.Tensor]
 FwdStepFunc = Callable[[Batch, torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
+
+
+def build_model(
+        model_provider_func: Callable[[], torch.nn.Module],
+        wrap_with_ddp: bool = True,
+        virtual_pipeline_model_parallel_size: Optional[int] = None,
+) -> List[torch.nn.Module]:
+    """Build the model."""
+    # Build model.
+    if (
+            parallel_state.get_pipeline_model_parallel_world_size() > 1 and
+            virtual_pipeline_model_parallel_size is not None
+    ):
+        model = []
+        for i in range(virtual_pipeline_model_parallel_size):
+            parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+            # Set pre_process and post_process only after virtual rank is set.
+            pre_process = parallel_state.is_pipeline_first_stage()
+            post_process = parallel_state.is_pipeline_last_stage()
+            this_model = model_provider_func(
+                pre_process=pre_process,
+                post_process=post_process
+            )
+            model.append(this_model)
+    else:
+        pre_process = parallel_state.is_pipeline_first_stage()
+        post_process = parallel_state.is_pipeline_last_stage()
+        model = model_provider_func(
+            pre_process=pre_process,
+            post_process=post_process
+        )
+
+    if not isinstance(model, list):
+        model = [model]
+
+    # Set tensor model parallel attributes if not set.
+    # Only parameters that are already tensor model parallel have these
+    # attributes set for them. We should make sure the default attributes
+    # are set for all params so the optimizer can use them.
+    for model_module in model:
+        for param in model_module.parameters():
+            parallel_state.set_defaults_if_not_set_tensor_model_parallel_attributes(param)
+
+    # Print number of parameters.
+    if parallel_state.get_data_parallel_rank() == 0:
+        msg = " > number of parameters on (tneosr, pipeline)model parallel rank ({}, {}): {}".format(
+            parallel_state.get_tensor_model_parallel_rank(),
+            parallel_state.get_pipeline_model_parallel_rank(),
+            sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
+        )
+        print(msg, flush=True)
+
+    # GPU allocation.
+    for model_module in model:
+        model_module.cuda(torch.cuda.current_device())
+
+    if wrap_with_ddp:
+        i = torch.cuda.current_device()
+        model = [
+            torch.nn.parallel.distributed.DistributedDataParallel(
+                model_module,
+                device_ids=[i],
+                output_device=i,
+                process_group=parallel_state.get_data_parallel_group(),
+            )
+            for model_module in model
+        ]
+    return model
+
+
+def _get_params_for_weight_decay_optimization(modules: List[torch.nn.Module]) -> Dict[str, torch.nn.Parameter]:
+    """Divide params into with-weight-decay and without-weight-decay groups.
+    Layernorms and baises will have no weight decay but the rest will.
+    """
+    from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
+    weight_decay_params = {'params': []}
+    no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
+    for module in modules:
+        for module_ in module.modules():
+            if isinstance(module_, FusedLayerNorm):
+                no_weight_decay_params['params'].extend(
+                    [p for p in list(module_._parameters.values())
+                     if p is not None])
+            else:
+                weight_decay_params['params'].extend(
+                    [p for n, p in list(module_._parameters.items())
+                     if p is not None and n != 'bias'])
+                no_weight_decay_params['params'].extend(
+                    [p for n, p in list(module_._parameters.items())
+                     if p is not None and n == 'bias'])
+
+    return weight_decay_params, no_weight_decay_params
+
 
 
 @contextmanager
