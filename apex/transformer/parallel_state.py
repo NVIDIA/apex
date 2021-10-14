@@ -76,17 +76,17 @@ def initialize_model_parallel(
     with a total of 16 GPUs, rank 0 to 7 belong to the first box and
     ranks 8 to 15 belong to the second box.
     """
-    if torch.distributed.get_rank() == 0:
-        print("> initializing tensor model parallel with size {}".format(tensor_model_parallel_size_))
-        print("> initializing pipeline model parallel with size {}".format(pipeline_model_parallel_size_))
     # Get world size and rank. Ensure some consistencies.
     assert torch.distributed.is_initialized()
     world_size = torch.distributed.get_world_size()
     tensor_model_parallel_size = min(tensor_model_parallel_size_, world_size)
     pipeline_model_parallel_size = min(pipeline_model_parallel_size_, world_size)
-    # TODO (mkozuki): Consider moving `ensure_divisibility` to this file.
     ensure_divisibility(world_size, tensor_model_parallel_size * pipeline_model_parallel_size)
     data_parallel_size = world_size // (tensor_model_parallel_size * pipeline_model_parallel_size)
+    if torch.distributed.get_rank() == 0:
+        print("> initializing tensor model parallel with size {}".format(tensor_model_parallel_size))
+        print("> initializing pipeline model parallel with size {}".format(pipeline_model_parallel_size))
+        print("> initializing data parallel with size {}".format(data_parallel_size))
 
     num_tensor_model_parallel_groups = world_size // tensor_model_parallel_size
     num_pipeline_model_parallel_groups = world_size // pipeline_model_parallel_size
