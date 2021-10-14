@@ -27,8 +27,8 @@ batch_size, micro_batch_size = None, None
 hidden_size = 16
 fwd_bwd_functions = {
     "no_pipelining": forward_backward_no_pipelining,
-    "no_interleaving": forward_backward_pipelining_without_interleaving,
-    "interleaving": forward_backward_pipelining_with_interleaving,
+    # "no_interleaving": forward_backward_pipelining_without_interleaving,
+    # "interleaving": forward_backward_pipelining_with_interleaving,
 }
 
 
@@ -102,7 +102,13 @@ def forward_backward_func_template(
         forward_only: bool,
 ) -> None:
     print_separator(f"name: {name}, forward_only: {forward_only}, pipeline model parallel size: {pipeline_model_parallel_size}")
-    parallel_state.initialize_model_parallel(1, pipeline_model_parallel_size, None)
+    if name == "no_pipelining":
+        # note (mkozuki): `forward_backward_no_pipelining` is **NOTE** compatible with
+        # pipeline_model_parallel_size>1. So use pipeline_model_parallel_size as
+        # tensor_model_parallel_size and set pipeline_model_parallel_size to 1.
+        parallel_state.initialize_model_parallel(pipeline_model_parallel_size, 1, None)
+    else:
+        parallel_state.initialize_model_parallel(1, pipeline_model_parallel_size, None)
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
 
     # NOTE (mkozuki): `virtual_pipeline_model_parallel_size` is necessary to enable interleaving scheduling
@@ -111,14 +117,12 @@ def forward_backward_func_template(
     virtual_pipeline_model_parallel_size = 2 if name == "interleaving" else None
     model = build_model(
         model_provider_func,
-        wrap_with_ddp=True,
+        wrap_with_ddp=False,
         virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
     )
     assert isinstance(model, list)
     assert len(model) == (1 if virtual_pipeline_model_parallel_size is None else virtual_pipeline_model_parallel_size)
     _param_groups = _get_params_for_weight_decay_optimization(model)
-    # assert isinstance(_param_groups, tuple)
-    # assert len(_param_groups) == 2
     torch.optim.Adam(_param_groups)
 
     tensor_shape = [batch_size, hidden_size]
@@ -133,8 +137,9 @@ def forward_backward_func_template(
         fwd_step_func, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
 
     if not forward_only:
-        for p in model.parameters():
-            assert p.grad is not None
+        for m in model:
+            for p in m.parameters():
+                assert p.grad is not None
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:
         print(TEST_SUCCESS_MESSAGE)
@@ -163,10 +168,9 @@ if __name__ == "__main__":
     )
     for name, forward_backward_func in fwd_bwd_functions.items():
         for forward_only in (True, False):
-            # if name == "no_pipelining" and not forward_only:
             # TODO (mkozuki): Check with backward
-            if not forward_only:
-                continue
+            # if not forward_only:
+            #     continue
             n_tests += 1
             # print_separator(f"{name} - {forward_only}")
             pipeline_model_parallel_size = 2
@@ -182,6 +186,7 @@ if __name__ == "__main__":
                     failures.append(
                         f"\t# {name} failed with pipeline size: {pipeline_model_parallel_size} "
                         f"and forward_only: {forward_only}\n"
+                        f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
                         f"{str(e)}"
                     )
                     break
