@@ -16,6 +16,10 @@ LossFunc = Callable[[torch.Tensor], torch.Tensor]
 FwdStepFunc = Callable[[Batch, torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
 
 
+def rank_print(msg):
+    print(f"rank: {torch.distributed.get_rank()} | {msg}")
+
+
 def build_model(
         model_provider_func: Callable[[bool, bool], torch.nn.Module],
         wrap_with_ddp: bool = True,
@@ -71,7 +75,7 @@ def build_model(
 
     # Print number of parameters.
     if parallel_state.get_data_parallel_rank() == 0:
-        msg = " > number of parameters on (tneosr, pipeline)model parallel rank ({}, {}): {}".format(
+        msg = " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
             parallel_state.get_tensor_model_parallel_rank(),
             parallel_state.get_pipeline_model_parallel_rank(),
             sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
