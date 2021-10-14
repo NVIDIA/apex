@@ -7,6 +7,7 @@ from apex.transformer.pipeline_parallel import p2p_communication
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+from apex.transformer.pipeline_parallel.schedules.common import rank_print
 from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
@@ -76,11 +77,11 @@ def forward_backward_pipelining_without_interleaving(
         input_tensors = []
         output_tensors = []
     losses_reduced = []
-    print(f" rank {torch.distributed.get_rank()} start pipelining")
 
     ###################################################################################################################
     # Run warmup forward passes.
     ###################################################################################################################
+    rank_print(f"warmup: {num_warmup_microbatches}")
     for i in range(num_warmup_microbatches):
         input_tensor = p2p_communication.recv_forward(tensor_shape=tensor_shape)
         cur_microbatch = get_kth_microbatch(batch, i)
@@ -90,6 +91,8 @@ def forward_backward_pipelining_without_interleaving(
         if not forward_only:
             input_tensors.append(input_tensor)
             output_tensors.append(output_tensor)
+        rank_print(f"warmup iter: {i + 1} / {num_warmup_microbatches}")
+    rank_print("warmup done")
 
     # Before running 1F1B, need to receive first forward tensor.
     # If all microbatches are run in warmup / cooldown phase, then no need to
@@ -100,7 +103,9 @@ def forward_backward_pipelining_without_interleaving(
     ###################################################################################################################
     # Run 1F1B in steady state.
     ###################################################################################################################
+    rank_print(f"steady: {num_microbatches_remaining} iters")
     for i in range(num_microbatches_remaining):
+        rank_print(f"steady: iter {i + 1} / {num_microbatches_remaining} iters")
         last_iteration = i == (num_microbatches_remaining - 1)
 
         output_tensor = forward_step(
@@ -113,7 +118,9 @@ def forward_backward_pipelining_without_interleaving(
                 input_tensor = p2p_communication.recv_forward(tensor_shape=tensor_shape)
 
         else:
+            rank_print("cooldown start send_forward_recv_backward")
             output_tensor_grad = p2p_communication.send_forward_recv_backward(output_tensor, tensor_shape=tensor_shape)
+            rank_print("cooldown finish send_forward_recv_backward")
 
             # Add input_tensor and output_tensor to end of list.
             input_tensors.append(input_tensor)
@@ -129,25 +136,35 @@ def forward_backward_pipelining_without_interleaving(
 
             if last_iteration:
                 input_tensor = None
+                rank_print(f"steady: send_backward start")
                 p2p_communication.send_backward(input_tensor_grad, tensor_shape=tensor_shape)
+                rank_print(f"steady: send_backward finish")
             else:
+                rank_print(f"steady: send_backward recv forward start")
                 input_tensor = p2p_communication.send_backward_recv_forward(
                     input_tensor_grad, tensor_shape=tensor_shape)
-
+                rank_print(f"steady: send_backward recv forward finish")
+    rank_print(f"steady: exit")
     ###################################################################################################################
     # Run cooldown backward passes.
     ###################################################################################################################
     if not forward_only:
+        rank_print(f"cooldownk: {num_warmup_microbatches} iters")
         for i in range(num_warmup_microbatches):
+            rank_print(f"cooldown iter: {i + 1} / {num_warmup_microbatches}")
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
 
+            rank_print(f"cooldown waiting for grad tensor")
             output_tensor_grad = p2p_communication.recv_backward(tensor_shape=tensor_shape)
 
+            rank_print(f"cooldown received grad tensor")
             input_tensor_grad = backward_step(
                 input_tensor, output_tensor, output_tensor_grad
             )
 
+            rank_print(f"cooldown sending grad tensor")
             p2p_communication.send_backward(input_tensor_grad, tensor_shape=tensor_shape)
+        rank_print(f"cooldownk exit")
 
     return losses_reduced

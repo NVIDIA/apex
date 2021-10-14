@@ -17,7 +17,7 @@ FwdStepFunc = Callable[[Batch, torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
 
 
 def rank_print(msg):
-    print(f"rank: {torch.distributed.get_rank()} | {msg}")
+    print(f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()} | {msg}")
 
 
 def build_model(
@@ -169,6 +169,7 @@ def forward_step(
     # for the details of `set_input_tensor`.
     unwrapped_model.set_input_tensor(input_tensor)
     output_tensor, loss_func = forward_step_func(batch, model)
+    # print(f"forward_step| pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()} is_pipeline_last_stage?: {parallel_state.is_pipeline_last_stage()}")
     if parallel_state.is_pipeline_last_stage():
         output_tensor = loss_func(output_tensor)
         loss, loss_reduced = output_tensor
@@ -179,7 +180,11 @@ def forward_step(
     return output_tensor
 
 
-def backward_step(input_tensor, output_tensor, output_tensor_grad):
+def backward_step(
+        input_tensor: Optional[torch.Tensor],
+        output_tensor: torch.Tensor,
+        output_tensor_grad: Optional[torch.Tensor],
+) -> Optional[torch.Tensor]:
     """Backward step through passed-in output tensor.
 
     If last stage, output_tensor_grad is None, otherwise gradient of loss
@@ -199,6 +204,9 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad):
     # timers = get_timers()
     # timers("backward-compute").start()
     # Retain the grad on the input_tensor.
+
+    # if parallel_state.get_pipeline_model_parallel_rank() == 0:
+    #     print(f"{input_tensor}, {output_tensor}, {output_tensor_grad}")
     if input_tensor is not None:
         input_tensor.retain_grad()
     # Backward pass.
