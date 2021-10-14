@@ -548,7 +548,8 @@ class ParallelAttention(MegatronModule):
         return output, bias
 
 
-def bias_dropout_add(x, bias, residual, prob, training):
+@torch.jit.script
+def bias_dropout_add(x: torch.Tensor, bias: torch.Tensor, residual: torch.Tensor, prob: float, training: bool) -> torch.Tensor:
     out = torch.nn.functional.dropout(x + bias, p=prob, training=training)
     out = residual + out
     return out
