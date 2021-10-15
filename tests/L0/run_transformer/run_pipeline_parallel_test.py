@@ -106,15 +106,16 @@ def forward_backward_func_template(
         # note (mkozuki): `forward_backward_no_pipelining` is **NOTE** compatible with
         # pipeline_model_parallel_size>1. So use pipeline_model_parallel_size as
         # tensor_model_parallel_size and set pipeline_model_parallel_size to 1.
-        parallel_state.initialize_model_parallel(pipeline_model_parallel_size, 1, None)
+        parallel_state.initialize_model_parallel(1, 1, None)
     else:
-        parallel_state.initialize_model_parallel(1, pipeline_model_parallel_size, None)
+        # NOTE (mkozuki): `virtual_pipeline_model_parallel_size` is necessary to enable interleaving scheduling
+        # In megatron, `args.virtual_pipeline_model_parallel_size` is computed in megatron/arguments.py and
+        # used ubiquitously but this test uses custom model so it's safe to abuse.
+        virtual_pipeline_model_parallel_size = 2 if name == "interleaving" else None
+        parallel_state.initialize_model_parallel(
+            1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
 
-    # NOTE (mkozuki): `virtual_pipeline_model_parallel_size` is necessary to enable interleaving scheduling
-    # In megatron, `args.virtual_pipeline_model_parallel_size` is computed in megatron/arguments.py and
-    # used ubiquitously but this test uses custom model so it's safe to abuse.
-    virtual_pipeline_model_parallel_size = 2 if name == "interleaving" else None
     model = build_model(
         model_provider_func,
         wrap_with_ddp=False,
