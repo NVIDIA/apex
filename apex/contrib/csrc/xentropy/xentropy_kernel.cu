@@ -78,7 +78,6 @@
 
 #include <THC/THC.h>
 #include <THC/THCGeneral.h>
-#include <THC/THCThrustAllocator.cuh>
 
 #include "type_shim.h"
 #include "compat.h"
