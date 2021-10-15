@@ -14,18 +14,22 @@ global_vars.set_global_variables()
 def run_test(pipeline_model_parallel_size):
     parallel_state.initialize_model_parallel(1, pipeline_model_parallel_size, None)
 
-    rank = parallel_state.get_pipeline_model_parallel_rank()
     shape = [3]
+    rank = parallel_state.get_pipeline_model_parallel_rank()
     tensor = torch.full(shape, rank).cuda()
+    next_rank = parallel_state.get_pipeline_model_parallel_next_rank()
+    expected = torch.ones_like(tensor) * next_rank
 
     rank_print("Start `send_forward_recv_backward`")
     grad = send_forward_recv_backward(tensor, shape, dtype=torch.float)
     rank_print("Finish `send_forward_recv_backward`")
-    next_rank = parallel_state.get_pipeline_model_parallel_next_rank()
-    expected = torch.ones_like(tensor) * next_rank
 
-    assert torch.equal(expected, grad)
-    rank_print("Exitting `run_test` function")
+    if not parallel_state.is_pipeline_last_stage():
+        assert torch.equal(expected, grad)
+    else:
+        rank_print("Last rank so `send_forward_recv_backward` does nothing")
+        assert grad is None
+    rank_print("Exiting `run_test` function")
 
 
 if __name__ == "__main__":
