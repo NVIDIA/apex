@@ -112,15 +112,17 @@ def forward_backward_pipelining_without_interleaving(
             forward_step_func, get_kth_microbatch(batch, i + num_warmup_microbatches),
             model, input_tensor, losses_reduced)
         if forward_only:
+            rank_print(f"steady, no backward: `send_forward` start")
             p2p_communication.send_forward(output_tensor, tensor_shape=tensor_shape)
 
             if not last_iteration:
                 input_tensor = p2p_communication.recv_forward(tensor_shape=tensor_shape)
+            rank_print(f"steady, no backward: `send_forward` finish")
 
         else:
-            rank_print("cooldown start send_forward_recv_backward")
+            rank_print("steady, backward: `send_forward_recv_backward` start")
             output_tensor_grad = p2p_communication.send_forward_recv_backward(output_tensor, tensor_shape=tensor_shape)
-            rank_print("cooldown finish send_forward_recv_backward")
+            rank_print("steady, backward: `send_forward_recv_backward` finish")
 
             # Add input_tensor and output_tensor to end of list.
             input_tensors.append(input_tensor)
@@ -136,14 +138,14 @@ def forward_backward_pipelining_without_interleaving(
 
             if last_iteration:
                 input_tensor = None
-                rank_print(f"steady: send_backward start")
+                rank_print(f"steady backward last iteration: `send_backward` start")
                 p2p_communication.send_backward(input_tensor_grad, tensor_shape=tensor_shape)
-                rank_print(f"steady: send_backward finish")
+                rank_print(f"steady: `send_backward` finish")
             else:
-                rank_print(f"steady: send_backward recv forward start")
+                rank_print(f"steady backward : `send_backward_recv_forward` start")
                 input_tensor = p2p_communication.send_backward_recv_forward(
                     input_tensor_grad, tensor_shape=tensor_shape)
-                rank_print(f"steady: send_backward recv forward finish")
+                rank_print(f"steady: `send_backward_recv_forward` finish")
     rank_print(f"steady: exit")
     ###################################################################################################################
     # Run cooldown backward passes.
