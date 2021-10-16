@@ -639,7 +639,7 @@ std::vector<torch::Tensor> transducer_loss_cuda_forward(
                 loss.data_ptr<scalar_t>());  
 
     }));
-    THCudaCheck(cudaGetLastError());
+    C10_CUDA_CHECK(cudaGetLastError());
 
     return {alpha, beta, loss};
 }
@@ -760,7 +760,7 @@ torch::Tensor transducer_loss_cuda_backward(
                 xGrad.data_ptr<scalar_t>());
         }));
     }
-    THCudaCheck(cudaGetLastError());
+    C10_CUDA_CHECK(cudaGetLastError());
     
     return xGrad;
 }
