@@ -4,6 +4,7 @@ from typing import List
 import torch
 
 from apex.transformer import parallel_state
+from apex.transformer.tensor_parallel import model_parallel_cuda_manual_seed
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import rank_print
@@ -80,11 +81,14 @@ def forward_step(batch, model):
 
 def run_gpt(pipeline_model_parallel_size, virtual_pipeline_model_parallel_size=None, forward_only=False):
     parallel_state.initialize_model_parallel(1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
+    model_parallel_cuda_manual_seed(42)
 
     model = build_model(
         gpt_model_provider, False,
         virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size)
     rank_print("building model")
+    assert isinstance(model, list)
+    assert len(model) == (1 or virtual_pipeline_model_parallel_size)
     _param_groups = _get_params_for_weight_decay_optimization(model)
     torch.optim.Adam(_param_groups)
 
@@ -99,7 +103,7 @@ def run_gpt(pipeline_model_parallel_size, virtual_pipeline_model_parallel_size=N
         fwd_bwd_func = forward_backward_pipelining_without_interleaving
     else:
         fwd_bwd_func = forward_backward_pipelining_with_interleaving
-    rank_print("selecting forward_backward func: {fwd_bwd_func}")
+    rank_print(f"selecting forward_backward func: {fwd_bwd_func}")
 
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
     rank_print(f"`tensor_shape`: {tensor_shape}")
@@ -111,6 +115,7 @@ def run_gpt(pipeline_model_parallel_size, virtual_pipeline_model_parallel_size=N
 if __name__ == "__main__":
     initialize_distributed()
     args = global_vars.get_args()
+    args.padded_vocab_size = N_VOCAB
     setup_microbatch_calculator(
         args.rank,
         args.rampup_batch_size,
