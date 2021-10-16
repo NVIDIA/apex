@@ -36,7 +36,7 @@ from apex.transformer.utils import gather_split_1d_tensor
 _MODEL_PARALLEL_RNG_TRACKER_NAME = "model-parallel-rng"
 
 
-# Whether apply model parallelsim to checkpointed hidden states.
+# Whether apply model parallelism to checkpointed hidden states.
 _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER = None
 
 
