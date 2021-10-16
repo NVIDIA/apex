@@ -2,8 +2,6 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDACachingAllocator.h>
 
-#include "THC/THC.h"
-
 #include "batch_norm.h"
 
 #include <cuda.h>

@@ -2,7 +2,6 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
-#include <THC/THCGeneral.h>
 // Another possibility:
 // #include <torch/all.h>
 
