@@ -39,7 +39,7 @@ class MyLayer(nn.Module):
         super().__init__()
         self.pre_process = pre_process
         self.post_process = post_process
-        self.layer = nn.Sequential(nn.Linear(hidden_size, hidden_size))
+        self.layer = nn.Linear(hidden_size, hidden_size)
 
     def forward(self, x):
         return self.layer(x)
@@ -55,7 +55,7 @@ class MyModel(nn.Module):
     def set_input_tensor(self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]) -> None:
         if isinstance(input_tensor, list):
             input_tensor = input_tensor[0]
-        self.layer.set_input_tensor(input_tensor)
+        self.set_input_tensor(input_tensor)
 
     def forward(self, x: Optional[torch.Tensor]) -> torch.Tensor:
         if x is None:
@@ -177,10 +177,10 @@ if __name__ == "__main__":
                 failures.append(
                     f"\t# {name} failed with pipeline size: {pipeline_model_parallel_size} "
                     f"and forward_only: {forward_only}\n"
-                    f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
+                    f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
+                    f"virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
                     f"{str(e)}"
                 )
-                break
             finally:
                 parallel_state.destroy_model_parallel()
     print_separator("TEST RESULT")
