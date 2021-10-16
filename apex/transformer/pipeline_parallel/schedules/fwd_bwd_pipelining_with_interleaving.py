@@ -195,7 +195,9 @@ def forward_backward_pipelining_with_interleaving(
             )
             output_tensor_grads[num_model_chunks - 1].append(output_tensor_grad)
         else:
+            rank_print("send_forward_recv_forward start")
             input_tensor = p2p_communication.send_forward_recv_forward(output_tensor, recv_prev=recv_prev, tensor_shape=tensor_shape)
+            rank_print("send_forward_recv_forward finish")
         rank_print("communication done")
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
 

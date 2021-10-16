@@ -58,7 +58,6 @@ def forward_backward_pipelining_without_interleaving(
         - parallel_state.get_pipeline_model_parallel_rank()
         - 1
     )
-    # note (mkozuki): It's possible that all the microbatches are consumed in warmup.
     num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
     num_microbatches_remaining = num_microbatches - num_warmup_microbatches
 
@@ -96,9 +95,12 @@ def forward_backward_pipelining_without_interleaving(
 
     # Before running 1F1B, need to receive first forward tensor.
     # If all microbatches are run in warmup / cooldown phase, then no need to
-    # receive this tensor here.
+    # receive this tensor here. 
+    rank_print(f"num microbatches remaining: {num_microbatches_remaining}")
     if num_microbatches_remaining > 0:
+        rank_print(f"recv_forward before steady state start")
         input_tensor = p2p_communication.recv_forward(tensor_shape=tensor_shape)
+        rank_print(f"recv_forward before steady state done")
 
     ###################################################################################################################
     # Run 1F1B in steady state.
@@ -106,11 +108,12 @@ def forward_backward_pipelining_without_interleaving(
     rank_print(f"steady: {num_microbatches_remaining} iters")
     for i in range(num_microbatches_remaining):
         rank_print(f"steady: iter {i + 1} / {num_microbatches_remaining} iters")
+        if not forward_only:
+            rank_print(f"len(input_tensors) = {len(input_tensors)}, len(output_tensors) = {len(output_tensors)}")
         last_iteration = i == (num_microbatches_remaining - 1)
 
-        output_tensor = forward_step(
-            forward_step_func, get_kth_microbatch(batch, i + num_warmup_microbatches),
-            model, input_tensor, losses_reduced)
+        cur_microbatch = get_kth_microbatch(batch, i + num_warmup_microbatches)
+        output_tensor = forward_step(forward_step_func, cur_microbatch, model, input_tensor, losses_reduced)
         if forward_only:
             rank_print(f"steady, no backward: `send_forward` start")
             p2p_communication.send_forward(output_tensor, tensor_shape=tensor_shape)
@@ -120,9 +123,9 @@ def forward_backward_pipelining_without_interleaving(
             rank_print(f"steady, no backward: `send_forward` finish")
 
         else:
-            rank_print("steady, backward: `send_forward_recv_backward` start")
+            rank_print("L.124 steady, backward: `send_forward_recv_backward` start")
             output_tensor_grad = p2p_communication.send_forward_recv_backward(output_tensor, tensor_shape=tensor_shape)
-            rank_print("steady, backward: `send_forward_recv_backward` finish")
+            rank_print("L.124 steady, backward: `send_forward_recv_backward` finish")
 
             # Add input_tensor and output_tensor to end of list.
             input_tensors.append(input_tensor)
@@ -138,14 +141,14 @@ def forward_backward_pipelining_without_interleaving(
 
             if last_iteration:
                 input_tensor = None
-                rank_print(f"steady backward last iteration: `send_backward` start")
+                rank_print(f"L.142 steady backward last iteration: `send_backward` start")
                 p2p_communication.send_backward(input_tensor_grad, tensor_shape=tensor_shape)
-                rank_print(f"steady: `send_backward` finish")
+                rank_print(f"L.142 steady backward last iteration: `send_backward` finish")
             else:
-                rank_print(f"steady backward : `send_backward_recv_forward` start")
+                rank_print(f"L.146 steady backward: `send_backward_recv_forward` start")
                 input_tensor = p2p_communication.send_backward_recv_forward(
                     input_tensor_grad, tensor_shape=tensor_shape)
-                rank_print(f"steady: `send_backward_recv_forward` finish")
+                rank_print(f"L.146 steady backward: `send_backward_recv_forward` finish")
     rank_print(f"steady: exit")
     ###################################################################################################################
     # Run cooldown backward passes.

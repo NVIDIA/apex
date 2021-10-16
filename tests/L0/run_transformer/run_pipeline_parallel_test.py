@@ -28,7 +28,7 @@ hidden_size = 16
 fwd_bwd_functions = {
     "no_pipelining": forward_backward_no_pipelining,
     "no_interleaving": forward_backward_pipelining_without_interleaving,
-    # "interleaving": forward_backward_pipelining_with_interleaving,
+    "interleaving": forward_backward_pipelining_with_interleaving,
 }
 
 
@@ -101,7 +101,7 @@ def forward_backward_func_template(
         pipeline_model_parallel_size: int,
         forward_only: bool,
 ) -> None:
-    print_separator(f"name: {name}, forward_only: {forward_only}, pipeline model parallel size: {pipeline_model_parallel_size}")
+    print_separator(f"name: {name}, pipeline model parallel size: {pipeline_model_parallel_size}")
     if name == "no_pipelining":
         # note (mkozuki): `forward_backward_no_pipelining` is **NOTE** compatible with
         # pipeline_model_parallel_size>1. So use pipeline_model_parallel_size as
@@ -159,41 +159,33 @@ if __name__ == "__main__":
         args.rampup_batch_size,
         args.global_batch_size,
         args.micro_batch_size,
-        args.data_parallel_size,
+        1, # args.data_parallel_size,
     )
-    print(
-        f">>> global batch size: {args.global_batch_size}\n"
-        f">>> micro batch size: {args.micro_batch_size}\n"
-        f">>> data parallel size: {args.data_parallel_size}"
-    )
-    for name, forward_backward_func in fwd_bwd_functions.items():
-        for forward_only in (True, False):
+    for forward_only in (True, False):
+        print_separator(f"forward only? {forward_only}")
+        for name, forward_backward_func in fwd_bwd_functions.items():
             # TODO (mkozuki): Check with backward
             # if not forward_only and "interleaving" in name:
             #     continue
             n_tests += 1
             pipeline_model_parallel_size = world_size
-            while pipeline_model_parallel_size <= world_size:
-                try:
-                    print_separator("")
-                    forward_backward_func_template(
-                        name,
-                        forward_backward_func,
-                        pipeline_model_parallel_size,
-                        forward_only,
-                    )
-                except Exception as e:
-                    failures.append(
-                        f"\t# {name} failed with pipeline size: {pipeline_model_parallel_size} "
-                        f"and forward_only: {forward_only}\n"
-                        f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
-                        f"{str(e)}"
-                    )
-                    break
-                else:
-                    pipeline_model_parallel_size *= 2
-                finally:
-                    parallel_state.destroy_model_parallel()
+            try:
+                forward_backward_func_template(
+                    name,
+                    forward_backward_func,
+                    pipeline_model_parallel_size,
+                    forward_only,
+                )
+            except Exception as e:
+                failures.append(
+                    f"\t# {name} failed with pipeline size: {pipeline_model_parallel_size} "
+                    f"and forward_only: {forward_only}\n"
+                    f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
+                    f"{str(e)}"
+                )
+                break
+            finally:
+                parallel_state.destroy_model_parallel()
     print_separator("TEST RESULT")
     if failures:
         torch.distributed.barrier()

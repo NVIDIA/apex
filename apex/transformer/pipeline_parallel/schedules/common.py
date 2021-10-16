@@ -1,5 +1,6 @@
 # NOTE (mkozuki): For simplicity, tentatively `timers` related operations are commented out.
 from contextlib import contextmanager
+import time
 from typing import Callable, Dict, List, Tuple, Union, Optional
 
 import torch
@@ -17,7 +18,7 @@ FwdStepFunc = Callable[[Batch, torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
 
 
 def rank_print(msg):
-    print(f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()} | {msg}")
+    print(f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}, time: {time.time()} | {msg}")
 
 
 def build_model(
