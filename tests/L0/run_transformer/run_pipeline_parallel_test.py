@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union, List
 
 import torch
 import torch.nn as nn
@@ -41,17 +41,8 @@ class MyLayer(nn.Module):
         self.post_process = post_process
         self.layer = nn.Sequential(nn.Linear(hidden_size, hidden_size))
 
-    def set_input_tensor(self, input_tensor):
-        self.input_tensor = input_tensor
-
     def forward(self, x):
-        # note (mkozuki): The latter condition is for no pipelining
-        if parallel_state.is_pipeline_first_stage() or x is not None:
-            input = x
-        else:
-            input = self.input_tensor
-        return self.layer(input)
-
+        return self.layer(x)
 
 class MyModel(nn.Module):
 
@@ -61,11 +52,16 @@ class MyModel(nn.Module):
         self.post_process = post_process
         self.layer = MyLayer(pre_process=pre_process, post_process=post_process)
 
-    def set_input_tensor(self, input_tensor: Optional[torch.Tensor]) -> None:
+    def set_input_tensor(self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]) -> None:
+        if isinstance(input_tensor, list):
+            input_tensor = input_tensor[0]
         self.layer.set_input_tensor(input_tensor)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Optional[torch.Tensor]) -> torch.Tensor:
+        if x is None:
+            return self.layer(self.input_tensor)
         return self.layer(x)
+
 
 
 def model_provider_func(pre_process, post_process) -> MyModel:
