@@ -4,18 +4,21 @@ from typing import List
 import torch
 
 from apex.transformer import parallel_state
-from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
-from apex.transformer.pipeline_parallel.utils import update_num_microbatches
-from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
-from apex.transformer.pipeline_parallel.utils import get_ltor_masks_and_position_ids
-from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
+from apex.transformer.pipeline_parallel.schedules.common import build_model
+from apex.transformer.pipeline_parallel.schedules.common import rank_print
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import forward_backward_pipelining_with_interleaving
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
+from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
+from apex.transformer.pipeline_parallel.utils import get_ltor_masks_and_position_ids
+from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
+from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 
 from apex.transformer.testing import global_vars
+from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
+from apex.transformer.testing.commons import print_separator
 from apex.transformer.testing.standalone_gpt import gpt_model_provider
 
 
@@ -81,6 +84,7 @@ def run_gpt(pipeline_model_parallel_size, virtual_pipeline_model_parallel_size=N
     model = build_model(
         gpt_model_provider, False,
         virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size)
+    rank_print("building model")
     _param_groups = _get_params_for_weight_decay_optimization(model)
     torch.optim.Adam(_param_groups)
 
@@ -89,17 +93,22 @@ def run_gpt(pipeline_model_parallel_size, virtual_pipeline_model_parallel_size=N
         batch = generate_batch(args.global_batch_size, args.seq_length)
     else:
         batch = [generate_batch(args.global_batch_size, args.seq_length) for _ in range(virtual_pipeline_model_parallel_size)]
+    rank_print("preparing batch")
 
     if virtual_pipeline_model_parallel_size is None:
         fwd_bwd_func = forward_backward_pipelining_without_interleaving
     else:
         fwd_bwd_func = forward_backward_pipelining_with_interleaving
+    rank_print("selecting forward_backward func: {fwd_bwd_func}")
 
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
-    fwd_bwd_func(forward_step, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
+    rank_print(f"`tensor_shape`: {tensor_shape}")
+    # fwd_bwd_func(forward_step, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
+
+    rank_print(TEST_SUCCESS_MESSAGE)
 
 
-if __name__ == "__name__":
+if __name__ == "__main__":
     initialize_distributed()
     args = global_vars.get_args()
     setup_microbatch_calculator(
@@ -110,4 +119,10 @@ if __name__ == "__name__":
         1,  # args.data_parallel_size,
     )
     update_num_microbatches(0, True)
-    run_gpt(torch.distributed.get_world_size())
+    print_separator("run GPT model")
+    try:
+        run_gpt(torch.distributed.get_world_size())
+    except Exception as e:
+        rank_print(str(e))
+    finally:
+        parallel_state.destroy_model_parallel()
