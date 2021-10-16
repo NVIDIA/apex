@@ -133,7 +133,7 @@ void CutlassGemm_FP32Accum(cudaStream_t stream, long m, long n, long k,
 
     AT_ASSERTM(result == 0, "Failed to initialize CUTLASS Gemm::Params object.");
     // Launch the CUTLASS GEMM kernel.
-    THCudaCheck(Gemm::launch(params, stream));
+    C10_CUDA_CHECK(Gemm::launch(params, stream));
 
     // Update batched GEMM params based on completed work
     batchesLeft = batchesLeft - iterBatchCount;
