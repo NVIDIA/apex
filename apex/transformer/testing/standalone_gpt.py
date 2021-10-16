@@ -315,9 +315,9 @@ class ParallelAttention(MegatronModule):
 
         # Per attention head and per partition values.
         world_size = parallel_state.get_tensor_model_parallel_world_size()
-        self.hidden_size_per_partition = parallel_state.divide(projection_size, world_size)
-        self.hidden_size_per_attention_head = apex.transformer.divide(projection_size, args.num_attention_heads)
-        self.num_attention_heads_per_partition = apex.transformer.divide(args.num_attention_heads, world_size)
+        self.hidden_size_per_partition = apex.transformer.utils.divide(projection_size, world_size)
+        self.hidden_size_per_attention_head = apex.transformer.utils.divide(projection_size, args.num_attention_heads)
+        self.num_attention_heads_per_partition = apex.transformer.utils.divide(args.num_attention_heads, world_size)
 
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
