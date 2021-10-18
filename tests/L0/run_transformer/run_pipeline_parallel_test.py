@@ -98,6 +98,7 @@ def forward_backward_func_template(
         forward_only: bool,
 ) -> None:
     print_separator(f"name: {name}, pipeline model parallel size: {pipeline_model_parallel_size}")
+    virtual_pipeline_model_parallel_size = 2 if name == "interleaving" else None
     if name == "no_pipelining":
         # note (mkozuki): `forward_backward_no_pipelining` is **NOTE** compatible with
         # pipeline_model_parallel_size>1. So use pipeline_model_parallel_size as
@@ -107,7 +108,6 @@ def forward_backward_func_template(
         # NOTE (mkozuki): `virtual_pipeline_model_parallel_size` is necessary to enable interleaving scheduling
         # In megatron, `args.virtual_pipeline_model_parallel_size` is computed in megatron/arguments.py and
         # used ubiquitously but this test uses custom model so it's safe to abuse.
-        virtual_pipeline_model_parallel_size = 2 if name == "interleaving" else None
         parallel_state.initialize_model_parallel(
             1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
