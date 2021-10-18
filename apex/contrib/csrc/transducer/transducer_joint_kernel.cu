@@ -1,13 +1,14 @@
-#include <torch/extension.h>
 #include <cuda.h>
-#include <cuda_runtime.h>
-#include <c10/macros/Macros.h>
-#include <THC/THC.h>
-#include <ATen/AccumulateType.h>
-#include <ATen/cuda/CUDAContext.h>
-#include <ATen/CUDAGeneratorImpl.h>
-#include <ATen/cuda/CUDAGraphsUtils.cuh>
 #include <curand_kernel.h>
+#include <cuda_runtime.h>
+
+#include <torch/extension.h>
+#include <ATen/AccumulateType.h>
+#include <ATen/CUDAGeneratorImpl.h>
+#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/CUDAGraphsUtils.cuh>
+#include <c10/macros/Macros.h>
+
 #include "philox.h"
 
 // Warp reduce kernels to reduce N groups of data into N numbers, where N = warpSize / width.

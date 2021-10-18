@@ -1,15 +1,15 @@
 #include <vector>
 #include <iostream>
 
-//#include <ATen/ATen.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
 #include <cuda_profiler_api.h>
 
+//#include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
-#include "THC/THC.h"
 #include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/Exceptions.h>
 
 #include "cutlass/cutlass.h"
 #include "cutlass/gemm/gemm.h"
@@ -23,7 +23,7 @@ cublasOperation_t convertTransToCublasOperation(char trans) {
   else if (trans == 'n') return CUBLAS_OP_N;
   else if (trans == 'c') return CUBLAS_OP_C;
   else {
-    THError("trans must be one of: t, n, c");
+    AT_ERROR("trans must be one of: t, n, c");
     return CUBLAS_OP_T;
   }
 }
@@ -40,7 +40,7 @@ void CublasStridedBatchedGemm(THCState *state, char transa, char transb, long m,
     float fAlpha = alpha;
     float fBeta = beta;
     //THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
-    THCublasCheck(cublasGemmStridedBatchedEx(handle,
+    TORCH_CUDABLAS_CHECK(cublasGemmStridedBatchedEx(handle,
                                      opa, opb, (int)m, (int)n, (int)k,
                                      (void*)&fAlpha, a, CUDA_R_16F, (int)lda, strideA,
                                      b, CUDA_R_16F, (int)ldb, strideB,
@@ -316,7 +316,7 @@ void HgemmStridedBatched(THCState *state, char transa, char transb, long m, long
   if( (m >= INT_MAX) || (n >= INT_MAX) || (k >= INT_MAX) || (lda >= INT_MAX)  || (ldb >= INT_MAX) || (ldc >= INT_MAX) || (batchCount >= INT_MAX) )
 
   {
-    THError("Cublas_SgemmStridedBatched only supports m, n, k, lda, ldb, ldc, batchCount"
+    AT_ERROR("Cublas_SgemmStridedBatched only supports m, n, k, lda, ldb, ldc, batchCount"
             "with the bound [val] <= %d", INT_MAX);
   }
 
