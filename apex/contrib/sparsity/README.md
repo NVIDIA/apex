@@ -72,7 +72,32 @@ ASP.compute_sparse_masks()
 
 A more thorough example can be found in `./test/toy_problem.py`. 
 
+## Advanced Usage: Channel Permutation
 
+We introduce channel permutations as an advanced method to maximize the accuracy of structured sparse networks. By permuting weight matrices along their channel dimension and adjusting the surrounding layers appropriately, we demonstrate accuracy recovery for even small, parameter-efficient networks, without affecting inference run-time.
 
+The final accuracy has a strong relationship with the quality of permutations. We provide the default algorithms to search for high-quality permutations. The permutation search process can be accelerated by the Apex CUDA extension: `apex.contrib.sparsity.permutation_search_kernels`
 
+If you want to use the GPU to accelerate the permutation search process, we recommend installing Apex with permutation search CUDA extension via
+```
+pip install -v --disable-pip-version-check --no-cache-dir --global-option="--permutation_search" ./
+```
 
+If you want to disable the permutation search process, please pass the `allow_permutation=False` to `init_model_for_pruning` function. For example:
+```
+ASP.init_model_for_pruning(model, mask_calculator="m4n2_1d", verbosity=2, whitelist=[torch.nn.Linear, torch.nn.Conv2d], allow_recompute_mask=False, allow_permutation=False)
+```
+
+## Reference Papers
+More details about sparsity support on the NVIDIA Ampere GPU with Sparse Tensor Cores can refer to our [white paper](https://arxiv.org/abs/2104.08378).
+
+```
+@article{mishra2021accelerating,
+  title={Accelerating sparse deep neural networks},
+  author={Mishra, Asit and Latorre, Jorge Albericio and Pool, Jeff and Stosic, Darko and Stosic, Dusan and Venkatesh, Ganesh and Yu, Chong and Micikevicius, Paulius},
+  journal={arXiv preprint arXiv:2104.08378},
+  year={2021}
+}
+```
+
+The details about sparsity with permutation can refer to our paper published in NeurIPS 2021 (Camera-ready version coming soon).

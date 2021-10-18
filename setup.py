@@ -230,6 +230,20 @@ if "--cuda_ext" in sys.argv:
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda'] + version_dependent_macros}))
 
+if "--permutation_search" in sys.argv:
+    sys.argv.remove("--permutation_search")
+
+    if CUDA_HOME is None:
+        raise RuntimeError("--permutation_search was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        cc_flag = ['-Xcompiler', '-fPIC', '-shared']
+        ext_modules.append(
+            CUDAExtension(name='permutation_search_cuda',
+                          sources=['apex/contrib/sparsity/permutation_search_kernels/CUDA_kernels/structured_sparsity.cu'],
+                          include_dirs=[os.path.join(this_dir, 'apex', 'contrib', 'sparsity', 'permutation_search_kernels', 'CUDA_kernels')],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3'] + version_dependent_macros + cc_flag}))
+
 if "--bnp" in sys.argv:
     sys.argv.remove("--bnp")
 
