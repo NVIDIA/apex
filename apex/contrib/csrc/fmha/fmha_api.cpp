@@ -163,7 +163,7 @@ mha_fwd(const at::Tensor &qkv,  // total x num_heads x 3 x head_size, total := \
                s.data_ptr(),
                p_dropout);
 
-    // number of times random will be generated per thread, to offset philox counter in thc random
+    // number of times random will be generated per thread, to offset philox counter in the random
     // state
     int64_t counter_offset = elts_per_thread;
     at::PhiloxCudaState rng_engine_inputs;
@@ -319,7 +319,7 @@ std::vector<at::Tensor> mha_fwd_nl(const at::Tensor &qkv,         // total x num
                s.data_ptr(),
                p_dropout);
 
-    // number of times random will be generated per thread, to offset philox counter in thc random
+    // number of times random will be generated per thread, to offset philox counter in the random
     // state
     int64_t counter_offset = elts_per_thread;
     at::PhiloxCudaState rng_engine_inputs;
