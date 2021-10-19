@@ -4,3 +4,6 @@ build
 docs/build
 *~
 __pycache__
+*.hip
+*_hip.*
+*hip* 

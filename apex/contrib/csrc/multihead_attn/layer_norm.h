@@ -4,6 +4,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+
 template<typename U> __device__
 void cuWelfordOnlineSum(
   const U curr,
@@ -84,9 +85,9 @@ void cuWelfordMuSigma2(
     // intra-warp reductions
     for (int l = 0;  l <= 4;  ++l) {
       int srcLaneB = (threadIdx.x+(1<<l))&31;
-      U muB = WARP_SHFL(mu, srcLaneB);
-      U countB = WARP_SHFL(count, srcLaneB);
-      U sigma2B = WARP_SHFL(sigma2, srcLaneB);
+      U muB = WARP_SHFL(mu, srcLaneB, 32);
+      U countB = WARP_SHFL(count, srcLaneB, 32);
+      U sigma2B = WARP_SHFL(sigma2, srcLaneB, 32);
       cuChanOnlineSum<U>(muB,sigma2B,countB,mu,sigma2,count);
     }
     // threadIdx.x == 0 has correct values for each warp
@@ -122,8 +123,8 @@ void cuWelfordMuSigma2(
       sigma2 = ubuf[1]/U(n2);
       // don't care about final value of count, we know count == n2
     } else {
-      mu = WARP_SHFL(mu, 0);
-      sigma2 = WARP_SHFL(sigma2/U(n2), 0);
+      mu = WARP_SHFL(mu, 0, 32);
+      sigma2 = WARP_SHFL(sigma2/U(n2), 0, 32);
     }
   }
 }
@@ -180,9 +181,9 @@ void cuWelfordMuSigma2(
     // intra-warp reductions
     for (int l = 0;  l <= 4;  ++l) {
       int srcLaneB = (threadIdx.x+(1<<l))&31;
-      float muB = WARP_SHFL(mu, srcLaneB);
-      float countB = WARP_SHFL(count, srcLaneB);
-      float sigma2B = WARP_SHFL(sigma2, srcLaneB);
+      float muB = WARP_SHFL(mu, srcLaneB, 32);
+      float countB = WARP_SHFL(count, srcLaneB, 32);
+      float sigma2B = WARP_SHFL(sigma2, srcLaneB, 32);
       cuChanOnlineSum(muB,sigma2B,countB,mu,sigma2,count);
     }
     // threadIdx.x == 0 has correct values for each warp
@@ -218,8 +219,8 @@ void cuWelfordMuSigma2(
       sigma2 = ubuf[1]/float(n2);
       // don't care about final value of count, we know count == n2
     } else {
-      mu = WARP_SHFL(mu, 0);
-      sigma2 = WARP_SHFL(sigma2/float(n2), 0);
+      mu = WARP_SHFL(mu, 0, 32);
+      sigma2 = WARP_SHFL(sigma2/float(n2), 0, 32);
     }
   }
 }
@@ -227,9 +228,19 @@ void cuWelfordMuSigma2(
 template<typename U> U rsqrt(U v) {
   return U(1) / sqrt(v);
 }
+//template<> float rsqrt(float v) {
+//  return rsqrtf(v);
+//}
+
+#if defined __HIP_PLATFORM_HCC__
+__device__ float rsqrt(float v) {
+  return rsqrtf(v);
+}
+#else
 template<> float rsqrt(float v) {
   return rsqrtf(v);
 }
+#endif
 template<> double rsqrt(double v) {
   return rsqrt(v);
 }
@@ -290,7 +301,7 @@ void cuApplyLayerNorm(
   // 1) blockDim.x == warpSize
   // 2) Tensors are contiguous
   //
-  for (auto i1=blockIdx.y; i1 < n1; i1 += gridDim.y) {
+  for (int i1=blockIdx.y; i1 < n1; i1 += gridDim.y) {
     SharedMemory<U> shared;
     U* buf = shared.getPointer();
     U mu,sigma2;
@@ -529,7 +540,7 @@ void cuComputeGradInput(
     const T* gamma,
     T* grad_input)
 {
-  for (auto i1=blockIdx.y; i1 < n1; i1 += gridDim.y) {
+  for (int i1=blockIdx.y; i1 < n1; i1 += gridDim.y) {
     U sum_loss1 = U(0);
     U sum_loss2 = U(0);
     const U c_mean = mean[i1];
@@ -574,8 +585,8 @@ void cuComputeGradInput(
     }
     // intra-warp reductions
     for (int mask = blockDim.x/2;  mask > 0;  mask /= 2) {
-      sum_loss1 += WARP_SHFL_XOR(sum_loss1, mask);
-      sum_loss2 += WARP_SHFL_XOR(sum_loss2, mask);
+      sum_loss1 += WARP_SHFL_XOR(sum_loss1, mask, 32);
+      sum_loss2 += WARP_SHFL_XOR(sum_loss2, mask, 32);
     }
     // inter-warp reductions
     if (blockDim.y > 1) {
