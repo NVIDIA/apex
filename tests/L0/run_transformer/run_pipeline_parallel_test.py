@@ -28,7 +28,7 @@ hidden_size = 16
 fwd_bwd_functions = {
     "no_pipelining": forward_backward_no_pipelining,
     "no_interleaving": forward_backward_pipelining_without_interleaving,
-    "interleaving": forward_backward_pipelining_with_interleaving,
+    #"interleaving": forward_backward_pipelining_with_interleaving,
 }
 
 
@@ -51,16 +51,15 @@ class MyModel(nn.Module):
         self.pre_process = pre_process
         self.post_process = post_process
         self.layer = MyLayer(pre_process=pre_process, post_process=post_process)
+        self.input_tensor = None
 
     def set_input_tensor(self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]) -> None:
-        if isinstance(input_tensor, list):
-            input_tensor = input_tensor[0]
-        self.set_input_tensor(input_tensor)
+        self.input_tensor = input_tensor
 
     def forward(self, x: Optional[torch.Tensor]) -> torch.Tensor:
-        if x is None:
-            return self.layer(self.input_tensor)
-        return self.layer(x)
+        if self.input_tensor is None:
+            return self.layer(x)
+        return self.layer(self.input_tensor)
 
 
 
