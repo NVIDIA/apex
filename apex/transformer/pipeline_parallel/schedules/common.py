@@ -17,6 +17,8 @@ LossFunc = Callable[[torch.Tensor], torch.Tensor]
 FwdStepFunc = Callable[[Batch, torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
 
 
+# TODO (mkozuki): Consider of moving this function to apex.transformer.testing namespace
+# once the debug is complete.
 def rank_print(msg):
     print(f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}, time: {time.time()} | {msg}")
 

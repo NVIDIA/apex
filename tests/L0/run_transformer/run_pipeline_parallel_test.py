@@ -7,6 +7,7 @@ from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
+from apex.transformer.pipeline_parallel.schedules.common import rank_print
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
@@ -133,9 +134,11 @@ def forward_backward_func_template(
         fwd_step_func, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
 
     if not forward_only:
+        rank_print("grad check")
         for m in model:
             for p in m.parameters():
-                assert p.grad is not None
+                if p.grad is None:
+                    raise RuntimeError("grad not found")
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:
         print(TEST_SUCCESS_MESSAGE)
