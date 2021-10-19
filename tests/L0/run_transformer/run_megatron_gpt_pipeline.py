@@ -36,8 +36,8 @@ N_VOCAB = 8192
 
 
 def generate_batch(batch_size, sequence_length):
-    size = batch_size, sequence_length
-    int_tensor = torch.randint(low=0, high=N_VOCAB, size=size, dtype=torch.long)
+    size = batch_size, sequence_length + 1
+    int_tensor = torch.randint(low=0, high=N_VOCAB, size=size, dtype=torch.long).cuda()
     return int_tensor,
 
 
@@ -72,6 +72,7 @@ def loss_func(loss_mask, output_tensor):
 
 
 # Ref: https://github.com/NVIDIA/Megatron-LM/blob/b31e1296354e979722627a6c4dedafe19b51fa97/pretrain_gpt.py#L86
+# TODO (mkozuki): Currently I'm seeing no attribute `word_embeddings` which looks weird.
 def forward_step(batch, model):
     """Forward step."""
     tokens, labels, loss_mask, attention_mask, position_ids = get_batch(batch)
@@ -84,13 +85,18 @@ def run_gpt(pipeline_model_parallel_size, virtual_pipeline_model_parallel_size=N
     model_parallel_cuda_manual_seed(42)
 
     model = build_model(
-        gpt_model_provider, False,
+        gpt_model_provider, True,
         virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size)
     rank_print("building model")
     assert isinstance(model, list)
     assert len(model) == (1 or virtual_pipeline_model_parallel_size)
     _param_groups = _get_params_for_weight_decay_optimization(model)
     torch.optim.Adam(_param_groups)
+
+    if parallel_state.is_pipeline_last_stage():
+        rank_print("checking `word_embeddings` existence")
+        for m in model:
+            assert hasattr(m, "word_embeddings")
 
     args = global_vars.get_args()
     if virtual_pipeline_model_parallel_size is None:
@@ -107,7 +113,7 @@ def run_gpt(pipeline_model_parallel_size, virtual_pipeline_model_parallel_size=N
 
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
     rank_print(f"`tensor_shape`: {tensor_shape}")
-    # fwd_bwd_func(forward_step, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
+    fwd_bwd_func(forward_step, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
 
     rank_print(TEST_SUCCESS_MESSAGE)
 
