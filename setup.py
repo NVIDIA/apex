@@ -85,7 +85,7 @@ if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
     if TORCH_MAJOR == 0:
         raise RuntimeError("--cpp_ext requires Pytorch 1.0 or later, "
                            "found torch.__version__ = {}".format(torch.__version__))
-
+    cmdclass['build_ext'] = BuildExtension
 if "--cpp_ext" in sys.argv:
     sys.argv.remove("--cpp_ext")
     ext_modules.append(
@@ -233,7 +233,7 @@ if "--cuda_ext" in sys.argv:
                                    'csrc/fused_dense_cuda.cu'],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
-
+        """
         ext_modules.append(
             CUDAExtension(name='scaled_upper_triang_masked_softmax_cuda',
                           sources=['csrc/megatron/scaled_upper_triang_masked_softmax.cpp',
@@ -257,6 +257,7 @@ if "--cuda_ext" in sys.argv:
                                                       '-U__CUDA_NO_HALF_CONVERSIONS__',
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda'] + version_dependent_macros}))
+        """
 
 if "--bnp" in sys.argv:
     sys.argv.remove("--bnp")
@@ -580,6 +581,7 @@ setup(
                                     'apex.egg-info',)),
     description='PyTorch Extensions written by NVIDIA',
     ext_modules=ext_modules,
-    cmdclass={'build_ext': BuildExtension} if ext_modules else {},
+    cmdclass=cmdclass,
+    #cmdclass={'build_ext': BuildExtension} if ext_modules else {},
     extras_require=extras,
 )
