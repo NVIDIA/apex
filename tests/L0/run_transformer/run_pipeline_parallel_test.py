@@ -28,7 +28,7 @@ hidden_size = 16
 fwd_bwd_functions = {
     "no_pipelining": forward_backward_no_pipelining,
     "no_interleaving": forward_backward_pipelining_without_interleaving,
-    #"interleaving": forward_backward_pipelining_with_interleaving,
+    "interleaving": forward_backward_pipelining_with_interleaving,
 }
 
 
@@ -157,13 +157,13 @@ if __name__ == "__main__":
         args.micro_batch_size,
         1, # args.data_parallel_size,
     )
-    for forward_only in (True, False):
-        print_separator(f"forward only? {forward_only}")
-        for name, forward_backward_func in fwd_bwd_functions.items():
+    for name, forward_backward_func in fwd_bwd_functions.items():
+        for forward_only in (True, False):
             # TODO (mkozuki): Check with backward
             # if not forward_only and "interleaving" in name:
             #     continue
             n_tests += 1
+            # TODO (mkozuki): Test with data parallel size > 1.
             pipeline_model_parallel_size = world_size
             try:
                 forward_backward_func_template(
@@ -182,6 +182,8 @@ if __name__ == "__main__":
                 )
             finally:
                 parallel_state.destroy_model_parallel()
+        else:
+            print_separator(f"{name} works")
     print_separator("TEST RESULT")
     if failures:
         torch.distributed.barrier()
