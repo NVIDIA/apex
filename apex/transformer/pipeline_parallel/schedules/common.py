@@ -1,5 +1,5 @@
 # NOTE (mkozuki): For simplicity, tentatively `timers` related operations are commented out.
-from typing import Callable, Dict, List, Tuple, Union, Optional
+from typing import Any, Callable, Dict, List, Tuple, Union, Optional
 
 import torch
 
@@ -16,7 +16,7 @@ FwdStepFunc = Callable[[Batch, torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
 
 
 def build_model(
-        model_provider_func: Callable[[bool, bool], torch.nn.Module],
+        model_provider_func: Callable[[Any, Dict[str, Any]], torch.nn.Module],
         wrap_with_ddp: bool = True,
         virtual_pipeline_model_parallel_size: Optional[int] = None,
         *args,
