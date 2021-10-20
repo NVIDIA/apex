@@ -139,44 +139,10 @@ class TestBatchSamplerBehavior(unittest.TestCase):
                 _micro_batch_size=_micro_batch_size,
                 _global_batch_size=global_batch_size,
             ))
-            print(batch)
-            print(microbatches)
+            # print(batch)
+            # print(microbatches)
             self.assertEqual(len(microbatches), global_batch_size // _micro_batch_size)
             self.assertEqual(len(microbatches[0][0]), _micro_batch_size)
-
-    def test_dynamic_batch_size(self):
-        torch.manual_seed(42)
-
-        n_samples = 100
-
-        ds = MyIterableDataset(0, n_samples)
-
-        for (replacement), drop_last in product((True, False), (True, False)):
-            with self.subTest(f"replacement={replacement}, drop_last={drop_last}"):
-
-                static_bs_samples = []
-                sampler = BatchSampler(RandomSampler(list(range(n_samples)), replacement=replacement), batch_size=4, drop_last=drop_last)
-                loader = DataLoader(ds, batch_sampler=sampler)
-                for sample in loader:
-                    static_bs_samples.append(sample)
-
-                dynamic_bs_samples = []
-                torch.manual_seed(42)
-                sampler = BatchSampler(RandomSampler(list(range(n_samples)), replacement=replacement), batch_size=4, drop_last=drop_last)
-                loader = DataLoader(ds, batch_sampler=sampler)
-                print(f"bs 4: len(loader) = {len(loader)}")
-                for _ in range(10):
-                    dynamic_bs_samples.append(next(iter(loader)))
-
-                loader.batch_size = 2
-                loader.sampler.batch_size = 2
-                print(f"bs: 2: len(loader) = {len(loader)}")
-                for sample in loader:
-                    self.assertEqual(len(sample), 2)
-                    dynamic_bs_samples.append(sample)
-
-                # print(static_bs_samples, dynamic_bs_samples)
-                self.assertEqual(len(static_bs_samples), len(dynamic_bs_samples))
 
 
 if __name__ == "__main__":
