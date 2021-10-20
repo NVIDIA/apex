@@ -28,6 +28,11 @@ class Model(nn.Module):
 
     ...
 
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        pre_process = kwargs.pop("pre_process")
+        post_process = kwargs.pop("post_process")
+
     def set_input_tensor(self, tensor):
         self.input_tensor = tensor
 
@@ -37,6 +42,10 @@ class Model(nn.Module):
         else:
             input = self.input_tensor
         ...
+
+
+def model_provider_func(*args, **kwargs):
+    return Model(*args, **kwargs)
 
 
 def loss_func(pred, label):
@@ -59,7 +68,8 @@ parallel_state.initialize_model_parallel(
     pipeline_model_parallel_size,
     virtual_pipeline_model_parallel_size,
 )
-model = ...
+# The following line basically is equivalent to `build_model(Model, wrap_with_ddp, virtual_pipeline_model_parallel_size, *model_args, **model_kwargs)`
+model = build_model(model_provider_func, wrap_with_ddp, virtual_pipeline_model_parallel_size, *model_args, **model_kwargs)
 optimizer = ...
 data_loader = ...
 for epoch in range(num_epochs):

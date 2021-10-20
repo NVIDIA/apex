@@ -19,16 +19,21 @@ def build_model(
         model_provider_func: Callable[[bool, bool], torch.nn.Module],
         wrap_with_ddp: bool = True,
         virtual_pipeline_model_parallel_size: Optional[int] = None,
+        *args,
+        **kwargs
 ) -> List[torch.nn.Module]:
     """Build the model satisfying pipeline model parallel requirements.
 
+    This function sets `pre_process` and `post_process` to `**kwargs` and pass `*args` and `**kwargs` to
+    `model_provider_func`.
 
     Args:
-        model_provider_func: A function with two keyword arguments of `pre_process` and `post_process`
-            returning a `nn.Module`.
+        model_provider_func: A function which takes `*args` and `**kwargs` and returns a `nn.Module`.
         wrap_with_ddp: If :obj:`True`, wrap the instantiated model
             with `torch.nn.parallel.distributed.DistributedDataParallel`, a.k.a. `DDP`.
         virtual_pipeline_model_parallel_size: Specify when using interleaving scheduling pipeline model parallel.
+        *args: arguments for model provider func
+        **kwargs: Keyword arguments for model provider func
 
     Returns:
         a list of `nn.Module`(s). If `virtual_pipeline_model_parallel_size` is not None,
@@ -40,22 +45,28 @@ def build_model(
     ):
         model = []
         for i in range(virtual_pipeline_model_parallel_size):
+            cur_args = args
+            cur_kwargs = kwargs
             parallel_state.set_virtual_pipeline_model_parallel_rank(i)
             # Set pre_process and post_process only after virtual rank is set.
             pre_process = parallel_state.is_pipeline_first_stage()
             post_process = parallel_state.is_pipeline_last_stage()
-            this_model = model_provider_func(
-                pre_process=pre_process,
-                post_process=post_process
-            )
+            cur_kwargs.update({
+                "pre_process": pre_process,
+                "post_process": post_process,
+            })
+            this_model = model_provider_func(*cur_args, **cur_kwargs)
             model.append(this_model)
     else:
+        cur_args = args
+        cur_kwargs = kwargs
         pre_process = parallel_state.is_pipeline_first_stage()
         post_process = parallel_state.is_pipeline_last_stage()
-        model = model_provider_func(
-            pre_process=pre_process,
-            post_process=post_process
-        )
+        cur_kwargs.update({
+            "pre_process": pre_process,
+            "post_process": post_process,
+        })
+        model = model_provider_func(*cur_args, **cur_kwargs)
 
     if not isinstance(model, list):
         model = [model]
