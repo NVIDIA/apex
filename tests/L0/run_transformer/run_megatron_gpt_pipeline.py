@@ -8,8 +8,7 @@ from apex.transformer.tensor_parallel import model_parallel_cuda_manual_seed
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import rank_print
-from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import forward_backward_pipelining_with_interleaving
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
 from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
 from apex.transformer.pipeline_parallel.utils import get_ltor_masks_and_position_ids
@@ -24,14 +23,6 @@ from apex.transformer.testing.standalone_gpt import gpt_model_provider
 
 
 global_vars.set_global_variables()
-
-
-fwd_bwd_functions = {
-    "no_pipelining": forward_backward_no_pipelining,
-    "no_interleaving": forward_backward_pipelining_without_interleaving,
-    "interleaving": forward_backward_pipelining_with_interleaving,
-}
-
 N_VOCAB = 8192
 
 
@@ -108,7 +99,7 @@ def run_gpt(pipeline_model_parallel_size, virtual_pipeline_model_parallel_size=N
     if virtual_pipeline_model_parallel_size is None:
         fwd_bwd_func = forward_backward_pipelining_without_interleaving
     else:
-        fwd_bwd_func = forward_backward_pipelining_with_interleaving
+        fwd_bwd_func = _forward_backward_pipelining_with_interleaving
     rank_print(f"selecting forward_backward func: {fwd_bwd_func}")
 
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)

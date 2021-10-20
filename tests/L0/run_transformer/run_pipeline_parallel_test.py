@@ -11,14 +11,13 @@ from apex.transformer.pipeline_parallel.schedules.common import rank_print
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import forward_backward_pipelining_with_interleaving
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
 
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import print_separator
 from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
-from apex.transformer.testing.standalone_gpt import gpt_model_provider
 
 
 global_vars.set_global_variables()
@@ -29,7 +28,7 @@ hidden_size = 16
 fwd_bwd_functions = {
     "no_pipelining": forward_backward_no_pipelining,
     "no_interleaving": forward_backward_pipelining_without_interleaving,
-    "interleaving": forward_backward_pipelining_with_interleaving,
+    "interleaving": _forward_backward_pipelining_with_interleaving,
 }
 
 

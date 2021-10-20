@@ -1,7 +1,7 @@
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import forward_backward_pipelining_with_interleaving
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
     forward_backward_pipelining_without_interleaving,
 )
@@ -15,7 +15,7 @@ def get_forward_backward_func(
             if get_num_microbatches() % pipeline_model_parallel_size != 0:
                 msg = "number of microbatches is not divisible by pipeline-parallel size when using interleaved schedule"
                 raise RuntimeError(msg)
-            forward_backward_func = forward_backward_pipelining_with_interleaving
+            forward_backward_func = _forward_backward_pipelining_with_interleaving
         else:
             forward_backward_func = forward_backward_pipelining_without_interleaving
     else:

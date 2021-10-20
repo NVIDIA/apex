@@ -2,11 +2,9 @@ from typing import List, Union
 
 import torch
 
-from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
-from apex.transformer.pipeline_parallel.schedules.common import rank_print
 from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import placeholder_handler
 from apex.transformer.pipeline_parallel.schedules.common import forward_step

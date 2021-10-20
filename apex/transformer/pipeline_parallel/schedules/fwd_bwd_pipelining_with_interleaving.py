@@ -13,7 +13,7 @@ from apex.transformer.pipeline_parallel.schedules.common import backward_step
 
 
 # TODO (mkozuki): Reduce cyclomatic complexity
-def forward_backward_pipelining_with_interleaving(
+def _forward_backward_pipelining_with_interleaving(
         forward_step_func: FwdStepFunc,
         batch: List[Batch],
         model: List[torch.nn.Module],
