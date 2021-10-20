@@ -1,6 +1,4 @@
 # NOTE (mkozuki): For simplicity, tentatively `timers` related operations are commented out.
-from contextlib import contextmanager
-import time
 from typing import Callable, Dict, List, Tuple, Union, Optional
 
 import torch
@@ -128,15 +126,6 @@ def _get_params_for_weight_decay_optimization(
                      if p is not None and n == 'bias'])
 
     return weight_decay_params, no_weight_decay_params
-
-
-
-@contextmanager
-def placeholder_handler():
-    try:
-        yield
-    finally:
-        pass
 
 
 def forward_step(

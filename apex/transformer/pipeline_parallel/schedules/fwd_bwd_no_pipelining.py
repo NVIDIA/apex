@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from typing import List, Union
 
 import torch
@@ -6,9 +7,16 @@ from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
-from apex.transformer.pipeline_parallel.schedules.common import placeholder_handler
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
+
+
+@contextmanager
+def placeholder_handler():
+    try:
+        yield
+    finally:
+        pass
 
 
 # TODO (mkozuki): Confirm this will be used or not.
