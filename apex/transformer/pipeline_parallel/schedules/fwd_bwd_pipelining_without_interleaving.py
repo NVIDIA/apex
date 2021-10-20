@@ -108,8 +108,8 @@ def forward_backward_pipelining_without_interleaving(
     # rank_print(f"steady: {num_microbatches_remaining} iters")
     for i in range(num_microbatches_remaining):
         # rank_print(f"steady: iter {i + 1} / {num_microbatches_remaining} iters")
-        if not forward_only:
-            # rank_print(f"len(input_tensors) = {len(input_tensors)}, len(output_tensors) = {len(output_tensors)}")
+        # if not forward_only:
+        #     rank_print(f"len(input_tensors) = {len(input_tensors)}, len(output_tensors) = {len(output_tensors)}")
         last_iteration = i == (num_microbatches_remaining - 1)
 
         cur_microbatch = get_kth_microbatch(batch, i + num_warmup_microbatches)
