@@ -34,3 +34,14 @@ def gather_split_1d_tensor(tensor):
     chunks = [gathered[i * numel:(i + 1) * numel] for i in range(world_size)]
     torch.distributed.all_gather(chunks, tensor, group=parallel_state.get_tensor_model_parallel_group())
     return gathered
+
+
+# TODO(mkozuki): Rewrite this using `logging`.
+def rank_print(msg):
+    """Print the given msg with rank information"""
+    print(
+        f"tensor rank: {parallel_state.get_tensor_model_parallel_rank()}"
+        f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
+        f"virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}, "
+        f"data rank: {parallel_state.get_data_parallel_rank()} | {msg}"
+    )

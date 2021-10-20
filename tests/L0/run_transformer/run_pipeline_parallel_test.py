@@ -4,20 +4,19 @@ import torch
 import torch.nn as nn
 
 from apex.transformer import parallel_state
-from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
-from apex.transformer.pipeline_parallel.utils import update_num_microbatches
-from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
-from apex.transformer.pipeline_parallel.schedules.common import rank_print
-from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
+from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
-
+from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
+from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
+from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 from apex.transformer.testing import global_vars
-from apex.transformer.testing.commons import print_separator
-from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
+from apex.transformer.testing.commons import initialize_distributed
+from apex.transformer.testing.commons import print_separator
+from apex.transformer.utils import rank_print
 
 
 global_vars.set_global_variables()
@@ -133,7 +132,7 @@ def forward_backward_func_template(
         fwd_step_func, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
 
     if not forward_only:
-        rank_print("grad check")
+        # rank_print("grad check")
         for m in model:
             for p in m.parameters():
                 if p.grad is None:

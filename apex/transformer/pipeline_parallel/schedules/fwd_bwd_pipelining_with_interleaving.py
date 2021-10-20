@@ -4,12 +4,12 @@ import torch
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import p2p_communication
+from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
+from apex.transformer.pipeline_parallel.schedules.common import backward_step
+from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-from apex.transformer.pipeline_parallel.schedules.common import rank_print
-from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
-from apex.transformer.pipeline_parallel.schedules.common import forward_step
-from apex.transformer.pipeline_parallel.schedules.common import backward_step
+from apex.transformer.utils import rank_print
 
 
 # TODO (mkozuki): Reduce cyclomatic complexity
@@ -87,7 +87,7 @@ def _forward_backward_pipelining_with_interleaving(
 
 
     # TODO (mkozuki): Remove once debug gets done
-    rank_print(
+    # rank_print(
         f"num_microbatches: {num_microbatches}, "
         f"num_warmup_microbatches: {num_warmup_microbatches}, "
         f"num_microbatches_remaining: {num_microbatches_remaining} -- "
@@ -158,7 +158,7 @@ def _forward_backward_pipelining_with_interleaving(
     parallel_state.set_virtual_pipeline_model_parallel_rank(0)
     input_tensors[0].append(p2p_communication.recv_forward(tensor_shape=tensor_shape))
     for k in range(num_warmup_microbatches):
-        rank_print(f"warmup iter: {k}")
+        # rank_print(f"warmup iter: {k}")
         output_tensor = forward_step_helper(k, k)
 
         # Determine if tensor should be received from previous stage.
@@ -174,13 +174,13 @@ def _forward_backward_pipelining_with_interleaving(
         if parallel_state.is_pipeline_last_stage():
             output_tensor = None
 
-        rank_print(f"recv_prev: {recv_prev}")
+        # rank_print(f"recv_prev: {recv_prev}")
         # Send and receive tensors as appropriate (send tensors computed
         # in this iteration; receive tensors for next iteration).
         if k == (num_warmup_microbatches - 1) and not forward_only and not all_warmup_microbatches:
             input_tensor_grad = None
             recv_next = True
-            rank_print(f"recv_next: {recv_next}")
+            # rank_print(f"recv_next: {recv_next}")
             if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                 recv_next = False
             (
@@ -195,10 +195,10 @@ def _forward_backward_pipelining_with_interleaving(
             )
             output_tensor_grads[num_model_chunks - 1].append(output_tensor_grad)
         else:
-            rank_print("send_forward_recv_forward start")
+            # rank_print("send_forward_recv_forward start")
             input_tensor = p2p_communication.send_forward_recv_forward(output_tensor, recv_prev=recv_prev, tensor_shape=tensor_shape)
-            rank_print("send_forward_recv_forward finish")
-        rank_print("communication done")
+            # rank_print("send_forward_recv_forward finish")
+        # rank_print("communication done")
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
 
     ###################################################################################################################
