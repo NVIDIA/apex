@@ -43,10 +43,13 @@ def run_transformer_tests():
     print("#######################################################")
     errors = []
     for i, test_file in enumerate(files, 1):
+        is_denied = False
         for deny_file in DENY_TEST:
             if deny_file in test_file:
-                print(f"### {i} / {len(files)}: {test_file} skipped")
-                continue
+                is_denied = True
+        if is_denied:
+            print(f"### {i} / {len(files)}: {test_file} skipped")
+            continue
         should_skip, launch_option = get_launch_option(test_file)
         if should_skip:
             print(f"### {i} / {len(files)}: {test_file} skipped. Requires multiple GPUs.")
@@ -65,7 +68,7 @@ def run_transformer_tests():
             errors.append((test_file, str(e)))
         else:
             if '>> passed the test :-)' not in output:
-                errors.append(test_file, output)
+                errors.append((test_file, output))
     else:
         if not errors:
             print("### PASSED")
