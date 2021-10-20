@@ -584,7 +584,6 @@ def test_parallel_transformer_layer(tensor_model_parallel_size):
 
 
 if __name__ == '__main__':
-
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 

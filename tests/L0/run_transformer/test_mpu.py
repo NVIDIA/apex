@@ -55,7 +55,7 @@ def run_transformer_tests():
             print(f"### {i} / {len(files)}: {test_file} skipped. Requires multiple GPUs.")
             continue
         test_run_cmd = (
-            f"NVIDIA_TF32_OVERRIDE=0  {python_executable_path} {launch_option} {test_file} "
+            f"{python_executable_path} {launch_option} {test_file} "
             "--micro-batch-size 2 --num-layers 1 --hidden-size 256 --num-attention-heads 8 --max-position-embeddings "
             "32 --encoder-seq-length 32 --use-cpu-initialization"
         )

@@ -94,6 +94,8 @@ def test_cross_entropy(tensor_model_parallel_size):
 
 
 if __name__ == '__main__':
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
 
     initialize_distributed()
     world_size = torch.distributed.get_world_size()

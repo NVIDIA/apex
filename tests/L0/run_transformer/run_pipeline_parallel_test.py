@@ -143,6 +143,8 @@ def forward_backward_func_template(
 
 
 if __name__ == "__main__":
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
     n_tests = 0
     failures = []
 

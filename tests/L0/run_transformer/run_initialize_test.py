@@ -90,6 +90,8 @@ def test_get_tensor_model_parallel_src_rank(tensor_model_parallel_size_):
 
 
 if __name__ == '__main__':
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
 
     initialize_distributed()
     world_size = torch.distributed.get_world_size()
