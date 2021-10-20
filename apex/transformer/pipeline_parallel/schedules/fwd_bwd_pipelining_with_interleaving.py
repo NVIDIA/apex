@@ -88,10 +88,10 @@ def _forward_backward_pipelining_with_interleaving(
 
     # TODO (mkozuki): Remove once debug gets done
     # rank_print(
-        f"num_microbatches: {num_microbatches}, "
-        f"num_warmup_microbatches: {num_warmup_microbatches}, "
-        f"num_microbatches_remaining: {num_microbatches_remaining} -- "
-    )
+    #     f"num_microbatches: {num_microbatches}, "
+    #     f"num_warmup_microbatches: {num_warmup_microbatches}, "
+    #     f"num_microbatches_remaining: {num_microbatches_remaining} -- "
+    # )
 
     ###################################################################################################################
     # Helper function definitions.
