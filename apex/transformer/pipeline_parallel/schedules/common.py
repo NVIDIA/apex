@@ -110,7 +110,7 @@ def _get_params_for_weight_decay_optimization(
         model: Union[torch.nn.Module, List[torch.nn.Module]],
 ) -> Dict[str, torch.nn.Parameter]:
     """Divide params into with-weight-decay and without-weight-decay groups.
-    Layernorms and baises will have no weight decay but the rest will.
+    Layernorms and biases will have no weight decay but the rest will.
     """
     modules = listify_model(model)
     from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA

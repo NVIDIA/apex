@@ -17,7 +17,7 @@ def get_forward_backward_func(
                 raise RuntimeError(msg)
             import warnings  # NOQA
             warnings.warn(
-                "Pipeline Model Parallel with interleaving scheduling is not stable. "
+                "Pipeline Model Parallel with interleaving scheduling is in progress. "
                 "To use Pipeline Parallel without interleaving, set `virtual_pipeline_model_parallel_size` to `None`"
             )
             forward_backward_func = _forward_backward_pipelining_with_interleaving
