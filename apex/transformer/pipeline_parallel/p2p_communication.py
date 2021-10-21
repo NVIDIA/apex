@@ -75,7 +75,6 @@ def _communicate(
     tensor_send_prev: Optional[torch.Tensor],
     recv_prev: bool,
     recv_next: bool,
-    use_ring_exchange: bool = False,
     tensor_shape: Optional[Shape] = None,
     override_scatter_gather_tensors_in_pipeline: bool = False,
     dtype_: torch.dtype = torch.float,
@@ -91,7 +90,6 @@ def _communicate(
         tensor_send_prev: tensor to send to prev rank (no tensor sent if set to None).
         recv_prev: boolean for whether tensor should be received from previous rank.
         recv_next: boolean for whether tensor should be received from next rank.
-        use_ring_exchange: boolean for whether torch.distributed.ring_exchange() API should be used.
         tensor_shape: optional, use when the input sequence contains less tokens than the default sequence length
         override_scatter_gather_tensors_in_pipeline:
             optional, this is used when tensor_shape is provided to override scatter gather tensors
@@ -153,16 +151,7 @@ def _communicate(
             tensor_send_prev = split_tensor_into_1d_equal_chunks(tensor_send_prev)
 
     # Send tensors in both the forward and backward directions as appropriate.
-    if use_ring_exchange:
-        torch.distributed.ring_exchange(
-            tensor_send_prev=tensor_send_prev,
-            tensor_recv_prev=tensor_recv_prev,
-            tensor_send_next=tensor_send_next,
-            tensor_recv_next=tensor_recv_next,
-            group=parallel_state.get_pipeline_model_parallel_group(),
-        )
-    else:
-        _run_p2pops(tensor_send_prev, tensor_send_next, tensor_recv_prev, tensor_recv_next)
+    _run_p2pops(tensor_send_prev, tensor_send_next, tensor_recv_prev, tensor_recv_next)
     # To protect against race condition when using batch_isend_irecv().
     torch.cuda.synchronize()
 
