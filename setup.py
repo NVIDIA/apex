@@ -39,7 +39,6 @@ if IS_ROCM_PYTORCH:
 else:
     rocm_include_dirs = []
 
-include_dirs=[os.path.join(this_dir, 'csrc')] + rocm_include_dirs
 if not torch.cuda.is_available() and not IS_ROCM_PYTORCH:
     # https://github.com/NVIDIA/apex/issues/486
     # Extension builds after https://github.com/pytorch/pytorch/pull/23408 attempt to query torch.cuda.get_device_capability(),
@@ -157,9 +156,10 @@ if "--distributed_adam" in sys.argv:
         hipcc_args_adam = ['-O3'] + version_dependent_macros
         ext_modules.append(
             CUDAExtension(name='distributed_adam_cuda',
-                          sources=['./apex/contrib/csrc/optimizers/multi_tensor_distopt_adam.cpp',
-                                   './apex/contrib/csrc/optimizers/multi_tensor_distopt_adam_kernel.cu'],
-                          include_dirs=include_dirs + [this_dir + '/apex/contrib/csrc/optimizers/'],
+                          sources=['apex/contrib/csrc/optimizers/multi_tensor_distopt_adam.cpp',
+                                   'apex/contrib/csrc/optimizers/multi_tensor_distopt_adam_kernel.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'apex/contrib/csrc/optimizers')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
                                               'nvcc':nvcc_args_adam if not IS_ROCM_PYTORCH else hipcc_args_adam}))
 
@@ -280,9 +280,10 @@ if "--xentropy" in sys.argv:
         print ("INFO: Building the xentropy extension.")
         ext_modules.append(
             CUDAExtension(name='xentropy_cuda',
-                          sources=['./apex/contrib/csrc/xentropy/interface.cpp',
-                                   './apex/contrib/csrc/xentropy/xentropy_kernel.cu'],
-                          include_dirs=include_dirs + [this_dir + '/apex/contrib/csrc/xentropy/'],
+                          sources=['apex/contrib/csrc/xentropy/interface.cpp',
+                                   'apex/contrib/csrc/xentropy/xentropy_kernel.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'apex/contrib/csrc/xentropy')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
 
@@ -302,9 +303,10 @@ if "--deprecated_fused_adam" in sys.argv:
         hipcc_args_fused_adam = ['-O3'] + version_dependent_macros
         ext_modules.append(
             CUDAExtension(name='fused_adam_cuda',
-                          sources=['./apex/contrib/csrc/optimizers/fused_adam_cuda.cpp',
-                                   './apex/contrib/csrc/optimizers/fused_adam_cuda_kernel.cu'],
-                          include_dirs=include_dirs + [this_dir + '/apex/contrib/csrc/optimizers/'],
+                          sources=['apex/contrib/csrc/optimizers/fused_adam_cuda.cpp',
+                                   'apex/contrib/csrc/optimizers/fused_adam_cuda_kernel.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'apex/contrib/csrc/optimizers')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc' : nvcc_args_fused_adam if not IS_ROCM_PYTORCH else hipcc_args_fused_adam}))
 
@@ -363,7 +365,7 @@ if "--fast_layer_norm" in sys.argv:
                                                       '-gencode', 'arch=compute_70,code=sm_70',
                                                       '-U__CUDA_NO_HALF_OPERATORS__',
                                                       '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '-I./apex/contrib/csrc/layer_norm/',
+                                                      '-Iapex/contrib/csrc/layer_norm',
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda',
                                                       '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
@@ -375,7 +377,7 @@ if "--fast_multihead_attn" in sys.argv:
     from torch.utils.cpp_extension import BuildExtension
     cmdclass['build_ext'] = BuildExtension.with_options(use_ninja=False)
 
-    if torch.utils.cpp_extension.CUDA_HOME is None and not IS_ROCM_PYTORCH: 
+    if torch.utils.cpp_extension.CUDA_HOME is None and not IS_ROCM_PYTORCH:
         raise RuntimeError("--fast_multihead_attn was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
         # Check, if CUDA11 is installed for compute capability 8.0
@@ -387,99 +389,84 @@ if "--fast_multihead_attn" in sys.argv:
                 cc_flag.append('arch=compute_80,code=sm_80')
 
         subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
-        nvcc_args_mha = ['-O3', '-gencode', 'arch=compute_70,code=sm_70', '-I./apex/contrib/csrc/multihead_attn/cutlass/', '-U__CUDA_NO_HALF_OPERATORS__', '-U__CUDA_NO_HALF_CONVERSIONS__', '--expt-relaxed-constexpr', '--expt-extended-lambda', '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag
-        hipcc_args_mha = ['-O3', '-I./apex/contrib/csrc/multihead_attn/cutlass/', '-U__CUDA_NO_HALF_OPERATORS__', '-U__CUDA_NO_HALF_CONVERSIONS__'] + version_dependent_macros + generator_flag
+        nvcc_args_mha = ['-O3',
+                         '-gencode',
+                         'arch=compute_70,code=sm_70',
+                         '-Iapex/contrib/csrc/multihead_attn/cutlass',
+                         '-U__CUDA_NO_HALF_OPERATORS__',
+                         '-U__CUDA_NO_HALF_CONVERSIONS__',
+                         '--expt-relaxed-constexpr',
+                         '--expt-extended-lambda',
+                         '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag
+        hipcc_args_mha = ['-O3',
+                          '-Iapex/contrib/csrc/multihead_attn/cutlass',
+                          '-I/opt/rocm/include/hiprand',
+                          '-I/opt/rocm/include/rocrand',
+                          '-U__HIP_NO_HALF_OPERATORS__',
+                          '-U__HIP_NO_HALF_CONVERSIONS__'] + version_dependent_macros + generator_flag
 
         ext_modules.append(
             CUDAExtension(name='fast_additive_mask_softmax_dropout',
-                          sources=['apex/contrib/csrc/multihead_attn/additive_masked_softmax_dropout.cpp',
+                          sources=['apex/contrib/csrc/multihead_attn/additive_masked_softmax_dropout_cpp.cpp',
                                    'apex/contrib/csrc/multihead_attn/additive_masked_softmax_dropout_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'apex/contrib/csrc/multihead_attn')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
-                                              'nvcc':['-O3',
-                                                      '-gencode', 'arch=compute_70,code=sm_70',
-                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
-                                                      '-U__CUDA_NO_HALF_OPERATORS__',
-                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '--expt-relaxed-constexpr',
-                                                      '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
+                                              'nvcc':nvcc_args_mha if not IS_ROCM_PYTORCH else hipcc_args_mha}))
         ext_modules.append(
             CUDAExtension(name='fast_mask_softmax_dropout',
-                          sources=['apex/contrib/csrc/multihead_attn/masked_softmax_dropout.cpp',
+                          sources=['apex/contrib/csrc/multihead_attn/masked_softmax_dropout_cpp.cpp',
                                    'apex/contrib/csrc/multihead_attn/masked_softmax_dropout_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'apex/contrib/csrc/multihead_attn')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
-                                              'nvcc':['-O3',
-                                                      '-gencode', 'arch=compute_70,code=sm_70',
-                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
-                                                      '-U__CUDA_NO_HALF_OPERATORS__',
-                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '--expt-relaxed-constexpr',
-                                                      '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
+                                              'nvcc':nvcc_args_mha if not IS_ROCM_PYTORCH else hipcc_args_mha}))
         ext_modules.append(
             CUDAExtension(name='fast_self_multihead_attn_bias_additive_mask',
-                          sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_additive_mask.cpp',
+                          sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_additive_mask_cpp.cpp',
                                    'apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_additive_mask_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'apex/contrib/csrc/multihead_attn')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
-                                              'nvcc':['-O3',
-                                                      '-gencode', 'arch=compute_70,code=sm_70',
-                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
-                                                      '-U__CUDA_NO_HALF_OPERATORS__',
-                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '--expt-relaxed-constexpr',
-                                                      '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
+                                              'nvcc':nvcc_args_mha if not IS_ROCM_PYTORCH else hipcc_args_mha}))
         ext_modules.append(
             CUDAExtension(name='fast_self_multihead_attn_bias',
-                          sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_bias.cpp',
+                          sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_cpp.cpp',
                                    'apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'apex/contrib/csrc/multihead_attn')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
-                                              'nvcc':['-O3',
-                                                      '-gencode', 'arch=compute_70,code=sm_70',
-                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
-                                                      '-U__CUDA_NO_HALF_OPERATORS__',
-                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '--expt-relaxed-constexpr',
-                                                      '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
+                                              'nvcc':nvcc_args_mha if not IS_ROCM_PYTORCH else hipcc_args_mha}))
         ext_modules.append(
             CUDAExtension(name='fast_self_multihead_attn',
-                          sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn.cpp',
+                          sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_cpp.cpp',
                                    'apex/contrib/csrc/multihead_attn/self_multihead_attn_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'apex/contrib/csrc/multihead_attn')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
-                                              'nvcc':['-O3',
-                                                      '-gencode', 'arch=compute_70,code=sm_70',
-                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
-                                                      '-U__CUDA_NO_HALF_OPERATORS__',
-                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '--expt-relaxed-constexpr',
-                                                      '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
+                                              'nvcc':nvcc_args_mha if not IS_ROCM_PYTORCH else hipcc_args_mha}))
         ext_modules.append(
             CUDAExtension(name='fast_self_multihead_attn_norm_add',
-                          sources=['./apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add.cpp',
-                                   './apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add_cuda.cu'],
-                          include_dirs=include_dirs + [this_dir + '/apex/contrib/csrc/multihead_attn/'],
+                          sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add_cpp.cpp',
+                                   'apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'apex/contrib/csrc/multihead_attn')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
                                               'nvcc':nvcc_args_mha if not IS_ROCM_PYTORCH else hipcc_args_mha}))
         ext_modules.append(
             CUDAExtension(name='fast_encdec_multihead_attn',
-                          sources=['apex/contrib/csrc/multihead_attn/encdec_multihead_attn.cpp',
+                          sources=['apex/contrib/csrc/multihead_attn/encdec_multihead_attn_cpp.cpp',
                                    'apex/contrib/csrc/multihead_attn/encdec_multihead_attn_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'apex/contrib/csrc/multihead_attn')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
-                                              'nvcc':['-O3',
-                                                      '-gencode', 'arch=compute_70,code=sm_70',
-                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
-                                                      '-U__CUDA_NO_HALF_OPERATORS__',
-                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '--expt-relaxed-constexpr',
-                                                      '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
+                                              'nvcc':nvcc_args_mha if not IS_ROCM_PYTORCH else hipcc_args_mha}))
         ext_modules.append(
             CUDAExtension(name='fast_encdec_multihead_attn_norm_add',
-                          sources=['./apex/contrib/csrc/multihead_attn/encdec_multihead_attn_norm_add.cpp',
-                                   './apex/contrib/csrc/multihead_attn/encdec_multihead_attn_norm_add_cuda.cu'],
-                          include_dirs=include_dirs + [this_dir + '/apex/contrib/csrc/multihead_attn/'],
+                          sources=['apex/contrib/csrc/multihead_attn/encdec_multihead_attn_norm_add_cpp.cpp',
+                                   'apex/contrib/csrc/multihead_attn/encdec_multihead_attn_norm_add_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'apex/contrib/csrc/multihead_attn')],
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
                                               'nvcc':nvcc_args_mha if not IS_ROCM_PYTORCH else hipcc_args_mha}))
 
