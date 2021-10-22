@@ -57,6 +57,7 @@ def _forward_backward_pipelining_with_interleaving(
     num_model_chunks = len(model)
     input_tensors = [[] for _ in range(num_model_chunks)]
     output_tensors = [[] for _ in range(num_model_chunks)]
+    curr_iters = [0 for _ in range(num_model_chunks)]
     losses_reduced = []
     if not forward_only:
         output_tensor_grads = [[] for _ in range(num_model_chunks)]
@@ -105,7 +106,7 @@ def _forward_backward_pipelining_with_interleaving(
             model_chunk_id = num_model_chunks - model_chunk_id - 1
         return model_chunk_id
 
-    def forward_step_helper(microbatch_id, cur_iter):
+    def forward_step_helper(microbatch_id, curr_iters):
         """Helper method to run forward step with model split into chunks
         (run set_virtual_pipeline_model_parallel_rank() before calling
         forward_step())."""
@@ -121,11 +122,12 @@ def _forward_backward_pipelining_with_interleaving(
         input_tensor = input_tensors[model_chunk_id][-1]
         output_tensor = forward_step(
             forward_step_func,
-            get_kth_microbatch(batch[model_chunk_id], cur_iter),
+            get_kth_microbatch(batch[model_chunk_id], curr_iters[model_chunk_id]),
             model[model_chunk_id],
             input_tensor,
             losses_reduced,
         )
+        curr_iters[model_chunk_id] += 1
         output_tensors[model_chunk_id].append(output_tensor)
 
         # if forward-only, no need to save tensors for a backward pass
@@ -159,7 +161,7 @@ def _forward_backward_pipelining_with_interleaving(
     input_tensors[0].append(p2p_communication.recv_forward(tensor_shape=tensor_shape))
     for k in range(num_warmup_microbatches):
         # rank_print(f"warmup iter: {k}")
-        output_tensor = forward_step_helper(k, k)
+        output_tensor = forward_step_helper(k, curr_iters)
 
         # Determine if tensor should be received from previous stage.
         next_forward_model_chunk_id = get_model_chunk_id(k + 1, forward=True)
@@ -207,7 +209,7 @@ def _forward_backward_pipelining_with_interleaving(
     for k in range(num_microbatches_remaining):
         # Forward pass.
         forward_k = k + num_warmup_microbatches
-        output_tensor = forward_step_helper(forward_k, forward_k)
+        output_tensor = forward_step_helper(forward_k, curr_iters)
 
         # Backward pass.
         backward_k = k

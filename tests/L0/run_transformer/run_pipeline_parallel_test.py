@@ -162,10 +162,6 @@ if __name__ == "__main__":
     )
     for name, forward_backward_func in fwd_bwd_functions.items():
         for forward_only in (True, False):
-            # TODO (mkozuki): Check with backward
-            if not forward_only and name == "interleaving":
-                print("SKIP INTERLEAVING WITH BACKWARD")
-                continue
             n_tests += 1
             # TODO (mkozuki): Test with data parallel size > 1.
             pipeline_model_parallel_size = world_size
