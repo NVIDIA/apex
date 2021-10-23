@@ -10,7 +10,6 @@ DENY_TEST = [
 ]
 MULTIGPU_TEST = [
     "pipeline_parallel_test",
-    "p2p_comm_test",
 ]
 
 
