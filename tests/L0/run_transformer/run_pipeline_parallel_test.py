@@ -112,7 +112,7 @@ def forward_backward_func_template(
 
     model = build_model(
         model_provider_func,
-        wrap_with_ddp=False,
+        wrap_with_ddp=True,
         virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
     )
     assert isinstance(model, list)

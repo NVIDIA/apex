@@ -18,11 +18,10 @@ def get_launch_option(test_filename) -> Tuple[bool, str]:
     for multigpu_test in MULTIGPU_TEST:
         if multigpu_test in test_filename:
             import torch
-            num_available_devices = torch.cuda.device_count()
-            if num_available_devices < 2:
+            num_devices = torch.cuda.device_count()
+            if num_devices < 2:
                 should_skip = True
-            num_devices = min(num_available_devices, 2)
-            distributed_run_options = f"-m torch.distributed.launch --nproc_per_node={num_devices}"
+            distributed_run_options = f"-m torch.distributed.run --nproc_per_node={num_devices}"
             return should_skip, distributed_run_options
     return should_skip, ""
 
