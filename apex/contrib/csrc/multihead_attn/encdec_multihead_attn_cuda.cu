@@ -1,16 +1,16 @@
 #include <vector>
-#include <math.h>
 #include <iostream>
 
+#include <ATen/ATen.h>
+#include <ATen/cuda/CUDAContext.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
 #include <cuda_profiler_api.h>
-
-#include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include "THC/THC.h"
 #include <ATen/cuda/CUDAContext.h>
 #include <torch/extension.h>
+#include <math.h>
 
 #include "strided_batched_gemm.h"
 #include "softmax.h"
@@ -86,9 +86,9 @@ std::vector<torch::Tensor> fwd_cuda(
   char a_layout_n{'n'};
   char b_layout_n{'n'};
 
-  TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
+  THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
   // Input Linear Q Fwd
-  TORCH_CUDABLAS_CHECK(cublasGemmEx(handle,
+  THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_T, 
                              CUBLAS_OP_N,
                              output_lin_q_dim, 
@@ -109,7 +109,7 @@ std::vector<torch::Tensor> fwd_cuda(
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
   
   // Input Linear KV Fwd
-  TORCH_CUDABLAS_CHECK(cublasGemmEx(handle,
+  THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_T, 
                              CUBLAS_OP_N,
                              output_lin_kv_dim, 
@@ -211,7 +211,7 @@ std::vector<torch::Tensor> fwd_cuda(
                              attn_batches);
 
   // Output Linear
-  TORCH_CUDABLAS_CHECK(cublasGemmEx(handle,
+  THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_T, 
                              CUBLAS_OP_N,
                              embed_dim, 
@@ -232,7 +232,7 @@ std::vector<torch::Tensor> fwd_cuda(
                              //CUBLAS_GEMM_ALGO1_TENSOR_OP));
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
 
-  TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
+  THCublasCheck(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
 
   return { 
            input_lin_q_results, 
@@ -312,10 +312,10 @@ std::vector<torch::Tensor> bwd_cuda(
   char b_layout_n{'n'};
   char b_layout_t{'t'}; 
   
-  TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
+  THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
  
   // Output Linear Dgrad
-  TORCH_CUDABLAS_CHECK(cublasGemmEx(handle,
+  THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_N, 
                              CUBLAS_OP_N,
                              embed_dim, 
@@ -336,7 +336,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
  
   // Output Linear Wgrad
-  TORCH_CUDABLAS_CHECK(cublasGemmEx(handle,
+  THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_N, 
                              CUBLAS_OP_T,
                              embed_dim, 
@@ -456,7 +456,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              attn_batches);
 
   // Input Linear Q Dgrad  
-  TORCH_CUDABLAS_CHECK(cublasGemmEx(handle,
+  THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_N, 
                              CUBLAS_OP_N,
                              embed_dim,
@@ -478,7 +478,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
   
   // Input Linear Q Wgrad  
-  TORCH_CUDABLAS_CHECK(cublasGemmEx(handle,
+  THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_N, 
                              CUBLAS_OP_T,
                              embed_dim, 
@@ -499,7 +499,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
   
   // Input Linear KV Dgrad  
-  TORCH_CUDABLAS_CHECK(cublasGemmEx(handle,
+  THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_N, 
                              CUBLAS_OP_N,
                              embed_dim,
@@ -521,7 +521,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
   
   // Input Linear KV Wgrad  
-  TORCH_CUDABLAS_CHECK(cublasGemmEx(handle,
+  THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_N, 
                              CUBLAS_OP_T,
                              embed_dim, 
@@ -540,7 +540,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              embed_dim,
                              CUDA_R_32F,
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
-  TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
+  THCublasCheck(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
 
   return { 
            input_q_grads, 

@@ -9,6 +9,8 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <curand_kernel.h>
 
+#include <THC/THCGeneral.h>
+
 const int UNROLL = 4;
 
 template <
@@ -205,7 +207,7 @@ void apex_fused_dropout_cuda(scalar_t const *inputs,
   unsigned int blocks_per_sm = at::cuda::getCurrentDeviceProperties()->maxThreadsPerMultiProcessor/block_size;
   grid.x = std::min((unsigned int)at::cuda::getCurrentDeviceProperties()->multiProcessorCount * blocks_per_sm, grid.x);
 
-  //number of times random will be generated per thread, to offset philox counter in the random state
+  //number of times random will be generated per thread, to offset philox counter in thc random state
   int64_t counter_offset = ((totalElements - 1)/(block_size*grid.x*UNROLL)+1)*UNROLL;
   std::pair<uint64_t, uint64_t> rng_engine_inputs;
   {
@@ -243,7 +245,7 @@ void apex_dropout_add_cuda(scalar_t const *inputs,
   unsigned int blocks_per_sm = at::cuda::getCurrentDeviceProperties()->maxThreadsPerMultiProcessor/block_size;
   grid.x = std::min((unsigned int)at::cuda::getCurrentDeviceProperties()->multiProcessorCount * blocks_per_sm, grid.x);
 
-  //number of times random will be generated per thread, to offset philox counter in the random state
+  //number of times random will be generated per thread, to offset philox counter in thc random state
   int64_t counter_offset = ((totalElements - 1)/(block_size*grid.x*UNROLL)+1)*UNROLL;
   std::pair<uint64_t, uint64_t> rng_engine_inputs;
   {
