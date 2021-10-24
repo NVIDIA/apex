@@ -112,7 +112,7 @@ def forward_backward_func_template(
 
     model = build_model(
         model_provider_func,
-        wrap_with_ddp=False,
+        wrap_with_ddp=True,
         virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
     )
     assert isinstance(model, list)
@@ -120,7 +120,7 @@ def forward_backward_func_template(
     _param_groups = _get_params_for_weight_decay_optimization(model)
     torch.optim.Adam(_param_groups)
 
-    tensor_shape = [batch_size, hidden_size]
+    tensor_shape = [batch_size // parallel_state.get_data_parallel_world_size(), hidden_size]
     if virtual_pipeline_model_parallel_size is None:
         batch = (torch.randn(tensor_shape).cuda(),)
     else:
