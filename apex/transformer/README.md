@@ -7,7 +7,9 @@ The former is based on `megatron.mpu` and the latter is on `megatron.schedules` 
 
 ## Tensor Model Parallel (TP)
 
-TODO (mkozuki): Fill this section.
+APEX's tensor model parallel utilities provides some `torch.nn.Module`'s, custom fused kernels, and PRNG state handling.
+See Appendix B.2 of [Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism](https://arxiv.org/abs/1909.08053) for the details of
+PRNG state handling.
 
 ## Pipeline Model Parallel (PP)
 APEX's pipeline model parallel functions require models to have `.set_input_tensor` because
