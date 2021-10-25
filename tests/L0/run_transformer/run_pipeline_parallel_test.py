@@ -160,8 +160,8 @@ if __name__ == "__main__":
         args.micro_batch_size,
         1,  # args.data_parallel_size,
     )
-    for name, forward_backward_func in fwd_bwd_functions.items():
-        for forward_only in (True, False):
+    for forward_only in (True, False):
+        for name, forward_backward_func in fwd_bwd_functions.items():
             n_tests += 1
             # TODO (mkozuki): Test with data parallel size > 1.
             pipeline_model_parallel_size = world_size
