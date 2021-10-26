@@ -18,7 +18,6 @@ class TestMLP(unittest.TestCase):
     def test_creation(self):
         MLP(mlp_sizes)
 
-    @skipIfRocm
     def test_numeric(self):
         mlp = MLP(mlp_sizes).cuda()
 
@@ -53,7 +52,6 @@ class TestMLP(unittest.TestCase):
             ref_mlp[0].bias.grad.detach().cpu().numpy(),
             atol=1e-7, rtol=1e-5)
 
-    @skipIfRocm
     def test_no_bias(self):
         for use_activation in ['none', 'relu', 'sigmoid']:
             mlp = MLP(mlp_sizes, bias=False, activation=use_activation).cuda()
@@ -91,7 +89,6 @@ class TestMLP(unittest.TestCase):
                 ref_mlp[0].weight.grad.detach().cpu().numpy(),
                 atol=1e-7, rtol=100)
 
-    @skipIfRocm
     def test_with_bias(self):
         for use_activation in ['none', 'relu', 'sigmoid']:
             mlp = MLP(mlp_sizes, bias=True, activation=use_activation).cuda()
@@ -134,7 +131,6 @@ class TestMLP(unittest.TestCase):
                 ref_mlp[0].bias.grad.detach().cpu().numpy(),
                 atol=1e-7, rtol=1e-5)
 
-    @skipIfRocm
     def test_no_grad(self):
         mlp = MLP(mlp_sizes).cuda()
 
@@ -165,7 +161,6 @@ class TestMLP(unittest.TestCase):
             ref_mlp[0].weight.grad.detach().cpu().numpy(),
             atol=1e-7, rtol=1e-5)
 
-    @skipIfRocm
     def test_performance_half(self):
         mlp = MLP(mlp_sizes).cuda().half()
 
@@ -195,7 +190,7 @@ class TestMLP(unittest.TestCase):
             mlp.zero_grad()
             test_loss.backward()
 
-        torch.cuda.profiler.start()
+        #torch.cuda.profiler.start()
         torch.cuda.synchronize()
         start_time = time()
         for _ in range(num_iters):
@@ -217,7 +212,7 @@ class TestMLP(unittest.TestCase):
         torch.cuda.synchronize()
         stop_time = time()
         print(F"C++ MLP time {(stop_time - start_time) * 1000. / num_iters:.4f} ms")
-        torch.cuda.profiler.stop()
+        #torch.cuda.profiler.stop()
 
 if __name__ == '__main__':
     unittest.main()
