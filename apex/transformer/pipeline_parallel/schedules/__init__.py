@@ -23,7 +23,7 @@ def get_forward_backward_func(
                 raise RuntimeError(msg)
             warnings.warn(
                 "Pipeline Model Parallel with interleaving scheduling is experimental. "
-                "To use Pipeline Parallel without interleaving, set `virtual_pipeline_model_parallel_size` to `None`",
+                f"To use Pipeline Parallel without interleaving, set `virtual_pipeline_model_parallel_size` to `None`: {virtual_pipeline_model_parallel_size}",
                 ExperimentalWarning
             )
             forward_backward_func = _forward_backward_pipelining_with_interleaving

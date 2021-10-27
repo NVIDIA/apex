@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 
 from apex.transformer import parallel_state
+from apex.transformer.pipeline_parallel import get_forward_backward_func
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
@@ -108,6 +109,9 @@ def forward_backward_func_template(
         # used ubiquitously but this test uses custom model so it's safe to abuse.
         parallel_state.initialize_model_parallel(
             1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
+        if virtual_pipeline_model_parallel_size is not None:
+            # Check the experimental warning message
+            get_forward_backward_func(virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
 
     model = build_model(
