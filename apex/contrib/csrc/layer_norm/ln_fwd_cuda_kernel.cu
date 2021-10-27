@@ -1,186 +1,222 @@
-#include "utils.cuh"
+#include "ln.h"
+#include "ln_utils.cuh"
 #include "ln_kernel_traits.h"
-#include "ATen/cuda/CUDAContext.h"
+#include "ln_fwd_kernels.cuh"
 
-template <typename Ktraits>
-__global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_fwd_kernel(
-    void *__restrict__ y_, void *__restrict__ mu_, void *__restrict__ rsigma_,
-    const void *__restrict__ x_, const void *__restrict__ gamma_,
-    const void *__restrict__ beta_, const float epsilon, int rows) {
+using namespace layer_norm;
 
-  using Vec = typename Ktraits::Vec;
+template<
+    typename weight_t,
+    typename input_t,
+    typename output_t,
+    typename compute_t,
+    typename index_t,
+    int HIDDEN_SIZE, 
+    int CTAS_PER_ROW, 
+    int WARPS_M, 
+    int WARPS_N, 
+    int BYTES_PER_LDG
+>
+void launch_(LaunchParams<FwdParams> &launch_params, const bool configure_params){
 
-  using base_t = typename Ktraits::base_t;
-  using compute_t = typename Ktraits::compute_t;
-  enum { NUM_ELTS = Vec::NUM_ELTS };
-  enum { WARPS_N = Ktraits::WARPS_N };
-  enum { WARPS_M = Ktraits::WARPS_M };
-  enum { ROWS_PER_CTA = Ktraits::ROWS_PER_CTA };
+    using Kernel_traits = Kernel_traits<weight_t,
+                                        input_t,
+                                        output_t,
+                                        compute_t,
+                                        index_t,
+                                        HIDDEN_SIZE,
+                                        CTAS_PER_ROW,
+                                        WARPS_M,
+                                        WARPS_N,
+                                        BYTES_PER_LDG
+                                        >;
+    auto kernel = &ln_fwd_kernel<Kernel_traits>;
 
-  enum { THREADS_PER_ROW = Ktraits::THREADS_PER_ROW };
-  enum { BYTES_PER_LDG = Ktraits::BYTES_PER_LDG };
-  static_assert(BYTES_PER_LDG == 16, "");
-
-  enum { BYTES_PER_ROW = Ktraits::BYTES_PER_ROW };
-  enum { LDGS = BYTES_PER_ROW / Ktraits::BYTES_PER_ROW_PER_CTA };
-  static_assert(LDGS * Ktraits::BYTES_PER_ROW_PER_CTA == BYTES_PER_ROW, "");
-
-  const int tidx = threadIdx.x;
-  const int bidx = blockIdx.x;
-  const int lane = tidx % THREADS_PER_WARP;
-  const int warp = tidx / THREADS_PER_WARP;
-  const int warp_n = warp % WARPS_N;
-  const int warp_m = warp / WARPS_N;
-
-  const int c = warp_n * THREADS_PER_WARP + lane;
-  const int r = bidx * ROWS_PER_CTA + warp_m;
-
-  const char *x_ptr = static_cast<const char *>(x_);
-
-  const char *g_ptr = static_cast<const char *>(gamma_);
-  const char *b_ptr = static_cast<const char *>(beta_);
-
-  char *y_ptr = static_cast<char *>(y_);
-  compute_t *mu_ptr = static_cast<compute_t *>(mu_);
-  compute_t *rs_ptr = static_cast<compute_t *>(rsigma_);
-
-  Vec gamma[LDGS];
-  Vec beta[LDGS];
-#pragma unroll
-  for (int it = 0, col = c; it < LDGS; it++) {
-    gamma[it].load_from(g_ptr + col * BYTES_PER_LDG);
-    beta[it].load_from(b_ptr + col * BYTES_PER_LDG);
-    col += THREADS_PER_ROW;
-  }
-
-  constexpr compute_t rn = 1.f / compute_t(Ktraits::COLS);
-  for (int row = r; row < rows; row += gridDim.x * ROWS_PER_CTA) {
-    Vec x[LDGS];
-#pragma unroll
-    for (int it = 0, col = c; it < LDGS; it++) {
-      x[it].load_from(x_ptr + row * BYTES_PER_ROW + col * BYTES_PER_LDG);
-      col += THREADS_PER_ROW;
-    }
-    compute_t xf[LDGS * NUM_ELTS];
-#pragma unroll
-    for (int it = 0; it < LDGS; it++) {
-#pragma unroll
-      for (int jt = 0; jt < NUM_ELTS; jt++) {
-        xf[it * NUM_ELTS + jt] = compute_t(x[it].data.elt[jt]);
-      }
+    if( configure_params ) {
+        int ctas_per_sm;
+        cudaError status_ = cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+            &ctas_per_sm, kernel, Kernel_traits::THREADS_PER_CTA, Kernel_traits::SMEM_BYTES_FWD);
+        launch_params.params.ctas_per_col = launch_params.props->multiProcessorCount * ctas_per_sm / Kernel_traits::CTAS_PER_ROW;
+        launch_params.barrier_size = 0;
+        launch_params.workspace_bytes = 0;
+        if(Kernel_traits::CTAS_PER_ROW > 1) {
+            launch_params.barrier_size = 2 * launch_params.params.ctas_per_col;
+            launch_params.workspace_bytes = launch_params.params.ctas_per_col 
+                                          * Kernel_traits::WARPS_M  
+                                          * Kernel_traits::CTAS_PER_ROW 
+                                          * sizeof(typename Kernel_traits::Stats::stats_t)
+                                          * 2;
+        }
+        return;
     }
 
-    compute_t mu_local = 0.f;
+    if( Kernel_traits::SMEM_BYTES_FWD >= 48 * 1024 ) {
+        CHECK_CUDA(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, Kernel_traits::SMEM_BYTES_FWD));
+    }
+    auto stream = launch_params.stream;
+    auto ctas_per_col = launch_params.params.ctas_per_col;
 
-#pragma unroll
-    for (int it = 0; it < LDGS; it++) {
-#pragma unroll
-      for (int jt = 0; jt < NUM_ELTS; jt++) {
-        mu_local += xf[it * NUM_ELTS + jt];
-      }
+    if( Kernel_traits::CTAS_PER_ROW == 1 ) {
+        kernel<<<ctas_per_col, Kernel_traits::THREADS_PER_CTA, Kernel_traits::SMEM_BYTES_FWD, stream>>>(launch_params.params);
+    } else {
+        dim3 grid(Kernel_traits::CTAS_PER_ROW * ctas_per_col);
+        dim3 block(Kernel_traits::THREADS_PER_CTA);
+        void *params_ = (void *)&launch_params.params;
+        cudaLaunchCooperativeKernel((void *)kernel, grid, block, (void **)&params_, Kernel_traits::SMEM_BYTES_FWD, stream);
     }
 
-#pragma unroll
-    for (int it = 1; it < THREADS_PER_WARP; it *= 2) {
-      mu_local += __shfl_xor_sync(uint32_t(-1), mu_local, it);
-    }
-    mu_local *= rn;
-    if(lane == 0){
-    mu_ptr[row] = mu_local;
-    }
-    compute_t var_local = 0.f;
-
-#pragma unroll
-    for (int it = 0; it < LDGS; it++) {
-#pragma unroll
-      for (int jt = 0; jt < NUM_ELTS; jt++) {
-        compute_t diff = xf[it * NUM_ELTS + jt] - mu_local;
-        var_local += diff * diff;
-      }
-    }
-
-#pragma unroll
-    for (int it = 1; it < THREADS_PER_WARP; it *= 2) {
-      var_local += __shfl_xor_sync(uint32_t(-1), var_local, it);
-    }
-    compute_t rsigma = rsqrtf(var_local * rn + epsilon);
-    if(lane == 0){
-    rs_ptr[row] = rsigma;
-    }
-
-#pragma unroll
-    for (int it = 0; it < LDGS; it++) {
-#pragma unroll
-      for (int jt = 0; jt < NUM_ELTS; jt++) {
-        base_t tmp = (rsigma * (xf[it * NUM_ELTS + jt] - mu_local));
-        x[it].data.elt[jt] = gamma[it].data.elt[jt] *  tmp + beta[it].data.elt[jt];
-      }
-    }
-
-#pragma unroll
-    for (int it = 0, col = c; it < LDGS; it++) {
-      x[it].store_to(y_ptr + row * BYTES_PER_ROW + col * BYTES_PER_LDG);
-      col += THREADS_PER_ROW;
-    }
-  }
-}
-template<typename scalar_t>
-void launch(
-    at::Tensor & y, // BxSxhidden_size
-    at::Tensor & mu,
-    at::Tensor & rsigma,
-    const at::Tensor & x, // BxSxhidden_size
-    const at::Tensor & gamma,
-    const at::Tensor & beta,
-    const float epsilon,
-    const int rows,
-    const int cols,
-    const int max_gridx,
-    cudaStream_t stream
-){
-
-  if (cols == 1024) {
-    using Ktraits = Kernel_traits<scalar_t, 1024, 4, 1>;
-    const int grid =
-        std::min<int>(DIVUP(rows, Ktraits::ROWS_PER_CTA), max_gridx);
-
-    ln_fwd_kernel<Ktraits><<<grid, Ktraits::THREADS_PER_CTA, 0, stream>>>(
-        y.data_ptr(), mu.data_ptr(), rsigma.data_ptr(), x.data_ptr(),
-        gamma.data_ptr(), beta.data_ptr(), epsilon, rows);
-
-  } else {
-    assert(false && "Not implemented");
-  }
-
-  AT_CUDA_CHECK(cudaPeekAtLastError());
 }
 
-void ln_fwd_cuda(
-    at::Tensor & y, // BxSxhidden_size
-    at::Tensor & mu,
-    at::Tensor & rsigma,
-    const at::Tensor & x, // BxSxhidden_size
-    const at::Tensor & gamma,
-    const at::Tensor & beta,
-    const float epsilon,
-    const int rows, const int cols,
-    cudaStream_t stream
-){
+// Create forward launch function and register. Macro signature:
+//  HIDDEN_SIZE, WTYPE, ITYPE, OTYPE, CTYPE, CTAS_PER_ROW, WARPS_M, WARPS_N, BYTES_PER_LDG
 
-  const auto dtype = x.scalar_type();
-  const auto props = at::cuda::getCurrentDeviceProperties();
-  const int max_gridx = props->maxGridSize[0];
+REGISTER_FWD_LAUNCHER(  768, fp32, fp32, fp32, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER(  768, fp16, fp16, fp16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER(  768, fp16, fp32, fp16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER(  768, bf16, bf16, bf16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER(  768, bf16, fp32, bf16, fp32, 1, 4, 1, 16);
 
-  //TODO 
-  // - Using dispatch macro costs 1% perf wtf?!?!
-  // - Tune FP32 warps
-  // - Add more sizes
-  if (dtype == torch::kFloat16) {
-    launch<half>(y, mu, rsigma, x, gamma, beta, epsilon, rows, cols, max_gridx, stream);
-  } else if (dtype == torch::kFloat32) {
-    launch<float>(y, mu, rsigma, x, gamma, beta, epsilon, rows, cols, max_gridx, stream);
-  } else {
-    assert(false && "Not implemented");
-  }
+REGISTER_FWD_LAUNCHER( 1024, fp32, fp32, fp32, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 1024, fp16, fp16, fp16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 1024, fp16, fp32, fp16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 1024, bf16, bf16, bf16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 1024, bf16, fp32, bf16, fp32, 1, 4, 1, 16);
 
-}
+REGISTER_FWD_LAUNCHER( 1536, fp32, fp32, fp32, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 1536, fp16, fp16, fp16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 1536, fp16, fp32, fp16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 1536, bf16, bf16, bf16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 1536, bf16, fp32, bf16, fp32, 1, 4, 1, 16);
+
+REGISTER_FWD_LAUNCHER( 2048, fp32, fp32, fp32, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 2048, fp16, fp16, fp16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 2048, fp16, fp32, fp16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 2048, bf16, bf16, bf16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 2048, bf16, fp32, bf16, fp32, 1, 4, 1, 16);
+
+REGISTER_FWD_LAUNCHER( 2304, fp32, fp32, fp32, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 2304, fp16, fp16, fp16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 2304, fp16, fp32, fp16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 2304, bf16, bf16, bf16, fp32, 1, 4, 1, 16);
+REGISTER_FWD_LAUNCHER( 2304, bf16, fp32, bf16, fp32, 1, 4, 1, 16);
+
+REGISTER_FWD_LAUNCHER( 3072, fp32, fp32, fp32, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 3072, fp16, fp16, fp16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 3072, fp16, fp32, fp16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 3072, bf16, bf16, bf16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 3072, bf16, fp32, bf16, fp32, 1, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER( 3840, fp32, fp32, fp32, fp32, 1, 1, 4,  4);
+REGISTER_FWD_LAUNCHER( 3840, fp16, fp16, fp16, fp32, 1, 1, 4,  4);
+REGISTER_FWD_LAUNCHER( 3840, fp16, fp32, fp16, fp32, 1, 1, 4,  4);
+REGISTER_FWD_LAUNCHER( 3840, bf16, bf16, bf16, fp32, 1, 1, 4,  4);
+REGISTER_FWD_LAUNCHER( 3840, bf16, fp32, bf16, fp32, 1, 1, 4,  4);
+
+REGISTER_FWD_LAUNCHER( 4096, fp32, fp32, fp32, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 4096, fp16, fp16, fp16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 4096, fp16, fp32, fp16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 4096, bf16, bf16, bf16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 4096, bf16, fp32, bf16, fp32, 1, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER( 5120, fp32, fp32, fp32, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 5120, fp16, fp16, fp16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 5120, fp16, fp32, fp16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 5120, bf16, bf16, bf16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 5120, bf16, fp32, bf16, fp32, 1, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER( 6144, fp32, fp32, fp32, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 6144, fp16, fp16, fp16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 6144, fp16, fp32, fp16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 6144, bf16, bf16, bf16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 6144, bf16, fp32, bf16, fp32, 1, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER( 8192, fp32, fp32, fp32, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 8192, fp16, fp16, fp16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 8192, fp16, fp32, fp16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 8192, bf16, bf16, bf16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER( 8192, bf16, fp32, bf16, fp32, 1, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER(10240, fp32, fp32, fp32, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(10240, fp16, fp16, fp16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(10240, fp16, fp32, fp16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(10240, bf16, bf16, bf16, fp32, 1, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(10240, bf16, fp32, bf16, fp32, 1, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER(12288, fp32, fp32, fp32, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(12288, fp16, fp16, fp16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(12288, fp16, fp32, fp16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(12288, bf16, bf16, bf16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(12288, bf16, fp32, bf16, fp32, 2, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER(12800, fp32, fp32, fp32, fp32, 2, 1, 4,  4);
+REGISTER_FWD_LAUNCHER(12800, fp16, fp16, fp16, fp32, 2, 1, 4,  4);
+REGISTER_FWD_LAUNCHER(12800, fp16, fp32, fp16, fp32, 2, 1, 4,  4);
+REGISTER_FWD_LAUNCHER(12800, bf16, bf16, bf16, fp32, 2, 1, 4,  4);
+REGISTER_FWD_LAUNCHER(12800, bf16, fp32, bf16, fp32, 2, 1, 4,  4);
+
+REGISTER_FWD_LAUNCHER(15360, fp32, fp32, fp32, fp32, 2, 1, 4,  8);
+REGISTER_FWD_LAUNCHER(15360, fp16, fp16, fp16, fp32, 2, 1, 4,  8);
+REGISTER_FWD_LAUNCHER(15360, fp16, fp32, fp16, fp32, 2, 1, 4,  8);
+REGISTER_FWD_LAUNCHER(15360, bf16, bf16, bf16, fp32, 2, 1, 4,  8);
+REGISTER_FWD_LAUNCHER(15360, bf16, fp32, bf16, fp32, 2, 1, 4,  8);
+
+REGISTER_FWD_LAUNCHER(16384, fp32, fp32, fp32, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(16384, fp16, fp16, fp16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(16384, fp16, fp32, fp16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(16384, bf16, bf16, bf16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(16384, bf16, fp32, bf16, fp32, 2, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER(18432, fp32, fp32, fp32, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(18432, fp16, fp16, fp16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(18432, fp16, fp32, fp16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(18432, bf16, bf16, bf16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(18432, bf16, fp32, bf16, fp32, 4, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER(20480, fp32, fp32, fp32, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(20480, fp16, fp16, fp16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(20480, fp16, fp32, fp16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(20480, bf16, bf16, bf16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(20480, bf16, fp32, bf16, fp32, 2, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER(24576, fp32, fp32, fp32, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(24576, fp16, fp16, fp16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(24576, fp16, fp32, fp16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(24576, bf16, bf16, bf16, fp32, 2, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(24576, bf16, fp32, bf16, fp32, 2, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER(25600, fp32, fp32, fp32, fp32, 4, 1, 4,  4);
+REGISTER_FWD_LAUNCHER(25600, fp16, fp16, fp16, fp32, 2, 1, 4,  8);
+REGISTER_FWD_LAUNCHER(25600, fp16, fp32, fp16, fp32, 4, 1, 4,  4);
+REGISTER_FWD_LAUNCHER(25600, bf16, bf16, bf16, fp32, 2, 1, 4,  8);
+REGISTER_FWD_LAUNCHER(25600, bf16, fp32, bf16, fp32, 4, 1, 4,  4);
+
+REGISTER_FWD_LAUNCHER(30720, fp32, fp32, fp32, fp32, 4, 1, 4,  4);
+REGISTER_FWD_LAUNCHER(30720, fp16, fp16, fp16, fp32, 4, 1, 4,  4);
+REGISTER_FWD_LAUNCHER(30720, fp16, fp32, fp16, fp32, 4, 1, 4,  4);
+REGISTER_FWD_LAUNCHER(30720, bf16, bf16, bf16, fp32, 4, 1, 4,  4);
+REGISTER_FWD_LAUNCHER(30720, bf16, fp32, bf16, fp32, 4, 1, 4,  4);
+
+REGISTER_FWD_LAUNCHER(32768, fp32, fp32, fp32, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(32768, fp16, fp16, fp16, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(32768, fp16, fp32, fp16, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(32768, bf16, bf16, bf16, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(32768, bf16, fp32, bf16, fp32, 4, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER(40960, fp32, fp32, fp32, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(40960, fp16, fp16, fp16, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(40960, fp16, fp32, fp16, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(40960, bf16, bf16, bf16, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(40960, bf16, fp32, bf16, fp32, 4, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER(49152, fp32, fp32, fp32, fp32, 8, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(49152, fp16, fp16, fp16, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(49152, fp16, fp32, fp16, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(49152, bf16, bf16, bf16, fp32, 4, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(49152, bf16, fp32, bf16, fp32, 4, 1, 4, 16);
+
+REGISTER_FWD_LAUNCHER(65536, fp32, fp32, fp32, fp32, 8, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(65536, fp16, fp16, fp16, fp32, 8, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(65536, fp16, fp32, fp16, fp32, 8, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(65536, bf16, bf16, bf16, fp32, 8, 1, 4, 16);
+REGISTER_FWD_LAUNCHER(65536, bf16, fp32, bf16, fp32, 8, 1, 4, 16);
+
