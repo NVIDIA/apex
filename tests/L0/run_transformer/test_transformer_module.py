@@ -1,10 +1,32 @@
+from typing import Tuple
 import os
 import subprocess
 import sys
 import unittest
 
 
-def run_mpu_tests():
+DENY_TEST = [
+    "megatron_gpt_pipeline",
+]
+MULTIGPU_TEST = [
+    "pipeline_parallel_test",
+]
+
+
+def get_launch_option(test_filename) -> Tuple[bool, str]:
+    should_skip = False
+    for multigpu_test in MULTIGPU_TEST:
+        if multigpu_test in test_filename:
+            import torch
+            num_devices = torch.cuda.device_count()
+            if num_devices < 2:
+                should_skip = True
+            distributed_run_options = f"-m torch.distributed.run --nproc_per_node={num_devices}"
+            return should_skip, distributed_run_options
+    return should_skip, ""
+
+
+def run_transformer_tests():
     python_executable_path = sys.executable
     # repository_root = os.path.join(os.path.dirname(__file__), "../../../")
     # directory = os.path.abspath(os.path.join(repository_root, "tests/mpu"))
@@ -19,7 +41,22 @@ def run_mpu_tests():
     print("#######################################################")
     errors = []
     for i, test_file in enumerate(files, 1):
-        test_run_cmd = f"NVIDIA_TF32_OVERRIDE=0  {python_executable_path} {test_file} --micro-batch-size 2 --num-layers 1 --hidden-size 256 --num-attention-heads 8 --max-position-embeddings 32 --encoder-seq-length 32 --use-cpu-initialization"  # NOQA
+        is_denied = False
+        for deny_file in DENY_TEST:
+            if deny_file in test_file:
+                is_denied = True
+        if is_denied:
+            print(f"### {i} / {len(files)}: {test_file} skipped")
+            continue
+        should_skip, launch_option = get_launch_option(test_file)
+        if should_skip:
+            print(f"### {i} / {len(files)}: {test_file} skipped. Requires multiple GPUs.")
+            continue
+        test_run_cmd = (
+            f"{python_executable_path} {launch_option} {test_file} "
+            "--micro-batch-size 2 --num-layers 1 --hidden-size 256 --num-attention-heads 8 --max-position-embeddings "
+            "32 --encoder-seq-length 32 --use-cpu-initialization"
+        )
         print(f"### {i} / {len(files)}: cmd: {test_run_cmd}")
         try:
             output = subprocess.check_output(
@@ -29,7 +66,7 @@ def run_mpu_tests():
             errors.append((test_file, str(e)))
         else:
             if '>> passed the test :-)' not in output:
-                errors.append(test_file, output)
+                errors.append((test_file, output))
     else:
         if not errors:
             print("### PASSED")
@@ -42,10 +79,10 @@ def run_mpu_tests():
             raise RuntimeError(short_msg)
 
 
-class TestMPU(unittest.TestCase):
+class TestTransformer(unittest.TestCase):
 
-    def test_mpu(self):
-        run_mpu_tests()
+    def test_transformer(self):
+        run_transformer_tests()
 
 
 if __name__ == '__main__':

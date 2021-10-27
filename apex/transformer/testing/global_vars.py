@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import time
 
 import torch
 
-from apex.transformer.tensor_parallel.microbatches import build_num_microbatches_calculator
-from apex.transformer.tensor_parallel.tests.arguments import parse_args
+from apex.transformer.microbatches import build_num_microbatches_calculator
+from .arguments import parse_args
 
 _GLOBAL_ARGS = None
 _GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
@@ -80,7 +80,7 @@ def set_global_variables(extra_args_provider=None, args_defaults={},
     args = _parse_args(extra_args_provider=extra_args_provider,
                        defaults=args_defaults,
                        ignore_unknown_args=ignore_unknown_args)
-    _build_num_microbatches_calculator(args)
+    # _build_num_microbatches_calculator(args)
     # if args.vocab_file:
     #     _ = _build_tokenizer(args)
     _set_tensorboard_writer(args)

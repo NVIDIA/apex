@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import numpy
 import torch
 
 from apex import transformer
-from apex.transformer.tensor_parallel.tests import global_vars
+from apex.transformer.testing import global_vars
 
 
 TEST_SUCCESS_MESSAGE = ">> passed the test :-)"

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,11 +15,11 @@
 
 """Model parallel utility interface."""
 
-from .cross_entropy import vocab_parallel_cross_entropy
+from apex.transformer.tensor_parallel.cross_entropy import vocab_parallel_cross_entropy
 
-from .data import broadcast_data
+from apex.transformer.tensor_parallel.data import broadcast_data
 
-from .layers import (
+from apex.transformer.tensor_parallel.layers import (
     ColumnParallelLinear,
     RowParallelLinear,
     VocabParallelEmbedding,
@@ -28,7 +28,7 @@ from .layers import (
     copy_tensor_model_parallel_attributes,
 )
 
-from .mappings import (
+from apex.transformer.tensor_parallel.mappings import (
     copy_to_tensor_model_parallel_region,
     gather_from_tensor_model_parallel_region,
     reduce_from_tensor_model_parallel_region,
@@ -41,11 +41,9 @@ from .random import (
     init_checkpointed_activations_memory_buffer,
     model_parallel_cuda_manual_seed,
     reset_checkpointed_activations_memory_buffer,
-    gather_split_1d_tensor,
-    split_tensor_into_1d_equal_chunks,
 )
 
-from .utils import divide, split_tensor_along_last_dim
+from apex.transformer.tensor_parallel.utils import split_tensor_along_last_dim
 
 
 __all__ = [
@@ -71,9 +69,6 @@ __all__ = [
     "init_checkpointed_activations_memory_buffer",
     "model_parallel_cuda_manual_seed",
     "reset_checkpointed_activations_memory_buffer",
-    "gather_split_1d_tensor",
-    "split_tensor_into_1d_equal_chunks",
     # utils.py
-    "divide",
     "split_tensor_along_last_dim",
 ]

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@ from torch.nn.parameter import Parameter
 
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import layers
-from apex.transformer.tensor_parallel.tests import global_vars
-from apex.transformer.tensor_parallel.tests.commons import set_random_seed
-from apex.transformer.tensor_parallel.tests.commons import print_separator
-from apex.transformer.tensor_parallel.tests.commons import initialize_distributed
-from apex.transformer.tensor_parallel.tests.commons import TEST_SUCCESS_MESSAGE
+from apex.transformer.testing import global_vars
+from apex.transformer.testing.commons import set_random_seed
+from apex.transformer.testing.commons import print_separator
+from apex.transformer.testing.commons import initialize_distributed
+from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 
 
 global_vars.set_global_variables()
@@ -584,7 +584,6 @@ def test_parallel_transformer_layer(tensor_model_parallel_size):
 
 
 if __name__ == '__main__':
-
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
