@@ -77,39 +77,11 @@ class TestFusedLayerNormElemWiseHalf(TestFusedLayerNormElemWise):
         self.skipTest("Skip to save time")
 
 
-# Megatron style Layer Norm
-class TestFusedLayerNormElemWiseMixedDtypes(TestFusedLayerNorm):
-    def setUp(self):
-        self.module_cpu_ = apex.normalization.MixedFusedLayerNorm(
-            normalized_shape=self.normalized_shape, elementwise_affine=True).cpu()
-        self.module_cuda_ = apex.normalization.MixedFusedLayerNorm(
-            normalized_shape=self.normalized_shape, elementwise_affine=True).to(device="cuda", dtype=self.dtype)
-
-    def test_init_exception(self):
-        with self.assertRaisesRegex(RuntimeError, "MixedFusedLayerNorm does not support `elementwise_affine = False`"):
-            apex.normalization.MixedFusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=False).cuda()
-
-
-class TestFusedLayerNormElemWiseMixedDtypesHalf(TestFusedLayerNormElemWiseMixedDtypes):
-    dtype = torch.half
-
-    def test_large_batch(self):
-        self.skipTest("Skip to save time")
-
-
-# NOTE (mkozuki): With the larger threshold values, still flaky.
-class TestFusedLayerNormElemWiseMixedDtypesBFloat16(TestFusedLayerNormElemWiseMixedDtypesHalf):
+class TestFusedLayerNormElemWiseBFloat16(TestFusedLayerNormElemWise):
     dtype = torch.bfloat16
     # NOTE (mkozuki): [BFloat16 Layer Norm flakiness]
     # Use thresholds larger than those used in pytorch, see
     # https://github.com/pytorch/pytorch/blob/72274e2a2fd55019ec860e1743dbdc5b0c5a5624/torch/testing/_asserts.py#L26
-    fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
-    bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
-
-
-class TestFusedLayerNormElemWiseBFloat16(TestFusedLayerNormElemWise):
-    dtype = torch.bfloat16
-    # See [BFloat16 Layer Norm flakiness]
     fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
     bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
 
