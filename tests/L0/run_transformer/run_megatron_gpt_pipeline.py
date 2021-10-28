@@ -4,7 +4,6 @@ from typing import List
 
 import torch
 
-from apex import get_transformer_logger, set_logging_level
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 from apex.transformer.pipeline_parallel.schedules.common import build_model
@@ -20,6 +19,7 @@ from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import print_separator
 from apex.transformer.testing.standalone_gpt import gpt_model_provider
+from apex.transformer.log_util import get_transformer_logger, set_logging_level
 
 
 set_logging_level(logging.NOTSET)

@@ -1,10 +1,9 @@
-import logging
 from typing import Optional, Union, List
 
 import torch
 import torch.nn as nn
 
-from apex import get_transformer_logger, set_logging_level
+import apex
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import get_forward_backward_func
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
@@ -19,9 +18,10 @@ from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import print_separator
+from apex.transformer.log_util import get_transformer_logger, set_logging_level
 
 
-set_logging_level(logging.NOTSET)
+set_logging_level("INFO")
 _logger = get_transformer_logger("pipeline_parallel_test")
 global_vars.set_global_variables()
 

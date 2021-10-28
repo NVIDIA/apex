@@ -2,7 +2,6 @@ from typing import List, Union, Optional
 
 import torch
 
-from apex import get_transformer_logger
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import p2p_communication
 from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
@@ -10,6 +9,7 @@ from apex.transformer.pipeline_parallel.schedules.common import backward_step
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+from apex.transformer.log_util import get_transformer_logger
 
 
 __all__ = ["_forward_backward_pipelining_with_interleaving"]
@@ -91,7 +91,7 @@ def _forward_backward_pipelining_with_interleaving(
     _logger.info(
         f"num_microbatches: {num_microbatches}, "
         f"num_warmup_microbatches: {num_warmup_microbatches}, "
-        f"num_microbatches_remaining: {num_microbatches_remaining} -- "
+        f"num_microbatches_remaining: {num_microbatches_remaining}"
     )
 
     ###################################################################################################################
