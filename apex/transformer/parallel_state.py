@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model and data parallel groups."""
+from typing import Tuple
+
 import torch
 
 # TODO (mkozuki): Consider dissecting utils as this utils import is here
@@ -163,6 +165,15 @@ def initialize_model_parallel(
             _EMBEDDING_GROUP = group
         if rank in ranks:
             _EMBEDDING_GLOBAL_RANKS = embedding_ranks
+
+def get_rank_info() -> Tuple[int, int, int, int]:
+    return (
+        get_tensor_model_parallel_rank(),
+        get_pipeline_model_parallel_rank(),
+        get_virtual_pipeline_model_parallel_rank(),
+        get_data_parallel_rank(),
+    )
+
 
 def model_parallel_is_initialized():
     """Check if model and data parallel groups are initialized."""

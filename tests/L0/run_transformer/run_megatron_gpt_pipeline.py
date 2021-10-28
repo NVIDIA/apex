@@ -1,8 +1,10 @@
 from functools import partial
+import logging
 from typing import List
 
 import torch
 
+from apex import get_transformer_logger, set_logging_level
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 from apex.transformer.pipeline_parallel.schedules.common import build_model
@@ -18,9 +20,10 @@ from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import print_separator
 from apex.transformer.testing.standalone_gpt import gpt_model_provider
-from apex.transformer.utils import rank_print
 
 
+set_logging_level(logging.NOTSET)
+_logger = get_transformer_logger("megatron_gpt_pipeline_test")
 global_vars.set_global_variables()
 N_VOCAB = 8192
 
@@ -77,14 +80,14 @@ def run_gpt(pipeline_model_parallel_size, virtual_pipeline_model_parallel_size=N
     model = build_model(
         gpt_model_provider, True,
         virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size)
-    # rank_print("building model")
+    _logger.debug("building model")
     assert isinstance(model, list)
     assert len(model) == (1 or virtual_pipeline_model_parallel_size)
     _param_groups = _get_params_for_weight_decay_optimization(model)
     torch.optim.Adam(_param_groups)
 
     if parallel_state.is_pipeline_last_stage():
-        # rank_print("checking `word_embeddings` existence")
+        _logger.debug("checking `word_embeddings` existence")
         for m in model:
             assert hasattr(m, "word_embeddings")
 
@@ -93,19 +96,19 @@ def run_gpt(pipeline_model_parallel_size, virtual_pipeline_model_parallel_size=N
         batch = generate_batch(args.global_batch_size, args.seq_length)
     else:
         batch = [generate_batch(args.global_batch_size, args.seq_length) for _ in range(virtual_pipeline_model_parallel_size)]
-    # rank_print("preparing batch")
+    _logger.debug("preparing batch")
 
     if virtual_pipeline_model_parallel_size is None:
         fwd_bwd_func = forward_backward_pipelining_without_interleaving
     else:
         fwd_bwd_func = _forward_backward_pipelining_with_interleaving
-    # rank_print(f"selecting forward_backward func: {fwd_bwd_func}")
+    _logger.debug(f"selecting forward_backward func: {fwd_bwd_func}")
 
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
-    # rank_print(f"`tensor_shape`: {tensor_shape}")
+    _logger.debug(f"`tensor_shape`: {tensor_shape}")
     fwd_bwd_func(forward_step, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
 
-    # rank_print(TEST_SUCCESS_MESSAGE)
+    _logger.debug(TEST_SUCCESS_MESSAGE)
 
 
 if __name__ == "__main__":
@@ -126,7 +129,7 @@ if __name__ == "__main__":
     # TODO(mkozuki): handle exception correctly, but for now, lazily commenting out as
     # this won't get kicked by CI
     except Exception as e:
-        # rank_print(str(e))
+        _logger.debug(str(e))
         pass
     finally:
         parallel_state.destroy_model_parallel()
