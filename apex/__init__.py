@@ -31,9 +31,8 @@ class RankInfoFormatter(logging.Formatter):
         return super().format(record)
 
 
-_root_logger = logging.getLogger()
+_library_root_logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
 handler.setFormatter(RankInfoFormatter("%(asctime)s - %(name)s - %(levelname)s - %(rank_info)s - %(message)s"))
-_root_logger.addHandler(handler)
-_root_logger.propagate = False
-_library_root_logger = logging.getLogger(__name__)
+_library_root_logger.addHandler(handler)
+_library_root_logger.propagate = False
