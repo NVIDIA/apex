@@ -3,7 +3,7 @@
 
 namespace multihead_attn {
 namespace self {
-namespace rocblas_gemm_ex {
+namespace rocblas_gemmex {
 
 std::vector<torch::Tensor> fwd_cuda(
                                bool                 use_time_mask,  
@@ -126,7 +126,7 @@ std::vector<torch::Tensor> bwd(
 } // end namespace multihead_attn
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &multihead_attn::self::rocblas_gemm_ex::fwd, "Self Multihead Attention Forward.");
-  m.def("backward", &multihead_attn::self::rocblas_gemm_ex::bwd, "Self Multihead Attention Backward.");
+  m.def("forward", &multihead_attn::self::rocblas_gemmex::fwd, "Self Multihead Attention Forward.");
+  m.def("backward", &multihead_attn::self::rocblas_gemmex::bwd, "Self Multihead Attention Backward.");
 }
 
