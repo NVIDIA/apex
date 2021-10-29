@@ -3,7 +3,7 @@
 
 namespace multihead_attn {
 namespace encdec {
-namespace cublas_gemmex {
+namespace rocblas_gemm_ex {
 
 std::vector<torch::Tensor> fwd_cuda(
                                bool                 use_time_mask,  
@@ -146,11 +146,11 @@ std::vector<torch::Tensor> bwd(
                                 );
 }
 
-} // end namespace cublas_gemmex
+} // end namespace rocblas_gemm_ex
 } // end namespace encdec 
 } // end namespace multihead_attn
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &multihead_attn::encdec::cublas_gemmex::fwd, "Encdec Multihead Attention Forward.");
-  m.def("backward", &multihead_attn::encdec::cublas_gemmex::bwd, "Encdec Multihead Attention Backward.");
+  m.def("forward", &multihead_attn::encdec::rocblas_gemm_ex::fwd, "Encdec Multihead Attention Forward.");
+  m.def("backward", &multihead_attn::encdec::rocblas_gemm_ex::bwd, "Encdec Multihead Attention Backward.");
 }
