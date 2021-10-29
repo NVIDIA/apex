@@ -1,7 +1,10 @@
 #include <vector>
 #include <math.h>
 #include <iostream>
-
+//below lines enable hip float to half conversion which are disabled by default in hip_fp16.h
+#undef __HIP_NO_HALF_OPERATORS__
+#undef __HIP_NO_HALF_CONVERSIONS__
+//#endif
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
