@@ -23,6 +23,7 @@ from . import pyprof
 from . import transformer
 
 
+# Logging utilities mainly for apex.transformer module
 class RankInfoFormatter(logging.Formatter):
 
     def format(self, record):

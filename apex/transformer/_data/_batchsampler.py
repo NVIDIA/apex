@@ -21,13 +21,13 @@ class _Base:
         ...
 
     # TODO(mkozuki): Avoid using `property` for this simple logic.
-    @abc.abstractmethod
     @property
+    @abc.abstractmethod
     def local_minibatch_size(self) -> int:
         ...
 
-    @abc.abstractclassmethod
     @local_minibatch_size.setter
+    @abc.abstractclassmethod
     def local_minibatch_size(self) -> None:
         ...
 
@@ -44,21 +44,20 @@ class MegatronPretrainingSampler(_Base):
         drop_last: bool = True,
     ):
         # Sanity checks.
-        assert self.total_samples > 0, \
-            'no sample to consume: {}'.format(self.total_samples)
-        assert self.consumed_samples < self.total_samples, \
-            'no samples left to consume: {}, {}'.format(self.consumed_samples,
-                                                        self.total_samples)
-        assert self.micro_batch_size > 0
+        if total_samples <= 0:
+            raise RuntimeError('no sample to consume: {}'.format(self.total_samples))
+        if consumed_samples >= total_samples:
+            raise RuntimeError('no samples left to consume: {}, {}'.format(self.consumed_samples, self.total_samples))
+        assert local_minibatch_size > 0
         assert data_parallel_size > 0
-        assert self.data_parallel_rank < data_parallel_size, \
-            'data_parallel_rank should be smaller than data size: {}, ' \
-            '{}'.format(self.data_parallel_rank, data_parallel_size)
+        if data_parallel_rank >= data_parallel_size:
+            raise RuntimeError('data_parallel_rank should be smaller than data size: {}, {}'.format(self.data_parallel_rank, data_parallel_size))
         # Keep a copy of input params for later use.
         self.total_samples = total_samples
         self.consumed_samples = consumed_samples
         self._local_minibatch_size = local_minibatch_size
         self.data_parallel_rank = data_parallel_rank
+        self.data_parallel_size = data_parallel_size
         self.local_minibatch_times_data_parallel_size = self._local_minibatch_size * data_parallel_size
         self.drop_last = drop_last
 
@@ -66,8 +65,8 @@ class MegatronPretrainingSampler(_Base):
         return self.total_samples
 
     def get_start_end_idx(self):
-        start_idx = self.data_parallel_rank * self.micro_batch_size
-        end_idx = start_idx + self.micro_batch_size
+        start_idx = self.data_parallel_rank * self.local_minibatch_size
+        end_idx = start_idx + self.local_minibatch_size
         return start_idx, end_idx
 
     @property
@@ -84,7 +83,7 @@ class MegatronPretrainingSampler(_Base):
         # Last batch will be dropped if drop_last is not set False
         for idx in range(self.consumed_samples, self.total_samples):
             batch.append(idx)
-            if len(batch) == self.micro_batch_times_data_parallel_size:
+            if len(batch) == self.local_minibatch_size:
                 start_idx, end_idx = self.get_start_end_idx()
                 yield batch[start_idx:end_idx]
                 batch = []
@@ -153,7 +152,7 @@ class MegatronPretrainingRandomSampler(_Base):
         active_total_samples = self.total_samples - self.last_batch_size
         self.epoch = self.consumed_samples // active_total_samples
         current_epoch_samples = self.consumed_samples % active_total_samples
-        assert current_epoch_samples % self.local_minibatch_times_data_parallel_size == 0
+        assert current_epoch_samples % self.local_minibatch_times_data_parallel_size == 0, f"current_epoch_samples ({current_epoch_samples}) % local_minibatch_times_data_parallel_size ({self.local_minibatch_times_data_parallel_size}) = {current_epoch_samples % self.local_minibatch_times_data_parallel_size}, active_total_samples: {active_total_samples}"
 
         # data sharding and random sampling
         bucket_size = (self.total_samples // self.local_minibatch_times_data_parallel_size) * self.local_minibatch_size

@@ -9,6 +9,7 @@ from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
 from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
+from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
@@ -17,17 +18,24 @@ from apex.transformer.testing.commons import print_separator
 from apex.transformer.log_util import get_transformer_logger, set_logging_level
 from apex.transformer.testing.commons import model_provider_func
 from apex.transformer._data import MegatronPretrainingRandomSampler
+from apex.transformer._data import MegatronPretrainingSampler
 
 
-set_logging_level("INFO")
+# set_logging_level("INFO")
 _logger = get_transformer_logger("pipeline_parallel_test")
-global_vars.set_global_variables()
+# _logger.setLevel("DEBUG")
+global_vars.set_global_variables(
+    args_defaults={
+        "global_batch_size": 512,
+        "rampup_batch_size": [32, 32, 1000],
+    },
+    ignore_unknown_args=True,
+)
 
 
-# NOTE(mkozuki): This test assumes ddp size of 1.
 RAMPUP_BATCH_SIZE = []
 NUM_ITERATIONS = 30
-NUM_SAMPLES = 1000
+NUM_SAMPLES = 5000
 batch_size, micro_batch_size = None, None
 HIDDEN_SIZE = 16
 
@@ -44,7 +52,7 @@ def process_batch(batch):
         x = batch[0]
     else:
         x = batch
-    return x
+    return x.to(torch.cuda.current_device())
 
 
 def fwd_step_func(micro_batch, model):
@@ -65,6 +73,14 @@ def run_interleaved_with_dynamic_batch_size(
         pipeline_model_parallel_size: int,
         forward_only: bool,
 ) -> None:
+    args = global_vars.get_args()
+    _reconfigure_microbatch_calculator(
+        args.rank,
+        args.rampup_batch_size,
+        args.global_batch_size,
+        args.micro_batch_size,
+        1,  # args.data_parallel_size,
+    )
     virtual_pipeline_model_parallel_size = 2
     # NOTE (mkozuki): `virtual_pipeline_model_parallel_size` is a requisite for the interleaving scheduling
     # In megatron, `args.virtual_pipeline_model_parallel_size` is computed in megatron/arguments.py and
@@ -83,28 +99,32 @@ def run_interleaved_with_dynamic_batch_size(
     assert len(model) == virtual_pipeline_model_parallel_size
     optimizer = torch.optim.Adam(_get_params_for_weight_decay_optimization(model))
 
-    data_iter = None
+    data_loader = None
     initial_local_minibatch_size = get_num_microbatches() * micro_batch_size
     dataset = [Dataset(NUM_SAMPLES) for _ in range(virtual_pipeline_model_parallel_size)]
-    data_iter = [
-        iter(torch.utils.data.DataLoader(
+    data_loader = [
+        torch.utils.data.DataLoader(
             d,
-            batch_sampler=MegatronPretrainingRandomSampler(
+            batch_sampler=MegatronPretrainingSampler(
                 NUM_SAMPLES,
                 0,
                 initial_local_minibatch_size,
                 parallel_state.get_data_parallel_rank(),
                 parallel_state.get_data_parallel_world_size(),
             ),
-        )) for d in dataset
+        ) for d in dataset
     ]
 
     tensor_shape = [micro_batch_size, HIDDEN_SIZE]
     consumed_samples = 0
     for i in range(NUM_ITERATIONS):
-        update_num_microbatches(consumed_samples, consistency_check=True)
+        _logger.debug(f"consumed_samples: {consumed_samples}")
+        update_num_microbatches(consumed_samples, consistency_check=False)
 
-        local_mini_batch = [next(di) for di in data_iter] if isinstance(data_iter, list) else next(data_iter)
+        for dl in data_loader:
+            dl.batch_sampler.local_minibatch_size = get_num_microbatches() * micro_batch_size
+
+        local_mini_batch = [next(iter(dl)) for dl in data_loader]
         _forward_backward_pipelining_with_interleaving(
             fwd_step_func,
             local_mini_batch,
@@ -147,6 +167,7 @@ if __name__ == "__main__":
         1,  # args.data_parallel_size,
     )
     for forward_only in (True, False):
+        n_tests += 1
         pipeline_model_parallel_size = world_size
         try:
             run_interleaved_with_dynamic_batch_size(
@@ -160,6 +181,7 @@ if __name__ == "__main__":
                 f"virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
                 f"{str(e)}"
             )
+            raise e
         finally:
             parallel_state.destroy_model_parallel()
     print_separator("TEST RESULT")

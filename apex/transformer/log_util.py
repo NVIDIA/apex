@@ -9,6 +9,11 @@ def get_transformer_logger(name: str) -> logging.Logger:
     return logging.getLogger(name_wo_ext)
 
 
-def set_logging_level(verbosity: int) -> None:
+def set_logging_level(verbosity) -> None:
+    """Change logging severity.
+
+    Args:
+        verbosity
+    """
     from apex import _library_root_logger
     _library_root_logger.setLevel(verbosity)
