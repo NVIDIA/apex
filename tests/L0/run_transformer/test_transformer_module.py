@@ -10,6 +10,7 @@ DENY_TEST = [
 ]
 MULTIGPU_TEST = [
     "pipeline_parallel_test",
+    "dynamic_batchsize_test",
 ]
 
 
