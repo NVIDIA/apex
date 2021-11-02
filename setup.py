@@ -34,11 +34,6 @@ def check_if_rocm_pytorch():
 
 IS_ROCM_PYTORCH = check_if_rocm_pytorch()
 
-if IS_ROCM_PYTORCH:
-    rocm_include_dirs = ["/opt/rocm/include/hiprand", "/opt/rocm/include/rocrand"]
-else:
-    rocm_include_dirs = []
-
 if not torch.cuda.is_available() and not IS_ROCM_PYTORCH:
     # https://github.com/NVIDIA/apex/issues/486
     # Extension builds after https://github.com/pytorch/pytorch/pull/23408 attempt to query torch.cuda.get_device_capability(),
