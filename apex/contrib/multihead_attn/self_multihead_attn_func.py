@@ -230,6 +230,6 @@ class SelfAttnFunc(torch.autograd.Function):
                input_grads,                              \
                input_weight_grads, output_weight_grads,  \
                input_bias_grads, output_bias_grads,      \
-               None, None
+               None, None, None
 
 self_attn_func = SelfAttnFunc.apply

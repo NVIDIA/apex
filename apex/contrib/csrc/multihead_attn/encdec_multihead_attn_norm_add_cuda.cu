@@ -1,11 +1,15 @@
 #include <vector>
 #include <iostream>
 
+//below lines enable hip float to half conversion which are disabled by default in hip_fp16.h
+#undef __HIP_NO_HALF_OPERATORS__
+#undef __HIP_NO_HALF_CONVERSIONS__
+//#endif
+
 #include <ATen/ATen.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
-#include <cuda_profiler_api.h>
 #include "THC/THC.h"
 #include <ATen/cuda/CUDAContext.h>
 #include <torch/extension.h>
@@ -21,7 +25,7 @@ extern THCState *state;
 
 namespace multihead_attn {
 namespace encdec_norm_add {
-namespace cublas_gemmex {
+namespace rocblas_gemmex {
 
 std::vector<torch::Tensor> fwd_cuda(
                                bool                 use_time_mask,
@@ -95,7 +99,6 @@ std::vector<torch::Tensor> fwd_cuda(
   char a_layout_n{'n'};
   char b_layout_n{'n'};
 
-  THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
   // Layer Norm
   HostApplyLayerNorm<at::Half,float>(
                              static_cast<at::Half*>(lyr_nrm_results.data_ptr()),
@@ -109,7 +112,7 @@ std::vector<torch::Tensor> fwd_cuda(
 							 static_cast<const at::Half*>(lyr_nrm_beta_weights.data_ptr()));
 
   // Input Linear Q Fwd
-  THCublasCheck(cublasGemmEx(handle,
+  THCublasCheck(rocblas_gemm_ex(handle,
                              CUBLAS_OP_T, 
                              CUBLAS_OP_N,
                              output_lin_q_dim, 
@@ -117,21 +120,26 @@ std::vector<torch::Tensor> fwd_cuda(
                              embed_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(input_weights_q.data_ptr()),
-                             CUDA_R_16F, 
+                             a_type, 
                              embed_dim,
                              //static_cast<const void*>(inputs_q.data_ptr()),
                              static_cast<const void*>(lyr_nrm_results.data_ptr()),
-                             CUDA_R_16F, 
+                             b_type, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
                              q_lin_results_ptr,
-                             CUDA_R_16F, 
+                             c_type, 
                              output_lin_q_dim,
-                             CUDA_R_32F,
-                             CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+			     q_lin_results_ptr,
+			     d_type,
+			     output_lin_q_dim,
+			     compute_type,
+			     algo,
+			     solution_index,
+			     flags));
   
   // Input Linear KV Fwd
-  THCublasCheck(cublasGemmEx(handle,
+  THCublasCheck(rocblas_gemm_ex(handle,
                              CUBLAS_OP_T, 
                              CUBLAS_OP_N,
                              output_lin_kv_dim, 
@@ -139,18 +147,22 @@ std::vector<torch::Tensor> fwd_cuda(
                              embed_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(input_weights_kv.data_ptr()),
-                             CUDA_R_16F, 
+                             a_type, 
                              embed_dim,
                              static_cast<const void*>(inputs_kv.data_ptr()),
-                             CUDA_R_16F, 
+                             b_type, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
                              k_lin_results_ptr,
-                             CUDA_R_16F, 
+                             c_type, 
                              output_lin_kv_dim,
-                             CUDA_R_32F,
-                             CUBLAS_GEMM_DEFAULT_TENSOR_OP));
-
+			     k_lin_results_ptr,
+			     d_type,
+			     output_lin_kv_dim,
+			     compute_type,
+			     algo,
+			     solution_index,
+			     flags));
   // MatMul1 of Dot-Product Attention Plus scaling by 1/Sqrt(head size)
   gemm_switch_fp32accum(     state, 
                              a_layout_t, 
@@ -168,7 +180,10 @@ std::vector<torch::Tensor> fwd_cuda(
                              beta, 
                              static_cast<half*>(softmax_results_ptr), 
                              k_seq_len, 
-                             k_seq_len*q_seq_len, 
+                             k_seq_len*q_seq_len,
+			     static_cast<half*>(softmax_results_ptr),
+			     k_seq_len,
+			     k_seq_len*q_seq_len, 
                              attn_batches);
 
   // Padded Softmax
@@ -230,11 +245,14 @@ std::vector<torch::Tensor> fwd_cuda(
                              beta, 
                              static_cast<half*>(matmul2_results.data_ptr()), 
                              head_dim*attn_batches, 
-                             head_dim, 
+                             head_dim,
+			     static_cast<half*>(matmul2_results.data_ptr()),
+			     head_dim*attn_batches,
+			     head_dim, 
                              attn_batches);
 
   // Output Linear
-  THCublasCheck(cublasGemmEx(handle,
+  THCublasCheck(rocblas_gemm_ex(handle,
                              CUBLAS_OP_T, 
                              CUBLAS_OP_N,
                              embed_dim, 
@@ -242,19 +260,23 @@ std::vector<torch::Tensor> fwd_cuda(
                              embed_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(output_weights.data_ptr()),
-                             CUDA_R_16F, 
+                             a_type, 
                              embed_dim,
                              static_cast<const void*>(matmul2_results.data_ptr()),
-                             CUDA_R_16F, 
+                             b_type, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
                              static_cast<void*>(output_lin_results.data_ptr()),
-                             CUDA_R_16F, 
+                             c_type, 
                              embed_dim,
-                             CUDA_R_32F,
-                             //CUBLAS_GEMM_ALGO1_TENSOR_OP));
-                             CUBLAS_GEMM_DEFAULT_TENSOR_OP));
- 
+			     static_cast<void*>(output_lin_results.data_ptr()),
+			     d_type,
+			     embed_dim,
+                             compute_type,
+			     algo,
+			     solution_index,
+			     flags));
+
   // End-of-block Dropout-Add 
   if (is_training) {
     apex_dropout_add_cuda<at::Half,float,uint32_t>(
@@ -271,8 +293,6 @@ std::vector<torch::Tensor> fwd_cuda(
                              static_cast<at::Half*>(outputs.data_ptr()), 
                              total_tokens_q);
   }
-
-  THCublasCheck(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
 
   return {
 		   lyr_nrm_results,
@@ -366,9 +386,7 @@ std::vector<torch::Tensor> bwd_cuda(
   char a_layout_t{'t'};
   char b_layout_n{'n'};
   char b_layout_t{'t'}; 
-  
-  THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
-  
+   
   // Dropout Add Backward  
   apex_masked_scale_cuda<at::Half,float,uint32_t>(
                              static_cast<at::Half const*>(output_grads.data_ptr()),
@@ -378,7 +396,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              (1.0 / (1.0 - dropout_prob)));
  
   // Output Linear Dgrad
-  THCublasCheck(cublasGemmEx(handle,
+  THCublasCheck(rocblas_gemm_ex(handle,
                              CUBLAS_OP_N, 
                              CUBLAS_OP_N,
                              embed_dim, 
@@ -386,20 +404,25 @@ std::vector<torch::Tensor> bwd_cuda(
                              embed_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(output_weights.data_ptr()),
-                             CUDA_R_16F, 
+                             a_type, 
                              embed_dim,
                              static_cast<const void*>(dropout_add_grads.data_ptr()),
-                             CUDA_R_16F, 
+                             b_type, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
                              static_cast<void*>(output_lin_grads.data_ptr()),
-                             CUDA_R_16F, 
+                             c_type, 
                              embed_dim,
-                             CUDA_R_32F,
-                             CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+			     static_cast<void*>(output_lin_grads.data_ptr()),
+			     d_type,
+			     embed_dim,
+			     compute_type,
+			     algo,
+			     solution_index,
+			     flags));
  
   // Output Linear Wgrad
-  THCublasCheck(cublasGemmEx(handle,
+  THCublasCheck(rocblas_gemm_ex(handle,
                              CUBLAS_OP_N, 
                              CUBLAS_OP_T,
                              embed_dim, 
@@ -407,17 +430,22 @@ std::vector<torch::Tensor> bwd_cuda(
                              batches_q, 
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(matmul2_results.data_ptr()),
-                             CUDA_R_16F, 
+                             a_type, 
                              embed_dim,
                              static_cast<const void*>(dropout_add_grads.data_ptr()),
-                             CUDA_R_16F, 
+                             b_type, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
                              static_cast<void*>(output_weight_grads.data_ptr()),
-                             CUDA_R_16F, 
+                             c_type, 
                              embed_dim,
-                             CUDA_R_32F,
-                             CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+			     static_cast<void*>(output_weight_grads.data_ptr()),
+			     d_type,
+			     embed_dim,
+			     compute_type,
+			     algo,
+			     solution_index,
+			     flags));
   
   // MatMul2 Dgrad1
   gemm_switch_fp32accum(     state, 
@@ -437,6 +465,9 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<half*>(matmul2_grads.data_ptr()),
                              k_seq_len, 
                              k_seq_len*q_seq_len,
+			     static_cast<half*>(matmul2_grads.data_ptr()),
+			     k_seq_len,
+			     k_seq_len*q_seq_len,
                              attn_batches);
   
   // Matmul2 Dgrad2
@@ -457,6 +488,9 @@ std::vector<torch::Tensor> bwd_cuda(
                              v_lin_grads_ptr, 
                              lead_dim_kv, 
                              batch_stride_kv, 
+			     v_lin_grads_ptr,
+			     lead_dim_kv,
+			     batch_stride_kv,
                              attn_batches);
 
   // Apply Dropout Mask and Scale by Dropout Probability 
@@ -496,6 +530,9 @@ std::vector<torch::Tensor> bwd_cuda(
                              q_lin_grads_ptr, 
                              lead_dim_q, 
                              batch_stride_q, 
+			     q_lin_grads_ptr,
+			     lead_dim_q,
+			     batch_stride_q,
                              attn_batches);
   
   // Matmul1 Dgrad2
@@ -515,11 +552,14 @@ std::vector<torch::Tensor> bwd_cuda(
                              beta, 
                              k_lin_grads_ptr, 
                              lead_dim_kv, 
-                             batch_stride_kv, 
+                             batch_stride_kv,
+			     k_lin_grads_ptr,
+			     lead_dim_kv,
+			     batch_stride_kv, 
                              attn_batches);
 
   // Input Linear Q Dgrad  
-  THCublasCheck(cublasGemmEx(handle,
+  THCublasCheck(rocblas_gemm_ex(handle,
                              CUBLAS_OP_N, 
                              CUBLAS_OP_N,
                              embed_dim,
@@ -527,22 +567,26 @@ std::vector<torch::Tensor> bwd_cuda(
                              output_lin_q_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(input_weights_q.data_ptr()),
-                             CUDA_R_16F, 
+                             a_type, 
                              embed_dim,
                              static_cast<const void*>(q_lin_grads_ptr),
-                             CUDA_R_16F, 
+                             b_type, 
                              output_lin_q_dim, 
                              static_cast<const void*>(&beta),
                              //static_cast<void*>(input_q_grads.data_ptr()),
                              static_cast<void*>(input_lin_q_grads.data_ptr()),
-                             CUDA_R_16F, 
+                             c_type, 
                              embed_dim,
-                             CUDA_R_32F,
-                             //CUBLAS_GEMM_ALGO10_TENSOR_OP));
-                             CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+			     static_cast<void*>(input_lin_q_grads.data_ptr()),
+			     d_type,
+			     embed_dim,
+                             compute_type,
+			     algo,
+			     solution_index,
+			     flags));
   
   // Input Linear Q Wgrad  
-  THCublasCheck(cublasGemmEx(handle,
+  THCublasCheck(rocblas_gemm_ex(handle,
                              CUBLAS_OP_N, 
                              CUBLAS_OP_T,
                              embed_dim, 
@@ -550,20 +594,25 @@ std::vector<torch::Tensor> bwd_cuda(
                              batches_q, 
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(inputs_q.data_ptr()),
-                             CUDA_R_16F,
+                             a_type,
                              embed_dim,
                              static_cast<const void*>(q_lin_grads_ptr),
-                             CUDA_R_16F,
+                             b_type,
                              output_lin_q_dim,
                              static_cast<const void*>(&beta),
                              static_cast<void*>(input_weight_q_grads.data_ptr()),
-                             CUDA_R_16F, 
+                             c_type, 
                              embed_dim,
-                             CUDA_R_32F,
-                             CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+			     static_cast<void*>(input_weight_q_grads.data_ptr()),
+			     d_type,
+			     embed_dim,
+                             compute_type,
+			     algo,
+			     solution_index,
+			     flags));
   
   // Input Linear KV Dgrad  
-  THCublasCheck(cublasGemmEx(handle,
+  THCublasCheck(rocblas_gemm_ex(handle,
                              CUBLAS_OP_N, 
                              CUBLAS_OP_N,
                              embed_dim,
@@ -571,21 +620,25 @@ std::vector<torch::Tensor> bwd_cuda(
                              output_lin_kv_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(input_weights_kv.data_ptr()),
-                             CUDA_R_16F, 
+                             a_type, 
                              embed_dim,
                              static_cast<const void*>(k_lin_grads_ptr),
-                             CUDA_R_16F, 
+                             b_type, 
                              output_lin_kv_dim, 
                              static_cast<const void*>(&beta),
                              static_cast<void*>(input_kv_grads.data_ptr()),
-                             CUDA_R_16F, 
+                             c_type, 
                              embed_dim,
-                             CUDA_R_32F,
-                             //CUBLAS_GEMM_ALGO10_TENSOR_OP));
-                             CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+			     static_cast<void*>(input_kv_grads.data_ptr()),
+			     d_type,
+			     embed_dim,
+                             compute_type,
+			     algo,
+			     solution_index,
+			     flags));
   
   // Input Linear KV Wgrad  
-  THCublasCheck(cublasGemmEx(handle,
+  THCublasCheck(rocblas_gemm_ex(handle,
                              CUBLAS_OP_N, 
                              CUBLAS_OP_T,
                              embed_dim, 
@@ -593,17 +646,22 @@ std::vector<torch::Tensor> bwd_cuda(
                              batches_kv, 
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(inputs_kv.data_ptr()),
-                             CUDA_R_16F,
+                             a_type,
                              embed_dim,
                              static_cast<const void*>(k_lin_grads_ptr),
-                             CUDA_R_16F,
+                             b_type,
                              output_lin_kv_dim,
                              static_cast<const void*>(&beta),
                              static_cast<void*>(input_weight_kv_grads.data_ptr()),
-                             CUDA_R_16F, 
+                             c_type, 
                              embed_dim,
-                             CUDA_R_32F,
-                             CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+			     static_cast<void*>(input_weight_kv_grads.data_ptr()),
+			     d_type,
+			     embed_dim,
+                             compute_type,
+			     algo,
+			     solution_index,
+			     flags));
  
   // Fused Layer Norm Bwd with Residual Add
   HostLayerNormGradient<half,float>(
@@ -622,7 +680,6 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<half*>(lyr_nrm_beta_grads.data_ptr())
                                   );
   
-  THCublasCheck(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
 
   return { 
            input_q_grads, 
@@ -635,6 +692,6 @@ std::vector<torch::Tensor> bwd_cuda(
          };
 }
 
-} // end namespace cublas_gemmex
+} // end namespace rocblas_gemmex
 } // end namespace encdec_norm_add 
 } // end namespace multihead_attn

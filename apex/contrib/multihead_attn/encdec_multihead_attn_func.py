@@ -263,6 +263,6 @@ class EncdecAttnFunc(torch.autograd.Function):
                input_q_grads, input_kv_grads,                                     \
                input_weight_q_grads, input_weight_kv_grads, output_weight_grads,  \
                input_bias_grads_q, input_bias_grads_kv, output_bias_grads,        \
-               None, None
+               None, None, None
 
 encdec_attn_func = EncdecAttnFunc.apply

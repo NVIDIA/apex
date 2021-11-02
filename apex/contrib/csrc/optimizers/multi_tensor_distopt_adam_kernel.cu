@@ -187,7 +187,7 @@ void multi_tensor_fused_adam_cuda(
   AT_ASSERTM(tl_sz == 4 || tl_sz == 5, "expected tensor lists of size 4 or 5");
 
   if (tl_sz == 5) {
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // g
+    DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(tensor_lists[3][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // g
       using accscalar_t = at::acc_type<scalar_t_0, true>;
       multi_tensor_apply<5>(
         BLOCK_SIZE,
@@ -206,7 +206,7 @@ void multi_tensor_fused_adam_cuda(
         (adamMode_t) mode);
     );
   } else {
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // g
+    DISPATCH_FLOAT_AND_HALF_AND_BFLOAT16(tensor_lists[3][0].scalar_type(), 0, "dist_adam_cuda_kernel",  // g
       using accscalar_t = at::acc_type<scalar_t_0, true>;
       multi_tensor_apply<4>(
         BLOCK_SIZE,
