@@ -23,7 +23,7 @@ from apex.transformer._data import MegatronPretrainingSampler
 
 # set_logging_level("INFO")
 _logger = get_transformer_logger("pipeline_parallel_test")
-_logger.setLevel("INFO")
+# _logger.setLevel("INFO")
 global_vars.set_global_variables(
     args_defaults={
         "global_batch_size": 512,
@@ -34,8 +34,8 @@ global_vars.set_global_variables(
 
 
 RAMPUP_BATCH_SIZE = []
-NUM_ITERATIONS = 30
-NUM_SAMPLES = 16394
+NUM_ITERATIONS = 20
+NUM_SAMPLES = 16384 // 2
 batch_size, micro_batch_size = None, None
 HIDDEN_SIZE = 16
 
@@ -72,6 +72,7 @@ def fwd_step_func(micro_batch, model):
 def run_interleaved_with_dynamic_batch_size(
         pipeline_model_parallel_size: int,
         forward_only: bool,
+        BatchSampler,
 ) -> None:
     args = global_vars.get_args()
     _reconfigure_microbatch_calculator(
@@ -89,6 +90,8 @@ def run_interleaved_with_dynamic_batch_size(
         1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
 
+    print_separator(f"BatchSampler: {BatchSampler.__name__}, forward_only: {forward_only}")
+
     model = build_model(
         model_provider_func,
         wrap_with_ddp=True,
@@ -99,14 +102,14 @@ def run_interleaved_with_dynamic_batch_size(
     assert len(model) == virtual_pipeline_model_parallel_size
     optimizer = torch.optim.Adam(_get_params_for_weight_decay_optimization(model))
 
-    data_loader = None
     initial_local_minibatch_size = get_num_microbatches() * micro_batch_size
     dataset = [Dataset(NUM_SAMPLES) for _ in range(virtual_pipeline_model_parallel_size)]
     data_loader = [
         torch.utils.data.DataLoader(
             d,
             # batch_sampler=MegatronPretrainingSampler(
-            batch_sampler=MegatronPretrainingRandomSampler(
+            # batch_sampler=MegatronPretrainingRandomSampler(
+            batch_sampler=BatchSampler(
                 NUM_SAMPLES,
                 0,
                 initial_local_minibatch_size,
@@ -127,13 +130,14 @@ def run_interleaved_with_dynamic_batch_size(
         _logger.info(
             f"iter: {i} / {NUM_ITERATIONS} "
             f"local batchsize: {local_batch_size} "
-            f"consumed_samples: {consumed_samples}"
+            f"consumed_samples: {consumed_samples} / {NUM_SAMPLES}"
         )
 
         # TODO(mkozuki): Understand `MegatronPretrainingRandomSampler`'s behavior more.
         # Currently, I need to set `NUM_SAMPLES` sufficiently large.
         # Better to try Megatron's [`cyclic_iter`](https://github.com/NVIDIA/Megatron-LM/blob/b31e1296354e979722627a6c4dedafe19b51fa97/megatron/training.py#L813).
         # Note that `MegatronPretrainingSampler` doesn't require me to do this.
+        # EDIT: https://github.com/NVIDIA/Megatron-LM/blob/b31e1296354e979722627a6c4dedafe19b51fa97/examples/pretrain_gpt3_175B.sh doesn't seem to use cyclic_iter
         local_mini_batch = [next(iter(dl)) for dl in data_loader]
         _forward_backward_pipelining_with_interleaving(
             fwd_step_func,
@@ -176,24 +180,26 @@ if __name__ == "__main__":
         args.micro_batch_size,
         1,  # args.data_parallel_size,
     )
-    for forward_only in (False, True):
-        n_tests += 1
-        pipeline_model_parallel_size = world_size
-        try:
-            run_interleaved_with_dynamic_batch_size(
-                pipeline_model_parallel_size,
-                forward_only,
-            )
-        except Exception as e:
-            msg = (
-                f"\tforward_only: {forward_only}\n"
-                f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
-                f"virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
-                f"{str(e)}"
-            )
-            raise RuntimeError(msg)
-        finally:
-            parallel_state.destroy_model_parallel()
+    for BatchSampler in (MegatronPretrainingSampler, MegatronPretrainingRandomSampler):
+        for forward_only in (False, True):
+            n_tests += 1
+            pipeline_model_parallel_size = world_size
+            try:
+                run_interleaved_with_dynamic_batch_size(
+                    pipeline_model_parallel_size,
+                    forward_only,
+                    BatchSampler,
+                )
+            except Exception as e:
+                msg = (
+                    f"\tforward_only: {forward_only}\n"
+                    f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
+                    f"virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
+                    f"{str(e)}"
+                )
+                raise RuntimeError(msg)
+            finally:
+                parallel_state.destroy_model_parallel()
     print_separator("TEST RESULT")
     if failures:
         torch.distributed.barrier()

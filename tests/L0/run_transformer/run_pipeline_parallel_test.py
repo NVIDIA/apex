@@ -21,7 +21,7 @@ from apex.transformer.testing.commons import print_separator
 from apex.transformer.log_util import get_transformer_logger, set_logging_level
 
 
-set_logging_level("INFO")
+# set_logging_level("INFO")
 _logger = get_transformer_logger("pipeline_parallel_test")
 global_vars.set_global_variables()
 

@@ -20,7 +20,6 @@ class _Base:
     def __iter__(self):
         ...
 
-    # TODO(mkozuki): Avoid using `property` for this simple logic.
     @property
     @abc.abstractmethod
     def local_minibatch_size(self) -> int:
@@ -48,8 +47,10 @@ class MegatronPretrainingSampler(_Base):
             raise RuntimeError('no sample to consume: {}'.format(self.total_samples))
         if consumed_samples >= total_samples:
             raise RuntimeError('no samples left to consume: {}, {}'.format(self.consumed_samples, self.total_samples))
-        assert local_minibatch_size > 0
-        assert data_parallel_size > 0
+        if local_minibatch_size <= 0:
+            raise RuntimeError(f"local minibatch size must be greater than 0: {local_minibatch_size}")
+        if data_parallel_size <= 0:
+            raise RuntimeError(f"data parallel size must be greater than 0: {data_parallel_size}")
         if data_parallel_rank >= data_parallel_size:
             raise RuntimeError('data_parallel_rank should be smaller than data size: {}, {}'.format(self.data_parallel_rank, data_parallel_size))
         # Keep a copy of input params for later use.
@@ -168,7 +169,6 @@ class MegatronPretrainingRandomSampler(_Base):
         batch = []
         # Last batch if not complete will be dropped.
         for idx in idx_range:
-            assert idx < self.total_samples, f"idx: {idx}, total_samples: {self.total_samples}"
             batch.append(idx)
             if len(batch) == self.local_minibatch_size:
                 self.consumed_samples += self.local_minibatch_times_data_parallel_size
