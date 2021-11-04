@@ -152,8 +152,8 @@ class MegatronPretrainingRandomSampler(_Base):
         active_total_samples = self.total_samples - self.last_batch_size
         self.epoch = self.consumed_samples // active_total_samples
         current_epoch_samples = self.consumed_samples % active_total_samples
-        # NOTE(mkozuki): As this BatchSampler generates local minibatches, not microbatches.
-        # assert current_epoch_samples % self.local_minibatch_times_data_parallel_size == 0, f"current_epoch_samples ({current_epoch_samples}) % local_minibatch_times_data_parallel_size ({self.local_minibatch_times_data_parallel_size}) = {current_epoch_samples % self.local_minibatch_times_data_parallel_size}, active_total_samples: {active_total_samples}"
+        # note(mkozuki): might be better to uncomment
+        # assert current_epoch_samples % (self.data_parallel_size * apex.transformer.pipeline_parallel.utils.get_micro_batch_size()) == 0
 
         # data sharding and random sampling
         bucket_size = (self.total_samples // self.local_minibatch_times_data_parallel_size) * self.local_minibatch_size
