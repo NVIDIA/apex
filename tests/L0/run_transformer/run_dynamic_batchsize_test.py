@@ -4,9 +4,13 @@ import torch
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
+from apex.transformer.pipeline_parallel.schedules.common import (
+    _get_params_for_weight_decay_optimization,
+)
 from apex.transformer.pipeline_parallel.schedules.common import build_model
-from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
+    _forward_backward_pipelining_with_interleaving,
+)
 from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
@@ -27,10 +31,7 @@ _logger = get_transformer_logger("pipeline_parallel_test")
 # note(mkozuki): To see if local batch size increases, uncomment the line below
 # _logger.setLevel("INFO")
 global_vars.set_global_variables(
-    args_defaults={
-        "global_batch_size": 512,
-        "rampup_batch_size": [32, 32, 1000],
-    },
+    args_defaults={"global_batch_size": 512, "rampup_batch_size": [32, 32, 1000],},
     ignore_unknown_args=True,
 )
 
@@ -43,10 +44,7 @@ HIDDEN_SIZE = 16
 
 
 def Dataset(num_samples: int) -> List[Tuple[torch.Tensor, torch.Tensor]]:
-    return [
-        (torch.randn(HIDDEN_SIZE), torch.randn(HIDDEN_SIZE // 2))
-        for _ in range(num_samples)
-    ]
+    return [(torch.randn(HIDDEN_SIZE), torch.randn(HIDDEN_SIZE // 2)) for _ in range(num_samples)]
 
 
 def process_batch(batch):
@@ -66,15 +64,14 @@ def fwd_step_func(micro_batch, model):
     def loss_func(x):
         loss = torch.sum(x)
         averaged_loss = average_losses_across_data_parallel_group([loss])
-        return loss, {'avg': averaged_loss}
+        return loss, {"avg": averaged_loss}
+
     return y, loss_func
 
 
 # Run forward & backward with dynamic batch size.
 def run_interleaved_with_dynamic_batch_size(
-        pipeline_model_parallel_size: int,
-        forward_only: bool,
-        BatchSampler,
+    pipeline_model_parallel_size: int, forward_only: bool, BatchSampler,
 ) -> None:
     args = global_vars.get_args()
     _reconfigure_microbatch_calculator(
@@ -89,7 +86,8 @@ def run_interleaved_with_dynamic_batch_size(
     # In megatron, `args.virtual_pipeline_model_parallel_size` is computed in megatron/arguments.py and
     # used ubiquitously but this test uses custom model so it's safe to abuse.
     parallel_state.initialize_model_parallel(
-        1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
+        1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size
+    )
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
 
     print_separator(f"BatchSampler: {BatchSampler.__name__}, forward_only: {forward_only}")
@@ -118,7 +116,8 @@ def run_interleaved_with_dynamic_batch_size(
                 parallel_state.get_data_parallel_rank(),
                 parallel_state.get_data_parallel_world_size(),
             ),
-        ) for d in dataset
+        )
+        for d in dataset
     ]
     data_iter = [iter(dl) for dl in data_loader]
 
@@ -154,7 +153,11 @@ def run_interleaved_with_dynamic_batch_size(
             tensor_shape=tensor_shape,
         )
 
-        consumed_samples += parallel_state.get_data_parallel_world_size() * get_num_microbatches() * micro_batch_size
+        consumed_samples += (
+            parallel_state.get_data_parallel_world_size()
+            * get_num_microbatches()
+            * micro_batch_size
+        )
 
         if not forward_only:
             for m in model:
@@ -193,9 +196,7 @@ if __name__ == "__main__":
             pipeline_model_parallel_size = world_size
             try:
                 run_interleaved_with_dynamic_batch_size(
-                    pipeline_model_parallel_size,
-                    forward_only,
-                    BatchSampler,
+                    pipeline_model_parallel_size, forward_only, BatchSampler,
                 )
             except Exception as e:
                 msg = (
