@@ -21,8 +21,10 @@ from apex.transformer._data import MegatronPretrainingRandomSampler
 from apex.transformer._data import MegatronPretrainingSampler
 
 
+# note(mkozuki): To see warmup, steady, cooldown iterations, uncomment the line below
 # set_logging_level("INFO")
 _logger = get_transformer_logger("pipeline_parallel_test")
+# note(mkozuki): To see if local batch size increases, uncomment the line below
 # _logger.setLevel("INFO")
 global_vars.set_global_variables(
     args_defaults={
@@ -118,27 +120,32 @@ def run_interleaved_with_dynamic_batch_size(
             ),
         ) for d in dataset
     ]
+    data_iter = [iter(dl) for dl in data_loader]
+
+    def get_num_samples(batch):
+        if isinstance(batch, torch.Tensor):
+            return len(batch)
+        assert isinstance(batch, (list, tuple))
+        return [get_num_samples(b) for b in batch]
 
     tensor_shape = [micro_batch_size, HIDDEN_SIZE]
     consumed_samples = 0
     for i in range(NUM_ITERATIONS):
         update_num_microbatches(consumed_samples, consistency_check=False)
         local_batch_size = get_num_microbatches() * micro_batch_size
-        for dl in data_loader:
-            dl.batch_sampler.local_minibatch_size = local_batch_size
+        # for dl in data_loader:
+        #     dl.batch_sampler.local_minibatch_size = local_batch_size
+        for di in data_iter:
+            di._index_sampler.local_minibatch_size = local_batch_size
+
+        # local_mini_batch = [next(iter(dl)) for dl in data_loader]
+        local_mini_batch = [next(di) for di in data_iter]
 
         _logger.info(
             f"iter: {i} / {NUM_ITERATIONS} "
-            f"local batchsize: {local_batch_size} "
+            f"local batchsize: {get_num_samples(local_mini_batch)} "
             f"consumed_samples: {consumed_samples} / {NUM_SAMPLES}"
         )
-
-        # TODO(mkozuki): Understand `MegatronPretrainingRandomSampler`'s behavior more.
-        # Currently, I need to set `NUM_SAMPLES` sufficiently large.
-        # Better to try Megatron's [`cyclic_iter`](https://github.com/NVIDIA/Megatron-LM/blob/b31e1296354e979722627a6c4dedafe19b51fa97/megatron/training.py#L813).
-        # Note that `MegatronPretrainingSampler` doesn't require me to do this.
-        # EDIT: https://github.com/NVIDIA/Megatron-LM/blob/b31e1296354e979722627a6c4dedafe19b51fa97/examples/pretrain_gpt3_175B.sh doesn't seem to use cyclic_iter
-        local_mini_batch = [next(iter(dl)) for dl in data_loader]
         _forward_backward_pipelining_with_interleaving(
             fwd_step_func,
             local_mini_batch,
