@@ -23,7 +23,7 @@ from apex.transformer._data import MegatronPretrainingSampler
 
 # set_logging_level("INFO")
 _logger = get_transformer_logger("pipeline_parallel_test")
-# _logger.setLevel("DEBUG")
+_logger.setLevel("INFO")
 global_vars.set_global_variables(
     args_defaults={
         "global_batch_size": 512,
@@ -35,7 +35,7 @@ global_vars.set_global_variables(
 
 RAMPUP_BATCH_SIZE = []
 NUM_ITERATIONS = 30
-NUM_SAMPLES = 5000
+NUM_SAMPLES = 16394
 batch_size, micro_batch_size = None, None
 HIDDEN_SIZE = 16
 
@@ -105,7 +105,8 @@ def run_interleaved_with_dynamic_batch_size(
     data_loader = [
         torch.utils.data.DataLoader(
             d,
-            batch_sampler=MegatronPretrainingSampler(
+            # batch_sampler=MegatronPretrainingSampler(
+            batch_sampler=MegatronPretrainingRandomSampler(
                 NUM_SAMPLES,
                 0,
                 initial_local_minibatch_size,
@@ -118,12 +119,21 @@ def run_interleaved_with_dynamic_batch_size(
     tensor_shape = [micro_batch_size, HIDDEN_SIZE]
     consumed_samples = 0
     for i in range(NUM_ITERATIONS):
-        _logger.debug(f"consumed_samples: {consumed_samples}")
         update_num_microbatches(consumed_samples, consistency_check=False)
-
+        local_batch_size = get_num_microbatches() * micro_batch_size
         for dl in data_loader:
-            dl.batch_sampler.local_minibatch_size = get_num_microbatches() * micro_batch_size
+            dl.batch_sampler.local_minibatch_size = local_batch_size
 
+        _logger.info(
+            f"iter: {i} / {NUM_ITERATIONS} "
+            f"local batchsize: {local_batch_size} "
+            f"consumed_samples: {consumed_samples}"
+        )
+
+        # TODO(mkozuki): Understand `MegatronPretrainingRandomSampler`'s behavior more.
+        # Currently, I need to set `NUM_SAMPLES` sufficiently large.
+        # Better to try Megatron's [`cyclic_iter`](https://github.com/NVIDIA/Megatron-LM/blob/b31e1296354e979722627a6c4dedafe19b51fa97/megatron/training.py#L813).
+        # Note that `MegatronPretrainingSampler` doesn't require me to do this.
         local_mini_batch = [next(iter(dl)) for dl in data_loader]
         _forward_backward_pipelining_with_interleaving(
             fwd_step_func,
@@ -166,7 +176,7 @@ if __name__ == "__main__":
         args.micro_batch_size,
         1,  # args.data_parallel_size,
     )
-    for forward_only in (True, False):
+    for forward_only in (False, True):
         n_tests += 1
         pipeline_model_parallel_size = world_size
         try:
@@ -175,13 +185,13 @@ if __name__ == "__main__":
                 forward_only,
             )
         except Exception as e:
-            failures.append(
+            msg = (
                 f"\tforward_only: {forward_only}\n"
                 f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
                 f"virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
                 f"{str(e)}"
             )
-            raise e
+            raise RuntimeError(msg)
         finally:
             parallel_state.destroy_model_parallel()
     print_separator("TEST RESULT")

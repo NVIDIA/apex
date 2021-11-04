@@ -152,7 +152,8 @@ class MegatronPretrainingRandomSampler(_Base):
         active_total_samples = self.total_samples - self.last_batch_size
         self.epoch = self.consumed_samples // active_total_samples
         current_epoch_samples = self.consumed_samples % active_total_samples
-        assert current_epoch_samples % self.local_minibatch_times_data_parallel_size == 0, f"current_epoch_samples ({current_epoch_samples}) % local_minibatch_times_data_parallel_size ({self.local_minibatch_times_data_parallel_size}) = {current_epoch_samples % self.local_minibatch_times_data_parallel_size}, active_total_samples: {active_total_samples}"
+        # NOTE(mkozuki): As this BatchSampler generates local minibatches, not microbatches.
+        # assert current_epoch_samples % self.local_minibatch_times_data_parallel_size == 0, f"current_epoch_samples ({current_epoch_samples}) % local_minibatch_times_data_parallel_size ({self.local_minibatch_times_data_parallel_size}) = {current_epoch_samples % self.local_minibatch_times_data_parallel_size}, active_total_samples: {active_total_samples}"
 
         # data sharding and random sampling
         bucket_size = (self.total_samples // self.local_minibatch_times_data_parallel_size) * self.local_minibatch_size
@@ -167,6 +168,7 @@ class MegatronPretrainingRandomSampler(_Base):
         batch = []
         # Last batch if not complete will be dropped.
         for idx in idx_range:
+            assert idx < self.total_samples, f"idx: {idx}, total_samples: {self.total_samples}"
             batch.append(idx)
             if len(batch) == self.local_minibatch_size:
                 self.consumed_samples += self.local_minibatch_times_data_parallel_size
