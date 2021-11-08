@@ -1,3 +1,7 @@
+"""BatchSampler implementations for POC of dynamic batch size or rampup_batch_size support.
+
+Implementations are based on https://github.com/NVIDIA/Megatron-LM/blob/bcd605f8570ebeeb0436c115ebbfafc3c5a40ae5/megatron/data/data_samplers.py.
+"""  # NOQA
 import abc
 
 import torch
