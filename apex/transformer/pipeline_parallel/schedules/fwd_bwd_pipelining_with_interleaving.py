@@ -49,10 +49,6 @@ def _forward_backward_pipelining_with_interleaving(
     """
     if not isinstance(model, list):
         raise RuntimeError("`model` must be a list of `nn.Module`'s'")
-    # TODO (mkozuki): Sanity check the following condition.
-    if len(batch) != len(model):
-        msg = f"`batch` and `model` must have the same number of elements. Actual {len(batch)} and {len(model)}"
-        raise RuntimeError(msg)
 
     num_model_chunks = len(model)
     input_tensors = [[] for _ in range(num_model_chunks)]
@@ -122,7 +118,7 @@ def _forward_backward_pipelining_with_interleaving(
         input_tensor = input_tensors[model_chunk_id][-1]
         output_tensor = forward_step(
             forward_step_func,
-            get_kth_microbatch(batch[model_chunk_id], curr_iters[model_chunk_id]),
+            get_kth_microbatch(batch, curr_iters[model_chunk_id]),
             model[model_chunk_id],
             input_tensor,
             losses_reduced,
