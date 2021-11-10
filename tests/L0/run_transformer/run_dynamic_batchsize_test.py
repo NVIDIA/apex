@@ -103,23 +103,20 @@ def run_interleaved_with_dynamic_batch_size(
     optimizer = torch.optim.Adam(_get_params_for_weight_decay_optimization(model))
 
     initial_local_minibatch_size = get_num_microbatches() * micro_batch_size
-    dataset = [Dataset(NUM_SAMPLES) for _ in range(virtual_pipeline_model_parallel_size)]
-    data_loader = [
-        torch.utils.data.DataLoader(
-            d,
-            # batch_sampler=MegatronPretrainingSampler(
-            # batch_sampler=MegatronPretrainingRandomSampler(
-            batch_sampler=BatchSampler(
-                NUM_SAMPLES,
-                0,
-                initial_local_minibatch_size,
-                parallel_state.get_data_parallel_rank(),
-                parallel_state.get_data_parallel_world_size(),
-            ),
-        )
-        for d in dataset
-    ]
-    data_iter = [iter(dl) for dl in data_loader]
+    dataset = Dataset(NUM_SAMPLES)
+    data_loader = torch.utils.data.DataLoader(
+        d,
+        # batch_sampler=MegatronPretrainingSampler(
+        # batch_sampler=MegatronPretrainingRandomSampler(
+        batch_sampler=BatchSampler(
+            NUM_SAMPLES,
+            0,
+            initial_local_minibatch_size,
+            parallel_state.get_data_parallel_rank(),
+            parallel_state.get_data_parallel_world_size(),
+        ),
+    )
+    data_iter = iter(data_loader)
 
     def get_num_samples(batch):
         if isinstance(batch, torch.Tensor):

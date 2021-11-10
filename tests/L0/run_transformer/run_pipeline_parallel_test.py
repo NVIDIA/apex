@@ -128,10 +128,7 @@ def forward_backward_func_template(
     torch.optim.Adam(_param_groups)
 
     tensor_shape = [batch_size // parallel_state.get_data_parallel_world_size(), hidden_size]
-    if virtual_pipeline_model_parallel_size is None:
-        batch = (torch.randn(tensor_shape).cuda(),)
-    else:
-        batch = [(torch.randn(tensor_shape).cuda(),) for _ in range(virtual_pipeline_model_parallel_size)]
+    batch = (torch.randn(tensor_shape).cuda(),)
     tensor_shape[0] = micro_batch_size
 
     update_num_microbatches(0)
