@@ -20,10 +20,11 @@ import torch
 from torch.nn.parallel import DistributedDataParallel
 
 from apex.multi_tensor_apply import multi_tensor_applier
-import amp_C
 from apex.transformer import parallel_state
 from apex.transformer.microbatches import build_num_microbatches_calculator
 from apex.transformer.pipeline_parallel._timers import _Timers
+if multi_tensor_applier.available:
+    import amp_C
 
 
 _GLOBAL_ARGS = None
