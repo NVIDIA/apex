@@ -52,6 +52,7 @@ def accelerated_search_for_good_permutation(matrix_group, options=None):
             new_sum, improvement = try_swap(result, dst, src)
             if improvement > options['improvement_threshold']:
                 result[...,[src,dst]] = result[...,[dst,src]]
+                permutation_sequence[src], permutation_sequence[dst] = permutation_sequence[dst], permutation_sequence[src]
                 real_swap_num += 1
         duration = time.perf_counter() - start_time
         print("\tFinally swap {} channel pairs until the search time limit expires.".format(real_swap_num))
