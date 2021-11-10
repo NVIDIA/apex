@@ -52,7 +52,7 @@ def process_batch(batch):
         x = batch[0]
     else:
         x = batch
-    return x.to(torch.cuda.current_device())
+    return x
 
 
 def fwd_step_func(micro_batch, model):
@@ -71,7 +71,7 @@ def fwd_step_func(micro_batch, model):
 
 # Run forward & backward with dynamic batch size.
 def run_interleaved_with_dynamic_batch_size(
-    pipeline_model_parallel_size: int, forward_only: bool, BatchSampler,
+    pipeline_model_parallel_size: int, forward_only: bool, BatchSamplerCls,
 ) -> None:
     args = global_vars.get_args()
     _reconfigure_microbatch_calculator(
@@ -90,7 +90,7 @@ def run_interleaved_with_dynamic_batch_size(
     )
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
 
-    print_separator(f"BatchSampler: {BatchSampler.__name__}, forward_only: {forward_only}")
+    print_separator(f"BatchSamplerCls: {BatchSampler.__name__}, forward_only: {forward_only}")
 
     model = build_model(
         model_provider_func,
@@ -105,10 +105,8 @@ def run_interleaved_with_dynamic_batch_size(
     initial_local_minibatch_size = get_num_microbatches() * micro_batch_size
     dataset = Dataset(NUM_SAMPLES)
     data_loader = torch.utils.data.DataLoader(
-        d,
-        # batch_sampler=MegatronPretrainingSampler(
-        # batch_sampler=MegatronPretrainingRandomSampler(
-        batch_sampler=BatchSampler(
+        dataset,
+        batch_sampler=BatchSamplerCls(
             NUM_SAMPLES,
             0,
             initial_local_minibatch_size,
@@ -129,13 +127,8 @@ def run_interleaved_with_dynamic_batch_size(
     for i in range(NUM_ITERATIONS):
         update_num_microbatches(consumed_samples, consistency_check=False)
         local_batch_size = get_num_microbatches() * micro_batch_size
-        # for dl in data_loader:
-        #     dl.batch_sampler.local_minibatch_size = local_batch_size
-        for di in data_iter:
-            di._index_sampler.local_minibatch_size = local_batch_size
-
-        # local_mini_batch = [next(iter(dl)) for dl in data_loader]
-        local_mini_batch = [next(di) for di in data_iter]
+        data_iter._index_sampler.local_minibatch_size = local_batch_size
+        local_mini_batch = next(data_iter)
 
         _logger.info(
             f"iter: {i} / {NUM_ITERATIONS} "
@@ -187,13 +180,13 @@ if __name__ == "__main__":
         args.micro_batch_size,
         1,  # args.data_parallel_size,
     )
-    for BatchSampler in (MegatronPretrainingSampler, MegatronPretrainingRandomSampler):
+    for BatchSamplerCls in (MegatronPretrainingSampler, MegatronPretrainingRandomSampler):
         for forward_only in (False, True):
             n_tests += 1
             pipeline_model_parallel_size = world_size
             try:
                 run_interleaved_with_dynamic_batch_size(
-                    pipeline_model_parallel_size, forward_only, BatchSampler,
+                    pipeline_model_parallel_size, forward_only, BatchSamplerCls,
                 )
             except Exception as e:
                 msg = (
