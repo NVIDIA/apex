@@ -90,7 +90,7 @@ def run_interleaved_with_dynamic_batch_size(
     )
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
 
-    print_separator(f"BatchSamplerCls: {BatchSampler.__name__}, forward_only: {forward_only}")
+    print_separator(f"BatchSamplerCls: {BatchSamplerCls.__name__}, forward_only: {forward_only}")
 
     model = build_model(
         model_provider_func,
