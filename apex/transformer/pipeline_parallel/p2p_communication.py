@@ -85,6 +85,19 @@ def _communicate(
 ) -> Tuple[Union[torch.Tensor, None], Union[torch.Tensor, None]]:
     """Base function for communication of tensors between stages.
 
+    [``torch.dtype`` of placeholder tensors (`tensor_recv_prev` and `tensor_recv_next`)]
+    ``dtype_``, ``params_dtype``, and ``fp32_residual_connection`` don't matter as of 2021/11/13.
+    Let's assume we employ PyTorch native AMP for training, i.e. run your training loop in the context of
+    ``torch.cuda.amp.autocast``. Then in general you can't tell the dtype of a ``torch.Tensor`` on a different device.
+    So, if you optimistically set the placeholder ``torch.Tensor``'s dtype to either ``torch.half`` or ``torch.bfloat16``
+    but actually the source tensor is ``torch.float32``, then it means that you discard some information, which can
+    disable your training to converge. To avoid these unwanted divergence, we've decided to use ``torch.float`` as a
+    dtype of placeholder tensors.
+    In Megatron-LM, these three arguments have an effect on the dtype of placeholder tensors. This is because the target
+    of Megatron-LM is transformer models and they have used their custom AMP mechanism which is similar to APEX's O2
+    style AMP. In APEX O2 style AMP, we manually cast the model and the inputs to ``torch.half`` or ``torch.bfloat16``
+    so you can tell dtypes of tensors on different devices.
+
     Args:
         tensor_send_next: tensor to send to next rank (no tensor sent if set to None).
         tensor_send_prev: tensor to send to prev rank (no tensor sent if set to None).
@@ -118,14 +131,14 @@ def _communicate(
         tensor_chunk_shape = (reduce(operator.mul, tensor_shape, 1) // parallel_state.get_tensor_model_parallel_world_size(),)
     else:
         tensor_chunk_shape = tensor_shape
-    dtype = params_dtype or torch.float
-    if fp32_residual_connection:
-        dtype = torch.float
-
+    # dtype = params_dtype or torch.float
+    # if fp32_residual_connection:
+    #     dtype = torch.float
+    # if dtype_ is not None:
+    #     dtype = dtype_
+    #     requires_grad = False
+    dtype = torch.float
     requires_grad = True
-    if dtype_ is not None:
-        dtype = dtype_
-        requires_grad = False
 
     if recv_prev:
         tensor_recv_prev = torch.empty(
