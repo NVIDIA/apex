@@ -1461,21 +1461,21 @@ class GPTModel(MegatronModule):
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
     ):
-
-        lm_output = self.language_model(
-            input_ids,
-            position_ids,
-            attention_mask,
-            set_inference_key_value_memory=set_inference_key_value_memory,
-            inference_max_sequence_len=inference_max_sequence_len,
-        )
-
-        if self.post_process:
-            return post_language_model_processing(
-                lm_output, labels, self.word_embeddings_weight(), self.parallel_output, self.fp16_lm_cross_entropy
+        with torch.autograd.graph.save_on_cpu():
+            lm_output = self.language_model(
+                input_ids,
+                position_ids,
+                attention_mask,
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
             )
-        else:
-            return lm_output
+
+            if self.post_process:
+                return post_language_model_processing(
+                    lm_output, labels, self.word_embeddings_weight(), self.parallel_output, self.fp16_lm_cross_entropy
+                )
+            else:
+                return lm_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix="", keep_vars=False):
 
