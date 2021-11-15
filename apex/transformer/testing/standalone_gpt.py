@@ -1499,5 +1499,6 @@ class GPTModel(MegatronModule):
             state_dict = state_dict[self._language_model_key]
         self.language_model.load_state_dict(state_dict, strict=strict)
 
-
-
+def gpt_model_provider(pre_process=True, post_process=True):
+    model = GPTModel(num_tokentypes=0, parallel_output=True, pre_process=pre_process, post_process=post_process)
+    return model

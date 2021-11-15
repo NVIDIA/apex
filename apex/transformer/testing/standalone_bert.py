@@ -2,9 +2,10 @@ import torch
 
 from apex.normalization import FusedLayerNorm as LayerNorm
 from apex.transformer import tensor_parallel
+from apex.transformer.enums import AttnMaskType
 from apex.transformer.testing.global_vars import get_args
 from .standalone_gpt import get_language_model, get_linear_layer, init_method_normal, parallel_lm_logits, scaled_init_method_normal
-from .standalone_gpt import AttnMaskType, MegatronModule
+from .standalone_gpt import MegatronModule
 
 def bert_extended_attention_mask(attention_mask):
     # We create a 3D attention mask from a 2D tensor mask.
@@ -210,11 +211,6 @@ class BertModel(MegatronModule):
         if self.post_process and not self.pre_process:
             self.word_embeddings.load_state_dict(
                 state_dict[self._word_embeddings_for_head_key], strict=strict)
-
-
-def gpt_model_provider(pre_process=True, post_process=True):
-    model = GPTModel(num_tokentypes=0, parallel_output=True, pre_process=pre_process, post_process=post_process)
-    return model
 
 def bert_model_provider(pre_process=True, post_process=True):
     model = BertModel(num_tokentypes=0, add_binary_head=False, pre_process=pre_process, post_process=post_process)

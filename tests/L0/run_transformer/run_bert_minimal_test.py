@@ -75,7 +75,6 @@ def generate_fancy_data_labels(sequence_len, batch_size):
 easy_data = None
 
 def fwd_step_func(batch, model):
-    global ONCE
     data, label, loss_mask = batch
     data = data.cuda()
     label = label.cuda()
@@ -83,6 +82,7 @@ def fwd_step_func(batch, model):
     y = model(data, torch.ones_like(data), lm_labels=label)
 
     def loss_func(output_tensor):
+        global ONCE
         output_tensor, _ = output_tensor
         lm_loss_ = output_tensor.float()
         lm_loss = torch.sum(
@@ -161,7 +161,7 @@ if __name__ == '__main__':
     if failure is not None:
         torch.distributed.barrier()
         if torch.distributed.get_rank() == 0:
-            print(f"Minimal BERT Pipeline Parallel Failed with {e}")
+            print(f"Minimal BERT Pipeline Parallel Failed with: {failure}")
     else:
         torch.distributed.barrier()
         if torch.distributed.get_rank() == 0:
