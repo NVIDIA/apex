@@ -6,10 +6,9 @@ from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import vocab_parallel_cross_entropy
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
-#from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+from apex.transformer.pipeline_parallel.schedules import get_forward_backward_func
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
-from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
 
 from apex.transformer.testing.standalone_bert import bert_model_provider 
 from apex.transformer.testing import global_vars
@@ -97,11 +96,11 @@ def fwd_step_func(batch, model):
     return y, loss_func
 
 
-def train(model, optim):
+def train(model, optim, virtual_pipeline_model_parallel_size, pipeline_model_parallel_size):
     sequence_len = global_vars.get_args().seq_length
     micro_batch_size = global_vars.get_args().micro_batch_size
     hidden_size = global_vars.get_args().hidden_size
-    forward_backward_func = _forward_backward_pipelining_with_interleaving
+    forward_backward_func = get_forward_backward_func(virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
     for _ in range(8):
         batch = generate_fancy_data_labels(sequence_len, batch_size)
@@ -153,7 +152,7 @@ if __name__ == '__main__':
         optim = torch.optim.Adam(_param_groups)
         print(effective_length)
         print(fancy_data.size(0))
-        train(model, optim)
+        train(model, optim, virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
     except Exception as e:
         failure = str(e)
     finally:
