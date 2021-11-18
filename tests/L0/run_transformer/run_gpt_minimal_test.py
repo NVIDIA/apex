@@ -107,7 +107,6 @@ if __name__ == '__main__':
     effective_length = fancy_data.size(0) // global_vars.get_args().seq_length
     effective_length = fancy_data.size(0) - global_vars.get_args().seq_length
 
-
     initialize_distributed()
     world_size = torch.distributed.get_world_size()
     failure = None
