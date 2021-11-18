@@ -24,8 +24,7 @@ masks = None
 data_idx = 0
 MASK_PROB = 0.1
 EASY_MODE = False
-EASY_MODE_SIZ = 32
-
+N_VOCAB = 128
 # download a public domain book as corpus
 def download_fancy_data():
   import requests
@@ -40,59 +39,79 @@ def download_fancy_data():
 def generate_fancy_data_labels(sequence_len, batch_size):
   global data_idx
   global inds
-  global masks
   global MANUAL_SEED
   temps = list()
   for i in range(batch_size):
     if inds is None or data_idx >= len(inds):
        # hack as use of RNG will fall out of sync due to pipelines being different
       torch.manual_seed(MANUAL_SEED)
+      model_parallel_cuda_manual_seed(42)
       inds = torch.randperm(effective_length, device='cuda')
-      masks = (torch.rand(len(inds)//batch_size + 1, batch_size, sequence_len, device=inds.device) >= MASK_PROB).long()
-      # Position ids.
-      position_ids = torch.arange(sequence_len, dtype=torch.long, device=inds.device)
       MANUAL_SEED += 1
       print("new epoch", len(inds))
       data_idx = 0
-      print("my start", inds[0:5])
-      print("masks_checksum:", torch.sum(masks))
-    if EASY_MODE:
-      data_idx_ = data_idx % EASY_MODE_SIZ
-    else:
-      data_idx_ = data_idx
+    data_idx_ = data_idx
     offset = inds[data_idx_] #* SEQUENCE_LEN
     data_idx += 1
-      
     curr = fancy_data[offset:offset+sequence_len].clone().detach()
     temps.append(curr)
   temp = torch.stack(temps, dim=0).cuda()
-  mask = masks[data_idx//batch_size]
-  mask_not = torch.logical_not(mask)
-  data = mask * temp + mask_not * 124
-  label = temp
-  return (data.cuda(), position_ids.cuda(), mask.cuda(), label.cuda())
+  return temp
 
 easy_data = None
 
+def get_batch(int_tensors: List[torch.Tensor]):
+    data = int_tensors[0]
+    # Unpack.
+    tokens_ = data.long()
+    labels = tokens_[:, 1:].contiguous()
+    tokens = tokens_[:, :-1].contiguous()
+    # Get the masks and position ids.
+    attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
+        tokens,
+        N_VOCAB,  # tokenizer.eod,
+        False,  # args.reset_position_ids,
+        False,  # args.reset_attention_mask,
+        False,  # args.eod_mask_loss,
+    )
+    return tokens, labels, loss_mask, attention_mask, position_ids
+
+
+# Ref: https://github.com/NVIDIA/Megatron-LM/blob/b31e1296354e979722627a6c4dedafe19b51fa97/pretrain_gpt.py#L75
+def loss_func(loss_mask, output_tensor):
+    losses = output_tensor.float()
+    loss_mask = loss_mask.view(-1).float()
+    loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+
+    # Reduce loss for logging.
+    averaged_loss = average_losses_across_data_parallel_group([loss])
+
+    return loss, {'lm loss': averaged_loss[0]}
+
+
+# Ref: https://github.com/NVIDIA/Megatron-LM/blob/b31e1296354e979722627a6c4dedafe19b51fa97/pretrain_gpt.py#L86
+# TODO (mkozuki): Currently I'm seeing no attribute `word_embeddings` which looks weird.
 def fwd_step_func(batch, model):
-    data, position_ids, mask, label = batch
-    y = model(data, position_ids, mask)
-    def loss_func(output_tensor):
-        output_tensor, _ = output_tensor
-        lm_loss = post_language_model_processing(output_tensor, model.word_embeddings_weight(), model.parallel_output, model.fp16_lm_cross_entropy)
-        averaged_loss = average_losses_across_data_parallel_group([lm_loss])
-        return lm_loss, {'avg': averaged_loss}
-    return y, loss_func
+    """Forward step."""
+    tokens, labels, loss_mask, attention_mask, position_ids = get_batch(batch)
+    output_tensor = model(tokens, position_ids, attention_mask, labels=labels)
+    return output_tensor, partial(loss_func, loss_mask)
 
 
-def train(model, optim):
+def train(model, optim, virtual_pipeline_model_parallel_size):
     sequence_len = global_vars.get_args().seq_length
     micro_batch_size = global_vars.get_args().micro_batch_size
     hidden_size = global_vars.get_args().hidden_size
-    forward_backward_func = _forward_backward_pipelining_with_interleaving
+    if virtual_pipeline_model_parallel_size is None:
+        fwd_bwd_func = forward_backward_pipelining_without_interleaving
+    else:
+        fwd_bwd_func = _forward_backward_pipelining_with_interleaving
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
     for _ in range(8):
-      batch = generate_fancy_data_labels(sequence_len, batch_size)
+      if virtual_pipeline_model_parallel_size is None:
+          batch = [generate_fancy_data_labels(args.seq_length, args.global_batch_size)]
+      else:
+          batch = [generate_fancy_data_labels(args.seq_length, args.global_batch_size) for _ in range(virtual_pipeline_model_parallel_size)]
       optim.zero_grad()
       forward_backward_func(fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape)
       optim.step()
@@ -112,7 +131,7 @@ if __name__ == '__main__':
     failure = None
     try:
         args = global_vars.get_args()
-        args.padded_vocab_size = 128 # needed in standalone gpt
+        args.padded_vocab_size = 128
         batch_size = args.global_batch_size
         micro_batch_size = args.micro_batch_size
         setup_microbatch_calculator(
@@ -140,7 +159,7 @@ if __name__ == '__main__':
         optim = torch.optim.Adam(_param_groups)
         print(effective_length)
         print(fancy_data.size(0))
-        train(model, optim)
+        train(model, optim, virtual_pipeline_model_parallel_size)
     except Exception as e:
         failure = str(e)
     finally:
