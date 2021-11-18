@@ -11,7 +11,7 @@ from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
 
-from apex.transformer.testing.standalone_gpt import post_language_model_processing
+from apex.transformer.testing.standalone_gpt import post_language_model_processing, gpt_model_provider 
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
@@ -131,7 +131,7 @@ if __name__ == '__main__':
         pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
         tensor_parallel.random.model_parallel_cuda_manual_seed(0)
         model = build_model(
-            bert_model_provider,
+            gpt_model_provider,
             wrap_with_ddp=True,
             virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
         )
