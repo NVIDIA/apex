@@ -28,10 +28,13 @@ ONCE = False
 
 # download a public domain book as corpus
 def download_fancy_data():
-  import requests
-  response = requests.get('https://www.gutenberg.org/files/1342/1342-0.txt')
-  #response = requests.get('https://www.gutenberg.org/files/84/84-0.txt')
-  text = ' '.join(response.text.split())
+  #import requests
+  #response = requests.get('https://internet.com/book.txt')
+  #text = ' '.join(response.text.split())
+  text = """
+  An original sentence not subject to any license restrictions, copyright, or royalty payments. Nothing to see here. Commercial or non-commercial use. Research or non-research purposes. The quick brown fox jumps over the lazy dog. Lorem ipsum.
+  """
+  text = text*1024
   encoded = text.encode('ascii', 'replace')
   ints = [int(encoded[i]) for i in range(len(encoded))]
   return torch.tensor(ints)

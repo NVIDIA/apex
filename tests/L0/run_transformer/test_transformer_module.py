@@ -11,18 +11,27 @@ DENY_TEST = [
 MULTIGPU_TEST = [
     "pipeline_parallel_test",
 ]
+SEVERALGPU_TEST = [
+    "bert_minimal_test",
+]
 
+def get_multigpu_launch_option(min_gpu):
+    should_skip = False
+    import torch
+    num_devices = torch.cuda.device_count()
+    if num_devices < min_gpu:
+        should_skip = True
+    distributed_run_options = f"-m torch.distributed.run --nproc_per_node={num_devices}"
+    return should_skip, distributed_run_options
 
 def get_launch_option(test_filename) -> Tuple[bool, str]:
     should_skip = False
     for multigpu_test in MULTIGPU_TEST:
         if multigpu_test in test_filename:
-            import torch
-            num_devices = torch.cuda.device_count()
-            if num_devices < 2:
-                should_skip = True
-            distributed_run_options = f"-m torch.distributed.run --nproc_per_node={num_devices}"
-            return should_skip, distributed_run_options
+            return get_multigpu_launch_option(2)
+    for severalgpu_test in SEVERALGPU_TEST:
+        if severalgpu_test in test_filename:
+            return get_multigpu_launch_option(3)
     return should_skip, ""
 
 
@@ -54,9 +63,15 @@ def run_transformer_tests():
             continue
         test_run_cmd = (
             f"{python_executable_path} {launch_option} {test_file} "
-            "--micro-batch-size 2 --num-layers 1 --hidden-size 256 --num-attention-heads 8 --max-position-embeddings "
-            "32 --encoder-seq-length 32 --use-cpu-initialization"
+            "--micro-batch-size 4 --num-layers 16 --hidden-size 768 --num-attention-heads 8 --max-position-embeddings "
+            "512 --seq-length 512 --global-batch-size 256"
         )
+        if 'bert' in test_file:
+            import torch
+            num_devices = torch.cuda.device_count()
+            test_run_cmd += f" --pipeline-model-parallel-size {num_devices}"
+        else:
+            test_run_cmd += f" --use-cpu-initialization"
         print(f"### {i} / {len(files)}: cmd: {test_run_cmd}")
         try:
             output = subprocess.check_output(
