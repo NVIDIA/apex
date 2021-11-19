@@ -164,11 +164,11 @@ if __name__ == '__main__':
         failure = str(e)
     finally:
         parallel_state.destroy_model_parallel()
-    if failure is not None:
-        torch.distributed.barrier()
-        if torch.distributed.get_rank() == 0:
-            print(f"Minimal GPT Pipeline Parallel Failed with {failure}")
-    else:
-        torch.distributed.barrier()
-        if torch.distributed.get_rank() == 0:
-            print(TEST_SUCCESS_MESSAGE)
+        if failure is not None:
+            torch.distributed.barrier()
+            if torch.distributed.get_rank() == 0:
+                print(f"Minimal GPT Pipeline Parallel Failed with {failure}")
+        else:
+            torch.distributed.barrier()
+            if torch.distributed.get_rank() == 0:
+                print(TEST_SUCCESS_MESSAGE)
