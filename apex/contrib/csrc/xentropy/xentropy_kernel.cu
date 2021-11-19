@@ -76,6 +76,9 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/NumericLimits.cuh>
 
+#include <THC/THC.h>
+#include <THC/THCGeneral.h>
+
 #include "type_shim.h"
 #include "compat.h"
 

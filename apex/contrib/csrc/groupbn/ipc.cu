@@ -1,6 +1,8 @@
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
 
+#include "THC/THC.h"
+
 #include <cuda.h>
 
 #include "compat.h"

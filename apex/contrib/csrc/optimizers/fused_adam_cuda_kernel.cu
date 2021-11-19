@@ -1,15 +1,14 @@
+#include "ATen/ATen.h"
+#include "ATen/cuda/CUDAContext.h"
+#include "ATen/cuda/detail/IndexUtils.cuh"
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
 #include <cmath>
-
-#include "ATen/ATen.h"
-#include "ATen/cuda/CUDAContext.h"
-#include "ATen/cuda/detail/IndexUtils.cuh"
 #include "ATen/TensorUtils.h"
 // #include "ATen/Type.h"
 #include "ATen/AccumulateType.h"
-
+#include <THC/THCGeneral.h>
 #include "multi_tensor_apply.cuh"
 
 #define BLOCK_SIZE 512

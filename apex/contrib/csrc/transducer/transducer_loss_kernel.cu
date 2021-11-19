@@ -1,11 +1,10 @@
-#include <vector>
-
+#include <torch/extension.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
-
-#include <torch/extension.h>
+#include <vector>
 #include <ATen/ATen.h>
 #include <ATen/AccumulateType.h>
+#include <THC/THC.h>
 #include <ATen/cuda/CUDAContext.h>
 
 template<typename scalar_t>
