@@ -1,5 +1,6 @@
 import random
 import torch
+import traceback
 from typing import List
 from apex.transformer import tensor_parallel
 from apex.transformer import parallel_state
@@ -163,15 +164,16 @@ if __name__ == '__main__':
         print(effective_length)
         print(fancy_data.size(0))
         train(model, optim, virtual_pipeline_model_parallel_size)
-    # except Exception as e:
-    #     failure = str(e)
-    # finally:
-    #     parallel_state.destroy_model_parallel()
-    #     if failure is not None:
-    #         torch.distributed.barrier()
-    #         if torch.distributed.get_rank() == 0:
-    #             print(f"Minimal GPT Pipeline Parallel Failed with {failure}")
-    #     else:
-    #         torch.distributed.barrier()
-    #         if torch.distributed.get_rank() == 0:
-    #             print(TEST_SUCCESS_MESSAGE)
+    except Exception as e:
+        failure = str(e)
+    finally:
+        parallel_state.destroy_model_parallel()
+        if failure is not None:
+            torch.distributed.barrier()
+            if torch.distributed.get_rank() == 0:
+                print(f"Minimal GPT Pipeline Parallel Failed with:")
+                traceback.print_exc()
+        else:
+            torch.distributed.barrier()
+            if torch.distributed.get_rank() == 0:
+                print(TEST_SUCCESS_MESSAGE)
