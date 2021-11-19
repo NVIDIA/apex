@@ -134,7 +134,7 @@ if __name__ == '__main__':
 
 
     failure = None
-    if True:
+    try:
         args.padded_vocab_size = 128
         batch_size = args.global_batch_size
         micro_batch_size = args.micro_batch_size
