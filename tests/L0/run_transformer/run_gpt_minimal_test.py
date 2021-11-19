@@ -4,6 +4,8 @@ from typing import List
 from apex.transformer import tensor_parallel
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import vocab_parallel_cross_entropy
+from apex.transformer.tensor_parallel import model_parallel_cuda_manual_seed
+
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
 #from apex.transformer.pipeline_parallel.utils import update_num_microbatches
@@ -44,8 +46,7 @@ def generate_fancy_data_labels(sequence_len, batch_size):
   for i in range(batch_size):
     if inds is None or data_idx >= len(inds):
        # hack as use of RNG will fall out of sync due to pipelines being different
-      torch.manual_seed(MANUAL_SEED)
-      model_parallel_cuda_manual_seed(42)
+      model_parallel_cuda_manual_seed(MANUAL_SEED)
       inds = torch.randperm(effective_length, device='cuda')
       MANUAL_SEED += 1
       print("new epoch", len(inds))
