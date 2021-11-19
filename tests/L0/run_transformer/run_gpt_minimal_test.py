@@ -129,6 +129,9 @@ if __name__ == '__main__':
 
     initialize_distributed()
     world_size = torch.distributed.get_world_size()
+    print(world_size, args.world_size, args.tensor_model_parallel_size, args.pipeline_model_parallel_size)
+    quit()
+
     failure = None
     if True:
         args = global_vars.get_args()
