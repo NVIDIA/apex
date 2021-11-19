@@ -160,7 +160,7 @@ class SelfMultiheadAttn(nn.Module):
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, lyr_nrm_results,
                                          input_weights, self.out_proj_weight,
                                          input_bias, self.out_proj_bias,
-                                         mask, self.dropout)
+                                         mask, self.mask_additive, self.dropout)
                 if is_training:
                     outputs = jit_dropout_add(outputs, query, self.dropout, is_training)
                 else:
