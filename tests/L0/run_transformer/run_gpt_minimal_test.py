@@ -141,7 +141,7 @@ if __name__ == '__main__':
             args.micro_batch_size,
             1,  # args.data_parallel_size,
         )
-        virtual_pipeline_model_parallel_size = 2
+        virtual_pipeline_model_parallel_size = args.pipeline_model_parallel_size
         world_size = torch.distributed.get_world_size()
         pipeline_model_parallel_size = world_size
         parallel_state.initialize_model_parallel(
