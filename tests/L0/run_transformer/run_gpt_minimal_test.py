@@ -134,46 +134,37 @@ if __name__ == '__main__':
 
 
     failure = None
-    try:
-        args.padded_vocab_size = 128
-        batch_size = args.global_batch_size
-        micro_batch_size = args.micro_batch_size
-        setup_microbatch_calculator(
-            args.rank,
-            args.rampup_batch_size,
-            args.global_batch_size,
-            args.micro_batch_size,
-            1,  # args.data_parallel_size,
-        )
-        virtual_pipeline_model_parallel_size = args.pipeline_model_parallel_size
-        world_size = torch.distributed.get_world_size()
-        pipeline_model_parallel_size = world_size
-        parallel_state.initialize_model_parallel(
-            1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
-        pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
-        tensor_parallel.random.model_parallel_cuda_manual_seed(0)
-        model = build_model(
-            gpt_model_provider,
-            wrap_with_ddp=True,
-            virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
-        )
-        assert isinstance(model, list), model
-        assert len(model) == (1 if virtual_pipeline_model_parallel_size is None else virtual_pipeline_model_parallel_size), len(model)
-        _param_groups = _get_params_for_weight_decay_optimization(model)
-        optim = torch.optim.Adam(_param_groups)
-        print(effective_length)
-        print(fancy_data.size(0))
-        train(model, optim, virtual_pipeline_model_parallel_size)
-    except Exception as e:
-        failure = str(e)
-    finally:
-        parallel_state.destroy_model_parallel()
-        if failure is not None:
-            torch.distributed.barrier()
-            if torch.distributed.get_rank() == 0:
-                print(f"Minimal GPT Pipeline Parallel Failed with:")
-                traceback.print_exc()
-        else:
-            torch.distributed.barrier()
-            if torch.distributed.get_rank() == 0:
-                print(TEST_SUCCESS_MESSAGE)
+    args.padded_vocab_size = 128
+    batch_size = args.global_batch_size
+    micro_batch_size = args.micro_batch_size
+    setup_microbatch_calculator(
+        args.rank,
+        args.rampup_batch_size,
+        args.global_batch_size,
+        args.micro_batch_size,
+        1,  # args.data_parallel_size,
+    )
+    virtual_pipeline_model_parallel_size = args.pipeline_model_parallel_size
+    world_size = torch.distributed.get_world_size()
+    pipeline_model_parallel_size = world_size
+    parallel_state.initialize_model_parallel(
+        1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
+    pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
+    tensor_parallel.random.model_parallel_cuda_manual_seed(0)
+    model = build_model(
+        gpt_model_provider,
+        wrap_with_ddp=True,
+        virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
+    )
+    assert isinstance(model, list), model
+    assert len(model) == (1 if virtual_pipeline_model_parallel_size is None else virtual_pipeline_model_parallel_size), len(model)
+    _param_groups = _get_params_for_weight_decay_optimization(model)
+    optim = torch.optim.Adam(_param_groups)
+    print(effective_length)
+    print(fancy_data.size(0))
+    train(model, optim, virtual_pipeline_model_parallel_size)
+
+    parallel_state.destroy_model_parallel()
+    torch.distributed.barrier()
+    if torch.distributed.get_rank() == 0:
+        print(TEST_SUCCESS_MESSAGE)
