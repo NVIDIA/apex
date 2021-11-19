@@ -124,8 +124,9 @@ if __name__ == '__main__':
     global_vars.set_global_variables()
 
     fancy_data = download_fancy_data()
-    effective_length = fancy_data.size(0) // global_vars.get_args().seq_length
-    effective_length = fancy_data.size(0) - global_vars.get_args().seq_length
+    args = global_vars.get_args()
+    effective_length = fancy_data.size(0) // args.seq_length
+    effective_length = fancy_data.size(0) - args.seq_length
 
     initialize_distributed()
     world_size = torch.distributed.get_world_size()
@@ -133,7 +134,6 @@ if __name__ == '__main__':
 
     failure = None
     if True:
-        args = global_vars.get_args()
         args.padded_vocab_size = 128
         print(world_size, args.world_size, args.tensor_model_parallel_size, args.pipeline_model_parallel_size)
         quit()
