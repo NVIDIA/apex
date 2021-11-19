@@ -1,5 +1,8 @@
+import logging
+
 # May help avoid undefined symbol errors https://pytorch.org/cppdocs/notes/faq.html#undefined-symbol-errors-from-pytorch-aten
 import torch
+
 
 if torch.distributed.is_available():
     from . import parallel
@@ -18,3 +21,19 @@ from . import optimizers
 from . import normalization
 from . import pyprof
 from . import transformer
+
+
+# Logging utilities mainly for apex.transformer module
+class RankInfoFormatter(logging.Formatter):
+
+    def format(self, record):
+        from apex.transformer.parallel_state import get_rank_info
+        record.rank_info = get_rank_info()
+        return super().format(record)
+
+
+_library_root_logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+handler.setFormatter(RankInfoFormatter("%(asctime)s - %(name)s - %(levelname)s - %(rank_info)s - %(message)s"))
+_library_root_logger.addHandler(handler)
+_library_root_logger.propagate = False

@@ -16,6 +16,7 @@
 from functools import reduce
 import operator
 from typing import Union, Optional, Tuple
+import warnings
 
 import torch
 
@@ -68,8 +69,6 @@ def _run_p2pops(
             req.wait()
 
 
-# NOTE (mkozuki): Leaving `params_dytpe` as it is for future development in PyTorch, especially APEX O2 style AMP.
-# But as of v1.10, basically all tensors are torch.float32 except for output tensors of `autocast` compatible layers.
 def _communicate(
     tensor_send_next: Optional[torch.Tensor],
     tensor_send_prev: Optional[torch.Tensor],
@@ -118,14 +117,21 @@ def _communicate(
         tensor_chunk_shape = (reduce(operator.mul, tensor_shape, 1) // parallel_state.get_tensor_model_parallel_world_size(),)
     else:
         tensor_chunk_shape = tensor_shape
-    dtype = params_dtype or torch.float
-    if fp32_residual_connection:
-        dtype = torch.float
 
+    # NOTE(mkozuki): In PyTorch AMP, i.e. `torch.cuda.amp.autocast` context, activation tensors can be either FP32,
+    # FP16, or BF16 and there's no way to tell the dtypes of tensors on different devices in general.
+    # It might be possible if we restrict model architecture.
+    # dtype = params_dtype or torch.float
+    # if fp32_residual_connection:
+    #     dtype = torch.float
+    # if dtype_ is not None:
+    #     dtype = dtype_
+    #     requires_grad = False
+    if dtype_ != torch.float32 or params_dtype is not None:
+        if torch.distributed.get_rank() == 0:
+            warnings.warn("Tensor P2P communications are executed in FP32")
+    dtype = torch.float32
     requires_grad = True
-    if dtype_ is not None:
-        dtype = dtype_
-        requires_grad = False
 
     if recv_prev:
         tensor_recv_prev = torch.empty(
