@@ -135,8 +135,6 @@ if __name__ == '__main__':
     failure = None
     if True:
         args.padded_vocab_size = 128
-        print(world_size, args.world_size, args.tensor_model_parallel_size, args.pipeline_model_parallel_size)
-        quit()
         batch_size = args.global_batch_size
         micro_batch_size = args.micro_batch_size
         setup_microbatch_calculator(
