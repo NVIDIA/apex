@@ -167,7 +167,7 @@ if __name__ == '__main__':
     if failure is not None:
         torch.distributed.barrier()
         if torch.distributed.get_rank() == 0:
-            print(f"Minimal GPT Pipeline Parallel Failed with {e}")
+            print(f"Minimal GPT Pipeline Parallel Failed with {failure}")
     else:
         torch.distributed.barrier()
         if torch.distributed.get_rank() == 0:
