@@ -153,8 +153,8 @@ if __name__ == '__main__':
             wrap_with_ddp=True,
             virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
         )
-        assert isinstance(model, list)
-        assert len(model) == (1 if virtual_pipeline_model_parallel_size is None else virtual_pipeline_model_parallel_size)
+        assert isinstance(model, list), model
+        assert len(model) == (1 if virtual_pipeline_model_parallel_size is None else virtual_pipeline_model_parallel_size), len(model)
         _param_groups = _get_params_for_weight_decay_optimization(model)
         optim = torch.optim.Adam(_param_groups)
         print(effective_length)
