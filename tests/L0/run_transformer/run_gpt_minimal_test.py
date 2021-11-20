@@ -50,7 +50,6 @@ def generate_fancy_data_labels(sequence_len, batch_size):
       model_parallel_cuda_manual_seed(MANUAL_SEED)
       inds = torch.randperm(effective_length, device='cuda')
       MANUAL_SEED += 1
-      print("new epoch", len(inds))
       data_idx = 0
     data_idx_ = data_idx
     offset = inds[data_idx_] #* SEQUENCE_LEN
@@ -115,7 +114,7 @@ def train(model, optim, virtual_pipeline_model_parallel_size):
       else:
           batch = [generate_fancy_data_labels(args.seq_length, args.global_batch_size) for _ in range(virtual_pipeline_model_parallel_size)]
       optim.zero_grad()
-      forward_backward_func(fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape)
+      fwd_bwd_func(fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape)
       optim.step()
 
 if __name__ == '__main__':
@@ -160,8 +159,6 @@ if __name__ == '__main__':
     assert len(model) == (1 if virtual_pipeline_model_parallel_size is None else virtual_pipeline_model_parallel_size), len(model)
     _param_groups = _get_params_for_weight_decay_optimization(model)
     optim = torch.optim.Adam(_param_groups)
-    print(effective_length)
-    print(fancy_data.size(0))
     train(model, optim, virtual_pipeline_model_parallel_size)
 
     parallel_state.destroy_model_parallel()
