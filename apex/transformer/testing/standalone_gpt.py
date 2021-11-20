@@ -1460,7 +1460,8 @@ class GPTModel(MegatronModule):
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
     ):
-        with torch.autograd.graph.save_on_cpu():
+        # with torch.autograd.graph.save_on_cpu():
+        if True:
             lm_output = self.language_model(
                 input_ids,
                 position_ids,
