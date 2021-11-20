@@ -150,7 +150,7 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
         optimizers = [optimizers]
     elif optimizers is None:
         optimizers = []
-    elif isinstance(optimizers, list):
+    elif isinstance(optimizers, (list, tuple)):
         optimizers_was_list = True
         check_optimizers(optimizers)
     else:
@@ -160,7 +160,7 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
     if isinstance(models, torch.nn.Module):
         models_was_list = False
         models = [models]
-    elif isinstance(models, list):
+    elif isinstance(models, (list, tuple)):
         models_was_list = True
     else:
         raise TypeError("models must be either a single model or a list of models.")
