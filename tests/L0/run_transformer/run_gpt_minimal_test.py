@@ -9,6 +9,7 @@ from apex.transformer.tensor_parallel import model_parallel_cuda_manual_seed
 
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
+from apex.transformer.pipeline_parallel.utils import get_ltor_masks_and_position_ids
 #from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
