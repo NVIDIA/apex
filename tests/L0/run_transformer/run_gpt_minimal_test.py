@@ -2,6 +2,7 @@ import random
 import torch
 import traceback
 from typing import List
+from functools import partial
 from apex.transformer import tensor_parallel
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import vocab_parallel_cross_entropy
