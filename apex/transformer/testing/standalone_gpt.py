@@ -506,7 +506,7 @@ class ParallelAttention(MegatronModule):
             if torch.distributed.get_rank() == 0:
                 print(attention_scores)
                 print(attention_mask)
-                quit()
+            quit()
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
