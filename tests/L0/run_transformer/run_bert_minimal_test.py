@@ -133,7 +133,7 @@ if __name__ == '__main__':
             args.rampup_batch_size,
             args.global_batch_size,
             args.micro_batch_size,
-            1,  # args.data_parallel_size,
+            args.data_parallel_size,
         )
         virtual_pipeline_model_parallel_size = 2
         world_size = torch.distributed.get_world_size()
