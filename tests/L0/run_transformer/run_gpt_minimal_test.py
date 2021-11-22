@@ -143,13 +143,13 @@ if __name__ == '__main__':
         args.rampup_batch_size,
         args.global_batch_size,
         args.micro_batch_size,
-        1,  # args.data_parallel_size,
+        args.data_parallel_size,  # args.data_parallel_size,
     )
     virtual_pipeline_model_parallel_size = args.pipeline_model_parallel_size
     world_size = torch.distributed.get_world_size()
     pipeline_model_parallel_size = world_size
     parallel_state.initialize_model_parallel(
-        1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
+        args.tensor_model_parallel_size, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
     tensor_parallel.random.model_parallel_cuda_manual_seed(0)
     model = build_model(
