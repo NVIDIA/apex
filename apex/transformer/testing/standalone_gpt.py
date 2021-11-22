@@ -499,11 +499,14 @@ class ParallelAttention(MegatronModule):
         # ===========================
 
         # attention scores and attention mask [b, np, sq, sk]
-        if torch.distributed.get_rank() == 0:
-            print(attention_scores)
-            print(attention_mask)
-            quit()
-        attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
+
+        try:
+            attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
+        except:
+            if torch.distributed.get_rank() == 0:
+                print(attention_scores)
+                print(attention_mask)
+                quit()
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
