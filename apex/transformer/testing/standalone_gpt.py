@@ -502,6 +502,7 @@ class ParallelAttention(MegatronModule):
         if torch.distributed.get_rank() == 0:
             print(attention_scores)
             print(attention_mask)
+            quit()
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
 
         # This is actually dropping out entire tokens to attend to, which might
