@@ -111,15 +111,18 @@ def train(model, optim, virtual_pipeline_model_parallel_size):
         fwd_bwd_func = _forward_backward_pipelining_with_interleaving
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
     for i in range(8):
-      print('begin iter', i)
+      if torch.distributed.get_rank() == 0:
+        print('begin iter', i)
       if virtual_pipeline_model_parallel_size is None:
           batch = [generate_fancy_data_labels(args.seq_length, args.global_batch_size)]
       else:
           batch = [generate_fancy_data_labels(args.seq_length, args.global_batch_size) for _ in range(virtual_pipeline_model_parallel_size)]
-      print("finished making batch...")
+      if torch.distributed.get_rank() == 0:
+        print("finished making batch...")
       optim.zero_grad()
       fwd_bwd_func(fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape)
-      print('finished forward step')
+      if torch.distributed.get_rank() == 0:
+        print('finished forward step')
       optim.step()
       print('finished iter', i)
 
@@ -151,10 +154,9 @@ if __name__ == '__main__':
     )
     virtual_pipeline_model_parallel_size = args.pipeline_model_parallel_size
     world_size = torch.distributed.get_world_size()
-    pipeline_model_parallel_size = world_size
     parallel_state.initialize_model_parallel(
         tensor_model_parallel_size_=1,\
-        pipeline_model_parallel_size_=pipeline_model_parallel_size,\
+        pipeline_model_parallel_size_=args.pipeline_model_parallel_size,\
         virtual_pipeline_model_parallel_size_=virtual_pipeline_model_parallel_size)
 
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
