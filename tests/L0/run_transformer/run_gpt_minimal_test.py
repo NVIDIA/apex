@@ -160,7 +160,6 @@ if __name__ == '__main__':
         virtual_pipeline_model_parallel_size=None,
     )
     assert isinstance(model, list), model
-    assert len(model) == args.pipeline_model_parallel_size, len(model)
     _param_groups = _get_params_for_weight_decay_optimization(model)
     optim = torch.optim.Adam(_param_groups)
     train(model, optim, args.pipeline_model_parallel_size)
