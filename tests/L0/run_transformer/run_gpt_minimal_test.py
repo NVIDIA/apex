@@ -149,9 +149,9 @@ if __name__ == '__main__':
     world_size = torch.distributed.get_world_size()
     pipeline_model_parallel_size = world_size
     parallel_state.initialize_model_parallel(
-        args.tensor_model_parallel_size, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
+        1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
     pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
-    tensor_parallel.random.model_parallel_cuda_manual_seed(0)
+    model_parallel_cuda_manual_seed(0)
     model = build_model(
         gpt_model_provider,
         wrap_with_ddp=True,
