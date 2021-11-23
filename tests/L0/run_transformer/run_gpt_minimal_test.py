@@ -108,6 +108,8 @@ def train(model, optim, pipeline_model_parallel_size):
     fwd_bwd_func = forward_backward_pipelining_without_interleaving
 
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
+    if torch.distributed.get_rank() == 0:
+      print(tensor_shape)
     for i in range(8):
       if torch.distributed.get_rank() == 0:
         print('begin iter', i)

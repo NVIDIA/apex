@@ -192,6 +192,7 @@ def get_linear_layer(rows, columns, init_method):
 
 
 def attention_mask_func(attention_scores, attention_mask):
+    print(attention_scores.shape, attention_mask.shape)
     attention_scores.masked_fill_(attention_mask, -10000.0)
     return attention_scores
 
