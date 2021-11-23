@@ -3,6 +3,7 @@
 #include <vector>
 
 #include <stdio.h>
+#include <cstdint>
 
 size_t get_mlp_reserved_space(int64_t batch_size, int num_layers, const int* output_features);
 
@@ -62,7 +63,7 @@ std::vector<at::Tensor> mlp_forward(int use_bias, int activation, std::vector<at
 
   // create output/workspace tensor
   auto out = at::empty({batch_size, output_features.back()}, inputs[0].type());
-  auto reserved_space = at::empty({reserved_size}, inputs[0].type());
+  auto reserved_space = at::empty({static_cast<long>(reserved_size)}, inputs[0].type());
   // allocate fixed 4MB workspace for cublaslt for now, and this gets at least 4 MB
   auto lt_workspace = at::empty({1 << 22}, inputs[0].type());
 
@@ -135,7 +136,7 @@ std::vector<at::Tensor> mlp_backward(
         get_mlp_bp_workspace_in_bytes<scalar_t>(batch_size, num_layers, output_features.data());
 
     // auto work_space = at::empty({work_size*4}, at::kByte);
-    auto work_space = at::empty({work_size / sizeof(scalar_t)}, inputs[0].type());
+    auto work_space = at::empty({static_cast<long>(work_size / sizeof(scalar_t))}, inputs[0].type());
 
     auto result = mlp_bp<scalar_t>(
         inputs[0].data_ptr<scalar_t>(),
