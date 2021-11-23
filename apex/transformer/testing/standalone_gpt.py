@@ -1463,7 +1463,8 @@ class GPTModel(MegatronModule):
         inference_max_sequence_len=None,
     ):
         # with torch.autograd.graph.save_on_cpu():
-        print(attention_mask.shape, inference_max_sequence_len)
+        if torch.distributed.get_rank() == 0:
+            print(attention_mask.shape, inference_max_sequence_len)
         if True:
             lm_output = self.language_model(
                 input_ids,
