@@ -67,8 +67,8 @@ def get_batch(int_tensors: List[torch.Tensor]):
     data = int_tensors[0]
     # Unpack.
     tokens_ = data.long()
-    labels = tokens_[1:].contiguous()
-    tokens = tokens_[:-1].contiguous()
+    labels = tokens_[:, 1:].contiguous()
+    tokens = tokens_[:, :-1].contiguous()
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         tokens,
@@ -111,8 +111,7 @@ def train(model, optim, pipeline_model_parallel_size):
     for i in range(8):
       if torch.distributed.get_rank() == 0:
         print('begin iter', i)
-      #batch = [generate_fancy_data_labels(args.seq_length, args.global_batch_size) for _ in range(pipeline_model_parallel_size)]
-      batch = generate_fancy_data_labels(sequence_len, batch_size)
+      batch = [generate_fancy_data_labels(args.seq_length, args.global_batch_size) for _ in range(pipeline_model_parallel_size)]
       if torch.distributed.get_rank() == 0:
         print("finished making batch...")
       optim.zero_grad()
