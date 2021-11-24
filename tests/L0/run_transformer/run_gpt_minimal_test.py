@@ -56,7 +56,7 @@ def generate_fancy_data_labels(sequence_len, batch_size):
     data_idx_ = data_idx
     offset = inds[data_idx_] #* SEQUENCE_LEN
     data_idx += 1
-    curr = fancy_data[offset:offset+sequence_len].clone().detach()
+    curr = fancy_data[offset:offset+sequence_len+1].clone().detach()
     temps.append(curr)
   temp = torch.stack(temps, dim=0).cuda()
   return temp
