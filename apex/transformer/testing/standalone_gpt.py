@@ -16,6 +16,7 @@
 """GPT-2 model."""
 import enum
 import math
+import contextlib
 
 import torch
 import torch.nn.functional as F
@@ -1428,14 +1429,14 @@ def post_language_model_processing(lm_output, labels, logit_weights, parallel_ou
 class GPTModel(MegatronModule):
     """GPT-2 Language model."""
 
-    def __init__(self, num_tokentypes=0, parallel_output=True, pre_process=True, post_process=True):
+    def __init__(self, num_tokentypes=0, parallel_output=True, pre_process=True, post_process=True, cpu_offload=False):
         super(GPTModel, self).__init__()
         args = get_args()
         self.parallel_output = parallel_output
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
-
+        self.cpu_offload = cpu_offload
         self.language_model, self._language_model_key = get_language_model(
             num_tokentypes=num_tokentypes,
             add_pooler=False,
@@ -1465,7 +1466,7 @@ class GPTModel(MegatronModule):
         
         if torch.distributed.get_rank() == 0:
             print(attention_mask.shape, inference_max_sequence_len)
-        with torch.autograd.graph.save_on_cpu():
+        with torch.autograd.graph.save_on_cpu() if self.cpu_offload else contextlib.nullcontext():
             lm_output = self.language_model(
                 input_ids,
                 position_ids,
@@ -1506,6 +1507,6 @@ class GPTModel(MegatronModule):
 
 
 
-def gpt_model_provider(pre_process=True, post_process=False):
-    model = GPTModel(num_tokentypes=0, parallel_output=True, pre_process=pre_process, post_process=post_process)
+def gpt_model_provider(pre_process=True, post_process=False, cpu_offload=False):
+    model = GPTModel(num_tokentypes=0, parallel_output=True, pre_process=pre_process, post_process=post_process, cpu_offload=cpu_offload)
     return model
