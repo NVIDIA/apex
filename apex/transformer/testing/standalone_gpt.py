@@ -1463,9 +1463,7 @@ class GPTModel(MegatronModule):
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
     ):
-        
-        if torch.distributed.get_rank() == 0:
-            print(attention_mask.shape, inference_max_sequence_len)
+
         with torch.autograd.graph.save_on_cpu() if self.cpu_offload else contextlib.nullcontext():
             lm_output = self.language_model(
                 input_ids,
