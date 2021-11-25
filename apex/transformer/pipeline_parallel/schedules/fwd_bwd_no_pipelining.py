@@ -3,9 +3,11 @@ from typing import List, Union
 
 import torch
 
+from apex.transformer.enums import ModelType
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
+from apex.transformer.pipeline_parallel.utils import unwrap_model
 from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
@@ -58,6 +60,7 @@ def forward_backward_no_pipelining(
         msg = f"`model` is expected be a `nn.Module`, but {type(model)}"
         raise RuntimeError(msg)
     model = model[0]
+    model_type = getattr(unwrap_model(model), "model_type", ModelType.encoder_or_decoder)
 
     context_handler = placeholder_handler
     if isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
@@ -75,7 +78,7 @@ def forward_backward_no_pipelining(
                 forward_step_func, cur_micro_batch, model, input_tensor, losses_reduced)
             if not forward_only:
                 _logger.debug("Call `backward_step`")
-                backward_step(input_tensor, output_tensor, output_tensor_grad)
+                backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type)
 
     # Run computation for last microbatch out of context handler (want to
     # synchronize gradients).
@@ -86,6 +89,6 @@ def forward_backward_no_pipelining(
     )
     if not forward_only:
         _logger.debug("Call `backward_step`")
-        backward_step(input_tensor, output_tensor, output_tensor_grad)
+        backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type)
 
     return losses_reduced

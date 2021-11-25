@@ -193,6 +193,7 @@ def backward_step(
         input_tensor: Optional[torch.Tensor],
         output_tensor: torch.Tensor,
         output_tensor_grad: Optional[torch.Tensor],
+        model_type: ModelType,
 ) -> Union[None, torch.Tensor, Sequence[torch.Tensor]]:
     """Backward step through passed-in output tensor.
 

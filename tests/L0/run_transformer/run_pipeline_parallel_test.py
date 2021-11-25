@@ -57,7 +57,7 @@ class MyModel(nn.Module):
         self.input_tensor = None
 
     def set_input_tensor(self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]) -> None:
-        if not isinstance(torch.Tensor, list):
+        if not isinstance(input_tensor, list):
             input_tensor = [input_tensor]
         self.input_tensor = input_tensor[0]
 
@@ -65,7 +65,6 @@ class MyModel(nn.Module):
         if self.input_tensor is None:
             return self.layer(x)
         return self.layer(self.input_tensor)
-
 
 
 def model_provider_func(pre_process, post_process) -> MyModel:
@@ -129,7 +128,7 @@ def forward_backward_func_template(
     _param_groups = _get_params_for_weight_decay_optimization(model)
     torch.optim.Adam(_param_groups, lr=1e-4)
 
-    tensor_shape = [batch_size // parallel_state.get_data_parallel_world_size(), hidden_size]
+    tensor_shape = [batch_size // parallel_state.get_data_parallel_world_size(), hidden_size, hidden_size]
     batch = (torch.randn(tensor_shape).cuda(),)
     tensor_shape[0] = micro_batch_size
 
@@ -185,6 +184,7 @@ if __name__ == "__main__":
                     f"virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
                     f"{str(e)}"
                 )
+                print(failures[-1])
             finally:
                 parallel_state.destroy_model_parallel()
         else:

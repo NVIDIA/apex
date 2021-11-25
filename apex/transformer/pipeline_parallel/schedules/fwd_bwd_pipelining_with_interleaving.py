@@ -3,12 +3,14 @@ from typing import List, Union, Optional, Sequence
 import torch
 
 from apex.transformer import parallel_state
+from apex.transformer.enums import ModelType
 from apex.transformer.pipeline_parallel import p2p_communication
 from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+from apex.transformer.pipeline_parallel.utils import unwrap_model
 from apex.transformer.log_util import get_transformer_logger
 
 
@@ -142,6 +144,7 @@ def _forward_backward_pipelining_with_interleaving(
         (run set_virtual_pipeline_model_parallel_rank() before calling
         backward_step())."""
         model_chunk_id = get_model_chunk_id(microbatch_id, forward=False)
+        model_type = getattr(unwrap_model(model[model_chunk_id]), "model_type", ModelType.encoder_or_decoder)
         parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
         if parallel_state.is_pipeline_last_stage():
@@ -150,7 +153,7 @@ def _forward_backward_pipelining_with_interleaving(
         input_tensor = input_tensors[model_chunk_id].pop(0)
         output_tensor = output_tensors[model_chunk_id].pop(0)
         output_tensor_grad = output_tensor_grads[model_chunk_id].pop(0)
-        input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad)
+        input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type)
 
         return input_tensor_grad
 
