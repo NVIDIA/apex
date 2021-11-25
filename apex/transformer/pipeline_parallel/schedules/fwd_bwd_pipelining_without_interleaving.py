@@ -31,7 +31,7 @@ def forward_backward_pipelining_without_interleaving(
     forward_only: bool,
     tensor_shape: Optional[Union[List[int], torch.Size]] = None,
     decoder_sequence_length: Optional[int] = None,
-):
+) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
 
     This pipeline parallel scheduling consists of three steps:

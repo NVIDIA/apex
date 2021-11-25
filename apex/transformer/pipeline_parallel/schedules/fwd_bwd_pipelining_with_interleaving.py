@@ -1,4 +1,4 @@
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Sequence
 
 import torch
 
@@ -26,7 +26,7 @@ def _forward_backward_pipelining_with_interleaving(
         *,
         forward_only: bool,
         tensor_shape: Optional[Union[List[int], torch.Size]] = None,
-):
+) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run interleaved 1F1B schedule with communication between pipeline stages as needed.
 
     This function assumes `batch` and `model` is a list of `Batch`'s and a list of `torch.nn.Module`, respectively.
@@ -56,22 +56,22 @@ def _forward_backward_pipelining_with_interleaving(
     if not isinstance(model, list):
         raise RuntimeError("`model` must be a list of `nn.Module`'s'")
 
-    num_model_chunks = len(model)
-    input_tensors = [[] for _ in range(num_model_chunks)]
-    output_tensors = [[] for _ in range(num_model_chunks)]
-    curr_iters = [0 for _ in range(num_model_chunks)]
-    losses_reduced = []
+    num_model_chunks: int = len(model)
+    input_tensors: List[List[Union[None, torch.Tensor]]] = [[] for _ in range(num_model_chunks)]
+    output_tensors: List[List[Union[None, torch.Tensor]]] = [[] for _ in range(num_model_chunks)]
+    curr_iters: List[int] = [0 for _ in range(num_model_chunks)]
+    losses_reduced: List[Union[None, torch.Tensor]] = []
     if not forward_only:
-        output_tensor_grads = [[] for _ in range(num_model_chunks)]
+        output_tensor_grads: List[List[Union[None, torch.Tensor]]] = [[] for _ in range(num_model_chunks)]
 
-    pipeline_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
-    pipeline_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
+    pipeline_parallel_size: int = parallel_state.get_pipeline_model_parallel_world_size()
+    pipeline_parallel_rank: int = parallel_state.get_pipeline_model_parallel_rank()
 
     # Compute number of warmup and remaining microbatches.
-    num_microbatches = get_num_microbatches() * num_model_chunks
-    all_warmup_microbatches = False
+    num_microbatches: int = get_num_microbatches() * num_model_chunks
+    all_warmup_microbatches: bool = False
     if forward_only:
-        num_warmup_microbatches = num_microbatches
+        num_warmup_microbatches: int = num_microbatches
     else:
         # Run all forward passes and then all backward passes if number of
         # microbatches is just the number of pipeline stages.
@@ -86,7 +86,7 @@ def _forward_backward_pipelining_with_interleaving(
             num_warmup_microbatches = (pipeline_parallel_size - pipeline_parallel_rank - 1) * 2
             num_warmup_microbatches += (num_model_chunks - 1) * pipeline_parallel_size
             num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
-    num_microbatches_remaining = num_microbatches - num_warmup_microbatches
+    num_microbatches_remaining: int = num_microbatches - num_warmup_microbatches
 
     _logger.info(
         f"num_microbatches: {num_microbatches}, "
@@ -106,7 +106,7 @@ def _forward_backward_pipelining_with_interleaving(
             model_chunk_id = num_model_chunks - model_chunk_id - 1
         return model_chunk_id
 
-    def forward_step_helper(microbatch_id, curr_iters):
+    def forward_step_helper(microbatch_id: int, curr_iters: List[int]) -> torch.Tensor:
         """Helper method to run forward step with model split into chunks
         (run set_virtual_pipeline_model_parallel_rank() before calling
         forward_step())."""
@@ -137,7 +137,7 @@ def _forward_backward_pipelining_with_interleaving(
 
         return output_tensor
 
-    def backward_step_helper(microbatch_id):
+    def backward_step_helper(microbatch_id: int) -> torch.Tensor:
         """Helper method to run backward step with model split into chunks
         (run set_virtual_pipeline_model_parallel_rank() before calling
         backward_step())."""
