@@ -161,6 +161,7 @@ def forward_step(
     # timers = get_timers()
     # timers("forward-compute").start()
     unwrapped_model = unwrap_model(model)
+    model_type = getattr(unwrapped_model, "model_type", ModelType.encoder_or_decoder)
     # NOTE (mkozuki): The passed `model` is expected to implement `set_input_tensor`.
     # See https://github.com/NVIDIA/Megatron-LM/blob/5ac5571ba0265af4c491ee0af1508ca7589450c6/megatron/model/transformer.py#L679  # NOQA
     # for the details of `set_input_tensor`.
@@ -181,7 +182,7 @@ def forward_step(
     # and in decoder stack, then send encoder_hidden_state
     # downstream as well.
     # TODO (mkozuki): Handle model type things below.
-    if parallel_state.is_pipeline_stage_after_split() and args.model_type = ModelType.encoder_and_decoder:
+    if parallel_state.is_pipeline_stage_after_split() and model_type == ModelType.encoder_and_decoder:
         return [output_tensor, input_tensor[-1]]
     if unwrap_output_tensor:
         return output_tensor
