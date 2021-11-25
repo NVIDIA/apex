@@ -1,7 +1,7 @@
 from typing import Union, List, Optional, Sequence
 
 import torch
-import torch.nn.parallel.distributed.DistributedDataParallel as DDP
+from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 
 from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
