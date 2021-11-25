@@ -138,7 +138,7 @@ def forward_step(
         forward_step_func: FwdStepFunc,
         batch: Batch,
         model: torch.nn.Module,
-        input_tensor: Optional[torch.Tensor],
+        input_tensor: Optional[Union[torch.Tensor, List[torch.Tensor]]],
         losses_reduced: List[torch.Tensor],
 ) -> Union[torch.Tensor, Sequence[torch.Tensor]]:
     """Forward step for passed-in model.
