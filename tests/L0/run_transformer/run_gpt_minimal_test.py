@@ -126,7 +126,8 @@ def train(model, optim, pipeline_model_parallel_size):
       if torch.distributed.get_rank() == 0:
         print('finished forward step')
       optim.step()
-      print('finished iter', i)
+      if torch.distributed.get_rank() == 0:
+        print('finished iter', i)
 
 if __name__ == '__main__':
     global fancy_data

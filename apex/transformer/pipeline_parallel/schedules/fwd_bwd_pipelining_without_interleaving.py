@@ -62,12 +62,13 @@ def forward_backward_pipelining_without_interleaving(
     num_microbatches_remaining = num_microbatches - num_warmup_microbatches
 
     # TODO (mkozuki): Remove once debug gets done
-    print(
-        f">>> rank: {torch.distributed.get_rank()}, "
-        f"num_microbatches: {num_microbatches}, "
-        f"num_warmup_microbatches: {num_warmup_microbatches}, "
-        f"num_microbatches_remaining: {num_microbatches_remaining} -- "
-    )
+    if torch.distributed.get_rank() == 0:
+        print(
+            f">>> rank: {torch.distributed.get_rank()}, "
+            f"num_microbatches: {num_microbatches}, "
+            f"num_warmup_microbatches: {num_warmup_microbatches}, "
+            f"num_microbatches_remaining: {num_microbatches_remaining} -- "
+        )
 
     # Input, output tensors only need to be saved when doing backward passes
     input_tensors = None
