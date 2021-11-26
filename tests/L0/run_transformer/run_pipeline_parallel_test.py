@@ -1,9 +1,7 @@
-from typing import Optional, Union, List
+from typing import Optional
 
 import torch
-import torch.nn as nn
 
-import apex
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import get_forward_backward_func
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
@@ -11,7 +9,6 @@ from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
-from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 from apex.transformer.testing import global_vars
@@ -19,6 +16,7 @@ from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import print_separator
 from apex.transformer.testing.commons import model_provider_func
+from apex.transformer.testing.commons import fwd_step_func
 from apex.transformer.log_util import get_transformer_logger, set_logging_level
 
 
@@ -34,27 +32,6 @@ fwd_bwd_functions = {
     "no_interleaving": forward_backward_pipelining_without_interleaving,
     "interleaving": _forward_backward_pipelining_with_interleaving,
 }
-
-
-def process_batch(batch):
-    if isinstance(batch, list):
-        x = batch[0]
-    else:
-        x = batch
-    return x
-
-
-def fwd_step_func(batch, model):
-    x = process_batch(batch)
-    y = model(x)
-
-    # note (mkozuki): I don't think this function is nice but I do think this is enough for now
-    # just to check the sanity of ported pipeline functions.
-    def loss_func(x):
-        loss = torch.sum(x)
-        averaged_loss = average_losses_across_data_parallel_group([loss])
-        return loss, {'avg': averaged_loss}
-    return y, loss_func
 
 
 # TODO (mkozuki): Add a case with `autocast` and `GradScaler`.
