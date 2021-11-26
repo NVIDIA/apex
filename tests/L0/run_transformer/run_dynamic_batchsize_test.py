@@ -122,7 +122,7 @@ def run_interleaved_with_dynamic_batch_size(
         assert isinstance(batch, (list, tuple))
         return [get_num_samples(b) for b in batch]
 
-    tensor_shape = [micro_batch_size, HIDDEN_SIZE]
+    tensor_shape = [micro_batch_size, HIDDEN_SIZE, HIDDEN_SIZE]
     consumed_samples = 0
     for i in range(NUM_ITERATIONS):
         update_num_microbatches(consumed_samples, consistency_check=False)

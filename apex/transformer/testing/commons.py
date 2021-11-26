@@ -49,7 +49,9 @@ class MyModel(nn.Module):
         self.input_tensor = None
 
     def set_input_tensor(self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]) -> None:
-        self.input_tensor = input_tensor
+        if not isinstance(input_tensor, list):
+            input_tensor = [input_tensor]
+        self.input_tensor = input_tensor[0]
 
     def forward(self, x: Optional[torch.Tensor]) -> torch.Tensor:
         if self.input_tensor is None:

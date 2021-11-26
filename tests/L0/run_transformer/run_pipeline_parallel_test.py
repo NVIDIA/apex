@@ -18,6 +18,7 @@ from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import print_separator
+from apex.transformer.testing.commons import model_provider_func
 from apex.transformer.log_util import get_transformer_logger, set_logging_level
 
 
@@ -33,42 +34,6 @@ fwd_bwd_functions = {
     "no_interleaving": forward_backward_pipelining_without_interleaving,
     "interleaving": _forward_backward_pipelining_with_interleaving,
 }
-
-
-# note (mkozuki): `pre_process` and `post_process` are a placeholder until interleaving schedule test comes.
-class MyLayer(nn.Module):
-
-    def __init__(self, pre_process: bool, post_process: bool):
-        super().__init__()
-        self.pre_process = pre_process
-        self.post_process = post_process
-        self.layer = nn.Linear(hidden_size, hidden_size)
-
-    def forward(self, x):
-        return self.layer(x)
-
-class MyModel(nn.Module):
-
-    def __init__(self, pre_process: bool = False, post_process: bool = False) -> None:
-        super().__init__()
-        self.pre_process = pre_process
-        self.post_process = post_process
-        self.layer = MyLayer(pre_process=pre_process, post_process=post_process)
-        self.input_tensor = None
-
-    def set_input_tensor(self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]) -> None:
-        if not isinstance(input_tensor, list):
-            input_tensor = [input_tensor]
-        self.input_tensor = input_tensor[0]
-
-    def forward(self, x: Optional[torch.Tensor]) -> torch.Tensor:
-        if self.input_tensor is None:
-            return self.layer(x)
-        return self.layer(self.input_tensor)
-
-
-def model_provider_func(pre_process, post_process) -> MyModel:
-    return MyModel(pre_process, post_process)
 
 
 def process_batch(batch):
@@ -122,6 +87,7 @@ def forward_backward_func_template(
         model_provider_func,
         wrap_with_ddp=True,
         virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
+        hidden_size=hidden_size,
     )
     assert isinstance(model, list)
     assert len(model) == (1 if virtual_pipeline_model_parallel_size is None else virtual_pipeline_model_parallel_size)
