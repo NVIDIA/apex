@@ -1,6 +1,7 @@
 import random
 import torch
 import traceback
+import os
 from typing import List
 from functools import partial
 from apex.transformer import tensor_parallel
@@ -32,11 +33,16 @@ EASY_MODE = False
 N_VOCAB = 128
 # download a public domain book as corpus
 def download_fancy_data():
-  import requests
-  response = requests.get('https://www.gutenberg.org/files/1342/1342-0.txt')
-  #response = requests.get('https://www.gutenberg.org/files/84/84-0.txt')
-  text = ' '.join(response.text.split())
-  encoded = text.encode('ascii', 'replace')
+  if not os.path.exists('data.txt'):
+    import requests
+    response = requests.get('https://www.gutenberg.org/files/1342/1342-0.txt')
+    #response = requests.get('https://www.gutenberg.org/files/84/84-0.txt')
+    text = ' '.join(response.text.split())
+    encoded = text.encode('ascii', 'replace')
+    with open('data.txt','w+') as f:
+      print(encoded, file=f)
+  else:
+    encoded = open('data.txt','r').read()
   ints = [int(encoded[i]) for i in range(len(encoded))]
   return torch.tensor(ints)
 
