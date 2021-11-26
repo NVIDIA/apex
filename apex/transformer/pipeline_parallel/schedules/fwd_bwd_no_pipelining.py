@@ -3,12 +3,12 @@ from typing import List, Union
 
 import torch
 
-from apex.transformer.enums import ModelType
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
-from apex.transformer.pipeline_parallel.utils import unwrap_model
-from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
+from apex.transformer.pipeline_parallel.utils import get_model_type
+from apex.transformer.pipeline_parallel.schedules.common import Batch
+from apex.transformer.pipeline_parallel.schedules.common import FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 from apex.transformer.log_util import get_transformer_logger
@@ -60,7 +60,7 @@ def forward_backward_no_pipelining(
         msg = f"`model` is expected be a `nn.Module`, but {type(model)}"
         raise RuntimeError(msg)
     model = model[0]
-    model_type = getattr(unwrap_model(model), "model_type", ModelType.encoder_or_decoder)
+    model_type = get_model_type(model)
 
     context_handler = placeholder_handler
     if isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):

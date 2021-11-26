@@ -3,14 +3,14 @@ from typing import List, Union, Optional, Sequence
 import torch
 
 from apex.transformer import parallel_state
-from apex.transformer.enums import ModelType
 from apex.transformer.pipeline_parallel import p2p_communication
-from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
+from apex.transformer.pipeline_parallel.schedules.common import Batch
+from apex.transformer.pipeline_parallel.schedules.common import FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-from apex.transformer.pipeline_parallel.utils import unwrap_model
+from apex.transformer.pipeline_parallel.utils import get_model_type
 from apex.transformer.log_util import get_transformer_logger
 
 
@@ -20,7 +20,7 @@ __all__ = ["_forward_backward_pipelining_with_interleaving"]
 _logger = get_transformer_logger(__name__)
 
 
-# TODO (mkozuki): Reduce cyclomatic complexity
+# TODO(mkozuki): Reduce cyclomatic complexity
 def _forward_backward_pipelining_with_interleaving(
         forward_step_func: FwdStepFunc,
         batch: List[Batch],
@@ -110,8 +110,9 @@ def _forward_backward_pipelining_with_interleaving(
 
     def forward_step_helper(microbatch_id: int, curr_iters: List[int]) -> torch.Tensor:
         """Helper method to run forward step with model split into chunks
-        (run set_virtual_pipeline_model_parallel_rank() before calling
-        forward_step())."""
+
+        (run set_virtual_pipeline_model_parallel_rank() before calling forward_step()).
+        """
         model_chunk_id = get_model_chunk_id(microbatch_id, forward=True)
         parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
@@ -141,10 +142,11 @@ def _forward_backward_pipelining_with_interleaving(
 
     def backward_step_helper(microbatch_id: int) -> torch.Tensor:
         """Helper method to run backward step with model split into chunks
-        (run set_virtual_pipeline_model_parallel_rank() before calling
-        backward_step())."""
+
+        (run set_virtual_pipeline_model_parallel_rank() before calling backward_step()).
+        """
         model_chunk_id = get_model_chunk_id(microbatch_id, forward=False)
-        model_type = getattr(unwrap_model(model[model_chunk_id]), "model_type", ModelType.encoder_or_decoder)
+        model_type = get_model_type(model[model_chunk_id])
         parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
         if parallel_state.is_pipeline_last_stage():
@@ -203,7 +205,8 @@ def _forward_backward_pipelining_with_interleaving(
             output_tensor_grads[num_model_chunks - 1].append(output_tensor_grad)
         else:
             _logger.debug("send fwd and receive fwd")
-            input_tensor = p2p_communication.send_forward_recv_forward(output_tensor, recv_prev=recv_prev, tensor_shape=tensor_shape)
+            input_tensor = p2p_communication.send_forward_recv_forward(
+                output_tensor, recv_prev=recv_prev, tensor_shape=tensor_shape)
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
 
     ###################################################################################################################
@@ -305,7 +308,8 @@ def _forward_backward_pipelining_with_interleaving(
             if k == (num_microbatches - 1):
                 recv_next = False
             output_tensor_grads[next_backward_model_chunk_id].append(
-                p2p_communication.send_backward_recv_backward(input_tensor_grad, recv_next=recv_next, tensor_shape=tensor_shape)
+                p2p_communication.send_backward_recv_backward(
+                    input_tensor_grad, recv_next=recv_next, tensor_shape=tensor_shape)
             )
 
     return losses_reduced

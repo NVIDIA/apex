@@ -1,4 +1,4 @@
-# NOTE (mkozuki): For simplicity, tentatively `timers` related operations are commented out.
+# NOTE(mkozuki): For simplicity, tentatively `timers` related operations are commented out.
 from typing import Any, Callable, Dict, List, Tuple, Union, Optional, Sequence
 
 import torch
@@ -8,6 +8,7 @@ from apex.transformer.enums import ModelType
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import unwrap_model
+from apex.transformer.pipeline_parallel.utils import get_model_type
 from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
 
@@ -20,8 +21,8 @@ def build_model(
         model_provider_func: Callable[[Any, Dict[str, Any]], torch.nn.Module],
         wrap_with_ddp: bool = True,
         virtual_pipeline_model_parallel_size: Optional[int] = None,
-        *args,
-        **kwargs
+        *args: Any,
+        **kwargs: Any,
 ) -> List[torch.nn.Module]:
     """Build the model satisfying pipeline model parallel requirements.
 
@@ -111,6 +112,7 @@ def _get_params_for_weight_decay_optimization(
         model: Union[torch.nn.Module, List[torch.nn.Module]],
 ) -> Dict[str, torch.nn.Parameter]:
     """Divide params into with-weight-decay and without-weight-decay groups.
+
     Layernorms and biases will have no weight decay but the rest will.
     """
     modules = listify_model(model)
@@ -161,7 +163,7 @@ def forward_step(
     # timers = get_timers()
     # timers("forward-compute").start()
     unwrapped_model = unwrap_model(model)
-    model_type = getattr(unwrapped_model, "model_type", ModelType.encoder_or_decoder)
+    model_type = get_model_type(unwrapped_model)
     # NOTE (mkozuki): The passed `model` is expected to implement `set_input_tensor`.
     # See https://github.com/NVIDIA/Megatron-LM/blob/5ac5571ba0265af4c491ee0af1508ca7589450c6/megatron/model/transformer.py#L679  # NOQA
     # for the details of `set_input_tensor`.
@@ -181,7 +183,6 @@ def forward_step(
     # If T5 model (or other model with encoder and decoder)
     # and in decoder stack, then send encoder_hidden_state
     # downstream as well.
-    # TODO (mkozuki): Handle model type things below.
     if parallel_state.is_pipeline_stage_after_split() and model_type == ModelType.encoder_and_decoder:
         return [output_tensor, input_tensor[-1]]
     if unwrap_output_tensor:
@@ -238,7 +239,6 @@ def backward_step(
             input_tensor_grad.append(None if x is None else x.grad)
 
     # Handle single skip connection if it exists (encoder_hidden_state in model with encoder and decoder).
-    # TODO (mkozuki): Handle model type things below.
     if (
             parallel_state.get_pipeline_model_parallel_world_size() > 1 and
             parallel_state.is_pipeline_stage_after_split() and

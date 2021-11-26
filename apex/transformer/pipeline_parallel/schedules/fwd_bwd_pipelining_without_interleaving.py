@@ -1,7 +1,6 @@
 from typing import Union, List, Optional, Sequence
 
 import torch
-from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 
 from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
@@ -9,8 +8,9 @@ from apex.transformer.pipeline_parallel import p2p_communication
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-from apex.transformer.pipeline_parallel.utils import unwrap_model
-from apex.transformer.pipeline_parallel.schedules.common import Batch, FwdStepFunc
+from apex.transformer.pipeline_parallel.utils import get_model_type
+from apex.transformer.pipeline_parallel.schedules.common import Batch
+from apex.transformer.pipeline_parallel.schedules.common import FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 from apex.transformer.log_util import get_transformer_logger
@@ -37,7 +37,9 @@ def get_tensor_shapes(
     # If model is T5 and rank is at the boundary:
     #     send one tensor (post-transpose from encoder).
     # Otherwise, send one tensor (pre-transpose).
-    assert len(tensor_shape) == 3, f"`tensor_shape` should be [sequence_length, micro_batch_size, hidden_size] but {tensor_shape}"
+    assert (
+        len(tensor_shape) == 3
+    ), f"`tensor_shape` should be [sequence_length, micro_batch_size, hidden_size] but {tensor_shape}"
     sequence_length, micro_batch_size, hidden_size = tensor_shape
     tensor_shapes = []
     if model_type == ModelType.encoder_and_decoder:
@@ -178,10 +180,14 @@ def forward_backward_pipelining_without_interleaving(
     num_warmup_microbatches: int = min(num_warmup_microbatches, num_microbatches)
     num_microbatches_remaining: int = num_microbatches - num_warmup_microbatches
 
-    model_type: ModelType = getattr(unwrap_model(model, (DDP,)), "model_type", ModelType.encoder_or_decoder)
+    model_type = get_model_type(model)
     rank: int = parallel_state.get_pipeline_model_parallel_rank()
-    recv_tensor_shapes: List[List[int]] = get_tensor_shapes(rank - 1, model_type, tensor_shape=tensor_shape, decoder_sequence_length=decoder_sequence_length)
-    send_tensor_shapes: List[List[int]] = get_tensor_shapes(rank, model_type, tensor_shape=tensor_shape, decoder_sequence_length=decoder_sequence_length)
+    recv_tensor_shapes: List[List[int]] = get_tensor_shapes(
+        rank - 1, model_type, tensor_shape=tensor_shape, decoder_sequence_length=decoder_sequence_length
+    )
+    send_tensor_shapes: List[List[int]] = get_tensor_shapes(
+        rank, model_type, tensor_shape=tensor_shape, decoder_sequence_length=decoder_sequence_length
+    )
 
     _logger.info(
         f"num_microbatches: {num_microbatches}, "
@@ -257,9 +263,7 @@ def forward_backward_pipelining_without_interleaving(
                 send_backward(input_tensor_grad, tensor_shapes=recv_tensor_shapes)
             else:
                 _logger.debug("send bwd and receive fwd")
-                input_tensor = send_backward_recv_forward(
-                    input_tensor_grad, tensor_shapes=recv_tensor_shapes
-                )
+                input_tensor = send_backward_recv_forward(input_tensor_grad, tensor_shapes=recv_tensor_shapes)
     ###################################################################################################################
     # Run cooldown backward passes.
     ###################################################################################################################
