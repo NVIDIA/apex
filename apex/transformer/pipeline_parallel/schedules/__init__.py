@@ -21,11 +21,6 @@ def get_forward_backward_func(
             if get_num_microbatches() % pipeline_model_parallel_size != 0:
                 msg = "number of microbatches is not divisible by pipeline-parallel size when using interleaved schedule"
                 raise RuntimeError(msg)
-            warnings.warn(
-                "Pipeline Model Parallel with interleaving scheduling is experimental. "
-                f"To use Pipeline Parallel without interleaving, set `virtual_pipeline_model_parallel_size` to `None`: {virtual_pipeline_model_parallel_size}",
-                ExperimentalWarning
-            )
             forward_backward_func = _forward_backward_pipelining_with_interleaving
         else:
             forward_backward_func = forward_backward_pipelining_without_interleaving
