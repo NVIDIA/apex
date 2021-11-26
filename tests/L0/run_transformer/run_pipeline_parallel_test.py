@@ -98,6 +98,7 @@ def forward_backward_func_template(
         forward_backward_func,
         pipeline_model_parallel_size: int,
         forward_only: bool,
+        enable_autocast: bool,
 ) -> None:
     print_separator(f"name: {name}, pipeline model parallel size: {pipeline_model_parallel_size}")
     virtual_pipeline_model_parallel_size = 2 if name == "interleaving" else None
@@ -132,8 +133,9 @@ def forward_backward_func_template(
     tensor_shape[0] = micro_batch_size
 
     update_num_microbatches(0)
-    forward_backward_func(
-        fwd_step_func, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
+    with torch.cuda.amp.autocast(enabled=enable_autocast):
+        forward_backward_func(
+            fwd_step_func, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
 
     if not forward_only:
         for m in model:
@@ -165,26 +167,28 @@ if __name__ == "__main__":
     )
     for forward_only in (True, False):
         for name, forward_backward_func in fwd_bwd_functions.items():
-            n_tests += 1
-            # TODO (mkozuki): Test with data parallel size > 1.
-            pipeline_model_parallel_size = world_size
-            try:
-                forward_backward_func_template(
-                    name,
-                    forward_backward_func,
-                    pipeline_model_parallel_size,
-                    forward_only,
-                )
-            except Exception as e:
-                failures.append(
-                    f"\t# {name} failed with pipeline size: {pipeline_model_parallel_size} "
-                    f"and forward_only: {forward_only}\n"
-                    f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
-                    f"virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
-                    f"{str(e)}"
-                )
-            finally:
-                parallel_state.destroy_model_parallel()
+            for enable_autocast in (True, False):
+                n_tests += 1
+                # TODO (mkozuki): Test with data parallel size > 1.
+                pipeline_model_parallel_size = world_size
+                try:
+                    forward_backward_func_template(
+                        name,
+                        forward_backward_func,
+                        pipeline_model_parallel_size,
+                        forward_only,
+                        enable_autocast,
+                    )
+                except Exception as e:
+                    failures.append(
+                        f"\t# {name} failed with pipeline size: {pipeline_model_parallel_size} "
+                        f"and forward_only: {forward_only}\n"
+                        f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
+                        f"virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
+                        f"{str(e)}"
+                    )
+                finally:
+                    parallel_state.destroy_model_parallel()
         else:
             print_separator(f"{name} works")
     print_separator("TEST RESULT")
