@@ -38,11 +38,12 @@ def download_fancy_data():
     response = requests.get('https://www.gutenberg.org/files/1342/1342-0.txt')
     #response = requests.get('https://www.gutenberg.org/files/84/84-0.txt')
     text = ' '.join(response.text.split())
-    encoded = text.encode('ascii', 'replace')
+    
     with open('data.txt','w+') as f:
-      print(encoded, file=f)
+      print(text, file=f)
   else:
-    encoded = open('data.txt','r').read()
+    text = open('data.txt','r').read()
+  encoded = text.encode('ascii', 'replace')
   ints = [int(encoded[i]) for i in range(len(encoded))]
   return torch.tensor(ints)
 
