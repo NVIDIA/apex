@@ -1049,7 +1049,8 @@ class Embedding(MegatronModule):
 
         # Embeddings dropout
         self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
-        print("FINISH WORD EMBEDDING", self.word_embeddings)
+        if torch.distributed.get_rank() == 0:
+            print("FINISH WORD EMBEDDING", self.word_embeddings)
 
     def zero_parameters(self):
         """Zero out all parameters in embedding."""
@@ -1506,6 +1507,7 @@ class GPTModel(MegatronModule):
 
 
 def gpt_model_provider(pre_process=True, post_process=False, cpu_offload=False):
-    print("Initializing GPT-2 w/:",{'pre_process':pre_process, 'post_process':post_process, 'cpu_offload':cpu_offload})
+    if torch.distributed.get_rank() == 0:
+        print("Initializing GPT-2 w/:",{'pre_process':pre_process, 'post_process':post_process, 'cpu_offload':cpu_offload})
     model = GPTModel(num_tokentypes=0, parallel_output=True, pre_process=pre_process, post_process=post_process, cpu_offload=cpu_offload)
     return model
