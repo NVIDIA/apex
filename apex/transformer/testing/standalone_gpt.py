@@ -1426,6 +1426,17 @@ def post_language_model_processing(lm_output, labels, logit_weights, parallel_ou
             loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
         return loss
 
+def module_size(m: torch.nn.Module, only_trainable: bool = False):
+    """
+    returns the total number of parameters used by `m` (only counting
+    shared parameters once); if `only_trainable` is True, then only
+    includes parameters with `requires_grad = True`
+    """
+    parameters = list(m.parameters())
+    if only_trainable:
+        parameters = [p for p in parameters if p.requires_grad]
+    unique = {p.data_ptr(): p for p in parameters}.values()
+    return sum(p.numel() for p in unique)
 
 class GPTModel(MegatronModule):
     """GPT-2 Language model."""
@@ -1507,7 +1518,8 @@ class GPTModel(MegatronModule):
 
 
 def gpt_model_provider(pre_process=True, post_process=False, cpu_offload=False):
-    if torch.distributed.get_rank() == 0:
-        print("Initializing GPT-2 w/:",{'pre_process':pre_process, 'post_process':post_process, 'cpu_offload':cpu_offload})
     model = GPTModel(num_tokentypes=0, parallel_output=True, pre_process=pre_process, post_process=post_process, cpu_offload=cpu_offload)
+    if torch.distributed.get_rank() == 0:
+        init_dict = {'num_params': module_size(model), 'pre_process':pre_process, 'post_process':post_process, 'cpu_offload':cpu_offload}
+        print("Initialized GPT-2 w/:", init_dict)
     return model

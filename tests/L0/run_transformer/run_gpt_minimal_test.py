@@ -3,6 +3,7 @@ import torch
 import traceback
 import os
 from typing import List
+import time
 from functools import partial
 from apex.transformer import tensor_parallel
 from apex.transformer import parallel_state
@@ -115,7 +116,9 @@ def train(model, optim, pipeline_model_parallel_size):
     fwd_bwd_func = forward_backward_pipelining_without_interleaving
 
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
-    for i in range(8):
+    runtime = 0
+    for i in range(5):
+      since = time.time()
       if torch.distributed.get_rank() == 0:
         print('begin iter', i)
       batch = [generate_fancy_data_labels(args.seq_length, args.global_batch_size) for _ in range(pipeline_model_parallel_size)]
@@ -128,7 +131,8 @@ def train(model, optim, pipeline_model_parallel_size):
       optim.step()
       if torch.distributed.get_rank() == 0:
         print('finished iter', i)
-
+      runtime += time.time() - since
+    return runtime
 if __name__ == '__main__':
     global fancy_data
     global effective_length
@@ -171,9 +175,10 @@ if __name__ == '__main__':
     assert isinstance(model, list), model
     _param_groups = _get_params_for_weight_decay_optimization(model)
     optim = torch.optim.Adam(_param_groups)
-    train(model, optim, args.pipeline_model_parallel_size)
+    runtime = train(model, optim, args.pipeline_model_parallel_size)
 
     parallel_state.destroy_model_parallel()
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:
         print(TEST_SUCCESS_MESSAGE)
+        print("Average Iteration Time:", runtime)
