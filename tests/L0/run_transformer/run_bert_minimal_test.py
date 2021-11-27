@@ -6,10 +6,9 @@ from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import vocab_parallel_cross_entropy
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
-#from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+from apex.transformer.pipeline_parallel.schedules import get_forward_backward_func
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
-from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
 
 from apex.transformer.testing.standalone_bert import bert_model_provider 
 from apex.transformer.testing import global_vars
@@ -29,10 +28,13 @@ ONCE = False
 
 # download a public domain book as corpus
 def download_fancy_data():
-  import requests
-  response = requests.get('https://www.gutenberg.org/files/1342/1342-0.txt')
-  #response = requests.get('https://www.gutenberg.org/files/84/84-0.txt')
-  text = ' '.join(response.text.split())
+  #import requests
+  #response = requests.get('https://internet.com/book.txt')
+  #text = ' '.join(response.text.split())
+  text = """
+  An original sentence not subject to any license restrictions, copyright, or royalty payments. Nothing to see here. Commercial or non-commercial use. Research or non-research purposes. The quick brown fox jumps over the lazy dog. Lorem ipsum.
+  """
+  text = text*1024
   encoded = text.encode('ascii', 'replace')
   ints = [int(encoded[i]) for i in range(len(encoded))]
   return torch.tensor(ints)
@@ -75,7 +77,6 @@ def generate_fancy_data_labels(sequence_len, batch_size):
 easy_data = None
 
 def fwd_step_func(batch, model):
-    global ONCE
     data, label, loss_mask = batch
     data = data.cuda()
     label = label.cuda()
@@ -83,6 +84,7 @@ def fwd_step_func(batch, model):
     y = model(data, torch.ones_like(data), lm_labels=label)
 
     def loss_func(output_tensor):
+        global ONCE
         output_tensor, _ = output_tensor
         lm_loss_ = output_tensor.float()
         lm_loss = torch.sum(
@@ -97,11 +99,11 @@ def fwd_step_func(batch, model):
     return y, loss_func
 
 
-def train(model, optim):
+def train(model, optim, virtual_pipeline_model_parallel_size, pipeline_model_parallel_size):
     sequence_len = global_vars.get_args().seq_length
     micro_batch_size = global_vars.get_args().micro_batch_size
     hidden_size = global_vars.get_args().hidden_size
-    forward_backward_func = _forward_backward_pipelining_with_interleaving
+    forward_backward_func = get_forward_backward_func(virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
     for _ in range(8):
         batch = generate_fancy_data_labels(sequence_len, batch_size)
@@ -133,7 +135,7 @@ if __name__ == '__main__':
             args.rampup_batch_size,
             args.global_batch_size,
             args.micro_batch_size,
-            args.data_parallel_size,
+            1,  # args.data_parallel_size,
         )
         virtual_pipeline_model_parallel_size = 2
         world_size = torch.distributed.get_world_size()
@@ -153,7 +155,7 @@ if __name__ == '__main__':
         optim = torch.optim.Adam(_param_groups)
         print(effective_length)
         print(fancy_data.size(0))
-        train(model, optim)
+        train(model, optim, virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
     except Exception as e:
         failure = str(e)
     finally:
@@ -161,7 +163,7 @@ if __name__ == '__main__':
     if failure is not None:
         torch.distributed.barrier()
         if torch.distributed.get_rank() == 0:
-            print(f"Minimal BERT Pipeline Parallel Failed with {e}")
+            print(f"Minimal BERT Pipeline Parallel Failed with: {failure}")
     else:
         torch.distributed.barrier()
         if torch.distributed.get_rank() == 0:

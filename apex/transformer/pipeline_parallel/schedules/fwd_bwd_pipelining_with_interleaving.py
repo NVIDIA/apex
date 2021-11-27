@@ -9,7 +9,13 @@ from apex.transformer.pipeline_parallel.schedules.common import backward_step
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-from apex.transformer.utils import rank_print
+from apex.transformer.log_util import get_transformer_logger
+
+
+__all__ = ["_forward_backward_pipelining_with_interleaving"]
+
+
+_logger = get_transformer_logger(__name__)
 
 
 # TODO (mkozuki): Reduce cyclomatic complexity
@@ -82,13 +88,11 @@ def _forward_backward_pipelining_with_interleaving(
             num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
     num_microbatches_remaining = num_microbatches - num_warmup_microbatches
 
-
-    # TODO (mkozuki): Remove once debug gets done
-    # rank_print(
-    #     f"num_microbatches: {num_microbatches}, "
-    #     f"num_warmup_microbatches: {num_warmup_microbatches}, "
-    #     f"num_microbatches_remaining: {num_microbatches_remaining} -- "
-    # )
+    _logger.info(
+        f"num_microbatches: {num_microbatches}, "
+        f"num_warmup_microbatches: {num_warmup_microbatches}, "
+        f"num_microbatches_remaining: {num_microbatches_remaining}"
+    )
 
     ###################################################################################################################
     # Helper function definitions.
@@ -155,8 +159,9 @@ def _forward_backward_pipelining_with_interleaving(
     ###################################################################################################################
     parallel_state.set_virtual_pipeline_model_parallel_rank(0)
     input_tensors[0].append(p2p_communication.recv_forward(tensor_shape=tensor_shape))
+    _logger.info("Warmup phase")
     for k in range(num_warmup_microbatches):
-        # rank_print(f"warmup iter: {k}")
+        _logger.debug(f"warmup iter: {k} / {num_warmup_microbatches}")
         output_tensor = forward_step_helper(k, curr_iters)
 
         # Determine if tensor should be received from previous stage.
@@ -167,20 +172,21 @@ def _forward_backward_pipelining_with_interleaving(
                 recv_prev = False
         if k == (num_microbatches - 1):
             recv_prev = False
+        _logger.debug(f"next fwd model chunk ID: {next_forward_model_chunk_id}, recv_prev: {recv_prev}")
 
         # Don't send tensor downstream if on last stage.
         if parallel_state.is_pipeline_last_stage():
+            _logger.debug("Pipeline last stage, not sending tensor downstream")
             output_tensor = None
 
-        # rank_print(f"recv_prev: {recv_prev}")
         # Send and receive tensors as appropriate (send tensors computed
         # in this iteration; receive tensors for next iteration).
         if k == (num_warmup_microbatches - 1) and not forward_only and not all_warmup_microbatches:
             input_tensor_grad = None
             recv_next = True
-            # rank_print(f"recv_next: {recv_next}")
             if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                 recv_next = False
+            _logger.debug("send fwd&bwd and receive fwd&bwd")
             (
                 input_tensor,
                 output_tensor_grad,
@@ -193,17 +199,17 @@ def _forward_backward_pipelining_with_interleaving(
             )
             output_tensor_grads[num_model_chunks - 1].append(output_tensor_grad)
         else:
-            # rank_print("send_forward_recv_forward start")
+            _logger.debug("send fwd and receive fwd")
             input_tensor = p2p_communication.send_forward_recv_forward(output_tensor, recv_prev=recv_prev, tensor_shape=tensor_shape)
-            # rank_print("send_forward_recv_forward finish")
-        # rank_print("communication done")
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
 
     ###################################################################################################################
     # Run 1F1B in steady state.
     ###################################################################################################################
+    _logger.info("Steady phase")
     for k in range(num_microbatches_remaining):
         # Forward pass.
+        _logger.debug(f" steady phase iter {k} / {num_microbatches_remaining}")
         forward_k = k + num_warmup_microbatches
         output_tensor = forward_step_helper(forward_k, curr_iters)
 
@@ -223,6 +229,7 @@ def _forward_backward_pipelining_with_interleaving(
 
         backward_model_chunk_id = get_model_chunk_id(backward_k, forward=False)
         parallel_state.set_virtual_pipeline_model_parallel_rank(backward_model_chunk_id)
+        _logger.debug(f"fwd/bwd model chunk id: {forward_model_chunk_id}/{backward_model_chunk_id}")
         if parallel_state.is_pipeline_first_stage():
             input_tensor_grad = None
 
@@ -258,6 +265,7 @@ def _forward_backward_pipelining_with_interleaving(
             recv_prev = False
 
         # Communicate tensors.
+        _logger.debug("send fwd&bwd and receive fwd&bwd")
         (
             input_tensor,
             output_tensor_grad,
@@ -279,10 +287,12 @@ def _forward_backward_pipelining_with_interleaving(
     ###################################################################################################################
     # Run cooldown backward passes (flush out pipeline).
     ###################################################################################################################
+    _logger.info("Cooldown phase")
     if not forward_only:
         if all_warmup_microbatches:
             output_tensor_grads[num_model_chunks - 1].append(p2p_communication.recv_backward(tensor_shape=tensor_shape))
         for k in range(num_microbatches_remaining, num_microbatches):
+            _logger.debug(f"cooldown iter {k} in range({num_microbatches_remaining}, {num_microbatches})")
             input_tensor_grad = backward_step_helper(k)
             next_backward_model_chunk_id = get_model_chunk_id(k + 1, forward=False)
             recv_next = True
