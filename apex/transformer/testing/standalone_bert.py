@@ -106,7 +106,8 @@ class BertModel(MegatronModule):
                  add_binary_head=True,
                  parallel_output=True,
                  pre_process=True,
-                 post_process=True):
+                 post_process=True,
+                 cpu_offload=False):
         super(BertModel, self).__init__()
         args = get_args()
 
@@ -115,7 +116,7 @@ class BertModel(MegatronModule):
         self.parallel_output = parallel_output
         self.pre_process = pre_process
         self.post_process = post_process
-
+        self.cpu_offload = cpu_offload
         init_method = init_method_normal(args.init_method_std)
         scaled_init_method = scaled_init_method_normal(args.init_method_std,
                                                        args.num_layers)
@@ -212,6 +213,6 @@ class BertModel(MegatronModule):
             self.word_embeddings.load_state_dict(
                 state_dict[self._word_embeddings_for_head_key], strict=strict)
 
-def bert_model_provider(pre_process=True, post_process=True):
-    model = BertModel(num_tokentypes=0, add_binary_head=False, pre_process=pre_process, post_process=post_process)
+def bert_model_provider(pre_process=True, post_process=True, cpu_offload=False):
+    model = BertModel(num_tokentypes=0, add_binary_head=False, pre_process=pre_process, post_process=post_process, cpu_offload=cpu_offload)
     return model
