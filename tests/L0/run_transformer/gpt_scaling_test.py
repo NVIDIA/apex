@@ -29,17 +29,19 @@ def run_gpt(cmd):
 	for out in outs:
 		out=str(out)
 		if "Average Iteration Time:" in str(out):
-			slicey = out[out.find(':')+2:].replace("'","\"")
+			slicey = out[out.find(':')+2:]
 			try:
-				init_dict = float(slicey)
+				runtime = float(slicey)
 			except:
 				print(slicey)
-		if "Initialized GPT-2 w/:" in str(out):
-			slicey = out[out.find(':')+2:].replace("'","\"")
+				quit()
+		if "Number of Parameters:" in str(out):
+			slicey = out[out.find(':')+2:]
 			try:
-				init_dict = json.loads(slicey)
+				num_params = int(slicey)
 			except:
 				print(slicey)
+				quit()
 		if str(out) == str(TEST_SUCCESS_MESSAGE):
 			success=True
 	return runtime, float(int(init_dict['num_params']))/10.0**9, success, errs
