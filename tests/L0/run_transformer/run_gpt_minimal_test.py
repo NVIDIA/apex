@@ -121,7 +121,8 @@ def train(model, optim, pipeline_model_parallel_size):
       since = time.time()
       if torch.distributed.get_rank() == 0:
         print('begin iter', i)
-      batch = [generate_fancy_data_labels(args.seq_length, args.global_batch_size) for _ in range(pipeline_model_parallel_size)]
+      # batch = [generate_fancy_data_labels(args.seq_length, args.global_batch_size) for _ in range(pipeline_model_parallel_size)]
+      batch = generate_fancy_data_labels(args.seq_length, args.global_batch_size)
       if torch.distributed.get_rank() == 0:
         print("finished making batch...")
       optim.zero_grad()
