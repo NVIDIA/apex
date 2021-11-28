@@ -22,8 +22,9 @@ def run_gpt(cmd):
 	args = list(cmd.split(' '))
 	p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	outs, errs = p.communicate()
-	outs = list(str(outs).split('\\\\n'))
+	outs = list(str(outs).encode('ascii', 'replace').split('\n'))
 	print(outs)
+	quit()
 	success = False
 	runtime = 0
 	init_dict = {'num_params':0}
