@@ -71,7 +71,7 @@ def main():
 			else:
 				print("GPT-2 w/", n, "layers failed using", dist_setting)
 				print("Moving on to the next distributed setting...")
-				print("#*25")
+				print("#"*(25))
 				print()
 				break
 	print(runtimes)
