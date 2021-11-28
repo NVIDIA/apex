@@ -50,7 +50,7 @@ def main():
 	runtimes = {}
 	for data_parr, tens_parr, pipe_parr in [(8,1,1), (4,2,1), (2,1,4), (1,2,4)]:
 		dist_setting = 'ddp=' + str(data_parr) + ', tensor_parr=' + str(tens_parr) + ', pipe_parr=' + str(pipe_parr)
-		runtimess[dist_setting] = {} 
+		runtimes[dist_setting] = {} 
 		print("Beginning Testing for", dist_setting)
 		for n in range(500,1000000,500):
 			cmd = "WORLDSIZE=8 python3 -m torch.distributed.launch --nproc_per_node=8 run_gpt_minimal_test.py \
