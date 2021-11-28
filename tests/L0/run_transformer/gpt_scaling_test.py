@@ -9,7 +9,7 @@ import random
 import numpy as np
 import subprocess
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
-
+import json
 
 def set_seed():
 	random.seed(0)
