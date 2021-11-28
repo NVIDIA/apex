@@ -68,3 +68,4 @@ def main():
 				break
 	print(runtimes)
 	plot(runtimes)
+main()
