@@ -18,7 +18,7 @@ def set_seed():
 	torch.cuda.manual_seed_all(0)
 
 
-def run_gpt(n):
+def run_gpt(cmd):
 	args = list(cmd.split(' '))
 	p = subprocess.Popen(args)
 	outs, errs = p.communicate(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
