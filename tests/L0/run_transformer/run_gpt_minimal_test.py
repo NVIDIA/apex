@@ -132,7 +132,7 @@ def train(model, optim, pipeline_model_parallel_size):
       if torch.distributed.get_rank() == 0:
         print('finished iter', i)
       runtime += time.time() - since
-    return runtime
+    return runtime/5.0
 if __name__ == '__main__':
     global fancy_data
     global effective_length
