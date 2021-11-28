@@ -77,9 +77,6 @@ def main():
 				print(str(runtime) + 's per training iter for', str(bill_params) + 'B parameter GPT-2s')
 			else:
 				print("GPT-2 w/", n, "layers failed using", dist_setting)
-				if sys.argv[1] == '-v' or sys.argv[1] == '--verbose':
-					print("STDERR:")
-					print(errs)
 				print("Moving on to the next distributed setting...")
 				break
 	print(runtimes)
