@@ -20,8 +20,8 @@ def set_seed():
 
 def run_gpt(cmd):
 	args = list(cmd.split(' '))
-	p = subprocess.Popen(args)
-	outs, errs = p.communicate(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	outs, errs = p.communicate()
 	outs = outs.splitlines()
 	success = False
 	for out in outs:
