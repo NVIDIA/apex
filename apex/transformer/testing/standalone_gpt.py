@@ -1521,5 +1521,6 @@ def gpt_model_provider(pre_process=True, post_process=False, cpu_offload=False):
     if torch.distributed.get_rank() == 0:
         init_dict = {"pre_process":pre_process, "post_process":post_process, "cpu_offload":cpu_offload}
         print("Initialized GPT-2 w/:", json.dumps(init_dict))
-        print("Number of Parameters:", module_size(model))
+        n_params = module_size(model) * parallel_state.get_tensor_model_parallel_world_size() * parallel_state.get_pipeline_model_parallel_world_size()
+        print("Number of Parameters:", n_params)
     return model
