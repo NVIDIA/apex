@@ -22,7 +22,7 @@ def run_gpt(cmd):
 	args = list(cmd.split(' '))
 	p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	outs, errs = p.communicate()
-	outs = list(str((outs).encode('ascii', 'replace')).splitlines())
+	outs = list(str((outs).decode('utf-8')).splitlines())
 	print(outs)
 	quit()
 	success = False
