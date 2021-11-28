@@ -24,6 +24,8 @@ def run_gpt(cmd):
 	outs, errs = p.communicate()
 	outs = list(str((outs).decode('utf-8')).splitlines())
 	success = False
+	runtime = 0
+	num_params = 0
 	for out in outs:
 		out=str(out)
 		if "Average Iteration Time:" in str(out):
