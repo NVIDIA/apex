@@ -25,7 +25,7 @@ def run_gpt(cmd):
 	outs = list(str((outs).decode('utf-8')).splitlines())
 	success = False
 	runtime = 0
-	init_dict = {'num_params':0}
+	num_params = 0
 	for out in outs:
 		out=str(out)
 		if "Average Iteration Time:" in str(out):
@@ -44,7 +44,7 @@ def run_gpt(cmd):
 				quit()
 		if str(out) == str(TEST_SUCCESS_MESSAGE):
 			success=True
-	return runtime, round(float(int(init_dict['num_params']))/10.0**9,2), success, errs
+	return runtime, round(float(int(num_params))/10.0**9,2), success, errs
 
 
 def plot(runtimes):
@@ -74,7 +74,7 @@ def main():
 			runtime, bill_params, success, errs = run_gpt(cmd)
 			if success:
 				runtimes[dist_setting][bill_params] = runtime
-				print(runtime, 's per training iter for ', str(bill_params) + 'B parameter GPT-2')
+				print(str(runtime) + 's per training iter for', str(bill_params) + 'B parameter GPT-2s')
 			else:
 				print("GPT-2 w/", n, "layers failed using", dist_setting)
 				if sys.argv[1] == '-v' or sys.argv[1] == '--verbose':
