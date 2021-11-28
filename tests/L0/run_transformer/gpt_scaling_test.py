@@ -24,6 +24,7 @@ def run_gpt(cmd):
 	outs, errs = p.communicate()
 	outs = outs.splitlines()
 	success = False
+	runtime = 0
 	for out in outs:
 		if "Average Iteration Time:" in out:
 			runtime = float(out[out.find(':')+1:])
@@ -31,7 +32,7 @@ def run_gpt(cmd):
 			init_dict = json.loads(out[out.find(':')+1:])
 		if out == TEST_SUCCESS_MESSAGE:
 			success=True
-	return runtime, float(int(init_dict['num_params']))/10.0**9, success
+	return runtime, float(int(init_dict['num_params']))/10.0**9, success, errs
 
 
 def plot(runtimes):
@@ -58,12 +59,14 @@ def main():
 			cmd += '--max-position-embeddings 128 --seq-length 128 --tensor-model-parallel-size ' + str(tens_parr)
 			cmd += " --pipeline-model-parallel-size " + str(pipe_parr)
 			print(cmd)
-			runtime, bill_params, success = run_gpt(cmd)
+			runtime, bill_params, success, errs = run_gpt(cmd)
 			if success:
 				runtimes[dist_setting][bill_params] = runtime
 				print(runtime, 'ms')
 			else:
 				print("GPT-2 w/", n, "layers failed using", dist_setting)
+				print("STDERR:")
+				print(errs)
 				print("Moving on to the next distributed setting...")
 				break
 	print(runtimes)
