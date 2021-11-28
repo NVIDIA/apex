@@ -1,5 +1,5 @@
 import torch
-
+import contextlib
 from apex.normalization import FusedLayerNorm as LayerNorm
 from apex.transformer import tensor_parallel
 from apex.transformer.enums import AttnMaskType
@@ -147,31 +147,31 @@ class BertModel(MegatronModule):
 
     def forward(self, bert_model_input, attention_mask,
                 tokentype_ids=None, lm_labels=None):
+        with torch.autograd.graph.save_on_cpu() if self.cpu_offload else contextlib.nullcontext():
+            extended_attention_mask = bert_extended_attention_mask(attention_mask)
+            input_ids = bert_model_input
+            position_ids = bert_position_ids(input_ids)
 
-        extended_attention_mask = bert_extended_attention_mask(attention_mask)
-        input_ids = bert_model_input
-        position_ids = bert_position_ids(input_ids)
+            lm_output = self.language_model(
+                input_ids,
+                position_ids,
+                extended_attention_mask,
+                tokentype_ids=tokentype_ids
+            )
 
-        lm_output = self.language_model(
-            input_ids,
-            position_ids,
-            extended_attention_mask,
-            tokentype_ids=tokentype_ids
-        )
+            if self.post_process and self.add_binary_head:
+                lm_output, pooled_output = lm_output
+            else:
+                pooled_output = None
 
-        if self.post_process and self.add_binary_head:
-            lm_output, pooled_output = lm_output
-        else:
-            pooled_output = None
-
-        if self.post_process:
-            return post_language_model_processing(lm_output, pooled_output,
-                                                  self.lm_head, self.binary_head,
-                                                  lm_labels,
-                                                  self.word_embeddings_weight(),
-                                                  self.fp16_lm_cross_entropy)
-        else:
-            return lm_output
+            if self.post_process:
+                return post_language_model_processing(lm_output, pooled_output,
+                                                      self.lm_head, self.binary_head,
+                                                      lm_labels,
+                                                      self.word_embeddings_weight(),
+                                                      self.fp16_lm_cross_entropy)
+            else:
+                return lm_output
 
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='',
