@@ -17,6 +17,7 @@
 import enum
 import math
 import contextlib
+import json
 
 import torch
 import torch.nn.functional as F
@@ -1519,5 +1520,5 @@ def gpt_model_provider(pre_process=True, post_process=False, cpu_offload=False):
     model = GPTModel(num_tokentypes=0, parallel_output=True, pre_process=pre_process, post_process=post_process, cpu_offload=cpu_offload)
     if torch.distributed.get_rank() == 0:
         init_dict = {'num_params': module_size(model), 'pre_process':pre_process, 'post_process':post_process, 'cpu_offload':cpu_offload}
-        print("Initialized GPT-2 w/:", init_dict)
+        print("Initialized GPT-2 w/:", json.dumps(init_dict))
     return model
