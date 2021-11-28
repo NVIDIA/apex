@@ -117,7 +117,7 @@ def train(model, optim, pipeline_model_parallel_size):
 
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
     runtime = 0
-    for i in range(5):
+    for i in range(3):
       since = time.time()
       if torch.distributed.get_rank() == 0:
         print('begin iter', i)
@@ -132,7 +132,7 @@ def train(model, optim, pipeline_model_parallel_size):
       if torch.distributed.get_rank() == 0:
         print('finished iter', i)
       runtime += time.time() - since
-    return runtime/5.0
+    return runtime/3.0
 if __name__ == '__main__':
     global fancy_data
     global effective_length
