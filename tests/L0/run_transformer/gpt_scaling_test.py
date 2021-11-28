@@ -27,6 +27,7 @@ def run_gpt(cmd):
 	runtime = 0
 	init_dict = {'num_params':0}
 	for out in outs:
+		out=str(out)
 		if "Average Iteration Time:" in str(out):
 			slicey = out[out.find(':')+2:].replace("'","\"")
 			try:
