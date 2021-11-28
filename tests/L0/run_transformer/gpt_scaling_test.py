@@ -22,16 +22,16 @@ def run_gpt(cmd):
 	args = list(cmd.split(' '))
 	p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	outs, errs = p.communicate()
-	outs = outs.splitlines()
+	outs = list(str(outs).splitlines())
 	success = False
 	runtime = 0
 	init_dict = {'num_params':0}
 	for out in outs:
-		if "Average Iteration Time:" in out:
+		if "Average Iteration Time:" in str(out):
 			runtime = float(out[out.find(':')+1:])
-		if "Initialized GPT-2 w/:" in out:
+		if "Initialized GPT-2 w/:" in str(out):
 			init_dict = json.loads(out[out.find(':')+1:])
-		if out == TEST_SUCCESS_MESSAGE:
+		if str(out) == str(TEST_SUCCESS_MESSAGE):
 			success=True
 	return runtime, float(int(init_dict['num_params']))/10.0**9, success, errs
 
