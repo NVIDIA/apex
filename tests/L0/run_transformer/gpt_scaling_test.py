@@ -25,6 +25,7 @@ def run_gpt(cmd):
 	outs = outs.splitlines()
 	success = False
 	runtime = 0
+	init_dict = {'num_params':0}
 	for out in outs:
 		if "Average Iteration Time:" in out:
 			runtime = float(out[out.find(':')+1:])
