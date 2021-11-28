@@ -30,7 +30,7 @@ def run_gpt(cmd):
 		if "Average Iteration Time:" in str(out):
 			runtime = float(out[out.find(':')+2:])
 		if "Initialized GPT-2 w/:" in str(out):
-			init_dict = json.loads(out[out.find(':')+2:])
+			init_dict = json.loads(out[out.find(':')+2:].replace("'","\"")
 		if str(out) == str(TEST_SUCCESS_MESSAGE):
 			success=True
 	return runtime, float(int(init_dict['num_params']))/10.0**9, success, errs
