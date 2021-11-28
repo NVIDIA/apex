@@ -56,8 +56,8 @@ def main():
 		print("Beginning Testing for", dist_setting)
 		for n in range(500,1000000,500):
 			cmd = "python3 -m torch.distributed.launch --nproc_per_node=8 run_gpt_minimal_test.py"
-			cmd += "--micro-batch-size 1 --num-layers " + str(n) + " --hidden-size 128 --num-attention-heads 16"
-			cmd += '--max-position-embeddings 128 --seq-length 128 --tensor-model-parallel-size ' + str(tens_parr)
+			cmd += " --micro-batch-size 1 --num-layers " + str(n) + " --hidden-size 128 --num-attention-heads 16"
+			cmd += ' --max-position-embeddings 128 --seq-length 128 --tensor-model-parallel-size ' + str(tens_parr)
 			cmd += " --pipeline-model-parallel-size " + str(pipe_parr)
 			print(cmd)
 			runtime, bill_params, success, errs = run_gpt(cmd)
@@ -66,8 +66,9 @@ def main():
 				print(runtime, 'ms')
 			else:
 				print("GPT-2 w/", n, "layers failed using", dist_setting)
-				print("STDERR:")
-				print(errs)
+				if sys.argv[1] == '-v' or sys.argv[1] == '--verbose':
+					print("STDERR:")
+					print(errs)
 				print("Moving on to the next distributed setting...")
 				break
 	print(runtimes)
