@@ -18,13 +18,9 @@ from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
 
-mode = None
 MANUAL_SEED = 42
 inds = None
-masks = None
 data_idx = 0
-MASK_PROB = 0.1
-EASY_MODE = False
 N_VOCAB = 128
 # download a public domain book as corpus
 def download_fancy_data():
