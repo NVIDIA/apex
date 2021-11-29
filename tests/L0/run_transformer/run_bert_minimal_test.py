@@ -105,12 +105,18 @@ def train(model, optim, virtual_pipeline_model_parallel_size, pipeline_model_par
     hidden_size = global_vars.get_args().hidden_size
     forward_backward_func = get_forward_backward_func(virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
-    for _ in range(8):
+    for i in range(8):
+        if torch.distributed.get_rank() == 0:
+          print('begin iter', i)
         batch = generate_fancy_data_labels(sequence_len, batch_size)
+        if torch.distributed.get_rank() == 0:
+          print("finished making batch...")
         optim.zero_grad()
         forward_backward_func(fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape)
         optim.step()
-
+        if torch.distributed.get_rank() == 0:
+          print('finished iter', i)
+          print()
 if __name__ == '__main__':
     global fancy_data
     global effective_length
