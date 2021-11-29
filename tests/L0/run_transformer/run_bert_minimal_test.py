@@ -9,6 +9,8 @@ from apex.transformer.pipeline_parallel.utils import average_losses_across_data_
 from apex.transformer.pipeline_parallel.schedules import get_forward_backward_func
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
+
 
 from apex.transformer.testing.standalone_bert import bert_model_provider 
 from apex.transformer.testing import global_vars
