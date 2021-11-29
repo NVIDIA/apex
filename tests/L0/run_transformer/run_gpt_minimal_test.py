@@ -5,24 +5,20 @@ import os
 from typing import List
 import time
 from functools import partial
-from apex.transformer import tensor_parallel
 from apex.transformer import parallel_state
-from apex.transformer.tensor_parallel import vocab_parallel_cross_entropy
 from apex.transformer.tensor_parallel import model_parallel_cuda_manual_seed
 
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
 from apex.transformer.pipeline_parallel.utils import get_ltor_masks_and_position_ids
-#from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
 
-from apex.transformer.testing.standalone_gpt import post_language_model_processing, gpt_model_provider 
+from apex.transformer.testing.standalone_gpt import gpt_model_provider 
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
-from apex.transformer.testing.commons import print_separator
 
 mode = None
 MANUAL_SEED = 42
@@ -37,9 +33,7 @@ def download_fancy_data():
   if not os.path.exists('data.txt'):
     import requests
     response = requests.get('https://www.gutenberg.org/files/1342/1342-0.txt')
-    #response = requests.get('https://www.gutenberg.org/files/84/84-0.txt')
-    text = ' '.join(response.text.split())
-    
+    text = ' '.join(response.text.split()) 
     with open('data.txt','w+') as f:
       print(text, file=f)
   else:
@@ -62,7 +56,7 @@ def generate_fancy_data_labels(sequence_len, batch_size):
       MANUAL_SEED += 1
       data_idx = 0
     data_idx_ = data_idx
-    offset = inds[data_idx_] #* SEQUENCE_LEN
+    offset = inds[data_idx_]
     data_idx += 1
     curr = fancy_data[offset:offset+sequence_len+1].clone().detach()
     temps.append(curr)
@@ -101,7 +95,6 @@ def loss_func(loss_mask, output_tensor):
 
 
 # Ref: https://github.com/NVIDIA/Megatron-LM/blob/b31e1296354e979722627a6c4dedafe19b51fa97/pretrain_gpt.py#L86
-# TODO (mkozuki): Currently I'm seeing no attribute `word_embeddings` which looks weird.
 def fwd_step_func(batch, model):
     """Forward step."""
     tokens, labels, loss_mask, attention_mask, position_ids = get_batch(batch)
@@ -117,6 +110,7 @@ def train(model, optim, pipeline_model_parallel_size):
 
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
     runtime = 0
+    #training loop
     for i in range(3):
       since = time.time()
       if torch.distributed.get_rank() == 0:

@@ -1,15 +1,5 @@
-import torch
-import torch.nn as nn
-import time
-import os
-import traceback
-import sys
-import copy
-import random
-import numpy as np
 import subprocess
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
-import json
 
 def run_gpt(cmd):
 	args = list(cmd.split(' '))

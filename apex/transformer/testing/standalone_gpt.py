@@ -501,9 +501,7 @@ class ParallelAttention(MegatronModule):
         # ===========================
 
         # attention scores and attention mask [b, np, sq, sk]
-
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
-
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
