@@ -40,6 +40,9 @@ def plot(runtimes):
 	plt.title(str("GPT Scaling w/ Offloading"))
 	plt.savefig('offload_gpt_scaling.png')
 	plt.close()
+	if not os.path.exists('/my_workspace/'):
+		os.system('mkdir /my_workspace/')
+	os.system('cp *.png /my_workspace/')
 
 
 def main():
@@ -63,6 +66,8 @@ def main():
 				print("Moving on to the next distributed setting...")
 				print("#"*(25))
 				print()
+				plot(runtimes)
+				print("Plot created and exported to /my_workspace/")
 				break
 	print(runtimes)
 	plot(runtimes)
