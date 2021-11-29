@@ -73,7 +73,6 @@ def forward_backward_pipelining_without_interleaving(
         f"num_microbatches_remaining: {num_microbatches_remaining}"
     )
 
-
     # Input, output tensors only need to be saved when doing backward passes
     input_tensors = None
     output_tensors = None
