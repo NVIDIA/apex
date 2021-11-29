@@ -2,9 +2,10 @@ import torch
 
 from apex.normalization import FusedLayerNorm as LayerNorm
 from apex.transformer import tensor_parallel
+from apex.transformer.enums import AttnMaskType
 from apex.transformer.testing.global_vars import get_args
 from .standalone_gpt import get_language_model, get_linear_layer, init_method_normal, parallel_lm_logits, scaled_init_method_normal
-from .standalone_gpt import AttnMaskType, MegatronModule
+from .standalone_gpt import MegatronModule
 
 def bert_extended_attention_mask(attention_mask):
     # We create a 3D attention mask from a 2D tensor mask.

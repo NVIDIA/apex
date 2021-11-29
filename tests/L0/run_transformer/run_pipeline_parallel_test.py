@@ -3,6 +3,7 @@ from typing import Optional, Union, List
 import torch
 import torch.nn as nn
 
+import apex
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import get_forward_backward_func
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
@@ -17,9 +18,11 @@ from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import print_separator
-from apex.transformer.utils import rank_print
+from apex.transformer.log_util import get_transformer_logger, set_logging_level
 
 
+# set_logging_level("INFO")
+_logger = get_transformer_logger("pipeline_parallel_test")
 global_vars.set_global_variables()
 
 
@@ -122,7 +125,7 @@ def forward_backward_func_template(
     assert isinstance(model, list)
     assert len(model) == (1 if virtual_pipeline_model_parallel_size is None else virtual_pipeline_model_parallel_size)
     _param_groups = _get_params_for_weight_decay_optimization(model)
-    torch.optim.Adam(_param_groups)
+    torch.optim.Adam(_param_groups, lr=1e-4)
 
     tensor_shape = [batch_size // parallel_state.get_data_parallel_world_size(), hidden_size]
     batch = (torch.randn(tensor_shape).cuda(),)
@@ -133,7 +136,6 @@ def forward_backward_func_template(
         fwd_step_func, batch, model, forward_only=forward_only, tensor_shape=tensor_shape)
 
     if not forward_only:
-        # rank_print("grad check")
         for m in model:
             for p in m.parameters():
                 if p.grad is None:

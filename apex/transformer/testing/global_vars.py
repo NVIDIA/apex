@@ -37,17 +37,27 @@ def get_args():
     return _GLOBAL_ARGS
 
 
-def get_num_microbatches():
+def get_num_microbatches() -> int:
     return _GLOBAL_NUM_MICROBATCHES_CALCULATOR.get()
 
 
-def get_current_global_batch_size():
+def get_current_global_batch_size() -> int:
     return _GLOBAL_NUM_MICROBATCHES_CALCULATOR.get_current_global_batch_size()
 
 
-def update_num_microbatches(consumed_samples, consistency_check=True):
-    _GLOBAL_NUM_MICROBATCHES_CALCULATOR.update(consumed_samples,
-                                               consistency_check)
+def update_num_microbatches(consumed_samples: int, *, consistency_check: bool = True) -> None:
+    """Update the number of microbatches upon the number of consumed samples.
+
+    .. note::
+        This function has no effect unless ``rampup_batch_size`` is set.
+
+    Args:
+        consumed_samples: The number of consumed samples so far. Basically this is equal to
+            :math:`num_iter * global_batch_size`.
+        consistency_check: If :obj:`True`, sanity checks the consumed samples, i.e., check if
+            ``consumed_samples`` is divisible by :math:`micro_batch_size \times data_parallel_size`.
+    """
+    _GLOBAL_NUM_MICROBATCHES_CALCULATOR.update(consumed_samples, consistency_check)
 
 
 # def get_tokenizer():
