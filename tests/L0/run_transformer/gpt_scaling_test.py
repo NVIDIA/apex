@@ -1,4 +1,5 @@
 import subprocess
+import os
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 
 def run_gpt(cmd):
