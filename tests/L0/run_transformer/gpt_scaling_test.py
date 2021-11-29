@@ -48,7 +48,7 @@ def main():
 		dist_setting = 'ddp=' + str(data_parr) + ', tensor_parr=' + str(tens_parr) + ', pipe_parr=' + str(pipe_parr)
 		runtimes[dist_setting] = {} 
 		print("Beginning Testing for", dist_setting)
-		for n in range(1000,1000000,1000):
+		for n in range(2000,1000000,2000):
 			cmd = "python3 -m torch.distributed.launch --nproc_per_node=8 run_gpt_minimal_test.py"
 			cmd += " --micro-batch-size 1 --num-layers " + str(n) + " --hidden-size 128 --num-attention-heads 16"
 			cmd += ' --max-position-embeddings 128 --seq-length 128 --cpu-offload --tensor-model-parallel-size ' + str(tens_parr)
