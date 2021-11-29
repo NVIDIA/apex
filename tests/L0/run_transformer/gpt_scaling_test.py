@@ -48,7 +48,7 @@ def plot(runtimes):
 
 def main():
 	runtimes = {}
-	for data_parr, tens_parr, pipe_parr in [(8,1,1), (4,2,1), (2,1,4), (1,2,4), (1,1,8)]:
+	for data_parr, tens_parr, pipe_parr in [(8,1,1), (4,2,1), (2,1,4), (1,2,4)]:
 		dist_setting = 'ddp=' + str(data_parr) + ', tensor_parr=' + str(tens_parr) + ', pipe_parr=' + str(pipe_parr)
 		runtimes[dist_setting] = {} 
 		print("Beginning Testing for", dist_setting)
