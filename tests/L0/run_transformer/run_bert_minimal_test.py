@@ -106,7 +106,7 @@ def train(model, optim, virtual_pipeline_model_parallel_size, pipeline_model_par
     micro_batch_size = global_vars.get_args().micro_batch_size
     hidden_size = global_vars.get_args().hidden_size
     #forward_backward_func = get_forward_backward_func(virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
-    fwd_bwd_func = forward_backward_pipelining_without_interleaving
+    forward_backward_func = forward_backward_pipelining_without_interleaving
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
     for i in range(8):
         if torch.distributed.get_rank() == 0:
