@@ -3,7 +3,6 @@
 #include <vector>
 
 #include <stdio.h>
-#include <cstdint>
 
 size_t get_mlp_reserved_space(int64_t batch_size, int num_layers, const int* output_features);
 
