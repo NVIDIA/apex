@@ -48,12 +48,13 @@ def plot(runtimes):
 
 def main():
 	runtimes = {}
+	nlist = list(range(2000,10000,2000)) + list(range(10000,50000,5000)) + list(range(50000,100000,10000))
 	for data_parr, tens_parr, pipe_parr in [(8,1,1), (4,2,1), (2,1,4), (1,2,4)]:
 		for offload in [True, False]:
 			dist_setting = 'ddp=' + str(data_parr) + ', tensor_parr=' + str(tens_parr) + ', pipe_parr=' + str(pipe_parr) + ', offload=' + str(offload)
 			runtimes[dist_setting] = {} 
 			print("Beginning Testing for", dist_setting)
-			for n in list(range(2000,10000,2000)) + list(range(10000,50000,5000)) + list(range(50000,100000,10000)):
+			for n in nlist:
 				cmd = "python3 -m torch.distributed.launch --nproc_per_node=8 run_gpt_minimal_test.py"
 				cmd += " --micro-batch-size 1 --num-layers " + str(n) + " --hidden-size 128 --num-attention-heads 16"
 				cmd += ' --max-position-embeddings 128 --seq-length 128 --tensor-model-parallel-size ' + str(tens_parr)
