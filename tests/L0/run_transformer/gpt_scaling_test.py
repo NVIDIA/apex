@@ -49,6 +49,7 @@ def plot(runtimes):
 def main():
 	runtimes = {}
 	nlist = list(range(2000,10000,2000)) + list(range(10000,50000,5000)) + list(range(50000,100000,10000))
+	print("N-List:", nlist)
 	for data_parr, tens_parr, pipe_parr in [(8,1,1), (4,2,1), (2,1,4), (1,2,4)]:
 		for offload in [True, False]:
 			dist_setting = 'ddp=' + str(data_parr) + ', tensor_parr=' + str(tens_parr) + ', pipe_parr=' + str(pipe_parr) + ', offload=' + str(offload)
