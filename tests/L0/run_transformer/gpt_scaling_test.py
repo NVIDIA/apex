@@ -63,13 +63,14 @@ def main():
 				if success:
 					runtimes[dist_setting][bill_params] = runtime
 					print(str(runtime) + 's per training iter for', str(bill_params) + 'B parameter GPT-2')
+					if n >= 10000:
+						plot(runtimes)
 				else:
 					print("GPT-2 w/", n, "layers failed using", dist_setting)
 					print("Moving on to the next distributed setting...")
 					print("#"*(25))
 					print()
 					plot(runtimes)
-					print("Plot created and exported to /my_workspace/")
 				break
 	print(runtimes)
 	plot(runtimes)
