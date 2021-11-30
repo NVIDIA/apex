@@ -73,7 +73,7 @@ def main():
 					print("#"*(25))
 					print()
 					plot(runtimes)
-				break
+					break
 	print(runtimes)
 	plot(runtimes)
 if __name__ == "__main__":
