@@ -192,13 +192,13 @@ def _initialize(models, optimizers, properties, num_losses=1, cast_model_outputs
             # outgoing data to float32, so "the user never needs to call .half()."
             # I like writing things explicitly more than decorators.
             def patch_forward(old_fwd):
-                def new_fwd(*args, **kwargs):
+                def new_fwd(self, *args, **kwargs):
                     output = old_fwd(*applier(args, input_caster),
                                      **applier(kwargs, input_caster))
                     return applier(output, output_caster)
                 return new_fwd
 
-            model.forward = patch_forward(model.forward)
+            model.forward = MethodType(patch_forward(model.forward), model)
 
         # State dict trick to recast any preexisting per-param state tensors
         for optimizer in optimizers:
