@@ -38,6 +38,8 @@ echo "Running syncbn python only tests"
 python synced_batchnorm/python_single_gpu_unit_test.py
 echo "Running syncbn batchnorm1d tests"
 python synced_batchnorm/test_batchnorm1d.py 
+#beware, you need a system with at least 4 gpus to test group_size<world_size    (currently fail both on upstream and rocm fork)
+#python -m torch.distributed.launch --nproc_per_node=4 test_groups.py --group_size=2
 
 ## Run the DDP Tests
 echo "running DDP tests"
