@@ -14,11 +14,13 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
                  reduced_precision_dtype=None):
         if amsgrad:
             raise RuntimeError('FusedLAMB does not support the AMSGrad variant.')
+        
+        device = params[0].device
 
         # The learning rate (lr) and optimizer step (step) should be located on device
         # in order to faciliated device sync free execution
-        defaults = dict(lr=torch.tensor(lr, dtype=torch.float32, device=torch.cuda.current_device()),
-                        step=torch.tensor([step], dtype=torch.int, device=torch.cuda.current_device()),
+        defaults = dict(lr=torch.tensor(lr, dtype=torch.float32, device=device),
+                        step=torch.tensor([step], dtype=torch.int, device=device),
                         bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         grad_averaging=grad_averaging,
@@ -28,7 +30,7 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
             import amp_C
             self.multi_tensor_l2norm=amp_C.multi_tensor_l2norm_mp
             # Skip buffer
-            self._dummy_overflow_buf = torch.tensor([0], dtype=torch.int, device=self.param_groups[0]["params"][0].device)
+            self._dummy_overflow_buf = torch.tensor([0], dtype=torch.int, device=device)
             self.multi_tensor_lamb = amp_C.multi_tensor_lamb_mp
         else:
             raise RuntimeError('apex.optimizers.FusedLAMB requires cuda extensions')
@@ -187,10 +189,7 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
 
             # assume same step across group now to simplify things
             # per parameter step can be easily support by making it tensor, or pass list into kernel
-            if 'step' in group:
-                group['step'] += (self._dummy_overflow_buf != 1).int()
-            else:
-                group['step'] = (self._dummy_overflow_buf != 1).int()
+            group['step'] += (self._dummy_overflow_buf != 1).to(torch.int)
 
             state_lists = [ [], # (0) grads
                             [], # (1) params
