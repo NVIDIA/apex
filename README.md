@@ -129,18 +129,18 @@ Note: Pytorch version recommended is >=1.5 for extension build.
 
 ### To install using python only build use the following command in apex folder:
 ```
-python3.6 setup.py install
+python setup.py install
 ```
 
 ### To install using extensions enabled use the following command in apex folder:
 ```
-python3.6 setup.py install --cpp_ext --cuda_ext
+python setup.py install --cpp_ext --cuda_ext
 ```
 
 ### To install Apex on ROCm using ninja and without cloning the source
 ```
-pip3.6 install ninja
-pip3.6 install -v --install-option="--cpp_ext" --install-option="--cuda_ext" 'git+https://github.com/ROCmSoftwarePlatform/apex.git'
+pip install ninja
+pip install -v --install-option="--cpp_ext" --install-option="--cuda_ext" 'git+https://github.com/ROCmSoftwarePlatform/apex.git'
 ```
 
 ### Linux
