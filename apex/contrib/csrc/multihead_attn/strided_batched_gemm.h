@@ -14,9 +14,6 @@
 #include "cutlass/gemm/gemm.h"
 #include "cutlass/gemm/wmma_gemm_traits.h"
 
-// symbol to be automatically resolved by PyTorch libs
-extern THCState *state;
-
 cublasOperation_t convertTransToCublasOperation(char trans) {
   if (trans == 't')
     return CUBLAS_OP_T;
@@ -31,7 +28,7 @@ cublasOperation_t convertTransToCublasOperation(char trans) {
 }
 
 void CublasStridedBatchedGemm(
-    THCState *state, char transa, char transb, long m, long n, long k,
+    char transa, char transb, long m, long n, long k,
     float alpha, const half *a, long lda, long strideA, const half *b, long ldb,
     long strideB, float beta, half *c, long ldc, long strideC, long batchCount,
     cublasGemmAlgo_t algo = CUBLAS_GEMM_DEFAULT_TENSOR_OP) {
@@ -156,7 +153,7 @@ void CutlassGemm_FP32Accum(cudaStream_t stream, long m, long n, long k,
   } while (batchesLeft > 0);
 }
 
-void gemm_switch_fp32accum(THCState *state, char transa, char transb, long m,
+void gemm_switch_fp32accum(char transa, char transb, long m,
                            long n, long k, float alpha, const half *a, long lda,
                            long strideA, const half *b, long ldb, long strideB,
                            float beta, half *c, long ldc, long strideC,
@@ -166,25 +163,10 @@ void gemm_switch_fp32accum(THCState *state, char transa, char transb, long m,
   // 't' ? 'T' : 'N'), (transb =='t' ? 'T' : 'N'), m, n, k, alpha, beta);
   if ((transa == 't') && (transb == 'n')) {
     if (!(lda & 0x7) && !(ldb & 0x7) && !(ldc & 0x7)) {
-      CublasStridedBatchedGemm(state, transa, transb, m, n, k, alpha, a, lda,
+      CublasStridedBatchedGemm(transa, transb, m, n, k, alpha, a, lda,
                                strideA, b, ldb, strideB, beta, c, ldc, strideC,
                                batchCount, CUBLAS_GEMM_ALGO0_TENSOR_OP);
     }
-    /*if (!(lda & 0x7) && !(ldb & 0x7) && !(ldc & 0x7)) {
-      int m_rem = m % 64;
-      int n_rem = n % 64;
-      if ( (m_rem > 48) && ( m <= 192) && (n_rem > 48) && (n <= 192 ) ) {
-        CublasStridedBatchedGemm(state, transa, transb, m, n, k, alpha, a, lda,
-    strideA, b, ldb, strideB, beta, c, ldc, strideC, batchCount,
-    CUBLAS_GEMM_ALGO0_TENSOR_OP); } else if ( (m_rem > 32) && ( m > 192) &&
-    (n_rem > 32) && (n > 192) ) { CublasStridedBatchedGemm(state, transa,
-    transb, m, n, k, alpha, a, lda, strideA, b, ldb, strideB, beta, c, ldc,
-    strideC, batchCount, CUBLAS_GEMM_ALGO0_TENSOR_OP); } else {
-        CutlassGemm_FP32Accum<cutlass::MatrixLayout::kRowMajor,cutlass::MatrixLayout::kColumnMajor,8,8,8>(stream,
-    m, n, k, alpha, a, lda, strideA, b, ldb, strideB, beta, c, ldc, strideC,
-    batchCount);
-      }
-    }*/
     else if (!(lda & 0x7) && !(ldb & 0x7) && !(ldc & 0x3)) {
       CutlassGemm_FP32Accum<cutlass::MatrixLayout::kRowMajor,
                             cutlass::MatrixLayout::kColumnMajor, 8, 8, 4>(
@@ -316,31 +298,16 @@ void gemm_switch_fp32accum(THCState *state, char transa, char transb, long m,
           stream, m, n, k, alpha, a, lda, strideA, b, ldb, strideB, beta, c,
           ldc, strideC, batchCount);
     } else {
-      CublasStridedBatchedGemm(state, transa, transb, m, n, k, alpha, a, lda,
+      CublasStridedBatchedGemm(transa, transb, m, n, k, alpha, a, lda,
                                strideA, b, ldb, strideB, beta, c, ldc, strideC,
                                batchCount);
     }
   } else if ((transa == 'n') && (transb == 'n')) {
     if (!(lda & 0x7) && !(ldb & 0x7) && !(ldc & 0x7)) {
-      CublasStridedBatchedGemm(state, transa, transb, m, n, k, alpha, a, lda,
+      CublasStridedBatchedGemm(transa, transb, m, n, k, alpha, a, lda,
                                strideA, b, ldb, strideB, beta, c, ldc, strideC,
                                batchCount, CUBLAS_GEMM_ALGO0_TENSOR_OP);
     }
-    /*if (!(lda & 0x7) && !(ldb & 0x7) && !(ldc & 0x7)) {
-      int m_rem = m % 64;
-      int n_rem = n % 64;
-      if ( (m_rem > 48) && ( m <= 192) && (n_rem > 48) && (n <= 192 ) ) {
-        CublasStridedBatchedGemm(state, transa, transb, m, n, k, alpha, a, lda,
-    strideA, b, ldb, strideB, beta, c, ldc, strideC, batchCount,
-    CUBLAS_GEMM_ALGO0_TENSOR_OP); } else if ( (m_rem > 32) && ( m > 192) &&
-    (n_rem > 32) && (n > 192) ) { CublasStridedBatchedGemm(state, transa,
-    transb, m, n, k, alpha, a, lda, strideA, b, ldb, strideB, beta, c, ldc,
-    strideC, batchCount, CUBLAS_GEMM_ALGO0_TENSOR_OP); } else {
-        CutlassGemm_FP32Accum<cutlass::MatrixLayout::kColumnMajor,cutlass::MatrixLayout::kColumnMajor,8,8,8>(stream,
-    m, n, k, alpha, a, lda, strideA, b, ldb, strideB, beta, c, ldc, strideC,
-    batchCount);
-      }
-    }*/
     else if (!(lda & 0x7) && !(ldb & 0x7) && !(ldc & 0x3)) {
       CutlassGemm_FP32Accum<cutlass::MatrixLayout::kColumnMajor,
                             cutlass::MatrixLayout::kColumnMajor, 8, 8, 4>(
@@ -472,31 +439,16 @@ void gemm_switch_fp32accum(THCState *state, char transa, char transb, long m,
           stream, m, n, k, alpha, a, lda, strideA, b, ldb, strideB, beta, c,
           ldc, strideC, batchCount);
     } else {
-      CublasStridedBatchedGemm(state, transa, transb, m, n, k, alpha, a, lda,
+      CublasStridedBatchedGemm(transa, transb, m, n, k, alpha, a, lda,
                                strideA, b, ldb, strideB, beta, c, ldc, strideC,
                                batchCount);
     }
   } else if ((transa == 'n') && (transb == 't')) {
     if (!(lda & 0x7) && !(ldb & 0x7) && !(ldc & 0x7)) {
-      CublasStridedBatchedGemm(state, transa, transb, m, n, k, alpha, a, lda,
+      CublasStridedBatchedGemm(transa, transb, m, n, k, alpha, a, lda,
                                strideA, b, ldb, strideB, beta, c, ldc, strideC,
                                batchCount, CUBLAS_GEMM_ALGO0_TENSOR_OP);
     }
-    /*if (!(lda & 0x7) && !(ldb & 0x7) && !(ldc & 0x7)) {
-      int m_rem = m % 64;
-      int n_rem = n % 64;
-      if ( (m_rem > 48) && ( m <= 192) && (n_rem > 48) && (n <= 192 ) ) {
-        CublasStridedBatchedGemm(state, transa, transb, m, n, k, alpha, a, lda,
-    strideA, b, ldb, strideB, beta, c, ldc, strideC, batchCount,
-    CUBLAS_GEMM_ALGO0_TENSOR_OP); } else if ( (m_rem > 32) && ( m > 192) &&
-    (n_rem > 32) && (n > 192) ) { CublasStridedBatchedGemm(state, transa,
-    transb, m, n, k, alpha, a, lda, strideA, b, ldb, strideB, beta, c, ldc,
-    strideC, batchCount, CUBLAS_GEMM_ALGO0_TENSOR_OP); } else {
-        CutlassGemm_FP32Accum<cutlass::MatrixLayout::kColumnMajor,cutlass::MatrixLayout::kRowMajor,8,8,8>(stream,
-    m, n, k, alpha, a, lda, strideA, b, ldb, strideB, beta, c, ldc, strideC,
-    batchCount);
-      }
-    }*/
     else if (!(lda & 0x7) && !(ldb & 0x7) && !(ldc & 0x3)) {
       CutlassGemm_FP32Accum<cutlass::MatrixLayout::kColumnMajor,
                             cutlass::MatrixLayout::kRowMajor, 8, 8, 4>(
@@ -623,7 +575,7 @@ void gemm_switch_fp32accum(THCState *state, char transa, char transb, long m,
           stream, m, n, k, alpha, a, lda, strideA, b, ldb, strideB, beta, c,
           ldc, strideC, batchCount);
     } else {
-      CublasStridedBatchedGemm(state, transa, transb, m, n, k, alpha, a, lda,
+      CublasStridedBatchedGemm(transa, transb, m, n, k, alpha, a, lda,
                                strideA, b, ldb, strideB, beta, c, ldc, strideC,
                                batchCount);
     }
@@ -659,7 +611,7 @@ void adjustLdLevel3(char transa, char transb, int64_t m, int64_t n, int64_t k,
   }
 }
 
-void HgemmStridedBatched(THCState *state, char transa, char transb, long m,
+void HgemmStridedBatched(char transa, char transb, long m,
                          long n, long k, float alpha, const half *a, long lda,
                          long strideA, const half *b, long ldb, long strideB,
                          float beta, half *c, long ldc, long strideC,
@@ -676,88 +628,7 @@ void HgemmStridedBatched(THCState *state, char transa, char transb, long m,
 
   adjustLdLevel3(transa, transb, m, n, k, &lda, &ldb, &ldc);
 
-  // gemm_switch(state, transa, transb, m, n, k, alpha, a, lda, strideA, b, ldb,
-  // strideB, beta, c, ldc, strideC, batchCount);
-  gemm_switch_fp32accum(state, transa, transb, m, n, k, alpha, a, lda, strideA,
+  gemm_switch_fp32accum(transa, transb, m, n, k, alpha, a, lda, strideA,
                         b, ldb, strideB, beta, c, ldc, strideC, batchCount);
 }
 
-/******
-at::Tensor strided_batched_gemm_cuda(
-    float beta,
-    at::Tensor in_result,
-    float alpha,
-    at::Tensor batch1,
-    at::Tensor batch2) {
-
-  bool transpose_result;
-  char transpose_batch1, transpose_batch2;
-  int64_t lda, ldb, ldc;
-  at::Tensor result, input1, input2;
-  if (in_result.stride(1) == 1)
-  {
-    transpose_result = false;
-    result = in_result;
-    ldc = result.stride(2);
-  }
-  else if (in_result.stride(2) == 1)
-  {
-    transpose_result = true;
-
-    at::Tensor swap = batch2;
-    batch2 = batch1;
-    batch1 = swap;
-
-    result = in_result;
-    ldc = result.stride(1);
-  } else {
-    AT_ASSERTM(false, "result should be contiguous");
-  }
-
-  if (batch1.stride(transpose_result ? 2 : 1) == 1 &&
-      batch1.stride(transpose_result ? 1 : 2) != 0) {
-    transpose_batch1 = 'n';
-    input1 = batch1;
-    lda = input1.stride(transpose_result ? 1 : 2);
-  } else if (batch1.stride(transpose_result ? 1 : 2) == 1 &&
-             batch1.stride(transpose_result ? 2 : 1) != 0) {
-    transpose_batch1 = 't';
-    input1 = batch1;
-    lda = input1.stride(transpose_result ? 2 : 1);
-  } else {
-    AT_ASSERTM(false, "input1 should be contiguous");
-  }
-
-  if (batch2.stride(transpose_result ? 2 : 1) == 1 &&
-      batch2.stride(transpose_result ? 1 : 2) != 0) {
-    transpose_batch2 = 'n';
-    input2 = batch2;
-    ldb = input2.stride(transpose_result ? 1 : 2);
-  } else if (batch2.stride(transpose_result ? 1 : 2) == 1 &&
-             batch2.stride(transpose_result ? 2 : 1) != 0) {
-    transpose_batch2 = 't';
-    input2 = batch2;
-    ldb = input2.stride(transpose_result ? 2 : 1);
-  } else {
-    AT_ASSERTM(false, "input2 should be contiguous");
-  }
-  int64_t num_batches = result.size(0);
-
-  HgemmStridedBatched(
-      state,
-      transpose_batch1,
-      transpose_batch2,
-      result.size(transpose_result ? 2 : 1),
-      result.size(transpose_result ? 1 : 2),
-      input1.size(transpose_result ? 1 : 2),
-      alpha,
-      static_cast<const half*>(input1.data_ptr()), lda, input1.stride(0),
-      static_cast<const half*>(input2.data_ptr()), ldb, input2.stride(0),
-      beta,
-      static_cast<half*>(result.data_ptr()), ldc, result.stride(0),
-      num_batches);
-
-  return in_result;
-}
-
-***/

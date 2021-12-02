@@ -16,9 +16,6 @@
 #include "softmax.h"
 #include "strided_batched_gemm.h"
 
-// symbol to be automatically resolved by PyTorch libs
-extern THCState *state;
-
 namespace multihead_attn {
 namespace encdec {
 namespace cublas_gemmex {
@@ -111,7 +108,7 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
 
   // MatMul1 of Dot-Product Attention Plus scaling by 1/Sqrt(head size)
   gemm_switch_fp32accum(
-      state, a_layout_t, b_layout_n, k_seq_len, q_seq_len, head_dim, scale,
+      a_layout_t, b_layout_n, k_seq_len, q_seq_len, head_dim, scale,
       static_cast<const half *>(k_lin_results_ptr), lead_dim_kv,
       batch_stride_kv, static_cast<const half *>(q_lin_results_ptr), lead_dim_q,
       batch_stride_q, beta, static_cast<half *>(softmax_results_ptr), k_seq_len,
@@ -150,7 +147,7 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
 
   // Matmul2
   gemm_switch_fp32accum(
-      state, a_layout_n, b_layout_n, head_dim, q_seq_len, k_seq_len, alpha,
+      a_layout_n, b_layout_n, head_dim, q_seq_len, k_seq_len, alpha,
       static_cast<const half *>(v_lin_results_ptr), lead_dim_kv,
       batch_stride_kv,
       (is_training) ? static_cast<const half *>(dropout_results.data_ptr())
@@ -270,7 +267,7 @@ std::vector<torch::Tensor> bwd_cuda(
 
   // MatMul2 Dgrad1
   gemm_switch_fp32accum(
-      state, a_layout_t, b_layout_n, k_seq_len, q_seq_len, head_dim, alpha,
+      a_layout_t, b_layout_n, k_seq_len, q_seq_len, head_dim, alpha,
       static_cast<const half *>(v_lin_results_ptr), lead_dim_kv,
       batch_stride_kv, static_cast<const half *>(output_lin_grads.data_ptr()),
       head_dim * attn_batches, head_dim, beta,
@@ -278,7 +275,7 @@ std::vector<torch::Tensor> bwd_cuda(
       k_seq_len * q_seq_len, attn_batches);
 
   // Matmul2 Dgrad2
-  gemm_switch_fp32accum(state, a_layout_n, b_layout_t, head_dim, k_seq_len,
+  gemm_switch_fp32accum(a_layout_n, b_layout_t, head_dim, k_seq_len,
                         q_seq_len, alpha,
                         static_cast<const half *>(output_lin_grads.data_ptr()),
                         head_dim * attn_batches, head_dim,
@@ -303,7 +300,7 @@ std::vector<torch::Tensor> bwd_cuda(
   assert(softmax_success);
 
   // Matmul1 Dgrad1
-  gemm_switch_fp32accum(state, a_layout_n, b_layout_n, head_dim, q_seq_len,
+  gemm_switch_fp32accum(a_layout_n, b_layout_n, head_dim, q_seq_len,
                         k_seq_len, scale, k_lin_results_ptr, lead_dim_kv,
                         batch_stride_kv,
                         static_cast<half *>(matmul2_grads.data_ptr()),
@@ -311,7 +308,7 @@ std::vector<torch::Tensor> bwd_cuda(
                         lead_dim_q, batch_stride_q, attn_batches);
 
   // Matmul1 Dgrad2
-  gemm_switch_fp32accum(state, a_layout_n, b_layout_t, head_dim, k_seq_len,
+  gemm_switch_fp32accum(a_layout_n, b_layout_t, head_dim, k_seq_len,
                         q_seq_len, scale, q_lin_results_ptr, lead_dim_q,
                         batch_stride_q,
                         static_cast<half *>(matmul2_grads.data_ptr()),

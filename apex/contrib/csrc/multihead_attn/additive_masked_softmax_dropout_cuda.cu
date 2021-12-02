@@ -15,7 +15,6 @@
 #include "softmax.h"
 
 // symbol to be automatically resolved by PyTorch libs
-extern THCState *state;
 
 namespace multihead_attn {
 namespace fused_softmax {
