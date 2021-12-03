@@ -15,8 +15,6 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
         if amsgrad:
             raise RuntimeError('FusedLAMB does not support the AMSGrad variant.')
         
-        device = params[0].device
-
         # The learning rate (lr) and optimizer step (step) should be located on device
         # in order to faciliated device sync free execution
         defaults = dict(lr=torch.tensor(lr, dtype=torch.float32),
