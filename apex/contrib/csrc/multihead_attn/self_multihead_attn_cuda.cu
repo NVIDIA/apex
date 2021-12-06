@@ -502,7 +502,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              algo,
                              solution_index,
                              flags));
-  TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
+  //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
   
   return { 
            input_grads, 

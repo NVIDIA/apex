@@ -823,7 +823,7 @@ std::vector<torch::Tensor> transducer_joint_cuda_forward(
         }));  
     }
  
-    THCudaCheck(cudaGetLastError());
+    C10_CUDA_CHECK(cudaGetLastError());
     if (masked) 
         return {sum, mask};
     else

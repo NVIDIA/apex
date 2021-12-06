@@ -224,5 +224,5 @@ void multi_tensor_fused_adam_cuda(
         (adamMode_t) mode);
     );
   }
-  THCudaCheck(cudaGetLastError());
+  C10_CUDA_CHECK(cudaGetLastError());
 }

@@ -5,14 +5,9 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
-<<<<<<< HEAD
 //#include <cuda_profiler_api.h>
-#include "THC/THC.h"
-=======
-#include <cuda_profiler_api.h>
 
 #include <ATen/ATen.h>
->>>>>>> 0c7d8e3 (remove THC headers/functions (#1192))
 #include <ATen/cuda/CUDAContext.h>
 #include <torch/extension.h>
 

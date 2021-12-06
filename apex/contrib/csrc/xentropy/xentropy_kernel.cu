@@ -634,7 +634,7 @@ std::vector<Tensor> host_softmax_xentropy(
     }
   );
 
-  THCudaCheck(cudaGetLastError());
+  C10_CUDA_CHECK(cudaGetLastError());
 
   std::vector<at::Tensor> ret = {losses, max_log_sum_exp};
   return ret;
@@ -704,7 +704,7 @@ Tensor host_softmax_xentropy_backward(
     }
   );
 
-  THCudaCheck(cudaGetLastError());
+  C10_CUDA_CHECK(cudaGetLastError());
   return gI;
 }
 
