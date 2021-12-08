@@ -188,7 +188,7 @@ mha_bwd(const at::Tensor &dout,  // total x num_heads, x head_size
         const int max_seq_len          // max sequence length to choose the kernel
 ) {
     auto dprops = at::cuda::getCurrentDeviceProperties();
-    TORCH_CHECK(dprops->major == 8 && dprops->minor == 0);
+    TORCH_CHECK(dprops->major == 8 && dprops->minor >= 0);
     int seq_len = 512;
     auto launch = &run_fmha_dgrad_fp16_512_64_sm80;
     if( max_seq_len <= 128 ) {
