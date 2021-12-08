@@ -982,7 +982,7 @@ __global__ void masked_softmax_warp_forward(input_t *dst, const output_t *src, c
                 copy_vector<input_t, ELEMENTS_PER_LDG_STG>(&elements_input[i][it], src + itr_idx);
                 apply_mask<input_t, ELEMENTS_PER_LDG_STG>(&elements_input[i][it], 
                                                           (__half)-std::numeric_limits<float>::infinity(), 
-                                                          curr_mask + itr_jmp);
+                                                          curr_mask + itr_idx);
             }
  
         }
