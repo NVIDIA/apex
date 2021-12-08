@@ -1,5 +1,6 @@
-#pragma once
-#include "philox.h"
+#include "philox.cuh"
+#include "softmax.cuh"
+
 #include <ATen/CUDAGeneratorImpl.h>
 #include <ATen/cuda/CUDAGraphsUtils.cuh>
 #include <curand_kernel.h>

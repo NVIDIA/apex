@@ -1,6 +1,4 @@
-#pragma once
-// Philox CUDA.
-
+#include "philox.cuh"
 
 namespace {
 

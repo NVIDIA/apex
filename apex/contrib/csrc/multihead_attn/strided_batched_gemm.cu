@@ -1,4 +1,5 @@
-#pragma once
+#include "strided_batched_gemm.cuh"
+
 #include <iostream>
 #include <vector>
 

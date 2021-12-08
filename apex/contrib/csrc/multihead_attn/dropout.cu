@@ -1,4 +1,4 @@
-#pragma once
+#include "dropout.cuh"
 #include <ATen/ATen.h>
 
 #ifdef OLD_GENERATOR

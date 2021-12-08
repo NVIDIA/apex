@@ -11,8 +11,8 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <torch/extension.h>
 
-#include "dropout.h"
-#include "softmax.h"
+#include "dropout.cuh"
+#include "softmax.cuh"
 
 // symbol to be automatically resolved by PyTorch libs
 

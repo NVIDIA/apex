@@ -1,4 +1,5 @@
-#pragma once
+#include "layer_norm.cuh"
+
 #include "ATen/ATen.h"
 #include "ATen/cuda/DeviceUtils.cuh"
 
