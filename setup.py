@@ -1,5 +1,5 @@
 import torch
-from torch.utils import cpp_extension
+from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension, CUDA_HOME
 from setuptools import setup, find_packages
 import subprocess
 
@@ -46,7 +46,7 @@ if not torch.cuda.is_available() and not IS_ROCM_PYTORCH:
           'If you wish to cross-compile for a single specific architecture,\n'
           'export TORCH_CUDA_ARCH_LIST="compute capability" before running setup.py.\n')
     if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None:
-        _, bare_metal_major, _ = get_cuda_bare_metal_version(cpp_extension.CUDA_HOME)
+        _, bare_metal_major, _ = get_cuda_bare_metal_version(CUDA_HOME)
         if int(bare_metal_major) == 11:
             os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5;8.0"
         else:
@@ -85,11 +85,8 @@ if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
     if TORCH_MAJOR == 0:
         raise RuntimeError("--cpp_ext requires Pytorch 1.0 or later, "
                            "found torch.__version__ = {}".format(torch.__version__))
-    from torch.utils.cpp_extension import BuildExtension
     cmdclass['build_ext'] = BuildExtension
-
 if "--cpp_ext" in sys.argv:
-    from torch.utils.cpp_extension import CppExtension
     sys.argv.remove("--cpp_ext")
     ext_modules.append(
         CppExtension('apex_C',
@@ -200,6 +197,7 @@ if "--cuda_ext" in sys.argv:
                                    'csrc/multi_tensor_scale_kernel.cu',
                                    'csrc/multi_tensor_axpby_kernel.cu',
                                    'csrc/multi_tensor_l2norm_kernel.cu',
+                                   'csrc/multi_tensor_l2norm_scale_kernel.cu',
                                    'csrc/multi_tensor_lamb_stage_1.cu',
                                    'csrc/multi_tensor_lamb_stage_2.cu',
                                    'csrc/multi_tensor_adam.cu',
@@ -238,6 +236,37 @@ if "--cuda_ext" in sys.argv:
                           include_dirs=[os.path.join(this_dir, 'csrc')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
+        ext_modules.append(
+            CUDAExtension(name='fused_dense_cuda',
+                          sources=['csrc/fused_dense.cpp',
+                                   'csrc/fused_dense_cuda.cu'],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3'] + version_dependent_macros}))
+        """
+        ext_modules.append(
+            CUDAExtension(name='scaled_upper_triang_masked_softmax_cuda',
+                          sources=['csrc/megatron/scaled_upper_triang_masked_softmax.cpp',
+                                   'csrc/megatron/scaled_upper_triang_masked_softmax_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda'] + version_dependent_macros}))
+
+        ext_modules.append(
+            CUDAExtension(name='scaled_masked_softmax_cuda',
+                          sources=['csrc/megatron/scaled_masked_softmax.cpp',
+                                   'csrc/megatron/scaled_masked_softmax_cuda.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda'] + version_dependent_macros}))
+        """
 
 if "--bnp" in sys.argv or "--cuda_ext" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
@@ -338,18 +367,14 @@ if os.path.exists(os.path.join(torch_dir, 'include', 'ATen', 'CUDAGenerator.h'))
     generator_flag = ['-DOLD_GENERATOR']
 
 if "--fast_layer_norm" in sys.argv:
-    from torch.utils.cpp_extension import CUDAExtension
     sys.argv.remove("--fast_layer_norm")
 
-    from torch.utils.cpp_extension import BuildExtension
-    cmdclass['build_ext'] = BuildExtension.with_options(use_ninja=False)
-
-    if torch.utils.cpp_extension.CUDA_HOME is None:
+    if CUDA_HOME is None and not IS_ROCM_PYTORCH:
         raise RuntimeError("--fast_layer_norm was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
         # Check, if CUDA11 is installed for compute capability 8.0
         cc_flag = []
-        _, bare_metal_major, _ = get_cuda_bare_metal_version(cpp_extension.CUDA_HOME)
+        _, bare_metal_major, _ = get_cuda_bare_metal_version(CUDA_HOME)
         if int(bare_metal_major) >= 11:
             cc_flag.append('-gencode')
             cc_flag.append('arch=compute_80,code=sm_80')
@@ -368,7 +393,45 @@ if "--fast_layer_norm" in sys.argv:
                                                       '-Iapex/contrib/csrc/layer_norm',
                                                       '--expt-relaxed-constexpr',
                                                       '--expt-extended-lambda',
-                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag}))
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag},
+                          include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/layer_norm")]))
+if "--fmha" in sys.argv:
+    sys.argv.remove("--fmha")
+
+    if CUDA_HOME is None and not IS_ROCM_PYTORCH:
+        raise RuntimeError("--fmha was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        # Check, if CUDA11 is installed for compute capability 8.0
+        cc_flag = []
+        _, bare_metal_major, _ = get_cuda_bare_metal_version(CUDA_HOME)
+        if int(bare_metal_major) < 11:
+            raise RuntimeError("--fmha only supported on SM80")
+
+        ext_modules.append(
+            CUDAExtension(name='fmhalib',
+                          sources=[
+                                   'apex/contrib/csrc/fmha/fmha_api.cpp',
+                                   'apex/contrib/csrc/fmha/src/fmha_noloop_reduce.cu',
+                                   'apex/contrib/csrc/fmha/src/fmha_fprop_fp16_128_64_kernel.sm80.cu',
+                                   'apex/contrib/csrc/fmha/src/fmha_fprop_fp16_256_64_kernel.sm80.cu',
+                                   'apex/contrib/csrc/fmha/src/fmha_fprop_fp16_384_64_kernel.sm80.cu',
+                                   'apex/contrib/csrc/fmha/src/fmha_fprop_fp16_512_64_kernel.sm80.cu',
+                                   'apex/contrib/csrc/fmha/src/fmha_dgrad_fp16_128_64_kernel.sm80.cu',
+                                   'apex/contrib/csrc/fmha/src/fmha_dgrad_fp16_256_64_kernel.sm80.cu',
+                                   'apex/contrib/csrc/fmha/src/fmha_dgrad_fp16_384_64_kernel.sm80.cu',
+                                   'apex/contrib/csrc/fmha/src/fmha_dgrad_fp16_512_64_kernel.sm80.cu',
+                                   ],
+                          extra_compile_args={'cxx': ['-O3',
+                                                      ] + version_dependent_macros + generator_flag,
+                                              'nvcc':['-O3',
+                                                      '-gencode', 'arch=compute_80,code=sm_80',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda',
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag + cc_flag},
+                          include_dirs=[os.path.join(this_dir, "apex/contrib/csrc"), os.path.join(this_dir, "apex/contrib/csrc/fmha/src")]))
+
 
 if "--fast_multihead_attn" in sys.argv or "--cuda_ext" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
@@ -471,6 +534,40 @@ if "--fast_multihead_attn" in sys.argv or "--cuda_ext" in sys.argv:
                           extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
                                               'nvcc':nvcc_args_mha if not IS_ROCM_PYTORCH else hipcc_args_mha}))
 
+if "--transducer" in sys.argv:
+    sys.argv.remove("--transducer")
+
+    if CUDA_HOME is None and not IS_ROCM_PYTORCH:
+        raise RuntimeError("--transducer was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        ext_modules.append(
+            CUDAExtension(name='transducer_joint_cuda',
+                          sources=['apex/contrib/csrc/transducer/transducer_joint.cpp',
+                                   'apex/contrib/csrc/transducer/transducer_joint_kernel.cu'],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc': ['-O3'] + version_dependent_macros},
+                          include_dirs=[os.path.join(this_dir, 'csrc'), os.path.join(this_dir, "apex/contrib/csrc/multihead_attn")]))
+        ext_modules.append(
+            CUDAExtension(name='transducer_loss_cuda',
+                          sources=['apex/contrib/csrc/transducer/transducer_loss.cpp',
+                                   'apex/contrib/csrc/transducer/transducer_loss_kernel.cu'],
+                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3'] + version_dependent_macros}))
+
+if "--fast_bottleneck" in sys.argv:
+    sys.argv.remove("--fast_bottleneck")
+
+    if CUDA_HOME is None and not IS_ROCM_PYTORCH:
+        raise RuntimeError("--fast_bottleneck was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
+        ext_modules.append(
+            CUDAExtension(name='fast_bottleneck',
+                          sources=['apex/contrib/csrc/bottleneck/bottleneck.cpp'],
+                          include_dirs=[os.path.join(this_dir, 'apex/contrib/csrc/cudnn-frontend/include')],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag}))
+
 if "--cuda_ext" in sys.argv:
     sys.argv.remove("--cuda_ext")
 
@@ -489,5 +586,6 @@ setup(
     description='PyTorch Extensions written by NVIDIA',
     ext_modules=ext_modules,
     cmdclass=cmdclass,
+    #cmdclass={'build_ext': BuildExtension} if ext_modules else {},
     extras_require=extras,
 )

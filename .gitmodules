@@ -2,3 +2,6 @@
 	path = apex/contrib/csrc/multihead_attn/cutlass
 	url = https://github.com/NVIDIA/cutlass.git
 	branch = v1.2.0
+[submodule "apex/contrib/csrc/cudnn-frontend"]
+	path = apex/contrib/csrc/cudnn-frontend
+	url = https://github.com/NVIDIA/cudnn-frontend.git

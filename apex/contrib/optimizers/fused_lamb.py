@@ -111,7 +111,7 @@ class FusedLAMB(torch.optim.Optimizer):
                     continue
                 if p.dtype == torch.float32:
                     g_all_32.append(p.grad.data)
-                elif p.dytpe == torch.float16:
+                elif p.dtype == torch.float16:
                     g_all_16.append(p.grad.data)
                 else:
                     raise RuntimeError('FusedLAMB only support fp16 and fp32.')

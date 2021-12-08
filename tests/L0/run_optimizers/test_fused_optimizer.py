@@ -2,9 +2,11 @@ import unittest
 import os
 import random
 
+import math
 import torch
 import apex
 from itertools import product
+from torch.optim import Optimizer
 
 class TestFusedOptimizer(unittest.TestCase):
     def setUp(self, max_abs_diff=1e-3, max_rel_diff=1, iters=7):
@@ -16,28 +18,29 @@ class TestFusedOptimizer(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def gen_param_optim(self, tensors, options, apex_only=False):
+    def gen_param_optim(self, tensors, options, tst_options=None):
+        
+        # Adding this to make backward compatible with existing tests. Just in
+        # case "tst_options" are not provided, it gets a copy of options
+        # which contains the parameters for the reference optimizer
+        if tst_options == None:
+            tst_options = options
+            
         ref_param = []
         tst_param = []
         for tensor in tensors:
-            if apex_only:
-                ref_param.append(torch.nn.Parameter(tensor.clone().float()))
-            else:
-                ref_param.append(torch.nn.Parameter(tensor.clone()))
+            ref_param.append(torch.nn.Parameter(tensor.clone()))
             tst_param.append(torch.nn.Parameter(tensor.clone()))
 
-        if apex_only:
-            ref_optim = self.fused_optim(ref_param, **options)
-        else:
-            ref_optim = self.ref_optim(ref_param, **options)
-        tst_optim = self.fused_optim(tst_param, **options)
+        ref_optim = self.ref_optim(ref_param, **options)
+        tst_optim = self.fused_optim(tst_param, **tst_options)
 
         return (ref_param, tst_param, ref_optim, tst_optim)
 
-    def gen_grad(self, ref_param, tst_param, apex_only=False):
+    def gen_grad(self, ref_param, tst_param):
         for p_ref, p_tst in zip(ref_param, tst_param):
-            p_tst.grad = torch.rand_like(p_tst)
-            p_ref.grad = p_tst.grad.detach().float() if apex_only else p_tst.grad
+            p_ref.grad = torch.rand_like(p_ref)
+            p_tst.grad = p_ref.grad
 
     def gen_mixed_grad(self, ref_param, tst_param, scale=1.0):
         half_grads = []
@@ -46,11 +49,9 @@ class TestFusedOptimizer(unittest.TestCase):
             p_ref.grad = half_grads[-1].float() / scale
         return half_grads
 
-    def get_max_diff(self, ref_param, tst_param, apex_only=False):
+    def get_max_diff(self, ref_param, tst_param):
         max_abs_diff = max_rel_diff = 0
         for p_ref, p_tst in zip(ref_param, tst_param):
-            if apex_only:
-                p_tst = p_tst.float()
             max_abs_diff_p = (p_ref - p_tst).abs().max().item()
             max_rel_diff_p = ((p_ref - p_tst) / p_ref).abs().max().item()
 
@@ -59,21 +60,29 @@ class TestFusedOptimizer(unittest.TestCase):
 
         return max_abs_diff, max_rel_diff
 
-    def gen_single_type_test(self, param_type=torch.float, apex_only=False, device='cuda'):
+    def gen_single_type_test(self, param_type=torch.float, device='cuda'):
         nelem = 278011
 
+        # Some ref and test optimizers may require different set of options.
+        # This is a quick workaround to add that functionality while making 
+        # minimum changes in existing code.
+        # If there is no "tst_options" field provided, safe to initialize
+        # the test optimizer with the parameters of reference optimizer.
+        if not hasattr(self, 'tst_options'):
+            self.tst_options = self.options
+
         tensor = torch.rand(nelem, dtype=param_type, device=device)
+
         ref_param, tst_param, ref_optim, tst_optim = \
-            self.gen_param_optim([tensor], self.options, apex_only=apex_only)
+            self.gen_param_optim([tensor], self.options, self.tst_options)
 
         for i in range(self.iters):
-            self.gen_grad(ref_param, tst_param, apex_only=apex_only)
+            self.gen_grad(ref_param, tst_param)
             ref_optim.step()
             tst_optim.step()
-            max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param, apex_only=apex_only)
+            max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
-            if not apex_only:
-                self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+            self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
 
 class TestFusedAdam(TestFusedOptimizer):
@@ -90,14 +99,6 @@ class TestFusedAdam(TestFusedOptimizer):
 
     def test_half(self):
         self.gen_single_type_test(param_type=torch.float16)
-
-    # Compares bfloat16 computation against float32 as gold standard.
-    # Uses apex optimizers(controlled by apex_only flag) for both types.
-    # Doesn't use upstream optimizer like other tests as they seem to be
-    # numerically unstable for half types
-    def test_bfloat16(self):
-        self.max_abs_diff = 1e-2
-        self.gen_single_type_test(param_type=torch.bfloat16, apex_only=True)
 
     @unittest.skipIf(torch.cuda.device_count()<2, "more than 1 GPU required")
     def test_multi_device(self):
@@ -278,9 +279,6 @@ class TestFusedSGD(TestFusedOptimizer):
         for current_dev, tensor_dev in product(devices, devices):
             with torch.cuda.device(current_dev):
                 self.gen_single_type_test(param_type=torch.float, device=tensor_dev)
-
-
-
 
 if __name__ == '__main__':
     unittest.main()

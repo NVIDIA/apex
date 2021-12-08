@@ -1,8 +1,6 @@
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
-#include <THC/THCNumerics.cuh>
-
-#include "THC/THC.h"
+#include <c10/cuda/CUDACachingAllocator.h>
 
 #include "batch_norm.h"
 
@@ -26,23 +24,20 @@ static size_t round_up_to_multiple(size_t x, int multiple) {
   return ((x + multiple - 1) / multiple) * multiple;
 }
 
-// TODO: Stop manually allocating CUDA memory; allocate an ATen byte
-// tensor instead.
 struct Workspace {
   Workspace(size_t size) : size(size), data(NULL) {
-    data = THCudaMalloc(at::globalContext().lazyInitCUDA(), size);
+    auto& allocator = *::c10::cuda::CUDACachingAllocator::get();
+    dataPtr = allocator.allocate(size);
+    data = dataPtr.get();
   }
   Workspace(const Workspace&) = delete;
   Workspace(Workspace&&) = default;
   Workspace& operator=(Workspace&&) = default;
-  ~Workspace() {
-    if (data) {
-      THCudaFree(at::globalContext().lazyInitCUDA(), data);
-    }
-  }
+  ~Workspace() = default;
 
   size_t size;
   void* data;
+  c10::DataPtr dataPtr;
 };
 
 // Return {y}

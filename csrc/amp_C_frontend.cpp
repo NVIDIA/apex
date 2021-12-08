@@ -33,6 +33,13 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
   std::vector<std::vector<at::Tensor>> tensor_lists,
   at::optional<bool> per_tensor_python);
 
+std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_scale_cuda(
+  int chunk_size,
+  at::Tensor noop_flag,
+  std::vector<std::vector<at::Tensor>> tensor_lists,
+  float scale,
+  at::optional<bool> per_tensor_python);
+
 void multi_tensor_lamb_stage1_cuda(
     int chunk_size,
     at::Tensor noop_flag,
@@ -121,6 +128,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         "out = a*x + b*y for a list of contiguous tensors");
   m.def("multi_tensor_l2norm", &multi_tensor_l2norm_cuda,
         "Computes L2 norm for a list of contiguous tensors");
+  m.def("multi_tensor_l2norm_scale", &multi_tensor_l2norm_scale_cuda,
+        "Computes L2 norm for a list of contiguous tensors and does scaling");
   m.def("multi_tensor_lamb_stage1_cuda", &multi_tensor_lamb_stage1_cuda,
         "Computes update part of LAMB optimizer");
   m.def("multi_tensor_lamb_stage2_cuda", &multi_tensor_lamb_stage2_cuda,

@@ -1,14 +1,15 @@
-#include "ATen/ATen.h"
-#include "ATen/cuda/CUDAContext.h"
-#include "ATen/cuda/detail/IndexUtils.cuh"
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
 #include <cmath>
+
+#include "ATen/ATen.h"
+#include "ATen/cuda/CUDAContext.h"
+#include "ATen/cuda/detail/IndexUtils.cuh"
 #include "ATen/TensorUtils.h"
 // #include "ATen/Type.h"
 #include "ATen/AccumulateType.h"
-#include <THC/THCGeneral.h>
+
 #include "multi_tensor_apply.cuh"
 
 #define BLOCK_SIZE 512
@@ -275,7 +276,7 @@ void fused_adam_cuda(
                         decay);
             );
       }
-      THCudaCheck(cudaGetLastError());
+      C10_CUDA_CHECK(cudaGetLastError());
 
 }
 
@@ -382,7 +383,7 @@ void fused_adam_cuda_mt(
             );
         }
     }
-    THCudaCheck(cudaGetLastError());
+    C10_CUDA_CHECK(cudaGetLastError());
 }
 
 template <typename FROM_T, typename TO_T> 
@@ -807,7 +808,7 @@ void fused_strided_check_finite(
                     stride,
                     clear_overflow_first);
                 );
-	THCudaCheck(cudaGetLastError());
+	C10_CUDA_CHECK(cudaGetLastError());
 }
 
 void fused_reversible_adam_cuda(
@@ -908,7 +909,7 @@ void fused_reversible_adam_cuda(
                       decay);
                   );
       }
-      THCudaCheck(cudaGetLastError());
+      C10_CUDA_CHECK(cudaGetLastError());
 }
 
 void maybe_cast_cuda(
@@ -932,7 +933,7 @@ void maybe_cast_cuda(
                       p_in.DATA_PTR<scalar_t_0>(),
                       p_out.DATA_PTR<scalar_t_1>(),
                       tsize); ))
-      THCudaCheck(cudaGetLastError());
+      C10_CUDA_CHECK(cudaGetLastError());
 }
 
 void maybe_cast_cuda_mt(
@@ -954,7 +955,7 @@ void maybe_cast_cuda_mt(
                     overflow_flag,
                     tensor_lists,
                     MaybeCastFunctor<2, scalar_t_0, scalar_t_1>()); ))
-    THCudaCheck(cudaGetLastError());
+    C10_CUDA_CHECK(cudaGetLastError());
 }
 
 void fused_maybe_adam_undo_cuda(
@@ -1032,5 +1033,5 @@ void fused_maybe_adam_undo_cuda(
                     decay);
                 );
     }
-    THCudaCheck(cudaGetLastError());
+    C10_CUDA_CHECK(cudaGetLastError());
 }

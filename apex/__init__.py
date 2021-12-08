@@ -21,3 +21,4 @@ from . import pyprof
 
 #common utilties to run tests on ROCm.
 from . import testing
+from . import transformer
