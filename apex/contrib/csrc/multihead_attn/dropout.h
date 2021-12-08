@@ -1,3 +1,4 @@
+#pragma once
 #include <ATen/ATen.h>
 
 #ifdef OLD_GENERATOR
@@ -9,7 +10,11 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <curand_kernel.h>
 
+namespace {
+
 const int UNROLL = 4;
+
+} // namespace anonymous
 
 template <typename scalar_t, typename accscalar_t, typename IndexType>
 __global__ void

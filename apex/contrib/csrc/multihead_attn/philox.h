@@ -1,6 +1,9 @@
 #pragma once
 // Philox CUDA.
 
+
+namespace {
+
 class Philox {
 public:
   __device__ inline Philox(unsigned long long seed,
@@ -90,3 +93,5 @@ __device__ __inline__ float4 uniform4(uint4 x) {
   return make_float4(x.x * M_RAN_INVM32, x.y * M_RAN_INVM32, x.z * M_RAN_INVM32,
                      x.w * M_RAN_INVM32);
 }
+
+} // namespace anonymous

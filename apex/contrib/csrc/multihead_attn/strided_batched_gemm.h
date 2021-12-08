@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <vector>
 
@@ -13,6 +14,8 @@
 #include "cutlass/cutlass.h"
 #include "cutlass/gemm/gemm.h"
 #include "cutlass/gemm/wmma_gemm_traits.h"
+
+namespace {
 
 cublasOperation_t convertTransToCublasOperation(char trans) {
   if (trans == 't')
@@ -632,3 +635,4 @@ void HgemmStridedBatched(char transa, char transb, long m,
                         b, ldb, strideB, beta, c, ldc, strideC, batchCount);
 }
 
+} // namespace anonymous
