@@ -136,6 +136,7 @@ python setup.py install
 ```
 python setup.py install --cpp_ext --cuda_ext
 ```
+Note that using --cuda_ext flag to install Apex will also enable all the extensions supported on ROCm including "--distributed_adam", "--distributed_lamb", "--bnp", "--xentropy", "--deprecated_fused_adam", "--deprecated_fused_lamb", and "--fast_multihead_attn".
 
 ### To install Apex on ROCm using ninja and without cloning the source
 ```
