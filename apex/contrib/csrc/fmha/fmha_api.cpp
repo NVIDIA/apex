@@ -131,10 +131,10 @@ void set_params(Fused_multihead_attention_fprop_params &params,
 }
 
 void fmhalib_fwd(const void *qkv_ptr, 
-	         const int total,
-	         const int num_heads,
-	         const int head_size, 
 	         const int *cu_seqlens_ptr,
+		 const int total,
+                 const int num_heads,
+                 const int head_size,
 	         const int batch_size,
 	         const float p_dropout, 
 	         const int max_seq_len,
@@ -196,6 +196,65 @@ void fmhalib_fwd(const void *qkv_ptr,
     }
 
     launch(params, is_training, stream);
+    FMHALIB_END_FUNC
+}
+
+void fmhalib_bwd(const void *dout_ptr,
+	         const void *qkv_ptr,
+	         const void *cu_seqlens_ptr,
+	         const int total,
+                 const int num_heads,
+                 const int head_size,
+	         const int batch_size,
+                 const float p_dropout,         // probability to drop
+                 const int max_seq_len,         // max sequence length to choose the kernel
+		 cudaStream_t stream,
+		 void *softmax_ptr,             // will be overwritten 
+		 void *dqkv_ptr 
+) {
+    FMHALIB_BEGIN_FUNC
+    int seq_len = 512;
+    auto launch = &run_fmha_dgrad_fp16_512_64_sm80;
+    if( max_seq_len == 128 ) {
+        seq_len = 128;
+        launch = &run_fmha_dgrad_fp16_128_64_sm80;
+    } else if( max_seq_len == 256 ) {
+        seq_len = 256;
+        launch = &run_fmha_dgrad_fp16_256_64_sm80;
+    } else if( max_seq_len == 384 ) {
+        seq_len = 384;
+        launch = &run_fmha_dgrad_fp16_384_64_sm80;
+    } else if( max_seq_len == 512 ) {
+        seq_len = 512;
+        launch = &run_fmha_dgrad_fp16_512_64_sm80;
+    } else {
+	ASSERT_CHECK(false);
+    }
+
+    ASSERT_CHECK(batch_size > 0);
+    ASSERT_CHECK(head_size == 64);
+
+    Fused_multihead_attention_fprop_params params;
+
+    set_params(params,
+               batch_size,
+               seq_len,
+               num_heads,
+               head_size,
+               const_cast<void*>(qkv_ptr),
+               const_cast<void*>(cu_seqlens_ptr),
+               const_cast<void*>(dout_ptr), // we set o_ptr to dout
+               softmax_ptr,  // softmax gets overwritten by dP!
+               p_dropout);
+
+    // we're re-using these scales
+    Data_type acc_type = DATA_TYPE_FP32;
+    set_alpha(params.scale_bmm1, 1.f, acc_type);
+    set_alpha(params.scale_softmax, 1.f / sqrtf(head_size), acc_type);
+    set_alpha(params.scale_bmm2, 1.f, DATA_TYPE_FP16);
+    params.dqkv_ptr = dqkv_ptr;
+
+    launch(params, stream);
     FMHALIB_END_FUNC
 }
 

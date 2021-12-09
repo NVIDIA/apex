@@ -32,5 +32,6 @@ build_nvcc_obj $APEX_CU_SRC_DIR/fmha_dgrad_fp16_256_64_kernel.sm80.cu
 build_nvcc_obj $APEX_CU_SRC_DIR/fmha_dgrad_fp16_384_64_kernel.sm80.cu
 build_nvcc_obj $APEX_CU_SRC_DIR/fmha_dgrad_fp16_512_64_kernel.sm80.cu
 
+rm -rf *.so
 nvcc -shared -Xcompiler="-fPIC" -o libfmha.so *.o 
 rm -rf *.o
