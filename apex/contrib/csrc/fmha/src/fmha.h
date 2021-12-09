@@ -30,11 +30,8 @@
 #include <cuda.h>
 #include <vector>
 
-#include <ATen/CUDAGeneratorImpl.h>
-#include <ATen/cuda/CUDAGraphsUtils.cuh>
-
+#include "random_utils.h"
 #include <fmha_utils.h>
-
 
 constexpr int TOTAL_DIM = 0;
 constexpr int THREE_DIM = 1;
