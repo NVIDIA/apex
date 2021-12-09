@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
 # limitations under the License.
 import torch
 
-from ..parallel_state import get_tensor_model_parallel_group
-from ..parallel_state import get_tensor_model_parallel_rank
-from ..parallel_state import get_tensor_model_parallel_world_size
-from .utils import VocabUtility
+from apex.transformer.parallel_state import get_tensor_model_parallel_group
+from apex.transformer.parallel_state import get_tensor_model_parallel_rank
+from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
+from apex.transformer.tensor_parallel.utils import VocabUtility
 
 
 class _VocabParallelCrossEntropy(torch.autograd.Function):
@@ -30,7 +30,7 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
             logits_max, op=torch.distributed.ReduceOp.MAX, group=get_tensor_model_parallel_group()
         )
         # Subtract the maximum value.
-        vocab_parallel_logits.sub_(logits_max.unsqueeze(dim=-1))
+        vocab_parallel_logits = vocab_parallel_logits - logits_max.unsqueeze(dim=-1)
 
         # Get the partition's vocab indecies
         get_vocab_range = VocabUtility.vocab_range_from_per_partition_vocab_size
@@ -100,4 +100,4 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
 def vocab_parallel_cross_entropy(vocab_parallel_logits, target):
     """Helper function for the cross entropy."""
-    return _VocabParallelCrossEntropy.apply(torch.clone(vocab_parallel_logits), target)
+    return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target)

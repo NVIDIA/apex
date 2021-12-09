@@ -10,6 +10,10 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
 
+#include "cutlass/cutlass.h"
+#include "cutlass/gemm/gemm.h"
+#include "cutlass/gemm/wmma_gemm_traits.h"
+
 // symbol to be automatically resolved by PyTorch libs
 extern THCState *state;
 
