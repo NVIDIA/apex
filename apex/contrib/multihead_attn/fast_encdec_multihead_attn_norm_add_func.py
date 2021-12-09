@@ -6,7 +6,8 @@
 # can be found in the PATENTS file in the same directory.
 
 import torch
-import fast_encdec_multihead_attn_norm_add
+
+import fast_multihead_attn
 
 
 class FastEncdecAttnNormAddFunc(torch.autograd.Function):
@@ -28,7 +29,7 @@ class FastEncdecAttnNormAddFunc(torch.autograd.Function):
         matmul2_results,                                                \
         dropout_add_mask,                                               \
         outputs =                                                       \
-            fast_encdec_multihead_attn_norm_add.forward(                \
+            fast_multihead_attn.encdec_multihead_attn_norm_add_forward(                \
                               use_mask,                                 \
                               use_time_mask,                            \
                               is_training,                              \
@@ -94,7 +95,7 @@ class FastEncdecAttnNormAddFunc(torch.autograd.Function):
         input_weight_q_grads,                                           \
         input_weight_kv_grads,                                          \
         output_weight_grads    =                                        \
-            fast_encdec_multihead_attn_norm_add.backward(               \
+            fast_multihead_attn.encdec_multihead_attn_norm_add_backward(               \
                               heads_t[0],                               \
                               output_grads,                             \
                               matmul2_results,                          \

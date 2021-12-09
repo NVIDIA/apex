@@ -1,5 +1,6 @@
 import torch
-import fast_self_multihead_attn_norm_add
+
+import fast_multihead_attn
 
 
 class FastSelfAttnNormAddFunc(torch.autograd.Function):
@@ -20,7 +21,8 @@ class FastSelfAttnNormAddFunc(torch.autograd.Function):
         matmul2_results,                                                \
         dropout_add_mask,                                               \
         outputs =                                                       \
-             fast_self_multihead_attn_norm_add.forward(                 \
+             # fast_self_multihead_attn_norm_add.forward(                 \
+             fast_multihead_attn.self_attn_norm_add_forward(                 \
                               use_mask,                                 \
                               use_time_mask,                            \
                               is_training,                              \
@@ -76,7 +78,8 @@ class FastSelfAttnNormAddFunc(torch.autograd.Function):
         lyr_nrm_beta_grads,                                             \
         input_weight_grads,                                             \
         output_weight_grads    =                                        \
-            fast_self_multihead_attn_norm_add.backward(                 \
+            # fast_self_multihead_attn_norm_add.backward(                 \
+            fast_multihead_attn.self_attn_norm_add_backward(                 \
                               heads_t[0],                               \
                               output_grads,                             \
                               matmul2_results,                          \

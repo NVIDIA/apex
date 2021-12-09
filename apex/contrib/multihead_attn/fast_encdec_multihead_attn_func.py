@@ -1,5 +1,6 @@
 import torch
-import fast_encdec_multihead_attn
+
+import fast_multihead_attn
 
 
 class FastEncdecAttnFunc(torch.autograd.Function):
@@ -17,7 +18,7 @@ class FastEncdecAttnFunc(torch.autograd.Function):
         dropout_mask,                                                   \
         matmul2_results,                                                \
         outputs =                                                       \
-            fast_encdec_multihead_attn.forward(                         \
+            fast_multihead_attn.encdec_multihead_attn_forward(                         \
                               use_mask,                                 \
                               use_time_mask,                            \
                               is_training,                              \
@@ -67,7 +68,7 @@ class FastEncdecAttnFunc(torch.autograd.Function):
         input_weight_q_grads,                                           \
         input_weight_kv_grads,                                          \
         output_weight_grads =                                           \
-            fast_encdec_multihead_attn.backward(                        \
+            fast_multihead_attn.encdec_multihead_attn_backward(                        \
                               heads_t[0],                               \
                               output_grads,                             \
                               matmul2_results,                          \

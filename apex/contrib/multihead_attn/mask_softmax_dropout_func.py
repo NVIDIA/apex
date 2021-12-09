@@ -1,6 +1,6 @@
 import torch
-import fast_mask_softmax_dropout
-import fast_additive_mask_softmax_dropout
+
+import fast_multihead_attn
 
 
 class MaskSoftmaxDropout(torch.autograd.Function) :
@@ -17,7 +17,8 @@ class MaskSoftmaxDropout(torch.autograd.Function) :
             dropout_results,                                                \
             dropout_mask,                                                   \
             softmax_results =                                                \
-                    fast_additive_mask_softmax_dropout.forward(                           \
+                    # fast_additive_mask_softmax_dropout.forward(                           \
+                    fast_multihead_attn.additive_mask_softmax_dropout_forward(                           \
                                       use_mask,                                 \
                                       is_training,                              \
                                       heads,                                    \
@@ -28,14 +29,15 @@ class MaskSoftmaxDropout(torch.autograd.Function) :
             dropout_results,                                                \
             dropout_mask,                                                   \
             softmax_results =                                                \
-                    fast_mask_softmax_dropout.forward(                           \
+                    # fast_mask_softmax_dropout.forward(                           \
+                    fast_multihead_attn.mask_softmax_dropout_forward(                           \
                                       use_mask,                                 \
                                       is_training,                              \
                                       heads,                                    \
                                       inputs,                                   \
                                       pad_mask if use_mask else null_tensor,    \
                                       dropout_prob)
-        
+
         ctx.save_for_backward(
                               use_mask_t,                                    \
                               heads_t,                                 \
@@ -59,7 +61,8 @@ class MaskSoftmaxDropout(torch.autograd.Function) :
 
         if mask_additive_t[0]:
             input_grads =                                                    \
-                fast_additive_mask_softmax_dropout.backward(                          \
+                # fast_additive_mask_softmax_dropout.backward(                          \
+                fast_multihead_attn.additive_mask_softmax_dropout_backward(                          \
                                   use_mask_t[0],                             \
                                   heads_t[0],                             \
                                   output_grads,                             \
@@ -68,7 +71,8 @@ class MaskSoftmaxDropout(torch.autograd.Function) :
                                   dropout_prob_t[0])
         else:
             input_grads =                                                    \
-                fast_mask_softmax_dropout.backward(                          \
+                # fast_mask_softmax_dropout.backward(                          \
+                fast_multihead_attn.mask_softmax_dropout_backward(                          \
                                   use_mask_t[0],                             \
                                   heads_t[0],                             \
                                   output_grads,                             \

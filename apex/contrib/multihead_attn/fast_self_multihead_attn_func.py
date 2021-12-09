@@ -1,7 +1,6 @@
 import torch
-import fast_self_multihead_attn
-import fast_self_multihead_attn_bias
-import fast_self_multihead_attn_bias_additive_mask
+
+import fast_multihead_attn
 
 class FastSelfAttnFunc(torch.autograd.Function) :
     @staticmethod
@@ -21,7 +20,8 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                 dropout_mask,                                                   \
                 matmul2_results,                                                \
                 outputs =                                                       \
-                    fast_self_multihead_attn_bias.forward(                           \
+                    # fast_self_multihead_attn_bias.forward()                           \
+                    fast_multihead_attn.self_attn_bias_forward(                           \
                                       use_mask,                                 \
                                       use_time_mask,                            \
                                       is_training,                              \
@@ -55,7 +55,8 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                 dropout_mask,                                                   \
                 matmul2_results,                                                \
                 outputs =                                                       \
-                    fast_self_multihead_attn_bias_additive_mask.forward(                           \
+                    # fast_self_multihead_attn_bias_additive_mask.forward(                           \
+                    fast_multihead_attn.self_attn_bias_additive_mask_forward(                           \
                                       use_mask,                                 \
                                       use_time_mask,                            \
                                       is_training,                              \
@@ -90,7 +91,8 @@ class FastSelfAttnFunc(torch.autograd.Function) :
             dropout_mask,                                                   \
             matmul2_results,                                                \
             outputs =                                                       \
-                fast_self_multihead_attn.forward(                           \
+                # fast_self_multihead_attn.forward(                           \
+                fast_multihead_attn.self_attn_forward(                           \
                                   use_mask,                                 \
                                   use_time_mask,                            \
                                   is_training,                              \
@@ -140,7 +142,8 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                 output_weight_grads,                                           \
                 input_bias_grads,                                                   \
                 output_bias_grads =                                                    \
-                    fast_self_multihead_attn_bias.backward(                          \
+                    # fast_self_multihead_attn_bias.backward(                          \
+                    fast_multihead_attn.self_attn_bias_backward(                          \
                                       heads_t[0],                               \
                                       output_grads,                             \
                                       matmul2_results,                          \
@@ -159,7 +162,8 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                 output_weight_grads,                                           \
                 input_bias_grads,                                                   \
                 output_bias_grads =                                                    \
-                    fast_self_multihead_attn_bias_additive_mask.backward(                          \
+                    # fast_self_multihead_attn_bias_additive_mask.backward(                          \
+                    fast_multihead_attn.self_attn_bias_additive_mask_backward(                          \
                                       heads_t[0],                               \
                                       output_grads,                             \
                                       matmul2_results,                          \
@@ -172,14 +176,15 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                                       output_weights,                           \
                                       dropout_mask,                             \
                                       dropout_prob_t[0])
-                    
+
         else:
-            input_bias_grads = None                                                    
+            input_bias_grads = None
             output_bias_grads = None
             input_grads,                                                    \
             input_weight_grads,                                             \
             output_weight_grads =                                           \
-                fast_self_multihead_attn.backward(                          \
+                # fast_self_multihead_attn.backward(                          \
+                fast_multihead_attn.self_attn_backward(                          \
                                   heads_t[0],                               \
                                   output_grads,                             \
                                   matmul2_results,                          \
