@@ -385,6 +385,8 @@ if "--fast_multihead_attn" in sys.argv:
         if int(bare_metal_major) >= 11:
             cc_flag.append('-gencode')
             cc_flag.append('arch=compute_80,code=sm_80')
+            cc_flag.append('-gencode')
+            cc_flag.append('arch=compute_80,code=sm_80')
 
         subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
         ext_modules.append(

@@ -16,8 +16,6 @@
 #include "cutlass/gemm/gemm.h"
 #include "cutlass/gemm/wmma_gemm_traits.h"
 
-namespace {
-
 cublasOperation_t convertTransToCublasOperation(char trans) {
   if (trans == 't')
     return CUBLAS_OP_T;
@@ -635,5 +633,3 @@ void HgemmStridedBatched(char transa, char transb, long m,
   gemm_switch_fp32accum(transa, transb, m, n, k, alpha, a, lda, strideA,
                         b, ldb, strideB, beta, c, ldc, strideC, batchCount);
 }
-
-} // namespace anonymous

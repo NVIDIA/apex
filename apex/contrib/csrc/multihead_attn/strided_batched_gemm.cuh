@@ -15,8 +15,6 @@
 #include "cutlass/gemm/gemm.h"
 #include "cutlass/gemm/wmma_gemm_traits.h"
 
-namespace {
-
 cublasOperation_t convertTransToCublasOperation(char trans);
 
 void CublasStridedBatchedGemm(
@@ -46,5 +44,3 @@ void HgemmStridedBatched(char transa, char transb, long m,
                          long strideA, const half *b, long ldb, long strideB,
                          float beta, half *c, long ldc, long strideC,
                          long batchCount);
-
-} // namespace anonymous
