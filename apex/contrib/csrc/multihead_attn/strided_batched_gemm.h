@@ -10,9 +10,9 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
 
-#include "cutlass/cutlass.h"
-#include "cutlass/gemm/gemm.h"
-#include "cutlass/gemm/wmma_gemm_traits.h"
+//#include "cutlass/cutlass.h"
+//#include "cutlass/gemm/gemm.h"
+//#include "cutlass/gemm/wmma_gemm_traits.h"
 
 // symbol to be automatically resolved by PyTorch libs
 
@@ -110,7 +110,8 @@ void HgemmStridedBatched(char transa, char transb, long m,
                          long n, long k, float alpha, const half *a, long lda,
                          long strideA, const half *b, long ldb, long strideB,
                          float beta, half *c, long ldc, long strideC,
-                         long batchCount) {
+                         half *d, long ldd, long strideD, long batchCount) {
+
   if ((m >= INT_MAX) || (n >= INT_MAX) || (k >= INT_MAX) || (lda >= INT_MAX) ||
       (ldb >= INT_MAX) || (ldc >= INT_MAX) || (batchCount >= INT_MAX))
 
@@ -128,4 +129,5 @@ void HgemmStridedBatched(char transa, char transb, long m,
   gemm_switch_fp32accum(transa, transb, m, n, k, alpha, a, lda, strideA, 
                         b, ldb, strideB, beta, c, ldc, strideC, d, ldd, strideD, batchCount);
 }
+
 

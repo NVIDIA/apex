@@ -128,8 +128,7 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
                              flags));
 
   // MatMul1 of Dot-Product Attention Plus scaling by 1/Sqrt(head size)
-  gemm_switch_fp32accum(     state, 
-                             a_layout_t, 
+  gemm_switch_fp32accum(     a_layout_t, 
                              b_layout_n, 
                              k_seq_len,
                              q_seq_len,
@@ -182,8 +181,7 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
   }
 
   // Matmul2
-  gemm_switch_fp32accum(     state, 
-                             a_layout_n, 
+  gemm_switch_fp32accum(     a_layout_n, 
                              b_layout_n, 
                              head_dim, 
                              q_seq_len, 
@@ -380,8 +378,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              flags));
 
   // MatMul2 Dgrad1
-  gemm_switch_fp32accum(     state, 
-                             a_layout_t, 
+  gemm_switch_fp32accum(     a_layout_t, 
                              b_layout_n, 
                              k_seq_len,
                              q_seq_len,
@@ -403,8 +400,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              attn_batches);
   
   // Matmul2 Dgrad2
-  gemm_switch_fp32accum(     state, 
-                             a_layout_n, 
+  gemm_switch_fp32accum(     a_layout_n, 
                              b_layout_t, 
                              head_dim, 
                              k_seq_len, 
@@ -443,8 +439,7 @@ std::vector<torch::Tensor> bwd_cuda(
   assert(softmax_success);
 
   // Matmul1 Dgrad1
-  gemm_switch_fp32accum(     state, 
-                             a_layout_n, 
+  gemm_switch_fp32accum(     a_layout_n, 
                              b_layout_n, 
                              head_dim, 
                              q_seq_len, 
@@ -466,8 +461,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              attn_batches);
   
   // Matmul1 Dgrad2
-  gemm_switch_fp32accum(     state, 
-                             a_layout_n, 
+  gemm_switch_fp32accum(     a_layout_n, 
                              b_layout_t, 
                              head_dim, 
                              k_seq_len, 
@@ -565,3 +559,4 @@ std::vector<torch::Tensor> bwd_cuda(
 } // end namespace rocblas_gemmex
 } // end namespace self_norm_add 
 } // end namespace multihead_attn
+
