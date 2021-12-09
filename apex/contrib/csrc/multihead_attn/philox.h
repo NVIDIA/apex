@@ -1,5 +1,5 @@
 #pragma once
-//Philox CUDA. 
+// Philox CUDA.
 
 class Philox {
 public:
@@ -15,28 +15,30 @@ public:
     incr_n(offset / 4);
   }
   __device__ inline uint4 operator()() {
-    if(STATE == 0) {
+    if (STATE == 0) {
       uint4 counter_ = counter;
       uint2 key_ = key;
-      //7-round philox
-      for(int i = 0; i < 6; i++) {
+      // 7-round philox
+      for (int i = 0; i < 6; i++) {
         counter_ = single_round(counter_, key_);
-        key_.x += (kPhilox10A); key_.y += (kPhilox10B);
+        key_.x += (kPhilox10A);
+        key_.y += (kPhilox10B);
       }
       output = single_round(counter_, key_);
       incr();
     }
-    //return a float4 directly
-    //unsigned long ret;
-    //switch(STATE) {
+    // return a float4 directly
+    // unsigned long ret;
+    // switch(STATE) {
     //  case 0: ret = output.x; break;
     //  case 1: ret = output.y; break;
     //  case 2: ret = output.z; break;
     //  case 3: ret = output.w; break;
     //}
-    //STATE = (STATE + 1) % 4;
+    // STATE = (STATE + 1) % 4;
     return output;
   }
+
 private:
   uint4 counter;
   uint4 output;
@@ -67,7 +69,7 @@ private:
   __device__ unsigned int mulhilo32(unsigned int a, unsigned int b,
                                     unsigned int *result_high) {
     *result_high = __umulhi(a, b);
-    return a*b;
+    return a * b;
   }
   __device__ inline uint4 single_round(uint4 ctr, uint2 key) {
     unsigned int hi0;
@@ -84,7 +86,7 @@ private:
 };
 // Inverse of 2^32.
 #define M_RAN_INVM32 2.3283064e-10f
-__device__  __inline__ float4 uniform4(uint4 x) {
-    return make_float4(x.x * M_RAN_INVM32, x.y * M_RAN_INVM32, x.z * M_RAN_INVM32,x.w * M_RAN_INVM32);
-
+__device__ __inline__ float4 uniform4(uint4 x) {
+  return make_float4(x.x * M_RAN_INVM32, x.y * M_RAN_INVM32, x.z * M_RAN_INVM32,
+                     x.w * M_RAN_INVM32);
 }
