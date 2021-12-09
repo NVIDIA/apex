@@ -14,6 +14,7 @@ MULTIGPU_TEST = [
 ]
 SEVERALGPU_TEST = [
     "bert_minimal_test",
+    "gpt_minimal_test",
 ]
 
 def get_multigpu_launch_option(min_gpu):
