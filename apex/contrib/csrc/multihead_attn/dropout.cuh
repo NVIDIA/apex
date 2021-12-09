@@ -51,6 +51,10 @@ void apex_dropout_add_cuda(scalar_t const *inputs, scalar_t const *add_inputs,
                            IndexType totalElements, accscalar_t p);
 
 template <typename scalar_t, typename accscalar_t, typename IndexType>
+void apex_add_cuda(scalar_t const *inputs, scalar_t const *add_inputs,
+                   scalar_t *outputs, IndexType totalElements);
+
+template <typename scalar_t, typename accscalar_t, typename IndexType>
 void apex_masked_scale_cuda(scalar_t const *inputs, scalar_t *outputs,
                             uint8_t const *mask, IndexType totalElements,
                             accscalar_t scale);

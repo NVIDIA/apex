@@ -628,11 +628,11 @@ __global__ void additive_masked_softmax_dropout_warp_forward(
 // WARP_ITERATOINS The number of iterations required for one warp to iterate
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
-template <typename input_t, typename output_t, typename acc_t>
-using additive_masked_softmax_dropout_forward_func = void (*)(
-    output_t *dst, uint8_t *dropout_mask, const input_t *src,
-    const input_t *pad_mask, int batch_size, int stride, int element_count,
-    int pad_batch_stride, at::PhiloxCudaState philox_args, float p);
+// template <typename input_t, typename output_t, typename acc_t>
+// using additive_masked_softmax_dropout_forward_func = void (*)(
+//     output_t *dst, uint8_t *dropout_mask, const input_t *src,
+//     const input_t *pad_mask, int batch_size, int stride, int element_count,
+//     int pad_batch_stride, at::PhiloxCudaState philox_args, float p);
 
 template <typename input_t, typename output_t, typename acc_t>
 bool warp_additive_masked_softmax_dropout_kernel(
@@ -924,10 +924,10 @@ __global__ void additive_masked_softmax_warp_forward(
 // WARP_ITERATOINS The number of iterations required for one warp to iterate
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
-template <typename input_t, typename output_t>
-using additive_masked_softmax_forward_func = void (*)(
-    input_t *dst, const output_t *src, const half *pad_mask, int batch_size,
-    int stride, int element_count, int pad_batch_stride);
+// template <typename input_t, typename output_t>
+// using additive_masked_softmax_forward_func = void (*)(
+//     input_t *dst, const output_t *src, const half *pad_mask, int batch_size,
+//     int stride, int element_count, int pad_batch_stride);
 
 template <typename input_t, typename output_t, typename acc_t>
 bool warp_additive_masked_softmax_kernel(
@@ -1214,12 +1214,12 @@ masked_softmax_warp_forward(input_t *dst, const output_t *src,
 // WARP_ITERATOINS The number of iterations required for one warp to iterate
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
-template <typename input_t, typename output_t>
-using masked_softmax_forward_func = void (*)(input_t *dst, const output_t *src,
-                                             const uint8_t *pad_mask,
-                                             int batch_size, int stride,
-                                             int element_count,
-                                             int pad_batch_stride);
+// template <typename input_t, typename output_t>
+// using masked_softmax_forward_func = void (*)(input_t *dst, const output_t *src,
+//                                              const uint8_t *pad_mask,
+//                                              int batch_size, int stride,
+//                                              int element_count,
+//                                              int pad_batch_stride);
 
 template <typename input_t, typename output_t, typename acc_t>
 bool warp_masked_softmax_kernel(
@@ -1464,10 +1464,10 @@ __global__ void time_masked_softmax_warp_forward(
 // WARP_ITERATOINS The number of iterations required for one warp to iterate
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
-template <typename input_t, typename output_t>
-using time_masked_softmax_forward_func =
-    void (*)(input_t *dst, const output_t *src, const uint8_t *pad_mask,
-             int batch_size, int stride, int element_count, int mod_seq_len);
+// template <typename input_t, typename output_t>
+// using time_masked_softmax_forward_func =
+//     void (*)(input_t *dst, const output_t *src, const uint8_t *pad_mask,
+//              int batch_size, int stride, int element_count, int mod_seq_len);
 
 template <typename input_t, typename output_t, typename acc_t>
 bool warp_time_masked_softmax_kernel(
@@ -2226,12 +2226,12 @@ __global__ void masked_scale_softmax_warp_backward_recompute(
   }
 }
 
-template <typename input_t, typename output_t, typename acc_t,
-          bool is_log_softmax>
-using masked_scale_softmax_warp_backward_recompute_func = void (*)(
-    output_t *gradInput, const input_t *grad, const input_t *softmax_input,
-    const input_t *pad_mask, const uint8_t *mask, acc_t scale, int batch_size,
-    int stride, int pad_batch_stride, int element_count);
+// template <typename input_t, typename output_t, typename acc_t,
+//           bool is_log_softmax>
+// using masked_scale_softmax_warp_backward_recompute_func = void (*)(
+//     output_t *gradInput, const input_t *grad, const input_t *softmax_input,
+//     const input_t *pad_mask, const uint8_t *mask, acc_t scale, int batch_size,
+//     int stride, int pad_batch_stride, int element_count);
 
 template <typename input_t, typename output_t, typename acc_t,
           bool is_log_softmax>
@@ -2781,10 +2781,10 @@ __global__ void softmax_warp_backward(__half *gradInput, const __half *grad,
 // WARP_ITERATOINS The number of iterations required for one warp to iterate
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
-template <typename input_t, typename output_t>
-using softmax_backward_func = void (*)(output_t *gradInput, const input_t *grad,
-                                       const input_t *output, int batch_size,
-                                       int stride, int element_count);
+// template <typename input_t, typename output_t>
+// using softmax_backward_func = void (*)(output_t *gradInput, const input_t *grad,
+//                                        const input_t *output, int batch_size,
+//                                        int stride, int element_count);
 
 template <typename input_t, typename output_t, typename acc_t>
 bool warp_softmax_backward_kernel(
@@ -3023,11 +3023,11 @@ masked_softmax_warp_backward(__half *gradInput, const __half *grad,
 // WARP_ITERATOINS The number of iterations required for one warp to iterate
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
-template <typename input_t, typename output_t>
-using masked_softmax_backward_func =
-    void (*)(output_t *gradInput, const input_t *grad, const input_t *output,
-             const uint8_t *pad_mask, int batch_size, int stride,
-             int element_count, int pad_batch_stride);
+// template <typename input_t, typename output_t>
+// using masked_softmax_backward_func =
+//     void (*)(output_t *gradInput, const input_t *grad, const input_t *output,
+//              const uint8_t *pad_mask, int batch_size, int stride,
+//              int element_count, int pad_batch_stride);
 
 template <typename input_t, typename output_t, typename acc_t>
 bool warp_masked_softmax_backward_kernel(
