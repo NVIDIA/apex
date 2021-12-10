@@ -61,7 +61,63 @@ torch::Tensor bwd(bool use_mask, int heads, torch::Tensor const &output_grads,
 }
 
 } // namespace additive_mask_softmax_dropout
+namespace mask_softmax_dropout {
+
+std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads,
+                                    torch::Tensor const &input,
+                                    const uint8_t *pad_mask,
+                                    float dropout_prob);
+
+torch::Tensor bwd_cuda(int heads, torch::Tensor const &output_grads,
+                       torch::Tensor const &softmax_results,
+                       torch::Tensor const &dropout_mask,
+                       const uint8_t *padding_mask, float dropout_prob);
+
+std::vector<torch::Tensor> fwd(bool use_mask, bool is_training, int heads,
+                               torch::Tensor const &input,
+                               torch::Tensor const &pad_mask,
+                               float dropout_prob) {
+  AT_ASSERTM(input.dim() == 3, "expected 3D tensor");
+  AT_ASSERTM(input.type().scalarType() == at::ScalarType::Half,
+             "Only HALF is supported");
+
+  if (use_mask) {
+    AT_ASSERTM(pad_mask.dim() == 2, "expected 2D tensor");
+    AT_ASSERTM(pad_mask.type().scalarType() == at::ScalarType::Byte,
+               "Only BYTE is supported");
+  }
+
+  return fwd_cuda(is_training, heads, input,
+                  use_mask ? static_cast<const uint8_t *>(pad_mask.data_ptr())
+                           : nullptr,
+                  dropout_prob);
+}
+
+torch::Tensor bwd(bool use_mask, int heads, torch::Tensor const &output_grads,
+                  torch::Tensor const &softmax_results,
+                  torch::Tensor const &dropout_mask,
+                  torch::Tensor const &padding_mask, float dropout_prob) {
+  AT_ASSERTM(output_grads.dim() == 3, "expected 3D tensor");
+  AT_ASSERTM(softmax_results.dim() == 3, "expected 3D tensor");
+  AT_ASSERTM(dropout_mask.dim() == 3, "expected 3D tensor");
+
+  AT_ASSERTM(output_grads.type().scalarType() == at::ScalarType::Half,
+             "Only HALF is supported");
+  AT_ASSERTM(softmax_results.type().scalarType() == at::ScalarType::Half,
+             "Only HALF is supported");
+  //  AT_ASSERTM(dropout_mask.type().scalarType()      == at::ScalarType::Byte,
+  //  "Only BYTE is supported");
+
+  return bwd_cuda(heads, output_grads, softmax_results, dropout_mask,
+                  use_mask
+                      ? static_cast<const uint8_t *>(padding_mask.data_ptr())
+                      : nullptr,
+                  dropout_prob);
+}
+
+} // end namespace mask_softmax_dropout
 } // end namespace fused_softmax
+
 namespace encdec {
 namespace cublas_gemmex {
 
@@ -174,6 +230,8 @@ bwd(int heads, torch::Tensor const &output_grads,
 
 } // end namespace cublas_gemmex
 } // end namespace encdec
+
+#if 0
 namespace encdec_norm_add {
 namespace cublas_gemmex {
 
@@ -326,63 +384,8 @@ bwd(int heads, torch::Tensor const &output_grads,
 
 } // end namespace cublas_gemmex
 } // end namespace encdec_norm_add
-namespace fused_softmax {
-namespace mask_softmax_dropout {
+#endif
 
-std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads,
-                                    torch::Tensor const &input,
-                                    const uint8_t *pad_mask,
-                                    float dropout_prob);
-
-torch::Tensor bwd_cuda(int heads, torch::Tensor const &output_grads,
-                       torch::Tensor const &softmax_results,
-                       torch::Tensor const &dropout_mask,
-                       const uint8_t *padding_mask, float dropout_prob);
-
-std::vector<torch::Tensor> fwd(bool use_mask, bool is_training, int heads,
-                               torch::Tensor const &input,
-                               torch::Tensor const &pad_mask,
-                               float dropout_prob) {
-  AT_ASSERTM(input.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input.type().scalarType() == at::ScalarType::Half,
-             "Only HALF is supported");
-
-  if (use_mask) {
-    AT_ASSERTM(pad_mask.dim() == 2, "expected 2D tensor");
-    AT_ASSERTM(pad_mask.type().scalarType() == at::ScalarType::Byte,
-               "Only BYTE is supported");
-  }
-
-  return fwd_cuda(is_training, heads, input,
-                  use_mask ? static_cast<const uint8_t *>(pad_mask.data_ptr())
-                           : nullptr,
-                  dropout_prob);
-}
-
-torch::Tensor bwd(bool use_mask, int heads, torch::Tensor const &output_grads,
-                  torch::Tensor const &softmax_results,
-                  torch::Tensor const &dropout_mask,
-                  torch::Tensor const &padding_mask, float dropout_prob) {
-  AT_ASSERTM(output_grads.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(softmax_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(dropout_mask.dim() == 3, "expected 3D tensor");
-
-  AT_ASSERTM(output_grads.type().scalarType() == at::ScalarType::Half,
-             "Only HALF is supported");
-  AT_ASSERTM(softmax_results.type().scalarType() == at::ScalarType::Half,
-             "Only HALF is supported");
-  //  AT_ASSERTM(dropout_mask.type().scalarType()      == at::ScalarType::Byte,
-  //  "Only BYTE is supported");
-
-  return bwd_cuda(heads, output_grads, softmax_results, dropout_mask,
-                  use_mask
-                      ? static_cast<const uint8_t *>(padding_mask.data_ptr())
-                      : nullptr,
-                  dropout_prob);
-}
-
-} // end namespace mask_softmax_dropout
-} // end namespace fused_softmax
 namespace self {
 namespace cublas_gemmex {
 
@@ -658,6 +661,8 @@ bwd(int heads, torch::Tensor const &output_grads,
 
 } // end namespace cublas_gemmex
 } // namespace self_bias_additive_mask
+
+#if 0
 namespace self_norm_add {
 namespace cublas_gemmex {
 
@@ -787,6 +792,7 @@ bwd(int heads, torch::Tensor const &output_grads,
 
 } // end namespace cublas_gemmex
 } // end namespace self_norm_add
+#endif
 } // end namespace multihead_attn
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
@@ -796,19 +802,19 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("additive_mask_softmax_dropout_backward",
         &multihead_attn::fused_softmax::additive_mask_softmax_dropout::bwd,
         "Self Multihead Attention masked softmax dropout -- Backward.");
-  m.def("encdec_multihead_attn_forward", &multihead_attn::encdec::cublas_gemmex::fwd,
-        "Encdec Multihead Attention Forward.");
-  m.def("encdec_multihead_attn_backward", &multihead_attn::encdec::cublas_gemmex::bwd,
-        "Encdec Multihead Attention Backward.");
-  m.def("encdec_multihead_attn_norm_add_forward", &multihead_attn::encdec_norm_add::cublas_gemmex::fwd,
-        "Encdec Multihead Attention Plus Layer Norm and Residual Add Forward.");
-  m.def(
-      "encdec_multihead_attn_norm_add_backward", &multihead_attn::encdec_norm_add::cublas_gemmex::bwd,
-      "Encdec Multihead Attention Plus Layer Norm and Residual Add Backward.");
   m.def("mask_softmax_dropout_forward", &multihead_attn::fused_softmax::mask_softmax_dropout::fwd,
         "Self Multihead Attention masked softmax dropout -- Forward.");
   m.def("mask_softmax_dropout_backward", &multihead_attn::fused_softmax::mask_softmax_dropout::bwd,
         "Self Multihead Attention masked softmax dropout -- Backward.");
+  m.def("encdec_multihead_attn_forward", &multihead_attn::encdec::cublas_gemmex::fwd,
+        "Encdec Multihead Attention Forward.");
+  m.def("encdec_multihead_attn_backward", &multihead_attn::encdec::cublas_gemmex::bwd,
+        "Encdec Multihead Attention Backward.");
+  // m.def("encdec_multihead_attn_norm_add_forward", &multihead_attn::encdec_norm_add::cublas_gemmex::fwd,
+  //       "Encdec Multihead Attention Plus Layer Norm and Residual Add Forward.");
+  // m.def(
+  //     "encdec_multihead_attn_norm_add_backward", &multihead_attn::encdec_norm_add::cublas_gemmex::bwd,
+  //     "Encdec Multihead Attention Plus Layer Norm and Residual Add Backward.");
   m.def("self_attn_forward", &multihead_attn::self::cublas_gemmex::fwd,
         "Self Multihead Attention Forward.");
   m.def("self_attn_backward", &multihead_attn::self::cublas_gemmex::bwd,
@@ -822,10 +828,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("self_attn_bias_additive_mask_backward",
         &multihead_attn::self_bias_additive_mask::cublas_gemmex::bwd,
         "Self Multihead Attention with Bias -- Backward.");
-  m.def("self_attn_norm_add_forward", &multihead_attn::self_norm_add::cublas_gemmex::fwd,
-        "Self Multihead Attention Plus Layer Norm and Residual Add Forward.");
-  m.def("self_attn_norm_add_backward", &multihead_attn::self_norm_add::cublas_gemmex::bwd,
-        "Self Multihead Attention Plus Layer Norm and Residual Add Backward.");
+  // m.def("self_attn_norm_add_forward", &multihead_attn::self_norm_add::cublas_gemmex::fwd,
+  //       "Self Multihead Attention Plus Layer Norm and Residual Add Forward.");
+  // m.def("self_attn_norm_add_backward", &multihead_attn::self_norm_add::cublas_gemmex::bwd,
+  //       "Self Multihead Attention Plus Layer Norm and Residual Add Backward.");
 }
 
 #undef CHECK_CUDA

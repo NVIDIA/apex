@@ -586,11 +586,6 @@ void HostApplyLayerNorm(T *output, U *mean, U *invvar, const T *input, int n1,
       output, mean, invvar, input, n1, n2, U(epsilon), gamma, beta);
 }
 
-template void HostApplyLayerNorm<at::Half, float>(at::Half *output, float *mean, float *invvar, const at::Half *input, int n1,
-                        int n2, double epsilon, const at::Half *gamma, const at::Half *beta);
-template void HostApplyLayerNorm<float, float>(float *output, float *mean, float *invvar, const float *input, int n1,
-                        int n2, double epsilon, const float *gamma, const float *beta);
-
 template <typename T, typename U>
 void HostLayerNormGradient(const T *dout, const T *dout_resid, const U *mean,
                            const U *invvar, const at::Tensor &input, int n1,
@@ -638,14 +633,3 @@ void HostLayerNormGradient(const T *dout, const T *dout_resid, const U *mean,
       dout, dout_resid, static_cast<T *>(input.data_ptr()), n1, n2, mean,
       invvar, U(epsilon), gamma, grad_input);
 }
-
-template void HostLayerNormGradient<at::Half, float>(const at::Half *dout, const at::Half *dout_resid, const float *mean,
-                           const float *invvar, const at::Tensor &input, int n1,
-                           int n2, const at::Half *gamma, const at::Half *beta,
-                           double epsilon, at::Half *grad_input, at::Half *grad_gamma,
-                           at::Half *grad_beta);
-template void HostLayerNormGradient<float, float>(const float *dout, const float *dout_resid, const float *mean,
-                           const float *invvar, const at::Tensor &input, int n1,
-                           int n2, const float *gamma, const float *beta,
-                           double epsilon, float *grad_input, float *grad_gamma,
-                           float *grad_beta);
