@@ -11,7 +11,6 @@ from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
     _forward_backward_pipelining_with_interleaving,
 )
-from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import update_num_microbatches
@@ -19,6 +18,7 @@ from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import print_separator
+from apex.transformer.testing.commons import fwd_step_func
 from apex.transformer.log_util import get_transformer_logger, set_logging_level
 from apex.transformer.testing.commons import model_provider_func
 from apex.transformer._data import MegatronPretrainingRandomSampler
@@ -44,29 +44,7 @@ HIDDEN_SIZE = 16
 
 
 def Dataset(num_samples: int) -> List[Tuple[torch.Tensor, torch.Tensor]]:
-    return [(torch.randn(HIDDEN_SIZE), torch.randn(HIDDEN_SIZE // 2)) for _ in range(num_samples)]
-
-
-def process_batch(batch):
-    if isinstance(batch, (list, tuple)):
-        x = batch[0]
-    else:
-        x = batch
-    return x
-
-
-def fwd_step_func(micro_batch, model):
-    x = process_batch(micro_batch)
-    y = model(x)
-
-    # note (mkozuki): I don't think this function is nice but I do think this is enough for now
-    # just to check the sanity of ported pipeline functions.
-    def loss_func(x):
-        loss = torch.sum(x)
-        averaged_loss = average_losses_across_data_parallel_group([loss])
-        return loss, {"avg": averaged_loss}
-
-    return y, loss_func
+    return [(torch.randn(HIDDEN_SIZE, HIDDEN_SIZE), torch.randn(HIDDEN_SIZE // 2, HIDDEN_SIZE // 2)) for _ in range(num_samples)]
 
 
 # Run forward & backward with dynamic batch size.
@@ -122,7 +100,7 @@ def run_interleaved_with_dynamic_batch_size(
         assert isinstance(batch, (list, tuple))
         return [get_num_samples(b) for b in batch]
 
-    tensor_shape = [micro_batch_size, HIDDEN_SIZE]
+    tensor_shape = [micro_batch_size, HIDDEN_SIZE, HIDDEN_SIZE]
     consumed_samples = 0
     for i in range(NUM_ITERATIONS):
         update_num_microbatches(consumed_samples, consistency_check=False)

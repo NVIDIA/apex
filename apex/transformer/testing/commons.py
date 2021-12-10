@@ -21,6 +21,7 @@ import torch
 import torch.nn as nn
 
 from apex import transformer
+from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
 from apex.transformer.testing import global_vars
 
 
@@ -49,7 +50,9 @@ class MyModel(nn.Module):
         self.input_tensor = None
 
     def set_input_tensor(self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]) -> None:
-        self.input_tensor = input_tensor
+        if not isinstance(input_tensor, list):
+            input_tensor = [input_tensor]
+        self.input_tensor = input_tensor[0]
 
     def forward(self, x: Optional[torch.Tensor]) -> torch.Tensor:
         if self.input_tensor is None:
@@ -59,6 +62,27 @@ class MyModel(nn.Module):
 
 def model_provider_func(hidden_size, pre_process, post_process) -> MyModel:
     return MyModel(hidden_size, pre_process, post_process)
+
+
+def process_batch(batch):
+    if isinstance(batch, list):
+        x = batch[0]
+    else:
+        x = batch
+    return x
+
+
+def fwd_step_func(batch, model):
+    x = process_batch(batch)
+    y = model(x)
+
+    # note (mkozuki): I don't think this function is nice but I do think this is enough for now
+    # just to check the sanity of ported pipeline functions.
+    def loss_func(x):
+        loss = torch.sum(x)
+        averaged_loss = average_losses_across_data_parallel_group([loss])
+        return loss, {'avg': averaged_loss}
+    return y, loss_func
 
 
 class IdentityLayer(torch.nn.Module):

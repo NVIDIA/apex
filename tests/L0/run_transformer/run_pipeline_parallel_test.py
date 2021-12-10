@@ -1,9 +1,7 @@
-from typing import Optional, Union, List
+from typing import Optional
 
 import torch
-import torch.nn as nn
 
-import apex
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import get_forward_backward_func
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
@@ -11,13 +9,14 @@ from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
-from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import print_separator
+from apex.transformer.testing.commons import model_provider_func
+from apex.transformer.testing.commons import fwd_step_func
 from apex.transformer.log_util import get_transformer_logger, set_logging_level
 
 
@@ -33,62 +32,6 @@ fwd_bwd_functions = {
     "no_interleaving": forward_backward_pipelining_without_interleaving,
     "interleaving": _forward_backward_pipelining_with_interleaving,
 }
-
-
-# note (mkozuki): `pre_process` and `post_process` are a placeholder until interleaving schedule test comes.
-class MyLayer(nn.Module):
-
-    def __init__(self, pre_process: bool, post_process: bool):
-        super().__init__()
-        self.pre_process = pre_process
-        self.post_process = post_process
-        self.layer = nn.Linear(hidden_size, hidden_size)
-
-    def forward(self, x):
-        return self.layer(x)
-
-class MyModel(nn.Module):
-
-    def __init__(self, pre_process: bool = False, post_process: bool = False) -> None:
-        super().__init__()
-        self.pre_process = pre_process
-        self.post_process = post_process
-        self.layer = MyLayer(pre_process=pre_process, post_process=post_process)
-        self.input_tensor = None
-
-    def set_input_tensor(self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]) -> None:
-        self.input_tensor = input_tensor
-
-    def forward(self, x: Optional[torch.Tensor]) -> torch.Tensor:
-        if self.input_tensor is None:
-            return self.layer(x)
-        return self.layer(self.input_tensor)
-
-
-
-def model_provider_func(pre_process, post_process) -> MyModel:
-    return MyModel(pre_process, post_process)
-
-
-def process_batch(batch):
-    if isinstance(batch, list):
-        x = batch[0]
-    else:
-        x = batch
-    return x
-
-
-def fwd_step_func(batch, model):
-    x = process_batch(batch)
-    y = model(x)
-
-    # note (mkozuki): I don't think this function is nice but I do think this is enough for now
-    # just to check the sanity of ported pipeline functions.
-    def loss_func(x):
-        loss = torch.sum(x)
-        averaged_loss = average_losses_across_data_parallel_group([loss])
-        return loss, {'avg': averaged_loss}
-    return y, loss_func
 
 
 # TODO (mkozuki): Add a case with `autocast` and `GradScaler`.
@@ -121,13 +64,14 @@ def forward_backward_func_template(
         model_provider_func,
         wrap_with_ddp=True,
         virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
+        hidden_size=hidden_size,
     )
     assert isinstance(model, list)
     assert len(model) == (1 if virtual_pipeline_model_parallel_size is None else virtual_pipeline_model_parallel_size)
     _param_groups = _get_params_for_weight_decay_optimization(model)
     torch.optim.Adam(_param_groups, lr=1e-4)
 
-    tensor_shape = [batch_size // parallel_state.get_data_parallel_world_size(), hidden_size]
+    tensor_shape = [batch_size // parallel_state.get_data_parallel_world_size(), hidden_size, hidden_size]
     batch = (torch.randn(tensor_shape).cuda(),)
     tensor_shape[0] = micro_batch_size
 
@@ -183,6 +127,7 @@ if __name__ == "__main__":
                     f"virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
                     f"{str(e)}"
                 )
+                print(failures[-1])
             finally:
                 parallel_state.destroy_model_parallel()
         else:
