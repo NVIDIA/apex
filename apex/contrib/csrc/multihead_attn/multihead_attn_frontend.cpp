@@ -1,7 +1,6 @@
 #include <vector>
 
 #include <cuda_fp16.h>
-
 #include <torch/extension.h>
 
 

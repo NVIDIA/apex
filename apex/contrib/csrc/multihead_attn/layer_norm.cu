@@ -1,11 +1,9 @@
 #include "layer_norm.cuh"
-#include <ATen/ATen.h>
-#include <ATen/cuda/DeviceUtils.cuh>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
-
-namespace {
+#include <ATen/ATen.h>
+#include <ATen/cuda/DeviceUtils.cuh>
 
 template <typename U>
 __device__ void cuWelfordOnlineSum(const U curr, U &mu, U &sigma2, U &count) {
@@ -210,6 +208,22 @@ template <typename U> U rsqrt(U v) { return U(1) / sqrt(v); }
 template <> float rsqrt(float v) { return rsqrtf(v); }
 template <> double rsqrt(double v) { return rsqrt(v); }
 
+// This is the un-specialized struct.  Note that we prevent instantiation of
+// this struct by putting an undefined symbol in the function body so it won't
+// compile.
+//  template <typename T>
+//  struct SharedMemory
+//  {
+//      // Ensure that we won't compile any un-specialized types
+//      __device__ T *getPointer()
+//      {
+//          extern __device__ void error(void);
+//          error();
+//          return NULL;
+//      }
+//  };
+// https://github.com/NVIDIA/apex/issues/246
+template <typename T> struct SharedMemory;
 template <> struct SharedMemory<float> {
   __device__ float *getPointer() {
     extern __shared__ float s_float[];
@@ -572,6 +586,11 @@ void HostApplyLayerNorm(T *output, U *mean, U *invvar, const T *input, int n1,
       output, mean, invvar, input, n1, n2, U(epsilon), gamma, beta);
 }
 
+template void HostApplyLayerNorm<at::Half, float>(at::Half *output, float *mean, float *invvar, const at::Half *input, int n1,
+                        int n2, double epsilon, const at::Half *gamma, const at::Half *beta);
+template void HostApplyLayerNorm<float, float>(float *output, float *mean, float *invvar, const float *input, int n1,
+                        int n2, double epsilon, const float *gamma, const float *beta);
+
 template <typename T, typename U>
 void HostLayerNormGradient(const T *dout, const T *dout_resid, const U *mean,
                            const U *invvar, const at::Tensor &input, int n1,
@@ -620,4 +639,13 @@ void HostLayerNormGradient(const T *dout, const T *dout_resid, const U *mean,
       invvar, U(epsilon), gamma, grad_input);
 }
 
-} // namespace
+template void HostLayerNormGradient<at::Half, float>(const at::Half *dout, const at::Half *dout_resid, const float *mean,
+                           const float *invvar, const at::Tensor &input, int n1,
+                           int n2, const at::Half *gamma, const at::Half *beta,
+                           double epsilon, at::Half *grad_input, at::Half *grad_gamma,
+                           at::Half *grad_beta);
+template void HostLayerNormGradient<float, float>(const float *dout, const float *dout_resid, const float *mean,
+                           const float *invvar, const at::Tensor &input, int n1,
+                           int n2, const float *gamma, const float *beta,
+                           double epsilon, float *grad_input, float *grad_gamma,
+                           float *grad_beta);

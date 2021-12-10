@@ -1,11 +1,9 @@
 #pragma once
+#include <cuda.h>
+#include <cuda_runtime.h>
 #include <ATen/ATen.h>
 #include <ATen/cuda/DeviceUtils.cuh>
 
-#include <cuda.h>
-#include <cuda_runtime.h>
-
-namespace {
 template <typename U>
 __device__ void cuWelfordOnlineSum(const U curr, U &mu, U &sigma2, U &count);
 
@@ -17,25 +15,6 @@ template <typename T, typename U>
 __device__ void cuWelfordMuSigma2(const T *__restrict__ vals, const int n1,
                                   const int n2, const int i1, U &mu, U &sigma2,
                                   U *buf);
-
-template <typename U> U rsqrt(U v);
-
-// This is the un-specialized struct.  Note that we prevent instantiation of
-// this struct by putting an undefined symbol in the function body so it won't
-// compile.
-//  template <typename T>
-//  struct SharedMemory
-//  {
-//      // Ensure that we won't compile any un-specialized types
-//      __device__ T *getPointer()
-//      {
-//          extern __device__ void error(void);
-//          error();
-//          return NULL;
-//      }
-//  };
-// https://github.com/NVIDIA/apex/issues/246
-template <typename T> struct SharedMemory;
 
 template <typename T, typename U>
 __global__ void
@@ -87,5 +66,3 @@ void HostLayerNormGradient(const T *dout, const T *dout_resid, const U *mean,
                            int n2, const T *gamma, const T *beta,
                            double epsilon, T *grad_input, T *grad_gamma,
                            T *grad_beta);
-
-} // namespace
