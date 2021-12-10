@@ -16,6 +16,8 @@
 """GPT-2 model."""
 import enum
 import math
+import contextlib
+import json
 
 import torch
 import torch.nn.functional as F
@@ -1046,7 +1048,8 @@ class Embedding(MegatronModule):
 
         # Embeddings dropout
         self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
-        print("FINISH WORD EMBEDDING", self.word_embeddings)
+        if torch.distributed.get_rank() == 0:
+            print("FINISH WORD EMBEDDING", self.word_embeddings)
 
     def zero_parameters(self):
         """Zero out all parameters in embedding."""
@@ -1422,18 +1425,29 @@ def post_language_model_processing(lm_output, labels, logit_weights, parallel_ou
             loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
         return loss
 
+def module_size(m: torch.nn.Module, only_trainable: bool = False):
+    """
+    returns the total number of parameters used by `m` (only counting
+    shared parameters once); if `only_trainable` is True, then only
+    includes parameters with `requires_grad = True`
+    """
+    parameters = list(m.parameters())
+    if only_trainable:
+        parameters = [p for p in parameters if p.requires_grad]
+    unique = {p.data_ptr(): p for p in parameters}.values()
+    return sum(p.numel() for p in unique)
 
 class GPTModel(MegatronModule):
     """GPT-2 Language model."""
 
-    def __init__(self, num_tokentypes=0, parallel_output=True, pre_process=True, post_process=True):
+    def __init__(self, num_tokentypes=0, parallel_output=True, pre_process=True, post_process=True, cpu_offload=False):
         super(GPTModel, self).__init__()
         args = get_args()
         self.parallel_output = parallel_output
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
-
+        self.cpu_offload = cpu_offload
         self.language_model, self._language_model_key = get_language_model(
             num_tokentypes=num_tokentypes,
             add_pooler=False,
@@ -1461,20 +1475,21 @@ class GPTModel(MegatronModule):
         inference_max_sequence_len=None,
     ):
 
-        lm_output = self.language_model(
-            input_ids,
-            position_ids,
-            attention_mask,
-            set_inference_key_value_memory=set_inference_key_value_memory,
-            inference_max_sequence_len=inference_max_sequence_len,
-        )
-
-        if self.post_process:
-            return post_language_model_processing(
-                lm_output, labels, self.word_embeddings_weight(), self.parallel_output, self.fp16_lm_cross_entropy
+        with torch.autograd.graph.save_on_cpu() if self.cpu_offload else contextlib.nullcontext():
+            lm_output = self.language_model(
+                input_ids,
+                position_ids,
+                attention_mask,
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
             )
-        else:
-            return lm_output
+
+            if self.post_process:
+                return post_language_model_processing(
+                    lm_output, labels, self.word_embeddings_weight(), self.parallel_output, self.fp16_lm_cross_entropy
+                )
+            else:
+                return lm_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix="", keep_vars=False):
 
@@ -1499,6 +1514,11 @@ class GPTModel(MegatronModule):
             state_dict = state_dict[self._language_model_key]
         self.language_model.load_state_dict(state_dict, strict=strict)
 
-def gpt_model_provider(pre_process=True, post_process=True):
-    model = GPTModel(num_tokentypes=0, parallel_output=True, pre_process=pre_process, post_process=post_process)
+def gpt_model_provider(pre_process=True, post_process=False, cpu_offload=False):
+    model = GPTModel(num_tokentypes=0, parallel_output=True, pre_process=pre_process, post_process=post_process, cpu_offload=cpu_offload)
+    if torch.distributed.get_rank() == 0:
+        init_dict = {"pre_process":pre_process, "post_process":post_process, "cpu_offload":cpu_offload}
+        print("Initialized GPT-2 w/:", json.dumps(init_dict))
+        n_params = module_size(model) * parallel_state.get_tensor_model_parallel_world_size() * parallel_state.get_pipeline_model_parallel_world_size()
+        print("Number of Parameters:", n_params)
     return model

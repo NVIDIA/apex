@@ -1,5 +1,5 @@
 import torch
-
+import contextlib
 from apex.normalization import FusedLayerNorm as LayerNorm
 from apex.transformer import tensor_parallel
 from apex.transformer.enums import AttnMaskType
@@ -106,7 +106,8 @@ class BertModel(MegatronModule):
                  add_binary_head=True,
                  parallel_output=True,
                  pre_process=True,
-                 post_process=True):
+                 post_process=True,
+                 cpu_offload=False):
         super(BertModel, self).__init__()
         args = get_args()
 
@@ -115,7 +116,7 @@ class BertModel(MegatronModule):
         self.parallel_output = parallel_output
         self.pre_process = pre_process
         self.post_process = post_process
-
+        self.cpu_offload = cpu_offload
         init_method = init_method_normal(args.init_method_std)
         scaled_init_method = scaled_init_method_normal(args.init_method_std,
                                                        args.num_layers)
@@ -147,31 +148,31 @@ class BertModel(MegatronModule):
 
     def forward(self, bert_model_input, attention_mask,
                 tokentype_ids=None, lm_labels=None):
+        with torch.autograd.graph.save_on_cpu() if self.cpu_offload else contextlib.nullcontext():
+            extended_attention_mask = bert_extended_attention_mask(attention_mask)
+            input_ids = bert_model_input
+            position_ids = bert_position_ids(input_ids)
 
-        extended_attention_mask = bert_extended_attention_mask(attention_mask)
-        input_ids = bert_model_input
-        position_ids = bert_position_ids(input_ids)
+            lm_output = self.language_model(
+                input_ids,
+                position_ids,
+                extended_attention_mask,
+                tokentype_ids=tokentype_ids
+            )
 
-        lm_output = self.language_model(
-            input_ids,
-            position_ids,
-            extended_attention_mask,
-            tokentype_ids=tokentype_ids
-        )
+            if self.post_process and self.add_binary_head:
+                lm_output, pooled_output = lm_output
+            else:
+                pooled_output = None
 
-        if self.post_process and self.add_binary_head:
-            lm_output, pooled_output = lm_output
-        else:
-            pooled_output = None
-
-        if self.post_process:
-            return post_language_model_processing(lm_output, pooled_output,
-                                                  self.lm_head, self.binary_head,
-                                                  lm_labels,
-                                                  self.word_embeddings_weight(),
-                                                  self.fp16_lm_cross_entropy)
-        else:
-            return lm_output
+            if self.post_process:
+                return post_language_model_processing(lm_output, pooled_output,
+                                                      self.lm_head, self.binary_head,
+                                                      lm_labels,
+                                                      self.word_embeddings_weight(),
+                                                      self.fp16_lm_cross_entropy)
+            else:
+                return lm_output
 
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='',
@@ -212,6 +213,6 @@ class BertModel(MegatronModule):
             self.word_embeddings.load_state_dict(
                 state_dict[self._word_embeddings_for_head_key], strict=strict)
 
-def bert_model_provider(pre_process=True, post_process=True):
-    model = BertModel(num_tokentypes=0, add_binary_head=False, pre_process=pre_process, post_process=post_process)
+def bert_model_provider(pre_process=True, post_process=True, cpu_offload=False):
+    model = BertModel(num_tokentypes=0, add_binary_head=False, pre_process=pre_process, post_process=post_process, cpu_offload=cpu_offload)
     return model
