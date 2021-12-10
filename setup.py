@@ -397,11 +397,11 @@ if "--fast_multihead_attn" in sys.argv:
                     'apex/contrib/csrc/multihead_attn/additive_masked_softmax_dropout_cuda.cu',
                     "apex/contrib/csrc/multihead_attn/masked_softmax_dropout_cuda.cu",
                     "apex/contrib/csrc/multihead_attn/encdec_multihead_attn_cuda.cu",
-                    # "apex/contrib/csrc/multihead_attn/encdec_multihead_attn_norm_add_cuda.cu",
+                    "apex/contrib/csrc/multihead_attn/encdec_multihead_attn_norm_add_cuda.cu",
                     "apex/contrib/csrc/multihead_attn/self_multihead_attn_cuda.cu",
                     "apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_additive_mask_cuda.cu",
                     "apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_cuda.cu",
-                    # "apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add_cuda.cu",
+                    "apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add_cuda.cu",
                 ],
                 extra_compile_args={
                     'cxx': ['-O3'] + version_dependent_macros + generator_flag,

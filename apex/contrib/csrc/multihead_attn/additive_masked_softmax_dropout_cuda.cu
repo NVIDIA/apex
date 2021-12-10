@@ -27,7 +27,7 @@ std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads,
   const int sequences = attn_batches / heads;
   const int q_seq_len = input.size(1);
   const int k_seq_len = q_seq_len;
-  const int dropout_elems = attn_batches * q_seq_len * k_seq_len;
+  // const int dropout_elems = attn_batches * q_seq_len * k_seq_len;
 
   // There is no reason to use more than one stream as every kernel is
   // sequentially dependent
@@ -86,7 +86,7 @@ torch::Tensor bwd_cuda(int heads, torch::Tensor const &output_grads,
   const int attn_batches = output_grads.size(0);
   const int q_seq_len = output_grads.size(1);
   const int k_seq_len = q_seq_len;
-  const int dropout_elems = attn_batches * q_seq_len * k_seq_len;
+  // const int dropout_elems = attn_batches * q_seq_len * k_seq_len;
   // TODO: Streams can be used in Backprop but I haven't added more than one
   // in my first attempt to create the code
   cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();

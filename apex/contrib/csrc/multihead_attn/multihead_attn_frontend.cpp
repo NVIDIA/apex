@@ -231,7 +231,6 @@ bwd(int heads, torch::Tensor const &output_grads,
 } // end namespace cublas_gemmex
 } // end namespace encdec
 
-#if 0
 namespace encdec_norm_add {
 namespace cublas_gemmex {
 
@@ -384,7 +383,6 @@ bwd(int heads, torch::Tensor const &output_grads,
 
 } // end namespace cublas_gemmex
 } // end namespace encdec_norm_add
-#endif
 
 namespace self {
 namespace cublas_gemmex {
@@ -662,7 +660,6 @@ bwd(int heads, torch::Tensor const &output_grads,
 } // end namespace cublas_gemmex
 } // namespace self_bias_additive_mask
 
-#if 0
 namespace self_norm_add {
 namespace cublas_gemmex {
 
@@ -792,7 +789,6 @@ bwd(int heads, torch::Tensor const &output_grads,
 
 } // end namespace cublas_gemmex
 } // end namespace self_norm_add
-#endif
 } // end namespace multihead_attn
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
@@ -810,11 +806,11 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         "Encdec Multihead Attention Forward.");
   m.def("encdec_multihead_attn_backward", &multihead_attn::encdec::cublas_gemmex::bwd,
         "Encdec Multihead Attention Backward.");
-  // m.def("encdec_multihead_attn_norm_add_forward", &multihead_attn::encdec_norm_add::cublas_gemmex::fwd,
-  //       "Encdec Multihead Attention Plus Layer Norm and Residual Add Forward.");
-  // m.def(
-  //     "encdec_multihead_attn_norm_add_backward", &multihead_attn::encdec_norm_add::cublas_gemmex::bwd,
-  //     "Encdec Multihead Attention Plus Layer Norm and Residual Add Backward.");
+  m.def("encdec_multihead_attn_norm_add_forward", &multihead_attn::encdec_norm_add::cublas_gemmex::fwd,
+        "Encdec Multihead Attention Plus Layer Norm and Residual Add Forward.");
+  m.def(
+      "encdec_multihead_attn_norm_add_backward", &multihead_attn::encdec_norm_add::cublas_gemmex::bwd,
+      "Encdec Multihead Attention Plus Layer Norm and Residual Add Backward.");
   m.def("self_attn_forward", &multihead_attn::self::cublas_gemmex::fwd,
         "Self Multihead Attention Forward.");
   m.def("self_attn_backward", &multihead_attn::self::cublas_gemmex::bwd,
@@ -828,10 +824,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("self_attn_bias_additive_mask_backward",
         &multihead_attn::self_bias_additive_mask::cublas_gemmex::bwd,
         "Self Multihead Attention with Bias -- Backward.");
-  // m.def("self_attn_norm_add_forward", &multihead_attn::self_norm_add::cublas_gemmex::fwd,
-  //       "Self Multihead Attention Plus Layer Norm and Residual Add Forward.");
-  // m.def("self_attn_norm_add_backward", &multihead_attn::self_norm_add::cublas_gemmex::bwd,
-  //       "Self Multihead Attention Plus Layer Norm and Residual Add Backward.");
+  m.def("self_attn_norm_add_forward", &multihead_attn::self_norm_add::cublas_gemmex::fwd,
+        "Self Multihead Attention Plus Layer Norm and Residual Add Forward.");
+  m.def("self_attn_norm_add_backward", &multihead_attn::self_norm_add::cublas_gemmex::bwd,
+        "Self Multihead Attention Plus Layer Norm and Residual Add Backward.");
 }
 
 #undef CHECK_CUDA

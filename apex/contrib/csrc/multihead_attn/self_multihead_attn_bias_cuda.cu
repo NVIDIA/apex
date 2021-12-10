@@ -12,7 +12,6 @@
 #include <torch/extension.h>
 
 #include "dropout.cuh"
-#include "layer_norm.cuh"
 #include "softmax.cuh"
 #include "strided_batched_gemm.cuh"
 
