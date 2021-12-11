@@ -9,7 +9,7 @@ from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
-from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
+from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
@@ -37,6 +37,7 @@ fwd_bwd_functions = {
 # TODO (mkozuki): Add a case with `autocast` and `GradScaler`.
 # Run forward & backward for one minibatch.
 def forward_backward_func_template(
+        args,
         name: str,
         forward_backward_func,
         pipeline_model_parallel_size: int,
@@ -49,12 +50,26 @@ def forward_backward_func_template(
         # pipeline_model_parallel_size>1. So use pipeline_model_parallel_size as
         # tensor_model_parallel_size and set pipeline_model_parallel_size to 1.
         parallel_state.initialize_model_parallel(1, 1, None)
+        _reconfigure_microbatch_calculator(
+            args.rank,
+            args.rampup_batch_size,
+            args.global_batch_size,
+            args.micro_batch_size,
+            parallel_state.get_data_parallel_world_size(),
+        )
     else:
         # NOTE (mkozuki): `virtual_pipeline_model_parallel_size` is necessary to enable interleaving scheduling
         # In megatron, `args.virtual_pipeline_model_parallel_size` is computed in megatron/arguments.py and
         # used ubiquitously but this test uses custom model so it's safe to abuse.
         parallel_state.initialize_model_parallel(
             1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
+        _reconfigure_microbatch_calculator(
+            args.rank,
+            args.rampup_batch_size,
+            args.global_batch_size,
+            args.micro_batch_size,
+            1,  # args.data_parallel_size,
+        )
         if virtual_pipeline_model_parallel_size is not None:
             # Check the experimental warning message
             get_forward_backward_func(virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
@@ -100,13 +115,7 @@ if __name__ == "__main__":
     args = global_vars.get_args()
     batch_size = args.global_batch_size
     micro_batch_size = args.micro_batch_size
-    setup_microbatch_calculator(
-        args.rank,
-        args.rampup_batch_size,
-        args.global_batch_size,
-        args.micro_batch_size,
-        1,  # args.data_parallel_size,
-    )
+
     for forward_only in (True, False):
         for name, forward_backward_func in fwd_bwd_functions.items():
             n_tests += 1
@@ -114,6 +123,7 @@ if __name__ == "__main__":
             pipeline_model_parallel_size = world_size
             try:
                 forward_backward_func_template(
+                    args,
                     name,
                     forward_backward_func,
                     pipeline_model_parallel_size,
