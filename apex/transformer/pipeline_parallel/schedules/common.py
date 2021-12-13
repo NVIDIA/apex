@@ -82,11 +82,11 @@ def build_model(
             set_defaults_if_not_set_tensor_model_parallel_attributes(param)
 
     # Print number of parameters.
-    if parallel_state.get_data_parallel_rank() == 0:
+    if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
         msg = " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
             parallel_state.get_tensor_model_parallel_rank(),
             parallel_state.get_pipeline_model_parallel_rank(),
-            sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
+            _calc_number_of_params(model),
         )
         print(msg, flush=True)
 
@@ -106,6 +106,11 @@ def build_model(
             for model_module in model
         ]
     return model
+
+
+def _calc_number_of_params(model: List[torch.nn.Module]) -> int:
+    assert isinstance(model, list)
+    return sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
 
 
 def _get_params_for_weight_decay_optimization(
