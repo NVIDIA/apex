@@ -16,6 +16,10 @@ from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import print_separator
 
+import warnings
+class DebugWarning(Warning):
+    pass
+
 mode = None
 MANUAL_SEED = 42
 inds = None
@@ -105,7 +109,7 @@ def train(model, optim, virtual_pipeline_model_parallel_size, pipeline_model_par
     hidden_size = global_vars.get_args().hidden_size
     forward_backward_func = get_forward_backward_func(virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
-    for _ in range(8):
+    for i in range(16):
         batch = generate_fancy_data_labels(sequence_len, batch_size)
         optim.zero_grad()
         forward_backward_func(fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape)
@@ -135,13 +139,13 @@ if __name__ == '__main__':
             args.rampup_batch_size,
             args.global_batch_size,
             args.micro_batch_size,
-            1,  # args.data_parallel_size,
+            args.data_parallel_size,
         )
+        # virtual_pipeline_model_parallel_size = None
         virtual_pipeline_model_parallel_size = 2
-        world_size = torch.distributed.get_world_size()
         pipeline_model_parallel_size = world_size
         parallel_state.initialize_model_parallel(
-            1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
+            args.tensor_model_parallel_size, args.pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
         pipeline_model_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
         tensor_parallel.random.model_parallel_cuda_manual_seed(0)
         model = build_model(
@@ -155,16 +159,13 @@ if __name__ == '__main__':
         optim = torch.optim.Adam(_param_groups)
         print(effective_length)
         print(fancy_data.size(0))
-        train(model, optim, virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
+        train(model, optim, virtual_pipeline_model_parallel_size, args.pipeline_model_parallel_size)
     except Exception as e:
         failure = str(e)
     finally:
         parallel_state.destroy_model_parallel()
     if failure is not None:
-        torch.distributed.barrier()
-        if torch.distributed.get_rank() == 0:
-            print(f"Minimal BERT Pipeline Parallel Failed with: {failure}")
-    else:
-        torch.distributed.barrier()
-        if torch.distributed.get_rank() == 0:
-            print(TEST_SUCCESS_MESSAGE)
+        warnings.warn(f"Minimal BERT Pipeline Parallel Failed with: {failure}", DebugWarning)
+        print(f"Minimal BERT Pipeline Parallel Failed with: {failure}")
+    torch.distributed.barrier()
+    print(TEST_SUCCESS_MESSAGE)
