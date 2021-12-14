@@ -51,6 +51,10 @@ def raise_if_cuda_home_none(global_option: str) -> None:
     )
 
 
+def append_nvcc_threads(nvcc_extra_args):
+    return nvcc_extra_args + ["--threads", "4"]
+
+
 if not torch.cuda.is_available():
     # https://github.com/NVIDIA/apex/issues/486
     # Extension builds after https://github.com/pytorch/pytorch/pull/23408 attempt to query torch.cuda.get_device_capability(),
@@ -139,7 +143,7 @@ if "--distributed_adam" in sys.argv:
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3", "--use_fast_math"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(["-O3", "--use_fast_math"] + version_dependent_macros),
             },
         )
     )
@@ -157,7 +161,7 @@ if "--distributed_lamb" in sys.argv:
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3", "--use_fast_math"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(["-O3", "--use_fast_math"] + version_dependent_macros),
             },
         )
     )
@@ -188,13 +192,15 @@ if "--cuda_ext" in sys.argv:
             ],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": [
-                    "-lineinfo",
-                    "-O3",
-                    # '--resource-usage',
-                    "--use_fast_math",
-                ]
-                + version_dependent_macros,
+                "nvcc": append_nvcc_threads(
+                    [
+                        "-lineinfo",
+                        "-O3",
+                        # '--resource-usage',
+                        "--use_fast_math",
+                    ]
+                    + version_dependent_macros
+                ),
             },
         )
     )
@@ -204,7 +210,7 @@ if "--cuda_ext" in sys.argv:
             sources=["csrc/syncbn.cpp", "csrc/welford.cu"],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(["-O3"] + version_dependent_macros),
             },
         )
     )
@@ -215,7 +221,7 @@ if "--cuda_ext" in sys.argv:
             sources=["csrc/layer_norm_cuda.cpp", "csrc/layer_norm_cuda_kernel.cu"],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-maxrregcount=50", "-O3", "--use_fast_math"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(["-maxrregcount=50", "-O3", "--use_fast_math"] + version_dependent_macros),
             },
         )
     )
@@ -226,7 +232,7 @@ if "--cuda_ext" in sys.argv:
             sources=["csrc/mlp.cpp", "csrc/mlp_cuda.cu"],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(["-O3"] + version_dependent_macros),
             },
         )
     )
@@ -236,7 +242,7 @@ if "--cuda_ext" in sys.argv:
             sources=["csrc/fused_dense.cpp", "csrc/fused_dense_cuda.cu"],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(["-O3"] + version_dependent_macros),
             },
         )
     )
@@ -251,14 +257,16 @@ if "--cuda_ext" in sys.argv:
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": [
-                    "-O3",
-                    "-U__CUDA_NO_HALF_OPERATORS__",
-                    "-U__CUDA_NO_HALF_CONVERSIONS__",
-                    "--expt-relaxed-constexpr",
-                    "--expt-extended-lambda",
-                ]
-                + version_dependent_macros,
+                "nvcc": append_nvcc_threads(
+                    [
+                        "-O3",
+                        "-U__CUDA_NO_HALF_OPERATORS__",
+                        "-U__CUDA_NO_HALF_CONVERSIONS__",
+                        "--expt-relaxed-constexpr",
+                        "--expt-extended-lambda",
+                    ]
+                    + version_dependent_macros
+                ),
             },
         )
     )
@@ -270,14 +278,16 @@ if "--cuda_ext" in sys.argv:
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": [
-                    "-O3",
-                    "-U__CUDA_NO_HALF_OPERATORS__",
-                    "-U__CUDA_NO_HALF_CONVERSIONS__",
-                    "--expt-relaxed-constexpr",
-                    "--expt-extended-lambda",
-                ]
-                + version_dependent_macros,
+                "nvcc": append_nvcc_threads(
+                    [
+                        "-O3",
+                        "-U__CUDA_NO_HALF_OPERATORS__",
+                        "-U__CUDA_NO_HALF_CONVERSIONS__",
+                        "--expt-relaxed-constexpr",
+                        "--expt-extended-lambda",
+                    ]
+                    + version_dependent_macros
+                ),
             },
         )
     )
@@ -297,13 +307,15 @@ if "--bnp" in sys.argv:
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": [] + version_dependent_macros,
-                "nvcc": [
-                    "-DCUDA_HAS_FP16=1",
-                    "-D__CUDA_NO_HALF_OPERATORS__",
-                    "-D__CUDA_NO_HALF_CONVERSIONS__",
-                    "-D__CUDA_NO_HALF2_OPERATORS__",
-                ]
-                + version_dependent_macros,
+                "nvcc": append_nvcc_threads(
+                    [
+                        "-DCUDA_HAS_FP16=1",
+                        "-D__CUDA_NO_HALF_OPERATORS__",
+                        "-D__CUDA_NO_HALF_CONVERSIONS__",
+                        "-D__CUDA_NO_HALF2_OPERATORS__",
+                    ]
+                    + version_dependent_macros
+                ),
             },
         )
     )
@@ -318,7 +330,7 @@ if "--xentropy" in sys.argv:
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(["-O3"] + version_dependent_macros),
             },
         )
     )
@@ -336,7 +348,7 @@ if "--deprecated_fused_adam" in sys.argv:
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3", "--use_fast_math"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(["-O3", "--use_fast_math"] + version_dependent_macros),
             },
         )
     )
@@ -355,7 +367,7 @@ if "--deprecated_fused_lamb" in sys.argv:
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3", "--use_fast_math"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(["-O3", "--use_fast_math"] + version_dependent_macros),
             },
         )
     )
@@ -386,24 +398,26 @@ if "--fast_layer_norm" in sys.argv:
             ],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros + generator_flag,
-                "nvcc": [
-                    "-O3",
-                    "-gencode",
-                    "arch=compute_70,code=sm_70",
-                    "-U__CUDA_NO_HALF_OPERATORS__",
-                    "-U__CUDA_NO_HALF_CONVERSIONS__",
-                    "-U__CUDA_NO_BFLOAT16_OPERATORS__",
-                    "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
-                    "-U__CUDA_NO_BFLOAT162_OPERATORS__",
-                    "-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
-                    "-I./apex/contrib/csrc/layer_norm/",
-                    "--expt-relaxed-constexpr",
-                    "--expt-extended-lambda",
-                    "--use_fast_math",
-                ]
-                + version_dependent_macros
-                + generator_flag
-                + cc_flag,
+                "nvcc": append_nvcc_threads(
+                    [
+                        "-O3",
+                        "-gencode",
+                        "arch=compute_70,code=sm_70",
+                        "-U__CUDA_NO_HALF_OPERATORS__",
+                        "-U__CUDA_NO_HALF_CONVERSIONS__",
+                        "-U__CUDA_NO_BFLOAT16_OPERATORS__",
+                        "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
+                        "-U__CUDA_NO_BFLOAT162_OPERATORS__",
+                        "-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
+                        "-I./apex/contrib/csrc/layer_norm/",
+                        "--expt-relaxed-constexpr",
+                        "--expt-extended-lambda",
+                        "--use_fast_math",
+                    ]
+                    + version_dependent_macros
+                    + generator_flag
+                    + cc_flag
+                ),
             },
             include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/layer_norm")],
         )
@@ -437,17 +451,19 @@ if "--fmha" in sys.argv:
             ],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros + generator_flag,
-                "nvcc": [
-                    "-O3",
-                    "-U__CUDA_NO_HALF_OPERATORS__",
-                    "-U__CUDA_NO_HALF_CONVERSIONS__",
-                    "--expt-relaxed-constexpr",
-                    "--expt-extended-lambda",
-                    "--use_fast_math",
-                ]
-                + version_dependent_macros
-                + generator_flag
-                + cc_flag,
+                "nvcc": append_nvcc_threads(
+                    [
+                        "-O3",
+                        "-U__CUDA_NO_HALF_OPERATORS__",
+                        "-U__CUDA_NO_HALF_CONVERSIONS__",
+                        "--expt-relaxed-constexpr",
+                        "--expt-extended-lambda",
+                        "--use_fast_math",
+                    ]
+                    + version_dependent_macros
+                    + generator_flag
+                    + cc_flag
+                ),
             },
             include_dirs=[
                 os.path.join(this_dir, "apex/contrib/csrc"),
@@ -487,19 +503,21 @@ if "--fast_multihead_attn" in sys.argv:
             ],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros + generator_flag,
-                "nvcc": [
-                    "-O3",
-                    "-gencode",
-                    "arch=compute_70,code=sm_70",
-                    "-U__CUDA_NO_HALF_OPERATORS__",
-                    "-U__CUDA_NO_HALF_CONVERSIONS__",
-                    "--expt-relaxed-constexpr",
-                    "--expt-extended-lambda",
-                    "--use_fast_math",
-                ]
-                + version_dependent_macros
-                + generator_flag
-                + cc_flag,
+                "nvcc": append_nvcc_threads(
+                    [
+                        "-O3",
+                        "-gencode",
+                        "arch=compute_70,code=sm_70",
+                        "-U__CUDA_NO_HALF_OPERATORS__",
+                        "-U__CUDA_NO_HALF_CONVERSIONS__",
+                        "--expt-relaxed-constexpr",
+                        "--expt-extended-lambda",
+                        "--use_fast_math",
+                    ]
+                    + version_dependent_macros
+                    + generator_flag
+                    + cc_flag
+                ),
             },
             include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass")],
         )
@@ -517,12 +535,9 @@ if "--transducer" in sys.argv:
             ],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(["-O3"] + version_dependent_macros),
             },
-            include_dirs=[
-                os.path.join(this_dir, "csrc"),
-                os.path.join(this_dir, "apex/contrib/csrc/multihead_attn"),
-            ],
+            include_dirs=[os.path.join(this_dir, "csrc"), os.path.join(this_dir, "apex/contrib/csrc/multihead_attn")],
         )
     )
     ext_modules.append(
@@ -535,7 +550,7 @@ if "--transducer" in sys.argv:
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(["-O3"] + version_dependent_macros),
             },
         )
     )
