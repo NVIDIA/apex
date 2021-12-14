@@ -96,7 +96,8 @@ class TestFusedAdam(TestFusedOptimizer):
 
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
-
+    
+    @unittest.skip("NaN issue observed on ROCm as of 12/1/2021. The failing unit test is introduced by a PyTorch commit sometime in between rocm/pytorch:rocm4.3.1_ubuntu18.04_py3.6_pytorch_1.9.0 and 2021/12/01. Please refer to https://github.com/ROCmSoftwarePlatform/apex/issues/63")
     def test_half(self):
         self.gen_single_type_test(param_type=torch.float16)
 
