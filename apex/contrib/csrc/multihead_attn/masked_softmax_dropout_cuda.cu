@@ -11,8 +11,8 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <torch/extension.h>
 
-#include "dropout.h"
-#include "softmax.h"
+#include "dropout.cuh"
+#include "softmax.cuh"
 
 namespace multihead_attn {
 namespace fused_softmax {

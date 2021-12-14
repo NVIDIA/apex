@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <vector>
 
@@ -14,6 +15,7 @@
 #include "cutlass/gemm/gemm.h"
 #include "cutlass/gemm/wmma_gemm_traits.h"
 
+namespace {
 cublasOperation_t convertTransToCublasOperation(char trans) {
   if (trans == 't')
     return CUBLAS_OP_T;
@@ -47,6 +49,7 @@ void CublasStridedBatchedGemm(
       CUDA_R_16F, (int)ldc, strideC, (int)batchCount, CUDA_R_32F, algo));
   // THCublasCheck(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
 }
+} // namespace
 
 template <cutlass::MatrixLayout::Kind A_LAYOUT,
           cutlass::MatrixLayout::Kind B_LAYOUT, int SRC_A, int SRC_B, int DST_C>
@@ -153,6 +156,7 @@ void CutlassGemm_FP32Accum(cudaStream_t stream, long m, long n, long k,
   } while (batchesLeft > 0);
 }
 
+namespace {
 void gemm_switch_fp32accum(char transa, char transb, long m,
                            long n, long k, float alpha, const half *a, long lda,
                            long strideA, const half *b, long ldb, long strideB,
@@ -632,3 +636,4 @@ void HgemmStridedBatched(char transa, char transb, long m,
                         b, ldb, strideB, beta, c, ldc, strideC, batchCount);
 }
 
+} // namespace

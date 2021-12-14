@@ -11,10 +11,10 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <torch/extension.h>
 
-#include "dropout.h"
-#include "layer_norm.h"
-#include "softmax.h"
-#include "strided_batched_gemm.h"
+#include "dropout.cuh"
+#include "layer_norm.cuh"
+#include "softmax.cuh"
+#include "strided_batched_gemm.cuh"
 
 namespace multihead_attn {
 namespace self_norm_add {
@@ -363,7 +363,7 @@ std::vector<torch::Tensor> bwd_cuda(
   // Fused Layer Norm Bwd with Residual Add
   HostLayerNormGradient<half, float>(
       static_cast<const half *>(input_lin_grads.data_ptr()),
-      static_cast<half const *>(output_grads.data_ptr()),
+      static_cast<const half *>(output_grads.data_ptr()),
       static_cast<const float *>(lyr_nrm_mean.data_ptr()),
       static_cast<const float *>(lyr_nrm_invvar.data_ptr()), inputs,
       static_cast<int>(batches),   // n1
