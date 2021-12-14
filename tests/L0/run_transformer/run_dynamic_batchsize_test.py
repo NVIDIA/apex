@@ -31,7 +31,7 @@ _logger = get_transformer_logger("pipeline_parallel_test")
 # note(mkozuki): To see if local batch size increases, uncomment the line below
 # _logger.setLevel("INFO")
 global_vars.set_global_variables(
-    args_defaults={"global_batch_size": 512, "rampup_batch_size": [32, 32, 1000],},
+    args_defaults={"global_batch_size": 512, "rampup_batch_size": [64, 64, 1000],},
     ignore_unknown_args=True,
 )
 

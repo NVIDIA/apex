@@ -126,7 +126,15 @@ def get_kth_microbatch(batch: List[torch.Tensor], k: int) -> List[torch.Tensor]:
     `a local minibatch` consists of `global_batch_size / data_parallel_size` samples.
     """
     micro_batch_size = get_micro_batch_size()
-    return [x[k * micro_batch_size:(k + 1) * micro_batch_size] for x in batch]
+    start = k * micro_batch_size
+    end = start + micro_batch_size
+    microbatch = list()
+    for x in batch:
+        size = x.size(0)
+        assert size > start and size >= end
+        microbatch.append(x[start:end])
+    assert len(microbatch) > 0
+    return microbatch
 
 
 def get_autoresume():
