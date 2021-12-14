@@ -30,7 +30,6 @@ EASY_MODE = False
 EASY_MODE_SIZ = 32
 ONCE = False
 
-# download a public domain book as corpus
 def download_fancy_data():
   #import requests
   #response = requests.get('https://internet.com/book.txt')
