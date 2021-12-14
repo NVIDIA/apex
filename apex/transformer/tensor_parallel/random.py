@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# TODO (mkozuki): Audit this file.
+# I don't think some functions strongly relate to `random` in tensor_parallel.
+# Rather, some functions are mainly for gradient checkpointing (torch.utils.checkpoint).
 
 # Parts of the code here are adapted from PyTorch
 # repo: https://github.com/pytorch/pytorch
@@ -23,18 +26,17 @@ from torch import _C
 from torch.cuda import _lazy_call, device as device_ctx_manager
 from torch.utils.checkpoint import detach_variable
 
-from ..parallel_state import get_data_parallel_rank
-from ..parallel_state import get_tensor_model_parallel_group
-from ..parallel_state import get_tensor_model_parallel_rank
-from ..parallel_state import get_tensor_model_parallel_world_size
-from .memory import allocate_mem_buff
+from apex.transformer.parallel_state import get_tensor_model_parallel_rank
+from apex.transformer.tensor_parallel.memory import allocate_mem_buff
+from apex.transformer.utils import split_tensor_into_1d_equal_chunks
+from apex.transformer.utils import gather_split_1d_tensor
 
 
 # Default name for the model parallel rng tracker.
 _MODEL_PARALLEL_RNG_TRACKER_NAME = "model-parallel-rng"
 
 
-# Whether apply model parallelsim to checkpointed hidden states.
+# Whether apply model parallelism to checkpointed hidden states.
 _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER = None
 
 
@@ -106,26 +108,6 @@ def _set_cuda_rng_state(new_state, device=-1):
             default_generator.set_state(new_state)
 
     _lazy_call(cb)
-
-
-def split_tensor_into_1d_equal_chunks(tensor):
-    """Break a tensor into equal 1D chunks."""
-    data = tensor.view(-1)
-    partition_size = torch.numel(data) // get_tensor_model_parallel_world_size()
-    start_index = partition_size * get_tensor_model_parallel_rank()
-    end_index = start_index + partition_size
-    return data[start_index:end_index]
-
-
-def gather_split_1d_tensor(tensor):
-    """Opposite of above function, gather values from model parallel ranks."""
-    world_size = get_tensor_model_parallel_world_size()
-    numel = torch.numel(tensor)
-    numel_gathered = world_size * numel
-    gathered = torch.empty(numel_gathered, dtype=tensor.dtype, device=torch.cuda.current_device(), requires_grad=False)
-    chunks = [gathered[i * numel : (i + 1) * numel] for i in range(world_size)]
-    torch.distributed.all_gather(chunks, tensor, group=get_tensor_model_parallel_group())
-    return gathered
 
 
 class CudaRNGStatesTracker:
@@ -238,6 +220,7 @@ def model_parallel_cuda_manual_seed(seed):
     _CUDA_RNG_STATE_TRACKER.add(_MODEL_PARALLEL_RNG_TRACKER_NAME, tensor_model_parallel_seed)
 
 
+# TODO (mkozuki): Move the below gradient checkpoint related features to another (new) file.
 class CheckpointFunction(torch.autograd.Function):
     """This function is adapted from torch.utils.checkpoint with
        two main changes:

@@ -36,9 +36,75 @@ class TestFusedLayerNorm(unittest.TestCase):
 
 
 class TestFusedLayerNormElemWise(TestFusedLayerNorm):
+    elementwise_affine = True
+
+
+class TestFusedLayerNormElemWiseHalf(TestFusedLayerNormElemWise):
+    dtype = torch.half
+
+    def test_large_batch(self):
+        self.skipTest("Skip to save time")
+
+
+class TestFusedLayerNormElemWiseBFloat16(TestFusedLayerNormElemWise):
+    dtype = torch.bfloat16
+    # NOTE (mkozuki): [BFloat16 Layer Norm flakiness]
+    # Use thresholds larger than those used in pytorch, see
+    # https://github.com/pytorch/pytorch/blob/72274e2a2fd55019ec860e1743dbdc5b0c5a5624/torch/testing/_asserts.py#L26
+    fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
+    bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
+
+    def test_large_batch(self):
+        self.skipTest("Skip to save time")
+
+
+def _prep_layers(normalized_shape, elementwise_affine, dtype):
+    native = torch.nn.LayerNorm(
+        normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+    ).to(device="cuda", dtype=dtype)
+    fused = apex.normalization.FusedLayerNorm(
+        normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+    ).cuda()
+    return native, fused
+
+
+def _prep_inputs(batch_size, normalized_shape, dtype):
+    shape = (batch_size, *normalized_shape)
+    fused = torch.randn(shape).cuda().requires_grad_(True)
+    with torch.no_grad():
+        native = fused.clone().to(dtype).requires_grad_(True)
+    return native, fused
+
+TORCH_MAJOR, TORCH_MINOR = int(torch.__version__.split('.')[0]), int(torch.__version__.split('.')[1])
+if (TORCH_MAJOR <= 1 and TORCH_MINOR < 10):
+    autocast_dtypes = (torch.half,)
+else:
+    autocast_dtypes = (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
+
+
+class TestAutocastFusedLayerNorm(unittest.TestCase):
+    bf16_fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
+    bf16_bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
+
     def setUp(self):
-        self.module_cpu_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=True).cpu()
-        self.module_cuda_ = apex.normalization.FusedLayerNorm(normalized_shape=[32, 16], elementwise_affine=True).cuda()
+        self.batch_size = 16
+        self.normalized_shape = [32, 16]
+
+    def _run_test(self, dtype, elementwise_affine):
+        native, fused = _prep_layers(self.normalized_shape, elementwise_affine, dtype)
+        native_x, fused_x = _prep_inputs(self.batch_size, self.normalized_shape, dtype)
+
+        expected = native(native_x)
+        with torch.cuda.amp.autocast(dtype=dtype):
+            actual = fused(fused_x)
+        tols = {'rtol': None, 'atol': None} if dtype == torch.half else TestAutocastFusedLayerNorm.bf16_fwd_thresholds
+        torch.testing.assert_allclose(actual, expected, **tols)
+
+        g_native = torch.rand_like(expected)
+        with torch.no_grad():
+            g_fused = g_native.clone()
+        expected.backward(g_native)
+        actual.backward(g_fused)
 
 
 if __name__ == '__main__':

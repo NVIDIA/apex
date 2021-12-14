@@ -1,9 +1,9 @@
 import torch
 
 from apex.transformer import parallel_state
-from apex.transformer.tensor_parallel.tests.commons import initialize_distributed
 from apex.transformer.tensor_parallel import mappings
-from apex.transformer.tensor_parallel.tests import global_vars
+from apex.transformer.testing import global_vars
+from apex.transformer.testing.commons import initialize_distributed
 
 global_vars.set_global_variables()
 
@@ -48,6 +48,8 @@ def test__gather(args, tensor_model_parallel_size):
 
 
 if __name__ == "__main__":
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
     initialize_distributed()
 
     world_size = torch.distributed.get_world_size()

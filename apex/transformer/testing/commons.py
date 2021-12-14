@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,51 @@
 # limitations under the License.
 import os
 import random
+from typing import Optional, Union, List
 
 import numpy
 import torch
+import torch.nn as nn
 
 from apex import transformer
-from apex.transformer.tensor_parallel.tests import global_vars
+from apex.transformer.testing import global_vars
 
 
 TEST_SUCCESS_MESSAGE = ">> passed the test :-)"
+
+
+# note (mkozuki): `pre_process` and `post_process` are a placeholder until interleaving schedule test comes.
+class MyLayer(nn.Module):
+
+    def __init__(self, hidden_size: int, pre_process: bool, post_process: bool):
+        super().__init__()
+        self.pre_process = pre_process
+        self.post_process = post_process
+        self.layer = nn.Linear(hidden_size, hidden_size)
+
+    def forward(self, x):
+        return self.layer(x)
+
+class MyModel(nn.Module):
+
+    def __init__(self, hidden_size: int, pre_process: bool = False, post_process: bool = False) -> None:
+        super().__init__()
+        self.pre_process = pre_process
+        self.post_process = post_process
+        self.layer = MyLayer(hidden_size=hidden_size, pre_process=pre_process, post_process=post_process)
+        self.input_tensor = None
+
+    def set_input_tensor(self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]) -> None:
+        self.input_tensor = input_tensor
+
+    def forward(self, x: Optional[torch.Tensor]) -> torch.Tensor:
+        if self.input_tensor is None:
+            return self.layer(x)
+        return self.layer(self.input_tensor)
+
+
+def model_provider_func(hidden_size, pre_process, post_process) -> MyModel:
+    return MyModel(hidden_size, pre_process, post_process)
 
 
 class IdentityLayer(torch.nn.Module):

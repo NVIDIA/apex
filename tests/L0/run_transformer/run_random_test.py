@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@ import torch
 
 from apex.transformer import parallel_state
 from apex.transformer import tensor_parallel
-from apex.transformer.tensor_parallel.tests import global_vars
-from apex.transformer.tensor_parallel.tests.commons import print_separator
-from apex.transformer.tensor_parallel.tests.commons import initialize_distributed
-from apex.transformer.tensor_parallel.tests.commons import TEST_SUCCESS_MESSAGE
+from apex.transformer.testing import global_vars
+from apex.transformer.testing.commons import print_separator
+from apex.transformer.testing.commons import initialize_distributed
+from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 
 
 global_vars.set_global_variables()
@@ -188,6 +188,8 @@ def test_model_parallel_cuda_manual_seed(tensor_model_parallel_size):
 
 
 if __name__ == '__main__':
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
 
     initialize_distributed()
     world_size = torch.distributed.get_world_size()
