@@ -140,7 +140,6 @@ if __name__ == '__main__':
             args.micro_batch_size,
             args.data_parallel_size,
         )
-        # virtual_pipeline_model_parallel_size = None
         virtual_pipeline_model_parallel_size = 2
         pipeline_model_parallel_size = world_size
         parallel_state.initialize_model_parallel(
