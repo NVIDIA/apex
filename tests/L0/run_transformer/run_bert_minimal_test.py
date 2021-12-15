@@ -108,7 +108,7 @@ def train(model, optim, virtual_pipeline_model_parallel_size, pipeline_model_par
     hidden_size = global_vars.get_args().hidden_size
     forward_backward_func = get_forward_backward_func(virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
-    for i in range(16):
+    for _ in range(16):
         batch = generate_fancy_data_labels(sequence_len, batch_size)
         optim.zero_grad()
         forward_backward_func(fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape)
