@@ -52,7 +52,8 @@ def _forward_backward_pipelining_with_interleaving(
     Keyword args:
         forward_only:
         tensor_shape: Shape of tensor.
-        dtype: dtype used in p2p communication.
+        dtype: dtype used in p2p communication. If ``None`` (default value),
+            torch.float32 will be used even if ``autocast`` is enabled.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
