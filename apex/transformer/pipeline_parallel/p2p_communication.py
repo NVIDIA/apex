@@ -122,6 +122,8 @@ def _communicate(
     else:
         tensor_chunk_shape = tensor_shape
 
+    # The dtype logic below is copied from NVIDIA/Megatron-LM repo:
+    # https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/p2p_communication.py#L74-L81
     # NOTE (mkozuki): Currently NeMo is implementing APEX AMP O2 style using PyTorch. In O2 style, forcing p2p comm to
     # use FP32 will be a perf killer so that I decided to reanimate `dtype_` argument with the default value of `None`.
     # NOTE (mkozuki): In PyTorch AMP, i.e. `torch.cuda.amp.autocast` context, activation tensors can be either FP32,
