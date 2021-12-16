@@ -10,11 +10,11 @@ DENY_TEST = [
 ]
 MULTIGPU_TEST = [
     "pipeline_parallel_test",
-    "dynamic_batchsize_test",
 ]
 SEVERALGPU_TEST = [
     "bert_minimal_test",
     "gpt_minimal_test",
+    "dynamic_batchsize_test",
 ]
 
 def get_multigpu_launch_option(min_gpu):

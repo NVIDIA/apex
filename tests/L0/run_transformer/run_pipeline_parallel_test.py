@@ -1,3 +1,5 @@
+import warnings
+
 import torch
 
 from apex.transformer import parallel_state
@@ -119,6 +121,9 @@ if __name__ == "__main__":
 
     for forward_only in (True, False):
         for name, forward_backward_func in fwd_bwd_functions.items():
+            if name == "interleaving" and torch.cuda.device_count() <= 2:
+                warnings.warn(f"There's only {torch.cuda.device_count()} gpus therefore skipping {name}")
+                continue
             for enable_autocast in (True, False):
                 n_tests += 1
                 # TODO (mkozuki): Test with data parallel size > 1.
