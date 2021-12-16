@@ -65,10 +65,10 @@ def run_transformer_tests():
             continue
         test_run_cmd = (
             f"{python_executable_path} {launch_option} {test_file} "
-            "--micro-batch-size 4 --num-layers 16 --hidden-size 768 --num-attention-heads 8 --max-position-embeddings "
-            "512 --seq-length 512 --global-batch-size 256"
+            "--micro-batch-size 2 --num-layers 16 --hidden-size 256 --num-attention-heads 8 --max-position-embeddings "
+            "512 --seq-length 512 --global-batch-size 128"
         )
-        if 'bert' in test_file:
+        if 'bert' in test_file or 'gpt' in test_file:
             import torch
             num_devices = torch.cuda.device_count()
             test_run_cmd += f" --pipeline-model-parallel-size {num_devices}"
