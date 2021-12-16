@@ -122,7 +122,10 @@ if __name__ == "__main__":
     for forward_only in (True, False):
         for name, forward_backward_func in fwd_bwd_functions.items():
             if name == "interleaving" and torch.cuda.device_count() <= 2:
-                warnings.warn(f"There's only {torch.cuda.device_count()} gpus therefore skipping {name}")
+                warnings.warn(
+                    f"There's only {torch.cuda.device_count()} gpus therefore skipping {name} "
+                    "while interleaved scheduled pipeline parallel requires >2 gpus."
+                )
                 continue
             for enable_autocast in (True, False):
                 n_tests += 1
