@@ -16,11 +16,9 @@
 from functools import reduce
 import operator
 from typing import Union, Optional, Tuple
-import warnings
 
 import torch
 
-from apex._autocast_utils import _get_current_dtype
 from apex.transformer import parallel_state
 from apex.transformer.utils import split_tensor_into_1d_equal_chunks
 from apex.transformer.utils import gather_split_1d_tensor
@@ -76,13 +74,19 @@ def _communicate(
     recv_next: bool,
     tensor_shape: Optional[Shape] = None,
     override_scatter_gather_tensors_in_pipeline: bool = False,
-    dtype_: torch.dtype = torch.float,
+    dtype_: Optional[torch.dtype] = None,
     *,
     scatter_gather_tensors_in_pipeline: bool = True,
     params_dtype: Optional[torch.dtype] = None,
     fp32_residual_connection: bool = False,
 ) -> Tuple[Union[torch.Tensor, None], Union[torch.Tensor, None]]:
     """Base function for communication of tensors between stages.
+
+    dtype logic: If none of ``dtype_``, ``params_dtype``, ``fp32_residual_connection`` is specified,
+    torch.float32 is used.
+
+    See https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/arguments.py#L145-L159
+    for the details of arguments of ``dtype_``, ``params_dtype``, ``fp32_residual_connection``.
 
     Args:
         tensor_send_next: tensor to send to next rank (no tensor sent if set to None).
@@ -118,20 +122,20 @@ def _communicate(
     else:
         tensor_chunk_shape = tensor_shape
 
-    # NOTE(mkozuki): In PyTorch AMP, i.e. `torch.cuda.amp.autocast` context, activation tensors can be either FP32,
+    # The dtype logic below is copied from NVIDIA/Megatron-LM repo:
+    # https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/p2p_communication.py#L74-L81
+    # NOTE (mkozuki): Currently NeMo is implementing APEX AMP O2 style using PyTorch. In O2 style, forcing p2p comm to
+    # use FP32 will be a perf killer so that I decided to reanimate `dtype_` argument with the default value of `None`.
+    # NOTE (mkozuki): In PyTorch AMP, i.e. `torch.cuda.amp.autocast` context, activation tensors can be either FP32,
     # FP16, or BF16 and there's no way to tell the dtypes of tensors on different devices in general.
     # It might be possible if we restrict model architecture.
-    # dtype = params_dtype or torch.float
-    # if fp32_residual_connection:
-    #     dtype = torch.float
-    # if dtype_ is not None:
-    #     dtype = dtype_
-    #     requires_grad = False
-    if dtype_ != torch.float32 or params_dtype is not None:
-        if torch.distributed.get_rank() == 0:
-            warnings.warn("Tensor P2P communications are executed in FP32")
-    dtype = torch.float32
+    dtype = params_dtype or torch.float
+    if fp32_residual_connection:
+        dtype = torch.float
     requires_grad = True
+    if dtype_ is not None:
+        dtype = dtype_
+        requires_grad = False
 
     if recv_prev:
         tensor_recv_prev = torch.empty(
@@ -199,7 +203,7 @@ def recv_forward(
         recv_next=False,
         tensor_shape=tensor_shape,
         override_scatter_gather_tensors_in_pipeline=override_scatter_gather_tensors_in_pipeline,
-        dtype_=_get_current_dtype(dtype),
+        dtype_=dtype,
     )
     # if timers is not None:
     #     timers("forward-recv").stop()
@@ -223,7 +227,7 @@ def recv_backward(
         recv_prev=False,
         recv_next=True,
         tensor_shape=tensor_shape,
-        dtype_=_get_current_dtype(dtype),
+        dtype_=dtype,
     )
     # if timers is not None:
     #     timers("backward-recv").stop()
@@ -250,7 +254,7 @@ def send_forward(
         recv_next=False,
         override_scatter_gather_tensors_in_pipeline=override_scatter_gather_tensors_in_pipeline,
         tensor_shape=tensor_shape,
-        dtype_=_get_current_dtype(dtype),
+        dtype_=dtype,
     )
     # if timers is not None:
     #     timers("forward-send").stop()
@@ -274,7 +278,7 @@ def send_backward(
         recv_prev=False,
         recv_next=False,
         tensor_shape=tensor_shape,
-        dtype_=_get_current_dtype(dtype),
+        dtype_=dtype,
     )
     # if timers is not None:
     #     timers("backward-send").stop()
@@ -298,7 +302,7 @@ def send_forward_recv_backward(
         recv_prev=False,
         recv_next=True,
         tensor_shape=tensor_shape,
-        dtype_=_get_current_dtype(dtype),
+        dtype_=dtype,
     )
     # if timers is not None:
     #     timers("forward-send-backward-recv").stop()
@@ -323,7 +327,7 @@ def send_backward_recv_forward(
         recv_prev=True,
         recv_next=False,
         tensor_shape=tensor_shape,
-        dtype_=_get_current_dtype(dtype),
+        dtype_=dtype,
     )
     # if timers is not None:
     #     timers("backward-send-forward-recv").stop()
@@ -347,7 +351,7 @@ def send_forward_recv_forward(
         recv_prev=recv_prev,
         recv_next=False,
         tensor_shape=tensor_shape,
-        dtype_=_get_current_dtype(dtype),
+        dtype_=dtype,
     )
     # if timers is not None:
     #     timers("forward-send-forward-recv").stop()
@@ -359,7 +363,7 @@ def send_backward_recv_backward(
         recv_next: bool,
         tensor_shape: Shape,
         *,
-        dtype: torch.dtype = torch.float,
+        dtype: Optional[torch.dtype] = None,
         timers: _Timers = None,
 ) -> torch.Tensor:
     """Batched recv from next rank and send to previous rank in pipeline."""
@@ -371,7 +375,7 @@ def send_backward_recv_backward(
         recv_prev=False,
         recv_next=recv_next,
         tensor_shape=tensor_shape,
-        dtype_=_get_current_dtype(dtype),
+        dtype_=dtype,
     )
     # if timers is not None:
     #     timers("backward-send-backward-recv").stop()
@@ -397,7 +401,7 @@ def send_forward_backward_recv_forward_backward(
         recv_prev=recv_prev,
         recv_next=recv_next,
         tensor_shape=tensor_shape,
-        dtype_=_get_current_dtype(dtype),
+        dtype_=dtype,
     )
     # if timers is not None:
     #     timers("forward-backward-send-forward-backward-recv").stop()

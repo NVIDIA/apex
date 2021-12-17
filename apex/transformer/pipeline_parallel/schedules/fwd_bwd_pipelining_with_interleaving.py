@@ -28,6 +28,7 @@ def _forward_backward_pipelining_with_interleaving(
         *,
         forward_only: bool,
         tensor_shape: Optional[Union[List[int], torch.Size]] = None,
+        dtype: Optional[torch.dtype] = None,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run interleaved 1F1B schedule with communication between pipeline stages as needed.
 
@@ -51,6 +52,8 @@ def _forward_backward_pipelining_with_interleaving(
     Keyword args:
         forward_only:
         tensor_shape: Shape of tensor.
+        dtype: dtype used in p2p communication. If ``None`` (default value),
+            torch.float32 will be used even if ``autocast`` is enabled.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
@@ -163,7 +166,7 @@ def _forward_backward_pipelining_with_interleaving(
     # Run warmup forward passes.
     ###################################################################################################################
     parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-    input_tensors[0].append(p2p_communication.recv_forward(tensor_shape=tensor_shape))
+    input_tensors[0].append(p2p_communication.recv_forward(tensor_shape=tensor_shape, dtype=dtype))
     _logger.info("Warmup phase")
     for k in range(num_warmup_microbatches):
         _logger.debug(f"warmup iter: {k} / {num_warmup_microbatches}")
@@ -201,12 +204,13 @@ def _forward_backward_pipelining_with_interleaving(
                 recv_prev=recv_prev,
                 recv_next=recv_next,
                 tensor_shape=tensor_shape,
+                dtype=dtype,
             )
             output_tensor_grads[num_model_chunks - 1].append(output_tensor_grad)
         else:
             _logger.debug("send fwd and receive fwd")
             input_tensor = p2p_communication.send_forward_recv_forward(
-                output_tensor, recv_prev=recv_prev, tensor_shape=tensor_shape)
+                output_tensor, recv_prev=recv_prev, tensor_shape=tensor_shape, dtype=dtype)
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
 
     ###################################################################################################################
@@ -281,6 +285,7 @@ def _forward_backward_pipelining_with_interleaving(
             recv_prev=recv_prev,
             recv_next=recv_next,
             tensor_shape=tensor_shape,
+            dtype=dtype,
         )
 
         # Put input_tensor and output_tensor_grad in data structures in the
@@ -296,7 +301,7 @@ def _forward_backward_pipelining_with_interleaving(
     _logger.info("Cooldown phase")
     if not forward_only:
         if all_warmup_microbatches:
-            output_tensor_grads[num_model_chunks - 1].append(p2p_communication.recv_backward(tensor_shape=tensor_shape))
+            output_tensor_grads[num_model_chunks - 1].append(p2p_communication.recv_backward(tensor_shape=tensor_shape, dtype=dtype))
         for k in range(num_microbatches_remaining, num_microbatches):
             _logger.debug(f"cooldown iter {k} in range({num_microbatches_remaining}, {num_microbatches})")
             input_tensor_grad = backward_step_helper(k)
@@ -309,7 +314,7 @@ def _forward_backward_pipelining_with_interleaving(
                 recv_next = False
             output_tensor_grads[next_backward_model_chunk_id].append(
                 p2p_communication.send_backward_recv_backward(
-                    input_tensor_grad, recv_next=recv_next, tensor_shape=tensor_shape)
+                    input_tensor_grad, recv_next=recv_next, tensor_shape=tensor_shape, dtype=dtype)
             )
 
     return losses_reduced
