@@ -143,16 +143,17 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
         # [b, np, sq, sk]
         assert input.dim() == 4
 
-        if self.is_kernel_available(mask, *input.size()):
+        if self.is_kernel_available(input, mask, *input.size()):
             return self.forward_fused_softmax(input, mask)
         else:
             return self.forward_torch_softmax(input, mask)
 
-    def is_kernel_available(self, mask, b, np, sq, sk):
+    def is_kernel_available(self, input, mask, b, np, sq, sk):
         attn_batches = b * np
 
         if (
-            self.scaled_masked_softmax_fusion  # user want to fuse
+            input.is_cuda and mask.is_cuda
+            and self.scaled_masked_softmax_fusion  # user want to fuse
             and self.input_in_float16  # input must be fp16
             and mask is not None  # mask tensor must not be None
             and 16 < sk <= 2048  # sk must be 16 ~ 2048
