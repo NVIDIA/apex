@@ -16,8 +16,9 @@ def attention_mask_func(attention_scores, attention_mask):
 
 
 autocast_dtypes = (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
-input_shape = (4, 12, 24, 24)
-
+# In general, input is a 4D tensor and mask is also a 4D tensor.
+# The fused kernels assume input to have the size of (b, np, sq, sk) and mask to have (b, 1, sq, sk).
+input_shapes = [(4, 12, 24, 24), (4, 13, 8, 25)]
 
 class TestFusedScaleMaskSoftmax(unittest.TestCase):
 
@@ -43,16 +44,13 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
         return fused_fn, torch_fn
 
     def test_fused_scale_mask_softmax(self):
-        """
-        attention_scores.shape = [4, 12, 24, 24]
-        mask.shape = [4, 1, 24, 24]
-        """
-        for (dtype, scale, softmax_in_fp32) in itertools.product(
+        for (dtype, scale, softmax_in_fp32, input_shape) in itertools.product(
                 (torch.half, torch.bfloat16),
                 (None, 2.0),
                 (False, True),
+                input_shapes
         ):
-            with self.subTest(dtype=dtype, scale=scale, softmax_in_fp32=softmax_in_fp32):
+            with self.subTest(dtype=dtype, scale=scale, softmax_in_fp32=softmax_in_fp32, input_shape=input_shape):
                 input_in_fp16 = dtype == torch.half
                 input_in_bf16 = dtype == torch.bfloat16
                 if not (scale is None or softmax_in_fp32):
@@ -76,8 +74,8 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 actual.backward(g1)
 
     def test_autocast_fused_scale_mask_softmax(self):
-        for dtype in autocast_dtypes:
-            with self.subTest(dtype=dtype):
+        for dtype, input_shape in itertools.product(autocast_dtypes, input_shapes):
+            with self.subTest(dtype=dtype, input_shape=input_shape):
                 input_in_fp16 = dtype == torch.half
                 input_in_bf16 = dtype == torch.bfloat16
                 fused_fn, torch_fn = self._setup_fused_softmax(
@@ -101,19 +99,13 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 actual.backward(g1)
 
     def test_fused_upper_triangle_mask_softmax(self):
-        """
-        attn_weights.shape: [4, 12, 24, 24]
-        total_mask.shape: [4, 1, 24, 24]
-
-        total_mask[0, 0], a 24x24 matrix is like a lower triangular matrix, but
-        upper elements are True and lower elements and diagonal are False.
-        """
-        for (dtype, scale, softmax_in_fp32) in itertools.product(
+        for (dtype, scale, softmax_in_fp32, input_shape) in itertools.product(
                 (torch.half, torch.bfloat16),
                 (None, 2.0),
                 (False, True),
+                input_shapes,
         ):
-            with self.subTest(dtype=dtype, scale=scale, softmax_in_fp32=softmax_in_fp32):
+            with self.subTest(dtype=dtype, scale=scale, softmax_in_fp32=softmax_in_fp32, input_shape=input_shape):
                 input_in_fp16 = dtype == torch.half
                 input_in_bf16 = dtype == torch.bfloat16
                 if not (scale is None or softmax_in_fp32):
@@ -142,8 +134,8 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 expected.backward(g1)
 
     def test_autocast_fused_upper_triangle_mask_softmax(self):
-        for dtype in autocast_dtypes:
-            with self.subTest(dtype=dtype):
+        for dtype, input_shape in itertools.product(autocast_dtypes, input_shapes):
+            with self.subTest(dtype=dtype, input_shape=input_shape):
                 input_in_fp16 = dtype == torch.half
                 input_in_bf16 = dtype == torch.bfloat16
                 fused_fn, torch_fn = self._setup_fused_softmax(
