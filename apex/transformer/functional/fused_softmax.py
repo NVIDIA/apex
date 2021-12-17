@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional
+
 import torch
 
 from apex._autocast_utils import _cast_if_autocast_enabled
@@ -139,7 +141,24 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
             else:
                 raise ValueError("Invalid attn_mask_type.")
 
-    def forward(self, input, mask):
+    def forward(self, input: torch.Tensor, mask: Optional[torch.Tensor]) -> torch.Tensor:
+        """Feed forward.
+
+        Args:
+            input: 4D tensor of the size of (b, np, sq, sk)
+            mask: 4D tensor of the size of (b, 1, sq, sk)
+
+        .. note::
+            To use fused CUDA kernels, the following conditions need to be satisfied:
+
+            * ``scaled_masked_softmax_fusion`` is :obj:`True`.
+            * ``input_in_float16`` is :obj:`True`, i.e. ``input`` is either ``torch.half`` or ``torch.bfloat16`` or,
+                ``torch.autocast()`` is enabled with either ``torch.half`` or ``torch.bfloat16``.
+            * mask is specified.
+            * input.size(0) * input.size(1) is divisible by 4.
+            * input.size(2) is a multiple of 4.
+            * input.size(3) is greater than 16 and less than and equal to 2048.
+        """
         # [b, np, sq, sk]
         assert input.dim() == 4
 
