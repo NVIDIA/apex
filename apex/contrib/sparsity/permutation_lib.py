@@ -173,8 +173,19 @@ class Permutation:
                 p.data.copy_(temp_weight)
                 success_permutation = True
         if is_node_in_sparse_parameters == False:
-            print("[apply_permutation_in_C_dim] cannot find the node: \'{:}\' in cls.__sparse_parameters, fail to apply permutation in C dim.".format(node_name))
-            success_permutation = False
+            # A special case: if the node itself not in sparse_module_names but one of its real_siblings in sparse_module_names, then the node will not do the permutation search, but it may need to apply the offline permutation in C dim according to the searched permutation sequence from its real_siblings in sparse_module_names
+            try:
+                for module_name_from_all_parameters, module_from_all_parameters, p_name_from_all_parameters, p_from_all_parameters in cls.__all_parameters:
+                    if ((node_name == module_name_from_all_parameters) or ('module.' + node_name == module_name_from_all_parameters)) and p_name_from_all_parameters == "weight":
+                        print("[apply_permutation_in_C_dim] cannot find the node: \'{:}\' in cls.__sparse_parameters, but can find in cls.__all_parameters.".format(node_name))
+                        temp_weight = torch.zeros_like(p_from_all_parameters)
+                        temp_weight.copy_(p_from_all_parameters[:, permutation_sequence, ...])
+                        p_from_all_parameters.data.copy_(temp_weight)
+                        success_permutation = True
+                        print("[apply_permutation_in_C_dim] cannot find the node: \'{:}\' in cls.__sparse_parameters, after trying with cls.__all_parameters, succeed to apply permutation in C dim.".format(node_name))
+            except:
+                success_permutation = False
+                print("[apply_permutation_in_C_dim] cannot find the node: \'{:}\' in cls.__sparse_parameters, after trying with cls.__all_parameters, still fail to apply permutation in C dim.".format(node_name))
         return success_permutation
 
     @classmethod
@@ -476,6 +487,53 @@ class Permutation:
                     fx_graph[node_name]['permutation_type'] = 'None'
             else:
                 fx_graph[node_name]['permutation_type'] = 'None'
+
+        # A special case: if the node itself not in sparse_module_names but one of its real_siblings in sparse_module_names, then the node will not do the permutation search, but it may need to apply the offline permutation in C dim according to the searched permutation sequence from its real_siblings in sparse_module_names
+        # We make it as the post-processing, because if we add this to the previous logic, will make it too complex
+        # Post-processing Step No.1:
+        print("\n[init_permutation_flag] Post-processing Step No.1.")
+        node_change_permutation_due_to_siblings = []
+        for node_name in fx_graph.keys():
+            node_real_siblings = fx_graph.get(node_name).get('real_siblings')
+            if node_real_siblings is not None:
+                is_node_real_siblings_needs_C_permutation = False
+                for real_sibling_item in node_real_siblings:
+                    if fx_graph.get(real_sibling_item).get('permutation_type') in ['C', 'KC']:
+                        is_node_real_siblings_needs_C_permutation = True
+                if is_node_real_siblings_needs_C_permutation == True:
+                    print("[init_permutation_flag] node_name: \'{:}\', one of its real siblings need do offline permutation in C dim.".format(node_name))
+                    node_original_permutation_type = fx_graph.get(node_name).get('permutation_type')
+                    if node_original_permutation_type in ['C', 'KC']:
+                        print("[init_permutation_flag] node_name: \'{:}\', its original permutation: \'{:}\' already includes C dim, no need to do No.1 post-processing change.".format(node_name, node_original_permutation_type))
+                    elif node_original_permutation_type == 'None':
+                        fx_graph[node_name]['permutation_type'] = 'C'
+                        print("[init_permutation_flag] node_name: \'{:}\', change its original permutation: \'{:}\' to new permutation: 'C'.".format(node_name, node_original_permutation_type))
+                        node_change_permutation_due_to_siblings.append(node_name)
+                    elif node_original_permutation_type == 'K':
+                        fx_graph[node_name]['permutation_type'] = 'KC'
+                        print("[init_permutation_flag] node_name: \'{:}\', change its original permutation: \'{:}\' to new permutation: 'KC'.".format(node_name, node_original_permutation_type))
+                        node_change_permutation_due_to_siblings.append(node_name)
+        # Post-processing Step No.2:
+        print("\n[init_permutation_flag] Post-processing Step No.2.")
+        for node_name in fx_graph.keys():
+            node_real_children = fx_graph.get(node_name).get('real_children')
+            node_module_type = fx_graph.get(node_name).get('module_type')
+            if (node_real_children is not None) and (node_module_type in ['torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear', 'torch.nn.modules.batchnorm.BatchNorm2d']):
+                is_node_real_children_has_node_change_permutation = False
+                for real_child_item in node_real_children:
+                    if real_child_item in node_change_permutation_due_to_siblings:
+                        is_node_real_children_has_node_change_permutation = True
+                if is_node_real_children_has_node_change_permutation == True:
+                    print("[init_permutation_flag] node_name: \'{:}\', one of its real children has changed permutation due to its siblings.".format(node_name))
+                    node_original_permutation_type = fx_graph.get(node_name).get('permutation_type')
+                    if node_original_permutation_type in ['K', 'KC']:
+                        print("[init_permutation_flag] node_name: \'{:}\', its original permutation: \'{:}\' already includes K dim, no need to do No.2 post-processing change.".format(node_name, node_original_permutation_type))
+                    elif node_original_permutation_type == 'None':
+                        fx_graph[node_name]['permutation_type'] = 'K'
+                        print("[init_permutation_flag] node_name: \'{:}\', change its original permutation: \'{:}\' to new permutation: 'K'.".format(node_name, node_original_permutation_type))
+                    elif node_original_permutation_type == 'C':
+                        fx_graph[node_name]['permutation_type'] = 'KC'
+                        print("[init_permutation_flag] node_name: \'{:}\', change its original permutation: \'{:}\' to new permutation: 'KC'.".format(node_name, node_original_permutation_type))
 
         if cls.__save_permutation_graph:
             cls.save_graph_to_json(fx_graph, save_dumped_graph_path_with_name=os.path.join(cls.__permutation_output_dir, './model_graph_init_permutation_flag.json'))    # save the intermediate graph as JSON file for debugging
