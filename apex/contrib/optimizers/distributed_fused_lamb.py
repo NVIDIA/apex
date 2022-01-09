@@ -651,7 +651,6 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             glob_chunk_id = block_id * self._num_chunks + chunk_id
             rs_stream = self._rs_st[glob_chunk_id%self._num_rs_pg]
             rs_stream.wait_stream(torch.cuda.current_stream())
-            rs_stream.wait_stream(self._l2_grad_norm_st)
             with torch.cuda.stream(rs_stream):
                 works[chunk_id] = torch.distributed.reduce_scatter(self._fp16_g_chunks[block_id][chunk_id],self._flat_grads_shards[block_id][chunk_id],group=self._rs_pg[glob_chunk_id%self._num_rs_pg],async_op=True,no_copy=True)
 
@@ -682,8 +681,10 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                             self._reductions_works[block_id][chunk_id].wait()
                     # Since the packed format is contiguous after reductions, only one norm is needed
                     l2_grad_norm_sq = torch.empty([1], device='cuda')
-                    if 0:#self._full_ar:
-                        l2_grad_norm_sq = self._flat_grads_shards[self._rank_in_group].norm(dtype=torch.float32, p=2)**2
+                    if self._full_ar:
+                        # this flattening of lists is to keep multi_tensor_apply function happy, it wants depth=1 for l2 norm computation
+                        flat_list = [item for sublist in self._fp16_g_chunks for item in sublist]
+                        l2_grad_norm_sq = multi_tensor_applier(self.multi_tensor_l2norm, self._overflow_buf, [flat_list], False)[0]**2
                     else:
                         l2_grad_norm_sq = self._fp16_g.norm(dtype=torch.float32, p=2)**2
                     torch.distributed.all_reduce(l2_grad_norm_sq, group=self._l2_grad_norm_pg)
