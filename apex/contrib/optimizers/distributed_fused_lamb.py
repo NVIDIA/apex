@@ -127,7 +127,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._L2_grad_norm = None
         self._set_flat_param_view = set_param_views_to_flat_buffer
         self._skip_ag = skip_allgather
-        self._fused_norm = fused_norm 
+        self._fused_norm = fused_norm if not clip_after_ar else False
         self._current_process_group = c10d._get_default_group()
         self._available_ranks = list(c10d._pg_group_ranks[self._current_process_group].keys())
         self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
@@ -151,12 +151,16 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._num_ag_pg = dwu_num_ag_pg
 
         if self._full_ar: # full all reduce, only need AR and AG groups
+            # l2_grad_norm may be reduced within a node to limit from memory reads
+            for group_i in range(self._num_groups):
+                ranks = [group_i*self._group_size+j for j in range(self._group_size)]
+                l2_grad_norm_pg = torch.distributed.new_group(ranks=ranks)
+                if torch.distributed.get_rank() in ranks:
+                    self._l2_grad_norm_pg = l2_grad_norm_pg
+
             self._ar_pg = []
             # consider all the ranks
             ranks = list(range(0, self._world_size))
-            l2_grad_norm_pg = torch.distributed.new_group(ranks=ranks)
-            if torch.distributed.get_rank() in ranks:
-                self._l2_grad_norm_pg = l2_grad_norm_pg
             for i in range(self._num_ar_pg):
                 if self._verbose:
                     print(f"creating new AR group {i}: {ranks}")
@@ -683,6 +687,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     # Since the packed format is contiguous after reductions, only one norm is needed
                     l2_grad_norm_sq = torch.empty([1], device='cuda')
                     if 0:#self._full_ar:
+                        #TODO 
                         l2_grad_norm_sq = self._flat_grads_shards[self._rank_in_group].norm(dtype=torch.float32, p=2)**2
                     else:
                         l2_grad_norm_sq = self._fp16_g.norm(dtype=torch.float32, p=2)**2
