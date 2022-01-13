@@ -375,11 +375,12 @@ if "--deprecated_fused_lamb" in sys.argv:
         )
     )
 
-# Check, if ATen/CUDAGenerator.h is found, otherwise use the new ATen/CUDAGeneratorImpl.h, due to breaking change in https://github.com/pytorch/pytorch/pull/36026
+# Check, if ATen/CUDAGeneratorImpl.h is found, otherwise use ATen/cuda/CUDAGeneratorImpl.h
+# See https://github.com/pytorch/pytorch/pull/70650
 generator_flag = []
 torch_dir = torch.__path__[0]
-if os.path.exists(os.path.join(torch_dir, "include", "ATen", "CUDAGenerator.h")):
-    generator_flag = ["-DOLD_GENERATOR"]
+if os.path.exists(os.path.join(torch_dir, "include", "ATen", "CUDAGeneratorImpl.h")):
+    generator_flag = ["-DOLD_GENERATOR_PATH"]
 
 if "--fast_layer_norm" in sys.argv:
     sys.argv.remove("--fast_layer_norm")

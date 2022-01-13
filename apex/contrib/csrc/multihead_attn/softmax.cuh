@@ -1,8 +1,13 @@
 #pragma once
 #include "philox.cuh"
-#include <ATen/CUDAGeneratorImpl.h>
 #include <ATen/cuda/CUDAGraphsUtils.cuh>
 #include <curand_kernel.h>
+
+#ifdef OLD_GENERATOR_PATH
+#include <ATen/CUDAGeneratorImpl.h>
+#else
+#include <ATen/cuda/CUDAGeneratorImpl.h>
+#endif
 
 #include <assert.h>
 #include <cfloat>

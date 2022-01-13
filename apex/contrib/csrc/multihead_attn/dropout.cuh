@@ -1,10 +1,10 @@
 #pragma once
 #include <ATen/ATen.h>
 
-#ifdef OLD_GENERATOR
-#include <ATen/CUDAGenerator.h>
-#else
+#ifdef OLD_GENERATOR_PATH
 #include <ATen/CUDAGeneratorImpl.h>
+#else
+#include <ATen/cuda/CUDAGeneratorImpl.h>
 #endif
 
 #include <ATen/cuda/CUDAContext.h>
@@ -181,15 +181,10 @@ void apex_fused_dropout_cuda(scalar_t const *inputs, scalar_t *outputs,
   std::pair<uint64_t, uint64_t> rng_engine_inputs;
   {
     // See Note [Acquire lock when using random generators]
-#ifdef OLD_GENERATOR
-    std::lock_guard<std::mutex> lock(gen->mutex_);
-    rng_engine_inputs = gen->philox_engine_inputs(counter_offset);
-#else
     std::lock_guard<std::mutex> lock(gen.mutex());
     rng_engine_inputs =
         at::check_generator<at::CUDAGeneratorImpl>(gen)->philox_engine_inputs(
             counter_offset);
-#endif
   }
 
   apex_fused_dropout_kernel<scalar_t, accscalar_t, IndexType>
@@ -222,15 +217,10 @@ void apex_dropout_add_cuda(scalar_t const *inputs, scalar_t const *add_inputs,
   std::pair<uint64_t, uint64_t> rng_engine_inputs;
   {
     // See Note [Acquire lock when using random generators]
-#ifdef OLD_GENERATOR
-    std::lock_guard<std::mutex> lock(gen->mutex_);
-    rng_engine_inputs = gen->philox_engine_inputs(counter_offset);
-#else
     std::lock_guard<std::mutex> lock(gen.mutex());
     rng_engine_inputs =
         at::check_generator<at::CUDAGeneratorImpl>(gen)->philox_engine_inputs(
             counter_offset);
-#endif
   }
 
   apex_dropout_add_kernel<scalar_t, accscalar_t, IndexType>
