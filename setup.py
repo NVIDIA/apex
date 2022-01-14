@@ -537,8 +537,8 @@ if "--transducer" in sys.argv:
                 "apex/contrib/csrc/transducer/transducer_joint_kernel.cu",
             ],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": append_nvcc_threads(["-O3"] + version_dependent_macros),
+                "cxx": ["-O3"] + version_dependent_macros + generator_flag,
+                "nvcc": append_nvcc_threads(["-O3"] + version_dependent_macros + generator_flag),
             },
             include_dirs=[os.path.join(this_dir, "csrc"), os.path.join(this_dir, "apex/contrib/csrc/multihead_attn")],
         )
