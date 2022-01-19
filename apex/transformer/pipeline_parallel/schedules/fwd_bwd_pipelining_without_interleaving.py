@@ -227,7 +227,7 @@ def forward_backward_pipelining_without_interleaving(
     for i in range(num_warmup_microbatches):
         _logger.debug(f"warmup iter: {i} / {num_warmup_microbatches}")
         _logger.debug("receive fwd")
-        input_tensor = recv_forward(tensor_shapes=recv_tensor_shapes)
+        input_tensor = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype)
         cur_microbatch = get_kth_microbatch(batch, i)
         output_tensor = forward_step(forward_step_func, cur_microbatch, model, input_tensor, losses_reduced)
         _logger.debug("send fwd")
