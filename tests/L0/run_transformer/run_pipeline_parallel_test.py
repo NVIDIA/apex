@@ -1,6 +1,8 @@
+from typing import Optional
 import warnings
 
 import torch
+from torch.cuda.amp import GradScaler
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import get_forward_backward_func
@@ -42,7 +44,8 @@ def forward_backward_func_template(
         forward_backward_func,
         pipeline_model_parallel_size: int,
         forward_only: bool,
-        enable_autocast: bool,
+        dtype: torch.dtype,
+        grad_scaler: Optional[GradScaler],
 ) -> None:
     print_separator(f"name: {name}, pipeline model parallel size: {pipeline_model_parallel_size}")
     virtual_pipeline_model_parallel_size = 2 if name == "interleaving" else None
@@ -92,10 +95,8 @@ def forward_backward_func_template(
     tensor_shape[0] = micro_batch_size
 
     update_num_microbatches(0)
-    dtype = torch.half if enable_autocast else None
-    with torch.cuda.amp.autocast():
-        forward_backward_func(
-            fwd_step_func, batch, model, forward_only=forward_only, tensor_shape=tensor_shape, dtype=dtype)
+    forward_backward_func(
+        fwd_step_func, batch, model, forward_only=forward_only, tensor_shape=tensor_shape, dtype=dtype, grad_scaler=grad_scaler)
 
     if not forward_only:
         for m in model:
@@ -119,6 +120,9 @@ if __name__ == "__main__":
     batch_size = args.global_batch_size
     micro_batch_size = args.micro_batch_size
 
+    autocast_dtypes = (
+        [torch.half, torch.bfloat16] if torch.cuda.is_bf16_supported() else [torch.half]
+    ) + [torch.float32]
     for forward_only in (True, False):
         for name, forward_backward_func in fwd_bwd_functions.items():
             if name == "interleaving" and torch.cuda.device_count() <= 2:
@@ -127,7 +131,10 @@ if __name__ == "__main__":
                     "while interleaved scheduled pipeline parallel requires >2 gpus."
                 )
                 continue
-            for enable_autocast in (True, False):
+            for dtype in autocast_dtypes:
+                if torch.distributed.get_rank() == 0:
+                    _logger.info(f"forward_only: {forward_only}, name: {name}, dtype: {dtype}")
+                grad_scaler = torch.cuda.amp.GradScaler(init_scale=4.0) if dtype == torch.half else None
                 n_tests += 1
                 # TODO (mkozuki): Test with data parallel size > 1.
                 pipeline_model_parallel_size = world_size
@@ -138,7 +145,8 @@ if __name__ == "__main__":
                         forward_backward_func,
                         pipeline_model_parallel_size,
                         forward_only,
-                        enable_autocast=enable_autocast,
+                        dtype=dtype,
+                        grad_scaler=grad_scaler,
                     )
                 except Exception as e:
                     failures.append(
