@@ -34,6 +34,7 @@ def forward_backward_no_pipelining(
         model: Union[torch.nn.Module, List[torch.nn.Module]],
         *,
         forward_only: bool,
+        grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
         **kwargs,
 ):
     """Run forward and backward passes with no pipeline parallelism (no inter-stage communication).
@@ -50,6 +51,7 @@ def forward_backward_no_pipelining(
 
     Keyword args:
         forward_only:
+        grad_scaler:
         **kwargs: Added to handle `tensor_shape` which has no effect on this function.
 
     Returns:
@@ -78,7 +80,7 @@ def forward_backward_no_pipelining(
                 forward_step_func, cur_micro_batch, model, input_tensor, losses_reduced)
             if not forward_only:
                 _logger.debug("Call `backward_step`")
-                backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type)
+                backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
 
     # Run computation for last microbatch out of context handler (want to
     # synchronize gradients).
@@ -89,6 +91,6 @@ def forward_backward_no_pipelining(
     )
     if not forward_only:
         _logger.debug("Call `backward_step`")
-        backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type)
+        backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
 
     return losses_reduced

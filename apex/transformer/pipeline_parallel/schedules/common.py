@@ -200,6 +200,8 @@ def backward_step(
         output_tensor: torch.Tensor,
         output_tensor_grad: Optional[torch.Tensor],
         model_type: ModelType,
+        *,
+        grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
 ) -> Union[None, torch.Tensor, Sequence[torch.Tensor]]:
     """Backward step through passed-in output tensor.
 
@@ -234,6 +236,8 @@ def backward_step(
         output_tensor_grad = [output_tensor_grad]
 
     # Backward pass.
+    if grad_scaler is not None and output_tensor_grad[0] is None:
+        output_tensor[0] = grad_scaler.scale(output_tensor[0])
     torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
 
     # Collect the grad of the input_tensor.

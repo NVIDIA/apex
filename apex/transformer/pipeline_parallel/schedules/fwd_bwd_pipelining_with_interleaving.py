@@ -29,6 +29,7 @@ def _forward_backward_pipelining_with_interleaving(
         forward_only: bool,
         tensor_shape: Optional[Union[List[int], torch.Size]] = None,
         dtype: Optional[torch.dtype] = None,
+        grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run interleaved 1F1B schedule with communication between pipeline stages as needed.
 
@@ -54,6 +55,7 @@ def _forward_backward_pipelining_with_interleaving(
         tensor_shape: Shape of tensor.
         dtype: dtype used in p2p communication. If ``None`` (default value),
             torch.float32 will be used even if ``autocast`` is enabled.
+        grad_scaler:
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
@@ -158,7 +160,7 @@ def _forward_backward_pipelining_with_interleaving(
         input_tensor = input_tensors[model_chunk_id].pop(0)
         output_tensor = output_tensors[model_chunk_id].pop(0)
         output_tensor_grad = output_tensor_grads[model_chunk_id].pop(0)
-        input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type)
+        input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
 
         return input_tensor_grad
 
