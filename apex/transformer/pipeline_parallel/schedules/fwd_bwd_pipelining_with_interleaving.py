@@ -134,6 +134,7 @@ def _forward_backward_pipelining_with_interleaving(
             model[model_chunk_id],
             input_tensor,
             losses_reduced,
+            dtype,
         )
         curr_iters[model_chunk_id] += 1
         output_tensors[model_chunk_id].append(output_tensor)
