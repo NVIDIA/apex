@@ -184,11 +184,11 @@ def forward_step(
     unwrapped_model.set_input_tensor(input_tensor)
     with torch.cuda.amp.autocast(enabled=dtype in (torch.half, torch.bfloat16), dtype=dtype):
         output_tensor, loss_func = forward_step_func(batch, model)
-    if parallel_state.is_pipeline_last_stage():
-        output_tensor = loss_func(output_tensor)
-        loss, loss_reduced = output_tensor
-        output_tensor = loss / get_num_microbatches()
-        losses_reduced.append(loss_reduced)
+        if parallel_state.is_pipeline_last_stage():
+            output_tensor = loss_func(output_tensor)
+            loss, loss_reduced = output_tensor
+            output_tensor = loss / get_num_microbatches()
+    losses_reduced.append(loss_reduced)
     # timers("forward-compute").stop()
 
     # If T5 model (or other model with encoder and decoder)
