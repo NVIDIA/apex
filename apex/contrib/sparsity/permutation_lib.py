@@ -56,6 +56,18 @@ class Permutation:
         cls.__all_parameters = all_parameters
 
     @classmethod
+    def set_identical_seed(cls, identical_seed=1):
+        print("\n[set_identical_seed] Set the identical seed: {:} for all GPUs to make sure the same results generated in permutation search".format(identical_seed))
+        torch.manual_seed(identical_seed)
+        torch.cuda.manual_seed_all(identical_seed)
+        import numpy as np
+        import random
+        np.random.seed(identical_seed)
+        random.seed(identical_seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    @classmethod
     def set_permutation_saving_params(cls, allow_permutation=False, save_permutation_graph=False, permutation_output_dir='.'):
         """This function is used to set the permutation saving related parameters."""
         print("\n[permutation_lib][set_permutation_saving_param] Set permutation saving related parameters")

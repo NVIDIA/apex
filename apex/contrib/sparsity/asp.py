@@ -124,6 +124,8 @@ class ASP:
             cls.__permutation_output_dir = '.'
             # Set the corresponding params from ASP class to the Permutation class
             Permutation.set_permutation_params_from_asp(cls.__model, cls.__sparse_parameters, cls.__all_parameters)
+            # Set the identical random seed for all GPUs to make sure the same results generated in permutation search
+            Permutation.set_identical_seed()
 
         # find all sparse modules, extract sparse parameters and decorate
         def add_sparse_attributes(module_name, module):
