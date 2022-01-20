@@ -10,6 +10,10 @@ from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import unwrap_model
 from apex.transformer.pipeline_parallel.utils import get_model_type
 from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
+from apex.transformer.log_util import get_transformer_logger
+
+
+_logger = get_transformer_logger(__name__)
 
 
 Batch = Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor, ...]]
