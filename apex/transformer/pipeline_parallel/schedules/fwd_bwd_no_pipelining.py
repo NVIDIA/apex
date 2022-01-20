@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import List, Union
+from typing import List, Union, Optional
 
 import torch
 
@@ -35,6 +35,7 @@ def forward_backward_no_pipelining(
         *,
         forward_only: bool,
         grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
+        dtype: torch.dtype,
         **kwargs,
 ):
     """Run forward and backward passes with no pipeline parallelism (no inter-stage communication).
@@ -77,7 +78,7 @@ def forward_backward_no_pipelining(
             cur_micro_batch = get_kth_microbatch(batch, i)
             _logger.debug("Call `forward_step`")
             output_tensor = forward_step(
-                forward_step_func, cur_micro_batch, model, input_tensor, losses_reduced)
+                forward_step_func, cur_micro_batch, model, input_tensor, losses_reduced, dtype)
             if not forward_only:
                 _logger.debug("Call `backward_step`")
                 backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
@@ -87,7 +88,7 @@ def forward_backward_no_pipelining(
     _logger.info("Cooldown")
     _logger.debug("Call `forward_step`")
     output_tensor = forward_step(
-        forward_step_func, get_kth_microbatch(batch, num_micro_batches - 1), model, input_tensor, losses_reduced
+        forward_step_func, get_kth_microbatch(batch, num_micro_batches - 1), model, input_tensor, losses_reduced, dtype
     )
     if not forward_only:
         _logger.debug("Call `backward_step`")

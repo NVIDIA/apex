@@ -147,6 +147,7 @@ def forward_step(
         model: torch.nn.Module,
         input_tensor: Optional[Union[torch.Tensor, List[torch.Tensor]]],
         losses_reduced: List[torch.Tensor],
+        dtype: torch.dtype,
 ) -> Union[torch.Tensor, Sequence[torch.Tensor]]:
     """Forward step for passed-in model.
 
@@ -177,7 +178,8 @@ def forward_step(
         input_tensor = [input_tensor]
 
     unwrapped_model.set_input_tensor(input_tensor)
-    output_tensor, loss_func = forward_step_func(batch, model)
+    with torch.cuda.amp.autocast(enabled=dtype in (torch.half, torch.bfloat16), dtype=dtype):
+        output_tensor, loss_func = forward_step_func(batch, model)
     if parallel_state.is_pipeline_last_stage():
         output_tensor = loss_func(output_tensor)
         loss, loss_reduced = output_tensor
