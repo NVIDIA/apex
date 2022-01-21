@@ -34,8 +34,8 @@ def forward_backward_no_pipelining(
         model: Union[torch.nn.Module, List[torch.nn.Module]],
         *,
         forward_only: bool,
+        dtype: Optional[torch.dtype] = None,
         grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
-        dtype: torch.dtype = torch.float32,
         disable_autocast: bool = False,
         **kwargs,
 ):
