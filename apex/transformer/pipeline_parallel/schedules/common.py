@@ -10,6 +10,10 @@ from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import unwrap_model
 from apex.transformer.pipeline_parallel.utils import get_model_type
 from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
+from apex.transformer.log_util import get_transformer_logger
+
+
+_logger = get_transformer_logger(__name__)
 
 
 Batch = Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor, ...]]
@@ -147,6 +151,8 @@ def forward_step(
         model: torch.nn.Module,
         input_tensor: Optional[Union[torch.Tensor, List[torch.Tensor]]],
         losses_reduced: List[torch.Tensor],
+        dtype: torch.dtype,
+        disable_autocast: bool = False,
 ) -> Union[torch.Tensor, Sequence[torch.Tensor]]:
     """Forward step for passed-in model.
 
@@ -161,6 +167,8 @@ def forward_step(
         model: unwrappable model
         input_tensor:
         losses_reduced:
+        dtype:
+        disable_autocast:
 
     Returns:
         output_tensor
@@ -177,12 +185,16 @@ def forward_step(
         input_tensor = [input_tensor]
 
     unwrapped_model.set_input_tensor(input_tensor)
-    output_tensor, loss_func = forward_step_func(batch, model)
-    if parallel_state.is_pipeline_last_stage():
-        output_tensor = loss_func(output_tensor)
-        loss, loss_reduced = output_tensor
-        output_tensor = loss / get_num_microbatches()
-        losses_reduced.append(loss_reduced)
+    with torch.cuda.amp.autocast(
+            enabled=not disable_autocast and dtype in (torch.half, torch.bfloat16),
+            dtype=dtype,
+    ):
+        output_tensor, loss_func = forward_step_func(batch, model)
+        if parallel_state.is_pipeline_last_stage():
+            output_tensor = loss_func(output_tensor)
+            loss, loss_reduced = output_tensor
+            output_tensor = loss / get_num_microbatches()
+            losses_reduced.append(loss_reduced)
     # timers("forward-compute").stop()
 
     # If T5 model (or other model with encoder and decoder)
@@ -200,6 +212,8 @@ def backward_step(
         output_tensor: torch.Tensor,
         output_tensor_grad: Optional[torch.Tensor],
         model_type: ModelType,
+        *,
+        grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
 ) -> Union[None, torch.Tensor, Sequence[torch.Tensor]]:
     """Backward step through passed-in output tensor.
 
@@ -234,6 +248,8 @@ def backward_step(
         output_tensor_grad = [output_tensor_grad]
 
     # Backward pass.
+    if grad_scaler is not None and output_tensor_grad[0] is None:
+        output_tensor[0] = grad_scaler.scale(output_tensor[0])
     torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
 
     # Collect the grad of the input_tensor.
