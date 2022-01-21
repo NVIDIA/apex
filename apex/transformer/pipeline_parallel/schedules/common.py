@@ -152,6 +152,7 @@ def forward_step(
         input_tensor: Optional[Union[torch.Tensor, List[torch.Tensor]]],
         losses_reduced: List[torch.Tensor],
         dtype: torch.dtype,
+        disable_autocast: bool = False,
 ) -> Union[torch.Tensor, Sequence[torch.Tensor]]:
     """Forward step for passed-in model.
 
@@ -166,6 +167,8 @@ def forward_step(
         model: unwrappable model
         input_tensor:
         losses_reduced:
+        dtype:
+        disable_autocast:
 
     Returns:
         output_tensor
@@ -182,7 +185,10 @@ def forward_step(
         input_tensor = [input_tensor]
 
     unwrapped_model.set_input_tensor(input_tensor)
-    with torch.cuda.amp.autocast(enabled=dtype in (torch.half, torch.bfloat16), dtype=dtype):
+    with torch.cuda.amp.autocast(
+            enabled=not disable_autocast and dtype in (torch.half, torch.bfloat16),
+            dtype=dtype,
+    ):
         output_tensor, loss_func = forward_step_func(batch, model)
         if parallel_state.is_pipeline_last_stage():
             output_tensor = loss_func(output_tensor)
