@@ -188,7 +188,7 @@ def forward_step(
             output_tensor = loss_func(output_tensor)
             loss, loss_reduced = output_tensor
             output_tensor = loss / get_num_microbatches()
-    losses_reduced.append(loss_reduced)
+            losses_reduced.append(loss_reduced)
     # timers("forward-compute").stop()
 
     # If T5 model (or other model with encoder and decoder)
