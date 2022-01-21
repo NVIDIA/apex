@@ -160,6 +160,8 @@ def forward_backward_pipelining_without_interleaving(
     tensor_shape: Optional[Union[List[int], torch.Size]] = None,
     decoder_sequence_length: Optional[int] = None,
     dtype: Optional[torch.dtype] = None,
+    grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
+    disable_autocast: bool = False,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
 
@@ -229,7 +231,15 @@ def forward_backward_pipelining_without_interleaving(
         _logger.debug("receive fwd")
         input_tensor = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype)
         cur_microbatch = get_kth_microbatch(batch, i)
-        output_tensor = forward_step(forward_step_func, cur_microbatch, model, input_tensor, losses_reduced)
+        output_tensor = forward_step(
+            forward_step_func,
+            cur_microbatch,
+            model,
+            input_tensor,
+            losses_reduced,
+            dtype,
+            disable_autocast,
+        )
         _logger.debug("send fwd")
         send_forward(output_tensor, tensor_shapes=send_tensor_shapes, dtype=dtype)
 
@@ -254,7 +264,13 @@ def forward_backward_pipelining_without_interleaving(
 
         cur_microbatch: torch.Tensor = get_kth_microbatch(batch, i + num_warmup_microbatches)
         output_tensor: Union[torch.Tensor, Sequence[torch.Tensor]] = forward_step(
-            forward_step_func, cur_microbatch, model, input_tensor, losses_reduced
+            forward_step_func,
+            cur_microbatch,
+            model,
+            input_tensor,
+            losses_reduced,
+            dtype,
+            disable_autocast,
         )
         if forward_only:
             _logger.debug("send fwd")
@@ -276,7 +292,7 @@ def forward_backward_pipelining_without_interleaving(
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
 
-            input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type)
+            input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
 
             if last_iteration:
                 input_tensor = None
@@ -298,7 +314,7 @@ def forward_backward_pipelining_without_interleaving(
             _logger.debug("receive bwd")
             output_tensor_grad = recv_backward(tensor_shapes=send_tensor_shapes, dtype=dtype)
 
-            input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type)
+            input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
 
             _logger.debug("send bwd")
             send_backward(input_tensor_grad, tensor_shapes=recv_tensor_shapes, dtype=dtype)
