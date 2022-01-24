@@ -295,7 +295,14 @@ def forward_backward_pipelining_without_interleaving(
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
 
-            input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
+            input_tensor_grad = backward_step(
+                input_tensor,
+                output_tensor,
+                output_tensor_grad,
+                model_type=model_type,
+                grad_scaler=grad_scaler,
+                deallocate_pipeline_outputs=deallocate_pipeline_outputs,
+            )
 
             if last_iteration:
                 input_tensor = None
@@ -317,7 +324,14 @@ def forward_backward_pipelining_without_interleaving(
             _logger.debug("receive bwd")
             output_tensor_grad = recv_backward(tensor_shapes=send_tensor_shapes, dtype=dtype)
 
-            input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
+            input_tensor_grad = backward_step(
+                input_tensor,
+                output_tensor,
+                output_tensor_grad,
+                model_type=model_type,
+                grad_scaler=grad_scaler,
+                deallocate_pipeline_outputs=deallocate_pipeline_outputs,
+            )
 
             _logger.debug("send bwd")
             send_backward(input_tensor_grad, tensor_shapes=recv_tensor_shapes, dtype=dtype)
