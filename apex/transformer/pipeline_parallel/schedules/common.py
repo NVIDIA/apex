@@ -1,7 +1,7 @@
 from typing import Any, Callable, Dict, List, Tuple, Union, Optional, Sequence
 
 import torch
-from torch.autograd._variable import Variable
+from torch.autograd.variable import Variable
 
 from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
