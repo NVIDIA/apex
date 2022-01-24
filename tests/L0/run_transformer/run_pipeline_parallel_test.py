@@ -4,6 +4,7 @@ import warnings
 import torch
 from torch.cuda.amp import GradScaler
 
+from apex._autocast_utils import _get_autocast_dtypes
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import get_forward_backward_func
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
@@ -36,7 +37,6 @@ fwd_bwd_functions = {
 }
 
 
-# TODO (mkozuki): Add a case with `autocast` and `GradScaler`.
 # Run forward & backward for one minibatch.
 def forward_backward_func_template(
         args,
@@ -47,10 +47,10 @@ def forward_backward_func_template(
         dtype: torch.dtype,
         grad_scaler: Optional[GradScaler],
 ) -> None:
-    print_separator(f"name: {name}, pipeline model parallel size: {pipeline_model_parallel_size}")
+    print_separator(f"name: {name}, dtype: {dtype}, use grad_scaler: {grad_scaler is not None}, pipeline model parallel size: {pipeline_model_parallel_size}")
     virtual_pipeline_model_parallel_size = 2 if name == "interleaving" else None
     if name == "no_pipelining":
-        # note (mkozuki): `forward_backward_no_pipelining` is **NOTE** compatible with
+        # note (mkozuki): `forward_backward_no_pipelining` is **NOT** compatible with
         # pipeline_model_parallel_size>1. So use pipeline_model_parallel_size as
         # tensor_model_parallel_size and set pipeline_model_parallel_size to 1.
         parallel_state.initialize_model_parallel(1, 1, None)
@@ -120,9 +120,7 @@ if __name__ == "__main__":
     batch_size = args.global_batch_size
     micro_batch_size = args.micro_batch_size
 
-    autocast_dtypes = (
-        [torch.half, torch.bfloat16] if torch.cuda.is_bf16_supported() else [torch.half]
-    ) + [torch.float32]
+    dtypes = [torch.float32] + _get_autocast_dtypes()
     for forward_only in (True, False):
         for name, forward_backward_func in fwd_bwd_functions.items():
             if name == "interleaving" and torch.cuda.device_count() <= 2:
@@ -131,7 +129,7 @@ if __name__ == "__main__":
                     "while interleaved scheduled pipeline parallel requires >2 gpus."
                 )
                 continue
-            for dtype in autocast_dtypes:
+            for dtype in dtypes:
                 if torch.distributed.get_rank() == 0:
                     _logger.info(f"forward_only: {forward_only}, name: {name}, dtype: {dtype}")
                 grad_scaler = torch.cuda.amp.GradScaler(init_scale=4.0) if dtype == torch.half else None
