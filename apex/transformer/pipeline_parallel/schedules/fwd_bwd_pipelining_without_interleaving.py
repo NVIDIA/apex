@@ -247,7 +247,7 @@ def forward_backward_pipelining_without_interleaving(
         if not forward_only:
             input_tensors.append(input_tensor)
             output_tensors.append(output_tensor)
-            free_output_tensor(output_tensor)
+            free_output_tensor(output_tensor, deallocate_pipeline_outputs)
 
     # Before running 1F1B, need to receive first forward tensor.
     # If all microbatches are run in warmup / cooldown phase, then no need to
@@ -289,7 +289,7 @@ def forward_backward_pipelining_without_interleaving(
             # Add input_tensor and output_tensor to end of list.
             input_tensors.append(input_tensor)
             output_tensors.append(output_tensor)
-            free_output_tensor(output_tensor)
+            free_output_tensor(output_tensor, deallocate_pipeline_outputs)
 
             # Pop input_tensor and output_tensor from the start of the list for the backward pass.
             input_tensor = input_tensors.pop(0)
