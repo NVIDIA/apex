@@ -163,6 +163,7 @@ def forward_backward_pipelining_without_interleaving(
     dtype: Optional[torch.dtype] = None,
     grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
     disable_autocast: bool = False,
+    deallocate_pipeline_outputs: bool = False,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
 
