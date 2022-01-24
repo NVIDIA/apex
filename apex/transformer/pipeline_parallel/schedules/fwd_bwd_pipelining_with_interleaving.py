@@ -8,6 +8,7 @@ from apex.transformer.pipeline_parallel.schedules.common import Batch
 from apex.transformer.pipeline_parallel.schedules.common import FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
+from apex.transformer.pipeline_parallel.schedules.common import free_output_tensor
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import get_model_type
@@ -217,6 +218,7 @@ def _forward_backward_pipelining_with_interleaving(
             _logger.debug("send fwd and receive fwd")
             input_tensor = p2p_communication.send_forward_recv_forward(
                 output_tensor, recv_prev=recv_prev, tensor_shape=tensor_shape, dtype=dtype)
+        free_output_tensor(output_tensor)
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
 
     ###################################################################################################################
@@ -293,6 +295,7 @@ def _forward_backward_pipelining_with_interleaving(
             tensor_shape=tensor_shape,
             dtype=dtype,
         )
+        free_output_tensor(output_tensor)
 
         # Put input_tensor and output_tensor_grad in data structures in the
         # right location.
