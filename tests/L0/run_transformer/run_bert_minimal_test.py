@@ -88,12 +88,6 @@ easy_data = None
 
 def fwd_step_func(batch, model):
     data, label, loss_mask = batch
-    if data is not None:
-        data = data.cuda()
-    if label is not None:
-        label = label.cuda()
-    if loss_mask is not None:
-        loss_mask = loss_mask.cuda()
     y = model(data, torch.ones_like(data), lm_labels=label)
 
     def loss_func(output_tensor):
