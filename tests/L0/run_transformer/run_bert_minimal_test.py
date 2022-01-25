@@ -75,15 +75,25 @@ def generate_fancy_data_labels(sequence_len, batch_size):
   mask_not = torch.logical_not(mask)
   data = mask * temp + mask_not*124
   label = temp
-  return (data, label, mask_not)
+  if parallel_state.get_tensor_model_parallel_rank() == 0:
+    data_dict = {"text": data, "label": label, "mask_not": mask_not}
+  else:
+    data_dict = None
+  keys = ["text", "label", "mask_not"]
+  dtype = torch.int64
+  broadcasted_data = tensor_parallel.broadcast_data(keys, data_dict, torch.long)
+  return (broadcasted_data["text"].long(), broadcasted_data["label"].long(), broadcasted_data["mask_not"])
 
 easy_data = None
 
 def fwd_step_func(batch, model):
     data, label, loss_mask = batch
-    data = data.cuda()
-    label = label.cuda()
-    loss_mask = loss_mask.cuda()
+    if data is not None:
+        data = data.cuda()
+    if label is not None:
+        label = label.cuda()
+    if loss_mask is not None:
+        loss_mask = loss_mask.cuda()
     y = model(data, torch.ones_like(data), lm_labels=label)
 
     def loss_func(output_tensor):
@@ -109,10 +119,7 @@ def train(model, optim, virtual_pipeline_model_parallel_size, pipeline_model_par
     forward_backward_func = get_forward_backward_func(virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
     for _ in range(16):
-        if parallel_state.is_pipeline_first_stage():
-            batch = generate_fancy_data_labels(sequence_len, batch_size)
-        else:
-            batch = (None, None, None)
+        batch = generate_fancy_data_labels(sequence_len, batch_size)
         optim.zero_grad()
         forward_backward_func(fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape)
         optim.step()
