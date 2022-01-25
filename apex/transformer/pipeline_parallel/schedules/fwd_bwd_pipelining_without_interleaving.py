@@ -164,6 +164,7 @@ def forward_backward_pipelining_without_interleaving(
     grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
     disable_autocast: bool = False,
     deallocate_pipeline_outputs: bool = False,
+    **kwawrgs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
 
@@ -185,6 +186,10 @@ def forward_backward_pipelining_without_interleaving(
         tensor_shape: Shape of tensor. Required for P2P communication.
         dtype: dtype used in p2p communication. If ``None`` (default value),
             torch.float32 will be used even if ``autocast`` is enabled.
+        grad_scaler:
+        disable_autocast:
+        deallocate_pipeline_outputs: If :obj:`True`, free the data of the output tensor of
+            each pipeline stage. Experimental.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
