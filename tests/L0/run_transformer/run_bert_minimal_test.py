@@ -72,7 +72,7 @@ def generate_fancy_data_labels(sequence_len, batch_size):
      temps.append(curr)
   temp = torch.stack(temps, dim=0).cuda()
   mask = masks[data_idx//batch_size]
-  mask_not = torch.logical_not(mask)
+  mask_not = torch.logical_not(mask).long()
   data = mask * temp + mask_not*124
   label = temp
   if parallel_state.get_tensor_model_parallel_rank() == 0:
