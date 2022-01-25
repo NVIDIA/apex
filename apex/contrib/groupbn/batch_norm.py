@@ -66,7 +66,8 @@ class bn_addrelu_NHWC_impl(torch.autograd.Function):
         if is_train:
             if IS_ROCM_PYTORCH:
                 nhw = x.shape[0] * x.shape[1] * x.shape[2]
-                bitmask = torch.cuda.LongTensor(((nhw + 3) & ~3) * grid_dim_y)
+                shape = int(((nhw + 3) & ~3) * grid_dim_y)
+                bitmask = torch.cuda.LongTensor(shape)
             else:
                 bitmask = torch.cuda.IntTensor(((x.numel()+31)//32) * 2 * grid_dim_y)
             ctx.save_for_backward(x, s, b, rm, riv, mini_m, mini_riv, bitmask)
