@@ -119,12 +119,14 @@ def _split_batch_into_microbatch(
 
 
 # TODO(mkozuki): Support non-tensor local minibatches?
-def get_kth_microbatch(batch: List[torch.Tensor], k: int) -> List[torch.Tensor]:
+def get_kth_microbatch(batch: Optional[List[torch.Tensor]], k: int) -> List[torch.Tensor]:
     """Create a list of microbatches from a list of local minibatches.
 
     This function creates a list of `k`th microbatches from a list of local minibatches.
     `a local minibatch` consists of `global_batch_size / data_parallel_size` samples.
     """
+    if batch is None:
+        return batch
     micro_batch_size = get_micro_batch_size()
     start = k * micro_batch_size
     end = start + micro_batch_size

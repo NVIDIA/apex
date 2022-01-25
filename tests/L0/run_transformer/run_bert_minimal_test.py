@@ -10,7 +10,7 @@ from apex.transformer.pipeline_parallel.schedules import get_forward_backward_fu
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 
-from apex.transformer.testing.standalone_bert import bert_model_provider 
+from apex.transformer.testing.standalone_bert import bert_model_provider
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
@@ -49,7 +49,7 @@ def generate_fancy_data_labels(sequence_len, batch_size):
   global inds
   global masks
   global MANUAL_SEED
-  temps = list()
+  temps = []
   for i in range(batch_size):
      if inds is None or data_idx >= len(inds):
        # hack as use of RNG will fall out of sync due to pipelines being different
@@ -67,7 +67,7 @@ def generate_fancy_data_labels(sequence_len, batch_size):
        data_idx_ = data_idx
      offset = inds[data_idx_] #* SEQUENCE_LEN
      data_idx += 1
-      
+
      curr = fancy_data[offset:offset+sequence_len].clone().detach()
      temps.append(curr)
   temp = torch.stack(temps, dim=0).cuda()
@@ -109,7 +109,10 @@ def train(model, optim, virtual_pipeline_model_parallel_size, pipeline_model_par
     forward_backward_func = get_forward_backward_func(virtual_pipeline_model_parallel_size, pipeline_model_parallel_size)
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
     for _ in range(16):
-        batch = generate_fancy_data_labels(sequence_len, batch_size)
+        if parallel_state.is_pipeline_first_stage():
+            batch = generate_fancy_data_labels(sequence_len, batch_size)
+        else:
+            batch = (None, None, None)
         optim.zero_grad()
         forward_backward_func(fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape)
         optim.step()
