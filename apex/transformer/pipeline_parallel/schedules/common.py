@@ -165,7 +165,7 @@ def free_output_tensor(
         output_tensor.data = torch.cuda.FloatTensor([0])
 
 
-def custom_backward(output, grad_ouptut: Optional[torch.Tensor]) -> None:
+def custom_backward(output: torch.Tensor, grad_output: Optional[torch.Tensor]) -> None:
     """Directly call C++ autograd engine.
 
     To make the `free_output_tensor` optimization work, the C++ autograd engine must be called
