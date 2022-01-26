@@ -1,6 +1,7 @@
-// /home/scratch.svc_compute_arch/release/cuda_toolkit/r10.1/latest/bin/nvcc -Xptxas -dlcm=cg kernels/structured_sparsity.cu -Xcompiler -fPIC -shared -o kernels/structured_sparsity.so
-// /usr/bin:/bin:/usr/lib:/etc:/usr/local/lsf/bin:/home/scratch.svc_compute_arch/python/bin:/home/utils/bin
 #include <stdio.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+namespace py = pybind11;
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -12,7 +13,8 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
     }
 }
 
-__device__ float group_2_to_4(float4 vals) {
+__device__ float group_2_to_4(float4 vals)
+{
     vals.x = fabs(vals.x);
     vals.y = fabs(vals.y);
     vals.z = fabs(vals.z);
@@ -33,7 +35,22 @@ __device__ float group_2_to_4(float4 vals) {
     return best_sum;
 }
 
-__global__ void subset_sum_after_2_to_4(float* matrix, unsigned int rows, unsigned int cols, unsigned int start_col, unsigned int end_col, float* output)
+inline float* float_ptr_from_numpy(py::array_t<float>& py_float)
+{
+    return (float*)py_float.data();
+}
+
+inline unsigned int* uint_ptr_from_numpy(py::array_t<unsigned int>& py_uint)
+{
+    return (unsigned int*)py_uint.data();
+}
+
+__global__ void subset_sum_after_2_to_4(float* matrix,
+                                        unsigned int rows,
+                                        unsigned int cols,
+                                        unsigned int start_col,
+                                        unsigned int end_col,
+                                        float* output)
 {
     // vectorize
     float4* mat4 = (float4*) matrix;
@@ -65,7 +82,16 @@ __global__ void subset_sum_after_2_to_4(float* matrix, unsigned int rows, unsign
 // build the entire permute map at once
 // each block handles one group of stripes
 // each threads in the block handle all handle the same permutation at the same time on different rows before moving to the next permutation
-__global__ void build_permute_map(float* matrix, unsigned int rows, unsigned int cols, unsigned int* stripes, unsigned int group_width, unsigned int* permutations, unsigned int num_permutations, unsigned int perm_length, float* output, unsigned int* best_indices)
+__global__ void build_permute_map(float* matrix,
+                                  unsigned int rows,
+                                  unsigned int cols,
+                                  unsigned int* stripes,
+                                  unsigned int group_width,
+                                  unsigned int* permutations,
+                                  unsigned int num_permutations,
+                                  unsigned int perm_length,
+                                  float* output,
+                                  unsigned int* best_indices)
 {
     // vectorize
     float4* mat4 = (float4*) matrix;
@@ -139,12 +165,18 @@ __global__ void build_permute_map(float* matrix, unsigned int rows, unsigned int
 }
 
 
-void free_sum_after_2_to_4_memory(float** dmatrix, float** dresult) {
+void free_sum_after_2_to_4_memory(float** dmatrix,
+                                  float** dresult)
+{
     cudaFree(*dmatrix);
     cudaFree(*dresult);
 }
 
-int set_up_sum_after_2_to_4_memory(float** dmatrix, unsigned int rows, unsigned int cols, float** dresult) {
+int set_up_sum_after_2_to_4_memory(float** dmatrix,
+                                   unsigned int rows,
+                                   unsigned int cols,
+                                   float** dresult)
+{
     static unsigned int setupRows = 0;
     static unsigned int setupCols = 0;
     static bool allocated = false;
@@ -171,13 +203,24 @@ int set_up_sum_after_2_to_4_memory(float** dmatrix, unsigned int rows, unsigned 
     return fresh_allocation;
 }
 
-int run_subset_sum_after_2_to_4(float* matrix, unsigned int rows, unsigned int cols, unsigned int start_col, unsigned int end_col, unsigned int blocks, unsigned int threads, float* output)
+int run_subset_sum_after_2_to_4(py::array_t<float>& py_matrix,
+                                unsigned int rows,
+                                unsigned int cols,
+                                unsigned int start_col,
+                                unsigned int end_col,
+                                unsigned int blocks,
+                                unsigned int threads,
+                                py::array_t<float>& py_output)
 {
 
     static float* d_matrix;
     static float* d_result;
 
     int fresh_allocation = set_up_sum_after_2_to_4_memory(&d_matrix, rows, cols, &d_result);
+
+    float* matrix = float_ptr_from_numpy(py_matrix);
+    float* output = float_ptr_from_numpy(py_output);
+
     gpuErrchk(cudaMemcpy( d_matrix, matrix, rows*cols*sizeof(float), cudaMemcpyHostToDevice ));
     gpuErrchk(cudaMemset( d_result, 0, sizeof(float)));
 
@@ -189,7 +232,19 @@ int run_subset_sum_after_2_to_4(float* matrix, unsigned int rows, unsigned int c
     return 0;
 }
 
-void set_up_permute_map_memory(float** dmatrix, unsigned int rows, unsigned int cols, unsigned int** dstripes, unsigned int num_groups, unsigned int group_width, unsigned int** dpermutations, unsigned int num_permutations, unsigned int perm_length, float** doutput, unsigned int** dindices, float** hresult, unsigned int** hindices)
+void set_up_permute_map_memory(float** dmatrix,
+                               unsigned int rows,
+                               unsigned int cols,
+                               unsigned int** dstripes,
+                               unsigned int num_groups,
+                               unsigned int group_width,
+                               unsigned int** dpermutations,
+                               unsigned int num_permutations,
+                               unsigned int perm_length,
+                               float** doutput,
+                               unsigned int** dindices,
+                               float** hresult,
+                               unsigned int** hindices)
 {
     static unsigned int setUpRows = 0;
     static unsigned int setUpCols = 0;
@@ -239,7 +294,17 @@ void set_up_permute_map_memory(float** dmatrix, unsigned int rows, unsigned int 
     setUpPermLength = perm_length;
 }
 
-int run_build_permute_map(float* matrix, unsigned int rows, unsigned int cols, unsigned int* stripes, unsigned int num_groups, unsigned int group_width, unsigned int* permutations, unsigned int num_permutations, unsigned int perm_length, float* improvements, unsigned int* best_indices)
+int run_build_permute_map(py::array_t<float>& py_matrix,
+                          unsigned int rows,
+                          unsigned int cols,
+                          py::array_t<unsigned int>& py_stripes,
+                          unsigned int num_groups,
+                          unsigned int group_width,
+                          py::array_t<unsigned int>& py_permutations,
+                          //unsigned int num_permutations,
+                          unsigned int perm_length,
+                          py::array_t<float>& py_improvements,
+                          py::array_t<unsigned int>& py_best_indices)
 {
     static float* d_matrix = NULL;
     static unsigned int* d_stripes = NULL;
@@ -249,12 +314,23 @@ int run_build_permute_map(float* matrix, unsigned int rows, unsigned int cols, u
     static float* hresult = NULL;
     static unsigned int* hindices = NULL;
 
+    //const unsigned int cols = py_matrix.size() / rows;
+    //const unsigned int num_groups = py_stripes.size() / group_width;
+    //const unsigned int perm_length = group_width * 4; // 2:4 sparsity - each stripe in the group is 4 elements wide
+    const unsigned int num_permutations = py_permutations.size() / perm_length;
+
     const unsigned int MAX_GROUPS_PER_LAUNCH = num_permutations <= 5775 ? 1820 : 40;
     const unsigned int full_launches = num_groups / MAX_GROUPS_PER_LAUNCH;
     const unsigned int final_launch = num_groups % MAX_GROUPS_PER_LAUNCH;
     const unsigned int launches = full_launches + (final_launch != 0 ? 1 : 0);
 
     set_up_permute_map_memory(&d_matrix, rows, cols, &d_stripes, min(num_groups,MAX_GROUPS_PER_LAUNCH), group_width, &d_permutations, num_permutations, perm_length, &d_output, &d_indices, &hresult, &hindices);
+
+    float* matrix = float_ptr_from_numpy(py_matrix);
+    unsigned int* stripes = uint_ptr_from_numpy(py_stripes);
+    unsigned int* permutations = uint_ptr_from_numpy(py_permutations);
+    float* improvements = float_ptr_from_numpy(py_improvements);
+    unsigned int* best_indices = uint_ptr_from_numpy(py_best_indices);
 
     gpuErrchk(cudaMemcpy( d_matrix, matrix, rows*cols*sizeof(float), cudaMemcpyHostToDevice ));
     gpuErrchk(cudaMemcpy( d_permutations, permutations, num_permutations*perm_length*sizeof(unsigned int), cudaMemcpyHostToDevice ));
@@ -286,4 +362,10 @@ int run_build_permute_map(float* matrix, unsigned int rows, unsigned int cols, u
 
     return 0;
 
+}
+
+PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
+{
+    m.def("sum_after_2_to_4", &run_subset_sum_after_2_to_4, "matrix sum after applying 2:4 (CUDA)");
+    m.def("build_permute_map", &run_build_permute_map, "optimize stripe groups (CUDA)");
 }

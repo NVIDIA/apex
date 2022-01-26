@@ -239,7 +239,7 @@ if "--permutation_search" in sys.argv:
         cc_flag = ['-Xcompiler', '-fPIC', '-shared']
         ext_modules.append(
             CUDAExtension(name='permutation_search_cuda',
-                          sources=['apex/contrib/sparsity/permutation_search_kernels/CUDA_kernels/structured_sparsity.cu'],
+                          sources=['apex/contrib/sparsity/permutation_search_kernels/CUDA_kernels/permutation_search_kernels.cu'],
                           include_dirs=[os.path.join(this_dir, 'apex', 'contrib', 'sparsity', 'permutation_search_kernels', 'CUDA_kernels')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros + cc_flag}))

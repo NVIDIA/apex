@@ -34,6 +34,8 @@ def generate_unique_combinations(built_permutation, remaining_columns, full_perm
     # base case: nothing else to add
     if len(remaining_columns) == 0:
         full_permutation_list.append(np.copy(built_permutation))
+        if len(full_permutation_list) % 1000000 == 0:
+            print(f"{len(full_permutation_list)} unique permutations found so far")
 
     # still more choices to make, so add each remaining column in turn column if it keeps everything sorted
     else:
@@ -93,6 +95,7 @@ def search_matrix(matrix, group_width):
     prediction = predict_unique_combinations(matrix.shape[1], group_width)
     best_permutation = [c for c in range(matrix.shape[1])]
     if prediction > 1e10:
+        print(f"There are {prediction} unique combinations with {matrix.shape[1]} columns and a group width of {group_width}, not searching.")
         return matrix, prediction, best_permutation
 
     start_time = time.perf_counter()
@@ -180,7 +183,7 @@ def build_stripe_map(matrix, group_width, window_size, stripe_map, stripe_ids, p
 
     # step through each, update the stripe_map/stripe_ids if necessary
     updates = 0
-    use_cuda, E = use_gpu()
+    use_cuda = use_gpu()
     gpu_list = []
     gpu_groups = []
     for i,s in enumerate(stripe_set):
@@ -219,17 +222,16 @@ def build_stripe_map(matrix, group_width, window_size, stripe_map, stripe_ids, p
         num_gpu_groups = len(gpu_list)
         gpu_improvement = np.zeros((num_gpu_groups), dtype=np.float32).flatten()
         gpu_permutation = np.zeros((num_gpu_groups), dtype=np.uint32).flatten()
-        result = E._Z21run_build_permute_mapPfjjPjjjS0_jjS_S0_(ctypes.c_void_p(matrix_view.ctypes.data),
-                                                               ctypes.c_uint(matrix.shape[0]),
-                                                               ctypes.c_uint(matrix.shape[1]),
-                                                               ctypes.c_void_p(stripe_groups_view.ctypes.data),
-                                                               ctypes.c_uint(num_gpu_groups),
-                                                               ctypes.c_uint(window_size),
-                                                               ctypes.c_void_p(permutation_view.ctypes.data),
-                                                               ctypes.c_uint(num_permutations),
-                                                               ctypes.c_uint(window_size*group_width),
-                                                               ctypes.c_void_p(gpu_improvement.ctypes.data),
-                                                               ctypes.c_void_p(gpu_permutation.ctypes.data))
+        result = permutation_search_cuda_kernels.build_permute_map(matrix_view,
+                                                              matrix.shape[0],
+                                                              matrix.shape[1],
+                                                              stripe_groups_view,
+                                                              num_gpu_groups,
+                                                              window_size,
+                                                              permutation_view,
+                                                              window_size * group_width,
+                                                              gpu_improvement,
+                                                              gpu_permutation)
 
         # put the data where python expects it
         for i in range(len(gpu_list)):
@@ -335,7 +337,7 @@ def Exhaustive_Search(matrix, stripe_group_size=-1, escape_attempts=0, permutati
         return result, durationL+durationR+duration, permutation
 
     # small enough to optimize the entire matrix at once
-    if stripe_group_size != -1:
+    if stripe_group_size != -1 and stripe_group_size < matrix.shape[1]:
         stripe_map = []
         stripe_ids = []
         perm_map = []
@@ -363,6 +365,7 @@ def Exhaustive_Search(matrix, stripe_group_size=-1, escape_attempts=0, permutati
         duration = time.perf_counter() - start_time
 
     else: # no sliding window, single iteration
+        print(f"Matrix has {matrix.shape[1]} columns and the search window is only {stripe_group_size}: searching exhaustively")
         result, duration, permutation, improvement = search_matrix(matrix, group_width)
 
     return result, duration, permutation
