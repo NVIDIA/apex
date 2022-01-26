@@ -3,7 +3,7 @@
 #ifdef OLD_GENERATOR
 #include <ATen/CUDAGenerator.h>
 #else
-#include <ATen/CUDAGeneratorImpl.h>
+#include <ATen/cuda/CUDAGeneratorImpl.h>
 #endif
 
 #include <ATen/cuda/CUDAContext.h>

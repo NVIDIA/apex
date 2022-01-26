@@ -4,7 +4,7 @@
 
 #include <torch/extension.h>
 #include <ATen/AccumulateType.h>
-#include <ATen/CUDAGeneratorImpl.h>
+#include <ATen/cuda/CUDAGeneratorImpl.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/CUDAGraphsUtils.cuh>
 #include <c10/macros/Macros.h>
