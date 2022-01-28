@@ -918,7 +918,6 @@ void cuda_layer_norm(
 
 void cuda_rms_norm(
     at::Tensor* output,
-    // at::Tensor* mean,
     at::Tensor* invvar,
     at::Tensor* input,
     int n1,
@@ -929,7 +928,6 @@ void cuda_rms_norm(
     at::IntList normalized_shape,
     #endif
     at::Tensor* gamma,
-    // at::Tensor* beta,
     double epsilon)
 {
     using namespace at;
@@ -938,13 +936,11 @@ void cuda_rms_norm(
         using accscalar_t = at::acc_type<scalar_t_in, true>;
         HostApplyRMSNorm<scalar_t_in, accscalar_t, scalar_t_out>(
           output->DATA_PTR<scalar_t_out>(),
-          //    mean->DATA_PTR<accscalar_t>(),
           invvar->DATA_PTR<accscalar_t>(),
           input->DATA_PTR<scalar_t_in>(),
           n1,n2,
           epsilon,
           gamma != NULL ? gamma->DATA_PTR<scalar_t_out>() : NULL);
-          // beta != NULL ? beta->DATA_PTR<scalar_t_out>() : NULL);
       )
 }
 
@@ -1148,7 +1144,6 @@ void cuda_layer_norm_gradient(
 
 void cuda_rms_norm_gradient(
     at::Tensor* dout,
-    // at::Tensor* mean,
     at::Tensor* invvar,
     at::Tensor* input,
     int n1,
@@ -1159,11 +1154,9 @@ void cuda_rms_norm_gradient(
     at::IntList normalized_shape,
     #endif
     at::Tensor* gamma,
-    // at::Tensor* beta,
     double epsilon,
     at::Tensor* grad_input,
     at::Tensor* grad_gamma)
-    // at::Tensor* grad_beta
 {
     using namespace at;
     // we can do away with `accscalar_t` as there're only three dtypes: fp32, fp16, bf16
@@ -1180,10 +1173,8 @@ void cuda_rms_norm_gradient(
             // TMJ pass NULL argument for gamma, beta, grad_gamma and grad_beta
             // if gamma Tensor is NULL on input.
         gamma != NULL ? gamma->DATA_PTR<scalar_t_out>() : NULL,
-        // gamma != NULL ? beta->DATA_PTR<scalar_t_out>() : NULL,
         epsilon,
         grad_input->DATA_PTR<scalar_t_in>(),
         gamma != NULL ? grad_gamma->DATA_PTR<scalar_t_out>() : NULL);
-        // gamma != NULL ? grad_beta->DATA_PTR<scalar_t_out>() : NULL);
     )
 }

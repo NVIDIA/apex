@@ -440,4 +440,3 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 
   m.def("forward_affine_mixed_dtypes", &rms_norm_affine_mixed_dtypes, "RMSNorm forward with mixed dtypes (CUDA) compatible with Megatron's implementation");
 }
-
