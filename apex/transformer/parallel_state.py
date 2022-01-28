@@ -175,15 +175,15 @@ def initialize_model_parallel(
             _EMBEDDING_GLOBAL_RANKS = embedding_ranks
 
 def get_rank_info() -> Tuple[int, int, int]:
-    """Returns a tuple of (tensor, pipeline, data)-parallel-rank for logger."""
+    """Returns a tuple of (data, tensor, pipeline, virtual pipeline)-parallel-rank for logger."""
     if model_parallel_is_initialized():
         return (
+            get_data_parallel_rank(),
             get_tensor_model_parallel_rank(),
             get_pipeline_model_parallel_rank(),
-            # get_virtual_pipeline_model_parallel_rank(),
-            get_data_parallel_rank(),
+            get_virtual_pipeline_model_parallel_rank(),
         )
-    return (0, 0, 0)
+    return (0, 0, 0, 0)
 
 
 def model_parallel_is_initialized():
