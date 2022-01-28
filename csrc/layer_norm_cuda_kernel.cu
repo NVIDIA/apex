@@ -862,15 +862,12 @@ void HostApplyLayerNorm(
 template<typename T, typename U, typename V=T>
 void HostApplyRMSNorm(
     V* output,
-    // U* mean,
     U* invvar,
     const T* input,
     int n1,
     int n2,
     double epsilon,
     const V* gamma)
-    // const V* beta
-    //)
 {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
     const dim3 threads(32,4,1);
@@ -881,7 +878,7 @@ void HostApplyRMSNorm(
             threads.y*sizeof(U)+(threads.y/2)*sizeof(U) :
             0;
     cuApplyRMSNorm<<<blocks, threads, nshared, stream>>>(
-      output, /*mean,*/ invvar, input, n1, n2, U(epsilon), gamma/*, beta*/);
+      output, invvar, input, n1, n2, U(epsilon), gamma);
 }
 
 void cuda_layer_norm(
@@ -1026,23 +1023,18 @@ void HostLayerNormGradient(
 template<typename T, typename U=float, typename V=T>
 void HostRMSNormGradient(
     const V* dout,
-    // const U* mean,
     const U* invvar,
     at::Tensor* input,
     int n1,
     int n2,
     const V* gamma,
-    // const V* beta,
     double epsilon,
     T* grad_input,
     V* grad_gamma)
-    // V* grad_beta
 {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
 
-    // if (gamma != NULL && beta != NULL) {
     if (gamma != NULL) {
-      // compute grad_gamma(j) and grad_beta(j)
       const int part_size = 16;
       const dim3 threads2(32,4,1);
       const dim3 blocks2((n2+threads2.x-1)/threads2.x,part_size,1);
@@ -1056,7 +1048,6 @@ void HostRMSNormGradient(
         at::ScalarType::Float :
         input->scalar_type();
       at::Tensor part_grad_gamma = at::empty({part_size,n2}, input->options().dtype(part_grad_dtype));
-      // at::Tensor part_grad_beta = at::empty_like(part_grad_gamma);
       cuComputePartGradGammaBeta<<<blocks2, threads2, nshared2, stream>>>(
                       dout,
                       input->DATA_PTR<T>(),
@@ -1166,7 +1157,6 @@ void cuda_rms_norm_gradient(
       using accscalar_t = at::acc_type<scalar_t_in, true>;
       HostRMSNormGradient(
         dout->DATA_PTR<scalar_t_out>(),
-        // mean->DATA_PTR<accscalar_t>(),
         invvar->DATA_PTR<accscalar_t>(),
         input,
         n1,n2,
