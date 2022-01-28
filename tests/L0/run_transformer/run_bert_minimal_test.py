@@ -10,7 +10,7 @@ from apex.transformer.pipeline_parallel.schedules import get_forward_backward_fu
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 
-from apex.transformer.testing.standalone_bert import bert_model_provider 
+from apex.transformer.testing.standalone_bert import bert_model_provider
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
@@ -49,7 +49,7 @@ def generate_fancy_data_labels(sequence_len, batch_size):
   global inds
   global masks
   global MANUAL_SEED
-  temps = list()
+  temps = []
   for i in range(batch_size):
      if inds is None or data_idx >= len(inds):
        # hack as use of RNG will fall out of sync due to pipelines being different
@@ -67,23 +67,27 @@ def generate_fancy_data_labels(sequence_len, batch_size):
        data_idx_ = data_idx
      offset = inds[data_idx_] #* SEQUENCE_LEN
      data_idx += 1
-      
+
      curr = fancy_data[offset:offset+sequence_len].clone().detach()
      temps.append(curr)
   temp = torch.stack(temps, dim=0).cuda()
   mask = masks[data_idx//batch_size]
-  mask_not = torch.logical_not(mask)
+  mask_not = torch.logical_not(mask).long()
   data = mask * temp + mask_not*124
   label = temp
-  return (data, label, mask_not)
+  if parallel_state.get_tensor_model_parallel_rank() == 0:
+    data_dict = {"text": data, "label": label, "mask_not": mask_not}
+  else:
+    data_dict = None
+  keys = ["text", "label", "mask_not"]
+  dtype = torch.int64
+  broadcasted_data = tensor_parallel.broadcast_data(keys, data_dict, torch.long)
+  return (broadcasted_data["text"].long(), broadcasted_data["label"].long(), broadcasted_data["mask_not"])
 
 easy_data = None
 
 def fwd_step_func(batch, model):
     data, label, loss_mask = batch
-    data = data.cuda()
-    label = label.cuda()
-    loss_mask = loss_mask.cuda()
     y = model(data, torch.ones_like(data), lm_labels=label)
 
     def loss_func(output_tensor):

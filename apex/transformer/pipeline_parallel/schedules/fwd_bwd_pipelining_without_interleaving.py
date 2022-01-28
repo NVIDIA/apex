@@ -153,7 +153,7 @@ def send_backward_recv_forward(
 
 def forward_backward_pipelining_without_interleaving(
     forward_step_func: FwdStepFunc,
-    batch: Batch,
+    batch: Optional[Batch],
     model: Union[torch.nn.Module, List[torch.nn.Module]],
     *,
     forward_only: bool,
@@ -230,7 +230,7 @@ def forward_backward_pipelining_without_interleaving(
         _logger.debug(f"warmup iter: {i} / {num_warmup_microbatches}")
         _logger.debug("receive fwd")
         input_tensor = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype)
-        cur_microbatch = get_kth_microbatch(batch, i)
+        cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i)
         output_tensor = forward_step(
             forward_step_func,
             cur_microbatch,
@@ -262,7 +262,7 @@ def forward_backward_pipelining_without_interleaving(
         _logger.debug(f"steady iter: {i} / {num_microbatches_remaining}")
         last_iteration: bool = i == (num_microbatches_remaining - 1)
 
-        cur_microbatch: torch.Tensor = get_kth_microbatch(batch, i + num_warmup_microbatches)
+        cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i + num_warmup_microbatches)
         output_tensor: Union[torch.Tensor, Sequence[torch.Tensor]] = forward_step(
             forward_step_func,
             cur_microbatch,

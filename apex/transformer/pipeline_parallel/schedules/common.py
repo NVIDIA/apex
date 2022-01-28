@@ -18,7 +18,7 @@ _logger = get_transformer_logger(__name__)
 
 Batch = Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor, ...]]
 LossFunc = Callable[[torch.Tensor], torch.Tensor]
-FwdStepFunc = Callable[[Batch, torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
+FwdStepFunc = Callable[[Optional[Batch], torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
 
 
 def build_model(
@@ -147,7 +147,7 @@ def _get_params_for_weight_decay_optimization(
 
 def forward_step(
         forward_step_func: FwdStepFunc,
-        batch: Batch,
+        batch: Optional[Batch],
         model: torch.nn.Module,
         input_tensor: Optional[Union[torch.Tensor, List[torch.Tensor]]],
         losses_reduced: List[torch.Tensor],

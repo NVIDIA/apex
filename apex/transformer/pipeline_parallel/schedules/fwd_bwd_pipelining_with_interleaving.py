@@ -23,7 +23,7 @@ _logger = get_transformer_logger(__name__)
 # TODO(mkozuki): Reduce cyclomatic complexity
 def _forward_backward_pipelining_with_interleaving(
         forward_step_func: FwdStepFunc,
-        batch: List[Batch],
+        batch: List[Optional[Batch]],
         model: List[torch.nn.Module],
         *,
         forward_only: bool,
