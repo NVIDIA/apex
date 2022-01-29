@@ -303,11 +303,6 @@ def backward_step(
         custom_backward(output_tensor[0], output_tensor_grad[0])
     else:
         torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
-    # TODO: Add option of `deallocate_pipeline_outputs`
-    # Megatron-LM has an option to enable `custom_backward`
-    # See: https://github.com/NVIDIA/Megatron-LM/blob/9a8b89acd8f6ba096860170d0e30ddc0bc2bacd4/megatron/schedules.py#L167-L168  # NOQA
-    # if deallocate_pipeline_outputs:
-    #     custom_backward(output_tensor[0], output_tensor_grad[0])
 
     # Collect the grad of the input_tensor.
     input_tensor_grad = [None]
