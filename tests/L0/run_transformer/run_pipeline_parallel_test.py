@@ -48,11 +48,13 @@ def forward_backward_func_template(
         dtype: torch.dtype,
         grad_scaler: Optional[GradScaler],
         deallocate_pipeline_outputs: bool,
+        data_parallel_size: int,
 ) -> None:
     print_separator(
         f"{name}, {dtype}, use grad_scaler: {grad_scaler is not None}, "
         f"deallocate_pipeline_outputs: {deallocate_pipeline_outputs}, "
-        f"pipeline model parallel size: {pipeline_model_parallel_size}"
+        f"pipeline parallel size: {pipeline_model_parallel_size}, "
+        f"data parallel size: {data_parallel_size}"
     )
     virtual_pipeline_model_parallel_size = 2 if name == "interleaving" else None
     if name == "no_pipelining":
@@ -72,13 +74,13 @@ def forward_backward_func_template(
         # In megatron, `args.virtual_pipeline_model_parallel_size` is computed in megatron/arguments.py and
         # used ubiquitously but this test uses custom model so it's safe to abuse.
         parallel_state.initialize_model_parallel(
-            1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
+            data_parallel_size, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
         _reconfigure_microbatch_calculator(
             args.rank,
             args.rampup_batch_size,
             args.global_batch_size,
             args.micro_batch_size,
-            1,  # args.data_parallel_size,
+            parallel_state.get_data_parallel_world_size(),
         )
         if virtual_pipeline_model_parallel_size is not None:
             # Check the experimental warning message
@@ -144,8 +146,8 @@ if __name__ == "__main__":
             continue
         grad_scaler = torch.cuda.amp.GradScaler(init_scale=4.0) if dtype == torch.half else None
         n_tests += 1
-        # TODO (mkozuki): Test with data parallel size > 1.
-        pipeline_model_parallel_size = world_size
+        data_parallel_size = 2 if world_size >= 8 and world_size % 2 == 0 else 1
+        pipeline_model_parallel_size = world_size if world_size < 8 else world_size // 2
         try:
             forward_backward_func_template(
                 args,
@@ -156,6 +158,7 @@ if __name__ == "__main__":
                 dtype=dtype,
                 grad_scaler=grad_scaler,
                 deallocate_pipeline_outputs=deallocate_pipeline_outputs,
+                data_parallel_size=data_parallel_size,
             )
         except Exception as e:
             failures.append(
