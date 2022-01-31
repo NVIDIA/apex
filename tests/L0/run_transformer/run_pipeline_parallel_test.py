@@ -1,3 +1,4 @@
+import itertools
 from typing import Optional
 import warnings
 
@@ -46,8 +47,15 @@ def forward_backward_func_template(
         forward_only: bool,
         dtype: torch.dtype,
         grad_scaler: Optional[GradScaler],
+        deallocate_pipeline_outputs: bool,
+        data_parallel_size: int,
 ) -> None:
-    print_separator(f"name: {name}, dtype: {dtype}, use grad_scaler: {grad_scaler is not None}, pipeline model parallel size: {pipeline_model_parallel_size}")
+    print_separator(
+        f"{name}, {dtype}, use grad_scaler: {grad_scaler is not None}, "
+        f"deallocate_pipeline_outputs: {deallocate_pipeline_outputs}, "
+        f"pipeline parallel size: {pipeline_model_parallel_size}, "
+        f"data parallel size: {data_parallel_size}"
+    )
     virtual_pipeline_model_parallel_size = 2 if name == "interleaving" else None
     if name == "no_pipelining":
         # note (mkozuki): `forward_backward_no_pipelining` is **NOT** compatible with
@@ -66,13 +74,13 @@ def forward_backward_func_template(
         # In megatron, `args.virtual_pipeline_model_parallel_size` is computed in megatron/arguments.py and
         # used ubiquitously but this test uses custom model so it's safe to abuse.
         parallel_state.initialize_model_parallel(
-            1, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
+            data_parallel_size, pipeline_model_parallel_size, virtual_pipeline_model_parallel_size)
         _reconfigure_microbatch_calculator(
             args.rank,
             args.rampup_batch_size,
             args.global_batch_size,
             args.micro_batch_size,
-            1,  # args.data_parallel_size,
+            parallel_state.get_data_parallel_world_size(),
         )
         if virtual_pipeline_model_parallel_size is not None:
             # Check the experimental warning message
@@ -96,7 +104,9 @@ def forward_backward_func_template(
 
     update_num_microbatches(0)
     forward_backward_func(
-        fwd_step_func, batch, model, forward_only=forward_only, tensor_shape=tensor_shape, dtype=dtype, grad_scaler=grad_scaler)
+        fwd_step_func, batch, model, forward_only=forward_only, tensor_shape=tensor_shape,
+        dtype=dtype, grad_scaler=grad_scaler, deallocate_pipeline_outputs=deallocate_pipeline_outputs,
+    )
 
     if not forward_only:
         for m in model:
@@ -121,44 +131,46 @@ if __name__ == "__main__":
     micro_batch_size = args.micro_batch_size
 
     dtypes = [torch.float32] + _get_autocast_dtypes()
-    for forward_only in (True, False):
-        for name, forward_backward_func in fwd_bwd_functions.items():
-            if name == "interleaving" and torch.cuda.device_count() <= 2:
-                warnings.warn(
-                    f"There's only {torch.cuda.device_count()} gpus therefore skipping {name} "
-                    "while interleaved scheduled pipeline parallel requires >2 gpus."
-                )
-                continue
-            for dtype in dtypes:
-                if torch.distributed.get_rank() == 0:
-                    _logger.info(f"forward_only: {forward_only}, name: {name}, dtype: {dtype}")
-                grad_scaler = torch.cuda.amp.GradScaler(init_scale=4.0) if dtype == torch.half else None
-                n_tests += 1
-                # TODO (mkozuki): Test with data parallel size > 1.
-                pipeline_model_parallel_size = world_size
-                try:
-                    forward_backward_func_template(
-                        args,
-                        name,
-                        forward_backward_func,
-                        pipeline_model_parallel_size,
-                        forward_only,
-                        dtype=dtype,
-                        grad_scaler=grad_scaler,
-                    )
-                except Exception as e:
-                    failures.append(
-                        f"\t# {name} failed with pipeline size: {pipeline_model_parallel_size} "
-                        f"and forward_only: {forward_only}\n"
-                        f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
-                        f"virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
-                        f"{str(e)}"
-                    )
-                    print(failures[-1])
-                finally:
-                    parallel_state.destroy_model_parallel()
-        else:
-            print_separator(f"{name} works")
+    for forward_only, name, dtype, deallocate_pipeline_outputs in itertools.product(
+        (True, False),
+        fwd_bwd_functions.keys(),
+        dtypes,
+        (True, False),
+    ):
+        forward_backward_func = fwd_bwd_functions[name]
+        if name == "interleaving" and torch.cuda.device_count() <= 2:
+            warnings.warn(
+                f"There's only {torch.cuda.device_count()} gpus therefore skipping {name} "
+                "while interleaved scheduled pipeline parallel requires >2 gpus."
+            )
+            continue
+        grad_scaler = torch.cuda.amp.GradScaler(init_scale=4.0) if dtype == torch.half else None
+        n_tests += 1
+        data_parallel_size = 2 if world_size >= 8 and world_size % 2 == 0 else 1
+        pipeline_model_parallel_size = world_size if world_size < 8 else world_size // 2
+        try:
+            forward_backward_func_template(
+                args,
+                name,
+                forward_backward_func,
+                pipeline_model_parallel_size,
+                forward_only,
+                dtype=dtype,
+                grad_scaler=grad_scaler,
+                deallocate_pipeline_outputs=deallocate_pipeline_outputs,
+                data_parallel_size=data_parallel_size,
+            )
+        except Exception as e:
+            failures.append(
+                f"\t# {name} failed with pipeline size: {pipeline_model_parallel_size} "
+                f"and forward_only: {forward_only}\n"
+                f"pipeline rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
+                f"virtual pipeline rank: {parallel_state.get_virtual_pipeline_model_parallel_rank()}\n"
+                f"{str(e)}"
+            )
+            print(failures[-1])
+        finally:
+            parallel_state.destroy_model_parallel()
     print_separator("TEST RESULT")
     if failures:
         torch.distributed.barrier()

@@ -1,7 +1,7 @@
-# NOTE(mkozuki): For simplicity, tentatively `timers` related operations are commented out.
 from typing import Any, Callable, Dict, List, Tuple, Union, Optional, Sequence
 
 import torch
+from torch.autograd.variable import Variable
 
 from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
@@ -145,6 +145,54 @@ def _get_params_for_weight_decay_optimization(
     return weight_decay_params, no_weight_decay_params
 
 
+def free_output_tensor(
+        output_tensors: Optional[Union[torch.Tensor, Sequence[torch.Tensor]]],
+        deallocate_pipeline_outputs: bool = False
+) -> None:
+    """Pseudo-free the output tensor's `.data` field.
+
+    This method should be called right after the output tensor has been sent to the next
+    pipeline stage. At this point, the output tensor is only useful for its `.grad_fn` field,
+    and not its `.data`.
+    """
+    if not deallocate_pipeline_outputs:
+        return
+    if output_tensors is None:
+        return
+    if isinstance(output_tensors, torch.Tensor):
+        output_tensors = [output_tensors]
+    for output_tensor in output_tensors:
+        output_tensor.data = torch.cuda.FloatTensor([0])
+
+
+def custom_backward(output: torch.Tensor, grad_output: Optional[torch.Tensor]) -> None:
+    """Directly call C++ autograd engine.
+
+    To make the `free_output_tensor` optimization work, the C++ autograd engine must be called
+    directly, bypassing PyTorch's `torch.autograd.backward`. PyTorch's `backward` checks that the
+    output and grad have the same shape, while C++ `backward` does not.
+    """
+    assert output.numel() == 1, "output should be pseudo-freed in schedule, to optimize memory consumption"
+    assert isinstance(output, torch.Tensor), "output == {}.".format(type(output).__name__)
+    assert isinstance(grad_output, (torch.Tensor, type(None))), "grad_outptu == {}.".format(type(grad_output).__name__)
+
+    # Handle scalar output
+    if grad_output is None:
+        assert output.numel() == 1, "Implicit grad requires scalar output."
+        grad_output = torch.ones_like(output, memory_format=torch.preserve_format)
+
+    # Call C++ engine [ see torch/csrc/autograd/python_engine.cpp ]
+    Variable._execution_engine.run_backward(
+        tensors=(output,),
+        grad_tensors=(grad_output,),
+        keep_graph=False,
+        create_graph=False,
+        inputs=(),
+        allow_unreachable=True,
+        accumulate_grad=True,
+    )
+
+
 def forward_step(
         forward_step_func: FwdStepFunc,
         batch: Optional[Batch],
@@ -214,6 +262,7 @@ def backward_step(
         model_type: ModelType,
         *,
         grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
+        deallocate_pipeline_outputs: bool = False,
 ) -> Union[None, torch.Tensor, Sequence[torch.Tensor]]:
     """Backward step through passed-in output tensor.
 
@@ -250,7 +299,10 @@ def backward_step(
     # Backward pass.
     if grad_scaler is not None and output_tensor_grad[0] is None:
         output_tensor[0] = grad_scaler.scale(output_tensor[0])
-    torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
+    if deallocate_pipeline_outputs:
+        custom_backward(output_tensor[0], output_tensor_grad[0])
+    else:
+        torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
 
     # Collect the grad of the input_tensor.
     input_tensor_grad = [None]

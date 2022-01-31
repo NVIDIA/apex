@@ -11,8 +11,9 @@ from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import get_model_type
 from apex.transformer.pipeline_parallel.schedules.common import Batch
 from apex.transformer.pipeline_parallel.schedules.common import FwdStepFunc
-from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
+from apex.transformer.pipeline_parallel.schedules.common import forward_step
+from apex.transformer.pipeline_parallel.schedules.common import free_output_tensor
 from apex.transformer.log_util import get_transformer_logger
 
 
@@ -162,6 +163,7 @@ def forward_backward_pipelining_without_interleaving(
     dtype: Optional[torch.dtype] = None,
     grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
     disable_autocast: bool = False,
+    deallocate_pipeline_outputs: bool = False,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
 
@@ -246,6 +248,7 @@ def forward_backward_pipelining_without_interleaving(
         if not forward_only:
             input_tensors.append(input_tensor)
             output_tensors.append(output_tensor)
+            free_output_tensor(output_tensor, deallocate_pipeline_outputs)
 
     # Before running 1F1B, need to receive first forward tensor.
     # If all microbatches are run in warmup / cooldown phase, then no need to
@@ -287,12 +290,20 @@ def forward_backward_pipelining_without_interleaving(
             # Add input_tensor and output_tensor to end of list.
             input_tensors.append(input_tensor)
             output_tensors.append(output_tensor)
+            free_output_tensor(output_tensor, deallocate_pipeline_outputs)
 
             # Pop input_tensor and output_tensor from the start of the list for the backward pass.
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
 
-            input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
+            input_tensor_grad = backward_step(
+                input_tensor,
+                output_tensor,
+                output_tensor_grad,
+                model_type=model_type,
+                grad_scaler=grad_scaler,
+                deallocate_pipeline_outputs=deallocate_pipeline_outputs,
+            )
 
             if last_iteration:
                 input_tensor = None
@@ -314,7 +325,14 @@ def forward_backward_pipelining_without_interleaving(
             _logger.debug("receive bwd")
             output_tensor_grad = recv_backward(tensor_shapes=send_tensor_shapes, dtype=dtype)
 
-            input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
+            input_tensor_grad = backward_step(
+                input_tensor,
+                output_tensor,
+                output_tensor_grad,
+                model_type=model_type,
+                grad_scaler=grad_scaler,
+                deallocate_pipeline_outputs=deallocate_pipeline_outputs,
+            )
 
             _logger.debug("send bwd")
             send_backward(input_tensor_grad, tensor_shapes=recv_tensor_shapes, dtype=dtype)

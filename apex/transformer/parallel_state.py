@@ -166,6 +166,15 @@ def initialize_model_parallel(
         # first and last stages).
         if len(ranks) > 1:
             embedding_ranks = [ranks[0], ranks[-1]]
+            position_embedding_ranks = [ranks[0]]
+            if (
+                pipeline_model_parallel_split_rank_ is not None and
+                ranks[pipeline_model_parallel_split_rank_] not in embedding_ranks
+            ):
+                if ranks[pipeline_model_parallel_split_rank_] not in embedding_ranks:
+                    embedding_ranks = [ranks[0], ranks[pipeline_model_parallel_split_rank_], ranks[-1]]
+                if ranks[pipeline_model_parallel_split_rank_] not in position_embedding_ranks:
+                    position_embedding_ranks = [ranks[0], ranks[pipeline_model_parallel_split_rank_]]
         else:
             embedding_ranks = ranks
         group = torch.distributed.new_group(embedding_ranks)
@@ -428,6 +437,8 @@ def destroy_model_parallel():
     _DATA_PARALLEL_GROUP = None
     global _EMBEDDING_GROUP
     _EMBEDDING_GROUP = None
+    global _POSITION_EMBEDDING_GROUP
+    _POSITION_EMBEDDING_GROUP = None
     global _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK
     _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = None
     global _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE

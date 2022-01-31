@@ -8,6 +8,7 @@ from apex.transformer.pipeline_parallel.schedules.common import Batch
 from apex.transformer.pipeline_parallel.schedules.common import FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
+from apex.transformer.pipeline_parallel.schedules.common import free_output_tensor
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import get_model_type
@@ -31,6 +32,7 @@ def _forward_backward_pipelining_with_interleaving(
         dtype: Optional[torch.dtype] = None,
         grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
         disable_autocast: bool = False,
+        deallocate_pipeline_outputs: bool = False,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run interleaved 1F1B schedule with communication between pipeline stages as needed.
 
@@ -164,7 +166,7 @@ def _forward_backward_pipelining_with_interleaving(
         input_tensor = input_tensors[model_chunk_id].pop(0)
         output_tensor = output_tensors[model_chunk_id].pop(0)
         output_tensor_grad = output_tensor_grads[model_chunk_id].pop(0)
-        input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
+        input_tensor_grad = backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler, deallocate_pipeline_outputs=deallocate_pipeline_outputs)
 
         return input_tensor_grad
 
@@ -217,6 +219,7 @@ def _forward_backward_pipelining_with_interleaving(
             _logger.debug("send fwd and receive fwd")
             input_tensor = p2p_communication.send_forward_recv_forward(
                 output_tensor, recv_prev=recv_prev, tensor_shape=tensor_shape, dtype=dtype)
+        free_output_tensor(output_tensor, deallocate_pipeline_outputs)
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
 
     ###################################################################################################################
@@ -293,6 +296,7 @@ def _forward_backward_pipelining_with_interleaving(
             tensor_shape=tensor_shape,
             dtype=dtype,
         )
+        free_output_tensor(output_tensor, deallocate_pipeline_outputs)
 
         # Put input_tensor and output_tensor_grad in data structures in the
         # right location.
