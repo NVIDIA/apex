@@ -37,6 +37,7 @@ def forward_backward_no_pipelining(
         dtype: Optional[torch.dtype] = None,
         grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
         disable_autocast: bool = False,
+        custom_sync_context_handler = None,
         **kwargs,
 ):
     """Run forward and backward passes with no pipeline parallelism (no inter-stage communication).
@@ -55,7 +56,10 @@ def forward_backward_no_pipelining(
         forward_only:
         grad_scaler:
         dtype:
-        disable_autocast
+        disable_autocast: Turn off `enabled` flag of `torch.cuda.amp.autocast` if :obj:`True`.
+            Should be used when your forward and loss computation is in the autocast context to
+            avoid unnecesarily nest autocast context.
+        custom_sync_context_handler:
         **kwargs: Added to handle `tensor_shape` which has no effect on this function.
 
     Returns:
@@ -68,9 +72,12 @@ def forward_backward_no_pipelining(
     model = model[0]
     model_type = get_model_type(model)
 
-    context_handler = placeholder_handler
-    if isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
+    if custom_sync_context_handler is not None:
+        context_handler = custom_sync_context_handler
+    elif isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
         context_handler = model.no_sync
+    else:
+        context_handler = placeholder_handler
 
     losses_reduced = []
     input_tensor, output_tensor_grad = None, None

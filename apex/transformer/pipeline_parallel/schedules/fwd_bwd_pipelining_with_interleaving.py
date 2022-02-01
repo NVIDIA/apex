@@ -33,6 +33,7 @@ def _forward_backward_pipelining_with_interleaving(
         grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
         disable_autocast: bool = False,
         deallocate_pipeline_outputs: bool = False,
+        **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run interleaved 1F1B schedule with communication between pipeline stages as needed.
 
@@ -60,6 +61,8 @@ def _forward_backward_pipelining_with_interleaving(
             torch.float32 will be used even if ``autocast`` is enabled.
         grad_scaler:
         disable_autocast:
+        deallocate_pipeline_outputs: If :obj:`True`, free the data of the output tensor of
+            each pipeline stage. Experimental.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
