@@ -16,20 +16,20 @@ import sys
 
 TEST_ROOT = os.path.dirname(os.path.abspath(__file__))
 TEST_DIRS = [
-    "run_amp",
-    "run_fp16util",
-    "run_optimizers",
+    #"run_amp",
+    #"run_fp16util",
+    #"run_optimizers",
     "run_fused_layer_norm",
-    "run_pyprof_nvtx",
-    "run_pyprof_data",
-    "run_mlp",
-    "run_transformer",
+    #"run_pyprof_nvtx",
+    #"run_pyprof_data",
+    #"run_mlp",
+    #"run_transformer",
 ]
 DEFAULT_TEST_DIRS = [
-    "run_optimizers",
+    #"run_optimizers",
     "run_fused_layer_norm",
-    "run_mlp",
-    "run_transformer",
+    #"run_mlp",
+    #"run_transformer",
 ]
 
 

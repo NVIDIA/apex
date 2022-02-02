@@ -111,7 +111,7 @@ class FusedRMSNormAffineMixedDtypesFunction(FusedRMSNormAffineFunction):
         ctx.eps = eps
         input_ = input.contiguous()
         weight_ = weight.contiguous()
-        output, invvar = fused_layer_norm_cuda.rms_forward_affine_mixed_dtypes(
+        output, invvar = fused_layer_norm_cuda.rms_rms_forward_affine_mixed_dtypes(
             input_, ctx.normalized_shape, weight_, ctx.eps
         )
 
@@ -424,7 +424,7 @@ class MixedFusedRMSNorm(FusedRMSNorm):
             warnings.warn("MixedFusedRMSNorm does not support `elementwise_affine` argument")
             elementwise_affine = kwargs.pop("elementwise_affine")
             if not elementwise_affine:
-                raise RuntimeError("MixedFusedLayerNorm does not support `elementwise_affine = False`")
+                raise RuntimeError("MixedFusedRMSNorm does not support `elementwise_affine = False`")
 
         super().__init__(normalized_shape=normalized_shape, eps=eps, elementwise_affine=True)
 
@@ -433,5 +433,4 @@ class MixedFusedRMSNorm(FusedRMSNorm):
         # TODO Manual RMS Norm Implementation Here
         if not input.is_cuda:
             return manual_rms_norm(input, self.normalized_shape, self.weight, self.eps)
-        # return mixed_dtype_fused_layer_norm_affine(input, self.weight, self.bias, self.normalized_shape, self.eps)
         return mixed_dtype_fused_rms_norm_affine(input, self.weight, self.normalized_shape, self.eps)
