@@ -92,6 +92,7 @@ class TestFusedRMSNorm(unittest.TestCase):
             self.module_cuda_ = apex.normalization.FusedRMSNorm(
                 normalized_shape=self.normalized_shape, elementwise_affine=self.elementwise_affine).to(device="cuda", dtype=self.dtype)
         else:
+            assert elementwise_affine
             self.module_cpu_ = apex.normalization.MixedFusedRMSNorm(
                 normalized_shape=self.normalized_shape).cpu()
             self.module_cuda_ = apex.normalization.MixedFusedRMSNorm(
