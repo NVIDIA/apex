@@ -13,13 +13,22 @@ class TestFusedLayerNorm(unittest.TestCase):
     rtol, atol = None, None
     fwd_thresholds = dict(rtol=None, atol=None)
     bwd_thresholds = dict(rtol=None, atol=None)
+    mixed_fused = False
 
     def setUp(self):
         # bias and weight are set to 0 and 1 respectively, so no need to copy parameters from cpu module to the gpu one
-        self.module_cpu_ = apex.normalization.FusedLayerNorm(
-            normalized_shape=self.normalized_shape, elementwise_affine=self.elementwise_affine).cpu()
-        self.module_cuda_ = apex.normalization.FusedLayerNorm(
-            normalized_shape=self.normalized_shape, elementwise_affine=self.elementwise_affine).to(device="cuda", dtype=self.dtype)
+        if not self.mixed_fused:
+            self.module_cpu_ = apex.normalization.FusedLayerNorm(
+                normalized_shape=self.normalized_shape, elementwise_affine=self.elementwise_affine).cpu()
+            self.module_cuda_ = apex.normalization.FusedLayerNorm(
+                normalized_shape=self.normalized_shape, elementwise_affine=self.elementwise_affine).to(device="cuda", dtype=self.dtype)
+        else:
+            assert self.elementwise_affine
+            self.module_cpu_ = apex.normalization.MixedFusedLayerNorm(
+                normalized_shape=self.normalized_shape).cpu()
+            self.module_cuda_ = apex.normalization.MixedFusedLayerNorm(
+                normalized_shape=self.normalized_shape).to(device="cuda", dtype=self.dtype)
+
 
     def _check_same_output(self, batch_size, contiguous):
         torch.cuda.manual_seed(42)
@@ -73,13 +82,20 @@ class TestFusedRMSNorm(unittest.TestCase):
     rtol, atol = None, None
     fwd_thresholds = dict(rtol=None, atol=None)
     bwd_thresholds = dict(rtol=None, atol=None)
+    mixed_fused = False
 
     def setUp(self):
         # bias and weight are set to 0 and 1 respectively, so no need to copy parameters from cpu module to the gpu one
-        self.module_cpu_ = apex.normalization.FusedRMSNorm(
-            normalized_shape=self.normalized_shape, elementwise_affine=self.elementwise_affine).cpu()
-        self.module_cuda_ = apex.normalization.FusedRMSNorm(
-            normalized_shape=self.normalized_shape, elementwise_affine=self.elementwise_affine).to(device="cuda", dtype=self.dtype)
+        if not self.mixed_fused:
+            self.module_cpu_ = apex.normalization.FusedRMSNorm(
+                normalized_shape=self.normalized_shape, elementwise_affine=self.elementwise_affine).cpu()
+            self.module_cuda_ = apex.normalization.FusedRMSNorm(
+                normalized_shape=self.normalized_shape, elementwise_affine=self.elementwise_affine).to(device="cuda", dtype=self.dtype)
+        else:
+            self.module_cpu_ = apex.normalization.MixedFusedRMSNorm(
+                normalized_shape=self.normalized_shape).cpu()
+            self.module_cuda_ = apex.normalization.MixedFusedRMSNorm(
+                normalized_shape=self.normalized_shape).to(device="cuda", dtype=self.dtype)
 
     def _check_same_output(self, batch_size, contiguous):
         torch.cuda.manual_seed(42)
@@ -132,13 +148,15 @@ class TestFusedRMSNorm(unittest.TestCase):
 class TestFusedLayerNormElemWise(TestFusedLayerNorm):
     elementwise_affine = True
 
+class TestMixedFusedLayerNormElemWise(TestFusedLayerNorm):
+    elementwise_affine = True
+    mixed_fused = True
 
 class TestFusedLayerNormElemWiseHalf(TestFusedLayerNormElemWise):
     dtype = torch.half
 
     def test_large_batch(self):
         self.skipTest("Skip to save time")
-
 
 class TestFusedLayerNormElemWiseBFloat16(TestFusedLayerNormElemWise):
     dtype = torch.bfloat16
@@ -156,6 +174,10 @@ class TestFusedRMSNormElemWise(TestFusedRMSNorm):
     bwd_thresholds = dict(rtol=2e-3, atol=2e-4)
     elementwise_affine = True
 
+class TestMixedFusedRMSNormElemWise(TestFusedRMSNorm):
+    bwd_thresholds = dict(rtol=2e-3, atol=2e-4)
+    elementwise_affine = True
+    mixed_fused = True
 
 class TestFusedRMSNormElemWiseHalf(TestFusedRMSNormElemWise):
     dtype = torch.half

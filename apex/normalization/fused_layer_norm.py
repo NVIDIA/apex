@@ -103,7 +103,7 @@ class FusedLayerNormAffineMixedDtypesFunction(FusedLayerNormAffineFunction):
 class FusedRMSNormAffineMixedDtypesFunction(FusedRMSNormAffineFunction):
 
     @staticmethod
-    def forward(ctx, input, weight, bias, normalized_shape, eps):
+    def forward(ctx, input, weight, normalized_shape, eps):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
             fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
@@ -111,7 +111,7 @@ class FusedRMSNormAffineMixedDtypesFunction(FusedRMSNormAffineFunction):
         ctx.eps = eps
         input_ = input.contiguous()
         weight_ = weight.contiguous()
-        output, invvar = fused_layer_norm_cuda.rms_rms_forward_affine_mixed_dtypes(
+        output, invvar = fused_layer_norm_cuda.rms_forward_affine_mixed_dtypes(
             input_, ctx.normalized_shape, weight_, ctx.eps
         )
 
