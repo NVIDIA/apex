@@ -1,1 +1,1 @@
-from .fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
+from .fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm, FusedRMSNorm, MixedFusedRMSNorm
