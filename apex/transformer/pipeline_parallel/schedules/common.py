@@ -112,39 +112,6 @@ def build_model(
     return model
 
 
-def _calc_number_of_params(model: List[torch.nn.Module]) -> int:
-    assert isinstance(model, list)
-    return sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
-
-
-def _get_params_for_weight_decay_optimization(
-        model: Union[torch.nn.Module, List[torch.nn.Module]],
-) -> Dict[str, torch.nn.Parameter]:
-    """Divide params into with-weight-decay and without-weight-decay groups.
-
-    Layernorms and biases will have no weight decay but the rest will.
-    """
-    modules = listify_model(model)
-    from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
-    weight_decay_params = {'params': []}
-    no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
-    for module in modules:
-        for module_ in module.modules():
-            if isinstance(module_, FusedLayerNorm):
-                no_weight_decay_params['params'].extend(
-                    [p for p in list(module_._parameters.values())
-                     if p is not None])
-            else:
-                weight_decay_params['params'].extend(
-                    [p for n, p in list(module_._parameters.items())
-                     if p is not None and n != 'bias'])
-                no_weight_decay_params['params'].extend(
-                    [p for n, p in list(module_._parameters.items())
-                     if p is not None and n == 'bias'])
-
-    return weight_decay_params, no_weight_decay_params
-
-
 def free_output_tensor(
         output_tensors: Optional[Union[torch.Tensor, Sequence[torch.Tensor]]],
         deallocate_pipeline_outputs: bool = False
@@ -323,3 +290,8 @@ def backward_step(
 
     # timers("backward-compute").stop()
     return input_tensor_grad[0] if unwrap_input_tensor_grad else input_tensor_grad
+
+
+def _calc_number_of_params(model: List[torch.nn.Module]) -> int:
+    assert isinstance(model, list)
+    return sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])

@@ -10,13 +10,13 @@ from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import average_losses_across_data_parallel_group
 from apex.transformer.pipeline_parallel.utils import get_ltor_masks_and_position_ids
 from apex.transformer.pipeline_parallel.schedules.common import build_model
-from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import forward_backward_pipelining_without_interleaving
 
 from apex.transformer.testing.standalone_gpt import gpt_model_provider
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.commons import initialize_distributed
+from apex.transformer.testing.commons import _get_params_for_weight_decay_optimization
 
 MANUAL_SEED = 42
 inds = None

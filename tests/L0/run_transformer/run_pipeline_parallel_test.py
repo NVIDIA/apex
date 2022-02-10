@@ -8,7 +8,6 @@ from torch.cuda.amp import GradScaler
 from apex._autocast_utils import _get_autocast_dtypes
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import get_forward_backward_func
-from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import _forward_backward_pipelining_with_interleaving
@@ -21,6 +20,7 @@ from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import print_separator
 from apex.transformer.testing.commons import model_provider_func
 from apex.transformer.testing.commons import fwd_step_func
+from apex.transformer.testing.commons import _get_params_for_weight_decay_optimization
 from apex.transformer.log_util import get_transformer_logger, set_logging_level
 
 
