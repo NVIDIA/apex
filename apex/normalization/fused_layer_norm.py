@@ -310,7 +310,7 @@ class FusedRMSNorm(torch.nn.Module):
     :attr:`normalized_shape`.
     :math:`\gamma` is a learnable affine transform parameter of
     :attr:`normalized_shape` if :attr:`elementwise_affine` is ``True``.
-    `epsilon` is added before the root of the mean-square is taken.
+    `epsilon` is added to the mean-square, then the root of the sum is taken.
 
     .. note::
         Unlike Batch Normalization and Instance Normalization, which applies
