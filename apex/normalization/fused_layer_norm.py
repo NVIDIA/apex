@@ -303,7 +303,7 @@ class FusedRMSNorm(torch.nn.Module):
     Currently only runs on cuda() tensors.
 
     .. math::
-        y = \frac{x}{\mathrm{RMS}[x]} * \gamma
+        y = \frac{x}{\mathrm{RMS}[x] + \epsilon} * \gamma
 
     The root-mean-square is calculated separately over the last
     certain number dimensions which have to be of the shape specified by
