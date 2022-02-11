@@ -303,13 +303,14 @@ class FusedRMSNorm(torch.nn.Module):
     Currently only runs on cuda() tensors.
 
     .. math::
-        y = \frac{x}{\mathrm{RMS}[x] + \epsilon} * \gamma
+        y = \frac{x}{\mathrm{RMS}[x]} * \gamma
 
     The root-mean-square is calculated separately over the last
     certain number dimensions which have to be of the shape specified by
     :attr:`normalized_shape`.
     :math:`\gamma` is a learnable affine transform parameter of
     :attr:`normalized_shape` if :attr:`elementwise_affine` is ``True``.
+    `epsilon` is added before the root of the mean-square is taken.
 
     .. note::
         Unlike Batch Normalization and Instance Normalization, which applies
