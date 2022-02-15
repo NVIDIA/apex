@@ -95,7 +95,7 @@ def build_model(
                 "add_encoder": add_encoder,
                 "add_decoder": add_decoder,
             })
-            model = model_provider_func(*cur_sargs, **cur_kwargs)
+            model = model_provider_func(*cur_args, **cur_kwargs)
         model.model_type = model_type
 
     if not isinstance(model, list):
