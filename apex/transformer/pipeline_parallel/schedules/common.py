@@ -47,18 +47,82 @@ def build_model(
         a list of `nn.Module`(s). If `virtual_pipeline_model_parallel_size` is not None,
         the list has multiple models, otherwise one.
     """
-    if (
-            parallel_state.get_pipeline_model_parallel_world_size() > 1 and
-            virtual_pipeline_model_parallel_size is not None
-    ):
+    pipeline_model_parallel_world_size = None
+    pipeline_model_parallel_rank = None
+    pipelien_model_parallel_split_rank = None
+
+    from apex.transformer.parallel_state import is_pipeline_first_stage
+    from apex.transformer.parallel_state import is_pipeline_last_stage
+    from apex.transformer.parallel_state import is_pipeline_stage_after_split
+    from apex.transformer.parallel_state import is_pipeline_stage_before_split
+
+    if not parallel_state.model_parallel_is_initialized():
+        if "pipeline_model_parallel_world_size" in kwargs:
+            pipeline_model_parallel_world_size = kwargs["pipeline_model_parallel_world_size"]
+            kwargs.pop("pipeline_model_parallel_world_size")
+        if "pipeline_model_parallel_split_rank" in kwargs:
+            pipeline_model_parallel_rank = kwargs["pipeline_model_parallel_rank"]
+            kwargs.pop("pipeline_model_parallel_rank")
+        if "pipeline_model_parallel_split_rank" in kwargs:
+            pipeline_model_parallel_split_rank = kwargs["pipeline_model_parallel_split_rank"]
+            kwargs.pop("pipeline_model_parallel_split_rank")
+        if pipeline_model_parallel_world_size is None:
+            raise RuntimeError("`pipeline_model_parallel_world_size` is expected to not `None`")
+
+        def _is_pipeline_first_stage(ignore_virtual: bool = False) -> bool:
+            if not ignore_virtual:
+                if (
+                    parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None
+                    and parallel_state.get_virtual_pipeline_model_parallel_rank() != 0
+                ):
+                    return False
+            return pipeline_model_parallel_rank == 0
+
+        def _is_pipeline_last_stage(ignore_virtual: bool = False) -> bool:
+            if not ignore_virtual:
+                virtual_pipeline_model_parallel_world_size = parallel_state.get_virtual_pipeline_model_parallel_world_size()
+                if (
+                    virtual_pipeline_model_parallel_world_size is not None
+                    and parallel_state.get_virtual_pipeline_model_parallel_rank() != (virtual_pipeline_model_parallel_world_size - 1)
+                ):
+                    return False
+            return pipeline_model_parallel_rank == (pipeline_model_parallel_world_size - 1)
+
+        def _is_pipeline_starge_before_split(*args, **kwargs) -> bool:
+            if pipeline_model_parallel_world_size == 1:
+                return True
+            if pipeline_model_parallel_split_rank is None:
+                return True
+            if pipeline_model_parallel_rank < pipeline_model_parallel_split_rank:
+                return True
+            return False
+
+        def _is_pipeline_stage_after_split(*args, **kwargs) -> bool:
+            if pipeline_model_parallel_world_size == 1:
+                return True
+            if pipeline_model_parallel_split_rank is None:
+                return True
+            if rank >= pipeline_model_parallel_split_rank:
+                return True
+            return False
+
+        is_pipeline_first_stage = _is_pipeline_first_stage
+        is_pipeline_last_stage = _is_pipeline_last_stage
+        is_pipeline_stage_before_split = _is_pipeline_starge_before_split
+        is_pipeline_stage_after_split = _is_pipeline_stage_after_split
+    else:
+        pipeline_model_parallel_world_size = parallel_state.get_pipeline_model_parallel_world_size()
+        pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
+        pipeline_model_parallel_split_rank = parallel_state.get_pipeline_model_parallel_split_rank()
+    if pipeline_model_parallel_world_size > 1 and virtual_pipeline_model_parallel_size is not None:
         model = []
-        for i in range(virtual_pipeline_model_parallel_size):
+        for virtual_pipeline_model_parallel_rank in range(virtual_pipeline_model_parallel_size):
             cur_args = args
             cur_kwargs = kwargs
-            parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+            parallel_state.set_virtual_pipeline_model_parallel_rank(virtual_pipeline_model_parallel_rank)
             # Set pre_process and post_process only after virtual rank is set.
-            pre_process = parallel_state.is_pipeline_first_stage()
-            post_process = parallel_state.is_pipeline_last_stage()
+            pre_process = is_pipeline_first_stage()
+            post_process = is_pipeline_last_stage()
             cur_kwargs.update({
                 "pre_process": pre_process,
                 "post_process": post_process,
@@ -68,8 +132,8 @@ def build_model(
     else:
         cur_args = args
         cur_kwargs = kwargs
-        pre_process = parallel_state.is_pipeline_first_stage()
-        post_process = parallel_state.is_pipeline_last_stage()
+        pre_process = is_pipeline_first_stage()
+        post_process = is_pipeline_last_stage()
         cur_kwargs.update({
             "pre_process": pre_process,
             "post_process": post_process,
@@ -79,18 +143,21 @@ def build_model(
         elif model_type == ModelType.encoder_and_decoder:
             # `add_encoder` & `add_decoder` logic.
             add_encoder, add_decoder = True, True
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                split_rank = parallel_state.get_pipeline_model_parallel_split_rank()
+            if pipeline_model_parallel_world_size > 1:
                 if split_rank is None:
                     raise RuntimeError(
                         "Split rank needs to be specified for model with both encoder and decoder."
                     )
-                rank = parallel_state.get_pipeline_model_parallel_rank()
-                world_size = parallel_state.get_pipeline_model_parallel_world_size()
-                pre_process = rank == 0 or rank == split_rank
-                post_process = rank == (split_rank - 1) or rank == (world_size - 1)
-                add_encoder = parallel_state.is_pipeline_stage_before_split()
-                add_decoder = parallel_state.is_pipeline_stage_after_split()
+                pre_process = (
+                    pipeline_model_parallel_rank == 0 or
+                    pipeline_model_parallel_rank == pipeline_model_parallel_split_rank
+                )
+                post_process = (
+                    pipeline_model_parallel_rank == (pipeline_model_parallel_split_rank - 1) or
+                    pipeline_model_parallel_rank == (pipeline_model_parallel_world_size - 1)
+                )
+                add_encoder = is_pipeline_stage_before_split()
+                add_decoder = is_pipeline_stage_after_split()
             cur_kwargs.update({
                 "add_encoder": add_encoder,
                 "add_decoder": add_decoder,
