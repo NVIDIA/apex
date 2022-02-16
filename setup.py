@@ -297,6 +297,41 @@ if "--cuda_ext" in sys.argv:
         )
     )
 
+    # Check, if CUDA11 is installed for compute capability 8.0
+    cc_flag = []
+    _, bare_metal_major, _ = get_cuda_bare_metal_version(CUDA_HOME)
+    if int(bare_metal_major) >= 11:
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_80,code=sm_80")
+    ext_modules.append(
+        CUDAExtension(
+            name="fused_weight_gradient_mlp_cuda",
+            include_dirs=[os.path.join(this_dir, "csrc")],
+            sources=[
+                "csrc/fused_weight_gradient_dense.cpp",
+                "csrc/fused_weight_gradient_dense_cuda.cu",
+                "csrc/fused_weight_gradient_dense_16bit_prec_cuda.cu",
+            ],
+            extra_compile_args={
+                "cxx": ["-O3"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(
+                    [
+                        "-O3",
+                        "-gencode",
+                        "arch=compute_70,code=sm_70",
+                        "-U__CUDA_NO_HALF_OPERATORS__",
+                        "-U__CUDA_NO_HALF_CONVERSIONS__",
+                        "--expt-relaxed-constexpr",
+                        "--expt-extended-lambda",
+                        "--use_fast_math",
+                    ]
+                    + version_dependent_macros
+                    + cc_flag
+                ),
+            },
+        )
+    )
+
 if "--permutation_search" in sys.argv:
     sys.argv.remove("--permutation_search")
 
