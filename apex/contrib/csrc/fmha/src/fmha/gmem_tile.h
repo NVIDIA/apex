@@ -60,7 +60,7 @@ struct Gmem_tile_qkv {
 
     // Ctor.
     template< typename Params, typename BInfo >
-    inline __device__ Gmem_tile_qkv(const Params &params, int qkv_offset, const BInfo &binfo, int tidx)
+    inline __device__ Gmem_tile_qkv(const Params &params, const int qkv_offset, const BInfo &binfo, const int tidx)
         : params_qkv_stride_in_bytes_(params.qkv_stride_in_bytes)
         , actual_seqlen(binfo.actual_seqlen)
         , qkv_ptr_(reinterpret_cast<char *>(params.qkv_ptr)) {
@@ -123,6 +123,11 @@ struct Gmem_tile_qkv {
     inline __device__ void move() {
         qkv_ptr_ += (int64_t)ROWS * params_qkv_stride_in_bytes_;
         actual_seqlen -= ROWS;
+    }
+
+    inline __device__ void move(int steps) {
+        qkv_ptr_ += (int64_t)ROWS * params_qkv_stride_in_bytes_ * steps;
+        actual_seqlen -= ROWS * steps;
     }
 
     // The stride between rows for the QKV matrice.
@@ -224,6 +229,11 @@ struct Gmem_tile_o {
         o_ptr_ += (int64_t)ROWS * params_o_stride_in_bytes_;
     }
 
+    inline __device__ void move(const int steps) {
+        row_ += ROWS * steps;
+        o_ptr_ += (int64_t)ROWS * params_o_stride_in_bytes_ * steps;
+    }
+
     // The stride between rows for the QKV matrice.
     int64_t params_o_stride_in_bytes_;
     // The pointer.
@@ -270,13 +280,9 @@ struct Gmem_tile_mma_sd {
 
     // Ctor.
     template<typename Params>
-    inline __device__ Gmem_tile_mma_sd(void *ptr, const Params &params, const int tidx) 
+    inline __device__ Gmem_tile_mma_sd(void *ptr, const Params &params, const int bidb, const int bidh, const int tidx) 
         : ptr_(static_cast<char *>(ptr)) {
 
-        // The block index for the batch.
-        const int bidb = blockIdx.y;
-        // The block index for the head.
-        const int bidh = blockIdx.x;
         // The block index.
         size_t bidx = bidb * params.h + bidh;
 
@@ -300,6 +306,9 @@ struct Gmem_tile_mma_sd {
     inline __device__ void move() {
         ptr_ += LOOP_STRIDE_BYTES;
     }
+    inline __device__ void move(const int steps) {
+        ptr_ += LOOP_STRIDE_BYTES * steps;
+    }
 
     // The pointer in global memory.
     char *ptr_;
@@ -318,9 +327,9 @@ struct Gmem_tile_mma_s : public Base {
     using Type = typename Base::Type;
 
     // Ctor.
-    template< typename Params >
-    inline __device__ Gmem_tile_mma_s(void *ptr, const Params &params, const int tidx) 
-        : Base(ptr, params, tidx) {
+    template< typename Params, typename Block_info >
+    inline __device__ Gmem_tile_mma_s(const Params &params, const Block_info& binfo, const int tidx) 
+        : Base(params.s_ptr, params, binfo.bidb, binfo.bidh, tidx) {
     }
 
     // Store to global memory.
@@ -353,6 +362,25 @@ struct Gmem_tile_mma_s : public Base {
         }
     }
 
+    // Store to global memory.
+    template<typename Mask, typename Fragment>
+    inline __device__ void store(const Fragment (&frag)[N][M], const Mask& mask){
+        #pragma unroll
+        for( int mi = 0; mi < M; mi++ ) {
+            #pragma unroll
+            for( int ni = 0; ni < N; ni++ ) {
+                uint4 dst;
+                dst.x = frag[ni][mi].reg(0);
+                dst.y = frag[ni][mi].reg(2);
+                dst.z = frag[ni][mi].reg(1);
+                dst.w = frag[ni][mi].reg(3);
+                if( mask.any_valid(mi, ni) ) {
+                    Base::store(dst, mi, ni);
+                }
+            }
+        }
+    }
+
     // Load from global memory.
     template<typename Mask>
     inline __device__ void load(uint4 (&regs)[M][N], const Mask &mask) {
@@ -361,7 +389,7 @@ struct Gmem_tile_mma_s : public Base {
             #pragma unroll
             for( int ni = 0; ni < N; ni++ ) {
                 regs[mi][ni] = make_uint4(0, 0, 0, 0);
-                if( mask.is_valid(mi, ni, 0, 0) ) {
+                if( mask.any_valid(mi, ni) ) {
                     Base::load(regs[mi][ni], mi, ni);
                 }
             }

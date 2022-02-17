@@ -950,4 +950,89 @@ inline __device__ void sts(uint32_t (&ptrs)[N], const uint4 (&data)[N]) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+template<typename T>
+struct MaxOp {
+__device__ inline T operator()(T const & x, T const & y) { return x > y ? x : y; }
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<typename T>
+struct SumOp {
+__device__ inline T operator()(T const & x, T const & y) { return x + y; }
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<int THREADS>
+struct Allreduce {
+    static_assert(THREADS == 32 || THREADS == 16 || THREADS == 8 || THREADS == 4);
+    template<typename T, typename Operator>
+    static __device__ inline T run(T x, Operator &op) {
+        constexpr int OFFSET = THREADS / 2;
+        x = op(x, __shfl_xor_sync(uint32_t(-1), x, OFFSET));
+        return Allreduce<OFFSET>::run(x, op);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<>
+struct Allreduce<2> {
+template<typename T, typename Operator> 
+static __device__ inline T run(T x, Operator &op) {
+    x = op(x, __shfl_xor_sync(uint32_t(-1), x, 1));                 
+    return x;
+}
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<typename Operator, int M>
+__device__ inline void  quad_reduce(float (&dst)[M], float (&src)[M], Operator &op) {
+    #pragma unroll
+    for(int mi=0; mi < M; mi++){
+        dst[mi] = src[mi];
+        dst[mi] = op(dst[mi], __shfl_down_sync(uint32_t(-1), dst[mi], 2));
+        dst[mi] = op(dst[mi], __shfl_down_sync(uint32_t(-1), dst[mi], 1));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<typename Operator, int M>
+__device__ inline void quad_reduce(float (&dst)[M], float2 (&src)[M], Operator &op) {
+    float tmp[M];
+    #pragma unroll
+    for(int mi=0; mi < M; mi++){
+        tmp[mi] = op(src[mi].x, src[mi].y);
+    }
+    quad_reduce(dst, tmp, op);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<typename Operator, int M>
+__device__ inline void quad_allreduce(float (&dst)[M], float (&src)[M], Operator &op) {
+    #pragma unroll
+    for(int mi=0; mi < M; mi++){
+        dst[mi] = src[mi];
+        dst[mi] = Allreduce<4>::run(dst[mi], op);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<typename Operator, int M>
+__device__ inline void quad_allreduce(float (&dst)[M], float2 (&src)[M], Operator &op) {
+    float tmp[M];
+    #pragma unroll
+    for(int mi=0; mi < M; mi++){
+        tmp[mi] = op(src[mi].x, src[mi].y);
+    }
+    quad_allreduce(dst, tmp, op);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 }  // namespace fmha
