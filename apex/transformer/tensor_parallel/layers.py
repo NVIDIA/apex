@@ -234,6 +234,9 @@ class LinearWithGradAccumulationAndAsyncAllreduce(torch.autograd.Function):
         input, weight = ctx.saved_tensors
         use_bias = ctx.use_bias
         grad_input = grad_output.matmul(weight)
+        # Convert the tensor shapes to 2D for execution compatibility
+        grad_output = grad_output.view(grad_output.shape[0] * grad_output.shape[1], grad_output.shape[2])
+        input = input.view(input.shape[0] * input.shape[1], input.shape[2])
         if ctx.async_grad_allreduce:
             # Asynchronous all-reduce
             handle = torch.distributed.all_reduce(grad_input, group=get_tensor_model_parallel_group(), async_op=True)
@@ -245,11 +248,6 @@ class LinearWithGradAccumulationAndAsyncAllreduce(torch.autograd.Function):
             fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp32(input, grad_output, weight.main_grad)
             grad_weight = None
         else:
-            grad_output_shape = grad_output.shape
-            grad_output = grad_output.view(grad_output_shape[0] * grad_output_shape[1], grad_output_shape[2])
-            input_shape = input.shape
-            input = input.view(input_shape[0] * input_shape[1], input_shape[2])
-            # Matrix multiply with asynchronous all-reduce execution
             grad_weight = grad_output.t().matmul(input)
 
         grad_bias = grad_output.sum(dim=0) if use_bias else None
