@@ -258,10 +258,16 @@ class LinearWithGradAccumulationAndAsyncAllreduce(torch.autograd.Function):
         return grad_input, grad_weight, grad_bias, None, None
 
 
-def linear_with_grad_accumulation_and_async_allreduce(*args, **kwargs):
-    args = _cast_if_autocast_enabled(*args, **kwargs)
+def linear_with_grad_accumulation_and_async_allreduce(
+    input,
+    weight,
+    bias,
+    gradient_accumulation_fusion,
+    async_grad_allreduce,
+):
+    args = _cast_if_autocast_enabled(input, weight, bias, gradient_accumulation_fusion, async_tensor_model_parallel_allreduce)
     with torch.cuda.amp.autocast(enabled=False):
-        return LinearWithGradAccumulationAndAsyncAllreduce.apply(*args, **kwargs)
+        return LinearWithGradAccumulationAndAsyncAllreduce.apply(*args)
 
 
 class ColumnParallelLinear(torch.nn.Module):
