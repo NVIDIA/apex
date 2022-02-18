@@ -90,6 +90,44 @@ void gemmex_wrapper(
       CUBLAS_GEMM_DEFAULT_TENSOR_OP));
 }
 
+// FP32 wrapper around cublas GEMMEx
+void gemmex_wrapper(
+    cublasHandle_t handle,
+    cublasOperation_t transa,
+    cublasOperation_t transb,
+    int m,
+    int n,
+    int k,
+    const float *alpha,
+    float *A,
+    int lda,
+    float *B,
+    int ldb,
+    const float *beta,
+    float *C,
+    int ldc) {
+  TORCH_CUDABLAS_CHECK(cublasGemmEx(
+      handle,
+      transa,
+      transb,
+      m,
+      n,
+      k,
+      alpha,
+      A,
+      CUDA_R_32F,
+      lda,
+      B,
+      CUDA_R_32F,
+      ldb,
+      beta,
+      C,
+      CUDA_R_32F,
+      ldc,
+      CUDA_R_32F,
+      CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+}
+
 template <typename T>
 void wgrad_gemm_accum_fp32_cuda(T *input, T *d_output, float *d_weight, int in_dim, int hidden_dim, int out_dim) {
     cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
@@ -117,6 +155,7 @@ void wgrad_gemm_accum_fp32_cuda(T *input, T *d_output, float *d_weight, int in_d
 
 template void wgrad_gemm_accum_fp32_cuda<at::Half>(at::Half *input, at::Half *d_output, float *d_weight, int in_dim, int hidden_dim, int out_dim);
 template void wgrad_gemm_accum_fp32_cuda<at::BFloat16>(at::BFloat16 *input, at::BFloat16 *d_output, float *d_weight, int in_dim, int hidden_dim, int out_dim);
+template void wgrad_gemm_accum_fp32_cuda<float>(at::BFloat16 *input, at::BFloat16 *d_output, float *d_weight, int in_dim, int hidden_dim, int out_dim);
 
 
 void wgrad_gemm_accum_fp32_cuda_stub(
@@ -144,7 +183,7 @@ void wgrad_gemm_accum_fp32_cuda_stub(
     const int in_dim = input_2d.size(1);
     const int out_dim = d_weight.size(0);
 
-    DISPATCH_HALF_AND_BFLOAT(input_2d.scalar_type(), "wgrad_gemm_accum_fp32",
+    DISPATCH_HALF_AND_BFLOAT_AND_FLOAT(input_2d.scalar_type(), "wgrad_gemm_accum_fp32",
         wgrad_gemm_accum_fp32_cuda<scalar_t>(
             input_2d.data_ptr<scalar_t>(),
             d_output_2d.data_ptr<scalar_t>(),
