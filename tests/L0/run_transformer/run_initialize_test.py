@@ -80,6 +80,25 @@ def test_get_tensor_model_parallel_src_rank(tensor_model_parallel_size_):
     # Checks
     src_rank = torch.distributed.get_rank() - parallel_state.get_tensor_model_parallel_rank()
     assert parallel_state.get_tensor_model_parallel_src_rank() == src_rank
+    split_rank = parallel_state.get_pipeline_model_parallel_split_rank()
+    assert split_rank is None
+
+    # Reset groups
+    parallel_state.destroy_model_parallel()
+
+    torch.distributed.barrier()
+    if torch.distributed.get_rank() == 0:
+        print('>> passed the test :-)')
+
+
+def test_pipeline_model_parallel_split_rank():
+    pipeline_model_parallel_split_rank_ = 1
+    assert not parallel_state.model_parallel_is_initialized()
+    parallel_state.initialize_model_parallel(pipeline_model_parallel_split_rank_=pipeline_model_parallel_split_rank_)
+    assert parallel_state.model_parallel_is_initialized()
+
+    split_rank = parallel_state.get_pipeline_model_parallel_split_rank()
+    assert split_rank is pipeline_model_parallel_split_rank_
 
     # Reset groups
     parallel_state.destroy_model_parallel()
@@ -101,4 +120,6 @@ if __name__ == '__main__':
         test_initialize_model_parallel(tensor_model_parallel_size)
         print_separator('test model parallel source rank')
         test_get_tensor_model_parallel_src_rank(tensor_model_parallel_size)
+        print_separator('test pipeline model parallel split rank')
+        test_pipeline_model_parallel_split_rank()
         tensor_model_parallel_size *= 2
