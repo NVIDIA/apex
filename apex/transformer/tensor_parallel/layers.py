@@ -263,7 +263,7 @@ def linear_with_grad_accumulation_and_async_allreduce(
     gradient_accumulation_fusion,
     async_grad_allreduce,
 ):
-    args = _cast_if_autocast_enabled(input, weight, bias, gradient_accumulation_fusion, async_tensor_model_parallel_allreduce)
+    args = _cast_if_autocast_enabled(input, weight, bias, gradient_accumulation_fusion, async_grad_allreduce)
     with torch.cuda.amp.autocast(enabled=False):
         return LinearWithGradAccumulationAndAsyncAllreduce.apply(*args)
 
