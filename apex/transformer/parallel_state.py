@@ -342,6 +342,12 @@ def get_pipeline_model_parallel_rank():
     return torch.distributed.get_rank(group=get_pipeline_model_parallel_group())
 
 
+def get_pipeline_model_parallel_split_rank():
+    """Return my rank for the pipeline model parallel split rank."""
+    global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
+    return _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
+
+
 def is_pipeline_first_stage(ignore_virtual=False):
     """Return True if in the first pipeline model-parallel stage, False otherwise."""
     if not ignore_virtual:
