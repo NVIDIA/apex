@@ -237,7 +237,7 @@ create_conv_bias_add_act_descriptors(int64_t* x_dim_padded,
                                            .setVirtual()
                                            .setId('A')  // after add
                                            .setAlignment(16)
-                                           .setDataType(dataType)
+                                           .setDataType(CUDNN_DATA_FLOAT)
                                            .build(),
                                        cudnn_frontend::TensorBuilder()
                                            .setDim(4, y_dim_padded)
@@ -245,7 +245,7 @@ create_conv_bias_add_act_descriptors(int64_t* x_dim_padded,
                                            .setVirtual()
                                            .setId('B')  // after bias
                                            .setAlignment(16)
-                                           .setDataType(dataType)
+                                           .setDataType(CUDNN_DATA_FLOAT)
                                            .build(),
                                        cudnn_frontend::TensorBuilder()
                                            .setDim(4, y_dim_padded)
@@ -253,7 +253,7 @@ create_conv_bias_add_act_descriptors(int64_t* x_dim_padded,
                                            .setId('C')  // after conv
                                            .setAlignment(16)
                                            .setVirtual()
-                                           .setDataType(dataType)
+                                           .setDataType(CUDNN_DATA_FLOAT)
                                            .build(),
                                        cudnn_frontend::TensorBuilder()
                                            .setDim(4, y_dim_padded)
@@ -268,7 +268,7 @@ create_conv_bias_add_act_descriptors(int64_t* x_dim_padded,
                                            .setId('D')  // after optional add
                                            .setAlignment(16)
                                            .setVirtual()
-                                           .setDataType(dataType)
+                                           .setDataType(CUDNN_DATA_FLOAT)
                                            .build());
 }
 
@@ -358,7 +358,7 @@ create_dconv_descriptors(int64_t* x_dim_padded,
                              .setVirtual()
                              .setId('A')  // after dconv
                              .setAlignment(16)
-                             .setDataType(dataType)
+                             .setDataType(CUDNN_DATA_FLOAT)
                              .build(),
                              cudnn_frontend::TensorBuilder()
                              .setDim(4, x_dim_padded)
@@ -366,7 +366,7 @@ create_dconv_descriptors(int64_t* x_dim_padded,
                              .setVirtual()
                              .setId('B')  // after drelu
                              .setAlignment(16)
-                             .setDataType(dataType)
+                             .setDataType(CUDNN_DATA_FLOAT)
                              .build());
 }
 
