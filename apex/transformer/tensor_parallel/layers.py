@@ -268,6 +268,58 @@ def linear_with_grad_accumulation_and_async_allreduce(
         return LinearWithGradAccumulationAndAsyncAllreduce.apply(*args)
 
 
+class LinearWithGradAccumulationAndAsyncAllreduceIn16Bit(torch.autograd.Function):
+    """Linear layer execution with asynchronous all-reduce and gradient accumulation fusion in backprop."""
+    @staticmethod
+    def forward(ctx, input, weight, bias, gradient_accumulation_fusion, async_grad_allreduce):
+        ctx.save_for_backward(input, weight)
+        ctx.use_bias = bias is not None
+        ctx.gradient_accumulation_fusion = gradient_accumulation_fusion
+        ctx.async_grad_allreduce = async_grad_allreduce
+        output = torch.matmul(input, weight.t())
+        if bias is not None:
+            output = output + bias
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, weight = ctx.saved_tensors
+        use_bias = ctx.use_bias
+        grad_input = grad_output.matmul(weight)
+        # Convert the tensor shapes to 2D for execution compatibility
+        grad_output = grad_output.view(grad_output.shape[0] * grad_output.shape[1], grad_output.shape[2])
+        input = input.view(input.shape[0] * input.shape[1], input.shape[2])
+        if ctx.async_grad_allreduce:
+            # Asynchronous all-reduce
+            handle = torch.distributed.all_reduce(grad_input, group=get_tensor_model_parallel_group(), async_op=True)
+            # Delay the start of weight gradient computation shortly (3us) to have
+            # all-reduce scheduled first and have GPU resources allocated
+            _ = torch.empty(1, device=grad_output.device) + 1
+
+        if ctx.gradient_accumulation_fusion:
+            fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp16(input, grad_output, weight.main_grad)
+            grad_weight = None
+        else:
+            grad_weight = grad_output.t().matmul(input)
+
+        grad_bias = grad_output.sum(dim=0) if use_bias else None
+        if ctx.async_grad_allreduce:
+            handle.wait()
+        return grad_input, grad_weight, grad_bias, None, None
+
+
+def linear_with_grad_accumulation_and_async_allreduce_in16bit(
+    input,
+    weight,
+    bias,
+    gradient_accumulation_fusion,
+    async_grad_allreduce,
+):
+    args = _cast_if_autocast_enabled(input, weight, bias, gradient_accumulation_fusion, async_grad_allreduce)
+    with torch.cuda.amp.autocast(enabled=False):
+        return LinearWithGradAccumulationAndAsyncAllreduceIn16Bit.apply(*args)
+
+
 class ColumnParallelLinear(torch.nn.Module):
     """Linear layer with column parallelism.
 
@@ -296,6 +348,7 @@ class ColumnParallelLinear(torch.nn.Module):
         params_dtype:
         use_cpu_initialization:
         gradient_accumulation_fusion:
+        accumulation_in_fp16:
     """
 
     def __init__(
@@ -313,6 +366,7 @@ class ColumnParallelLinear(torch.nn.Module):
         params_dtype=torch.float32,
         use_cpu_initialization=False,
         gradient_accumulation_fusion=False,
+        accumulation_in_fp16: bool = False,
     ):
         super(ColumnParallelLinear, self).__init__()
 
@@ -372,6 +426,8 @@ class ColumnParallelLinear(torch.nn.Module):
                 world_size > 1)
         self.gradient_accumulation_fusion = gradient_accumulation_fusion and _grad_accum_fusion_available
 
+        self._forwrard_impl = linear_with_grad_accumulation_and_async_allreduce_in16bit if accumulation_in_fp16 else linear_with_grad_accumulation_and_async_allreduce
+
     def forward(self, input_):
         bias = self.bias if not self.skip_bias_add else None
 
@@ -381,7 +437,7 @@ class ColumnParallelLinear(torch.nn.Module):
         else:
             input_parallel = input_
         # Matrix multiply.
-        output_parallel = linear_with_grad_accumulation_and_async_allreduce(
+        output_parallel = self._forward_impl(
             input_parallel, self.weight, bias, self.gradient_accumulation_fusion,
             self.async_tensor_model_parallel_allreduce)
         if self.gather_output:
