@@ -32,16 +32,23 @@ from apex.transformer.tensor_parallel.mappings import reduce_from_tensor_model_p
 from apex.transformer.tensor_parallel.mappings import scatter_to_tensor_model_parallel_region
 from apex.transformer.tensor_parallel.random import get_cuda_rng_tracker
 from apex.transformer.tensor_parallel.utils import VocabUtility
+from apex.transformer.log_util import get_transformer_logger
+
+
+_logger = get_transformer_logger(__name__)
 
 
 _grad_accum_fusion_available = False
 try:
     import fused_weight_gradient_mlp_cuda
 except ImportError:
-    import warnings
-    warnings.warn(
-        "`fused_weight_gradient_mlp_cuda` module not found so gradient accumulation fusion "
-        "with weight gradient computation"
+    # Basically, apex.transformer module users are expected to install APEX's
+    # `--cpp_ext` and `--cuda_ext`. The example installation command is as follows:
+    # `pip install --global-option="--cpp_ext" --global-option="--cuda_ext ."
+    # at the root of APEX repository.
+    _logger.warning(
+        "`fused_weight_gradient_mlp_cuda` module not found. "
+        "gradient accumulation fusion with weight gradient computation disabled."
     )
 else:
     _grad_accum_fusion_available = True
