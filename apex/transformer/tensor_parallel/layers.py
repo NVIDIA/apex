@@ -426,7 +426,7 @@ class ColumnParallelLinear(torch.nn.Module):
                 world_size > 1)
         self.gradient_accumulation_fusion = gradient_accumulation_fusion and _grad_accum_fusion_available
 
-        self._forwrard_impl = linear_with_grad_accumulation_and_async_allreduce_in16bit if accumulation_in_fp16 else linear_with_grad_accumulation_and_async_allreduce
+        self._forward_impl = linear_with_grad_accumulation_and_async_allreduce_in16bit if accumulation_in_fp16 else linear_with_grad_accumulation_and_async_allreduce
 
     def forward(self, input_):
         bias = self.bias if not self.skip_bias_add else None
