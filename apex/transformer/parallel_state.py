@@ -348,6 +348,12 @@ def get_pipeline_model_parallel_split_rank():
     return _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
 
 
+def set_pipeline_model_parallel_split_rank(pipeline_model_parallel_split_rank: int):
+    """Set my rank for the pipeline model parallel split rank."""
+    global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
+    _PIPELINE_MODEL_PARALLEL_SPLIT_RANK = pipeline_model_parallel_split_rank
+
+
 def is_pipeline_first_stage(ignore_virtual=False):
     """Return True if in the first pipeline model-parallel stage, False otherwise."""
     if not ignore_virtual:
