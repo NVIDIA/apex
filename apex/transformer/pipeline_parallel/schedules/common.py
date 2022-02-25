@@ -3,7 +3,6 @@ from typing import Any, Callable, Dict, List, Tuple, Union, Optional, Sequence
 import torch
 from torch.autograd.variable import Variable
 
-from apex.contrib.layer_norm.layer_norm import FastLayerNorm
 from apex.normalization.fused_layer_norm import FusedLayerNorm
 from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
@@ -122,7 +121,7 @@ def _calc_number_of_params(model: List[torch.nn.Module]) -> int:
 def _get_params_for_weight_decay_optimization(
         model: Union[torch.nn.Module, List[torch.nn.Module]],
         *,
-        no_weight_decay_modules=(FastLayerNorm, FusedLayerNorm),
+        no_weight_decay_modules=(FusedLayerNorm,),
 ) -> Dict[str, torch.nn.Parameter]:
     """Divide params into with-weight-decay and without-weight-decay groups.
 
