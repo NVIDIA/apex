@@ -28,6 +28,8 @@ _PIPELINE_MODEL_PARALLEL_GROUP = None
 _MODEL_PARALLEL_GROUP = None
 # Embedding group.
 _EMBEDDING_GROUP = None
+# Position embedding group.
+_POSITION_EMBEDDING_GROUP = None
 # Data parallel group that the current rank belongs to.
 _DATA_PARALLEL_GROUP = None
 
@@ -43,6 +45,9 @@ _MPU_PIPELINE_MODEL_PARALLEL_RANK = None
 
 # A list of ranks that have a copy of the embedding.
 _EMBEDDING_GLOBAL_RANKS = None
+
+# A list of ranks that have a copy of the position embedding.
+_POSITION_EMBEDDING_GLOBAL_RANKS = None
 
 # A list of global ranks for each pipeline group to ease calculation of the source
 # rank when broadcasting from the first or last pipeline stage
@@ -177,14 +182,26 @@ def initialize_model_parallel(
                     position_embedding_ranks = [ranks[0], ranks[pipeline_model_parallel_split_rank_]]
         else:
             embedding_ranks = ranks
+            position_embedding_ranks = ranks
+
         group = torch.distributed.new_group(embedding_ranks)
         if rank in embedding_ranks:
             _EMBEDDING_GROUP = group
         if rank in ranks:
             _EMBEDDING_GLOBAL_RANKS = embedding_ranks
 
-def get_rank_info() -> Tuple[int, int, int]:
-    """Returns a tuple of (data, tensor, pipeline, virtual pipeline)-parallel-rank for logger."""
+        position_embedding_group = torch.distributed.new_group(position_embedding_ranks)
+        if rank in position_embedding_ranks:
+            _POSITION_EMBEDDING_GROUP = position_embedding_group
+        if rank in ranks:
+            _POSITION_EMBEDDING_GLOBAL_RANKS = position_embedding_ranks
+
+
+def get_rank_info() -> Tuple[int, int, int, int]:
+    """Returns a tuple of (data, tensor, pipeline, virtual pipeline)-parallel-rank for logger.
+
+    This function is here for apex.transformer loggers.
+    """
     if model_parallel_is_initialized():
         return (
             get_data_parallel_rank(),
@@ -195,9 +212,15 @@ def get_rank_info() -> Tuple[int, int, int]:
     return (0, 0, 0, 0)
 
 
-def model_parallel_is_initialized():
+def model_parallel_is_initialized() -> bool:
     """Check if model and data parallel groups are initialized."""
-    if _TENSOR_MODEL_PARALLEL_GROUP is None or _PIPELINE_MODEL_PARALLEL_GROUP is None or _DATA_PARALLEL_GROUP is None:
+    if (
+        _TENSOR_MODEL_PARALLEL_GROUP is None or
+        _PIPELINE_MODEL_PARALLEL_GROUP is None or
+        _DATA_PARALLEL_GROUP is None
+        _EMBEDDING_GROUP is None or
+        _POSITION_EMBEDDING_GROUP is None
+    ):
         return False
     return True
 
@@ -232,58 +255,10 @@ def get_embedding_group():
     return _EMBEDDING_GROUP
 
 
-def is_rank_in_embedding_group(ignore_virtual=False):
-    """Return true if current rank is in embedding group, False otherwise."""
-    rank = torch.distributed.get_rank()
-    global _EMBEDDING_GLOBAL_RANKS
-    if ignore_virtual:
-        return rank in _EMBEDDING_GLOBAL_RANKS
-    if rank in _EMBEDDING_GLOBAL_RANKS:
-        if rank == _EMBEDDING_GLOBAL_RANKS[0]:
-            return is_pipeline_first_stage(ignore_virtual=False)
-        elif rank == _EMBEDDING_GLOBAL_RANKS[-1]:
-            return is_pipeline_last_stage(ignore_virtual=False)
-        else:
-            return True
-    return False
-
-
-def is_pipeline_stage_before_split(rank=None):
-    """Return True if pipeline stage executes encoder block for a model
-    with both encoder and decoder."""
-    if get_pipeline_model_parallel_world_size() == 1:
-        return True
-    if rank is None:
-        rank = get_pipeline_model_parallel_rank()
-    global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
-    if _PIPELINE_MODEL_PARALLEL_SPLIT_RANK is None:
-        return True
-    if rank < _PIPELINE_MODEL_PARALLEL_SPLIT_RANK:
-        return True
-    return False
-
-
-def is_pipeline_stage_after_split(rank=None):
-    """Return True if pipeline stage executes decoder block for a model
-    with both encoder and decoder."""
-    if get_pipeline_model_parallel_world_size() == 1:
-        return True
-    if rank is None:
-        rank = get_pipeline_model_parallel_rank()
-    global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
-    if _PIPELINE_MODEL_PARALLEL_SPLIT_RANK is None:
-        return True
-    if rank >= _PIPELINE_MODEL_PARALLEL_SPLIT_RANK:
-        return True
-    return False
-
-
-def is_pipeline_stage_at_split():
-    """Return true if pipeline stage executes decoder block and next
-    stage executes encoder block for a model with both encoder and
-    decoder."""
-    rank = get_pipeline_model_parallel_rank()
-    return is_pipeline_stage_before_split(rank) and is_pipeline_stage_after_split(rank + 1)
+def get_position_embedding_group():
+    """Get the position embedding group the caller rank belongs to."""
+    assert _POSITION_EMBEDDING_GROUP is not None, "position embedding group is not initialized"
+    return _POSITION_EMBEDDING_GROUP
 
 
 def set_tensor_model_parallel_world_size(world_size):
@@ -342,13 +317,55 @@ def get_pipeline_model_parallel_rank():
     return torch.distributed.get_rank(group=get_pipeline_model_parallel_group())
 
 
-def get_pipeline_model_parallel_split_rank():
-    """Return my rank for the pipeline model parallel split rank."""
-    global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
-    return _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
+def _get_num_layers(
+    num_layers: int,
+    transformer_pipeline_model_parallel_size: int,
+    model_type: ModelType,
+    pipeline_model_parallel_split_rank: int,
+    standalone_embedding_stage: bool,
+) -> int:
+    """Compute the number of transformer layers resident on the current rank."""
+    if get_pipeline_model_parallel_world_size() <= 1:
+        return num_layers
+    if model_type == ModelType.encoder_and_decoder:
+        if pipeline_model_parallel_split_rank is None:
+            raise RuntimeError("`model_type` requires non-None `pipeline_model_parallel_split_rank`")
+        # When a standalone embedding stage is used, a rank is taken from the encoder's ranks,
+        # to be used for the encoder's embedding layer. This way, the rank referenced by the
+        # 'split rank' remains the same whether or not a standalone embedding stage is used.
+        if standalone_embedding_stage:
+            num_ranks_in_encoder = pipeline_model_parallel_split_rank - 1
+        else:
+            num_ranks_in_encoder = pipeline_model_parallel_split_rank
+        num_ranks_in_decoder = transformer_pipeline_model_parallel_size - num_ranks_in_encoder
+        if num_layers % num_ranks_in_encoder != 0:
+            raise RuntimeError(f"`num_layers` ({num_layers}) must be divisible by the number of ranks given to encoder ({num_ranks_in_encoder})")
+        if num_layers % num_ranks_in_decoder != 0:
+            raise RuntimeError(f"`num_layers` ({num_layers}) must be divisible by the number of ranks given to decoder ({num_ranks_in_decoder})")
+        if is_pipeline_stage_before_split():
+            if standalone_embedding_stage and get_pipeline_model_parallel_rank() == 0:
+                n_layers = 0
+            else:
+                n_layers = num_layers // num_ranks_in_encoder
+        else:
+            n_layers = num_layers // num_ranks_in_decoder
+        return n_layers
+    else:
+        if num_layers % transformer_pipeline_model_parallel_size != 0:
+            raise RuntimeError(f"`num_layers` ({num_layers}) must be divisible by `transformer_pipeline_model_parallel_size` ({transformer_pipeline_model_parallel_size})")
+
+        # When a standalone embedding stage is used, all transformer layers are divided among
+        # pipeline rank >= 1, while on pipeline rank 0, ranks either contain the input embedding
+        # layer (virtual pipeline parallel rank 0), or no layers at all (virtual pipeline parallel
+        # rank >= 1).
+        if standalone_embedding_stage and get_pipeline_model_parallel_rank() == 0:
+            n_layers = 0
+        else:
+            n_layers = num_layers // transformer_pipeline_model_parallel_size
+        return n_layers
 
 
-def is_pipeline_first_stage(ignore_virtual=False):
+def is_pipeline_first_stage(ignore_virtual: bool = False) -> bool:
     """Return True if in the first pipeline model-parallel stage, False otherwise."""
     if not ignore_virtual:
         if (
@@ -359,7 +376,7 @@ def is_pipeline_first_stage(ignore_virtual=False):
     return get_pipeline_model_parallel_rank() == 0
 
 
-def is_pipeline_last_stage(ignore_virtual=False):
+def is_pipeline_last_stage(ignore_virtual: bool = False) -> bool:
     """Return True if in the last pipeline model-parallel stage, False otherwise."""
     if not ignore_virtual:
         virtual_pipeline_model_parallel_world_size = get_virtual_pipeline_model_parallel_world_size()
@@ -370,25 +387,86 @@ def is_pipeline_last_stage(ignore_virtual=False):
     return get_pipeline_model_parallel_rank() == (get_pipeline_model_parallel_world_size() - 1)
 
 
-def get_virtual_pipeline_model_parallel_rank():
+def is_rank_in_embedding_group(ignore_virtual: bool = False) -> bool:
+    """Return true if current rank is in embedding group, False otherwise."""
+    rank = torch.distributed.get_rank()
+    global _EMBEDDING_GLOBAL_RANKS
+    if ignore_virtual:
+        return rank in _EMBEDDING_GLOBAL_RANKS
+    if rank in _EMBEDDING_GLOBAL_RANKS:
+        if rank == _EMBEDDING_GLOBAL_RANKS[0]:
+            return is_pipeline_first_stage(ignore_virtual=False)
+        elif rank == _EMBEDDING_GLOBAL_RANKS[-1]:
+            return is_pipeline_last_stage(ignore_virtual=False)
+        else:
+            return True
+    return False
+
+
+def is_rank_in_position_embedding_group() -> bool:
+    """Return true if current rank is in position embedding group, False otherwise."""
+    rank = torch.distributed.get_rank()
+    global _POSITION_EMBEDDING_GLOBAL_RANKS
+    return rank in _POSITION_EMBEDDING_GLOBAL_RANKS
+
+
+def is_pipeline_stage_before_split(rank: Optional[int] = None) -> bool:
+    """Return True if pipeline stage executes encoder block for a model
+    with both encoder and decoder."""
+    if get_pipeline_model_parallel_world_size() == 1:
+        return True
+    if rank is None:
+        rank = get_pipeline_model_parallel_rank()
+    global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
+    if _PIPELINE_MODEL_PARALLEL_SPLIT_RANK is None:
+        return True
+    if rank < _PIPELINE_MODEL_PARALLEL_SPLIT_RANK:
+        return True
+    return False
+
+
+def is_pipeline_stage_after_split(rank: Optional[int] = None) -> bool:
+    """Return True if pipeline stage executes decoder block for a model
+    with both encoder and decoder."""
+    if get_pipeline_model_parallel_world_size() == 1:
+        return True
+    if rank is None:
+        rank = get_pipeline_model_parallel_rank()
+    global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
+    if _PIPELINE_MODEL_PARALLEL_SPLIT_RANK is None:
+        return True
+    if rank >= _PIPELINE_MODEL_PARALLEL_SPLIT_RANK:
+        return True
+    return False
+
+
+def is_pipeline_stage_at_split() -> bool:
+    """Return true if pipeline stage executes decoder block and next
+    stage executes encoder block for a model with both encoder and
+    decoder."""
+    rank = get_pipeline_model_parallel_rank()
+    return is_pipeline_stage_before_split(rank) and is_pipeline_stage_after_split(rank + 1)
+
+
+def get_virtual_pipeline_model_parallel_rank() -> int:
     """Return the virtual pipeline-parallel rank."""
     global _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK
     return _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK
 
 
-def set_virtual_pipeline_model_parallel_rank(rank):
+def set_virtual_pipeline_model_parallel_rank(rank: int) -> None:
     """Set the virtual pipeline-parallel rank."""
     global _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK
     _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = rank
 
 
-def get_virtual_pipeline_model_parallel_world_size():
+def get_virtual_pipeline_model_parallel_world_size() -> int:
     """Return the virtual pipeline-parallel world size."""
     global _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
     return _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
 
 
-def get_tensor_model_parallel_src_rank():
+def get_tensor_model_parallel_src_rank() -> int:
     """Calculate the global rank corresponding to the first local rank
     in the tensor model parallel group."""
     global_rank = torch.distributed.get_rank()
@@ -396,37 +474,46 @@ def get_tensor_model_parallel_src_rank():
     return (global_rank // local_world_size) * local_world_size
 
 
-def get_pipeline_model_parallel_first_rank():
+def get_data_parallel_src_rank() -> int:
+    """Calculate the global rank corresponding to the first local rank
+    in the tensor model parallel group."""
+    global_rank = torch.distributed.get_rank()
+    data_parallel_size = get_data_parallel_world_size()
+    num_data_parallel_groups = torch.distributed.get_world_size() // data_parallel_size
+    return global_rank % num_data_parallel_groups
+
+
+def get_pipeline_model_parallel_first_rank() -> int:
     assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
     return _PIPELINE_GLOBAL_RANKS[0]
 
 
-def get_pipeline_model_parallel_last_rank():
+def get_pipeline_model_parallel_last_rank() -> int:
     assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
     last_rank_local = get_pipeline_model_parallel_world_size() - 1
     return _PIPELINE_GLOBAL_RANKS[last_rank_local]
 
 
-def get_pipeline_model_parallel_next_rank():
+def get_pipeline_model_parallel_next_rank() -> int:
     assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
     rank_in_pipeline = get_pipeline_model_parallel_rank()
     world_size = get_pipeline_model_parallel_world_size()
     return _PIPELINE_GLOBAL_RANKS[(rank_in_pipeline + 1) % world_size]
 
 
-def get_pipeline_model_parallel_prev_rank():
+def get_pipeline_model_parallel_prev_rank() -> int:
     assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
     rank_in_pipeline = get_pipeline_model_parallel_rank()
     world_size = get_pipeline_model_parallel_world_size()
     return _PIPELINE_GLOBAL_RANKS[(rank_in_pipeline - 1) % world_size]
 
 
-def get_data_parallel_world_size():
+def get_data_parallel_world_size() -> int:
     """Return world size for the data parallel group."""
     return torch.distributed.get_world_size(group=get_data_parallel_group())
 
 
-def get_data_parallel_rank():
+def get_data_parallel_rank() -> int:
     """Return my rank for the data parallel group."""
     return torch.distributed.get_rank(group=get_data_parallel_group())
 
@@ -445,15 +532,16 @@ def destroy_model_parallel():
     _EMBEDDING_GROUP = None
     global _POSITION_EMBEDDING_GROUP
     _POSITION_EMBEDDING_GROUP = None
-    global _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK
-    _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = None
-    global _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
-    _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = None
-    global _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE
-    _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE = None
-    global _MPU_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
-    _MPU_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = None
-    global _MPU_TENSOR_MODEL_PARALLEL_RANK
-    _MPU_TENSOR_MODEL_PARALLEL_RANK = None
-    global _MPU_PIPELINE_MODEL_PARALLEL_RANK
-    _MPU_PIPELINE_MODEL_PARALLEL_RANK = None
+
+
+# APEX original functions basically for NeMo Megatron.
+def set_pipeline_model_parallel_split_rank(rank):
+    """Return my rank for the pipeline model parallel split rank."""
+    global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
+    _PIPELINE_MODEL_PARALLEL_SPLIT_RANK = rank
+
+
+def get_pipeline_model_parallel_split_rank():
+    """Return my rank for the pipeline model parallel split rank."""
+    global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
+    return _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
