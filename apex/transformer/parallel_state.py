@@ -324,7 +324,18 @@ def _get_num_layers(
     pipeline_model_parallel_split_rank: int,
     standalone_embedding_stage: bool,
 ) -> int:
-    """Compute the number of transformer layers resident on the current rank."""
+    """Compute the number of transformer layers resident on the current rank.
+
+    ``transformer_pipeline_model_parallel_size = pipeline_model_parallel_size - 1`` if
+    ``standalone_embedding_stage`` is :obj:`True`, ``pipeline_model_parallel_size``, otherwise.
+
+    Args:
+        num_layers:
+        transformer_pipeline_model_parallel_size:
+        model_type:
+        pipeline_model_parallel_split_rank:
+        standalone_embedding_stage:
+    """
     if get_pipeline_model_parallel_world_size() <= 1:
         return num_layers
     if model_type == ModelType.encoder_and_decoder:
