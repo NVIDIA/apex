@@ -17,6 +17,7 @@ from typing import Tuple, Optional
 
 import torch
 
+from apex.transformer.enums import ModelType
 from apex.transformer.utils import ensure_divisibility
 
 
