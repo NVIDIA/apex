@@ -100,6 +100,11 @@ def test_pipeline_model_parallel_split_rank():
     split_rank = parallel_state.get_pipeline_model_parallel_split_rank()
     assert split_rank is pipeline_model_parallel_split_rank_
 
+    fake_split_rank = 7
+    parallel_state.set_pipeline_model_parallel_split_rank(fake_split_rank)
+    split_rank = parallel_state.get_pipeline_model_parallel_split_rank()
+    assert split_rank == fake_split_rank
+
     # Reset groups
     parallel_state.destroy_model_parallel()
 
