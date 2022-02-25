@@ -218,9 +218,7 @@ def model_parallel_is_initialized() -> bool:
     if (
         _TENSOR_MODEL_PARALLEL_GROUP is None or
         _PIPELINE_MODEL_PARALLEL_GROUP is None or
-        _DATA_PARALLEL_GROUP is None or
-        _EMBEDDING_GROUP is None or
-        _POSITION_EMBEDDING_GROUP is None
+        _DATA_PARALLEL_GROUP is None
     ):
         return False
     return True
