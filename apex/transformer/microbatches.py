@@ -17,6 +17,11 @@ from abc import ABC
 from abc import abstractmethod
 from typing import Optional, List
 
+from apex.transformer.log_util import get_transformer_logger
+
+
+_logger = get_transformer_logger(__name__)
+
 
 def build_num_microbatches_calculator(
         rank: int,
@@ -31,8 +36,8 @@ def build_num_microbatches_calculator(
             global_batch_size, micro_batch_size, data_parallel_size
         )
         if rank == 0:
-            print(
-                "setting number of micro-batches to constant {}".format(num_microbatches_calculator.get()), flush=True
+            _logger.info(
+                "setting number of micro-batches to constant {}".format(num_microbatches_calculator.get())
             )
 
     else:
@@ -45,7 +50,7 @@ def build_num_microbatches_calculator(
         batch_size_increment = int(rampup_batch_size[1])
         ramup_samples = int(rampup_batch_size[2])
         if rank == 0:
-            print(
+            _logger.info(
                 "will use batch size rampup starting from global batch "
                 "size {} to global batch size {} with batch size increments "
                 "{} over {} samples.".format(
