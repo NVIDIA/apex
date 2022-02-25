@@ -299,10 +299,13 @@ if "--cuda_ext" in sys.argv:
 
     # Check, if CUDA11 is installed for compute capability 8.0
     cc_flag = []
-    _, bare_metal_major, _ = get_cuda_bare_metal_version(CUDA_HOME)
+    _, bare_metal_major, bare_metal_minor = get_cuda_bare_metal_version(CUDA_HOME)
     if int(bare_metal_major) >= 11:
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_80,code=sm_80")
+        if int(bare_metal_minor) > 0:
+            cc_flag.append("-gencode")
+            cc_flag.append("arch=compute_86,code=sm_86")
     ext_modules.append(
         CUDAExtension(
             name="fused_weight_gradient_mlp_cuda",
@@ -534,12 +537,13 @@ if "--fast_multihead_attn" in sys.argv:
 
     # Check, if CUDA11 is installed for compute capability 8.0
     cc_flag = []
-    _, bare_metal_major, _ = get_cuda_bare_metal_version(CUDA_HOME)
+    _, bare_metal_major, bare_metal_minor = get_cuda_bare_metal_version(CUDA_HOME)
     if int(bare_metal_major) >= 11:
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_80,code=sm_80")
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_86,code=sm_86")
+        if int(bare_metal_minor) > 0:
+            cc_flag.append("-gencode")
+            cc_flag.append("arch=compute_86,code=sm_86")
 
     subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
     ext_modules.append(
