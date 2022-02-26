@@ -642,7 +642,6 @@ if __name__ == '__main__':
 
     print_separator('test column-parallel linear')
     tensor_model_parallel_size = 1
-    test_column_parallel_linear(tensor_model_parallel_size)
     while tensor_model_parallel_size <= world_size:
         try:
             test_column_parallel_linear(tensor_model_parallel_size)
