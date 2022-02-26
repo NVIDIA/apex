@@ -69,15 +69,17 @@ def build_model(
     else:
         cur_args = args
         cur_kwargs = kwargs
-        pre_process = parallel_state.is_pipeline_first_stage()
-        post_process = parallel_state.is_pipeline_last_stage()
-        cur_kwargs.update({
-            "pre_process": pre_process,
-            "post_process": post_process,
-        })
         if model_type == ModelType.encoder_or_decoder:
+            pre_process = parallel_state.is_pipeline_first_stage()
+            post_process = parallel_state.is_pipeline_last_stage()
+            cur_kwargs.update({
+                "pre_process": pre_process,
+                "post_process": post_process,
+            })
             model = model_provider_func(*cur_args, **cur_kwargs)
         elif model_type == ModelType.encoder_and_decoder:
+            pre_process = parallel_state.is_pipeline_first_stage()
+            post_process = parallel_state.is_pipeline_last_stage()
             # `add_encoder` & `add_decoder` logic.
             add_encoder, add_decoder = True, True
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
@@ -93,6 +95,8 @@ def build_model(
                 add_encoder = parallel_state.is_pipeline_stage_before_split()
                 add_decoder = parallel_state.is_pipeline_stage_after_split()
             cur_kwargs.update({
+                "pre_process": pre_process,
+                "post_process": post_process,
                 "add_encoder": add_encoder,
                 "add_decoder": add_decoder,
             })
