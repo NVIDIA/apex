@@ -92,7 +92,8 @@ def initialize_model_parallel(
     ranks 8 to 15 belong to the second box.
     """
     # Get world size and rank. Ensure some consistencies.
-    assert torch.distributed.is_initialized()
+    if not torch.distributed.is_initialized():
+        raise RuntimeError("torch.distributed needs to be initialized")
     world_size = torch.distributed.get_world_size()
     tensor_model_parallel_size = min(tensor_model_parallel_size_, world_size)
     pipeline_model_parallel_size = min(pipeline_model_parallel_size_, world_size)
@@ -108,9 +109,11 @@ def initialize_model_parallel(
     num_data_parallel_groups = world_size // data_parallel_size
 
     if virtual_pipeline_model_parallel_size_ is not None:
-        assert pipeline_model_parallel_size_ > 2, \
-            'pipeline-model-parallel size should be greater than 2 with ' \
-            'interleaved schedule'
+        if pipeline_model_parallel_size_ <= 2:
+            raise RuntimeError(
+                "`pipeline_model_parallel_size_` should be > 2 if interleaved schedule is "
+                f"enabled, but {pipeline_model_parallel_size_}"
+            )
         global _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK
         global _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
         _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = 0
@@ -124,7 +127,11 @@ def initialize_model_parallel(
 
     # Build the data-parallel groups.
     global _DATA_PARALLEL_GROUP
-    assert _DATA_PARALLEL_GROUP is None, "data parallel group is already initialized"
+    if _DATA_PARALLEL_GROUP is not None:
+        raise RuntimeError(
+            "Data parallel group is already initialized "
+            "Have you called `apex.transformer.parallel_state.destroy_model_parallel`?"
+        )
     all_data_parallel_group_ranks = []
     for i in range(pipeline_model_parallel_size):
         start_rank = i * num_pipeline_model_parallel_groups
@@ -138,7 +145,11 @@ def initialize_model_parallel(
 
     # Build the model-parallel groups.
     global _MODEL_PARALLEL_GROUP
-    assert _MODEL_PARALLEL_GROUP is None, "model parallel group is already initialized"
+    if _MODEL_PARALLEL_GROUP is not None:
+        raise RuntimeError(
+            "Model parallel group is already initialized "
+            "Have you called `apex.transformer.parallel_state.destroy_model_parallel`?"
+        )
     for i in range(data_parallel_size):
         ranks = [data_parallel_group_ranks[i] for data_parallel_group_ranks in all_data_parallel_group_ranks]
         group = torch.distributed.new_group(ranks)
@@ -147,7 +158,11 @@ def initialize_model_parallel(
 
     # Build the tensor model-parallel groups.
     global _TENSOR_MODEL_PARALLEL_GROUP
-    assert _TENSOR_MODEL_PARALLEL_GROUP is None, "tensor model parallel group is already initialized"
+    if _TENSOR_MODEL_PARALLEL_GROUP is not None:
+        raise RuntimeError(
+            "Tensor model parallel group is already initialized "
+            "Have you called `apex.transformer.parallel_state.destroy_model_parallel`?"
+        )
     for i in range(num_tensor_model_parallel_groups):
         ranks = range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size)
         group = torch.distributed.new_group(ranks)
@@ -158,10 +173,26 @@ def initialize_model_parallel(
     # (first and last rank in each pipeline model-parallel group).
     global _PIPELINE_MODEL_PARALLEL_GROUP
     global _PIPELINE_GLOBAL_RANKS
-    assert _PIPELINE_MODEL_PARALLEL_GROUP is None, "pipeline model parallel group is already initialized"
+    if _PIPELINE_MODEL_PARALLEL_GROUP is not None:
+        raise RuntimeError(
+            "Pipeline model parallel group is already initialized "
+            "Have you called `apex.transformer.parallel_state.destroy_model_parallel`?"
+        )
     global _EMBEDDING_GROUP
     global _EMBEDDING_GLOBAL_RANKS
-    assert _EMBEDDING_GROUP is None, "embedding group is already initialized"
+    if _EMBEDDING_GROUP is not None:
+        raise RuntimeError(
+            "Embedding group is already initialized "
+            "Have you called `apex.transformer.parallel_state.destroy_model_parallel`?"
+        )
+    global _POSITION_EMBEDDING_GROUP
+    global _POSITION_EMBEDDING_GLOBAL_RANKS
+    assert _POSITION_EMBEDDING_GROUP is None, "position embedding group is already initialized"
+    if _POSITION_EMBEDDING_GROUP is not None:
+        raise RuntimeError(
+            "Position embedding group is already initialized "
+            "Have you called `apex.transformer.parallel_state.destroy_model_parallel`?"
+        )
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size, num_pipeline_model_parallel_groups)
         group = torch.distributed.new_group(ranks)
