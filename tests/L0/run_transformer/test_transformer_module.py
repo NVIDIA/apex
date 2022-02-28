@@ -15,6 +15,7 @@ SEVERALGPU_TEST = [
     "bert_minimal_test",
     "gpt_minimal_test",
     "dynamic_batchsize_test",
+    "parallel_state",
 ]
 
 def get_multigpu_launch_option(min_gpu):
