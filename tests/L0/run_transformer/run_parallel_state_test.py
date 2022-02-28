@@ -79,7 +79,7 @@ def run(pipeline_model_parallel_split_rank) -> bool:
             # Allow some tests to fail on certain ranks.
             # - `get_embedding_group`
             # - `get_position_embedding_group`
-            # on ranks that are **NOT** pipeline_model_parallel_(first|last)_rank nor
+            # on ranks that are **NOT** pipeline_model_parallel_(first|last)_rank
             # nor pipeline_model_parallel_split_rank (if applicable).
             if (
                 name == "get_embedding_group" and
