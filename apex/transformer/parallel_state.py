@@ -20,6 +20,30 @@ import torch
 from apex.transformer.enums import ModelType
 from apex.transformer.utils import ensure_divisibility
 
+_getter_functions = [
+    "get_model_parallel_group",
+    "get_tensor_model_parallel_group",
+    "get_pipeline_model_parallel_group",
+    "get_data_parallel_group",
+    "get_embedding_group",
+    "get_position_embedding_group",
+    "get_tensor_model_parallel_world_size",
+    "get_pipeline_model_parallel_world_size",
+    "get_tensor_model_parallel_rank",
+    "get_pipeline_model_parallel_rank",
+    "get_virtual_pipeline_model_parallel_rank",
+    "get_virtual_pipeline_model_parallel_world_size",
+    "get_tensor_model_parallel_src_rank",
+    "get_data_parallel_src_rank",
+    "get_pipeline_model_parallel_first_rank",
+    "get_pipeline_model_parallel_last_rank",
+    "get_pipeline_model_parallel_next_rank",
+    "get_pipeline_model_parallel_prev_rank",
+    "get_data_parallel_world_size",
+    "get_data_parallel_rank",
+    "get_pipeline_model_parallel_split_rank",
+]
+
 
 # Intra-layer model parallel group that the current rank belongs to.
 _TENSOR_MODEL_PARALLEL_GROUP = None

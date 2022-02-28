@@ -17,35 +17,7 @@ def run(pipeline_model_parallel_split_rank) -> bool:
         pipeline_model_parallel_split_rank_=pipeline_model_parallel_split_rank,
     )
 
-    # Check if rank and group are set.
-    func_names = (
-        # Group
-        "get_model_parallel_group",
-        "get_tensor_model_parallel_group",
-        "get_pipeline_model_parallel_group",
-        "get_data_parallel_group",
-        "get_embedding_group",
-        "get_position_embedding_group",
-        # World size
-        "get_virtual_pipeline_model_parallel_world_size",
-        "get_pipeline_model_parallel_world_size",
-        "get_tensor_model_parallel_world_size",
-        "get_data_parallel_world_size",
-        # Rank
-        "get_virtual_pipeline_model_parallel_rank",
-        "get_pipeline_model_parallel_first_rank",
-        "get_pipeline_model_parallel_prev_rank",
-        "get_pipeline_model_parallel_next_rank",
-        "get_pipeline_model_parallel_last_rank",
-        "get_tensor_model_parallel_src_rank",
-        "get_pipeline_model_parallel_split_rank",
-        "get_data_parallel_src_rank",
-        "get_pipeline_model_parallel_rank",
-        "get_tensor_model_parallel_rank",
-        "get_data_parallel_rank",
-    )
-
-    # This test always sets Data Parallel Worldsize to 1.
+    # This test always sets Data Parallel World Size to 1.
     pipeline_model_parallel_rank = torch.distributed.get_rank()
     assert pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
     pipeline_first_rank = parallel_state.get_pipeline_model_parallel_first_rank()
@@ -67,7 +39,7 @@ def run(pipeline_model_parallel_split_rank) -> bool:
     should_have_position_embedding = pipeline_model_parallel_rank in position_embedding_ranks
 
     failures = []
-    for name in func_names:
+    for name in parallel_state._getter_functions:
         if pipeline_model_parallel_split_rank is None:
             if name == "get_pipeline_model_parallel_split_rank":
                 print(f"Skip `{name}` as `pipeline_model_parallel_split_rank` is `None`")
