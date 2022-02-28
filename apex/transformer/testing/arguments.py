@@ -725,6 +725,8 @@ def _add_distributed_args(parser):
                        'is placed on its own pipeline stage, without any '
                        'transformer layers. (For T5, this flag currently only '
                        'affects the encoder embedding.)')
+    group.add_argument('--cpu-offload', action='store_true',
+                       default=False, help='Turns on CPU offloading')
     return parser
 
 
