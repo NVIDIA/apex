@@ -17,7 +17,7 @@ def run(pipeline_model_parallel_split_rank) -> bool:
         pipeline_model_parallel_split_rank_=pipeline_model_parallel_split_rank,
     )
 
-    # Check rank and group are set.
+    # Check if rank and group are set.
     func_names = (
         # Group
         "get_model_parallel_group",
@@ -58,7 +58,10 @@ def run(pipeline_model_parallel_split_rank) -> bool:
         position_embedding_ranks.append(pipeline_model_parallel_split_rank)
 
     if torch.distributed.get_rank() == 0:
-        print(f"### Expected embedding ranks: {embedding_ranks} & position_embedding_ranks: {position_embedding_ranks}")
+        print(
+            f"### Expected embedding ranks: {embedding_ranks} & "
+            f"position_embedding_ranks: {position_embedding_ranks}"
+        )
 
     should_have_embedding = pipeline_model_parallel_rank in embedding_ranks
     should_have_position_embedding = pipeline_model_parallel_rank in position_embedding_ranks
@@ -78,10 +81,16 @@ def run(pipeline_model_parallel_split_rank) -> bool:
             # - `get_position_embedding_group`
             # on ranks that are **NOT** pipeline_model_parallel_(first|last)_rank nor
             # nor pipeline_model_parallel_split_rank (if applicable).
-            if name == "get_embedding_group" and pipeline_model_parallel_rank not in embedding_ranks:
+            if (
+                name == "get_embedding_group" and
+                pipeline_model_parallel_rank not in embedding_ranks
+            ):
                 print(f"{parallel_state.get_rank_info()} is allowed to fail {name}")
                 is_failure = False
-            if name == "get_position_embedding_group" and pipeline_model_parallel_rank not in position_embedding_ranks:
+            if (
+                name == "get_position_embedding_group" and
+                pipeline_model_parallel_rank not in position_embedding_ranks
+            ):
                 print(f"{parallel_state.get_rank_info()} is allowed to fail {name}")
                 is_failure = False
             if is_failure:
