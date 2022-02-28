@@ -187,7 +187,6 @@ def initialize_model_parallel(
         )
     global _POSITION_EMBEDDING_GROUP
     global _POSITION_EMBEDDING_GLOBAL_RANKS
-    assert _POSITION_EMBEDDING_GROUP is None, "position embedding group is already initialized"
     if _POSITION_EMBEDDING_GROUP is not None:
         raise RuntimeError(
             "Position embedding group is already initialized "
