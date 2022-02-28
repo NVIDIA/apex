@@ -75,6 +75,8 @@ def run(pipeline_model_parallel_split_rank) -> bool:
     if failures:
         msg = f"[Rank - {parallel_state.get_rank_info()}] {len(failures)} / {len(func_names)} failed: {failures}"
         print(msg)
+    else:
+        print(f"# PASS {len(parallel_state._getter_functions)} getter functions")
     parallel_state.destroy_model_parallel()
 
     return not bool(failures)
