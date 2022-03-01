@@ -48,6 +48,16 @@ class TestInstanceNormNVFuser(unittest.TestCase):
                 torch.testing.assert_close(inp.grad, inp2.grad, atol=5e-3, rtol=5e-3)
             else:
                 torch.testing.assert_close(inp.grad, inp2.grad)
+            if self.m.weight is not None:
+                if self.dtype == torch.float16:
+                    torch.testing.assert_close(self.m.weight.grad, self.reference_m.weight.grad, atol=5e-2, rtol=5e-2)
+                else:
+                    torch.testing.assert_close(self.m.weight.grad, self.reference_m.weight.grad)
+            if self.m.bias is not None:
+                if self.dtype == torch.float16:
+                    torch.testing.assert_close(self.m.bias.grad, self.reference_m.bias.grad, atol=5e-3, rtol=5e-3)
+                else:
+                    torch.testing.assert_close(self.m.bias.grad, self.reference_m.bias.grad)
 
     def test_sweep(self):
         for dtype, track_running_stats, channels_last, affine in itertools.product((torch.float, torch.half), (False, True), (False, True), (False, True)):
