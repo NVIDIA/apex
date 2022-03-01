@@ -5,7 +5,6 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
-#include <cuda_profiler_api.h>
 
 #include <ATen/cuda/CUDAContext.h>
 #include "THC/THC.h"
