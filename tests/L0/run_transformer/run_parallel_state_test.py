@@ -26,9 +26,7 @@ def run(
     pipeline_model_parallel_rank = torch.distributed.get_rank()
     _pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
     _tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
-    # print(f"pipeline_model_parallel_rank: {pipeline_model_parallel_rank}, _pipeline_model_parallel_rank: {_pipeline_model_parallel_rank}")
-    # print(f"tensor_model_parallel_rank: {_tensor_model_parallel_rank}")
-    # assert pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
+    # TODO (mkozuki): Add some checks on pipeline rank, ideally.
     pipeline_first_rank = parallel_state.get_pipeline_model_parallel_first_rank()
     pipeline_last_rank = parallel_state.get_pipeline_model_parallel_last_rank()
 
@@ -58,7 +56,6 @@ def run(
                 continue
         if pipeline_model_parallel_split_rank is None:
             if name == "get_pipeline_model_parallel_split_rank":
-                # print(f"Skip `{name}` as `pipeline_model_parallel_split_rank` is `None`")
                 continue
         try:
             value = getattr(parallel_state, name)()
@@ -73,27 +70,21 @@ def run(
                 name == "get_embedding_group" and
                 pipeline_model_parallel_rank not in embedding_ranks
             ):
-                # print(f"{parallel_state.get_rank_info()} is allowed to fail {name}")
                 is_failure = False
             if (
                 name == "get_position_embedding_group" and
                 pipeline_model_parallel_rank not in position_embedding_ranks
             ):
-                # print(f"{parallel_state.get_rank_info()} is allowed to fail {name}")
                 is_failure = False
             if is_failure:
-                # print(f"{parallel_state.get_rank_info()} {name} threw")
                 failures.append(name)
         else:
             if value is None:
-                # print(f"{parallel_state.get_rank_info()} {name} failed")
                 failures.append(name)
     torch.distributed.barrier()
     if len(failures) > 0:
         msg = f"[Rank - {parallel_state.get_rank_info()}] {len(failures)} / {len(parallel_state._getter_functions)} failed: {failures}"
         print(msg, flush=True)
-    # else:
-    #     print(f"[Rank - {parallel_state.get_rank_info()}] PASS {len(parallel_state._getter_functions)} getter functions")
     parallel_state.destroy_model_parallel()
 
     return failures
