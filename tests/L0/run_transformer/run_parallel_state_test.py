@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Optional
 
 import torch
 
@@ -8,7 +8,12 @@ from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import print_separator
 
 
-def run(pipeline_model_parallel_split_rank) -> bool:
+def run(
+    tensor_parallel_size: int,
+    pipeline_model_parallel_size: int,
+    virtual_pipeline_model_parallel_size: Optional[int],
+    pipeline_model_parallel_split_rank: Optional[int],
+) -> bool:
     # Initialize model parallel
     parallel_state.initialize_model_parallel(
         tensor_model_parallel_size_=tensor_parallel_size,
@@ -19,7 +24,11 @@ def run(pipeline_model_parallel_split_rank) -> bool:
 
     # This test always sets Data Parallel World Size to 1.
     pipeline_model_parallel_rank = torch.distributed.get_rank()
-    assert pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
+    _pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
+    _tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
+    # print(f"pipeline_model_parallel_rank: {pipeline_model_parallel_rank}, _pipeline_model_parallel_rank: {_pipeline_model_parallel_rank}")
+    # print(f"tensor_model_parallel_rank: {_tensor_model_parallel_rank}")
+    # assert pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
     pipeline_first_rank = parallel_state.get_pipeline_model_parallel_first_rank()
     pipeline_last_rank = parallel_state.get_pipeline_model_parallel_last_rank()
 
@@ -29,6 +38,7 @@ def run(pipeline_model_parallel_split_rank) -> bool:
         embedding_ranks.append(pipeline_model_parallel_split_rank)
         position_embedding_ranks.append(pipeline_model_parallel_split_rank)
 
+    torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:
         print(
             f"### Expected embedding ranks: {embedding_ranks} & "
@@ -40,9 +50,15 @@ def run(pipeline_model_parallel_split_rank) -> bool:
 
     failures = []
     for name in parallel_state._getter_functions:
+        if virtual_pipeline_model_parallel_size is None:
+            if name in (
+                "get_virtual_pipeline_model_parallel_rank",
+                "get_virtual_pipeline_model_parallel_world_size",
+            ):
+                continue
         if pipeline_model_parallel_split_rank is None:
             if name == "get_pipeline_model_parallel_split_rank":
-                print(f"Skip `{name}` as `pipeline_model_parallel_split_rank` is `None`")
+                # print(f"Skip `{name}` as `pipeline_model_parallel_split_rank` is `None`")
                 continue
         try:
             value = getattr(parallel_state, name)()
@@ -57,29 +73,30 @@ def run(pipeline_model_parallel_split_rank) -> bool:
                 name == "get_embedding_group" and
                 pipeline_model_parallel_rank not in embedding_ranks
             ):
-                print(f"{parallel_state.get_rank_info()} is allowed to fail {name}")
+                # print(f"{parallel_state.get_rank_info()} is allowed to fail {name}")
                 is_failure = False
             if (
                 name == "get_position_embedding_group" and
                 pipeline_model_parallel_rank not in position_embedding_ranks
             ):
-                print(f"{parallel_state.get_rank_info()} is allowed to fail {name}")
+                # print(f"{parallel_state.get_rank_info()} is allowed to fail {name}")
                 is_failure = False
             if is_failure:
-                print(f"{parallel_state.get_rank_info()} {name} threw")
+                # print(f"{parallel_state.get_rank_info()} {name} threw")
                 failures.append(name)
         else:
             if value is None:
-                print(f"{parallel_state.get_rank_info()} {name} failed")
+                # print(f"{parallel_state.get_rank_info()} {name} failed")
                 failures.append(name)
-    if failures:
-        msg = f"[Rank - {parallel_state.get_rank_info()}] {len(failures)} / {len(func_names)} failed: {failures}"
-        print(msg)
-    else:
-        print(f"# PASS {len(parallel_state._getter_functions)} getter functions")
+    torch.distributed.barrier()
+    if len(failures) > 0:
+        msg = f"[Rank - {parallel_state.get_rank_info()}] {len(failures)} / {len(parallel_state._getter_functions)} failed: {failures}"
+        print(msg, flush=True)
+    # else:
+    #     print(f"[Rank - {parallel_state.get_rank_info()}] PASS {len(parallel_state._getter_functions)} getter functions")
     parallel_state.destroy_model_parallel()
 
-    return not bool(failures)
+    return failures
 
 
 if __name__ == "__main__":
@@ -93,25 +110,45 @@ if __name__ == "__main__":
     data_parallel_size, tensor_parallel_size, pipeline_model_parallel_size = 1, 1, 1
     virtual_pipeline_model_parallel_size, pipeline_model_parallel_split_rank = None, None
     if world_size >= 4:
-        if world_size > 4:
-            tensor_parallel_size = 2
+        # TODO (mkozuki): Support pipeline/tensor/data parallel case.
+        # if world_size > 4:
+        #     tensor_parallel_size = 2
         pipeline_model_parallel_size = world_size // tensor_parallel_size
         virtual_pipeline_model_parallel_size = 2
         pipeline_model_parallel_split_rank = pipeline_model_parallel_size // 2
     else:
         raise RuntimeError(f"World size too small: {world_size}")
 
+    virtual_pipeline_model_parallel_size_values = [None]
+    if virtual_pipeline_model_parallel_size is not None:
+        virtual_pipeline_model_parallel_size_values.append(virtual_pipeline_model_parallel_size)
     pipeline_model_parallel_split_rank_values = [None]
     if pipeline_model_parallel_split_rank is not None:
         pipeline_model_parallel_split_rank_values.append(pipeline_model_parallel_split_rank)
 
-    results = []
-    for pipeline_model_parallel_split_rank in pipeline_model_parallel_split_rank_values:
+    failures = {}
+    for i, (virtual_pipeline_model_parallel_size, pipeline_model_parallel_split_rank) in enumerate(
+        zip(virtual_pipeline_model_parallel_size_values, pipeline_model_parallel_split_rank_values)
+    ):
+        print_separator(f"Case {i}")
         print_separator(
-            f"`pipeline_model_parallel_split_rank`: {pipeline_model_parallel_split_rank}")
-        success = run(pipeline_model_parallel_split_rank)
-        results.append(success)
-    if not all(results):
-        raise RuntimeError("Test Failed!")
+            f"`virtual_pipeline_model_parallel_size`: {virtual_pipeline_model_parallel_size} "
+            f"`pipeline_model_parallel_split_rank`: {pipeline_model_parallel_split_rank}"
+        )
+        ret = run(
+            tensor_parallel_size,
+            pipeline_model_parallel_size,
+            virtual_pipeline_model_parallel_size,
+            pipeline_model_parallel_split_rank,
+        )
+        failures[i] = ret
+
+    torch.distributed.barrier()
+    success = True
+    for key, values in failures.items():
+        if len(values) > 0:
+            success = False
+    if not success:
+        raise RuntimeError(f"Rank {torch.distributed.get_rank()}: Test Failed! -- {failures}")
     else:
-        print("### PASS!")
+        print('>> passed the test :-)')
