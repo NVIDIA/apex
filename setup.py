@@ -93,20 +93,6 @@ cmdclass = {}
 ext_modules = []
 
 extras = {}
-if "--pyprof" in sys.argv:
-    string = (
-        "\n\nPyprof has been moved to its own dedicated repository and will "
-        "soon be removed from Apex.  Please visit\n"
-        "https://github.com/NVIDIA/PyProf\n"
-        "for the latest version."
-    )
-    warnings.warn(string, DeprecationWarning)
-    with open("requirements.txt") as f:
-        required_packages = f.read().splitlines()
-        extras["pyprof"] = required_packages
-    sys.argv.remove("--pyprof")
-else:
-    warnings.warn("Option --pyprof not specified. Not installing PyProf dependencies!")
 
 if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
     if TORCH_MAJOR == 0:
