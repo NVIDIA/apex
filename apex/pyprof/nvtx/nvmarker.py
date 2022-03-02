@@ -16,6 +16,7 @@ The NVTX markers (one or more) contain the following information
 		numpy: name, shape and datatype
 		list/tuple: a sequence of scalars or tensors or numpy arrays
 """
+import warnings
 
 import torch
 import torch.cuda.nvtx as nvtx
@@ -65,6 +66,10 @@ def modMarker(mod, fn_name, args):
 	return str(d)
 
 def add_wrapper(mod, fn_name):
+    warnings.warn(
+        "apex.pyprof module will be removed by the end of June, 2022.",
+        FutureWarning,
+    )
 	assert isfunc(mod, fn_name)
 
 	# Get a pointer to the original function
@@ -138,7 +143,7 @@ def argMarker(mod, op, args, kwargs):
 			# The arg could be torch.Size, which is a subclass of tuple
 			# Therefore, explicitly convert to tuple
 			a['value'] = tuple(arg)
-		
+
 		cadena['args'].append(a)
 
 	def scalar(arg, name=""):
@@ -204,6 +209,10 @@ def patchClass(cls):
 			add_wrapper(cls, f)
 
 def init():
+    warnings.warn(
+        f"apex.pyprof module will be removed by the end of June, 2022.",
+        FutureWarning,
+    )
 	string = "\n\nPyprof has been moved to its own dedicated repository and will " + \
 			"soon be removed from Apex.  Please visit\n" + \
 			"https://github.com/NVIDIA/PyProf\n" + \

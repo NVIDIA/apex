@@ -139,7 +139,7 @@ A Python-only build omits:
 `DistributedDataParallel`, `amp`, and `SyncBatchNorm` will still be usable, but they may be slower.
 
 Pyprof support has been moved to its own [dedicated repository](https://github.com/NVIDIA/PyProf).
-The codebase is deprecated in Apex and will be removed soon.
+The codebase is deprecated in Apex and pyprof directory will be removed by the end of June, 2022.
 
 ### Windows support
 Windows support is experimental, and Linux is recommended.  `pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .` may work if you were able to build Pytorch from source
