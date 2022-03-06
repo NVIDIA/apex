@@ -3,7 +3,7 @@ import unittest
 
 import torch
 from torch import distributed as dist, tensor
-from torch.testing._internal.distributed.distributed_test import TestDistBackend, DistributedTest
+from torch.testing._internal.distributed.distributed_test import TestDistBackend
 
 from apex.transformer import parallel_state
 
@@ -15,7 +15,7 @@ def calc_expected_tensor_model_paralell_rank(rank: int, tensor_model_parallel_wo
     return rank % tensor_model_parallel_world_size
 
 
-class ParallelStateTest(TestDistBackend, DistributedTest._DistTestBase):
+class ParallelStateTest(TestDistBackend):
 
     def setUp(self) -> None:
         super().setUp()
