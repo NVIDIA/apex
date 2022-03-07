@@ -92,8 +92,8 @@ class TransformerRandomTest(DistributedTestBase):
 
                 torch.testing.assert_allclose(target_11, result_11)
                 torch.testing.assert_allclose(target_12, result_12)
-                torch.testing.assert_allclose(result_11, result_21)
-                torch.testing.assert_allclose(result_21, result_22)
+                self.assertFalse(torch.equal(result_11, result_21))
+                self.assertFalse(torch.equal(result_21, result_22))
 
                 tensor_parallel.random.get_cuda_rng_tracker().reset()
                 parallel_state.destroy_model_parallel()
