@@ -12,25 +12,32 @@ from apex.transformer.testing.distributed_test_base import DistributedTestBase
 
 
 def torch_cross_entropy(
-    batch_size: int,
-    seq_length: int,
-    vocab_size: int,
-    logits_scale: float,
-    seed: int,
+    batch_size: int, seq_length: int, vocab_size: int, logits_scale: float, seed: int,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     set_random_seed(seed)
-    identity = IdentityLayer((batch_size, seq_length, vocab_size), scale=logits_scale).cuda()
+    identity = IdentityLayer(
+        (batch_size, seq_length, vocab_size), scale=logits_scale
+    ).cuda()
     logits = identity()
-    target = torch.cuda.LongTensor(
-        size=(batch_size, seq_length)).random_(0, vocab_size)
-    loss = F.cross_entropy(logits.view(-1, logits.size()[-1]), target.view(-1), reduction='none').view_as(target).mean()
+    target = torch.cuda.LongTensor(size=(batch_size, seq_length)).random_(0, vocab_size)
+    loss = (
+        F.cross_entropy(
+            logits.view(-1, logits.size()[-1]), target.view(-1), reduction="none"
+        )
+        .view_as(target)
+        .mean()
+    )
     loss.backward()
     return loss, identity.weight.grad
 
 
-def tensor_sharded_cross_entropy(batch_size, seq_length, vocab_size, logits_scale, seed):
+def tensor_sharded_cross_entropy(
+    batch_size, seq_length, vocab_size, logits_scale, seed
+):
     set_random_seed(seed)
-    identity = IdentityLayer((batch_size, seq_length, vocab_size), scale=logits_scale).cuda()
+    identity = IdentityLayer(
+        (batch_size, seq_length, vocab_size), scale=logits_scale
+    ).cuda()
     logits = identity()
     logits_parallel = tensor_parallel.scatter_to_tensor_model_parallel_region(logits)
     target = torch.cuda.LongTensor(size=(batch_size, seq_length)).random_(0, vocab_size)
@@ -43,7 +50,6 @@ def tensor_sharded_cross_entropy(batch_size, seq_length, vocab_size, logits_scal
 
 
 class VocabParallelCrossEntropy(DistributedTestBase):
-
     def test_cross_entropy(self):
         batch_size, sequence_length, vocab_size_per_partition = 13, 17, 11
         logits_scale = 1000.0
@@ -58,8 +64,15 @@ class VocabParallelCrossEntropy(DistributedTestBase):
                     tensor_model_parallel_size_=tensor_model_parallel_world_size,
                 )
                 vocab_size = vocab_size_per_partition * tensor_model_parallel_world_size
-                loss_torch, grad_torch = torch_cross_entropy(batch_size, sequence_length, vocab_size, logits_scale, seed)
-                loss_tensor_parallel, grad_tensor_parallel = tensor_sharded_cross_entropy(batch_size, sequence_length, vocab_size, logits_scale, seed)
+                loss_torch, grad_torch = torch_cross_entropy(
+                    batch_size, sequence_length, vocab_size, logits_scale, seed
+                )
+                (
+                    loss_tensor_parallel,
+                    grad_tensor_parallel,
+                ) = tensor_sharded_cross_entropy(
+                    batch_size, sequence_length, vocab_size, logits_scale, seed
+                )
 
                 torch.testing.assert_allclose(loss_torch, loss_tensor_parallel)
                 torch.testing.assert_allclose(grad_torch, grad_tensor_parallel)
@@ -68,4 +81,4 @@ class VocabParallelCrossEntropy(DistributedTestBase):
 
 
 if __name__ == "__main__":
-	common_utils.run_tests()
+    common_utils.run_tests()

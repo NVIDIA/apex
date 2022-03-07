@@ -15,7 +15,9 @@ class TransformerRandomTest(DistributedTestBase):
             with self.subTest(
                 tensor_model_parallel_world_size=tensor_model_parallel_world_size
             ):
-                parallel_state.initialize_model_parallel(tensor_model_parallel_size_=tensor_model_parallel_world_size)
+                parallel_state.initialize_model_parallel(
+                    tensor_model_parallel_size_=tensor_model_parallel_world_size
+                )
 
                 size, seed = 123, 1234
                 torch.cuda.manual_seed(seed)
@@ -29,7 +31,9 @@ class TransformerRandomTest(DistributedTestBase):
                 result_1 = tensor.clone()
 
                 self.assertEqual(rng_state.sub(rng_state_clone).max(), 0)
-                self.assertGreater(torch.cuda.get_rng_state().sub(rng_state_clone).max(), 0)
+                self.assertGreater(
+                    torch.cuda.get_rng_state().sub(rng_state_clone).max(), 0
+                )
 
                 new_rng_state = torch.cuda.get_rng_state()
                 self.assertGreater(new_rng_state.sub(rng_state).max(), 0)
@@ -55,11 +59,12 @@ class TransformerRandomTest(DistributedTestBase):
             with self.subTest(
                 tensor_model_parallel_world_size=tensor_model_parallel_world_size
             ):
-                parallel_state.initialize_model_parallel(tensor_model_parallel_size_=tensor_model_parallel_world_size)
+                parallel_state.initialize_model_parallel(
+                    tensor_model_parallel_size_=tensor_model_parallel_world_size
+                )
 
                 seed_1, seed_2, size = 1234, 4321, [12, 21]
                 tensor = torch.cuda.FloatTensor(size)
-
 
                 torch.cuda.manual_seed(seed_1)
                 torch.randn(size, out=tensor)
@@ -90,13 +95,16 @@ class TransformerRandomTest(DistributedTestBase):
                     torch.randn(size, out=tensor)
                     result_22 = tensor.clone()
 
-                torch.testing.assert_allclose(target_11, result_11)
-                torch.testing.assert_allclose(target_12, result_12)
-                self.assertFalse(torch.equal(result_11, result_21))
-                self.assertFalse(torch.equal(result_21, result_22))
+                self.assertEqual(target_11, result_11)
+                self.assertEqual(target_12, result_12)
+                self.assertEqual(targt_21, result_21)
+                self.assertEqual(target_22, result_22)
+                self.assertNotEqual(result_11, result_21)
+                self.assertNotEqual(result_21, result_22)
 
                 tensor_parallel.random.get_cuda_rng_tracker().reset()
                 parallel_state.destroy_model_parallel()
 
+
 if __name__ == "__main__":
-	common_utils.run_tests()
+    common_utils.run_tests()

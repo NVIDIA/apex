@@ -7,10 +7,13 @@ from apex.transformer.testing.distributed_test_base import DistributedTestBase
 
 
 class BroadcastDataTest(DistributedTestBase):
-
     def test_broadcast_data(self):
-        tensor_model_parallel_world_size: int = self.world_size // (1 + self.world_size > 1)
-        parallel_state.initialize_model_parallel(tensor_model_parallel_size_=tensor_model_parallel_world_size)
+        tensor_model_parallel_world_size: int = self.world_size // (
+            1 + self.world_size > 1
+        )
+        parallel_state.initialize_model_parallel(
+            tensor_model_parallel_size_=tensor_model_parallel_world_size
+        )
 
         target_key_size = {
             "key1": [7, 11],
