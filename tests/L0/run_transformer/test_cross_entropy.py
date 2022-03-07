@@ -1,4 +1,3 @@
-from msilib import sequence
 from typing import Tuple
 
 import torch
@@ -64,6 +63,8 @@ class VocabParallelCrossEntropy(DistributedTestBase):
 
                 torch.testing.assert_allclose(loss_torch, loss_tensor_parallel)
                 torch.testing.assert_allclose(grad_torch, grad_tensor_parallel)
+
+                parallel_state.destroy_model_parallel()
 
 
 if __name__ == "__main__":
