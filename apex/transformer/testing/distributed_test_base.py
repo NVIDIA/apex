@@ -1,6 +1,9 @@
+import os
 import sys
 
 import torch
+from torch import distributed as dist
+from torch.testing._internal import common_utils
 from torch.testing._internal import common_distributed
 
 
