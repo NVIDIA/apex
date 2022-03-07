@@ -80,9 +80,13 @@ class TensorParallelLayerTest(DistributedTestBase):
                     layers._initialize_affine_weight_gpu(weight, torch.nn.init.normal_, dim)
                 # Target
                 set_random_seed(TensorParallelLayerTest.SEED)
-                main_weight = torch.empty(output_size, input_size)
-                nn.init.normal_(main_weight)
-                curr_weight = torch.split(main_weight, sharding_dim_size, dim=dim)[parallel_state.get_tensor_model_parallel_rank()]
+                if init_device == "cpu":
+                    main_weight = torch.empty(output_size, input_size)
+                    nn.init.normal_(main_weight)
+                    curr_weight = torch.split(main_weight, sharding_dim_size, dim=dim)[parallel_state.get_tensor_model_parallel_rank()]
+                else:
+                    curr_weight = torch.empty(*weight_shape)
+                    nn.init.normal_(curr_weight)
                 self.assertEqual(curr_weight, weight)
                 parallel_state.destroy_model_parallel()
 
