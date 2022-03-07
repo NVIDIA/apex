@@ -5,17 +5,17 @@ import torch
 from torch import distributed as dist
 from torch.testing._internal import common_utils
 from torch.testing._internal import common_distributed
-# from torch.testing._internal.distributed.distributed_test import TestDistBackend
 
 from apex.transformer import parallel_state
 
 
 os.environ["BACKEND"] = "NCCL"
+DATA_PARALLEL_WORLD_SIZE: int = 1
 
 
 def calc_expected_tensor_model_paralell_rank(
-        rank: int,
-        tensor_model_parallel_world_size: int,
+    rank: int,
+    tensor_model_parallel_world_size: int,
 ) -> int:
     return rank % tensor_model_parallel_world_size
 
@@ -24,14 +24,30 @@ class ParallelStateTest(common_distributed.MultiProcessTestCase):
 
     BACKEND_NCCL = "nccl"
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._world_size = min(torch.cuda.device_count(), super().world_size)
+
     def setUp(self) -> None:
         super().setUp()
-        print("Called TestDistBackend.setUp")
+        self._world_size = min(torch.cuda.device_count(), super().world_size)
         self._spawn_processes()
 
+    def tearDown(self) -> None:
+        super().tearDown()
+        self._world_size = None
+
+    # N.B. (mkozuki): From the perspective of execution time, I think
+    # faster tests are preferred to longer ones, but in some cases,
+    # we want to run longer for coverage.
+    # So, preparing a knob to set world_size > 4.
     @property
     def world_size(self) -> int:
-        return min(torch.cuda.device_count(), super().world_size)
+        return self._world_size
+
+    @world_size.setter
+    def world_size(self, new_world_size: int) -> None:
+        self._world_size = new_world_size
 
     # TODO (mkozuki): Check if this is seriously needed.
     @property
@@ -74,26 +90,108 @@ class ParallelStateTest(common_distributed.MultiProcessTestCase):
         sys.exit(0)
 
     def test_initialize_model_parallel(self) -> None:
-        
+
         self.assertFalse(parallel_state.model_parallel_is_initialized())
 
-        parallel_state.initialize_model_parallel(tensor_model_parallel_size_=self.world_size)
-        self.assertTrue(parallel_state)
-        self.assertEqual(
-            self.world_size,
-            parallel_state.get_tensor_model_parallel_world_size(),
+        for tensor_model_parallel_world_size in range(1, self.world_size + 1):
+            with self.subTest(
+                tensor_model_parallel_world_size=tensor_model_parallel_world_size
+            ):
+                if self.world_size % tensor_model_parallel_world_size:
+                    continue
+
+                pipeline_model_parallel_world_size = (
+                    self.world_size // tensor_model_parallel_world_size
+                )
+
+                parallel_state.initialize_model_parallel(
+                    tensor_model_parallel_size_=tensor_model_parallel_world_size,
+                    pipeline_model_parallel_size_=pipeline_model_parallel_world_size,
+                )
+                self.assertEqual(
+                    tensor_model_parallel_world_size,
+                    parallel_state.get_tensor_model_parallel_world_size(),
+                )
+                expected_tensor_model_parallel_rank = (
+                    calc_expected_tensor_model_paralell_rank(
+                        self.rank, tensor_model_parallel_world_size
+                    )
+                )
+                self.assertEqual(
+                    expected_tensor_model_parallel_rank,
+                    parallel_state.get_tensor_model_parallel_rank(),
+                )
+
+                expected_tensor_model_parallel_src_rank = (
+                    self.rank // tensor_model_parallel_world_size
+                ) * tensor_model_parallel_world_size
+                self.assertEqual(
+                    expected_tensor_model_parallel_src_rank,
+                    parallel_state.get_tensor_model_parallel_src_rank(),
+                )
+
+                parallel_state.destroy_model_parallel()
+                self.assertFalse(parallel_state.model_parallel_is_initialized())
+
+    def test_initialize_model_parallel_with_virtual_and_split(self) -> None:
+        if self.world_size < 4:
+            self.skipTest("requires >= 4 GPUs")
+        self.assertFalse(parallel_state.model_parallel_is_initialized())
+
+        tensor_model_parallel_world_size = 1 + int(self.world_size > 4)
+        pipeline_model_parallel_world_size = (
+            self.world_size // tensor_model_parallel_world_size
         )
-        expected_tensor_model_parallel_rank = calc_expected_tensor_model_paralell_rank(
-            self.rank, self.world_size)
+        virtual_pipeline_model_parallel_world_size = 2
+        pipeline_model_parallel_split_rank = pipeline_model_parallel_world_size // 2
+
+        parallel_state.initialize_model_parallel(
+            tensor_model_parallel_size_=tensor_model_parallel_world_size,
+            pipeline_model_parallel_size_=pipeline_model_parallel_world_size,
+            virtual_pipeline_model_parallel_size_=virtual_pipeline_model_parallel_world_size,
+            pipeline_model_parallel_split_rank_=pipeline_model_parallel_split_rank,
+        )
         self.assertEqual(
-            expected_tensor_model_parallel_rank,
+            calc_expected_tensor_model_paralell_rank(
+                self.rank, tensor_model_parallel_world_size
+            ),
             parallel_state.get_tensor_model_parallel_rank(),
+        )
+        self.assertEqual(
+            pipeline_model_parallel_world_size,
+            parallel_state.get_pipeline_model_parallel_world_size(),
+        )
+        self.assertEqual(
+            virtual_pipeline_model_parallel_world_size,
+            parallel_state.get_virtual_pipeline_model_parallel_world_size(),
+        )
+
+        expected_pipeline_rank = (
+            self.rank - (self.rank % tensor_model_parallel_world_size)
+        ) % pipeline_model_parallel_world_size
+        self.assertEqual(
+            expected_pipeline_rank,
+            parallel_state.get_pipeline_model_parallel_rank(),
+        )
+        # virtual pipeline model parallel rank is lazily set, i.e., right after the call of
+        # `initialize_model_parallel`, it's set to 0.
+        self.assertEqual(
+            0,
+            parallel_state.get_virtual_pipeline_model_parallel_rank(),
+        )
+        self.assertEqual(
+            pipeline_model_parallel_split_rank,
+            parallel_state.get_pipeline_model_parallel_split_rank(),
+        )
+
+        fake_split_rank = 77
+        parallel_state.set_pipeline_model_parallel_split_rank(fake_split_rank)
+        self.assertEqual(
+            fake_split_rank, parallel_state.get_pipeline_model_parallel_split_rank()
         )
 
         parallel_state.destroy_model_parallel()
-        self.assertFalse(parallel_state.model_parallel_is_initialized())
 
 
 if __name__ == "__main__":
-    from torch.testing._internal.common_utils import run_tests
-    run_tests()
+    common_utils.run_tests()
