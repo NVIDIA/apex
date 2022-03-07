@@ -229,7 +229,9 @@ class TensorParallelLayerTest(DistributedTestBase):
         gradient_accumulation_fusion: bool,
     ):
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
-            print(f"tensor_model_parallel_world_size={tensor_model_parallel_world_size}")
+            print(
+                f"tensor_model_parallel_world_size={tensor_model_parallel_world_size}"
+            )
             with self.subTest(
                 tensor_model_parallel_world_size=tensor_model_parallel_world_size
             ):
@@ -253,11 +255,7 @@ class TensorParallelLayerTest(DistributedTestBase):
                 )
                 input_tensor.retain_grad()
                 loss_weight = torch.randn(
-                    (
-                        TensorParallelLayerTest.BATCH_SIZE,
-                        hidden_size,
-                        feature_size,
-                    ),
+                    (TensorParallelLayerTest.BATCH_SIZE, hidden_size, feature_size,),
                     device="cuda",
                 )
                 linear = layers.ColumnParallelLinear(
@@ -276,11 +274,7 @@ class TensorParallelLayerTest(DistributedTestBase):
                 output, _ = linear(input_tensor)
                 self.assertEqual(
                     output.shape,
-                    (
-                        TensorParallelLayerTest.BATCH_SIZE,
-                        hidden_size,
-                        feature_size,
-                    ),
+                    (TensorParallelLayerTest.BATCH_SIZE, hidden_size, feature_size,),
                 )
                 loss = torch.mul(output, loss_weight).sum()
                 loss.backward()
@@ -292,7 +286,10 @@ class TensorParallelLayerTest(DistributedTestBase):
                 dldx = torch.matmul(dldy, a)
                 self.assertEqual(input_tensor.grad, dldx)
                 # TODO (mkozuki): Add the other cases.
-                if tensor_model_parallel_world_size == 1 and not gradient_accumulation_fusion:
+                if (
+                    tensor_model_parallel_world_size == 1
+                    and not gradient_accumulation_fusion
+                ):
                     dlda = torch.matmul(torch.transpose(dldy, 1, 2), x).sum(dim=0)
                     curr_dlda = torch.split(dlda, feature_size_coeff, dim=0)[
                         parallel_state.get_tensor_model_parallel_rank()
