@@ -56,13 +56,12 @@ class TensorParallelLayerTest(DistributedTestBase):
 
                 parallel_state.destroy_model_parallel()
 
-    def _affine_weight_init_test_impl(self, is_column_parallel: bool) -> None:
+    def _affine_weight_init_test_impl(self, init_device: str, is_column_parallel: bool) -> None:
         dim = int(not is_column_parallel)
-        for init_device, tensor_model_parallel_world_size in itertools.product(("cpu", "gpu"), range(1, self.world_size + 1)):
+        for tensor_model_parallel_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_parallel_world_size:
                 continue
             with self.subTest(
-                init_device=init_device,
                 tensor_model_parallel_world_size=tensor_model_parallel_world_size
             ):
                 parallel_state.initialize_model_parallel(tensor_model_parallel_size_=tensor_model_parallel_world_size)
@@ -87,11 +86,17 @@ class TensorParallelLayerTest(DistributedTestBase):
                 self.assertEqual(curr_weight, weight)
                 parallel_state.destroy_model_parallel()
 
-    def test_affine_weight_init_column_parallel(self) -> None:
-        self._affine_weight_init_test_impl(is_column_parallel=True)
+    def test_affine_weight_init_column_parallel_cpu(self) -> None:
+        self._affine_weight_init_test_impl(init_device="cpu", is_column_parallel=True)
 
-    def test_affine_weight_init_row_parallel(self) -> None:
-        self._affine_weight_init_test_impl(is_column_parallel=False)
+    def test_affine_weight_init_column_parallel_gpu(self) -> None:
+        self._affine_weight_init_test_impl(init_device="gpu", is_column_parallel=True)
+
+    def test_affine_weight_init_row_parallel_cpu(self) -> None:
+        self._affine_weight_init_test_impl(init_device="cpu", is_column_parallel=False)
+
+    def test_affine_weight_init_row_parallel_gpu(self) -> None:
+        self._affine_weight_init_test_impl(init_device="gpu", is_column_parallel=False)
 
     def test_row_parallel_linear(self) -> None:
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
