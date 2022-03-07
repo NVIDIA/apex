@@ -13,6 +13,7 @@ class DistributedTestBase(common_distributed.MultiProcessTestCase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        # TODO (mkozuki): Check if we can remove the line below as no need to set `_world_size` here as it's set in `setUp`
         self._world_size = min(torch.cuda.device_count(), super().world_size)
 
     def setUp(self) -> None:
@@ -59,7 +60,7 @@ class DistributedTestBase(common_distributed.MultiProcessTestCase):
             )
         except RuntimeError as e:
             if "recompile" in e.args[0]:
-                print(f"Backend of {back_end} not available")
+                print(f"Backend of {DistributedTestBase.BACKEND_NCCL} not available")
                 sys.exit(0)
             raise
 
