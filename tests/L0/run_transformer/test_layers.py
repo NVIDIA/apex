@@ -43,7 +43,7 @@ class TensorParallelLayerTest(DistributedTestBase):
                 loss_torch.backward()
 
                 set_random_seed(TensorParallelLayerTest.SEED)
-                embedding_vocab_parallel = layers.VocabParallelEmbedding(TensorParallelLayerTest.VOCAB_SIZE, TensorParallelLayerTest.HIDDEN_SIZE, init_method=nn.init.normal_).cuda()
+                embedding_vocab_parallel = layers.VocabParallelEmbedding(TensorParallelLayerTest.VOCAB_SIZE, TensorParallelLayerTest.HIDDEN_SIZE, init_method=nn.init.normal_, use_cpu_initialization=True).cuda()
                 output_vocab_parallel = embedding_vocab_parallel(input_tensor)
                 loss_vocab_parallel = torch.mul(output_vocab_parallel, loss_weight).sum()
                 loss_vocab_parallel.backward()
