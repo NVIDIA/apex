@@ -65,6 +65,7 @@ class TensorParallelLayerTest(DistributedTestBase):
                 init_device=init_device,
                 tensor_model_parallel_world_size=tensor_model_parallel_world_size
             ):
+                parallel_state.initialize_model_parallel(tensor_model_parallel_size_=tensor_model_parallel_world_size)
                 input_size: int = TensorParallelLayerTest.INPUT_SIZE_COEFF * tensor_model_parallel_world_size
                 output_size: int = TensorParallelLayerTest.OUTPUT_SIZE_COEFF * tensor_model_parallel_world_size
 
@@ -104,6 +105,7 @@ class TensorParallelLayerTest(DistributedTestBase):
                 input_size: int = TensorParallelLayerTest.INPUT_SIZE_COEFF * tensor_model_parallel_world_size
                 output_size: int = TensorParallelLayerTest.OUTPUT_SIZE_COEFF * tensor_model_parallel_world_size
 
+                set_random_seed(TensorParallelLayerTest.SEED)
                 linear_layer = layers.RowParallelLinear(input_size, output_size, keep_master_weight_for_test=True, params_dtype=torch.float32, use_cpu_initialization=True).cuda()
                 loss_weight = torch.randn((TensorParallelLayerTest.BATCH_SIZE, output_size)).cuda()
 
