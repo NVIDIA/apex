@@ -1,6 +1,3 @@
-import itertools
-from importlib_metadata import requires
-
 import torch
 import torch.nn as nn
 from torch.testing._internal import common_utils
@@ -194,6 +191,103 @@ class TensorParallelLayerTest(DistributedTestBase):
                 output, _ = linear_layer(input_tensor)
                 loss = torch.mul(output, loss_weight).sum()
                 loss.backward()
+
+                with torch.no_grad():
+                    dldy = loss_weight.clone()
+                    x = input_tensor.clone()
+                    a = linear_layer.master_weight.cuda()
+                dlda = torch.matmul(dldy.t(), x)
+                dldb = torch.matmul(
+                    torch.ones(TensorParallelLayerTest.BATCH_SIZE, 1).cuda().t(), dldy
+                ).view(-1)
+                dldx = torch.matmul(dldy, a)
+
+                with torch.no_grad():
+                    curr_dlda = torch.split(
+                        dlda, TensorParallelLayerTest.INPUT_SIZE_COEFF, dim=1
+                    )[parallel_state.get_tensor_model_parallel_rank()].clone()
+                self.assertEqual(linear_layer.weight.grad, curr_dlda)
+                self.assertEqual(input_tensor.grad, dldx)
+                self.assertEqual(linear_layer.bias.grad, dldb)
+
+                parallel_state.destroy_model_parallel()
+
+    def test_column_parallel_linear(self):
+        self._column_parallel_linear_test_impl(False, False)
+
+    def test_column_parallel_linear_no_async(self):
+        self._column_parallel_linear_test_impl(True, False)
+
+    def test_column_parallel_linear_gradient_accumulation_fusion(self):
+        self._column_parallel_linear_test_impl(False, True)
+
+    def _column_parallel_linear_test_impl(
+        self,
+        no_async_tensor_model_parallel_allreduce: bool,
+        gradient_accumulation_fusion: bool,
+    ):
+        for tensor_model_parallel_world_size in range(1, self.world_size + 1):
+            with self.subTest(
+                tensor_model_parallel_world_size=tensor_model_parallel_world_size
+            ):
+                if self.world_size % tensor_model_parallel_world_size:
+                    continue
+                parallel_state.initialize_model_parallel(
+                    tensor_model_parallel_size_=tensor_model_parallel_world_size,
+                )
+
+                # N.B. (mkozuki): Set output_size_coeff to input_size_coeff
+                feature_size_coeff = TensorParallelLayerTest.INPUT_SIZE_COEFF
+                feature_size = feature_size_coeff * tensor_model_parallel_world_size
+
+                set_random_seed(TensorParallelLayerTest.SEED)
+                input_tensor = torch.randn(
+                    TensorParallelLayerTest.BATCH_SIZE,
+                    TensorParallelLayerTest.HIDDEN_SIZE,
+                    feature_size,
+                    device="cuda",
+                    requires_grad=True,
+                )
+                linear = layers.ColumnParallelLinear(
+                    feature_size,
+                    feature_size,
+                    bias=False,
+                    keep_master_weight_for_test=True,
+                    params_dtype=torch.float32,
+                    use_cpu_initialization=True,
+                    no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+                    gradient_accumulation_fusion=gradient_accumulation_fusion,
+                )
+                loss_weight = torch.randn(
+                    (
+                        TensorParallelLayerTest.BATCH_SIZE,
+                        TensorParallelLayerTest.HIDDEN_SIZE,
+                        feature_size,
+                    )
+                ).cuda()
+                output, _ = linear(input_tensor)
+                self.assertEqual(
+                    output.shape,
+                    (
+                        TensorParallelLayerTest.BATCH_SIZE,
+                        TensorParallelLayerTest.HIDDEN_SIZE,
+                        feature_size,
+                    ),
+                )
+                loss = torch.mul(output, loss_weight).sum()
+                loss.backward()
+
+                with torch.no_grad():
+                    dldy = loss_weight.clone()
+                    x = input_tensor.clone()
+                    a = linear.master_weight.cuda().clone()
+                dlda = torch.matmul(dldy, x)
+                curr_dlda = torch.split(dlda, feature_size_coeff, dim=0)[
+                    parallel_state.get_tensor_model_parallel_rank()
+                ]
+                self.assertEqual(linear.weight.grad, curr_dlda)
+                dldx = torch.matmul(dldy, a)
+                self.assertEqual(input_tensor.grad, dldx)
 
                 parallel_state.destroy_model_parallel()
 
