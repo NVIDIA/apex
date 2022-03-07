@@ -37,7 +37,7 @@ class BroadcastDataTest(DistributedTestBase):
         key_size, _, _ = data_utils._build_key_size_numel_dictionaries(keys, data)
 
         for key in keys:
-            self.assertEqual(target_key_size[key] == key_size[key])
+            self.assertEqual(target_key_size[key], key_size[key])
 
         broadcasted_data = data_utils.broadcast_data(keys, data, torch.int64)
         for key in keys:
