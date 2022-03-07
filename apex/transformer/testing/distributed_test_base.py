@@ -50,14 +50,10 @@ class DistributedTestBase(common_distributed.MultiProcessTestCase):
 
         print(f"[dist init] rank = {self.rank}, world_size = {self.world_size}")
 
-        backend = os.environ.get("BACKEND", None)
-        if backend is None:
-            back_end = DistributedTestBase.BACKEND_NCCL
-
         try:
             dist.init_process_group(
                 init_method=self.init_method,
-                backend=backend,
+                backend=DistributedTestBase.BACKEND_NCCL,
                 world_size=int(self.world_size),
                 rank=self.rank,
             )
