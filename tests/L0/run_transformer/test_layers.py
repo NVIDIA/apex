@@ -86,10 +86,11 @@ class TensorParallelLayerTest(DistributedTestBase):
                 self.assertEqual(curr_weight, weight)
                 parallel_state.destroy_model_parallel()
 
-    def test_affine_weight_init(self) -> None:
-        for is_column_parallel in (True, False):
-            with self.subTest(is_column_parallel=is_column_parallel):
-                self._affine_weight_init_test_impl(is_column_parallel)
+    def test_affine_weight_init_column_parallel(self) -> None:
+        self._affine_weight_init_test_impl(is_column_parallel=True)
+
+    def test_affine_weight_init_row_parallel(self) -> None:
+        self._affine_weight_init_test_impl(is_column_parallel=False)
 
     def test_row_parallel_linear(self) -> None:
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
