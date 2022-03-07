@@ -89,6 +89,7 @@ mha_fwd(const at::Tensor &qkv,  // total x num_heads x 3 x head_size, total := \
         const float p_dropout,
         const int max_seq_len,
         const bool is_training,
+        const bool zero_tensors,
         c10::optional<at::Generator> gen_) {
     auto dprops = at::cuda::getCurrentDeviceProperties();
     TORCH_CHECK(dprops->major == 8 && dprops->minor == 0);
@@ -147,6 +148,11 @@ mha_fwd(const at::Tensor &qkv,  // total x num_heads x 3 x head_size, total := \
 
     auto s = torch::empty({ batch_size, num_heads, seq_len, seq_len }, opts);
 
+    if( zero_tensors ) {
+        ctx.zero_();
+        s.zero_();
+    }
+
     auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
         gen_, at::cuda::detail::getDefaultCUDAGenerator());
 
@@ -185,7 +191,8 @@ mha_bwd(const at::Tensor &dout,  // total x num_heads, x head_size
         at::Tensor &softmax,     // b x h x s x s softmax and dmask - will be overwritten with dP
         const at::Tensor &cu_seqlens,  // b+1
         const float p_dropout,         // probability to drop
-        const int max_seq_len          // max sequence length to choose the kernel
+        const int max_seq_len,          // max sequence length to choose the kernel
+        const bool zero_tensors
 ) {
     auto dprops = at::cuda::getCurrentDeviceProperties();
     TORCH_CHECK(dprops->major == 8 && dprops->minor == 0);
@@ -235,6 +242,10 @@ mha_bwd(const at::Tensor &dout,  // total x num_heads, x head_size
 
     auto dqkv = torch::empty_like(qkv);
 
+    if( zero_tensors ) {
+        dqkv.zero_();
+    }
+
     Fused_multihead_attention_fprop_params params;
 
     set_params(params,
@@ -264,6 +275,7 @@ std::vector<at::Tensor> mha_fwd_nl(const at::Tensor &qkv,         // total x num
                                 const float p_dropout,
                                 const int max_seq_len,
                                 const bool is_training,
+                                const bool zeros_tensors,
                                 c10::optional<at::Generator> gen_) {
     int seq_len = 512;
     auto launch = &run_fmha_fp16_512_64_sm80_nl;
@@ -303,6 +315,11 @@ std::vector<at::Tensor> mha_fwd_nl(const at::Tensor &qkv,         // total x num
     auto ctx = torch::empty({ total, num_heads, head_size }, opts);
 
     auto s = torch::empty({ batch_size, num_heads, seq_len, seq_len }, opts);
+
+    if( zero_tensors ) {
+        ctx.zero_();
+        s.zero_();
+    }
 
     auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(gen_, at::cuda::detail::getDefaultCUDAGenerator());
 
@@ -344,7 +361,8 @@ std::vector<at::Tensor> mha_bwd_nl(const at::Tensor &dout,        // total x num
                                 at::Tensor &softmax,           // b x h x s x s softmax and dmask - will be overwritten with dP
                                 const at::Tensor &cu_seqlens,  // b+1
                                 const float p_dropout,         // probability to drop
-                                const int max_seq_len          // max sequence length to choose the kernel
+                                const int max_seq_len,          // max sequence length to choose the kernel
+                                const bool zero_tensors
 ) {
 
     auto stream = at::cuda::getCurrentCUDAStream().stream();
@@ -378,6 +396,10 @@ std::vector<at::Tensor> mha_bwd_nl(const at::Tensor &dout,        // total x num
 
     auto dqkv = torch::empty_like(qkv);
 
+    if( zero_tensors ) {
+        dqkv.zero_();
+    }
+    
     int num_chunks = 2;
     if( batch_size == 1 ) {
         num_chunks = 4;
