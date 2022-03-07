@@ -40,8 +40,9 @@ class MappingTest(DistributedTestBase):
                 continue
             with self.subTest(tensor_model_paralell_world_size=tensor_model_paralell_world_size):
                 parallel_state.initialize_model_parallel(tensor_model_parallel_size_=tensor_model_paralell_world_size)
-                gathered = mappings._gather(torch.tensor([parallel_state.get_tensor_model_parallel_rank()]))
-                expected = torch.tensor([rank for rank in range(tensor_model_paralell_world_size)])
+                device = f"cuda:{self.rank}"
+                gathered = mappings._gather(torch.tensor([parallel_state.get_tensor_model_parallel_rank()], device=device))
+                expected = torch.tensor([rank for rank in range(tensor_model_paralell_world_size)], device=device)
                 self.assertTrue(torch.equal(gathered, expected))
                 parallel_state.destroy_model_parallel()
 
