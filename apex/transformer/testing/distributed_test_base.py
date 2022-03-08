@@ -10,32 +10,21 @@ from torch.testing._internal import common_distributed
 class DistributedTestBase(common_distributed.MultiProcessTestCase):
 
     BACKEND_NCCL = "nccl"
+    USE_ALL_GPUS = False
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        # TODO (mkozuki): Check if we can remove the line below as no need to set `_world_size` here as it's set in `setUp`
-        self._world_size = min(torch.cuda.device_count(), super().world_size)
 
     def setUp(self) -> None:
         super().setUp()
-        self._world_size = min(torch.cuda.device_count(), super().world_size)
         self._spawn_processes()
 
     def tearDown(self) -> None:
         super().tearDown()
-        self._world_size = None
 
-    # N.B. (mkozuki): From the perspective of execution time, I think
-    # faster tests are preferred to longer ones, but in some cases,
-    # we want to run longer for coverage.
-    # So, preparing a knob to set world_size > 4.
     @property
     def world_size(self) -> int:
-        return self._world_size
-
-    @world_size.setter
-    def world_size(self, new_world_size: int) -> None:
-        self._world_size = new_world_size
+        return min(torch.cuda.device_count(), 4)
 
     # TODO (mkozuki): Check if this is seriously needed.
     @property
