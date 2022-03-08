@@ -1,12 +1,17 @@
+import logging
+
 import torch
 import torch.nn as nn
 from torch.testing._internal import common_utils
 
+logging.getLogger("torch").setLevel(logging.WARNING)
+
 from apex.transformer import parallel_state
-from apex.transformer import tensor_parallel
 from apex.transformer.tensor_parallel import layers
 from apex.transformer.testing.commons import set_random_seed
 from apex.transformer.testing.distributed_test_base import DistributedTestBase
+
+logging.getLogger("apex").setLevel(logging.WARNING)
 
 
 class TensorParallelLayerTest(DistributedTestBase):

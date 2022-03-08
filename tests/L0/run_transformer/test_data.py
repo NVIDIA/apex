@@ -1,9 +1,15 @@
+import logging
+
 import torch.testing
 from torch.testing._internal import common_utils
+
+logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import data as data_utils
 from apex.transformer.testing.distributed_test_base import DistributedTestBase
+
+logging.getLogger("torch").setLevel(logging.WARNING)
 
 
 class BroadcastDataTest(DistributedTestBase):

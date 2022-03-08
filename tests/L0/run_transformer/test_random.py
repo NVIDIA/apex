@@ -1,10 +1,14 @@
-from unittest import result
+import logging
 import torch
 from torch.testing._internal import common_utils
+
+logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer import tensor_parallel
 from apex.transformer.testing.distributed_test_base import DistributedTestBase
+
+logging.getLogger("apex").setLevel(logging.WARNING)
 
 
 class TransformerRandomTest(DistributedTestBase):

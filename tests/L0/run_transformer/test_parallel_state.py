@@ -1,9 +1,14 @@
+import logging
 import os
 
 from torch.testing._internal import common_utils
 
+logging.getLogger("torch").setLevel(logging.WARNING)
+
 from apex.transformer import parallel_state
 from apex.transformer.testing.distributed_test_base import DistributedTestBase
+
+logging.getLogger("apex").setLevel(logging.WARNING)
 
 
 os.environ["BACKEND"] = "NCCL"
@@ -11,14 +16,12 @@ DATA_PARALLEL_WORLD_SIZE: int = 1
 
 
 def calc_expected_tensor_model_paralell_rank(
-    rank: int,
-    tensor_model_parallel_world_size: int,
+    rank: int, tensor_model_parallel_world_size: int,
 ) -> int:
     return rank % tensor_model_parallel_world_size
 
 
 class ParallelStateTest(DistributedTestBase):
-
     def test_initialize_model_parallel(self) -> None:
 
         self.assertFalse(parallel_state.model_parallel_is_initialized())
@@ -42,10 +45,8 @@ class ParallelStateTest(DistributedTestBase):
                     tensor_model_parallel_world_size,
                     parallel_state.get_tensor_model_parallel_world_size(),
                 )
-                expected_tensor_model_parallel_rank = (
-                    calc_expected_tensor_model_paralell_rank(
-                        self.rank, tensor_model_parallel_world_size
-                    )
+                expected_tensor_model_parallel_rank = calc_expected_tensor_model_paralell_rank(
+                    self.rank, tensor_model_parallel_world_size
                 )
                 self.assertEqual(
                     expected_tensor_model_parallel_rank,
@@ -100,14 +101,12 @@ class ParallelStateTest(DistributedTestBase):
             self.rank - (self.rank % tensor_model_parallel_world_size)
         ) % pipeline_model_parallel_world_size
         self.assertEqual(
-            expected_pipeline_rank,
-            parallel_state.get_pipeline_model_parallel_rank(),
+            expected_pipeline_rank, parallel_state.get_pipeline_model_parallel_rank(),
         )
         # virtual pipeline model parallel rank is lazily set, i.e., right after the call of
         # `initialize_model_parallel`, it's set to 0.
         self.assertEqual(
-            0,
-            parallel_state.get_virtual_pipeline_model_parallel_rank(),
+            0, parallel_state.get_virtual_pipeline_model_parallel_rank(),
         )
         self.assertEqual(
             pipeline_model_parallel_split_rank,

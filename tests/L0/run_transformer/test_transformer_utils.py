@@ -1,10 +1,14 @@
-from posixpath import split
+import logging
 import torch
 from torch.testing._internal import common_utils
+
+logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import utils
 from apex.transformer.testing.distributed_test_base import DistributedTestBase
+
+logging.getLogger("apex").setLevel(logging.WARNING)
 
 
 class TransformerUtilsTest(DistributedTestBase):
@@ -19,7 +23,6 @@ class TransformerUtilsTest(DistributedTestBase):
                     tensor_model_parallel_size_=tensor_model_paralell_world_size
                 )
 
-                device = f"cuda:{parallel_state.get_tensor_model_parallel_rank()}"
                 device = "cpu"
                 input_tensor = torch.randn((100, 100, 100), device=device)
                 splits = utils.split_tensor_along_last_dim(input_tensor, 10)
