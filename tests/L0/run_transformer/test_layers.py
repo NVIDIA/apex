@@ -27,6 +27,12 @@ from apex.transformer.testing.distributed_test_base import DistributedTestBase
 logging.getLogger("apex").setLevel(logging.WARNING)
 
 
+# N.B. (mkozuki): Disable TF32 matrix multiply.
+# Matrices used in this test are so small that TF32 matmul
+# can be less precise so that `self.assertEqual` raises.
+torch.backends.cuda.matmul.allow_tf32 = False
+
+
 class TensorParallelLayerTest(DistributedTestBase):
 
     BATCH_SIZE: int = 17
@@ -303,7 +309,7 @@ class TensorParallelLayerTest(DistributedTestBase):
                     a = linear.master_weight.cuda().clone()
                 dldx = torch.matmul(dldy, a)
                 self.assertEqual(input_tensor.grad, dldx)
-                # TODO (mkozuki): Add the other cases.
+                # TODO (mkozuki): Cover the other cases.
                 if (
                     tensor_model_parallel_world_size == 1
                     and not gradient_accumulation_fusion
