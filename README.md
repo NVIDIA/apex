@@ -110,8 +110,8 @@ We recommend the latest stable release, obtainable from
 [https://pytorch.org/](https://pytorch.org/).  We also test against the latest master branch, obtainable from [https://github.com/pytorch/pytorch](https://github.com/pytorch/pytorch).
 
 It's often convenient to use Apex in Docker containers.  Compatible options include:
-* [NVIDIA Pytorch containers from NGC](https://ngc.nvidia.com/catalog/containers/nvidia%2Fpytorch), which come with Apex preinstalled.  To use the latest Amp API, you may need to `pip uninstall apex` then reinstall Apex using the **Quick Start** commands below.
-* [official Pytorch -devel Dockerfiles](https://hub.docker.com/r/pytorch/pytorch/tags), e.g. `docker pull pytorch/pytorch:nightly-devel-cuda10.0-cudnn7`, in which you can install Apex using the **Quick Start** commands.
+* [NVIDIA Pytorch containers from NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch), which come with Apex preinstalled.  To use the latest Amp API, you may need to `pip uninstall apex` then reinstall Apex using the **Quick Start** commands below.
+* [official Pytorch -devel Dockerfiles](https://hub.docker.com/r/pytorch/pytorch/tags), e.g. `docker pull pytorch/pytorch:1.10.0-cuda11.3-cudnn8-devel`, in which you can install Apex using the **Quick Start** commands.
 
 See the [Docker example folder](https://github.com/NVIDIA/apex/tree/master/examples/docker) for details.
 
