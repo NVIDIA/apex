@@ -19,6 +19,7 @@ from typing import Tuple, Optional
 
 import torch
 
+from apex.transformer.utils import ensure_divisibility
 from apex.transformer.log_util import get_transformer_logger
 
 
