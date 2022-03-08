@@ -44,7 +44,7 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
             (True, False), [torch.float32] + _get_autocast_dtypes(), (True, False),
         ):
             grad_scaler = (
-                torch.cuda.amp.GradScaler(init_scaler=4.0)
+                torch.cuda.amp.GradScaler(init_scale=4.0)
                 if dtype == torch.half
                 else None
             )
