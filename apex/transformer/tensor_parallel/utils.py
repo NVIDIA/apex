@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,7 +43,9 @@ class VocabUtility:
     partition: Note that indices in [fist, last)"""
 
     @staticmethod
-    def vocab_range_from_per_partition_vocab_size(per_partition_vocab_size, rank, world_size):
+    def vocab_range_from_per_partition_vocab_size(
+        per_partition_vocab_size, rank, world_size
+    ):
         index_f = rank * per_partition_vocab_size
         index_l = index_f + per_partition_vocab_size
         return index_f, index_l
@@ -51,4 +53,6 @@ class VocabUtility:
     @staticmethod
     def vocab_range_from_global_vocab_size(global_vocab_size, rank, world_size):
         per_partition_vocab_size = divide(global_vocab_size, world_size)
-        return VocabUtility.vocab_range_from_per_partition_vocab_size(per_partition_vocab_size, rank, world_size)
+        return VocabUtility.vocab_range_from_per_partition_vocab_size(
+            per_partition_vocab_size, rank, world_size
+        )

@@ -1,3 +1,16 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import Tuple
 import os
 import subprocess
@@ -5,32 +18,26 @@ import sys
 import unittest
 
 
-DENY_TEST = [
-    "megatron_gpt_pipeline",
-]
-MULTIGPU_TEST = [
-    "pipeline_parallel_test",
-]
 SEVERALGPU_TEST = [
     "bert_minimal_test",
     "gpt_minimal_test",
     "dynamic_batchsize_test",
 ]
 
+
 def get_multigpu_launch_option(min_gpu):
     should_skip = False
     import torch
+
     num_devices = torch.cuda.device_count()
     if num_devices < min_gpu:
         should_skip = True
     distributed_run_options = f"-m torch.distributed.run --nproc_per_node={num_devices}"
     return should_skip, distributed_run_options
 
+
 def get_launch_option(test_filename) -> Tuple[bool, str]:
     should_skip = False
-    for multigpu_test in MULTIGPU_TEST:
-        if multigpu_test in test_filename:
-            return get_multigpu_launch_option(2)
     for severalgpu_test in SEVERALGPU_TEST:
         if severalgpu_test in test_filename:
             return get_multigpu_launch_option(3)
@@ -43,7 +50,8 @@ def run_transformer_tests():
     # directory = os.path.abspath(os.path.join(repository_root, "tests/mpu"))
     directory = os.path.dirname(__file__)
     files = [
-        os.path.join(directory, f) for f in os.listdir(directory)
+        os.path.join(directory, f)
+        for f in os.listdir(directory)
         if f.startswith("run_") and os.path.isfile(os.path.join(directory, f))
     ]
     print("#######################################################")
@@ -61,28 +69,33 @@ def run_transformer_tests():
             continue
         should_skip, launch_option = get_launch_option(test_file)
         if should_skip:
-            print(f"### {i} / {len(files)}: {test_file} skipped. Requires multiple GPUs.")
+            print(
+                f"### {i} / {len(files)}: {test_file} skipped. Requires multiple GPUs."
+            )
             continue
         test_run_cmd = (
             f"{python_executable_path} {launch_option} {test_file} "
             "--micro-batch-size 2 --num-layers 16 --hidden-size 256 --num-attention-heads 8 --max-position-embeddings "
             "512 --seq-length 512 --global-batch-size 128"
         )
-        if 'bert' in test_file or 'gpt' in test_file:
+        if "bert" in test_file or "gpt" in test_file:
             import torch
+
             num_devices = torch.cuda.device_count()
             test_run_cmd += f" --pipeline-model-parallel-size {num_devices}"
         else:
             test_run_cmd += f" --use-cpu-initialization"
         print(f"### {i} / {len(files)}: cmd: {test_run_cmd}")
         try:
-            output = subprocess.check_output(
-                test_run_cmd, shell=True
-            ).decode(sys.stdout.encoding).strip()
+            output = (
+                subprocess.check_output(test_run_cmd, shell=True)
+                .decode(sys.stdout.encoding)
+                .strip()
+            )
         except Exception as e:
             errors.append((test_file, str(e)))
         else:
-            if '>> passed the test :-)' not in output:
+            if ">> passed the test :-)" not in output:
                 errors.append((test_file, output))
     else:
         if not errors:
@@ -97,10 +110,9 @@ def run_transformer_tests():
 
 
 class TestTransformer(unittest.TestCase):
-
     def test_transformer(self):
         run_transformer_tests()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

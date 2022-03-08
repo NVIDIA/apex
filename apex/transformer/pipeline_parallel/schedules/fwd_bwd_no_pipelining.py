@@ -1,3 +1,16 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from contextlib import contextmanager
 from typing import List, Union, Optional
 
@@ -29,16 +42,16 @@ def placeholder_handler():
 
 
 def forward_backward_no_pipelining(
-        forward_step_func: FwdStepFunc,
-        batch: Batch,
-        model: Union[torch.nn.Module, List[torch.nn.Module]],
-        *,
-        forward_only: bool,
-        dtype: Optional[torch.dtype] = None,
-        grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
-        disable_autocast: bool = False,
-        custom_sync_context_handler = None,
-        **kwargs,
+    forward_step_func: FwdStepFunc,
+    batch: Batch,
+    model: Union[torch.nn.Module, List[torch.nn.Module]],
+    *,
+    forward_only: bool,
+    dtype: Optional[torch.dtype] = None,
+    grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
+    disable_autocast: bool = False,
+    custom_sync_context_handler=None,
+    **kwargs,
 ):
     """Run forward and backward passes with no pipeline parallelism (no inter-stage communication).
 
@@ -98,7 +111,13 @@ def forward_backward_no_pipelining(
             )
             if not forward_only:
                 _logger.debug("Call `backward_step`")
-                backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
+                backward_step(
+                    input_tensor,
+                    output_tensor,
+                    output_tensor_grad,
+                    model_type=model_type,
+                    grad_scaler=grad_scaler,
+                )
 
     # Run computation for last microbatch out of context handler (want to
     # synchronize gradients).
@@ -115,6 +134,12 @@ def forward_backward_no_pipelining(
     )
     if not forward_only:
         _logger.debug("Call `backward_step`")
-        backward_step(input_tensor, output_tensor, output_tensor_grad, model_type=model_type, grad_scaler=grad_scaler)
+        backward_step(
+            input_tensor,
+            output_tensor,
+            output_tensor_grad,
+            model_type=model_type,
+            grad_scaler=grad_scaler,
+        )
 
     return losses_reduced

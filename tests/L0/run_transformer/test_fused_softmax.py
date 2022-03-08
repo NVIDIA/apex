@@ -1,3 +1,16 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Test for fused softmax functions.
 
 Ref: https://github.com/NVIDIA/Megatron-LM/blob/40becfc96c4144985458ac0e0fae45dbb111fbd2/megatron/fused_kernels/tests/test_fused_kernels.py
@@ -15,12 +28,20 @@ def attention_mask_func(attention_scores, attention_mask):
     return attention_scores.masked_fill(attention_mask, -10000.0)
 
 
-autocast_dtypes = (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
+autocast_dtypes = (
+    (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
+)
 
 
 class TestFusedScaleMaskSoftmax(unittest.TestCase):
-
-    def _setup_fused_softmax(self, input_in_fp16, input_in_bf16, scale=None, softmax_in_fp32=False, attn_mask_type=AttnMaskType.padding):
+    def _setup_fused_softmax(
+        self,
+        input_in_fp16,
+        input_in_bf16,
+        scale=None,
+        softmax_in_fp32=False,
+        attn_mask_type=AttnMaskType.padding,
+    ):
         fused_fn = FusedScaleMaskSoftmax(
             input_in_fp16=input_in_fp16,
             input_in_bf16=input_in_bf16,
@@ -47,20 +68,34 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
         mask.shape = [4, 1, 24, 24]
         """
         for (dtype, scale, softmax_in_fp32) in itertools.product(
-                (torch.half, torch.bfloat16),
-                (None, 2.0),
-                (False, True),
+            (torch.half, torch.bfloat16), (None, 2.0), (False, True),
         ):
             with self.subTest(f"{dtype}-{scale}-{softmax_in_fp32}"):
                 input_in_fp16 = dtype == torch.half
                 input_in_bf16 = dtype == torch.bfloat16
                 if not (scale is None or softmax_in_fp32):
                     with self.assertRaises(RuntimeError):
-                        self._setup_fused_softmax(input_in_fp16, input_in_bf16, scale, softmax_in_fp32, AttnMaskType.padding)
+                        self._setup_fused_softmax(
+                            input_in_fp16,
+                            input_in_bf16,
+                            scale,
+                            softmax_in_fp32,
+                            AttnMaskType.padding,
+                        )
                     return
-                fused_fn, torch_fn = self._setup_fused_softmax(input_in_fp16, input_in_bf16, scale, softmax_in_fp32, AttnMaskType.padding)
+                fused_fn, torch_fn = self._setup_fused_softmax(
+                    input_in_fp16,
+                    input_in_bf16,
+                    scale,
+                    softmax_in_fp32,
+                    AttnMaskType.padding,
+                )
 
-                attention_scores_0 = torch.randn((4, 12, 24, 24)).to(device="cuda", dtype=dtype).requires_grad_(True)
+                attention_scores_0 = (
+                    torch.randn((4, 12, 24, 24))
+                    .to(device="cuda", dtype=dtype)
+                    .requires_grad_(True)
+                )
                 with torch.no_grad():
                     attention_scores_1 = attention_scores_0.clone().requires_grad_(True)
                 mask = torch.randint(0, 2, (4, 1, 24, 24), device="cuda").bool()
@@ -80,11 +115,16 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 input_in_fp16 = dtype == torch.half
                 input_in_bf16 = dtype == torch.bfloat16
                 fused_fn, torch_fn = self._setup_fused_softmax(
-                    input_in_fp16, input_in_bf16, attn_mask_type=AttnMaskType.padding)
+                    input_in_fp16, input_in_bf16, attn_mask_type=AttnMaskType.padding
+                )
 
-                attention_scores_0 = torch.randn((4, 12, 24, 24)).cuda().requires_grad_(True)
+                attention_scores_0 = (
+                    torch.randn((4, 12, 24, 24)).cuda().requires_grad_(True)
+                )
                 with torch.no_grad():
-                    attention_scores_1 = attention_scores_0.clone().to(dtype).requires_grad_(True)
+                    attention_scores_1 = (
+                        attention_scores_0.clone().to(dtype).requires_grad_(True)
+                    )
                 mask = torch.randint(0, 2, (4, 1, 24, 24)).bool().cuda()
 
                 expected = torch_fn(attention_scores_1, mask)
@@ -108,9 +148,7 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
         upper elements are True and lower elements and diagonal are False.
         """
         for (dtype, scale, softmax_in_fp32) in itertools.product(
-                (torch.half, torch.bfloat16),
-                (None, 2.0),
-                (False, True),
+            (torch.half, torch.bfloat16), (None, 2.0), (False, True),
         ):
             with self.subTest(f"{dtype}-{scale}-{softmax_in_fp32}"):
                 input_in_fp16 = dtype == torch.half
@@ -118,17 +156,33 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 if not (scale is None or softmax_in_fp32):
                     with self.assertRaises(RuntimeError):
                         self._setup_fused_softmax(
-                            input_in_fp16, input_in_bf16, scale, softmax_in_fp32, AttnMaskType.causal)
+                            input_in_fp16,
+                            input_in_bf16,
+                            scale,
+                            softmax_in_fp32,
+                            AttnMaskType.causal,
+                        )
                     return
                 fused_fn, torch_fn = self._setup_fused_softmax(
-                    input_in_fp16, input_in_bf16, scale, softmax_in_fp32, AttnMaskType.causal)
+                    input_in_fp16,
+                    input_in_bf16,
+                    scale,
+                    softmax_in_fp32,
+                    AttnMaskType.causal,
+                )
 
-                attn_weights_0 = torch.randn((4, 12, 24, 24)).to(device="cuda", dtype=dtype).requires_grad_(True)
+                attn_weights_0 = (
+                    torch.randn((4, 12, 24, 24))
+                    .to(device="cuda", dtype=dtype)
+                    .requires_grad_(True)
+                )
                 with torch.no_grad():
                     attn_weights_1 = attn_weights_0.clone().requires_grad_(True)
-                total_mask = (~(
-                    torch.tril(torch.randn((24, 24), device="cuda")).bool()
-                ).unsqueeze(0).unsqueeze(0))
+                total_mask = (
+                    ~(torch.tril(torch.randn((24, 24), device="cuda")).bool())
+                    .unsqueeze(0)
+                    .unsqueeze(0)
+                )
                 total_mask = total_mask.repeat((4, 1, 1, 1))
                 expected = fused_fn(attn_weights_0, total_mask)
                 actual = torch_fn(attn_weights_1, total_mask)
@@ -146,14 +200,21 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 input_in_fp16 = dtype == torch.half
                 input_in_bf16 = dtype == torch.bfloat16
                 fused_fn, torch_fn = self._setup_fused_softmax(
-                    input_in_fp16, input_in_bf16, attn_mask_type=AttnMaskType.causal)
+                    input_in_fp16, input_in_bf16, attn_mask_type=AttnMaskType.causal
+                )
 
-                attn_weights_0 = torch.randn((4, 12, 24, 24)).cuda().requires_grad_(True)
+                attn_weights_0 = (
+                    torch.randn((4, 12, 24, 24)).cuda().requires_grad_(True)
+                )
                 with torch.no_grad():
-                    attn_weights_1 = attn_weights_0.clone().to(dtype).requires_grad_(True)
-                total_mask = (~(
-                    torch.tril(torch.randn((24, 24), device="cuda")).bool()
-                ).unsqueeze(0).unsqueeze(0))
+                    attn_weights_1 = (
+                        attn_weights_0.clone().to(dtype).requires_grad_(True)
+                    )
+                total_mask = (
+                    ~(torch.tril(torch.randn((24, 24), device="cuda")).bool())
+                    .unsqueeze(0)
+                    .unsqueeze(0)
+                )
 
                 with torch.cuda.amp.autocast(dtype=dtype):
                     actual = fused_fn(attn_weights_0, total_mask)

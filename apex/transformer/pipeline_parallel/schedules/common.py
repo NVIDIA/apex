@@ -1,3 +1,16 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import Any, Callable, Dict, List, Tuple, Union, Optional, Sequence
 
 import torch
@@ -10,7 +23,9 @@ from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import unwrap_model
 from apex.transformer.pipeline_parallel.utils import get_model_type
-from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
+from apex.transformer.tensor_parallel.layers import (
+    set_defaults_if_not_set_tensor_model_parallel_attributes,
+)
 from apex.transformer.log_util import get_transformer_logger
 
 
@@ -19,16 +34,18 @@ _logger = get_transformer_logger(__name__)
 
 Batch = Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor, ...]]
 LossFunc = Callable[[torch.Tensor], torch.Tensor]
-FwdStepFunc = Callable[[Optional[Batch], torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
+FwdStepFunc = Callable[
+    [Optional[Batch], torch.nn.Module], Tuple[torch.Tensor, LossFunc]
+]
 
 
 def build_model(
-        model_provider_func: Callable[[Any, Dict[str, Any]], torch.nn.Module],
-        wrap_with_ddp: bool = True,
-        virtual_pipeline_model_parallel_size: Optional[int] = None,
-        model_type: ModelType = ModelType.encoder_or_decoder,
-        *args: Any,
-        **kwargs: Any,
+    model_provider_func: Callable[[Any, Dict[str, Any]], torch.nn.Module],
+    wrap_with_ddp: bool = True,
+    virtual_pipeline_model_parallel_size: Optional[int] = None,
+    model_type: ModelType = ModelType.encoder_or_decoder,
+    *args: Any,
+    **kwargs: Any,
 ) -> List[torch.nn.Module]:
     """Build the model satisfying pipeline model parallel requirements.
 
@@ -49,8 +66,8 @@ def build_model(
         the list has multiple models, otherwise one.
     """
     if (
-            parallel_state.get_pipeline_model_parallel_world_size() > 1 and
-            virtual_pipeline_model_parallel_size is not None
+        parallel_state.get_pipeline_model_parallel_world_size() > 1
+        and virtual_pipeline_model_parallel_size is not None
     ):
         model = []
         for i in range(virtual_pipeline_model_parallel_size):
@@ -60,10 +77,9 @@ def build_model(
             # Set pre_process and post_process only after virtual rank is set.
             pre_process = parallel_state.is_pipeline_first_stage()
             post_process = parallel_state.is_pipeline_last_stage()
-            cur_kwargs.update({
-                "pre_process": pre_process,
-                "post_process": post_process,
-            })
+            cur_kwargs.update(
+                {"pre_process": pre_process, "post_process": post_process,}
+            )
             this_model = model_provider_func(*cur_args, **cur_kwargs)
             model.append(this_model)
     else:
@@ -72,10 +88,9 @@ def build_model(
         if model_type == ModelType.encoder_or_decoder:
             pre_process = parallel_state.is_pipeline_first_stage()
             post_process = parallel_state.is_pipeline_last_stage()
-            cur_kwargs.update({
-                "pre_process": pre_process,
-                "post_process": post_process,
-            })
+            cur_kwargs.update(
+                {"pre_process": pre_process, "post_process": post_process,}
+            )
             model = model_provider_func(*cur_args, **cur_kwargs)
         elif model_type == ModelType.encoder_and_decoder:
             pre_process = parallel_state.is_pipeline_first_stage()
@@ -94,12 +109,14 @@ def build_model(
                 post_process = rank == (split_rank - 1) or rank == (world_size - 1)
                 add_encoder = parallel_state.is_pipeline_stage_before_split()
                 add_decoder = parallel_state.is_pipeline_stage_after_split()
-            cur_kwargs.update({
-                "pre_process": pre_process,
-                "post_process": post_process,
-                "add_encoder": add_encoder,
-                "add_decoder": add_decoder,
-            })
+            cur_kwargs.update(
+                {
+                    "pre_process": pre_process,
+                    "post_process": post_process,
+                    "add_encoder": add_encoder,
+                    "add_decoder": add_decoder,
+                }
+            )
             model = model_provider_func(*cur_args, **cur_kwargs)
         model.model_type = model_type
 
@@ -115,7 +132,10 @@ def build_model(
             set_defaults_if_not_set_tensor_model_parallel_attributes(param)
 
     # Print number of parameters.
-    if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
+    if (
+        parallel_state.model_parallel_is_initialized()
+        and parallel_state.get_data_parallel_rank() == 0
+    ):
         msg = " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
             parallel_state.get_tensor_model_parallel_rank(),
             parallel_state.get_pipeline_model_parallel_rank(),
@@ -143,41 +163,54 @@ def build_model(
 
 def _calc_number_of_params(model: List[torch.nn.Module]) -> int:
     assert isinstance(model, list)
-    return sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
+    return sum(
+        [
+            sum([p.nelement() for p in model_module.parameters()])
+            for model_module in model
+        ]
+    )
 
 
 def _get_params_for_weight_decay_optimization(
-        model: Union[torch.nn.Module, List[torch.nn.Module]],
-        *,
-        no_weight_decay_modules=(FusedLayerNorm,),
+    model: Union[torch.nn.Module, List[torch.nn.Module]],
+    *,
+    no_weight_decay_modules=(FusedLayerNorm,),
 ) -> Dict[str, torch.nn.Parameter]:
     """Divide params into with-weight-decay and without-weight-decay groups.
 
     Layernorms and biases will have no weight decay but the rest will.
     """
     modules = listify_model(model)
-    weight_decay_params = {'params': []}
-    no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
+    weight_decay_params = {"params": []}
+    no_weight_decay_params = {"params": [], "weight_decay": 0.0}
     for module in modules:
         for module_ in module.modules():
             if isinstance(module_, no_weight_decay_modules):
-                no_weight_decay_params['params'].extend(
-                    [p for p in list(module_._parameters.values())
-                     if p is not None])
+                no_weight_decay_params["params"].extend(
+                    [p for p in list(module_._parameters.values()) if p is not None]
+                )
             else:
-                weight_decay_params['params'].extend(
-                    [p for n, p in list(module_._parameters.items())
-                     if p is not None and n != 'bias'])
-                no_weight_decay_params['params'].extend(
-                    [p for n, p in list(module_._parameters.items())
-                     if p is not None and n == 'bias'])
+                weight_decay_params["params"].extend(
+                    [
+                        p
+                        for n, p in list(module_._parameters.items())
+                        if p is not None and n != "bias"
+                    ]
+                )
+                no_weight_decay_params["params"].extend(
+                    [
+                        p
+                        for n, p in list(module_._parameters.items())
+                        if p is not None and n == "bias"
+                    ]
+                )
 
     return weight_decay_params, no_weight_decay_params
 
 
 def free_output_tensor(
-        output_tensors: Optional[Union[torch.Tensor, Sequence[torch.Tensor]]],
-        deallocate_pipeline_outputs: bool = False
+    output_tensors: Optional[Union[torch.Tensor, Sequence[torch.Tensor]]],
+    deallocate_pipeline_outputs: bool = False,
 ) -> None:
     """Pseudo-free the output tensor's `.data` field.
 
@@ -202,9 +235,15 @@ def custom_backward(output: torch.Tensor, grad_output: Optional[torch.Tensor]) -
     directly, bypassing PyTorch's `torch.autograd.backward`. PyTorch's `backward` checks that the
     output and grad have the same shape, while C++ `backward` does not.
     """
-    assert output.numel() == 1, "output should be pseudo-freed in schedule, to optimize memory consumption"
-    assert isinstance(output, torch.Tensor), "output == {}.".format(type(output).__name__)
-    assert isinstance(grad_output, (torch.Tensor, type(None))), "grad_outptu == {}.".format(type(grad_output).__name__)
+    assert (
+        output.numel() == 1
+    ), "output should be pseudo-freed in schedule, to optimize memory consumption"
+    assert isinstance(output, torch.Tensor), "output == {}.".format(
+        type(output).__name__
+    )
+    assert isinstance(
+        grad_output, (torch.Tensor, type(None))
+    ), "grad_outptu == {}.".format(type(grad_output).__name__)
 
     # Handle scalar output
     if grad_output is None:
@@ -224,13 +263,13 @@ def custom_backward(output: torch.Tensor, grad_output: Optional[torch.Tensor]) -
 
 
 def forward_step(
-        forward_step_func: FwdStepFunc,
-        batch: Optional[Batch],
-        model: torch.nn.Module,
-        input_tensor: Optional[Union[torch.Tensor, List[torch.Tensor]]],
-        losses_reduced: List[torch.Tensor],
-        dtype: torch.dtype,
-        disable_autocast: bool = False,
+    forward_step_func: FwdStepFunc,
+    batch: Optional[Batch],
+    model: torch.nn.Module,
+    input_tensor: Optional[Union[torch.Tensor, List[torch.Tensor]]],
+    losses_reduced: List[torch.Tensor],
+    dtype: torch.dtype,
+    disable_autocast: bool = False,
 ) -> Union[torch.Tensor, Sequence[torch.Tensor]]:
     """Forward step for passed-in model.
 
@@ -264,8 +303,8 @@ def forward_step(
 
     unwrapped_model.set_input_tensor(input_tensor)
     with torch.cuda.amp.autocast(
-            enabled=not disable_autocast and dtype in (torch.half, torch.bfloat16),
-            dtype=dtype,
+        enabled=not disable_autocast and dtype in (torch.half, torch.bfloat16),
+        dtype=dtype,
     ):
         output_tensor, loss_func = forward_step_func(batch, model)
         if parallel_state.is_pipeline_last_stage():
@@ -278,7 +317,10 @@ def forward_step(
     # If T5 model (or other model with encoder and decoder)
     # and in decoder stack, then send encoder_hidden_state
     # downstream as well.
-    if parallel_state.is_pipeline_stage_after_split() and model_type == ModelType.encoder_and_decoder:
+    if (
+        parallel_state.is_pipeline_stage_after_split()
+        and model_type == ModelType.encoder_and_decoder
+    ):
         return [output_tensor, input_tensor[-1]]
     if unwrap_output_tensor:
         return output_tensor
@@ -286,13 +328,13 @@ def forward_step(
 
 
 def backward_step(
-        input_tensor: Optional[torch.Tensor],
-        output_tensor: torch.Tensor,
-        output_tensor_grad: Optional[torch.Tensor],
-        model_type: ModelType,
-        *,
-        grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
-        deallocate_pipeline_outputs: bool = False,
+    input_tensor: Optional[torch.Tensor],
+    output_tensor: torch.Tensor,
+    output_tensor_grad: Optional[torch.Tensor],
+    model_type: ModelType,
+    *,
+    grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
+    deallocate_pipeline_outputs: bool = False,
 ) -> Union[None, torch.Tensor, Sequence[torch.Tensor]]:
     """Backward step through passed-in output tensor.
 
@@ -343,9 +385,9 @@ def backward_step(
 
     # Handle single skip connection if it exists (encoder_hidden_state in model with encoder and decoder).
     if (
-            parallel_state.get_pipeline_model_parallel_world_size() > 1 and
-            parallel_state.is_pipeline_stage_after_split() and
-            model_type == ModelType.encoder_and_decoder
+        parallel_state.get_pipeline_model_parallel_world_size() > 1
+        and parallel_state.is_pipeline_stage_after_split()
+        and model_type == ModelType.encoder_and_decoder
     ):
         if output_tensor_grad[1] is not None:
             # todo (mkozuki): Replace the inplace add with `+= output_tensor_grad[1]`?
