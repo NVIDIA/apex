@@ -38,22 +38,23 @@ class FMHAFun(torch.autograd.Function):
             context, S_dmask = mha.fwd_nl(qkv, cu_seqlens, p_dropout, max_s, is_training, zero_tensors, None)
         else:
             context, S_dmask = mha.fwd(qkv, cu_seqlens, p_dropout, max_s, is_training, zero_tensors, None)
-        ctx.save_for_backward(qkv, S_dmask, zero_tensors)
+        ctx.save_for_backward(qkv, S_dmask)
         ctx.cu_seqlens = cu_seqlens
         ctx.p_dropout = p_dropout
-        ctx.max_s = max_s        
+        ctx.max_s = max_s
+        ctx.zero_tensors = zero_tensors
         return context
     
     @staticmethod
     def backward(ctx, dout):
-        qkv, S_dmask, zero_tensors = ctx.saved_tensors
+        qkv, S_dmask = ctx.saved_tensors
         batch_size = ctx.cu_seqlens.numel() - 1
         if batch_size < 4:
-            dqkv, dp, _ = mha.bwd_nl(dout, qkv, S_dmask, ctx.cu_seqlens, ctx.p_dropout, ctx.max_s, zero_tensors)
+            dqkv, dp, _ = mha.bwd_nl(dout, qkv, S_dmask, ctx.cu_seqlens, ctx.p_dropout, ctx.max_s, ctx.zero_tensors)
         else:
-            dqkv, dp = mha.bwd(dout, qkv, S_dmask, ctx.cu_seqlens, ctx.p_dropout, ctx.max_s, zero_tensors)
+            dqkv, dp = mha.bwd(dout, qkv, S_dmask, ctx.cu_seqlens, ctx.p_dropout, ctx.max_s, ctx.zero_tensors)
 
-        return dqkv, None, None, None, None, None, None
+        return dqkv, None, None, None, None, None, None, None
 
 class FMHA(torch.nn.Module):
 
