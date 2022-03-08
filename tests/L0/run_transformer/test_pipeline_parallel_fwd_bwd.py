@@ -33,7 +33,7 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
     @property
     def world_size(self) -> int:
-        return max(torch.cuda.device_count(), 4)
+        return min(torch.cuda.device_count(), 8)
 
     def _forward_backward_test_impl(
         self,
@@ -73,7 +73,7 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                 PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
                 PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
             )
-            batch = (torch.randn(tensor_shape).cudas(),)
+            batch = (torch.randn(tensor_shape).cuda(),)
 
             model = build_model(
                 testing_utils.model_provider_func,
