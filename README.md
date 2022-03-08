@@ -100,20 +100,14 @@ Note that we recommend restoring the model using the same `opt_level`. Also note
 
 # Requirements
 
-Python 3
-
-CUDA 9 or newer
-
-PyTorch 0.4 or newer.  The CUDA and C++ extensions require pytorch 1.0 or newer.
-
 We recommend the latest stable release, obtainable from
 [https://pytorch.org/](https://pytorch.org/).  We also test against the latest master branch, obtainable from [https://github.com/pytorch/pytorch](https://github.com/pytorch/pytorch).
 
 It's often convenient to use Apex in Docker containers.  Compatible options include:
-* [NVIDIA Pytorch containers from NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch), which come with Apex preinstalled.  To use the latest Amp API, you may need to `pip uninstall apex` then reinstall Apex using the **Quick Start** commands below.
+* [NVIDIA Pytorch containers from NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch), which come with Apex preinstalled.
 * [official Pytorch -devel Dockerfiles](https://hub.docker.com/r/pytorch/pytorch/tags), e.g. `docker pull pytorch/pytorch:1.10.0-cuda11.3-cudnn8-devel`, in which you can install Apex using the **Quick Start** commands.
 
-See the [Docker example folder](https://github.com/NVIDIA/apex/tree/master/examples/docker) for details.
+See the [Docker example folder](https://github.com/NVIDIA/apex/tree/master/examples/docker) for details of reinstalling the latest APEX in NVIDIA PyTorch containers from NGC.
 
 # Quick Start
 
@@ -127,7 +121,7 @@ cd apex
 pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 ```
 
-Apex also supports a Python-only build (required with Pytorch 0.4) via
+Apex also supports a Python-only build via
 ```
 pip install -v --disable-pip-version-check --no-cache-dir ./
 ```
