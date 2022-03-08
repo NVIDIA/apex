@@ -37,11 +37,13 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
     def _forward_backward_test_impl(
         self,
+        forward_only: bool,
         fwd_bwd_func: FwdStepFunc,
+        pipeline_model_parallel_world_size: Optional[int],
         vriatual_pipeline_model_parallel_size: Optional[int],
     ) -> None:
-        for forward_only, dtype, deallocate_pipeline_outputs in itertools.product(
-            (True, False), [torch.float32] + _get_autocast_dtypes(), (True, False),
+        for dtype, deallocate_pipeline_outputs in itertools.product(
+            [torch.float32] + _get_autocast_dtypes(), (True, False),
         ):
             grad_scaler = (
                 torch.cuda.amp.GradScaler(init_scale=4.0)
@@ -52,7 +54,7 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
             data_parallel_size = 1 + (self.world_size >= 8 and self.world_size % 2 == 0)
             pipeline_model_parallel_world_size = self.world_size // (
                 tensor_model_parallel_world_size * data_parallel_size
-            )
+            ) if pipeline_model_parallel_world_size is None else 1
 
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size,
@@ -67,12 +69,12 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
-            tensor_shape = (
-                PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE,
+            global_batch_shape = (
+                PipelineParallelForwardBackwardTest.GLOBAL_BATCH_SIZE // parallel_state.get_data_parallel_world_size(),
                 PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
                 PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
             )
-            batch = (torch.randn(tensor_shape).cuda(),)
+            batch = (torch.randn(global_batch_shape).cuda(),)
 
             model = build_model(
                 testing_utils.model_provider_func,
@@ -90,7 +92,8 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                 batch,
                 model,
                 forward_only=forward_only,
-                tensor_shape=tensor_shape,
+                # `tensor_shape` is the shape of micro batch.
+                tensor_shape=(PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE, PipelineParallelForwardBackwardTest.HIDDEN_SIZE, PipelineParallelForwardBackwardTest.HIDDEN_SIZE),
                 dtype=dtype,
                 grad_scaler=grad_scaler,
                 deallocate_pipeline_output=deallocate_pipeline_outputs,
@@ -106,16 +109,29 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
             parallel_state.destroy_model_parallel()
 
     def test_no_pipelining(self):
-        self._forward_backward_test_impl(forward_backward_no_pipelining, None)
+        self._forward_backward_test_impl(False, forward_backward_no_pipelining, 1, None)
+
+    def test_no_pipelining_inference(self):
+        self._forward_backward_test_impl(True, forward_backward_no_pipelining, 1, None)
 
     def test_pipelining(self):
         self._forward_backward_test_impl(
-            forward_backward_pipelining_without_interleaving, None
+            False, forward_backward_pipelining_without_interleaving, None, None
+        )
+
+    def test_pipelining_inference(self):
+        self._forward_backward_test_impl(
+            True, forward_backward_pipelining_without_interleaving, None, None
         )
 
     def test_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
-            _forward_backward_pipelining_with_interleaving, 2
+            False, _forward_backward_pipelining_with_interleaving, 2, None
+        )
+
+    def test_pipelining_with_interleaving_inference(self):
+        self._forward_backward_test_impl(
+            True, _forward_backward_pipelining_with_interleaving, 2, None
         )
 
 
