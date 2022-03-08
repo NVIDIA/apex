@@ -275,7 +275,7 @@ std::vector<at::Tensor> mha_fwd_nl(const at::Tensor &qkv,         // total x num
                                 const float p_dropout,
                                 const int max_seq_len,
                                 const bool is_training,
-                                const bool zeros_tensors,
+                                const bool zero_tensors,
                                 c10::optional<at::Generator> gen_) {
     int seq_len = 512;
     auto launch = &run_fmha_fp16_512_64_sm80_nl;
