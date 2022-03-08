@@ -1,14 +1,17 @@
+import logging
 from typing import Tuple
 
 import torch
 import torch.nn.functional as F
 from torch.testing._internal import common_utils
+logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer import tensor_parallel
 from apex.transformer.tensor_parallel import cross_entropy
 from apex.transformer.testing.commons import set_random_seed, IdentityLayer
 from apex.transformer.testing.distributed_test_base import DistributedTestBase
+logging.getLogger("apex").setLevel(logging.WARNING)
 
 
 def torch_cross_entropy(
