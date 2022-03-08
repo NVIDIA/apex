@@ -61,12 +61,6 @@ def run_transformer_tests():
     errors = []
     for i, test_file in enumerate(files, 1):
         is_denied = False
-        for deny_file in DENY_TEST:
-            if deny_file in test_file:
-                is_denied = True
-        if is_denied:
-            print(f"### {i} / {len(files)}: {test_file} skipped")
-            continue
         should_skip, launch_option = get_launch_option(test_file)
         if should_skip:
             print(
