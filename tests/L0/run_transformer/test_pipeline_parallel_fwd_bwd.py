@@ -52,9 +52,12 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
             )
             tensor_model_parallel_world_size = 1
             data_parallel_size = 1 + (self.world_size >= 8 and self.world_size % 2 == 0)
-            pipeline_model_parallel_world_size = self.world_size // (
-                tensor_model_parallel_world_size * data_parallel_size
-            ) if pipeline_model_parallel_world_size is None else 1
+            pipeline_model_parallel_world_size = (
+                self.world_size
+                // (tensor_model_parallel_world_size * data_parallel_size)
+                if pipeline_model_parallel_world_size is None
+                else 1
+            )
 
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size,
@@ -70,7 +73,8 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
             )
 
             global_batch_shape = (
-                PipelineParallelForwardBackwardTest.GLOBAL_BATCH_SIZE // parallel_state.get_data_parallel_world_size(),
+                PipelineParallelForwardBackwardTest.GLOBAL_BATCH_SIZE
+                // parallel_state.get_data_parallel_world_size(),
                 PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
                 PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
             )
@@ -93,7 +97,11 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                 model,
                 forward_only=forward_only,
                 # `tensor_shape` is the shape of micro batch.
-                tensor_shape=(PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE, PipelineParallelForwardBackwardTest.HIDDEN_SIZE, PipelineParallelForwardBackwardTest.HIDDEN_SIZE),
+                tensor_shape=(
+                    PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE,
+                    PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
+                    PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
+                ),
                 dtype=dtype,
                 grad_scaler=grad_scaler,
                 deallocate_pipeline_output=deallocate_pipeline_outputs,
