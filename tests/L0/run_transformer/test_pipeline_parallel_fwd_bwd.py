@@ -68,8 +68,7 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
             )
 
             tensor_shape = (
-                PipelineParallelForwardBackwardTest.GLOBAL_BATCH_SIZE
-                // parallel_state.get_data_parallel_world_size(),
+                PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE,
                 PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
                 PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
             )
