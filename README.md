@@ -98,21 +98,24 @@ amp.load_state_dict(checkpoint['amp'])
 
 Note that we recommend restoring the model using the same `opt_level`. Also note that we recommend calling the `load_state_dict` methods after `amp.initialize`.
 
-# Requirements
+# Installation
 
-We recommend the latest stable release, obtainable from
-[https://pytorch.org/](https://pytorch.org/).  We also test against the latest master branch, obtainable from [https://github.com/pytorch/pytorch](https://github.com/pytorch/pytorch).
+## Containers
+NVIDIA PyTorch Containers are available on NGC: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch.
+The containers come with all custom extensions available at the moment. 
 
-It's often convenient to use Apex in Docker containers.  Compatible options include:
-* [NVIDIA Pytorch containers from NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch), which come with Apex preinstalled.
-* [official Pytorch -devel Dockerfiles](https://hub.docker.com/r/pytorch/pytorch/tags), e.g. `docker pull pytorch/pytorch:1.10.0-cuda11.3-cudnn8-devel`, in which you can install Apex using the **Quick Start** commands.
+See [the documentation](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/index.html) for the details such as
+- how to pull a container
+- how to run a pulled container
+- release notes
+.
 
-See the [Docker example folder](https://github.com/NVIDIA/apex/tree/master/examples/docker) for details of reinstalling the latest APEX in NVIDIA PyTorch containers from NGC.
+## From Source
 
-# Quick Start
+To install apex from source, we recommend using the nightly pytorch obtainable from https://github.com/pytorch/pytorch.
+The latest stable release, obtainable from https://pytorch.org will be working.
 
 ### Linux
-
 For performance and full functionality, we recommend installing Apex with
 CUDA and C++ extensions via
 ```
