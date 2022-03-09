@@ -102,30 +102,32 @@ Note that we recommend restoring the model using the same `opt_level`. Also note
 
 ## Containers
 NVIDIA PyTorch Containers are available on NGC: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch.
-The containers come with all custom extensions available at the moment. 
+The containers come with all the custom extensions available at the moment. 
 
 See [the documentation](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/index.html) for the details such as
 - how to pull a container
 - how to run a pulled container
 - release notes
+
 .
 
 ## From Source
 
 To install apex from source, we recommend using the nightly pytorch obtainable from https://github.com/pytorch/pytorch.
-The latest stable release, obtainable from https://pytorch.org will be working.
+
+The latest stable release, obtainable from https://pytorch.org will work.
 
 ### Linux
 For performance and full functionality, we recommend installing Apex with
 CUDA and C++ extensions via
-```
+```bash
 git clone https://github.com/NVIDIA/apex
 cd apex
 pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 ```
 
 Apex also supports a Python-only build via
-```
+```bash
 pip install -v --disable-pip-version-check --no-cache-dir ./
 ```
 A Python-only build omits:
@@ -138,6 +140,7 @@ A Python-only build omits:
 Pyprof support has been moved to its own [dedicated repository](https://github.com/NVIDIA/PyProf).
 The codebase is deprecated in Apex and pyprof directory will be removed by the end of June, 2022.
 
-### Windows support
-Windows support is experimental, and Linux is recommended.  `pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .` may work if you were able to build Pytorch from source
-on your system.  `pip install -v --no-cache-dir .` (without CUDA/C++ extensions) is more likely to work.  If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
+### [Experimental] Windows
+`pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .` may work if you were able to build Pytorch from source
+on your system.  Python-only build, `pip install -v --no-cache-dir .` is more likely to work.  
+If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
