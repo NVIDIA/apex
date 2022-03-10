@@ -15,7 +15,7 @@ class TestInstanceNormNVFuser(unittest.TestCase):
     channel_size = 7
     spatial_size = 3
 
-    def setUp(self):
+    def init_modules(self):
         self.m = InstanceNorm3dNVFuser(self.channel_size, affine=self.affine, track_running_stats=self.track_running_stats, device='cuda', dtype=self.dtype)
         self.reference_m = torch.nn.InstanceNorm3d(self.channel_size, affine=self.affine, track_running_stats=self.track_running_stats, device='cuda', dtype=self.dtype)
 
@@ -60,10 +60,13 @@ class TestInstanceNormNVFuser(unittest.TestCase):
                     torch.testing.assert_close(self.m.bias.grad, self.reference_m.bias.grad)
 
     def test_sweep(self):
-        for dtype, track_running_stats, channels_last, affine in itertools.product((torch.float, torch.half), (False, True), (False, True), (False, True)):
+        dtypes = [torch.float, torch.half]
+        if torch.cuda.get_device_capability() >= (8, 0):
+            dtypes.append(torch.bfloat16)
+        for dtype, track_running_stats, channels_last, affine in itertools.product(dtypes, (False, True), (False, True), (False, True)):
             self.dtype = dtype
             self.track_running_stats = track_running_stats
             self.channels_last = channels_last
             self.affine = affine
-            self.setUp()
+            self.init_modules()
             self.check_same_output() 
