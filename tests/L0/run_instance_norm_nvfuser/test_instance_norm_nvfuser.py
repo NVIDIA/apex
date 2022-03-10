@@ -30,7 +30,6 @@ class TestInstanceNormNVFuser(unittest.TestCase):
             else:
                 _inp = inp
             out = self.m(_inp)
-            (out.sum()).backward()
             out2 = self.reference_m(inp2)
             if self.m.running_mean is None:
                 assert self.reference_m.running_mean is None
@@ -43,18 +42,24 @@ class TestInstanceNormNVFuser(unittest.TestCase):
                 else:
                     torch.testing.assert_close(self.m.running_var, self.reference_m.running_var)
             torch.testing.assert_close(out, out2)
-            (out2.sum()).backward()
+            grad_out = torch.randn_like(inp)
+            out.backward(grad_out)
+            out2.backward(grad_out)
             if self.dtype == torch.float16:
                 torch.testing.assert_close(inp.grad, inp2.grad, atol=5e-3, rtol=5e-3)
+            elif self.dtype == torch.bfloat16:
+                torch.testing.assert_close(inp.grad, inp2.grad, atol=2e-2, rtol=2e-2)
             else:
                 torch.testing.assert_close(inp.grad, inp2.grad)
             if self.m.weight is not None:
                 if self.dtype == torch.float16:
                     torch.testing.assert_close(self.m.weight.grad, self.reference_m.weight.grad, atol=5e-2, rtol=5e-2)
+                elif self.dtype == torch.bfloat16:
+                    torch.testing.assert_close(self.m.weight.grad, self.reference_m.weight.grad, atol=7e-2, rtol=8e-2)
                 else:
                     torch.testing.assert_close(self.m.weight.grad, self.reference_m.weight.grad)
             if self.m.bias is not None:
-                if self.dtype == torch.float16:
+                if self.dtype in (torch.float16, torch.bfloat16):
                     torch.testing.assert_close(self.m.bias.grad, self.reference_m.bias.grad, atol=5e-3, rtol=5e-3)
                 else:
                     torch.testing.assert_close(self.m.bias.grad, self.reference_m.bias.grad)
