@@ -159,7 +159,7 @@ std::vector<at::Tensor> instance_norm_nvfuser_backward(
   ) {
     InstanceNormKey backward_key;
     memset(&backward_key, 0, sizeof(InstanceNormKey));
-    getKey(input, weight, run_mean, channels_last, eps, backward_key);
+    setKey(input, weight, run_mean, channels_last, eps, backward_key);
     if (backward_fusion_cache.find(backward_key) == backward_fusion_cache.end()) {
       auto fusion = std::make_unique<Fusion>();
       FusionGuard fg(fusion.get());
