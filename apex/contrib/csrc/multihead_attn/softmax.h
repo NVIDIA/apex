@@ -3,7 +3,7 @@
 #include <ATen/cuda/CUDAGraphsUtils.cuh>
 #include <curand_kernel.h>
 
-#ifdef OLD_GENERATOR_PATH
+#if !defined(NEW_GENERATOR_PATH)
 #include <ATen/CUDAGeneratorImpl.h>
 #else
 #include <ATen/cuda/CUDAGeneratorImpl.h>

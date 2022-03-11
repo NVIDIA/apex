@@ -366,8 +366,8 @@ if "--deprecated_fused_lamb" in sys.argv or "--cuda_ext" in sys.argv:
 # See https://github.com/pytorch/pytorch/pull/70650
 generator_flag = []
 torch_dir = torch.__path__[0]
-if os.path.exists(os.path.join(torch_dir, "include", "ATen", "CUDAGeneratorImpl.h")):
-    generator_flag = ["-DOLD_GENERATOR_PATH"]
+if os.path.exists(os.path.join(torch_dir, "include", "ATen", "cuda", "CUDAGeneratorImpl.h")):
+    generator_flag = ["-DNEW_GENERATOR_PATH"]
 
 if "--fast_layer_norm" in sys.argv:
     sys.argv.remove("--fast_layer_norm")
