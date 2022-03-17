@@ -1,10 +1,8 @@
 # Introduction
 
-This repository holds NVIDIA-maintained utilities to streamline
-mixed precision and distributed training in Pytorch.
+This repository holds NVIDIA-maintained utilities to streamline mixed precision and distributed training in Pytorch.
 Some of the code here will be included in upstream Pytorch eventually.
-The intention of Apex is to make up-to-date utilities available to
-users as quickly as possible.
+The intent of Apex is to make up-to-date utilities available to users as quickly as possible.
 
 ## Full API Documentation: [https://nvidia.github.io/apex](https://nvidia.github.io/apex)
 
@@ -104,18 +102,16 @@ Note that we recommend restoring the model using the same `opt_level`. Also note
 NVIDIA PyTorch Containers are available on NGC: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch.
 The containers come with all the custom extensions available at the moment. 
 
-See [the documentation](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/index.html) for the details such as
+See [the NGC documentation](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/index.html) for details such as:
 - how to pull a container
 - how to run a pulled container
 - release notes
 
-.
-
 ## From Source
 
-To install apex from source, we recommend using the nightly pytorch obtainable from https://github.com/pytorch/pytorch.
+To install Apex from source, we recommend using the nightly Pytorch obtainable from https://github.com/pytorch/pytorch.
 
-The latest stable release, obtainable from https://pytorch.org will work.
+The latest stable release obtainable from https://pytorch.org should also work.
 
 ### Linux
 For performance and full functionality, we recommend installing Apex with
@@ -132,15 +128,15 @@ pip install -v --disable-pip-version-check --no-cache-dir ./
 ```
 A Python-only build omits:
 - Fused kernels required to use `apex.optimizers.FusedAdam`.
-- Fused kernels required to use `apex.normalization.FusedLayerNorm`.
+- Fused kernels required to use `apex.normalization.FusedLayerNorm` and `apex.normalization.FusedRMSNorm`.
 - Fused kernels that improve the performance and numerical stability of `apex.parallel.SyncBatchNorm`.
 - Fused kernels that improve the performance of `apex.parallel.DistributedDataParallel` and `apex.amp`.
 `DistributedDataParallel`, `amp`, and `SyncBatchNorm` will still be usable, but they may be slower.
 
 Pyprof support has been moved to its own [dedicated repository](https://github.com/NVIDIA/PyProf).
-The codebase is deprecated in Apex and pyprof directory will be removed by the end of June, 2022.
+Pyprof is deprecated in Apex and the pyprof directory will be removed by the end of June 2022.
 
 ### [Experimental] Windows
 `pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .` may work if you were able to build Pytorch from source
-on your system.  Python-only build, `pip install -v --no-cache-dir .` is more likely to work.  
+on your system. A Python-only build via `pip install -v --no-cache-dir .` is more likely to work.  
 If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
