@@ -92,7 +92,7 @@ mha_fwd(const at::Tensor &qkv,  // total x num_heads x 3 x head_size, total := \
         const bool zero_tensors,
         c10::optional<at::Generator> gen_) {
     auto dprops = at::cuda::getCurrentDeviceProperties();
-    TORCH_CHECK(dprops->major == 8 && dprops->minor == 0);
+    TORCH_CHECK(dprops->major == 8 && dprops->minor >= 0);
     int seq_len = 512;
     auto launch = &run_fmha_fp16_512_64_sm80;
     if( max_seq_len <= 128 ) {
@@ -195,7 +195,7 @@ mha_bwd(const at::Tensor &dout,  // total x num_heads, x head_size
         const bool zero_tensors
 ) {
     auto dprops = at::cuda::getCurrentDeviceProperties();
-    TORCH_CHECK(dprops->major == 8 && dprops->minor == 0);
+    TORCH_CHECK(dprops->major == 8 && dprops->minor >= 0);
     int seq_len = 512;
     auto launch = &run_fmha_dgrad_fp16_512_64_sm80;
     if( max_seq_len <= 128 ) {
