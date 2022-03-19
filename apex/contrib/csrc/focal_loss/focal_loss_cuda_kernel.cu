@@ -1,10 +1,10 @@
 #include <ATen/ATen.h>
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
-#include <THC/THC.h>
+
 
 #define ASSERT_UINT4_ALIGNED(PTR)                                              \
-  AT_ASSERTM(is_aligned<uint4>(PTR), "Tensor " #PTR " is not uint4 aligned")
+  TORCH_INTERNAL_ASSERT(is_aligned<uint4>(PTR), "Tensor " #PTR " is not uint4 aligned")
 
 template <class T> bool is_aligned(const void *ptr) noexcept {
   auto iptr = reinterpret_cast<std::uintptr_t>(ptr);
@@ -160,26 +160,26 @@ std::vector<at::Tensor> focal_loss_forward_cuda(
     const at::Tensor &num_positives_sum, const int64_t num_real_classes,
     const float alpha, const float gamma, const float smoothing_factor) {
   // Checks required for correctness
-  AT_ASSERTM(cls_output.size(-1) >= num_real_classes,
+  TORCH_INTERNAL_ASSERT(cls_output.size(-1) >= num_real_classes,
              "Incorrect number of real classes.");
-  AT_ASSERTM(cls_targets_at_level.scalar_type() == at::kLong,
+  TORCH_INTERNAL_ASSERT(cls_targets_at_level.scalar_type() == at::kLong,
              "Invalid label type.");
-  AT_ASSERTM(
+  TORCH_INTERNAL_ASSERT(
       (num_positives_sum.numel() == 1) &&
           (num_positives_sum.scalar_type() == at::kFloat),
       "Expect num_positives_sum to be a float32 tensor with only one element.");
-  AT_ASSERTM(cls_output.dim() == cls_targets_at_level.dim() + 1,
+  TORCH_INTERNAL_ASSERT(cls_output.dim() == cls_targets_at_level.dim() + 1,
              "Mis-matched dimensions between class output and label.");
   for (int64_t i = 0; i < cls_targets_at_level.dim(); i++)
-    AT_ASSERTM(cls_output.size(i) == cls_targets_at_level.size(i),
+    TORCH_INTERNAL_ASSERT(cls_output.size(i) == cls_targets_at_level.size(i),
                "Mis-matched shape between class output and label.");
 
   // Checks required for better performance
   const int ILP = sizeof(uint4) / cls_output.element_size();
   ASSERT_UINT4_ALIGNED(cls_output.data_ptr());
-  AT_ASSERTM(cls_output.size(-1) % ILP == 0,
+  TORCH_INTERNAL_ASSERT(cls_output.size(-1) % ILP == 0,
              "Pad number of classes first to take advantage of 128 bit load.");
-  AT_ASSERTM(num_real_classes >= ILP, "Too few classes.");
+  TORCH_INTERNAL_ASSERT(num_real_classes >= ILP, "Too few classes.");
 
   int64_t num_classes = cls_output.size(-1);
   int64_t num_examples = cls_output.numel() / num_classes;
@@ -262,6 +262,6 @@ at::Tensor focal_loss_backward_cuda(const at::Tensor &grad_output,
                                          partial_grad.numel());
       });
 
-  THCudaCheck(cudaGetLastError());
+  TORCH_CUDA_CHECK(cudaGetLastError());
   return partial_grad;
 }
