@@ -237,7 +237,7 @@ std::vector<at::Tensor> focal_loss_forward_cuda(
         });
   }
 
-  THCudaCheck(cudaGetLastError());
+  AT_CUDA_CHECK(cudaGetLastError());
   return {loss, partial_grad};
 }
 
@@ -262,6 +262,6 @@ at::Tensor focal_loss_backward_cuda(const at::Tensor &grad_output,
                                          partial_grad.numel());
       });
 
-  TORCH_CUDA_CHECK(cudaGetLastError());
+  AT_CUDA_CHECK(cudaGetLastError());
   return partial_grad;
 }
