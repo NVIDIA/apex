@@ -1,12 +1,12 @@
-import torch
 import unittest
+import sys
+import os
+
 import numpy as np
-
-import torch.nn.functional as F
-
-from apex.contrib.layer_norm import FastLayerNorm
+import torch
 
 import fast_layer_norm as fln
+from apex.contrib.layer_norm.layer_norm import FastLayerNorm
 
 
 class GPUTimer:
@@ -14,146 +14,262 @@ class GPUTimer:
         self.start_ = torch.cuda.Event(enable_timing=True)
         self.stop_ = torch.cuda.Event(enable_timing=True)
         self.stream_ = stream
+
     def start(self):
         self.stream_.record_event(self.start_)
+
     def stop(self):
         self.stream_.record_event(self.stop_)
+
     def sync(self):
         self.stream_.synchronize()
+
     def millis(self):
         return self.start_.elapsed_time(self.stop_)
 
+
 def size_in_bytes(t):
     return torch.numel(t) * t.element_size()
-def abs_err(x, y):
-    xf = x.float()
-    yf = y.float()
-    return ((xf-yf).abs().sum() / yf.abs().sum()).item()
 
+
+def metrics(y_ref, y, epsilon=1e-6):
+    y_ref = y_ref.float()
+    y = y.float()
+    relerr, mse = (
+        (y_ref - y).abs().sum() / (y_ref.abs().sum() + epsilon),
+        (y_ref - y).square().mean(),
+    )
+    return relerr.item(), mse.item()
+
+
+device = torch.device("cuda")
+fp32 = torch.float32
+fp16 = torch.float16
+bf16 = torch.bfloat16
+
+
+def backward_(dz, x, mu, rs, gamma):
+
+    wtype = gamma.dtype
+    itype = x.dtype
+    otype = dz.dtype
+    ctype = mu.dtype
+    mu = mu.unsqueeze(1)
+    rs = rs.unsqueeze(1)
+
+    hidden_size = gamma.numel()
+    y = rs * (x.to(ctype) - mu)
+    dbeta = dz.view(-1, hidden_size).sum(0, dtype=ctype)
+    dgamma = (dz * y).view(-1, hidden_size).sum(0, dtype=ctype)
+    dy = dz.view(-1, hidden_size).to(ctype) * gamma.unsqueeze(0).to(ctype)
+    mdy = dy.mean(1, keepdim=True, dtype=ctype)
+
+    mdyy = (dy * y).mean(1, keepdim=True, dtype=ctype)
+    dx = rs * (dy - mdyy * y - mdy)
+
+    return dx.to(itype), dgamma.to(wtype), dbeta.to(wtype)
+
+
+def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
+    epsilon = 1e-5
+
+    x = torch.randn((S * B, hidden_size), dtype=itype, device=device)
+    beta = torch.randn(hidden_size, dtype=wtype, device=device)
+    gamma = torch.randn(hidden_size, dtype=wtype, device=device)
+    dz = torch.randn(x.shape, dtype=wtype, device=device)
+
+    stream = torch.cuda.Stream()
+    with torch.cuda.stream(stream):
+
+        timer = GPUTimer(stream)
+
+        # warmup
+        for r in range(runs):
+            z, mu, rsigma = fln.ln_fwd(x, gamma, beta, epsilon)
+
+        timer.start()
+        for r in range(runs):
+            z, mu, rsigma = fln.ln_fwd(x, gamma, beta, epsilon)
+        timer.stop()
+        timer.sync()
+
+        total_bytes_fwd = sum([size_in_bytes(t) for t in [x, z, gamma, beta, mu, rsigma]])
+
+        ms_fwd = timer.millis() / runs
+
+        print(
+            "[FWD] Time: {:.4f}ms Throughput: {:.4f} GB/sec".format(
+                ms_fwd, total_bytes_fwd * 1e-6 / ms_fwd
+            )
+        )
+
+        timer.start()
+        for r in range(runs):
+            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(dz, x, mu, rsigma, gamma)
+        timer.stop()
+        timer.sync()
+
+        total_bytes_bwd = sum(
+            [
+                size_in_bytes(t)
+                for t in [dz, x, mu, rsigma, gamma, dx, dgamma, dbeta, dbp, dbp, dgp, dgp]
+            ]
+        )
+
+        ms_bwd = timer.millis() / runs
+
+        print(
+            "[BWD] Time: {:.4f}ms Throughput: {:.4f} GB/sec".format(
+                ms_bwd, total_bytes_bwd * 1e-6 / ms_bwd
+            )
+        )
+
+
+def test_(S, B, hidden_size, itype, wtype, ctype=fp32):
+
+    seed = 1243
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+
+    otype = wtype
+    print("========================================================")
+    print(f"S={S} B={B} Hidden={hidden_size} {itype} {wtype}")
+    print("--------------------------------------------------------")
+
+    x = torch.randn(S * B, hidden_size, dtype=itype, device=device)
+    gamma = torch.randn(hidden_size, dtype=wtype, device=device) * 0.2
+    beta = torch.randn(hidden_size, dtype=wtype, device=device) * 0.2
+    epsilon = 1e-5
+
+    x.requires_grad = True
+    gamma.requires_grad = True
+    beta.requires_grad = True
+
+    mu_ref = x.mean(1, dtype=ctype, keepdim=True)
+    v = torch.square(x - mu_ref).mean(1, dtype=ctype, keepdim=True)
+    rs_ref = torch.rsqrt(v + epsilon)
+    y_ref = rs_ref * (x.to(ctype) - mu_ref)
+    z_ref = (gamma.unsqueeze(0) * (y_ref).to(otype) + beta.unsqueeze(0)).to(otype)
+
+    mu_ref = mu_ref.flatten()
+    rs_ref = rs_ref.flatten()
+
+    dz = torch.randn_like(z_ref)
+
+    # z_ref.backward(dz)
+    # dx_ref = x.grad
+    # dgamma_ref = gamma.grad
+    # dbeta_ref = beta.grad
+
+    dx_ref, dg_ref, db_ref = backward_(dz, x, mu_ref, rs_ref, gamma)
+
+    z, mu, rs = fln.ln_fwd(x, gamma, beta, epsilon)
+    dx, dg, db, dg_part, db_part = fln.ln_bwd(dz, x, mu, rs, gamma)
+
+    re_z, mse_z = metrics(z_ref, z)
+    re_mu, mse_mu = metrics(mu_ref, mu)
+    re_rs, mse_rs = metrics(rs_ref, rs)
+
+    re_dx, mse_dx = metrics(dx_ref, dx)
+    re_dg, mse_dg = metrics(dg_ref, dg)
+    re_db, mse_db = metrics(db_ref, db)
+
+    print(f" z: relerr={re_z :.4e} mse={mse_z :.4e}")
+    print(f"mu: relerr={re_mu:.4e} mse={mse_mu:.4e}")
+    print(f"rs: relerr={re_mu:.4e} mse={mse_mu:.4e}")
+
+    print(f"dx: relerr={re_dx:.4e} mse={mse_dx:.4e}")
+    print(f"dg: relerr={re_dg:.4e} mse={mse_dg:.4e}")
+    print(f"db: relerr={re_db:.4e} mse={mse_db:.4e}")
+
+    def check_err(x, relerr):
+        tol = 1e-3 if x.dtype == torch.float16 else 5e-6
+        return relerr < tol
+
+    return [
+        check_err(x, re)
+        for x, re in zip([z, mu, rs, dx, dg, db], [re_z, re_mu, re_rs, re_dx, re_dg, re_db])
+    ]
 
 
 class TestFastLayerNorm(unittest.TestCase):
-    
-    def setUp(self, seed=1234):
-        seed = 1234
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
+    def assertAll(self, l):
+        if not all(l):
+            print(l)
+        for x in l:
+            self.assertTrue(x)
 
-    def test_ln_fp32(self):
-        self.run_test_layer_norm(torch.float32, atol=1e-5)
-    def test_ln_fp16(self):
-        self.run_test_layer_norm(torch.float16, atol=1e-2, rtol=1e-3)
+    def test_all_configs(self):
 
-    def run_test_layer_norm(self, dtype, atol, rtol=1e-5):
-        device = torch.device('cuda')
-        s = 512
-        b = 32
-        hidden_size = 1024
-        epsilon = 1e-5
+        hidden_sizes = [
+            768,
+            1024,
+            1536,
+            2048,
+            2304,
+            3072,
+            3840,
+            4096,
+            5120,
+            6144,
+            8192,
+            10240,
+            12288,
+            12800,
+            15360,
+            16384,
+            18432,
+            20480,
+            24576,
+            25600,
+            30720,
+            32768,
+            40960,
+            49152,
+            65536,
+        ]
 
-        x = torch.randn((s,b,hidden_size), dtype=dtype, device=device)  
-        beta = torch.randn(hidden_size, dtype=dtype, device=device)  
-        gamma = torch.randn(hidden_size, dtype=dtype, device=device)
-        x.requires_grad = True
-        beta.requires_grad = True
-        gamma.requires_grad = True
+        for h in hidden_sizes:
+            with self.subTest(f"hidden_size={h}"):
+                self.assertAll(test_(256, 2, h, fp32, fp32))
+                self.assertAll(test_(256, 2, h, fp16, fp16))
+                self.assertAll(test_(256, 2, h, fp32, fp16))
+                self.assertAll(test_(256, 2, h, bf16, bf16))
+                self.assertAll(test_(256, 2, h, fp32, bf16))
 
-        x2 = x.clone().detach()
-        beta2 = beta.clone().detach()
-        gamma2 = gamma.clone().detach()
-        x2.requires_grad = True
-        beta2.requires_grad = True
-        gamma2.requires_grad = True
-               
-        dummy_label = torch.randn_like(x)
+    def test_run_benchmark(self):
+        for (S, B, hidden_size, runs) in (
+            (512, 32, 768, 1000),
+            (512, 32, 1024, 1000),
+            (512, 8, 4096, 1000),
+            (512, 8, 5120, 1000),
+            (512, 8, 6144, 1000),
+            (256, 2, 20480, 500),
+            (256, 2, 25600, 500),
+            (256, 2, 40960, 250),
+            (256, 2, 65536, 250),
+        ):
+            with self.subTest(f"(S, B, hidden_size)=({S}, {B}, {hidden_size})"):
+                benchmark_(S, B, hidden_size, fp16, fp16, runs)
 
-        y = F.layer_norm(x, [hidden_size], gamma, beta, epsilon)
+    def test_compat_with_autocast(self):
+        autocast_dtypes = (
+            (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
+        )
+        input_shape = (512, 32, 768)
+        layer_norm = FastLayerNorm(input_shape[-1]).cuda()
+        input = torch.randn(input_shape).cuda()
 
-        diff = y-dummy_label
-        l = (diff * diff).sum() / b
-        l.backward()
-
-        fln = FastLayerNorm(hidden_size).cuda()
-        fln.load_state_dict({'bias': beta2, 'weight':gamma2})
-        if dtype == torch.float16:
-            fln = fln.half()
-
-        y2 = fln(x2)
-        diff2 = (y2 - dummy_label)
-        l2 = (diff2 * diff2).sum() / b
-
-        l2.backward()
-
-        self.assertTrue(torch.allclose(y2, y, atol=atol, rtol=rtol))
-        self.assertTrue(torch.allclose(x2.grad, x.grad, atol=atol,rtol=rtol))
-        self.assertTrue(torch.allclose(fln.bias.grad, beta.grad, atol=atol, rtol=rtol))
-        self.assertTrue(torch.allclose(fln.weight.grad, gamma.grad, atol=atol, rtol=rtol))
-    
-
-
-    def test_performance(self):
-        print()
-        runs = 1000
-        device = torch.device('cuda')
-        dtype =torch.float16
-        s = 512
-        b = 32
-        hidden_size = 1024
-        epsilon = 1e-5
-
-        x = torch.randn((s*b,hidden_size), dtype=dtype, device=device)  
-        beta = torch.randn(hidden_size, dtype=dtype, device=device)  
-        gamma = torch.randn(hidden_size, dtype=dtype, device=device)
-        dy = torch.randn_like(x)
- 
-
-        stream = torch.cuda.Stream()
-        with torch.cuda.stream(stream):
-
-            timer = GPUTimer(stream)
-
-            #warmup
-            for r in range(runs):
-                y, mu, rsigma = fln.ln_fwd(x, gamma, beta, 1e-5)
-           
-           
-            timer.start()
-            for r in range(runs):
-                y, mu, rsigma = fln.ln_fwd(x, gamma, beta, 1e-5)
-            timer.stop()
-            timer.sync()
-
-            total_bytes_fwd = (size_in_bytes(x) 
-                             + size_in_bytes(y) 
-                             + size_in_bytes(gamma) 
-                             + size_in_bytes(beta) 
-                             + size_in_bytes(mu) 
-                             + size_in_bytes(rsigma)
-                             )
-
-            ms_fwd = timer.millis() / runs
-            print('[FWD] Time: {:.4f}ms Throughput: {:.4f} GB/sec'.format(ms_fwd, total_bytes_fwd * 1e-6 / ms_fwd ))
-         
-
-            timer.start()
-            for r in range(runs):
-                dx, dgamma, dbeta = fln.ln_bwd(dy, x, mu, rsigma, gamma)
-            timer.stop()
-            timer.sync()
-
-            total_bytes_bwd = (size_in_bytes(x) 
-                             + size_in_bytes(dx)
-                             + size_in_bytes(dy) 
-                             + size_in_bytes(gamma) 
-                             + size_in_bytes(dgamma)  
-                             + size_in_bytes(dbeta)  
-                             + size_in_bytes(mu) 
-                             + size_in_bytes(rsigma)
-                             )
+        for dtype in autocast_dtypes:
+            layer_norm.zero_grad(set_to_none=True)
+            with self.subTest(f"autocast_dtype={dtype}"):
+                with torch.cuda.amp.autocast(enabled=True, dtype=dtype):
+                    out = layer_norm(input)
+                    self.assertEqual(dtype, out.dtype)
+                grad = torch.randn_like(out)
+                out.backward(grad)
+                self.assertEqual(torch.float32, layer_norm.weight.grad.dtype)
 
 
-            ms_bwd = timer.millis() / runs
-            print('[BWD] Time: {:.4f}ms Throughput: {:.4f} GB/sec'.format(ms_bwd, total_bytes_bwd * 1e-6 / ms_bwd ))
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

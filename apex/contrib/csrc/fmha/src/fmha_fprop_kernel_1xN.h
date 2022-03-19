@@ -174,9 +174,11 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
     Softmax softmax(params, &smem_[Smem_tile_q::BYTES_PER_TILE + Smem_tile_o::BYTES_PER_TILE], bidb, tidx);
 
     enum { THREADS_PER_ROW = 32 };
+    enum { STEPS = Cta_tile_p::N / Cta_tile_p::M };
 
     // Load over the entire sequence length.
-    for( int loop = 0, outer = 0; loop < Cta_tile_p::N; loop += Cta_tile_p::M, outer++ ) {
+    for( int l = 0; l < STEPS; l++ ) {
+        const int loop = l * Cta_tile_p::M;
         if( loop >= binfo.actual_seqlen )
             break;
 
@@ -200,12 +202,8 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
             fmha::gemm(acc_p, frag_q[(ki - 1) & 1], frag_k[(ki - 1)]);
         }
 
-        // Store the P matrix.
-#if defined(STORE_P)
-        gmem_p.store(acc_p);
-#endif
         // Load the mask for that iteration.
-        mask.load(outer);
+        mask.load(l);
 
         // Convert from the accumulator type to FP32 for Softmax.
         softmax.unpack(acc_p);
@@ -213,7 +211,7 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
         // Apply the mask.
         softmax.apply_mask(mask);
 
-        if( Kernel_traits::SHARE_SMEM_FOR_K_AND_V && loop == 0 ) {
+        if( Kernel_traits::SHARE_SMEM_FOR_K_AND_V && l == 0 ) {
             // if we share K and V, it could be that V was not fully read yet but we write into smem for reduction
             __syncthreads();
         }
@@ -261,7 +259,7 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
         }
 
         // Trigger the load for the next Q values.
-        if( loop + Cta_tile_p::M < Cta_tile_p::N ) {
+        if(l < STEPS - 1) {
             smem_q.move_to_next_write_buffer();
             gmem_q.move();
             gmem_q.load(smem_q);
@@ -320,7 +318,7 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
         gmem_o.move();
 
         // Commit the values for Q into shared memory.
-        if( loop + Cta_tile_p::M < Cta_tile_p::N ) {
+        if(l < STEPS - 1) {
             gmem_q.commit(smem_q);
         }
 

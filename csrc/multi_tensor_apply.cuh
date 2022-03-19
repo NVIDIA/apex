@@ -60,7 +60,7 @@ void multi_tensor_apply(
       // TODO:  Print which tensor fails.
       bool contiguous_memory = tensor_lists[l][t].is_contiguous();
 #ifdef VERSION_GE_1_5
-      contiguous_memory = (contiguous_memory || tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast));
+      contiguous_memory = (contiguous_memory || tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast) || tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast3d));
 #endif
       TORCH_CHECK(contiguous_memory, "A tensor was not contiguous.");
       TORCH_CHECK(tensor_lists[l][t].device() == ref_device, "A tensor was not on the same device as the first tensor");

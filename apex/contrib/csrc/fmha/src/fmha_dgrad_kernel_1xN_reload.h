@@ -156,8 +156,10 @@ inline __device__ void compute_dv_1xN(const Params &params) {
     fmha::Fragment_accumulator acc_dv[Mma_tile_dv::MMAS_M][Mma_tile_dv::MMAS_N];
     fmha::Clear_accumulator<fmha::Accumulator_type, Cta_tile_dv::WARPS_K>::apply(acc_dv);
 
+    enum { STEPS = Cta_tile_p::N / Cta_tile_p::M };
     // Load over the entire sequence length.
-    for( int loop = 0, outer = 0; loop < Cta_tile_p::N; loop += Cta_tile_p::M, outer++ ) {
+    for( int l = 0; l < STEPS; l++ ) {
+        const int loop = l * Cta_tile_p::M;
         if( loop >= binfo.actual_seqlen )
             break;
 
@@ -185,6 +187,13 @@ inline __device__ void compute_dv_1xN(const Params &params) {
             int ki = Mma_tile_p::MMAS_K;
             fmha::gemm(acc_p, frag_q[(ki - 1) & 1], frag_k[(ki - 1) & 1]);
         }
+        // Trigger the load for the next Q values. We're using double buffering, so reading qt is safe
+        if( l < STEPS - 1) {
+            smem_q.move_to_next_write_buffer();
+            gmem_q.move();
+            gmem_q.load(smem_q);
+        }
+
 
         // Convert from the accumulator type to FP32 for Softmax.
         softmax.unpack(acc_p);
@@ -203,8 +212,6 @@ inline __device__ void compute_dv_1xN(const Params &params) {
             }
         }
 
-        float d_s[2 * M][4 * N];
-
         #pragma unroll
         for( int mi = 0; mi < M; mi++ ) {
             #pragma unroll
@@ -213,10 +220,11 @@ inline __device__ void compute_dv_1xN(const Params &params) {
                 for( int ni = 0; ni < N; ni++ ) {
                     #pragma unroll
                     for( int jj = 0; jj < 4; jj++ ) {
-                        const float s_dmask = s_mat[2 * mi + ii][4 * ni + jj];
+                        float & s_dmask = s_mat[2 * mi + ii][4 * ni + jj];
                         const bool drop = reinterpret_cast<const uint32_t &>(s_dmask) & 0x80000000;
-                        d_s[2 * mi + ii][4 * ni + jj] = drop ? 0.f : softmax.elt_[2 * mi + ii][4 * ni + jj] * params.rp_dropout;
-                        softmax.elt_[2 * mi + ii][4 * ni + jj] = d_s[2 * mi + ii][4 * ni + jj] * fabsf(s_dmask);
+                        const float d_s = drop ? 0.f : softmax.elt_[2 * mi + ii][4 * ni + jj] * params.rp_dropout;
+                        s_dmask = fabsf(s_dmask);
+                        softmax.elt_[2 * mi + ii][4 * ni + jj] = d_s * fabsf(s_dmask);
                     }
                 }
             }
@@ -225,6 +233,7 @@ inline __device__ void compute_dv_1xN(const Params &params) {
         float p_sum[2 * M];
         softmax.template reduce<fmha::Sum_>(p_sum);
 
+        const float scalef = reinterpret_cast<const float &>(params.scale_softmax);
         #pragma unroll
         for( int mi = 0; mi < M; mi++ ) {
             #pragma unroll
@@ -233,20 +242,12 @@ inline __device__ void compute_dv_1xN(const Params &params) {
                 for( int ni = 0; ni < N; ni++ ) {
                     #pragma unroll
                     for( int jj = 0; jj < 4; jj++ ) {
-                        const float scalef = reinterpret_cast<const float &>(params.scale_softmax);
-                        softmax.elt_[2 * mi + ii][4 * ni + jj] = (d_s[2 * mi + ii][4 * ni + jj] - p_sum[2 * mi + ii]) *
-                                                                 fabsf(s_mat[2 * mi + ii][4 * ni + jj]) * scalef;
+                        softmax.elt_[2 * mi + ii][4 * ni + jj] -= p_sum[2 * mi + ii] * (s_mat[2 * mi + ii][4 * ni + jj]) ;
+                        softmax.elt_[2 * mi + ii][4 * ni + jj] *= scalef;
                     }
                 }
             }
         }
-        // Trigger the load for the next Q values. We're using double buffering, so reading qt is safe
-        if( loop + Cta_tile_p::M < Cta_tile_p::N ) {
-            smem_q.move_to_next_write_buffer();
-            gmem_q.move();
-            gmem_q.load(smem_q);
-        }
-
         typename Smem_tile_st::Fragment frag_s[Mma_tile_dv::MMAS_K][Mma_tile_dv::MMAS_M];
         smem_s.load(frag_s);
         for( int ki = 0; ki < Mma_tile_dv::MMAS_K; ki++ ) {
@@ -275,7 +276,7 @@ inline __device__ void compute_dv_1xN(const Params &params) {
             fmha::gemm(acc_dv, frag_s[(ki - 1)], frag_qt[(ki - 1) & 1]);
         }
         // Commit the values for Q into shared memory.
-        if( loop + Cta_tile_p::M < Cta_tile_p::N ) {
+        if(l < STEPS - 1) {
             gmem_q.commit(smem_q);
         }
 
@@ -295,36 +296,15 @@ inline __device__ void compute_dv_1xN(const Params &params) {
 
     // Epilogue swizzle for dV
     Smem_tile_dv smem_dv(&smem_[Kernel_traits::Smem_tile_q::BYTES_PER_TILE], tidx);
-    uint4 dv[Mma_tile_dv::MMAS_M][Mma_tile_dv::MMAS_N];
-    #pragma unroll
-    for( int mi = 0; mi < Mma_tile_dv::MMAS_M; ++mi ) {
-        #pragma unroll
-        for( int ni = 0; ni < Mma_tile_dv::MMAS_N; ++ni ) {
-            // 1st row - 4 elements per row.
-            float tmp00 = acc_dv[mi][ni].elt(0);
-            float tmp01 = acc_dv[mi][ni].elt(1);
-            float tmp02 = acc_dv[mi][ni].elt(4);
-            float tmp03 = acc_dv[mi][ni].elt(5);
-            // 2nd row - 4 elements per row.
-            float tmp10 = acc_dv[mi][ni].elt(2);
-            float tmp11 = acc_dv[mi][ni].elt(3);
-            float tmp12 = acc_dv[mi][ni].elt(6);
-            float tmp13 = acc_dv[mi][ni].elt(7);
+    smem_dv.store(acc_dv);
 
-            dv[mi][ni].x = fmha::float2_to_half2(tmp00, tmp01);
-            dv[mi][ni].y = fmha::float2_to_half2(tmp02, tmp03);
-            dv[mi][ni].z = fmha::float2_to_half2(tmp10, tmp11);
-            dv[mi][ni].w = fmha::float2_to_half2(tmp12, tmp13);
-        }
-    }
-
-    smem_dv.store(dv);
     __syncthreads();
     uint4 dv_out[Smem_tile_dv::NUM_LDS];
     smem_dv.load(dv_out);
     Qkv_params dv_params;
     dv_params.qkv_ptr = params.dqkv_ptr;
     dv_params.qkv_stride_in_bytes = params.qkv_stride_in_bytes;
+    dv_params.h = params.h;
     Gmem_tile_dv gmem_dv(dv_params, 2, binfo, tidx);
     gmem_dv.store(dv_out);
 }
@@ -447,13 +427,15 @@ inline __device__ void compute_dq_dk_1xN(const Params &params) {
     enum { BITS_PER_ELT_S = sizeof(fmha::A_type) * 8 };
 
     enum { THREADS_PER_ROW = 32 };
+    enum { STEPS = Cta_tile_p::N / Cta_tile_p::M };
 
     // Declare the accumulators for the 2nd gemm.
     fmha::Fragment_accumulator acc_dk[Mma_tile_dk::MMAS_M][Mma_tile_dk::MMAS_N];
     fmha::Clear_accumulator<fmha::Accumulator_type, Cta_tile_dk::WARPS_K>::apply(acc_dk);
 
     // Load over the entire sequence length.
-    for( int loop = 0, outer = 0; loop < Cta_tile_p::N; loop += Cta_tile_p::M, outer++ ) {
+    for( int l=0;l<STEPS;l++) {
+        const int loop = l * Cta_tile_p::M;
         if( loop >= binfo.actual_seqlen )
             break;
 
@@ -492,7 +474,7 @@ inline __device__ void compute_dq_dk_1xN(const Params &params) {
 
         // Store dP to smem for transpose
         smem_s.store(s_regs);
-        if( loop + Cta_tile_p::M < Cta_tile_p::N ) {
+        if(l < STEPS - 1) {
             // Load next part of S
             gmem_s.load(s_regs, mask);
             gmem_s.move();
@@ -544,7 +526,7 @@ inline __device__ void compute_dq_dk_1xN(const Params &params) {
         }
 
         // Commit the values for Q into shared memory.
-        if( loop + Cta_tile_p::M < Cta_tile_p::N ) {
+        if( l < STEPS - 1) {
             gmem_q.commit(smem_q);
         }
 
@@ -559,37 +541,14 @@ inline __device__ void compute_dq_dk_1xN(const Params &params) {
 
     // Epilogue swizzle for dK
     Smem_tile_dk smem_dk(&smem_[0], tidx);
-    uint4 dk[Mma_tile_dk::MMAS_M][Mma_tile_dk::MMAS_N];
-
-    #pragma unroll
-    for( int mi = 0; mi < Mma_tile_dk::MMAS_M; ++mi ) {
-        #pragma unroll
-        for( int ni = 0; ni < Mma_tile_dk::MMAS_N; ++ni ) {
-            // 1st row - 4 elements per row.
-            float tmp00 = acc_dk[mi][ni].elt(0);
-            float tmp01 = acc_dk[mi][ni].elt(1);
-            float tmp02 = acc_dk[mi][ni].elt(4);
-            float tmp03 = acc_dk[mi][ni].elt(5);
-            // 2nd row - 4 elements per row.
-            float tmp10 = acc_dk[mi][ni].elt(2);
-            float tmp11 = acc_dk[mi][ni].elt(3);
-            float tmp12 = acc_dk[mi][ni].elt(6);
-            float tmp13 = acc_dk[mi][ni].elt(7);
-
-            dk[mi][ni].x = fmha::float2_to_half2(tmp00, tmp01);
-            dk[mi][ni].y = fmha::float2_to_half2(tmp02, tmp03);
-            dk[mi][ni].z = fmha::float2_to_half2(tmp10, tmp11);
-            dk[mi][ni].w = fmha::float2_to_half2(tmp12, tmp13);
-        }
-    }
-
-    smem_dk.store(dk);
+    smem_dk.store(acc_dk);
     __syncthreads();
     uint4 dk_out[Smem_tile_dk::NUM_LDS];
     smem_dk.load(dk_out);
     Qkv_params dk_params;
     dk_params.qkv_ptr = params.dqkv_ptr;
     dk_params.qkv_stride_in_bytes = params.qkv_stride_in_bytes;
+    dk_params.h = params.h;
     Gmem_tile_dk gmem_dk(dk_params, 1, binfo, tidx);
     gmem_dk.store(dk_out);
 }

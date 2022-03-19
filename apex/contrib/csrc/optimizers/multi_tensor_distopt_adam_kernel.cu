@@ -2,7 +2,6 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
-#include <THC/THCGeneral.h>
 // Another possibility:
 // #include <torch/all.h>
 
@@ -225,5 +224,5 @@ void multi_tensor_fused_adam_cuda(
         (adamMode_t) mode);
     );
   }
-  THCudaCheck(cudaGetLastError());
+  C10_CUDA_CHECK(cudaGetLastError());
 }

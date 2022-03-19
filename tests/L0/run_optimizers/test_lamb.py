@@ -144,13 +144,13 @@ class RefLAMB(Optimizer):
 
         return loss
 
-
-class TestFusedLAMB(unittest.TestCase):
+class TestLamb(unittest.TestCase):
     def setUp(self, max_abs_diff=1e-3, max_rel_diff=1, iters=7):
         self.max_abs_diff = max_abs_diff
         self.max_rel_diff = max_rel_diff
         self.iters = iters
         torch.cuda.manual_seed(9876)
+
 
     def tearDown(self):
         pass
@@ -162,8 +162,8 @@ class TestFusedLAMB(unittest.TestCase):
             ref_param.append(torch.nn.Parameter(tensor.clone()))
             tst_param.append(torch.nn.Parameter(tensor.clone()))
 
-        ref_optim = RefLAMB(ref_param, **lamb_option)
-        tst_optim = apex.optimizers.FusedLAMB(tst_param, use_nvlamb=True, **lamb_option)
+        ref_optim = self.ref_optim(ref_param, **lamb_option)
+        tst_optim = self.tst_optim(tst_param, use_nvlamb=True, **lamb_option)
 
         return (ref_param, tst_param, ref_optim, tst_optim)
 
@@ -210,6 +210,13 @@ class TestFusedLAMB(unittest.TestCase):
 
                 self.assertLessEqual(max_abs_diff, self.max_abs_diff)
                 self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+
+class TestFusedLAMB(TestLamb):
+    def __init__(self, *args, **kwargs):
+        super(TestLamb, self).__init__(*args, **kwargs)
+        self.ref_optim = RefLAMB
+        self.tst_optim = apex.optimizers.FusedLAMB
+
 
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
@@ -264,6 +271,65 @@ class TestFusedLAMB(unittest.TestCase):
                 self.assertLessEqual(max_abs_diff, self.max_abs_diff)
                 self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
+class TestFusedMixedPrecisionLamb(TestLamb):
+    def __init__(self, *args, **kwargs):
+        super(TestLamb, self).__init__(*args, **kwargs)
+        self.ref_optim = RefLAMB
+        self.tst_optim = apex.optimizers.FusedMixedPrecisionLamb
+
+
+    def test_float(self):
+        self.gen_single_type_test(param_type=torch.float)
+
+    @unittest.skip("PyTorch optimizer is not numerically correct for fp16")
+    def test_half(self):
+        self.gen_single_type_test(param_type=torch.float16)
+
+    @unittest.skipIf(torch.cuda.device_count()<2, "more than 1 GPU required")
+    def test_multi_device(self):
+        devices = ("cuda:0", "cuda:1")
+        for current_dev, tensor_dev in product(devices, devices):
+            with torch.cuda.device(current_dev):
+                self.gen_single_type_test(param_type=torch.float, device=tensor_dev)
+
+    def test_multi_params(self):
+        sizes = [[4096, 1024], [4096], [4096, 2048], [32320, 1024], [1]]
+        weight_decay = [0, 0.01]
+
+        for wd in weight_decay:
+            lamb_option = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08, 'weight_decay':wd}
+            tensors = []
+            for size in sizes:
+                tensors.append(torch.rand(size, dtype=torch.float, device='cuda'))
+            ref_param, tst_param, ref_optim, tst_optim = \
+                self.gen_param_optim(tensors, lamb_option)
+
+            for i in range(self.iters):
+                self.gen_grad(ref_param, tst_param)
+                ref_optim.step()
+                tst_optim.step()
+                max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
+                self.assertLessEqual(max_abs_diff, self.max_abs_diff)
+                self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+
+    def test_lamb_option(self):
+        nelem = 1
+        tensor = torch.rand(nelem, dtype=torch.float, device='cuda')
+        weight_decay = [0, 0.01]
+
+        for wd in weight_decay:
+            lamb_option = {'lr':0.01, 'betas':(0.6, 0.9), 'eps':3e-06, 'weight_decay':wd}
+            ref_param, tst_param, ref_optim, tst_optim = \
+                self.gen_param_optim([tensor], lamb_option)
+
+            for i in range(self.iters):
+                self.gen_grad(ref_param, tst_param)
+                ref_optim.step()
+                tst_optim.step()
+                max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
+
+                self.assertLessEqual(max_abs_diff, self.max_abs_diff)
+                self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
 if __name__ == '__main__':
     script_path = os.path.dirname(os.path.realpath(__file__))

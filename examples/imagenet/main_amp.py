@@ -81,7 +81,7 @@ def parse():
                         help='Only run 10 iterations for profiling.')
     parser.add_argument('--deterministic', action='store_true')
 
-    parser.add_argument("--local_rank", default=0, type=int)
+    parser.add_argument("--local_rank", default=os.getenv('LOCAL_RANK', 0), type=int)
     parser.add_argument('--sync_bn', action='store_true',
                         help='enabling apex sync BN.')
 

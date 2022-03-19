@@ -76,10 +76,6 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/NumericLimits.cuh>
 
-#include <THC/THC.h>
-#include <THC/THCGeneral.h>
-#include <THC/THCThrustAllocator.cuh>
-
 #include "type_shim.h"
 #include "compat.h"
 
@@ -630,7 +626,7 @@ std::vector<Tensor> host_softmax_xentropy(
     }
   );
 
-  THCudaCheck(cudaGetLastError());
+  C10_CUDA_CHECK(cudaGetLastError());
 
   std::vector<at::Tensor> ret = {losses, max_log_sum_exp};
   return ret;
@@ -700,7 +696,7 @@ Tensor host_softmax_xentropy_backward(
     }
   );
 
-  THCudaCheck(cudaGetLastError());
+  C10_CUDA_CHECK(cudaGetLastError());
   return gI;
 }
 

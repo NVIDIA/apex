@@ -1,1 +1,1 @@
-from .bottleneck import Bottleneck
+from .bottleneck import Bottleneck, SpatialBottleneck

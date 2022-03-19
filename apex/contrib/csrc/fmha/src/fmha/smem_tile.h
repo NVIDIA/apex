@@ -1217,7 +1217,8 @@ struct Smem_tile_mma_epilogue : public Base {
     enum { WARPS_M = Base::WARPS_M };
     enum { WARPS_N = Base::WARPS_N };
     static_assert((WARPS_M == 4 || WARPS_N == 8) || WARPS_N == 1);
-    using Fragment = typename Base::Fragment;
+    
+    using Acc = fmha::Fragment_accumulator;
 
     inline __device__ Smem_tile_mma_epilogue(char *smem, int tidx) : Base(smem, tidx) {
         const int read_row = tidx / THREADS_PER_ROW;
@@ -1232,6 +1233,40 @@ struct Smem_tile_mma_epilogue : public Base {
             fmha::lds(data[ii], this->smem_ + offset);
         }
     }
+
+    template<int M, int N>
+    inline __device__ void store(const Acc (&acc)[M][N]){
+        #pragma unroll
+        for( int mi = 0; mi < M; mi++ ) {
+            #pragma unroll
+            for( int ni = 0; ni < N; ni++ ) {
+                // 1st row - 4 elements per row.
+                float tmp00 = acc[mi][ni].elt(0);
+                float tmp01 = acc[mi][ni].elt(1);
+                float tmp02 = acc[mi][ni].elt(4);
+                float tmp03 = acc[mi][ni].elt(5);
+                // 2nd row - 4 elements per row.
+                float tmp10 = acc[mi][ni].elt(2);
+                float tmp11 = acc[mi][ni].elt(3);
+                float tmp12 = acc[mi][ni].elt(6);
+                float tmp13 = acc[mi][ni].elt(7);
+
+                uint32_t x = fmha::float2_to_half2(tmp00, tmp01);
+                uint32_t y = fmha::float2_to_half2(tmp02, tmp03);
+                uint32_t z = fmha::float2_to_half2(tmp10, tmp11);
+                uint32_t w = fmha::float2_to_half2(tmp12, tmp13);
+     
+                size_t offset = (this->write_offset_ ^ (ni * 32)) + mi * WARPS_M * 16 * BYTES_PER_ROW;
+                fmha::sts(this->smem_ + offset + 0 * BYTES_PER_ROW, x);
+                fmha::sts(this->smem_ + offset + 8 * BYTES_PER_ROW, z);
+                offset ^= 4 * Base::BYTES_PER_STS;
+                fmha::sts(this->smem_ + offset + 0 * BYTES_PER_ROW, y);
+                fmha::sts(this->smem_ + offset + 8 * BYTES_PER_ROW, w);
+            }
+        }
+    }
+
+
 
     template<int M, int N>
     inline __device__ void store(const uint4 (&regs)[M][N]) {
