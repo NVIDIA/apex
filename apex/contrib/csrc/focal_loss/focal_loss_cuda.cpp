@@ -1,6 +1,7 @@
 #include <torch/torch.h>
 
 #include <vector>
+#include <cstdint>
 
 // CUDA forward declarations
 
