@@ -627,6 +627,20 @@ if "--fast_bottleneck" in sys.argv:
         )
     )
 
+if "--peer_memory" in sys.argv:
+    sys.argv.remove("--peer_memory")
+    raise_if_cuda_home_none("--peer_memory")
+    ext_modules.append(
+        CUDAExtension(
+            name="peer_memory",
+            sources=[
+                "apex/contrib/csrc/peer_memory/peer_memory_cuda.cu",
+                "apex/contrib/csrc/peer_memory/peer_memory.cpp",
+            ],
+            extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+        )
+    )
+
 
 setup(
     name="apex",
