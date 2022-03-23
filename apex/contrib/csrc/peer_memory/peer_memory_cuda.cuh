@@ -24,17 +24,20 @@ namespace apex { namespace peer_memory {
     void free_raw(int64_t raw);
     at::Tensor get_raw_ipc_address(int64_t raw);
     std::vector<int64_t> get_raw_peers(at::Tensor ipc_addresses, int peer_rank, int64_t raw);
-    at::Tensor blob_view_half(int64_t raw, std::vector<int64_t> shape);
-    at::Tensor blob_view_float(int64_t raw, std::vector<int64_t> shape);
-    at::Tensor blob_view_int(int64_t raw, std::vector<int64_t> shape);
+    at::Tensor blob_view_half(int64_t raw, std::vector<int64_t> shape, bool channels_last);
+    at::Tensor blob_view_float(int64_t raw, std::vector<int64_t> shape, bool channels_last);
+    at::Tensor blob_view_int(int64_t raw, std::vector<int64_t> shape, bool channels_last);
     void push_pull_halos_1d(
+        bool diagnostics,
         bool explicit_nhwc,
         int numSM,                      // number of SMs to use
         at::Tensor top_out_halo,        // top output halo in sender device memory
         at::Tensor top_out_tx,          // top output transfer buffer in sender peer pool memory
+	at::Tensor top_inp_tx,		// top input transfer buffer in top neighbor peer pool memory
         at::Tensor top_inp_halo,        // top input halo in receiver device memory
         at::Tensor btm_out_halo,        // btm output halo in sender device memory
         at::Tensor btm_out_tx,          // btm output transfer buffer in sender peer pool memory
+	at::Tensor btm_inp_tx,		// btm input transfer buffer in btm neighbor peer pool memory
         at::Tensor btm_inp_halo,        // btm input halo in receiver device memory
         at::Tensor top_signal,          // top input signal in receiver device memory
         at::Tensor btm_signal,          // btm input signal in receiver device memory
