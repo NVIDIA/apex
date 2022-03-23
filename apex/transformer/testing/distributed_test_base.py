@@ -9,7 +9,6 @@ from torch.testing._internal import common_distributed
 class DistributedTestBase(common_distributed.MultiProcessTestCase):
 
     BACKEND_NCCL = "nccl"
-    USE_ALL_GPUS = False
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
