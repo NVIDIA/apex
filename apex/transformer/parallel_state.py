@@ -548,6 +548,9 @@ def get_data_parallel_rank():
     return torch.distributed.get_rank(group=get_data_parallel_group())
 
 
+# note (mkozuki): `destroy_model_parallel` voids more global variables than Megatron-LM.
+# Otherwise pipeline parallel forward_backward functions test hangs possibly because
+# the clean-up of the original is NOT enough.
 def destroy_model_parallel():
     """Set the groups to none."""
     global _MODEL_PARALLEL_GROUP
@@ -562,3 +565,15 @@ def destroy_model_parallel():
     _EMBEDDING_GROUP = None
     global _POSITION_EMBEDDING_GROUP
     _POSITION_EMBEDDING_GROUP = None
+    global _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK
+    _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = None
+    global _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
+    _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = None
+    global _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE
+    _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE = None
+    global _MPU_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
+    _MPU_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = None
+    global _MPU_TENSOR_MODEL_PARALLEL_RANK
+    _MPU_TENSOR_MODEL_PARALLEL_RANK = None
+    global _MPU_PIPELINE_MODEL_PARALLEL_RANK
+    _MPU_PIPELINE_MODEL_PARALLEL_RANK = None
