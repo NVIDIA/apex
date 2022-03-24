@@ -134,7 +134,7 @@ def main():
     halo_ex = PeerHaloExchanger1d(rank, world_size, pool, half_halo)
 
     H_split_tests(1,64,336,200, half_halo,rank,world_size,halo_ex)
-    W_split_tests(1,64,200,336, half_halo,world_size,halo_ex)
+    W_split_tests(1,64,200,336, half_halo,rank,world_size,halo_ex)
 
 
 if __name__ == "__main__":
