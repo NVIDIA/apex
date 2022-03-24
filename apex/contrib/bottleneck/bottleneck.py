@@ -36,14 +36,14 @@ class FrozenBatchNorm2d(torch.nn.Module):
 
 @torch.jit.script
 def drelu_dscale1(grad_o, output, scale1):
-    relu_mask = (output>0).half()
+    relu_mask = (output>0)
     dx_relu = relu_mask * grad_o
     g1 = dx_relu * scale1
     return g1, dx_relu
 
 @torch.jit.script
 def drelu_dscale2(grad_o, output, scale1, scale2):
-    relu_mask = (output>0).half()
+    relu_mask = (output>0)
     dx_relu = relu_mask * grad_o
     g1 = dx_relu * scale1
     g2 = dx_relu * scale2
