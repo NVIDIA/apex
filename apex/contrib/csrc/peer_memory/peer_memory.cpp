@@ -17,12 +17,12 @@
 #include "peer_memory_cuda.cuh"
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("allocate_raw", &apex::peer_memory::allocate_raw, "allocate_raw");
-    m.def("free_raw", &apex::peer_memory::free_raw, "free_raw");
-    m.def("get_raw_ipc_address", &apex::peer_memory::get_raw_ipc_address, "get_raw_ipc_address");
-    m.def("get_raw_peers", &apex::peer_memory::get_raw_peers, "get_raw_peers");
-    m.def("blob_view_half", &apex::peer_memory::blob_view_half, "blob_view_half");
-    m.def("blob_view_float", &apex::peer_memory::blob_view_float, "blob_view_float");
-    m.def("blob_view_int", &apex::peer_memory::blob_view_int, "blob_view_int");
-    m.def("push_pull_halos_1d", &apex::peer_memory::push_pull_halos_1d, "push_pull_halos_1d");
+    m.def("allocate_raw", &apex::contrib::peer_memory::allocate_raw, "allocate_raw");
+    m.def("free_raw", &apex::contrib::peer_memory::free_raw, "free_raw");
+    m.def("get_raw_ipc_address", &apex::contrib::peer_memory::get_raw_ipc_address, "get_raw_ipc_address");
+    m.def("get_raw_peers", &apex::contrib::peer_memory::get_raw_peers, "get_raw_peers");
+    m.def("blob_view_half", &apex::contrib::peer_memory::blob_view_half, "blob_view_half");
+    m.def("blob_view_float", &apex::contrib::peer_memory::blob_view_float, "blob_view_float");
+    m.def("blob_view_int", &apex::contrib::peer_memory::blob_view_int, "blob_view_int");
+    m.def("push_pull_halos_1d", &apex::contrib::peer_memory::push_pull_halos_1d, "push_pull_halos_1d");
 }

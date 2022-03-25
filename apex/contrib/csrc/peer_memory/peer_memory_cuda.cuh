@@ -19,7 +19,7 @@
 #ifndef _peer_memory_h_
 #define _peer_memory_h_ 
 
-namespace apex { namespace peer_memory {
+namespace apex { namespace contrib { namespace peer_memory {
     int64_t allocate_raw(int64_t size);
     void free_raw(int64_t raw);
     at::Tensor get_raw_ipc_address(int64_t raw);
@@ -43,5 +43,5 @@ namespace apex { namespace peer_memory {
         at::Tensor btm_signal,          // btm input signal in receiver device memory
         at::Tensor waits                // top and btm signals for this rank
         );
-} }
+} } }
 #endif

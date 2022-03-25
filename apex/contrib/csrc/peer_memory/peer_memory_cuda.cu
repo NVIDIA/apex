@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cuda_runtime_api.h>
 #include <cooperative_groups.h>
+#include "nccl.h"
 namespace cg = cooperative_groups;
 
 #define CUDACHECK(cmd) do {                         \
@@ -214,9 +215,25 @@ __global__ void push_pull_halos_1d_kernel(
     strided_copy_kernel<T,is_HWC>(bih, bih_stride_C, bih_stride_H, bih_stride_W, bix, bix_stride_C, bix_stride_H, bix_stride_W, NC, NH, NW);
 }
 
+__global__ void delay_kernel(int delay_nanoseconds, int* counter)
+{
+    if (blockIdx.x == 0 && threadIdx.x == 0) {
+        // waste time while doing something compiler can't predict, thus preventing it from optimizing away this code.
+        int new_counter = 0;
+        double elapsed = 0;
+        clock_t start = clock();
+        do {
+            clock_t now = clock();
+            elapsed = (double)(now - start)*1e9 / CLOCKS_PER_SEC;
+            ++new_counter;
+        } while (elapsed < (double)delay_nanoseconds);
+        *counter = new_counter;
+    }
 }
 
-namespace apex { namespace peer_memory {
+}
+
+namespace apex { namespace contrib { namespace peer_memory {
 
 int64_t allocate_raw(int64_t size)
 {
@@ -460,5 +477,5 @@ void push_pull_halos_1d(
         } );
 }
 
-} }
+} } }
 
