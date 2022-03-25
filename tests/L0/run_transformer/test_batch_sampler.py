@@ -127,11 +127,6 @@ class TestBatchSamplerBehavior(unittest.TestCase):
         global_batch_size = 16
         loader = DataLoader(dataset, batch_sampler=MegatronPretrainingRandomSampler(100, 0, global_batch_size, 0, 1), num_workers=2)
         batch = next(iter(loader))
-        # samples = None
-        # for i, batch in enumerate(loader):
-        #     # samples = batch
-        #     if i == 0:
-        #         break
 
         for _micro_batch_size in (1, 2, 4, 8):
             microbatches = list(split_batch_into_microbatch(
@@ -139,8 +134,6 @@ class TestBatchSamplerBehavior(unittest.TestCase):
                 _micro_batch_size=_micro_batch_size,
                 _global_batch_size=global_batch_size,
             ))
-            # print(batch)
-            # print(microbatches)
             self.assertEqual(len(microbatches), global_batch_size // _micro_batch_size)
             self.assertEqual(len(microbatches[0][0]), _micro_batch_size)
 
