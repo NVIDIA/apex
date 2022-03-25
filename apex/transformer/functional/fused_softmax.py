@@ -31,7 +31,9 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
         import scaled_upper_triang_masked_softmax_cuda
 
         scale_t = torch.tensor([scale])
-        softmax_results = scaled_upper_triang_masked_softmax_cuda.forward(inputs, scale_t[0])
+        softmax_results = scaled_upper_triang_masked_softmax_cuda.forward(
+            inputs, scale_t[0]
+        )
 
         ctx.save_for_backward(softmax_results, scale_t)
         return softmax_results
@@ -41,7 +43,9 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
         import scaled_upper_triang_masked_softmax_cuda
 
         softmax_results, scale_t = ctx.saved_tensors
-        input_grads = scaled_upper_triang_masked_softmax_cuda.backward(output_grads, softmax_results, scale_t[0])
+        input_grads = scaled_upper_triang_masked_softmax_cuda.backward(
+            output_grads, softmax_results, scale_t[0]
+        )
 
         return input_grads, None
 
@@ -65,10 +69,10 @@ def scaled_upper_triang_masked_softmax(inputs, _, scale):
 # 2. Apply the mask.
 # 3. Perform softmax.
 class ScaledMaskedSoftmax(torch.autograd.Function):
-
     @staticmethod
     def forward(ctx, inputs, mask, scale):
         import scaled_masked_softmax_cuda
+
         scale_t = torch.tensor([scale])
 
         softmax_results = scaled_masked_softmax_cuda.forward(inputs, mask, scale_t[0])
@@ -81,7 +85,9 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
 
         softmax_results, scale_t = ctx.saved_tensors
 
-        input_grads = scaled_masked_softmax_cuda.backward(output_grads, softmax_results, scale_t[0])
+        input_grads = scaled_masked_softmax_cuda.backward(
+            output_grads, softmax_results, scale_t[0]
+        )
         return input_grads, None, None
 
 
@@ -120,7 +126,9 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
         self.input_in_fp16 = input_in_fp16
         self.input_in_bf16 = input_in_bf16
         if self.input_in_fp16 and self.input_in_bf16:
-            raise RuntimeError("both fp16 and bf16 flags cannot be active at the same time.")
+            raise RuntimeError(
+                "both fp16 and bf16 flags cannot be active at the same time."
+            )
         self.input_in_float16 = self.input_in_fp16 or self.input_in_bf16
         self.attn_mask_type = attn_mask_type
         self.scaled_masked_softmax_fusion = scaled_masked_softmax_fusion
