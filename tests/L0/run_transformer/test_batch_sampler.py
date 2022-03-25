@@ -101,7 +101,7 @@ class TestBatchSamplerBehavior(unittest.TestCase):
                     samples2.append(batch)
                     if i == 4 - 1:
                         break
-                torch.testing.assert_allclose(torch.cat(samples), torch.cat(samples2))
+                torch.testing.assert_close(torch.cat(samples), torch.cat(samples2))
 
     def test_split_batch(self):
 

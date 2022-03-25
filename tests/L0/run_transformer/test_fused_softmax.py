@@ -88,7 +88,7 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 mask = torch.randint(0, 2, (4, 1, 24, 24), device="cuda").bool()
                 expected = fused_fn(attention_scores_0, mask)
                 actual = torch_fn(attention_scores_1, mask)
-                torch.testing.assert_allclose(actual, expected)
+                torch.testing.assert_close(actual, expected)
 
                 g0 = torch.rand_like(actual)
                 with torch.no_grad():
@@ -118,7 +118,7 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 with torch.cuda.amp.autocast(dtype=dtype):
                     actual = fused_fn(attention_scores_0, mask)
                     self.assertEqual(actual.dtype, dtype)
-                torch.testing.assert_allclose(actual, expected)
+                torch.testing.assert_close(actual, expected)
 
                 g0 = torch.rand_like(actual)
                 with torch.no_grad():
@@ -173,7 +173,7 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 total_mask = total_mask.repeat((4, 1, 1, 1))
                 expected = fused_fn(attn_weights_0, total_mask)
                 actual = torch_fn(attn_weights_1, total_mask)
-                torch.testing.assert_allclose(actual, expected)
+                torch.testing.assert_close(actual, expected)
 
                 g0 = torch.randn_like(actual)
                 with torch.no_grad():
@@ -207,7 +207,7 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                     actual = fused_fn(attn_weights_0, total_mask)
                     self.assertEqual(actual.dtype, dtype)
                 expected = torch_fn(attn_weights_1, total_mask)
-                torch.testing.assert_allclose(actual, expected)
+                torch.testing.assert_close(actual, expected)
 
                 g0 = torch.randn_like(actual)
                 with torch.no_grad():
