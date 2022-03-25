@@ -36,6 +36,12 @@ void nccl_recv(
         at::Tensor input, 
         int sender
         );
+void left_right_halo_exchange_inplace(
+	at::Tensor left_output_halo,
+	at::Tensor right_output_halo,
+	at::Tensor left_input_halo,
+	at::Tensor right_input_halo,
+	int group_size);
 std::vector<at::Tensor> left_right_halo_exchange(
         int handle,
         at::Tensor left_output_halo, 

@@ -100,14 +100,9 @@ class NcclCommWrapper
             });
         }
 
-        std::vector<at::Tensor> left_right_halo_exchange(at::Tensor left_output_halo, at::Tensor right_output_halo, int group_size)
-        {
-            // after halo exchange:
-            // left_output_halo of rank+1 ends up in right_input_halo of rank
-            // right_output_halo of rank-1 ends up in left_input_halo of rank
+	void left_right_halo_exchange_inplace(at::Tensor left_output_halo, at::Tensor right_output_halo, at::Tensor left_input_halo, at::Tensor right_input_halo, int group_size)
+	{
             auto stream = at::cuda::getCurrentCUDAStream();
-            auto right_input_halo = torch::empty_like(left_output_halo);
-            auto left_input_halo = torch::empty_like(right_output_halo);
             ncclGroupStart();
             ncclDataType_t ncclType = get_nccl_type(left_output_halo);
             // we use wrap-around ranks, so left_input_halo of rank 0 has right_output_halo of rank world_size-1 after exchange etc.
@@ -137,7 +132,17 @@ class NcclCommWrapper
                 });
             }
             ncclGroupEnd();
-            return {left_input_halo, right_input_halo};
+	}
+
+        std::vector<at::Tensor> left_right_halo_exchange(at::Tensor left_output_halo, at::Tensor right_output_halo, int group_size)
+        {
+            // after halo exchange:
+            // left_output_halo of rank+1 ends up in right_input_halo of rank
+            // right_output_halo of rank-1 ends up in left_input_halo of rank
+            auto right_input_halo = torch::empty_like(left_output_halo);
+            auto left_input_halo = torch::empty_like(right_output_halo);
+	    left_right_halo_exchange_inplace(left_output_halo, right_output_halo, left_input_halo, right_input_halo, group_size);
+	    return {left_input_halo, right_input_halo};
         }
 };
 
@@ -188,6 +193,13 @@ void nccl_recv(int handle, at::Tensor input, int sender)
     assert(handle >= 0 && handle < nccl_comms.size());
     class NcclCommWrapper communicator = nccl_comms[handle];
     communicator.recv(input, sender);
+}
+
+void left_right_halo_exchange_inplace(int handle, at::Tensor left_output_halo, at::Tensor right_output_halo, at::Tensor left_input_halo, at::Tensor right_input_halo, int group_size)
+{
+    assert(handle >= 0 && handle < nccl_comms.size());
+    class NcclCommWrapper& communicator = nccl_comms[handle];
+    return communicator.left_right_halo_exchange_inplace(left_output_halo, right_output_halo, left_input_halo, right_input_halo, group_size);
 }
 
 std::vector<at::Tensor> left_right_halo_exchange(int handle, at::Tensor left_output_halo, at::Tensor right_output_halo, int group_size)
