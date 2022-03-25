@@ -19,12 +19,12 @@ from typing import Tuple, Optional
 
 import torch
 
-from apex.transformer.utils import ensure_divisibility
 from apex.transformer.log_util import get_transformer_logger
 
 
 _logger = get_transformer_logger(__name__)
 
+# N.B. (mkozuki): Diff btwn Megatron-LM & apex parallel_state
 # set(megatron_mpu_initialize_funcs) - set(apex.transformer.parallel_state) =
 # {
 #     'get_num_layers',
