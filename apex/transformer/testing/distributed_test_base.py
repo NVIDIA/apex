@@ -24,7 +24,6 @@ class DistributedTestBase(common_distributed.MultiProcessTestCase):
     def world_size(self) -> int:
         return min(torch.cuda.device_count(), 4)
 
-    # TODO (mkozuki): Check if this is seriously needed.
     @property
     def init_method(self):
         return f"{common_utils.FILE_SCHEMA}{self.file_name}"
