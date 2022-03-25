@@ -50,7 +50,7 @@ constexpr int D_DIM = 3;
 
 struct Qkv_params {
     // The QKV matrices.
-    void *qkv_ptr;
+    void * __restrict__ qkv_ptr;
 
     // The stride between rows of the Q, K and V matrices.
     size_t qkv_stride_in_bytes;
@@ -64,19 +64,19 @@ struct Qkv_params {
 struct Fused_multihead_attention_fprop_params : public Qkv_params {
 
     // The dQKV matrices.
-    void *dqkv_ptr;
+    void * __restrict__ dqkv_ptr;
 
     // Temporary for dKV.
-    void *dkv_ptr;
+    void * __restrict__ dkv_ptr;
 
     // The O matrix (output).
-    void *o_ptr;
+    void * __restrict__ o_ptr;
 
     // The stride between rows of O.
     int64_t o_stride_in_bytes;
 
     // The pointer to the S matrix, overwritten by the dP matrix (bwd).
-    void *s_ptr;
+    void * __restrict__ s_ptr;
     // The stride between rows of the S matrix.
     int64_t s_stride_in_bytes;
 
@@ -87,7 +87,7 @@ struct Fused_multihead_attention_fprop_params : public Qkv_params {
     uint32_t scale_bmm1, scale_softmax, scale_bmm2;
 
     // array of length b+1 holding starting offset of each sequence.
-    int *cu_seqlens;
+    int * __restrict__ cu_seqlens;
 
     // The dropout probability (probability of keeping an activation).
     float p_dropout;
@@ -104,10 +104,43 @@ struct Fused_multihead_attention_fprop_params : public Qkv_params {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void run_fmha_fp16_128_64_sm80(const Fused_multihead_attention_fprop_params &params, bool is_training, cudaStream_t stream);
-void run_fmha_fp16_256_64_sm80(const Fused_multihead_attention_fprop_params &params, bool is_training, cudaStream_t stream);
-void run_fmha_fp16_384_64_sm80(const Fused_multihead_attention_fprop_params &params, bool is_training, cudaStream_t stream);
-void run_fmha_fp16_512_64_sm80(const Fused_multihead_attention_fprop_params &params, bool is_training, cudaStream_t stream);
+template<typename Kernel_params> 
+struct Launch_params{
+    Launch_params(cudaDeviceProp * props_,
+                  cudaStream_t stream_,
+                  bool is_training_,
+                  bool is_nl_) 
+        : elts_per_thread(0)
+        , props(props_)
+        , stream(stream_)
+        , is_training(is_training_)
+        , is_nl(is_nl_) {
+    }
+
+    size_t elts_per_thread;
+
+    cudaDeviceProp * props;
+
+    cudaStream_t stream;
+
+    bool is_training;
+
+    Kernel_params params;
+    int num_full_heads;
+    int num_main_groups;
+    int heads_last_wave;
+    int main_steps;
+    int rest_steps;
+    bool is_nl;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void run_fmha_fp16_128_64_sm80(Launch_params<Fused_multihead_attention_fprop_params> &launch_params, const bool configure);
+void run_fmha_fp16_256_64_sm80(Launch_params<Fused_multihead_attention_fprop_params> &launch_params, const bool configure);
+void run_fmha_fp16_384_64_sm80(Launch_params<Fused_multihead_attention_fprop_params> &launch_params, const bool configure);
+void run_fmha_fp16_512_64_sm80(Launch_params<Fused_multihead_attention_fprop_params> &launch_params, const bool configure);
 
 void run_fmha_dgrad_fp16_128_64_sm80(const Fused_multihead_attention_fprop_params &params, cudaStream_t stream);
 void run_fmha_dgrad_fp16_256_64_sm80(const Fused_multihead_attention_fprop_params &params, cudaStream_t stream);

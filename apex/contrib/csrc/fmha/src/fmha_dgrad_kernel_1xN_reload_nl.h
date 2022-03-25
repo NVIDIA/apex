@@ -114,11 +114,11 @@ inline __device__ void compute_dv_1xN_nl(const Params &params) {
     // Allocate the shared memory tile loader for K.
     Smem_tile_k smem_k(&smem_[Smem_tile_q::BYTES_PER_TILE], tidx);
 
-    Gmem_tile_s gmem_s(params.s_ptr, params, tidx);
+    Gmem_tile_s gmem_s(params, binfo, tidx);
 
     using Noloop = Noloop_traits<CHUNKS, Cta_tile_p>;
 
-    Noloop nl_traits(bidc);
+    Noloop nl_traits(bidc, binfo);
     nl_traits.move_all(gmem_q, gmem_s);
 
     // Trigger the loads for Q.
@@ -163,8 +163,6 @@ inline __device__ void compute_dv_1xN_nl(const Params &params) {
 
     // Load over the entire sequence length.
     for(int l = 0; l < nl_traits.num_steps_;l++) {
-        const int loop = nl_traits.offset_loop_count(l);
-        if( loop >= binfo.actual_seqlen ) break;
 
         uint4 s_regs[M][N];
         gmem_s.load(s_regs, mask);
@@ -230,7 +228,7 @@ inline __device__ void compute_dv_1xN_nl(const Params &params) {
         }
 
         float p_sum[2 * M];
-        softmax.template reduce<fmha::Sum_>(p_sum);
+        softmax.reduce_sum(p_sum);
 
         const float scalef = reinterpret_cast<const float &>(params.scale_softmax);
         #pragma unroll
@@ -400,7 +398,7 @@ inline __device__ void compute_dq_dk_1xN_nl(const Params &params) {
     // Allocate the shared memory tile loader for Q (as B).
     Smem_tile_qt smem_qt(&smem_[0], tidx);
     // Allocate the global memory tile loader for dP.
-    Gmem_tile_s gmem_s(params.s_ptr, params, tidx);
+    Gmem_tile_s gmem_s(params, binfo, tidx);
     // Allocate the shared memory tile loader for dP.
     Smem_tile_st smem_s(&smem_[Smem_tile_q::BYTES_PER_TILE + Smem_tile_k::BYTES_PER_TILE + Smem_tile_o::BYTES_PER_TILE], tidx);
 
@@ -414,7 +412,7 @@ inline __device__ void compute_dq_dk_1xN_nl(const Params &params) {
     // Allocate the shared memory tile loader for O. We use the same as K so be careful!!!
     Smem_tile_o smem_o(&smem_[Smem_tile_q::BYTES_PER_TILE + Smem_tile_k::BYTES_PER_TILE], tidx);
 
-    Noloop nl_traits(bidc);
+    Noloop nl_traits(bidc, binfo);
 
     nl_traits.move_all(gmem_q, gmem_o, gmem_s);
 

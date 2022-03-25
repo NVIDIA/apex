@@ -25,7 +25,6 @@
 #
 ###############################################################################
 
-
 import sys
 import torch
 import numpy as np
@@ -77,9 +76,9 @@ class TestFMHA(unittest.TestCase):
         qkv.requires_grad = True
     
         if b < 4:
-            ctx, S_ = mha.fwd_nl(qkv_vs, cu_seqlens, 0.0, s, True, zero_tensors, None)
+            ctx, S_ = mha.fwd(qkv_vs, cu_seqlens, 0.0, s, True, True, zero_tensors, None)
         else:
-            ctx, S_ = mha.fwd(qkv_vs, cu_seqlens, 0.0, s, True, zero_tensors, None)
+            ctx, S_ = mha.fwd(qkv_vs, cu_seqlens, 0.0, s, True, False, zero_tensors, None)
         ctx = ctx.view(b,s,h,d)
     
         ctx_ref = py_mha(qkv, amask, b,s,h,d)
