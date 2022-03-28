@@ -37,6 +37,7 @@ void nccl_recv(
         int sender
         );
 void left_right_halo_exchange_inplace(
+        int handle,
 	at::Tensor left_output_halo,
 	at::Tensor right_output_halo,
 	at::Tensor left_input_halo,
