@@ -2,6 +2,7 @@ import torch
 import torch.distributed as dist
 from torch import nn
 import nccl_p2p as inc
+import peer_memory as pm
 
 # Communication free halo exchanger.
 # NB! This halo exchanger does not exchange halos with neighbors as it should, it merely swaps the inputs
@@ -78,15 +79,21 @@ class HaloExchangerPeer(HaloExchanger):
         self.numSM = numSM
 
     def left_right_halo_exchange(self, left_output_halo, right_output_halo, left_input_halo=None, right_input_halo=None):
+        inplace = False if left_input_halo is None and right_input_halo is None else True
+        if not inplace:
+            left_input_halo = torch.empty_like(right_output_halo)
+            right_input_halo = torch.empty_like(left_output_halo)
         channels_last = left_output_halo.is_contiguous(memory_format=torch.channels_last) and not self.explicit_nhwc
-        left_tx = self.peer_pool.allocate_peer_tensors(list(left_out_halo.shape), left_out_halo.dtype, channels_last, True)
-        right_tx = self.peer_pool.allocate_peer_tensors(list(right_out_halo.shape), right_out_halo.dtype, channels_last, True)
+        left_tx = self.peer_pool.allocate_peer_tensors(list(left_output_halo.shape), left_output_halo.dtype, channels_last, True)
+        right_tx = self.peer_pool.allocate_peer_tensors(list(right_output_halo.shape), right_output_halo.dtype, channels_last, True)
         pm.push_pull_halos_1d(
                 self.diagnostics, self.explicit_nhwc, self.numSM,
-                left_output_halo,  left_tx[self.peer_rank],  right_tx[top_neighbor], left_input_halo,
-                right_output_halo, right_tx[self.peer_rank], left_tx[btm_neighbor],  right_input_halo,
-                self.signals[left_neighbor], self.signals[right_neighbor], self.signals[self.peer_rank]
+                left_output_halo,  left_tx[self.peer_rank],  right_tx[self.left_neighbor], left_input_halo,
+                right_output_halo, right_tx[self.peer_rank], left_tx[self.right_neighbor],  right_input_halo,
+                self.signals[self.left_neighbor], self.signals[self.right_neighbor], self.signals[self.peer_rank]
                 )
+        if not inplace:
+            return left_input_halo, right_input_halo
 
 # Class that combines input volume with halos from neighbors (1d).
 class HaloPadder:
