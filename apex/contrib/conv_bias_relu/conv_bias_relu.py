@@ -9,7 +9,7 @@ class ConvBiasReLU_(torch.autograd.Function):
     @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
     def forward(ctx, x, weight, bias, padding, stride):
         outputs = fused_conv_bias_relu.forward([x, weight, bias], padding, stride)
-        ctx.save_for_backward(*(inputs[0:2] + outputs))
+        ctx.save_for_backward(x, weight, outputs[0])
         ctx.padding = padding
         ctx.stride = stride
 
@@ -31,7 +31,7 @@ class ConvBiasMaskReLU_(torch.autograd.Function):
     @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
     def forward(ctx, x, weight, bias, mask, padding, stride):
         outputs = fused_conv_bias_relu.forward_mask([x, weight, bias, mask], padding, stride)
-        ctx.save_for_backward(*(inputs[0:2] + outputs))
+        ctx.save_for_backward(x, weight, outputs[0])
         ctx.padding = padding
         ctx.stride = stride
 
@@ -53,7 +53,7 @@ class ConvBias_(torch.autograd.Function):
     @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
     def forward(ctx, x, weight, bias, padding, stride):
         outputs = fused_conv_bias_relu.forward_no_relu([x, weight, bias], padding, stride)
-        ctx.save_for_backward(*(inputs[0:2]))
+        ctx.save_for_backward(x, weight)
         ctx.padding = padding
         ctx.stride = stride
 
