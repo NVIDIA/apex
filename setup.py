@@ -658,6 +658,20 @@ if "--fast_bottleneck" in sys.argv:
     )
 
 
+if "--fused_conv_bias_relu" in sys.argv:
+    sys.argv.remove("--fused_conv_bias_relu")
+    raise_if_cuda_home_none("--fused_conv_bias_relu")
+    subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
+    ext_modules.append(
+        CUDAExtension(
+            name="fused_conv_bias_relu",
+            sources=["apex/contrib/csrc/conv_bias_relu/conv_bias_relu.cpp"],
+            include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
+            extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+        )
+    )
+
+
 setup(
     name="apex",
     version="0.1",
