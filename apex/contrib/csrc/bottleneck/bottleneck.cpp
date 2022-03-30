@@ -1936,6 +1936,7 @@ struct bottleneck_backward_state {
   int axis[4];
 
   int64_t outdimA1[4]; // grad_out1
+  int64_t outdimA1b[4]; // out1_pad
   int64_t outdimA2[4]; // grad_out2
   int64_t outdimA3[4];
   int64_t outdimA1h[4]; // output: grad_out1 halo (H=3)
@@ -1953,6 +1954,7 @@ struct bottleneck_backward_state {
   int64_t filterdim2hh[4]; // Cin,1,3,Cout
 
   int64_t outdim1[4];
+  int64_t outdim1b[4];
   int64_t outdim2[4];
   int64_t outdim3[4];
   int64_t outdim1h[4];
@@ -2001,6 +2003,7 @@ struct bottleneck_backward_state {
 
     // output dim in n,c,h,w used by backend
     outdimA1[0] = outdimA1[1] = outdimA1[2] = outdimA1[3] = 0;
+    outdimA1b[0] = outdimA1b[1] = outdimA1b[2] = outdimA1b[3] = 0;
     outdimA2[0] = outdimA2[1] = outdimA2[2] = outdimA2[3] = 0;
     outdimA3[0] = outdimA3[1] = outdimA3[2] = outdimA3[3] = 0;
     outdimA1h[0] = outdimA1h[1] = outdimA1h[2] = outdimA1h[3] = 0;
@@ -2021,6 +2024,13 @@ struct bottleneck_backward_state {
     outdimA1[1] = filterdimA1[0];
     for (int dim = 0; dim < 2; dim++) {
       outdimA1[dim + 2] = getFwdConvOutputDim(dimA[dim + 2], padA[dim], filterdimA1[dim + 2], convstride1X1[dim], dilationA[dim]);
+    }
+    for (int dim = 0; dim < 4; dim++) {
+      if (dim == 2) {
+	outdimA1b[dim] = outdimA1[dim] + 2;
+      } else {
+	outdimA1b[dim] = outdimA1[dim];
+      }
     }
 
     outdimA2[0] = outdimA1[0];
@@ -2051,6 +2061,7 @@ struct bottleneck_backward_state {
 
     // Create output tensor in the correct shape in pytorch's view
     outdim1[0] = outdim1[1] = outdim1[2] = outdim1[3] = 0;
+    outdim1b[0] = outdim1b[1] = outdim1b[2] = outdim1b[3] = 0;
     outdim2[0] = outdim2[1] = outdim2[2] = outdim2[3] = 0;
     outdim3[0] = outdim3[1] = outdim3[2] = outdim3[3] = 0;
     outdim1h[0] = outdim1h[1] = outdim1h[2] = outdim1h[3] = 0;
@@ -2063,6 +2074,7 @@ struct bottleneck_backward_state {
     }
     for (int dim=0;dim<4;dim++) {
       outdim1[dim] = outdimA1[axis[dim]];
+      outdim1b[dim] = outdimA1b[axis[dim]];
       outdim2[dim] = outdimA2[axis[dim]];
       outdim3[dim] = outdimA3[axis[dim]];
       outdim1h[dim] = outdimA1h[axis[dim]];
@@ -2232,6 +2244,39 @@ at::Tensor bottleneck_backward_grad_out1_halo(bool explicit_nhwc, int stride_1X1
                          relu1h);
 
   return grad_out1_halo;
+}
+
+at::Tensor bottleneck_backward_wgrad2_pad(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor input, at::Tensor grad_out2) {
+
+  std::cout << std::fixed;
+  auto output_format = explicit_nhwc ? at::MemoryFormat::Contiguous : at::MemoryFormat::ChannelsLast;
+
+  // dgrad
+  at::Half* dy2 = grad_out2.data_ptr<at::Half>();
+
+  // dconv2+drelu1+dscale1
+  at::Half* conv_in = input.data_ptr<at::Half>();
+
+  // wgrad
+  auto wgrad2 = outputs[2];
+  at::Half* dw2 = wgrad2.data_ptr<at::Half>();
+
+  //printf("outdimA1b = (%d,%d,%d,%d)\n",backward_state.outdimA1b[0],backward_state.outdimA1b[1],backward_state.outdimA1b[2],backward_state.outdimA1b[3]);
+  //printf("backward_state.padA2 = {%d,%d}\n",backward_state.padA2[0],backward_state.padA2[1]);
+  run_dconv(backward_state.outdimA1b,	// conv_in.shape (including H halos)
+            backward_state.padA2,	// 0, 1
+            backward_state.convstrideA,
+            backward_state.dilationA,
+            backward_state.filterdimA2, // dw2.shape
+            backward_state.outdimA2,	// dy2.shape
+            CUDNN_DATA_HALF,
+            conv_in,
+            dw2,
+            dy2,
+            CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
+  DEBUG_MSG("[DEBUG] new wgrad2 : " << wgrad2.to(at::kFloat).sum().item<float>());
+
+  return wgrad2;
 }
 
 at::Tensor bottleneck_backward_wgrad2(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2) {
@@ -2480,6 +2525,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("backward_grad_out2", &bottleneck_backward_grad_out2, "Bottleneck block backward");
   m.def("backward_grad_out1", &bottleneck_backward_grad_out1, "Bottleneck block backward");
   m.def("backward_grad_out1_halo", &bottleneck_backward_grad_out1_halo, "Bottleneck block backward");
+  m.def("backward_wgrad2_pad", &bottleneck_backward_wgrad2_pad, "Bottleneck block backward");
   m.def("backward_wgrad2", &bottleneck_backward_wgrad2, "Bottleneck block backward");
   m.def("backward_wgrad2_halo", &bottleneck_backward_wgrad2_halo, "Bottleneck block backward");
   m.def("backward_rest", &bottleneck_backward_rest, "Bottleneck block backward");

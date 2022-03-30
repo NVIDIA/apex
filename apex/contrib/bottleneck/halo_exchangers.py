@@ -12,6 +12,7 @@ class HaloExchanger(object):
     def __init__(self):
         self.stream1 = torch.cuda.Stream()
         self.stream2 = torch.cuda.Stream()
+        self.stream3 = torch.cuda.Stream()
 
 class HaloExchangerNoComm(HaloExchanger):
     def __init__(self, world_size, spatial_group_size, rank, comm):
