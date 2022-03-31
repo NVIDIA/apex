@@ -161,8 +161,8 @@ def n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp3
     spatial_group_rank = rank
     spatial_communicator = None
     spatial_halo_exchanger = halex
-    spatial_stream = None # Not in use
-    spatial_parallel_args = (spatial_group_size, spatial_group_rank, spatial_communicator, spatial_halo_exchanger, spatial_stream)
+    spatial_method = 2 # 1 -> overlap halo and main conv, 2 -> wait for halo, conv on padded x
+    spatial_parallel_args = (spatial_group_size, spatial_group_rank, spatial_communicator, spatial_halo_exchanger, spatial_method)
     spatial_bottleneck = spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, spatial_parallel_args)
 
     with torch.no_grad():
@@ -217,8 +217,14 @@ def main():
     peer_pool = PeerMemoryPool(rank, world_size, spatial_group_size, 64*1024*1024, 2*1024*1024)
 
     #halex = HaloExchangerAllGather(world_size, spatial_group_size, rank, spatial_communicator)
-    #halex = HaloExchangerSendRecv(world_size, spatial_group_size, rank, spatial_communicator)
-    halex = HaloExchangerPeer(world_size, spatial_group_size, rank, spatial_communicator, peer_pool, explicit_nhwc, numSM=1)
+    halex = HaloExchangerSendRecv(world_size, spatial_group_size, rank, spatial_communicator)
+
+    #halex = HaloExchangerPeer(world_size, spatial_group_size, rank, spatial_communicator, peer_pool, explicit_nhwc, numSM=1)
+    #print("halex.signals = %s" % (str(halex.signals)))
+    # Make sure peer memory halo exchanger has finished initializing flags on all ranks before proceeding
+    #torch.cuda.synchronize()
+    #torch.distributed.barrier()
+
     bt2 = n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp32_reduce=True)
     compare(gt, bt2)
 

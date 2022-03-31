@@ -53,7 +53,7 @@ def nccl_halo_ex(peer_rank, peer_group_size, y, half_halo, explicit_nhwc, H_spli
     btm_inp_halo.copy_(top_inp_halos[btm_rank])
 
 
-def single_test(peer_rank, peer_group_size, halo_ex, C, H, W, half_halo, dtype, memory_format, H_split, numSM=1):
+def single_test(peer_rank, peer_group_size, halo_ex, C, H, W, half_halo, dtype, memory_format, H_split, num_steps, numSM=1):
     if memory_format == 1:
         # 1 -> explicit nhwc
         explicit_nhwc = True
@@ -77,10 +77,23 @@ def single_test(peer_rank, peer_group_size, halo_ex, C, H, W, half_halo, dtype, 
             if memory_format == 2:
                 y = y.to(memory_format=torch.channels_last)
             ym = y[:,:,:,half_halo:W+half_halo]
-    y2 = y.clone()
-    halo_ex(y, H_split, explicit_nhwc, numSM)
-    nccl_halo_ex(peer_rank, peer_group_size, y2, half_halo, explicit_nhwc, H_split)
-    is_equal = torch.all(torch.eq(y,y2))
+    y3 = y.clone()
+    list_y = []
+    for step in range(num_steps):
+        halo_ex(y, H_split, explicit_nhwc, numSM)
+        list_y.append(y.clone())
+        y.copy_(y3)
+        halo_ex.peer_pool.reset()
+        torch.distributed.barrier()
+    y2 = y3.clone()
+    list_y2 = []
+    for step in range(num_steps):
+        nccl_halo_ex(peer_rank, peer_group_size, y2, half_halo, explicit_nhwc, H_split)
+        list_y2.append(y2.clone())
+        y2.copy_(y3)
+    is_equal = [torch.all(torch.eq(yy,yy2)) for yy,yy2 in zip(list_y,list_y2)]
+    is_equal = torch.tensor(is_equal, dtype=torch.bool)
+    is_equal = torch.all(is_equal)
     if peer_rank == 0:
         if memory_format == 1:
             memory_format_str = "explicit_nhwc"
@@ -99,26 +112,26 @@ def single_test(peer_rank, peer_group_size, halo_ex, C, H, W, half_halo, dtype, 
     torch.distributed.barrier()
 
 
-def H_split_tests(N, C, H, W, half_halo, rank, world_size, halo_ex):
+def H_split_tests(N, C, H, W, half_halo, rank, world_size, halo_ex, num_steps):
     Hr = 8*world_size
     Hp = ((H + Hr - 1) // Hr) * 8
 
     for i in range(4):
         div = int(pow(2,i))
-        single_test(rank, world_size, halo_ex, C*div, Hp//div, W//div, half_halo, torch.float16, 1, True)
-        single_test(rank, world_size, halo_ex, C*div, Hp//div, W//div, half_halo, torch.float16, 2, True)
-        single_test(rank, world_size, halo_ex, C*div, Hp//div, W//div, half_halo, torch.float16, 3, True)
+        single_test(rank, world_size, halo_ex, C*div, Hp//div, W//div, half_halo, torch.float16, 1, True, num_steps)
+        single_test(rank, world_size, halo_ex, C*div, Hp//div, W//div, half_halo, torch.float16, 2, True, num_steps)
+        single_test(rank, world_size, halo_ex, C*div, Hp//div, W//div, half_halo, torch.float16, 3, True, num_steps)
 
 
-def W_split_tests(N, C, H, W, half_halo, rank, world_size, halo_ex):
+def W_split_tests(N, C, H, W, half_halo, rank, world_size, halo_ex, num_steps):
     Wr = 8*world_size
     Wp = ((W + Wr - 1) // Wr) * 8
 
     for i in range(4):
         div = int(pow(2,i))
-        single_test(rank, world_size, halo_ex, C*div, H//div, Wp//div, half_halo, torch.float16, 1, False)
-        single_test(rank, world_size, halo_ex, C*div, H//div, Wp//div, half_halo, torch.float16, 2, False)
-        single_test(rank, world_size, halo_ex, C*div, H//div, Wp//div, half_halo, torch.float16, 3, False)
+        single_test(rank, world_size, halo_ex, C*div, H//div, Wp//div, half_halo, torch.float16, 1, False, num_steps)
+        single_test(rank, world_size, halo_ex, C*div, H//div, Wp//div, half_halo, torch.float16, 2, False, num_steps)
+        single_test(rank, world_size, halo_ex, C*div, H//div, Wp//div, half_halo, torch.float16, 3, False, num_steps)
 
 
 def main():
@@ -130,11 +143,13 @@ def main():
     torch.cuda.set_device(rank)
     pool = PeerMemoryPool(rank, world_size, world_size, 64*1024, 2*1024*1024)
 
+    num_steps = 100
+
     half_halo = 1
     halo_ex = PeerHaloExchanger1d(rank, world_size, pool, half_halo)
 
-    H_split_tests(1,64,336,200, half_halo,rank,world_size,halo_ex)
-    W_split_tests(1,64,200,336, half_halo,rank,world_size,halo_ex)
+    H_split_tests(1,64,336,200, half_halo,rank,world_size,halo_ex,num_steps)
+    W_split_tests(1,64,200,336, half_halo,rank,world_size,halo_ex,num_steps)
 
 
 if __name__ == "__main__":

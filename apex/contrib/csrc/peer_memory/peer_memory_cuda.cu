@@ -239,6 +239,7 @@ int64_t allocate_raw(int64_t size)
 {
     float* ptr = 0L;
     cudaMalloc(&ptr, size);
+    cudaMemset(ptr, 0, size);
     return (int64_t)ptr;
 }
 

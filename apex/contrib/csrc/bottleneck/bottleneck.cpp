@@ -1620,6 +1620,7 @@ struct bottleneck_forward_status {
 
   int64_t outdimA0[4];
   int64_t outdimA1[4];
+  int64_t outdimA1b[4]; // out1_pad
   int64_t outdimA2[4];
   int64_t outdimA3[4];
   int64_t outdimA4[4];
@@ -1633,6 +1634,7 @@ struct bottleneck_forward_status {
 
   int64_t outdim0[4]; // halo input shape
   int64_t outdim1[4];
+  int64_t outdim1b[4];
   int64_t outdim2[4];
   int64_t outdim3[4];
   int64_t outdim4[4]; // halo output shape
@@ -1672,6 +1674,7 @@ struct bottleneck_forward_status {
     // output dim in n,c,h,w used by backend
     outdimA0[0] = outdimA0[1] = outdimA0[2] = outdimA0[3] = 0;
     outdimA1[0] = outdimA1[1] = outdimA1[2] = outdimA1[3] = 0;
+    outdimA1b[0] = outdimA1b[1] = outdimA1b[2] = outdimA1b[3] = 0;
     outdimA2[0] = outdimA2[1] = outdimA2[2] = outdimA2[3] = 0;
     outdimA3[0] = outdimA3[1] = outdimA3[2] = outdimA3[3] = 0;
     outdimA4[0] = outdimA4[1] = outdimA4[2] = outdimA4[3] = 0;
@@ -1689,6 +1692,13 @@ struct bottleneck_forward_status {
     outdimA1[1] = filterdimA1[0];
     for (int dim = 0; dim < 2; dim++) {
       outdimA1[dim + 2] = getFwdConvOutputDim(dimA[dim + 2], padA[dim], filterdimA1[dim + 2], convstride1X1[dim], dilationA[dim]);
+    }
+    for (int dim = 0; dim < 4; dim++) {
+      if (dim == 2) {
+        outdimA1b[dim] = outdimA1[dim] + 2;
+      } else {
+        outdimA1b[dim] = outdimA1[dim];
+      }
     }
 
     outdimA2[0] = outdimA1[0];
@@ -1715,6 +1725,7 @@ struct bottleneck_forward_status {
 
     // Create output tensor in the correct shape in pytorch's view
     outdim1[0] = outdim1[1] = outdim1[2] = outdim1[3] = 0;
+    outdim1b[0] = outdim1b[1] = outdim1b[2] = outdim1b[3] = 0;
     outdim2[0] = outdim2[1] = outdim2[2] = outdim2[3] = 0;
     outdim3[0] = outdim3[1] = outdim3[2] = outdim3[3] = 0;
     if (explicit_nhwc) {
@@ -1726,6 +1737,7 @@ struct bottleneck_forward_status {
     for (int dim=0;dim<4;dim++) {
       outdim0[dim] = outdimA0[axis[dim]];
       outdim1[dim] = outdimA1[axis[dim]];
+      outdim1b[dim] = outdimA1b[axis[dim]];
       outdim2[dim] = outdimA2[axis[dim]];
       outdim3[dim] = outdimA3[axis[dim]];
       outdim4[dim] = outdimA4[axis[dim]];
@@ -1845,6 +1857,44 @@ void bottleneck_forward_out2(bool explicit_nhwc, int stride_1X1, std::vector<at:
   //printf("forward_state.outdimA2 = {%d,%d,%d,%d}\n",forward_state.outdimA2[0],forward_state.outdimA2[1],forward_state.outdimA2[2],forward_state.outdimA2[3]);
   run_conv_scale_bias_add_activation(forward_state.outdimA1,
                                      forward_state.padA1,
+                                     forward_state.convstrideA,
+                                     forward_state.dilationA,
+                                     forward_state.filterdimA2,
+                                     forward_state.outdimA2,
+                                     CUDNN_DATA_HALF,
+                                     y1,
+                                     w,
+                                     y2,
+                                     z,
+                                     b,
+                                     nullptr);
+  DEBUG_MSG("[DEBUG] new relu2 : " << out2.to(at::kFloat).sum().item<float>());
+}
+
+void bottleneck_forward_out2_pad(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor out1_pad) {
+
+  std::cout << std::fixed;
+
+  // from _out1 method
+  at::Half* x = inputs[0].data_ptr<at::Half>();
+  auto out1 = outputs[0];
+  at::Half* y1 = out1_pad.data_ptr<at::Half>();
+
+  // run
+  at::Half* w = inputs[2].data_ptr<at::Half>();
+  at::Half* z = inputs[5].data_ptr<at::Half>();
+  at::Half* b = inputs[8].data_ptr<at::Half>();
+  auto out2 = outputs[1];
+  at::Half* y2 = out2.data_ptr<at::Half>();
+
+  //printf("forward_state.outdimA1 = {%d,%d,%d,%d}\n",forward_state.outdimA1[0],forward_state.outdimA1[1],forward_state.outdimA1[2],forward_state.outdimA1[3]);
+  //printf("forward_state.padA1 = {%d,%d}\n",forward_state.padA1[0],forward_state.padA1[1]);
+  //printf("forward_state.convstrideA = {%d,%d}\n",forward_state.convstrideA[0],forward_state.convstrideA[1]);
+  //printf("forward_state.dilationA = {%d,%d}\n",forward_state.dilationA[0],forward_state.dilationA[1]);
+  //printf("forward_state.filterdimA2 = {%d,%d,%d,%d}\n",forward_state.filterdimA2[0],forward_state.filterdimA2[1],forward_state.filterdimA2[2],forward_state.filterdimA2[3]);
+  //printf("forward_state.outdimA2 = {%d,%d,%d,%d}\n",forward_state.outdimA2[0],forward_state.outdimA2[1],forward_state.outdimA2[2],forward_state.outdimA2[3]);
+  run_conv_scale_bias_add_activation(forward_state.outdimA1b,
+                                     forward_state.padA2,
                                      forward_state.convstrideA,
                                      forward_state.dilationA,
                                      forward_state.filterdimA2,
@@ -2520,6 +2570,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward_out1", &bottleneck_forward_out1, "Bottleneck block forward");
   m.def("forward_out2", &bottleneck_forward_out2, "Bottleneck block forward");
   m.def("forward_out2_halo", &bottleneck_forward_out2_halo, "Bottleneck block forward");
+  m.def("forward_out2_pad", &bottleneck_forward_out2_pad, "Bottleneck block forward");
   m.def("forward_rest", &bottleneck_forward_rest, "Bottleneck block forward");
   m.def("backward_init", &bottleneck_backward_init, "Bottleneck block backward init");
   m.def("backward_grad_out2", &bottleneck_backward_grad_out2, "Bottleneck block backward");

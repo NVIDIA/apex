@@ -100,7 +100,7 @@ class NcclCommWrapper
             });
         }
 
-	void left_right_halo_exchange_inplace(at::Tensor left_output_halo, at::Tensor right_output_halo, at::Tensor left_input_halo, at::Tensor right_input_halo, int group_size)
+	void left_right_halo_exchange_inplace(bool left_zero, bool right_zero, at::Tensor left_output_halo, at::Tensor right_output_halo, at::Tensor left_input_halo, at::Tensor right_input_halo, int group_size)
 	{
             auto stream = at::cuda::getCurrentCUDAStream();
             ncclGroupStart();
@@ -132,16 +132,18 @@ class NcclCommWrapper
                 });
             }
             ncclGroupEnd();
+	    if (left_zero) left_input_halo.zero_();
+	    if (right_zero) right_input_halo.zero_();
 	}
 
-        std::vector<at::Tensor> left_right_halo_exchange(at::Tensor left_output_halo, at::Tensor right_output_halo, int group_size)
+        std::vector<at::Tensor> left_right_halo_exchange(bool left_zero, bool right_zero, at::Tensor left_output_halo, at::Tensor right_output_halo, int group_size)
         {
             // after halo exchange:
             // left_output_halo of rank+1 ends up in right_input_halo of rank
             // right_output_halo of rank-1 ends up in left_input_halo of rank
             auto right_input_halo = torch::empty_like(left_output_halo);
             auto left_input_halo = torch::empty_like(right_output_halo);
-	    left_right_halo_exchange_inplace(left_output_halo, right_output_halo, left_input_halo, right_input_halo, group_size);
+	    left_right_halo_exchange_inplace(left_zero, right_zero, left_output_halo, right_output_halo, left_input_halo, right_input_halo, group_size);
 	    return {left_input_halo, right_input_halo};
         }
 };
@@ -195,18 +197,18 @@ void nccl_recv(int handle, at::Tensor input, int sender)
     communicator.recv(input, sender);
 }
 
-void left_right_halo_exchange_inplace(int handle, at::Tensor left_output_halo, at::Tensor right_output_halo, at::Tensor left_input_halo, at::Tensor right_input_halo, int group_size)
+void left_right_halo_exchange_inplace(int handle, bool left_zero, bool right_zero, at::Tensor left_output_halo, at::Tensor right_output_halo, at::Tensor left_input_halo, at::Tensor right_input_halo, int group_size)
 {
     assert(handle >= 0 && handle < nccl_comms.size());
     class NcclCommWrapper& communicator = nccl_comms[handle];
-    return communicator.left_right_halo_exchange_inplace(left_output_halo, right_output_halo, left_input_halo, right_input_halo, group_size);
+    return communicator.left_right_halo_exchange_inplace(left_zero, right_zero, left_output_halo, right_output_halo, left_input_halo, right_input_halo, group_size);
 }
 
-std::vector<at::Tensor> left_right_halo_exchange(int handle, at::Tensor left_output_halo, at::Tensor right_output_halo, int group_size)
+std::vector<at::Tensor> left_right_halo_exchange(int handle, bool left_zero, bool right_zero, at::Tensor left_output_halo, at::Tensor right_output_halo, int group_size)
 {
     assert(handle >= 0 && handle < nccl_comms.size());
     class NcclCommWrapper& communicator = nccl_comms[handle];
-    return communicator.left_right_halo_exchange(left_output_halo, right_output_halo, group_size);
+    return communicator.left_right_halo_exchange(left_zero, right_zero, left_output_halo, right_output_halo, group_size);
 }
 
 void add_delay(int delay)

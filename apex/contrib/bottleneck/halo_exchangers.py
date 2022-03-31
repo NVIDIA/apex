@@ -9,14 +9,17 @@ import peer_memory as pm
 # NB! This is only useful for performance testing.
 # NB! Do not use for actual production runs
 class HaloExchanger(object):
-    def __init__(self):
+    def __init__(self, spatial_group_size, rank):
         self.stream1 = torch.cuda.Stream()
         self.stream2 = torch.cuda.Stream()
         self.stream3 = torch.cuda.Stream()
+        spatial_rank = rank % spatial_group_size
+        self.left_zero = True if spatial_rank == 0 else False
+        self.right_zero = True if spatial_rank == spatial_group_size - 1 else False
 
 class HaloExchangerNoComm(HaloExchanger):
     def __init__(self, world_size, spatial_group_size, rank, comm):
-        super(HaloExchangerNoComm, self).__init__()
+        super(HaloExchangerNoComm, self).__init__(spatial_group_size, rank)
 
     def left_right_halo_exchange(self, left_output_halo, right_output_halo, left_input_halo=None, right_input_halo=None):
         if left_input_halo is None:
@@ -27,7 +30,7 @@ class HaloExchangerNoComm(HaloExchanger):
 
 class HaloExchangerAllGather(HaloExchanger):
     def __init__(self, world_size, spatial_group_size, rank, comm):
-        super(HaloExchangerAllGather, self).__init__()
+        super(HaloExchangerAllGather, self).__init__(spatial_group_size, rank)
         self.spatial_group_size = spatial_group_size
         self.local_rank = rank % spatial_group_size
         self.comm = comm
@@ -43,14 +46,24 @@ class HaloExchangerAllGather(HaloExchanger):
         ag_left_input_halo = all_halos[(self.spatial_group_size+self.local_rank-1)%self.spatial_group_size][:,Hh:,:,:]
         ag_right_input_halo = all_halos[(self.local_rank+1)%self.spatial_group_size][:,:Hh,:,:]
         if left_input_halo is None:
+            if self.left_zero:
+                ag_left_input_halo.zero_()
+            if self.right_zero:
+                ag_right_input_halo.zero_()
             return ag_left_input_halo, ag_right_input_halo
         else:
-            left_input_halo.copy_(ag_left_input_halo)
-            right_input_halo.copy_(ag_right_input_halo)
+            if self.left_zero:
+                left_input_halo.zero_()
+            else:
+                left_input_halo.copy_(ag_left_input_halo)
+            if self.right_zero:
+                right_input_halo.zero_()
+            else:
+                right_input_halo.copy_(ag_right_input_halo)
 
 class HaloExchangerSendRecv(HaloExchanger):
     def __init__(self, world_size, spatial_group_size, rank, comm):
-        super(HaloExchangerSendRecv, self).__init__()
+        super(HaloExchangerSendRecv, self).__init__(spatial_group_size, rank)
         self.world_size = world_size
         self.spatial_group_size = spatial_group_size
         nccl_id = inc.get_unique_nccl_id(1).cuda()
@@ -60,14 +73,14 @@ class HaloExchangerSendRecv(HaloExchanger):
 
     def left_right_halo_exchange(self, left_output_halo, right_output_halo, left_input_halo=None, right_input_halo=None):
         if left_input_halo is None:
-            left_input_halo, right_input_halo = inc.left_right_halo_exchange(self.handle, left_output_halo, right_output_halo, self.spatial_group_size)
+            left_input_halo, right_input_halo = inc.left_right_halo_exchange(self.handle, self.left_zero, self.right_zero, left_output_halo, right_output_halo, self.spatial_group_size)
             return left_input_halo, right_input_halo
         else:
-            inc.left_right_halo_exchange_inplace(self.handle, left_output_halo, right_output_halo, left_input_halo, right_input_halo, self.spatial_group_size)
+            inc.left_right_halo_exchange_inplace(self.handle, self.left_zero, self.right_zero, left_output_halo, right_output_halo, left_input_halo, right_input_halo, self.spatial_group_size)
 
 class HaloExchangerPeer(HaloExchanger):
     def __init__(self, world_size, spatial_group_size, rank, comm, peer_pool, explicit_nhwc, numSM=1):
-        super(HaloExchangerPeer, self).__init__()
+        super(HaloExchangerPeer, self).__init__(spatial_group_size, rank)
         self.diagnostics = False
         self.spatial_group_size = spatial_group_size
         self.peer_rank = rank % spatial_group_size
@@ -93,6 +106,11 @@ class HaloExchangerPeer(HaloExchanger):
                 right_output_halo, right_tx[self.peer_rank], left_tx[self.right_neighbor],  right_input_halo,
                 self.signals[self.left_neighbor], self.signals[self.right_neighbor], self.signals[self.peer_rank]
                 )
+        # TODO: Add to push_pull_halos_1d kernel
+        if self.left_zero:
+            left_input_halo.zero_()
+        if self.right_zero:
+            right_input_halo.zero_()
         if not inplace:
             return left_input_halo, right_input_halo
 

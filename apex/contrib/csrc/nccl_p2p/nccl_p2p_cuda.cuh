@@ -38,6 +38,8 @@ void nccl_recv(
         );
 void left_right_halo_exchange_inplace(
         int handle,
+	bool left_zero,
+	bool right_zero,
 	at::Tensor left_output_halo,
 	at::Tensor right_output_halo,
 	at::Tensor left_input_halo,
@@ -45,6 +47,8 @@ void left_right_halo_exchange_inplace(
 	int group_size);
 std::vector<at::Tensor> left_right_halo_exchange(
         int handle,
+	bool left_zero,
+	bool right_zero,
         at::Tensor left_output_halo, 
         at::Tensor right_output_halo,
         int group_size
