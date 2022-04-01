@@ -161,7 +161,7 @@ def n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp3
     spatial_group_rank = rank
     spatial_communicator = None
     spatial_halo_exchanger = halex
-    spatial_method = 2 # 1 -> overlap halo and main conv, 2 -> wait for halo, conv on padded x
+    spatial_method = 3 # 1 -> overlap halo and main conv, 2 -> wait for halo, conv on padded x
     spatial_parallel_args = (spatial_group_size, spatial_group_rank, spatial_communicator, spatial_halo_exchanger, spatial_method)
     spatial_bottleneck = spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, spatial_parallel_args)
 
