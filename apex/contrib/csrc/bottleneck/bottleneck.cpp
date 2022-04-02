@@ -197,7 +197,6 @@ create_conv_bias_add_act_descriptors(int64_t* x_dim_padded,
     int64_t y_stride_padded[4];
     int64_t w_stride_padded[4];
     int64_t b_stride_padded[4];
-    int64_t threshold_stride[4];
 
     generateStrides(w_dim_padded, w_stride_padded, 4, CUDNN_TENSOR_NHWC);
     generateStrides(x_dim_padded, x_stride_padded, 4, CUDNN_TENSOR_NHWC);
