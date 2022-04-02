@@ -508,7 +508,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                         btm_relu_halo = relu1[:,:,Hs-1:,:].clone()
                         btm_grad_out1 = grad_out1[:,:,Hs-1:,:]
                     w1by3 = w[:,:1,:,:].clone()
-                    ctx.stream1.wait_stream(ctx.stream2) # wait for halo transfers to finish
+                    ctx.stream2.wait_stream(ctx.stream1) # wait for halo transfers to finish
                     ctx.stream2.wait_stream(torch.cuda.current_stream()) # wait for backward_grad_out1_mask to finish before launching halo correction kernel
                     with torch.cuda.stream(ctx.stream1):
                         btm_grad_out1_halo = fast_bottleneck.backward_grad_out1_halo_corr(ctx.explicit_nhwc, ctx.stride_1x1, t_list, w1by3, grads, btm_halo, btm_relu_halo, btm_grad_out1.clone())
