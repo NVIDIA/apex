@@ -330,6 +330,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                 # the first kernel of _forward_rest can launch.
                 # At least we can overlap the two halo correction kernels.
                 if spatial_group_rank < spatial_group_size-1:
+                    stream2.wait_stream(stream1) # wait for halo transfers to finish
                     stream2.wait_stream(torch.cuda.current_stream()) # wait for *_out2_mask to finish
                     with torch.cuda.stream(stream2):
                         w1by3 = args[2][:,2:3,:,:].clone()
