@@ -388,7 +388,7 @@ void push_pull_halos_1d(
     const int numThreads = 128;
     dim3 block(numThreads,1,1);
     AT_DISPATCH_ALL_TYPES_AND(at::ScalarType::Half, top_out_halo.scalar_type(), "push_pull_halos_1d_kernel", [&]{
-	    if (diagnostics) printf("size(scalar_t) = %d\n",sizeof(scalar_t));
+	    if (diagnostics) printf("size(scalar_t) = %ld\n",sizeof(scalar_t));
             scalar_t* toh_p = top_out_halo.data_ptr<scalar_t>();
             scalar_t* tox_p = top_out_tx.data_ptr<scalar_t>();
             scalar_t* tix_p = top_inp_tx.data_ptr<scalar_t>();

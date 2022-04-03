@@ -102,13 +102,6 @@ enum {
     AFTERCONV_TENSOR,
     OPTIONAL,
     AFTEROPT_TENSOR,
-    AFTERACT_TENSOR,
-    GEN_INDEX_TENSOR,
-    MASK_TOP_TENSOR,
-    MASK_BOTTOM_TENSOR,
-    MASK_TENSOR,
-    THRESHOLD_TOP_TENSOR,
-    THRESHOLD_BOTTOM_TENSOR,
 };
 
 using common_conv_descriptors =
@@ -180,11 +173,11 @@ using common_convbias_descriptors = std::tuple<cudnn_frontend::Tensor,
 common_convbias_descriptors
 create_conv_bias_add_act_descriptors(int64_t* x_dim_padded,
                                      int64_t* padA,
-				     int64_t* convstrideA,
-				     int64_t* dilationA,
-				     int64_t* w_dim_padded,
-				     int64_t* y_dim_padded,
-				     cudnnDataType_t dataType) {
+                                     int64_t* convstrideA,
+                                     int64_t* dilationA,
+                                     int64_t* w_dim_padded,
+                                     int64_t* y_dim_padded,
+                                     cudnnDataType_t dataType) {
     const int convDim = 2;
 
     int64_t b_dim_padded[4];
@@ -279,183 +272,6 @@ create_conv_bias_add_act_descriptors(int64_t* x_dim_padded,
                                            .build());
 }
 
-using masked_convbias_descriptors = std::tuple<cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor,
-                                               cudnn_frontend::Tensor>;
-
-masked_convbias_descriptors
-create_conv_bias_add_act_mask_descriptors(int64_t* x_dim_padded,
-                                          int64_t* padA,
-					  int64_t* convstrideA,
-					  int64_t* dilationA,
-					  int64_t* w_dim_padded,
-					  int64_t* y_dim_padded,
-					  int64_t* threshold_dim,
-					  cudnnDataType_t dataType) {
-    const int convDim = 2;
-
-    int64_t b_dim_padded[4];
-    b_dim_padded[0] = 1;
-    b_dim_padded[1] = y_dim_padded[1];
-    b_dim_padded[2] = 1;
-    b_dim_padded[3] = 1;
-
-    int64_t x_stride_padded[4];
-    int64_t y_stride_padded[4];
-    int64_t w_stride_padded[4];
-    int64_t b_stride_padded[4];
-    int64_t threshold_stride[4];
-
-    generateStrides(w_dim_padded, w_stride_padded, 4, CUDNN_TENSOR_NHWC);
-    generateStrides(x_dim_padded, x_stride_padded, 4, CUDNN_TENSOR_NHWC);
-    generateStrides(y_dim_padded, y_stride_padded, 4, CUDNN_TENSOR_NHWC);
-    generateStrides(b_dim_padded, b_stride_padded, 4, CUDNN_TENSOR_NHWC);
-    generateStrides(threshold_dim, threshold_stride, 4, CUDNN_TENSOR_NHWC);
-
-    return masked_convbias_descriptors(cudnn_frontend::TensorBuilder()
-                                           .setDim(4, x_dim_padded)
-                                           .setStrides(4, x_stride_padded)
-                                           .setId('x')
-                                           .setAlignment(16)
-                                           .setDataType(dataType)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, y_dim_padded)
-                                           .setStrides(4, y_stride_padded)
-                                           .setId('y')
-                                           .setAlignment(16)
-                                           .setDataType(dataType)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, w_dim_padded)
-                                           .setStrides(4, w_stride_padded)
-                                           .setId('w')
-                                           .setAlignment(16)
-                                           .setDataType(dataType)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, b_dim_padded)
-                                           .setStrides(4, b_stride_padded)
-                                           .setId('z')
-                                           .setAlignment(16)
-                                           .setDataType(dataType)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, b_dim_padded)
-                                           .setStrides(4, b_stride_padded)
-                                           .setId('b')
-                                           .setAlignment(16)
-                                           .setDataType(dataType)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, y_dim_padded)
-                                           .setStrides(4, y_stride_padded)
-                                           .setVirtual()
-                                           .setId('A')  // after add
-                                           .setAlignment(16)
-                                           .setDataType(CUDNN_DATA_FLOAT)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, y_dim_padded)
-                                           .setStrides(4, y_stride_padded)
-                                           .setVirtual()
-                                           .setId('B')  // after bias
-                                           .setAlignment(16)
-                                           .setDataType(CUDNN_DATA_FLOAT)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, y_dim_padded)
-                                           .setStrides(4, y_stride_padded)
-                                           .setId('C')  // after conv
-                                           .setAlignment(16)
-                                           .setVirtual()
-                                           .setDataType(CUDNN_DATA_FLOAT)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, y_dim_padded)
-                                           .setStrides(4, y_stride_padded)
-                                           .setId('i')
-                                           .setAlignment(16)
-                                           .setDataType(dataType)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, y_dim_padded)
-                                           .setStrides(4, y_stride_padded)
-                                           .setId('D')  // after optional add
-                                           .setAlignment(16)
-                                           .setVirtual()
-                                           .setDataType(CUDNN_DATA_FLOAT)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, y_dim_padded)
-                                           .setStrides(4, y_stride_padded)
-                                           .setId('E')  // after act for masked
-                                           .setAlignment(16)
-                                           .setVirtual()
-                                           .setDataType(CUDNN_DATA_FLOAT)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, y_dim_padded)
-                                           .setStrides(4, y_stride_padded)
-                                           .setId('I')  // output of the gen index operation
-                                           .setAlignment(16)
-                                           .setVirtual()
-                                           .setDataType(CUDNN_DATA_INT32)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, y_dim_padded)
-                                           .setStrides(4, y_stride_padded)
-                                           .setId('m')  // top half of the mask created after the less than
-                                           .setAlignment(16)
-                                           .setVirtual()
-                                           .setDataType(CUDNN_DATA_BOOLEAN)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, y_dim_padded)
-                                           .setStrides(4, y_stride_padded)
-                                           .setId('n')  // bottom half of the mask
-                                           .setAlignment(16)
-                                           .setVirtual()
-                                           .setDataType(CUDNN_DATA_BOOLEAN)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, y_dim_padded)
-                                           .setStrides(4, y_stride_padded)
-                                           .setId('M')  // OR of the top and bottom masks
-                                           .setAlignment(16)
-                                           .setVirtual()
-                                           .setDataType(CUDNN_DATA_BOOLEAN)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, threshold_dim)
-                                           .setStrides(4, threshold_stride)
-                                           .setId('t')  // threshold for creating the top mask
-                                           .setAlignment(16)
-                                           .setDataType(CUDNN_DATA_INT32)
-                                           .build(),
-                                       cudnn_frontend::TensorBuilder()
-                                           .setDim(4, threshold_dim)
-                                           .setStrides(4, threshold_stride)
-                                           .setId('u')  // threshold for creating the bottom mask
-                                           .setAlignment(16)
-                                           .setDataType(CUDNN_DATA_INT32)
-                                           .build());
-}
-
 // tensor descriptors used for dgrad
 enum {
     X_OR_DX_TENSOR,
@@ -465,19 +281,9 @@ enum {
     RELU_TENSOR,
     AFTER_DCONV_TENSOR,
     AFTER_DRELU_TENSOR,
-    DGRAD_INPUT_TENSOR,
-    DGRAD_OPTIONAL_TENSOR,
-    DGRAD_GEN_INDEX_TENSOR,
-    DGRAD_MASK_TOP_TENSOR,
-    DGRAD_MASK_BOTTOM_TENSOR,
-    DGRAD_MASK_TENSOR,
-    DGRAD_THRESHOLD_TOP_TENSOR,
-    DGRAD_THRESHOLD_BOTTOM_TENSOR,
 };
 
 using dconv_descriptors = std::tuple<cudnn_frontend::Tensor,
-                                     cudnn_frontend::Tensor,
-                                     cudnn_frontend::Tensor,
                                      cudnn_frontend::Tensor,
                                      cudnn_frontend::Tensor,
                                      cudnn_frontend::Tensor,
@@ -561,181 +367,7 @@ create_dconv_descriptors(int64_t* x_dim_padded,
                              .setId('B')  // after drelu
                              .setAlignment(16)
                              .setDataType(CUDNN_DATA_FLOAT)
-                             .build(),
-                             cudnn_frontend::TensorBuilder()
-                             .setDim(4, y_dim_padded)
-			     .setStrides(4, y_stride_padded)
-			     .setId('i')
-			     .setAlignment(16)
-			     .setDataType(dataType)
-			     .build(),
-                             cudnn_frontend::TensorBuilder()
-                             .setDim(4, y_dim_padded)
-			     .setStrides(4, y_stride_padded)
-			     .setId('D')  // after optional add
-			     .setAlignment(16)
-			     .setVirtual()
-			     .setDataType(CUDNN_DATA_FLOAT)
-			     .build());
-}
-
-using dconv_mask_descriptors = std::tuple<cudnn_frontend::Tensor,
-                                          cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor,
-					  cudnn_frontend::Tensor>;
-
-dconv_mask_descriptors
-create_dconv_mask_descriptors(int64_t* x_dim_padded,
-                              int64_t* padA,
-			      int64_t* convstrideA,
-			      int64_t* dilationA,
-			      int64_t* w_dim_padded,
-			      int64_t* y_dim_padded,
-			      int64_t* threshold_dim,
-			      cudnnDataType_t dataType) {
-    const int convDim = 2;
-
-    int64_t b_dim_padded[4];
-    b_dim_padded[0] = 1;
-    b_dim_padded[1] = x_dim_padded[1];
-    b_dim_padded[2] = 1;
-    b_dim_padded[3] = 1;
-
-    int64_t x_stride_padded[4];
-    int64_t y_stride_padded[4];
-    int64_t w_stride_padded[4];
-    int64_t b_stride_padded[4];
-    int64_t threshold_stride[4];
-
-    generateStrides(w_dim_padded, w_stride_padded, 4, CUDNN_TENSOR_NHWC);
-    generateStrides(x_dim_padded, x_stride_padded, 4, CUDNN_TENSOR_NHWC);
-    generateStrides(y_dim_padded, y_stride_padded, 4, CUDNN_TENSOR_NHWC);
-    generateStrides(b_dim_padded, b_stride_padded, 4, CUDNN_TENSOR_NHWC);
-    generateStrides(threshold_dim, threshold_stride, 4, CUDNN_TENSOR_NHWC);
-
-    return dconv_mask_descriptors(cudnn_frontend::TensorBuilder()
-                             .setDim(4, x_dim_padded)
-                             .setStrides(4, x_stride_padded)
-                             .setId('x')
-                             .setAlignment(16)
-                             .setDataType(dataType)
-                             .build(),
-                             cudnn_frontend::TensorBuilder()
-                             .setDim(4, y_dim_padded)
-                             .setStrides(4, y_stride_padded)
-                             .setId('y')
-                             .setAlignment(16)
-                             .setDataType(dataType)
-                             .build(),
-                             cudnn_frontend::TensorBuilder()
-                             .setDim(4, w_dim_padded)
-                             .setStrides(4, w_stride_padded)
-                             .setId('w')
-                             .setAlignment(16)
-                             .setDataType(dataType)
-                             .build(),
-                             cudnn_frontend::TensorBuilder()
-                             .setDim(4, b_dim_padded)
-                             .setStrides(4, b_stride_padded)
-                             .setId('s')
-                             .setAlignment(16)
-                             .setDataType(dataType)
-                             .build(),
-                             cudnn_frontend::TensorBuilder()
-                             .setDim(4, x_dim_padded)
-                             .setStrides(4, x_stride_padded)
-                             .setId('r')
-                             .setAlignment(16)
-                             .setDataType(dataType)
-                             .build(),
-                             cudnn_frontend::TensorBuilder()
-                             .setDim(4, x_dim_padded)
-                             .setStrides(4, x_stride_padded)
-                             .setVirtual()
-                             .setId('A')  // after dconv
-                             .setAlignment(16)
-                             .setDataType(CUDNN_DATA_FLOAT)
-                             .build(),
-                             cudnn_frontend::TensorBuilder()
-                             .setDim(4, x_dim_padded)
-                             .setStrides(4, x_stride_padded)
-                             .setVirtual()
-                             .setId('B')  // after drelu
-                             .setAlignment(16)
-                             .setDataType(CUDNN_DATA_FLOAT)
-                             .build(),
-                             cudnn_frontend::TensorBuilder()
-                             .setDim(4, y_dim_padded)
-			     .setStrides(4, y_stride_padded)
-			     .setId('i')
-			     .setAlignment(16)
-			     .setDataType(dataType)
-			     .build(),
-                             cudnn_frontend::TensorBuilder()
-                             .setDim(4, y_dim_padded)
-			     .setStrides(4, y_stride_padded)
-			     .setId('D')  // after optional add
-			     .setAlignment(16)
-			     .setVirtual()
-			     .setDataType(CUDNN_DATA_FLOAT)
-			     .build(),
-			     cudnn_frontend::TensorBuilder()
-			     .setDim(4, y_dim_padded)
-			     .setStrides(4, y_stride_padded)
-			     .setId('I')  // output of the gen index operation
-			     .setAlignment(16)
-			     .setVirtual()
-			     .setDataType(CUDNN_DATA_INT32)
-			     .build(),
-			     cudnn_frontend::TensorBuilder()
-			     .setDim(4, y_dim_padded)
-			     .setStrides(4, y_stride_padded)
-			     .setId('m')  // top half of the mask created after the less than
-			     .setAlignment(16)
-			     .setVirtual()
-			     .setDataType(CUDNN_DATA_BOOLEAN)
-			     .build(),
-			     cudnn_frontend::TensorBuilder()
-			     .setDim(4, y_dim_padded)
-			     .setStrides(4, y_stride_padded)
-			     .setId('n')  // bottom half of the mask
-			     .setAlignment(16)
-			     .setVirtual()
-			     .setDataType(CUDNN_DATA_BOOLEAN)
-			     .build(),
-			     cudnn_frontend::TensorBuilder()
-			     .setDim(4, y_dim_padded)
-			     .setStrides(4, y_stride_padded)
-			     .setId('M')  // OR of the top and bottom masks
-			     .setAlignment(16)
-			     .setVirtual()
-			     .setDataType(CUDNN_DATA_BOOLEAN)
-			     .build(),
-			     cudnn_frontend::TensorBuilder()
-			     .setDim(4, threshold_dim)
-			     .setStrides(4, threshold_stride)
-			     .setId('t')  // threshold for creating the top mask
-			     .setAlignment(16)
-			     .setDataType(CUDNN_DATA_INT32)
-			     .build(),
-			     cudnn_frontend::TensorBuilder()
-			     .setDim(4, threshold_dim)
-			     .setStrides(4, threshold_stride)
-			     .setId('u')  // threshold for creating the bottom mask
-			     .setAlignment(16)
-			     .setDataType(CUDNN_DATA_INT32)
-			     .build());
+                             .build());
 }
 
 // create a cache for plan
@@ -961,7 +593,7 @@ run_conv_scale_bias_add_activation(int64_t* x_dim_padded,
 
         auto opGraph = cudnn_frontend::OperationGraphBuilder()
           .setHandle(handle_)
-          .setOperationGraph(devPtrI ? ops.size() : ops.size() - 1, ops.data())
+          .setOperationGraph(devPtrI ? ops.size() : 4, ops.data())
           .build();
 
         // Create string encoding for plan caching
@@ -990,458 +622,6 @@ run_conv_scale_bias_add_activation(int64_t* x_dim_padded,
         cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
         checkCudnnErr(status);
         cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
-    } catch (cudnn_frontend::cudnnException e) {
-      std::cout << log_buf.str() << "[ERROR] Exception " << e.what() << std::endl;
-    }
-}
-
-void
-run_conv_add_scale_bias_activation(int64_t* x_dim_padded,
-                                   int64_t* pad,
-				   int64_t* convstride,
-				   int64_t* dilation,
-				   int64_t* w_dim_padded,
-				   int64_t* y_dim_padded,
-				   cudnnDataType_t dataType,
-				   at::Half* devPtrX,
-				   at::Half* devPtrW,
-				   at::Half* devPtrY,
-				   at::Half* devPtrZ,
-				   at::Half* devPtrB,
-				   at::Half* devPtrI) {
-    cudnnHandle_t handle_ = torch::native::getCudnnHandle();
-    std::stringstream log_buf;
-    try {
-        int convDim = 2;
-
-        // Creates the necessary tensor descriptors
-        common_convbias_descriptors tensors = create_conv_bias_add_act_descriptors(
-            x_dim_padded, pad, convstride, dilation, w_dim_padded, y_dim_padded, dataType);
-        DEBUG_CUDNN_MSG(log_buf, std::get<X_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<Y_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<W_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<Z_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<B_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERADD_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERBIAS_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERCONV_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<OPTIONAL>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<AFTEROPT_TENSOR>(tensors).describe());
-
-        // Define the add operation
-        auto scaleDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_MUL)
-                           .setMathPrecision(CUDNN_DATA_FLOAT)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, scaleDesc.describe());
-
-        // Define the bias operation
-        auto biasDesc = cudnn_frontend::PointWiseDescBuilder()
-                            .setMode(CUDNN_POINTWISE_ADD)
-                            .setMathPrecision(CUDNN_DATA_FLOAT)
-                            .build();
-        DEBUG_CUDNN_MSG(log_buf, biasDesc.describe());
-
-        // optional add
-        auto addDesc = cudnn_frontend::PointWiseDescBuilder()
-                            .setMode(CUDNN_POINTWISE_ADD)
-                            .setMathPrecision(CUDNN_DATA_FLOAT)
-                            .build();
-        DEBUG_CUDNN_MSG(log_buf, addDesc.describe());
-
-        // Define the activation operation
-        auto actDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_RELU_FWD)
-                           .setMathPrecision(CUDNN_DATA_FLOAT)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, actDesc.describe());
-
-        // Define the convolution problem
-        auto convDesc = cudnn_frontend::ConvDescBuilder()
-                            .setDataType(CUDNN_DATA_FLOAT)
-                            .setMathMode(CUDNN_CROSS_CORRELATION)
-                            .setNDims(convDim)
-                            .setStrides(convDim, convstride)
-                            .setPrePadding(convDim, pad)
-                            .setPostPadding(convDim, pad)
-                            .setDilation(convDim, dilation)
-                            .build();
-        DEBUG_CUDNN_MSG(log_buf, convDesc.describe());
-
-        float alpha  = 1.0f;
-        float beta   = 0.0f;
-
-        // Create a convolution Node
-        auto conv_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR)
-                           .setxDesc(std::get<X_TENSOR>(tensors))
-                           .setwDesc(std::get<W_TENSOR>(tensors))
-                           .setyDesc(std::get<AFTERCONV_TENSOR>(tensors))
-                           .setcDesc(convDesc)
-                           .setAlpha(alpha)
-                           .setBeta(beta)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, conv_op.describe());
-
-        // create an add node.
-        auto add_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                           .setxDesc(conv_op.getOutputTensor())
-                           .setbDesc(std::get<OPTIONAL>(tensors))
-                           .setyDesc(std::get<AFTEROPT_TENSOR>(tensors))
-                           .setpwDesc(addDesc)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, add_op.describe());
-
-        // Create a Add Node with scaling parameters.
-        auto scale_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                           .setxDesc(add_op.getOutputTensor())
-                           .setbDesc(std::get<Z_TENSOR>(tensors))
-                           .setyDesc(std::get<AFTERADD_TENSOR>(tensors))
-                           .setpwDesc(scaleDesc)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, scale_op.describe());
-
-        // Create a Bias Node.
-        auto bias_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                           .setxDesc(scale_op.getOutputTensor())
-                           .setbDesc(std::get<B_TENSOR>(tensors))
-                           .setyDesc(std::get<AFTERBIAS_TENSOR>(tensors))
-                           .setpwDesc(biasDesc)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, bias_op.describe());
-
-        // Create an Activation Node.
-        auto act_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                           .setxDesc(bias_op.getOutputTensor())
-                           .setyDesc(std::get<Y_TENSOR>(tensors))
-                           .setpwDesc(actDesc)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, act_op.describe());
-
-        // Create an Operation Graph. In this case it is convolution add bias activation
-        std::array<cudnn_frontend::Operation const*, 5> ops = {&conv_op, &add_op, &scale_op, &bias_op, &act_op};
-
-        auto opGraph = cudnn_frontend::OperationGraphBuilder()
-          .setHandle(handle_)
-          .setOperationGraph(ops.size(), ops.data())
-          .build();
-
-        // Create string encoding for plan caching
-        auto cache_string = getConvFusionString(x_dim_padded, pad, convstride, dilation, w_dim_padded, dataType, opGraph.getTag());
-        DEBUG_CUDNN_MSG(log_buf, "[convstring] " << cache_string);
-
-        auto& plan = getOrCreatePlan(handle_, log_buf, opGraph, cache_string);
-        DEBUG_CUDNN_MSG(log_buf, "Plan tag: " << plan.getTag());
-
-        auto workspace_size = plan.getWorkspaceSize();
-        DEBUG_CUDNN_MSG(log_buf, plan.describe() << " requires workspace " << workspace_size);
-
-        void* workspace_ptr = nullptr;
-        auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
-        if (workspace_size > 0) {
-          workspace_ptr = workspace_tensor.data_ptr<float>();
-        }
-        void* data_ptrs[] = {devPtrX, devPtrY, devPtrW, devPtrZ, devPtrB, devPtrI};
-        int64_t uids[]    = {'x', 'y', 'w', 'z', 'b', 'i'};
-        auto variantPack  = cudnn_frontend::VariantPackBuilder()
-                               .setWorkspacePointer(workspace_ptr)
-                               .setDataPointers(6, data_ptrs)
-                               .setUids(6, uids)
-                               .build();
-        DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
-        cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
-        checkCudnnErr(status);
-        cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
-    } catch (cudnn_frontend::cudnnException e) {
-      std::cout << log_buf.str() << "[ERROR] Exception " << e.what() << std::endl;
-    }
-}
-
-void
-run_conv_scale_bias_add_activation_mask(int64_t* x_dim_padded,
-                                        int64_t* pad,
-                                        int64_t* convstride,
-					int64_t* dilation,
-					int64_t* w_dim_padded,
-					int64_t* y_dim_padded,
-					int64_t* threshold_dim,
-					cudnnDataType_t dataType,
-					at::Half* devPtrX,
-					at::Half* devPtrW,
-					at::Half* devPtrY,
-					at::Half* devPtrZ,
-					at::Half* devPtrB,
-					at::Half* devPtrI,
-					int* devPtrT,
-					int* devPtrU,
-					int axis) {
-    cudnnHandle_t handle_ = torch::native::getCudnnHandle();
-    std::stringstream log_buf;
-    try {
-        int convDim = 2;
-
-        // Creates the necessary tensor descriptors
-        masked_convbias_descriptors tensors = create_conv_bias_add_act_mask_descriptors(
-            x_dim_padded, pad, convstride, dilation, w_dim_padded, y_dim_padded, threshold_dim, dataType);
-        DEBUG_CUDNN_MSG(log_buf, std::get<X_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<Y_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<W_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<Z_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<B_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERADD_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERBIAS_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERCONV_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<OPTIONAL>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERACT_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<GEN_INDEX_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<MASK_TOP_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<MASK_BOTTOM_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<MASK_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<THRESHOLD_TOP_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<THRESHOLD_BOTTOM_TENSOR>(tensors).describe());
-
-        // Define the add operation
-        auto scaleDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_MUL)
-                           .setMathPrecision(CUDNN_DATA_FLOAT)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, scaleDesc.describe());
-
-        // Define the bias operation
-        auto biasDesc = cudnn_frontend::PointWiseDescBuilder()
-                            .setMode(CUDNN_POINTWISE_ADD)
-                            .setMathPrecision(CUDNN_DATA_FLOAT)
-                            .build();
-        DEBUG_CUDNN_MSG(log_buf, biasDesc.describe());
-
-        // optional add
-        auto addDesc = cudnn_frontend::PointWiseDescBuilder()
-                            .setMode(CUDNN_POINTWISE_ADD)
-                            .setMathPrecision(CUDNN_DATA_FLOAT)
-                            .build();
-        DEBUG_CUDNN_MSG(log_buf, addDesc.describe());
-
-        // Define the activation operation
-        auto actDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_RELU_FWD)
-                           .setMathPrecision(CUDNN_DATA_FLOAT)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, actDesc.describe());
-
-        // Define the convolution problem
-        auto convDesc = cudnn_frontend::ConvDescBuilder()
-                            .setDataType(CUDNN_DATA_FLOAT)
-                            .setMathMode(CUDNN_CROSS_CORRELATION)
-                            .setNDims(convDim)
-                            .setStrides(convDim, convstride)
-                            .setPrePadding(convDim, pad)
-                            .setPostPadding(convDim, pad)
-                            .setDilation(convDim, dilation)
-                            .build();
-        DEBUG_CUDNN_MSG(log_buf, convDesc.describe());
-
-        // Define the genIndex descriptor
-        auto genIndexDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_GEN_INDEX)
-                           .setMathPrecision(CUDNN_DATA_FLOAT)
-                           .setAxis(axis)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, genIndexDesc.describe());
-
-        // Define the lessThan descriptor
-        auto lessThanDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_CMP_LT)
-                           .setMathPrecision(CUDNN_DATA_FLOAT)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, lessThanDesc.describe());
-
-        // Define the greaterThan descriptor
-        auto greaterThanDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_CMP_GT)
-                           .setMathPrecision(CUDNN_DATA_FLOAT)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, greaterThanDesc.describe());
-
-        // Define the logical_or descriptor
-        auto logicalOrDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_LOGICAL_OR)
-                           .setMathPrecision(CUDNN_DATA_BOOLEAN)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, logicalOrDesc.describe());
-
-        // Define the binary_selection descriptor
-        auto selectionDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_BINARY_SELECT)
-                           .setMathPrecision(CUDNN_DATA_FLOAT)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, selectionDesc.describe());
-
-        float alpha  = 1.0f;
-        float beta   = 0.0f;
-
-        // Create a convolution Node
-        auto conv_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR)
-                           .setxDesc(std::get<X_TENSOR>(tensors))
-                           .setwDesc(std::get<W_TENSOR>(tensors))
-                           .setyDesc(std::get<AFTERCONV_TENSOR>(tensors))
-                           .setcDesc(convDesc)
-                           .setAlpha(alpha)
-                           .setBeta(beta)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, conv_op.describe());
-
-        // Create a Add Node with scaling parameters.
-        auto scale_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                           .setxDesc(conv_op.getOutputTensor())
-                           .setbDesc(std::get<Z_TENSOR>(tensors))
-                           .setyDesc(std::get<AFTERADD_TENSOR>(tensors))
-                           .setpwDesc(scaleDesc)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, scale_op.describe());
-
-        // Create a Bias Node.
-        auto bias_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                           .setxDesc(scale_op.getOutputTensor())
-                           .setbDesc(std::get<B_TENSOR>(tensors))
-                           .setyDesc(std::get<AFTERBIAS_TENSOR>(tensors))
-                           .setpwDesc(biasDesc)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, bias_op.describe());
-
-        // Create a optional add Node.
-        auto add_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                           .setxDesc(bias_op.getOutputTensor())
-                           .setbDesc(std::get<OPTIONAL>(tensors))
-                           .setyDesc(std::get<AFTEROPT_TENSOR>(tensors))
-                           .setpwDesc(addDesc)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, add_op.describe());
-
-
-        // Create an Activation Node.
-        auto act_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-          .setxDesc(devPtrI ? add_op.getOutputTensor() : bias_op.getOutputTensor())
-                          .setyDesc(std::get<AFTERACT_TENSOR>(tensors))
-                          .setpwDesc(actDesc)
-                          .build();
-        DEBUG_CUDNN_MSG(log_buf, act_op.describe());
-
-        // Create a Gen_Index Node.
-        auto genIndex_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                          .setxDesc(std::get<AFTERACT_TENSOR>(tensors))
-                          .setyDesc(std::get<GEN_INDEX_TENSOR>(tensors))
-                          .setpwDesc(genIndexDesc)
-                          .build();
-        DEBUG_CUDNN_MSG(log_buf, genIndex_op.describe());
-
-        // Create a LessThan Node.
-        auto lessThan_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                          .setxDesc(std::get<GEN_INDEX_TENSOR>(tensors))
-                          .setbDesc(std::get<THRESHOLD_TOP_TENSOR>(tensors))
-                          .setyDesc(std::get<MASK_TOP_TENSOR>(tensors))
-                          .setpwDesc(lessThanDesc)
-                          .build();
-        DEBUG_CUDNN_MSG(log_buf, lessThan_op.describe());
-
-        // Create a GreaterThan Node.
-        auto greaterThan_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                          .setxDesc(std::get<GEN_INDEX_TENSOR>(tensors))
-                          .setbDesc(std::get<THRESHOLD_BOTTOM_TENSOR>(tensors))
-                          .setyDesc(std::get<MASK_BOTTOM_TENSOR>(tensors))
-                          .setpwDesc(greaterThanDesc)
-                          .build();
-        DEBUG_CUDNN_MSG(log_buf, greaterThan_op.describe());
-
-        // Create a LogicalOr Node.
-        auto logicalOr_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                          .setxDesc(std::get<MASK_TOP_TENSOR>(tensors))
-                          .setbDesc(std::get<MASK_BOTTOM_TENSOR>(tensors))
-                          .setyDesc(std::get<MASK_TENSOR>(tensors))
-                          .setpwDesc(logicalOrDesc)
-                          .build();
-        DEBUG_CUDNN_MSG(log_buf, logicalOr_op.describe());
-
-        // Create a Binary_Selection Node.
-        auto selection_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                          .setxDesc(std::get<AFTERCONV_TENSOR>(tensors))
-                          .setbDesc(std::get<AFTERACT_TENSOR>(tensors))
-                          .settDesc(std::get<MASK_TENSOR>(tensors))
-                          .setyDesc(std::get<Y_TENSOR>(tensors))
-                          .setpwDesc(selectionDesc)
-                          .build();
-        DEBUG_CUDNN_MSG(log_buf, selection_op.describe());
-
-        // Create an Operation Graph. In this case it is convolution add bias activation
-	if (devPtrI) {
-
-	  std::array<cudnn_frontend::Operation const*, 10> ops = {&conv_op, &scale_op, &bias_op, &add_op, &act_op, &genIndex_op, &lessThan_op, &greaterThan_op, &logicalOr_op, &selection_op};
-
-	  auto opGraph = cudnn_frontend::OperationGraphBuilder()
-            .setHandle(handle_)
-            .setOperationGraph(ops.size(), ops.data())
-            .build();
-
-	  // Create string encoding for plan caching
-	  auto cache_string = getConvFusionString(x_dim_padded, pad, convstride, dilation, w_dim_padded, dataType, opGraph.getTag());
-	  DEBUG_CUDNN_MSG(log_buf, "[convstring] " << cache_string);
-
-	  auto& plan = getOrCreatePlan(handle_, log_buf, opGraph, cache_string);
-	  DEBUG_CUDNN_MSG(log_buf, "Plan tag: " << plan.getTag());
-
-	  auto workspace_size = plan.getWorkspaceSize();
-	  DEBUG_CUDNN_MSG(log_buf, plan.describe() << " requires workspace " << workspace_size);
-
-	  void* workspace_ptr = nullptr;
-	  auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
-	  if (workspace_size > 0) {
-	    workspace_ptr = workspace_tensor.data_ptr<float>();
-	  }
-	  void* data_ptrs[] = {devPtrX, devPtrY, devPtrW, devPtrZ, devPtrB, devPtrI, devPtrT, devPtrU};
-	  int64_t uids[]    = {'x', 'y', 'w', 'z', 'b', 'i', 't', 'u'};
-	  auto variantPack  = cudnn_frontend::VariantPackBuilder()
-	    .setWorkspacePointer(workspace_ptr)
-	    .setDataPointers(8, data_ptrs)
-	    .setUids(8, uids)
-	    .build();
-	  DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
-	  cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
-	  checkCudnnErr(status);
-	  cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
-	} else {
-
-	  std::array<cudnn_frontend::Operation const*, 9> ops = {&conv_op, &scale_op, &bias_op, &act_op, &genIndex_op, &lessThan_op, &greaterThan_op, &logicalOr_op, &selection_op};
-
-	  auto opGraph = cudnn_frontend::OperationGraphBuilder()
-            .setHandle(handle_)
-            .setOperationGraph(ops.size(), ops.data())
-            .build();
-
-	  // Create string encoding for plan caching
-	  auto cache_string = getConvFusionString(x_dim_padded, pad, convstride, dilation, w_dim_padded, dataType, opGraph.getTag());
-	  DEBUG_CUDNN_MSG(log_buf, "[convstring] " << cache_string);
-
-	  auto& plan = getOrCreatePlan(handle_, log_buf, opGraph, cache_string);
-	  DEBUG_CUDNN_MSG(log_buf, "Plan tag: " << plan.getTag());
-
-	  auto workspace_size = plan.getWorkspaceSize();
-	  DEBUG_CUDNN_MSG(log_buf, plan.describe() << " requires workspace " << workspace_size);
-
-	  void* workspace_ptr = nullptr;
-	  auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
-	  if (workspace_size > 0) {
-	    workspace_ptr = workspace_tensor.data_ptr<float>();
-	  }
-	  void* data_ptrs[] = {devPtrX, devPtrY, devPtrW, devPtrZ, devPtrB, devPtrT, devPtrU};
-	  int64_t uids[]    = {'x', 'y', 'w', 'z', 'b', 't', 'u'};
-	  auto variantPack  = cudnn_frontend::VariantPackBuilder()
-	    .setWorkspacePointer(workspace_ptr)
-	    .setDataPointers(7, data_ptrs)
-	    .setUids(7, uids)
-	    .build();
-	  DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
-	  cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
-	  checkCudnnErr(status);
-	  cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
-	}
     } catch (cudnn_frontend::cudnnException e) {
       std::cout << log_buf.str() << "[ERROR] Exception " << e.what() << std::endl;
     }
@@ -1693,371 +873,6 @@ run_dconv_drelu_dscale(int64_t* x_dim_padded,
           .setWorkspacePointer(workspace_ptr)
           .setDataPointers(5, data_ptrs)
           .setUids(5, uids)
-          .build();
-        DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
-        cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
-        checkCudnnErr(status);
-        cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
-    } catch (cudnn_frontend::cudnnException e) {
-      std::cout << log_buf.str() << "[ERROR] Exception " << e.what() << std::endl;
-    }
-}
-
-void
-run_dconv_add_drelu_dscale(int64_t* x_dim_padded,
-                       int64_t* pad,
-                       int64_t* convstride,
-                       int64_t* dilation,
-                       int64_t* w_dim_padded,
-                       int64_t* y_dim_padded,
-                       cudnnDataType_t dataType,
-                       at::Half* devPtrX,
-                       at::Half* devPtrW,
-                       at::Half* devPtrY,
-                       at::Half* devPtrZ,
-                       at::Half* devPtrR,
-		       at::Half* devPtrI) {
-    cudnnHandle_t handle_ = torch::native::getCudnnHandle();
-    std::stringstream log_buf;
-    try {
-        int convDim = 2;
-
-        // Creates the necessary tensor descriptors
-        dconv_descriptors tensors = create_dconv_descriptors(
-            x_dim_padded, pad, convstride, dilation, w_dim_padded, y_dim_padded, dataType);
-        DEBUG_CUDNN_MSG(log_buf, std::get<X_OR_DX_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<DY_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<W_OR_DW_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<SCALE_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<RELU_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<AFTER_DCONV_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<AFTER_DRELU_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_INPUT_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_OPTIONAL_TENSOR>(tensors).describe());
-
-        // Define the convolution problem
-        auto convDesc = cudnn_frontend::ConvDescBuilder()
-                            .setDataType(CUDNN_DATA_FLOAT)
-                            .setMathMode(CUDNN_CROSS_CORRELATION)
-                            .setNDims(convDim)
-                            .setStrides(convDim, convstride)
-                            .setPrePadding(convDim, pad)
-                            .setPostPadding(convDim, pad)
-                            .setDilation(convDim, dilation)
-                            .build();
-        DEBUG_CUDNN_MSG(log_buf, convDesc.describe());
-
-        // optional add
-        auto addDesc = cudnn_frontend::PointWiseDescBuilder()
-                            .setMode(CUDNN_POINTWISE_ADD)
-                            .setMathPrecision(CUDNN_DATA_FLOAT)
-                            .build();
-        DEBUG_CUDNN_MSG(log_buf, addDesc.describe());
-
-        // Define the activation backward operation
-        auto actDesc = cudnn_frontend::PointWiseDescBuilder()
-          .setMode(CUDNN_POINTWISE_RELU_BWD)
-          .setMathPrecision(CUDNN_DATA_FLOAT)
-          .build();
-        DEBUG_CUDNN_MSG(log_buf, actDesc.describe());
-
-        // Define the scale backward operation
-        auto scaleDesc = cudnn_frontend::PointWiseDescBuilder()
-          .setMode(CUDNN_POINTWISE_MUL)
-          .setMathPrecision(CUDNN_DATA_FLOAT)
-          .build();
-        DEBUG_CUDNN_MSG(log_buf, scaleDesc.describe());
-
-        float alpha  = 1.0f;
-        float beta   = 0.0f;
-
-        // Create a convolution Node
-        auto conv_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR)
-          .setdxDesc(std::get<AFTER_DCONV_TENSOR>(tensors))
-          .setwDesc(std::get<W_OR_DW_TENSOR>(tensors))
-          .setdyDesc(std::get<DY_TENSOR>(tensors))
-          .setcDesc(convDesc)
-          .setAlpha(alpha)
-          .setBeta(beta)
-          .build();
-        DEBUG_CUDNN_MSG(log_buf, conv_op.describe());
-
-        // Create add Node.
-        auto add_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                           .setxDesc(std::get<AFTER_DCONV_TENSOR>(tensors))
-                           .setbDesc(std::get<DGRAD_INPUT_TENSOR>(tensors))
-                           .setyDesc(std::get<DGRAD_OPTIONAL_TENSOR>(tensors))
-                           .setpwDesc(addDesc)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, add_op.describe());
-
-        // TODO: do we need getOutputTensor(), and what it returns in backward case?
-        // Create an relu backward Node.
-        auto act_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-          .setdyDesc(std::get<DGRAD_OPTIONAL_TENSOR>(tensors))
-          .setxDesc(std::get<RELU_TENSOR>(tensors))
-          .setdxDesc(std::get<AFTER_DRELU_TENSOR>(tensors))
-          .setpwDesc(actDesc)
-          .build();
-        DEBUG_CUDNN_MSG(log_buf, act_op.describe());
-
-        // Create a Scale Node.
-        auto scale_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-          .setxDesc(std::get<AFTER_DRELU_TENSOR>(tensors))
-          .setbDesc(std::get<SCALE_TENSOR>(tensors))
-          .setyDesc(std::get<X_OR_DX_TENSOR>(tensors))
-          .setpwDesc(scaleDesc)
-          .build();
-        DEBUG_CUDNN_MSG(log_buf, scale_op.describe());
-
-        // Create an Operation Graph. In this case it is convolution add bias activation
-        std::array<cudnn_frontend::Operation const*, 4> ops = {&conv_op, &add_op, &act_op, &scale_op};
-
-        auto opGraph = cudnn_frontend::OperationGraphBuilder()
-          .setHandle(handle_)
-          .setOperationGraph(ops.size(), ops.data())
-          .build();
-
-        // Create string encoding for plan caching
-        auto cache_string = getConvFusionString(x_dim_padded, pad, convstride, dilation, w_dim_padded, dataType, opGraph.getTag());
-        DEBUG_CUDNN_MSG(log_buf, "[convstring] " << cache_string);
-
-        auto& plan = getOrCreatePlan(handle_, log_buf, opGraph, cache_string);
-        DEBUG_CUDNN_MSG(log_buf, "Plan tag: " << plan.getTag());
-
-        auto workspace_size = plan.getWorkspaceSize();
-        DEBUG_CUDNN_MSG(log_buf, plan.describe() << " requires workspace " << workspace_size);
-
-        void* workspace_ptr = nullptr;
-        auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
-        if (workspace_size > 0) {
-          workspace_ptr = workspace_tensor.data_ptr<float>();
-        }
-        void* data_ptrs[] = {devPtrX, devPtrY, devPtrW, devPtrZ, devPtrR, devPtrI};
-        int64_t uids[]    = {'x', 'y', 'w', 's', 'r', 'i'};
-        auto variantPack  = cudnn_frontend::VariantPackBuilder()
-          .setWorkspacePointer(workspace_ptr)
-          .setDataPointers(6, data_ptrs)
-          .setUids(6, uids)
-          .build();
-        DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
-        cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
-        checkCudnnErr(status);
-        cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
-    } catch (cudnn_frontend::cudnnException e) {
-      std::cout << log_buf.str() << "[ERROR] Exception " << e.what() << std::endl;
-    }
-}
-
-void
-run_dconv_drelu_dscale_mask(int64_t* x_dim_padded,
-                            int64_t* pad,
-			    int64_t* convstride,
-			    int64_t* dilation,
-			    int64_t* w_dim_padded,
-			    int64_t* y_dim_padded,
-			    int64_t* threshold_dim,
-			    cudnnDataType_t dataType,
-			    at::Half* devPtrX,
-			    at::Half* devPtrW,
-			    at::Half* devPtrY,
-			    at::Half* devPtrZ,
-			    at::Half* devPtrR,
-			    int* devPtrT,
-			    int* devPtrU,
-			    int axis) {
-    cudnnHandle_t handle_ = torch::native::getCudnnHandle();
-    std::stringstream log_buf;
-    try {
-        int convDim = 2;
-
-        // Creates the necessary tensor descriptors
-        dconv_mask_descriptors tensors = create_dconv_mask_descriptors(
-            x_dim_padded, pad, convstride, dilation, w_dim_padded, y_dim_padded, threshold_dim, dataType);
-        DEBUG_CUDNN_MSG(log_buf, std::get<X_OR_DX_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<DY_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<W_OR_DW_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<SCALE_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<RELU_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<AFTER_DCONV_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<AFTER_DRELU_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_OPTIONAL_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_GEN_INDEX_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_MASK_TOP_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_MASK_BOTTOM_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_MASK_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_THRESHOLD_TOP_TENSOR>(tensors).describe());
-        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_THRESHOLD_BOTTOM_TENSOR>(tensors).describe());
-
-        // Define the convolution problem
-        auto convDesc = cudnn_frontend::ConvDescBuilder()
-                            .setDataType(CUDNN_DATA_FLOAT)
-                            .setMathMode(CUDNN_CROSS_CORRELATION)
-                            .setNDims(convDim)
-                            .setStrides(convDim, convstride)
-                            .setPrePadding(convDim, pad)
-                            .setPostPadding(convDim, pad)
-                            .setDilation(convDim, dilation)
-                            .build();
-        DEBUG_CUDNN_MSG(log_buf, convDesc.describe());
-
-        // Define the activation backward operation
-        auto actDesc = cudnn_frontend::PointWiseDescBuilder()
-          .setMode(CUDNN_POINTWISE_RELU_BWD)
-          .setMathPrecision(CUDNN_DATA_FLOAT)
-          .build();
-        DEBUG_CUDNN_MSG(log_buf, actDesc.describe());
-
-        // Define the scale backward operation
-        auto scaleDesc = cudnn_frontend::PointWiseDescBuilder()
-          .setMode(CUDNN_POINTWISE_MUL)
-          .setMathPrecision(CUDNN_DATA_FLOAT)
-          .build();
-        DEBUG_CUDNN_MSG(log_buf, scaleDesc.describe());
-
-        // Define the genIndex descriptor
-        auto genIndexDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_GEN_INDEX)
-                           .setMathPrecision(CUDNN_DATA_FLOAT)
-                           .setAxis(axis)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, genIndexDesc.describe());
-
-        // Define the lessThan descriptor
-        auto lessThanDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_CMP_LT)
-                           .setMathPrecision(CUDNN_DATA_FLOAT)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, lessThanDesc.describe());
-
-        // Define the greaterThan descriptor
-        auto greaterThanDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_CMP_GT)
-                           .setMathPrecision(CUDNN_DATA_FLOAT)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, greaterThanDesc.describe());
-
-        // Define the logical_or descriptor
-        auto logicalOrDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_LOGICAL_OR)
-                           .setMathPrecision(CUDNN_DATA_BOOLEAN)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, logicalOrDesc.describe());
-
-        // Define the binary_selection descriptor
-        auto selectionDesc = cudnn_frontend::PointWiseDescBuilder()
-                           .setMode(CUDNN_POINTWISE_BINARY_SELECT)
-                           .setMathPrecision(CUDNN_DATA_FLOAT)
-                           .build();
-        DEBUG_CUDNN_MSG(log_buf, selectionDesc.describe());
-
-        float alpha  = 1.0f;
-        float beta   = 0.0f;
-
-        // Create a convolution Node
-        auto conv_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR)
-          .setdxDesc(std::get<AFTER_DCONV_TENSOR>(tensors))
-          .setwDesc(std::get<W_OR_DW_TENSOR>(tensors))
-          .setdyDesc(std::get<DY_TENSOR>(tensors))
-          .setcDesc(convDesc)
-          .setAlpha(alpha)
-          .setBeta(beta)
-          .build();
-        DEBUG_CUDNN_MSG(log_buf, conv_op.describe());
-
-        // TODO: do we need getOutputTensor(), and what it returns in backward case?
-        // Create an relu backward Node.
-        auto act_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-          .setdyDesc(std::get<AFTER_DCONV_TENSOR>(tensors))
-          .setxDesc(std::get<RELU_TENSOR>(tensors))
-          .setdxDesc(std::get<AFTER_DRELU_TENSOR>(tensors))
-          .setpwDesc(actDesc)
-          .build();
-        DEBUG_CUDNN_MSG(log_buf, act_op.describe());
-
-        // Create a Scale Node.
-        auto scale_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-          .setxDesc(std::get<AFTER_DRELU_TENSOR>(tensors))
-          .setbDesc(std::get<SCALE_TENSOR>(tensors))
-          .setyDesc(std::get<DGRAD_OPTIONAL_TENSOR>(tensors))
-          .setpwDesc(scaleDesc)
-          .build();
-        DEBUG_CUDNN_MSG(log_buf, scale_op.describe());
-
-        // Create a Gen_Index Node.
-        auto genIndex_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                          .setxDesc(std::get<DGRAD_OPTIONAL_TENSOR>(tensors))
-                          .setyDesc(std::get<DGRAD_GEN_INDEX_TENSOR>(tensors))
-                          .setpwDesc(genIndexDesc)
-                          .build();
-        DEBUG_CUDNN_MSG(log_buf, genIndex_op.describe());
-
-        // Create a LessThan Node.
-        auto lessThan_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                          .setxDesc(std::get<DGRAD_GEN_INDEX_TENSOR>(tensors))
-                          .setbDesc(std::get<DGRAD_THRESHOLD_TOP_TENSOR>(tensors))
-                          .setyDesc(std::get<DGRAD_MASK_TOP_TENSOR>(tensors))
-                          .setpwDesc(lessThanDesc)
-                          .build();
-        DEBUG_CUDNN_MSG(log_buf, lessThan_op.describe());
-
-        // Create a GreaterThan Node.
-        auto greaterThan_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                          .setxDesc(std::get<DGRAD_GEN_INDEX_TENSOR>(tensors))
-                          .setbDesc(std::get<DGRAD_THRESHOLD_BOTTOM_TENSOR>(tensors))
-                          .setyDesc(std::get<DGRAD_MASK_BOTTOM_TENSOR>(tensors))
-                          .setpwDesc(greaterThanDesc)
-                          .build();
-        DEBUG_CUDNN_MSG(log_buf, greaterThan_op.describe());
-
-        // Create a LogicalOr Node.
-        auto logicalOr_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                          .setxDesc(std::get<DGRAD_MASK_TOP_TENSOR>(tensors))
-                          .setbDesc(std::get<DGRAD_MASK_BOTTOM_TENSOR>(tensors))
-                          .setyDesc(std::get<DGRAD_MASK_TENSOR>(tensors))
-                          .setpwDesc(logicalOrDesc)
-                          .build();
-        DEBUG_CUDNN_MSG(log_buf, logicalOr_op.describe());
-
-        // Create a Binary_Selection Node.
-        auto selection_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                          .setxDesc(std::get<AFTER_DCONV_TENSOR>(tensors))
-                          .setbDesc(std::get<DGRAD_OPTIONAL_TENSOR>(tensors))
-                          .settDesc(std::get<DGRAD_MASK_TENSOR>(tensors))
-                          .setyDesc(std::get<X_OR_DX_TENSOR>(tensors))
-                          .setpwDesc(selectionDesc)
-                          .build();
-        DEBUG_CUDNN_MSG(log_buf, selection_op.describe());
-
-        // Create an Operation Graph. In this case it is convolution add bias activation
-        std::array<cudnn_frontend::Operation const*, 8> ops = {&conv_op, &act_op, &scale_op, &genIndex_op, &lessThan_op, &greaterThan_op, &logicalOr_op, &selection_op};
-
-        auto opGraph = cudnn_frontend::OperationGraphBuilder()
-          .setHandle(handle_)
-          .setOperationGraph(ops.size(), ops.data())
-          .build();
-
-        // Create string encoding for plan caching
-        auto cache_string = getConvFusionString(x_dim_padded, pad, convstride, dilation, w_dim_padded, dataType, opGraph.getTag());
-        DEBUG_CUDNN_MSG(log_buf, "[convstring] " << cache_string);
-
-        auto& plan = getOrCreatePlan(handle_, log_buf, opGraph, cache_string);
-        DEBUG_CUDNN_MSG(log_buf, "Plan tag: " << plan.getTag());
-
-        auto workspace_size = plan.getWorkspaceSize();
-        DEBUG_CUDNN_MSG(log_buf, plan.describe() << " requires workspace " << workspace_size);
-
-        void* workspace_ptr = nullptr;
-        auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
-        if (workspace_size > 0) {
-          workspace_ptr = workspace_tensor.data_ptr<float>();
-        }
-        void* data_ptrs[] = {devPtrX, devPtrY, devPtrW, devPtrZ, devPtrR, devPtrT, devPtrU};
-        int64_t uids[]    = {'x', 'y', 'w', 's', 'r', 't', 'u'};
-        auto variantPack  = cudnn_frontend::VariantPackBuilder()
-          .setWorkspacePointer(workspace_ptr)
-          .setDataPointers(7, data_ptrs)
-          .setUids(7, uids)
           .build();
         DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
         cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
@@ -2792,6 +1607,1302 @@ std::vector<at::Tensor> bottleneck_backward(bool explicit_nhwc, int stride_1X1, 
 }
 
 namespace {
+
+enum {
+    X_TENSOR,
+    Y_TENSOR,
+    W_TENSOR,
+    Z_TENSOR,
+    B_TENSOR,
+    AFTERADD_TENSOR,
+    AFTERBIAS_TENSOR,
+    AFTERCONV_TENSOR,
+    OPTIONAL,
+    AFTEROPT_TENSOR,
+    AFTERACT_TENSOR,
+    GEN_INDEX_TENSOR,
+    MASK_TOP_TENSOR,
+    MASK_BOTTOM_TENSOR,
+    MASK_TENSOR,
+    THRESHOLD_TOP_TENSOR,
+    THRESHOLD_BOTTOM_TENSOR,
+};
+
+using masked_convbias_descriptors = std::tuple<cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor,
+                                               cudnn_frontend::Tensor>;
+
+masked_convbias_descriptors
+create_conv_bias_add_act_mask_descriptors(int64_t* x_dim_padded,
+                                          int64_t* padA,
+					  int64_t* convstrideA,
+					  int64_t* dilationA,
+					  int64_t* w_dim_padded,
+					  int64_t* y_dim_padded,
+					  int64_t* threshold_dim,
+					  cudnnDataType_t dataType) {
+    const int convDim = 2;
+
+    int64_t b_dim_padded[4];
+    b_dim_padded[0] = 1;
+    b_dim_padded[1] = y_dim_padded[1];
+    b_dim_padded[2] = 1;
+    b_dim_padded[3] = 1;
+
+    int64_t x_stride_padded[4];
+    int64_t y_stride_padded[4];
+    int64_t w_stride_padded[4];
+    int64_t b_stride_padded[4];
+    int64_t threshold_stride[4];
+
+    generateStrides(w_dim_padded, w_stride_padded, 4, CUDNN_TENSOR_NHWC);
+    generateStrides(x_dim_padded, x_stride_padded, 4, CUDNN_TENSOR_NHWC);
+    generateStrides(y_dim_padded, y_stride_padded, 4, CUDNN_TENSOR_NHWC);
+    generateStrides(b_dim_padded, b_stride_padded, 4, CUDNN_TENSOR_NHWC);
+    generateStrides(threshold_dim, threshold_stride, 4, CUDNN_TENSOR_NHWC);
+
+    return masked_convbias_descriptors(cudnn_frontend::TensorBuilder()
+                                           .setDim(4, x_dim_padded)
+                                           .setStrides(4, x_stride_padded)
+                                           .setId('x')
+                                           .setAlignment(16)
+                                           .setDataType(dataType)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, y_dim_padded)
+                                           .setStrides(4, y_stride_padded)
+                                           .setId('y')
+                                           .setAlignment(16)
+                                           .setDataType(dataType)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, w_dim_padded)
+                                           .setStrides(4, w_stride_padded)
+                                           .setId('w')
+                                           .setAlignment(16)
+                                           .setDataType(dataType)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, b_dim_padded)
+                                           .setStrides(4, b_stride_padded)
+                                           .setId('z')
+                                           .setAlignment(16)
+                                           .setDataType(dataType)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, b_dim_padded)
+                                           .setStrides(4, b_stride_padded)
+                                           .setId('b')
+                                           .setAlignment(16)
+                                           .setDataType(dataType)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, y_dim_padded)
+                                           .setStrides(4, y_stride_padded)
+                                           .setVirtual()
+                                           .setId('A')  // after add
+                                           .setAlignment(16)
+                                           .setDataType(CUDNN_DATA_FLOAT)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, y_dim_padded)
+                                           .setStrides(4, y_stride_padded)
+                                           .setVirtual()
+                                           .setId('B')  // after bias
+                                           .setAlignment(16)
+                                           .setDataType(CUDNN_DATA_FLOAT)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, y_dim_padded)
+                                           .setStrides(4, y_stride_padded)
+                                           .setId('C')  // after conv
+                                           .setAlignment(16)
+                                           .setVirtual()
+                                           .setDataType(CUDNN_DATA_FLOAT)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, y_dim_padded)
+                                           .setStrides(4, y_stride_padded)
+                                           .setId('i')
+                                           .setAlignment(16)
+                                           .setDataType(dataType)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, y_dim_padded)
+                                           .setStrides(4, y_stride_padded)
+                                           .setId('D')  // after optional add
+                                           .setAlignment(16)
+                                           .setVirtual()
+                                           .setDataType(CUDNN_DATA_FLOAT)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, y_dim_padded)
+                                           .setStrides(4, y_stride_padded)
+                                           .setId('E')  // after act for masked
+                                           .setAlignment(16)
+                                           .setVirtual()
+                                           .setDataType(CUDNN_DATA_FLOAT)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, y_dim_padded)
+                                           .setStrides(4, y_stride_padded)
+                                           .setId('I')  // output of the gen index operation
+                                           .setAlignment(16)
+                                           .setVirtual()
+                                           .setDataType(CUDNN_DATA_INT32)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, y_dim_padded)
+                                           .setStrides(4, y_stride_padded)
+                                           .setId('m')  // top half of the mask created after the less than
+                                           .setAlignment(16)
+                                           .setVirtual()
+                                           .setDataType(CUDNN_DATA_BOOLEAN)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, y_dim_padded)
+                                           .setStrides(4, y_stride_padded)
+                                           .setId('n')  // bottom half of the mask
+                                           .setAlignment(16)
+                                           .setVirtual()
+                                           .setDataType(CUDNN_DATA_BOOLEAN)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, y_dim_padded)
+                                           .setStrides(4, y_stride_padded)
+                                           .setId('M')  // OR of the top and bottom masks
+                                           .setAlignment(16)
+                                           .setVirtual()
+                                           .setDataType(CUDNN_DATA_BOOLEAN)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, threshold_dim)
+                                           .setStrides(4, threshold_stride)
+                                           .setId('t')  // threshold for creating the top mask
+                                           .setAlignment(16)
+                                           .setDataType(CUDNN_DATA_INT32)
+                                           .build(),
+                                       cudnn_frontend::TensorBuilder()
+                                           .setDim(4, threshold_dim)
+                                           .setStrides(4, threshold_stride)
+                                           .setId('u')  // threshold for creating the bottom mask
+                                           .setAlignment(16)
+                                           .setDataType(CUDNN_DATA_INT32)
+                                           .build());
+}
+
+// tensor descriptors used for dgrad
+enum {
+    X_OR_DX_TENSOR,
+    DY_TENSOR,
+    W_OR_DW_TENSOR,
+    SCALE_TENSOR,
+    RELU_TENSOR,
+    AFTER_DCONV_TENSOR,
+    AFTER_DRELU_TENSOR,
+    DGRAD_INPUT_TENSOR,
+    DGRAD_OPTIONAL_TENSOR,
+    DGRAD_GEN_INDEX_TENSOR,
+    DGRAD_MASK_TOP_TENSOR,
+    DGRAD_MASK_BOTTOM_TENSOR,
+    DGRAD_MASK_TENSOR,
+    DGRAD_THRESHOLD_TOP_TENSOR,
+    DGRAD_THRESHOLD_BOTTOM_TENSOR,
+};
+
+using dconv_add_descriptors = std::tuple<cudnn_frontend::Tensor,
+                                         cudnn_frontend::Tensor,
+                                         cudnn_frontend::Tensor,
+                                         cudnn_frontend::Tensor,
+                                         cudnn_frontend::Tensor,
+                                         cudnn_frontend::Tensor,
+                                         cudnn_frontend::Tensor,
+                                         cudnn_frontend::Tensor,
+                                         cudnn_frontend::Tensor>;
+
+dconv_add_descriptors
+create_dconv_add_descriptors(int64_t* x_dim_padded,
+                             int64_t* padA,
+                             int64_t* convstrideA,
+                             int64_t* dilationA,
+                             int64_t* w_dim_padded,
+                             int64_t* y_dim_padded,
+                             cudnnDataType_t dataType) {
+    const int convDim = 2;
+
+    int64_t b_dim_padded[4];
+    b_dim_padded[0] = 1;
+    b_dim_padded[1] = x_dim_padded[1];
+    b_dim_padded[2] = 1;
+    b_dim_padded[3] = 1;
+
+    int64_t x_stride_padded[4];
+    int64_t y_stride_padded[4];
+    int64_t w_stride_padded[4];
+    int64_t b_stride_padded[4];
+
+    generateStrides(w_dim_padded, w_stride_padded, 4, CUDNN_TENSOR_NHWC);
+    generateStrides(x_dim_padded, x_stride_padded, 4, CUDNN_TENSOR_NHWC);
+    generateStrides(y_dim_padded, y_stride_padded, 4, CUDNN_TENSOR_NHWC);
+    generateStrides(b_dim_padded, b_stride_padded, 4, CUDNN_TENSOR_NHWC);
+
+    return dconv_add_descriptors(cudnn_frontend::TensorBuilder()
+                             .setDim(4, x_dim_padded)
+                             .setStrides(4, x_stride_padded)
+                             .setId('x')
+                             .setAlignment(16)
+                             .setDataType(dataType)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, y_dim_padded)
+                             .setStrides(4, y_stride_padded)
+                             .setId('y')
+                             .setAlignment(16)
+                             .setDataType(dataType)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, w_dim_padded)
+                             .setStrides(4, w_stride_padded)
+                             .setId('w')
+                             .setAlignment(16)
+                             .setDataType(dataType)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, b_dim_padded)
+                             .setStrides(4, b_stride_padded)
+                             .setId('s')
+                             .setAlignment(16)
+                             .setDataType(dataType)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, x_dim_padded)
+                             .setStrides(4, x_stride_padded)
+                             .setId('r')
+                             .setAlignment(16)
+                             .setDataType(dataType)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, x_dim_padded)
+                             .setStrides(4, x_stride_padded)
+                             .setVirtual()
+                             .setId('A')  // after dconv
+                             .setAlignment(16)
+                             .setDataType(CUDNN_DATA_FLOAT)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, x_dim_padded)
+                             .setStrides(4, x_stride_padded)
+                             .setVirtual()
+                             .setId('B')  // after drelu
+                             .setAlignment(16)
+                             .setDataType(CUDNN_DATA_FLOAT)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, y_dim_padded)
+			     .setStrides(4, y_stride_padded)
+			     .setId('i')
+			     .setAlignment(16)
+			     .setDataType(dataType)
+			     .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, y_dim_padded)
+			     .setStrides(4, y_stride_padded)
+			     .setId('D')  // after optional add
+			     .setAlignment(16)
+			     .setVirtual()
+			     .setDataType(CUDNN_DATA_FLOAT)
+			     .build());
+}
+
+using dconv_mask_descriptors = std::tuple<cudnn_frontend::Tensor,
+                                          cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor,
+					  cudnn_frontend::Tensor>;
+
+dconv_mask_descriptors
+create_dconv_mask_descriptors(int64_t* x_dim_padded,
+                              int64_t* padA,
+			      int64_t* convstrideA,
+			      int64_t* dilationA,
+			      int64_t* w_dim_padded,
+			      int64_t* y_dim_padded,
+			      int64_t* threshold_dim,
+			      cudnnDataType_t dataType) {
+    const int convDim = 2;
+
+    int64_t b_dim_padded[4];
+    b_dim_padded[0] = 1;
+    b_dim_padded[1] = x_dim_padded[1];
+    b_dim_padded[2] = 1;
+    b_dim_padded[3] = 1;
+
+    int64_t x_stride_padded[4];
+    int64_t y_stride_padded[4];
+    int64_t w_stride_padded[4];
+    int64_t b_stride_padded[4];
+    int64_t threshold_stride[4];
+
+    generateStrides(w_dim_padded, w_stride_padded, 4, CUDNN_TENSOR_NHWC);
+    generateStrides(x_dim_padded, x_stride_padded, 4, CUDNN_TENSOR_NHWC);
+    generateStrides(y_dim_padded, y_stride_padded, 4, CUDNN_TENSOR_NHWC);
+    generateStrides(b_dim_padded, b_stride_padded, 4, CUDNN_TENSOR_NHWC);
+    generateStrides(threshold_dim, threshold_stride, 4, CUDNN_TENSOR_NHWC);
+
+    return dconv_mask_descriptors(cudnn_frontend::TensorBuilder()
+                             .setDim(4, x_dim_padded)
+                             .setStrides(4, x_stride_padded)
+                             .setId('x')
+                             .setAlignment(16)
+                             .setDataType(dataType)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, y_dim_padded)
+                             .setStrides(4, y_stride_padded)
+                             .setId('y')
+                             .setAlignment(16)
+                             .setDataType(dataType)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, w_dim_padded)
+                             .setStrides(4, w_stride_padded)
+                             .setId('w')
+                             .setAlignment(16)
+                             .setDataType(dataType)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, b_dim_padded)
+                             .setStrides(4, b_stride_padded)
+                             .setId('s')
+                             .setAlignment(16)
+                             .setDataType(dataType)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, x_dim_padded)
+                             .setStrides(4, x_stride_padded)
+                             .setId('r')
+                             .setAlignment(16)
+                             .setDataType(dataType)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, x_dim_padded)
+                             .setStrides(4, x_stride_padded)
+                             .setVirtual()
+                             .setId('A')  // after dconv
+                             .setAlignment(16)
+                             .setDataType(CUDNN_DATA_FLOAT)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, x_dim_padded)
+                             .setStrides(4, x_stride_padded)
+                             .setVirtual()
+                             .setId('B')  // after drelu
+                             .setAlignment(16)
+                             .setDataType(CUDNN_DATA_FLOAT)
+                             .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, y_dim_padded)
+			     .setStrides(4, y_stride_padded)
+			     .setId('i')
+			     .setAlignment(16)
+			     .setDataType(dataType)
+			     .build(),
+                             cudnn_frontend::TensorBuilder()
+                             .setDim(4, y_dim_padded)
+			     .setStrides(4, y_stride_padded)
+			     .setId('D')  // after optional add
+			     .setAlignment(16)
+			     .setVirtual()
+			     .setDataType(CUDNN_DATA_FLOAT)
+			     .build(),
+			     cudnn_frontend::TensorBuilder()
+			     .setDim(4, y_dim_padded)
+			     .setStrides(4, y_stride_padded)
+			     .setId('I')  // output of the gen index operation
+			     .setAlignment(16)
+			     .setVirtual()
+			     .setDataType(CUDNN_DATA_INT32)
+			     .build(),
+			     cudnn_frontend::TensorBuilder()
+			     .setDim(4, y_dim_padded)
+			     .setStrides(4, y_stride_padded)
+			     .setId('m')  // top half of the mask created after the less than
+			     .setAlignment(16)
+			     .setVirtual()
+			     .setDataType(CUDNN_DATA_BOOLEAN)
+			     .build(),
+			     cudnn_frontend::TensorBuilder()
+			     .setDim(4, y_dim_padded)
+			     .setStrides(4, y_stride_padded)
+			     .setId('n')  // bottom half of the mask
+			     .setAlignment(16)
+			     .setVirtual()
+			     .setDataType(CUDNN_DATA_BOOLEAN)
+			     .build(),
+			     cudnn_frontend::TensorBuilder()
+			     .setDim(4, y_dim_padded)
+			     .setStrides(4, y_stride_padded)
+			     .setId('M')  // OR of the top and bottom masks
+			     .setAlignment(16)
+			     .setVirtual()
+			     .setDataType(CUDNN_DATA_BOOLEAN)
+			     .build(),
+			     cudnn_frontend::TensorBuilder()
+			     .setDim(4, threshold_dim)
+			     .setStrides(4, threshold_stride)
+			     .setId('t')  // threshold for creating the top mask
+			     .setAlignment(16)
+			     .setDataType(CUDNN_DATA_INT32)
+			     .build(),
+			     cudnn_frontend::TensorBuilder()
+			     .setDim(4, threshold_dim)
+			     .setStrides(4, threshold_stride)
+			     .setId('u')  // threshold for creating the bottom mask
+			     .setAlignment(16)
+			     .setDataType(CUDNN_DATA_INT32)
+			     .build());
+}
+
+void
+run_conv_add_scale_bias_activation(int64_t* x_dim_padded,
+                                   int64_t* pad,
+				   int64_t* convstride,
+				   int64_t* dilation,
+				   int64_t* w_dim_padded,
+				   int64_t* y_dim_padded,
+				   cudnnDataType_t dataType,
+				   at::Half* devPtrX,
+				   at::Half* devPtrW,
+				   at::Half* devPtrY,
+				   at::Half* devPtrZ,
+				   at::Half* devPtrB,
+				   at::Half* devPtrI) {
+    cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+    std::stringstream log_buf;
+    try {
+        int convDim = 2;
+
+        // Creates the necessary tensor descriptors
+        common_convbias_descriptors tensors = create_conv_bias_add_act_descriptors(
+            x_dim_padded, pad, convstride, dilation, w_dim_padded, y_dim_padded, dataType);
+        DEBUG_CUDNN_MSG(log_buf, std::get<X_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<Y_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<W_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<Z_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<B_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERADD_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERBIAS_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERCONV_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<OPTIONAL>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<AFTEROPT_TENSOR>(tensors).describe());
+
+        // Define the add operation
+        auto scaleDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_MUL)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, scaleDesc.describe());
+
+        // Define the bias operation
+        auto biasDesc = cudnn_frontend::PointWiseDescBuilder()
+                            .setMode(CUDNN_POINTWISE_ADD)
+                            .setMathPrecision(CUDNN_DATA_FLOAT)
+                            .build();
+        DEBUG_CUDNN_MSG(log_buf, biasDesc.describe());
+
+        // optional add
+        auto addDesc = cudnn_frontend::PointWiseDescBuilder()
+                            .setMode(CUDNN_POINTWISE_ADD)
+                            .setMathPrecision(CUDNN_DATA_FLOAT)
+                            .build();
+        DEBUG_CUDNN_MSG(log_buf, addDesc.describe());
+
+        // Define the activation operation
+        auto actDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_RELU_FWD)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, actDesc.describe());
+
+        // Define the convolution problem
+        auto convDesc = cudnn_frontend::ConvDescBuilder()
+                            .setDataType(CUDNN_DATA_FLOAT)
+                            .setMathMode(CUDNN_CROSS_CORRELATION)
+                            .setNDims(convDim)
+                            .setStrides(convDim, convstride)
+                            .setPrePadding(convDim, pad)
+                            .setPostPadding(convDim, pad)
+                            .setDilation(convDim, dilation)
+                            .build();
+        DEBUG_CUDNN_MSG(log_buf, convDesc.describe());
+
+        float alpha  = 1.0f;
+        float beta   = 0.0f;
+
+        // Create a convolution Node
+        auto conv_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR)
+                           .setxDesc(std::get<X_TENSOR>(tensors))
+                           .setwDesc(std::get<W_TENSOR>(tensors))
+                           .setyDesc(std::get<AFTERCONV_TENSOR>(tensors))
+                           .setcDesc(convDesc)
+                           .setAlpha(alpha)
+                           .setBeta(beta)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, conv_op.describe());
+
+        // create an add node.
+        auto add_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                           .setxDesc(conv_op.getOutputTensor())
+                           .setbDesc(std::get<OPTIONAL>(tensors))
+                           .setyDesc(std::get<AFTEROPT_TENSOR>(tensors))
+                           .setpwDesc(addDesc)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, add_op.describe());
+
+        // Create a Add Node with scaling parameters.
+        auto scale_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                           .setxDesc(add_op.getOutputTensor())
+                           .setbDesc(std::get<Z_TENSOR>(tensors))
+                           .setyDesc(std::get<AFTERADD_TENSOR>(tensors))
+                           .setpwDesc(scaleDesc)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, scale_op.describe());
+
+        // Create a Bias Node.
+        auto bias_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                           .setxDesc(scale_op.getOutputTensor())
+                           .setbDesc(std::get<B_TENSOR>(tensors))
+                           .setyDesc(std::get<AFTERBIAS_TENSOR>(tensors))
+                           .setpwDesc(biasDesc)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, bias_op.describe());
+
+        // Create an Activation Node.
+        auto act_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                           .setxDesc(bias_op.getOutputTensor())
+                           .setyDesc(std::get<Y_TENSOR>(tensors))
+                           .setpwDesc(actDesc)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, act_op.describe());
+
+        // Create an Operation Graph. In this case it is convolution add bias activation
+        std::array<cudnn_frontend::Operation const*, 5> ops = {&conv_op, &add_op, &scale_op, &bias_op, &act_op};
+
+        auto opGraph = cudnn_frontend::OperationGraphBuilder()
+          .setHandle(handle_)
+          .setOperationGraph(ops.size(), ops.data())
+          .build();
+
+        // Create string encoding for plan caching
+        auto cache_string = getConvFusionString(x_dim_padded, pad, convstride, dilation, w_dim_padded, dataType, opGraph.getTag());
+        DEBUG_CUDNN_MSG(log_buf, "[convstring] " << cache_string);
+
+        auto& plan = getOrCreatePlan(handle_, log_buf, opGraph, cache_string);
+        DEBUG_CUDNN_MSG(log_buf, "Plan tag: " << plan.getTag());
+
+        auto workspace_size = plan.getWorkspaceSize();
+        DEBUG_CUDNN_MSG(log_buf, plan.describe() << " requires workspace " << workspace_size);
+
+        void* workspace_ptr = nullptr;
+        auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
+        if (workspace_size > 0) {
+          workspace_ptr = workspace_tensor.data_ptr<float>();
+        }
+        void* data_ptrs[] = {devPtrX, devPtrY, devPtrW, devPtrZ, devPtrB, devPtrI};
+        int64_t uids[]    = {'x', 'y', 'w', 'z', 'b', 'i'};
+        auto variantPack  = cudnn_frontend::VariantPackBuilder()
+                               .setWorkspacePointer(workspace_ptr)
+                               .setDataPointers(6, data_ptrs)
+                               .setUids(6, uids)
+                               .build();
+        DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
+        cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
+        checkCudnnErr(status);
+        cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
+    } catch (cudnn_frontend::cudnnException e) {
+      std::cout << log_buf.str() << "[ERROR] Exception " << e.what() << std::endl;
+    }
+}
+
+void
+run_conv_scale_bias_add_activation_mask(int64_t* x_dim_padded,
+                                        int64_t* pad,
+                                        int64_t* convstride,
+					int64_t* dilation,
+					int64_t* w_dim_padded,
+					int64_t* y_dim_padded,
+					int64_t* threshold_dim,
+					cudnnDataType_t dataType,
+					at::Half* devPtrX,
+					at::Half* devPtrW,
+					at::Half* devPtrY,
+					at::Half* devPtrZ,
+					at::Half* devPtrB,
+					at::Half* devPtrI,
+					int* devPtrT,
+					int* devPtrU,
+					int axis) {
+    cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+    std::stringstream log_buf;
+    try {
+        int convDim = 2;
+
+        // Creates the necessary tensor descriptors
+        masked_convbias_descriptors tensors = create_conv_bias_add_act_mask_descriptors(
+            x_dim_padded, pad, convstride, dilation, w_dim_padded, y_dim_padded, threshold_dim, dataType);
+        DEBUG_CUDNN_MSG(log_buf, std::get<X_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<Y_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<W_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<Z_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<B_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERADD_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERBIAS_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERCONV_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<OPTIONAL>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<AFTERACT_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<GEN_INDEX_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<MASK_TOP_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<MASK_BOTTOM_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<MASK_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<THRESHOLD_TOP_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<THRESHOLD_BOTTOM_TENSOR>(tensors).describe());
+
+        // Define the add operation
+        auto scaleDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_MUL)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, scaleDesc.describe());
+
+        // Define the bias operation
+        auto biasDesc = cudnn_frontend::PointWiseDescBuilder()
+                            .setMode(CUDNN_POINTWISE_ADD)
+                            .setMathPrecision(CUDNN_DATA_FLOAT)
+                            .build();
+        DEBUG_CUDNN_MSG(log_buf, biasDesc.describe());
+
+        // optional add
+        auto addDesc = cudnn_frontend::PointWiseDescBuilder()
+                            .setMode(CUDNN_POINTWISE_ADD)
+                            .setMathPrecision(CUDNN_DATA_FLOAT)
+                            .build();
+        DEBUG_CUDNN_MSG(log_buf, addDesc.describe());
+
+        // Define the activation operation
+        auto actDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_RELU_FWD)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, actDesc.describe());
+
+        // Define the convolution problem
+        auto convDesc = cudnn_frontend::ConvDescBuilder()
+                            .setDataType(CUDNN_DATA_FLOAT)
+                            .setMathMode(CUDNN_CROSS_CORRELATION)
+                            .setNDims(convDim)
+                            .setStrides(convDim, convstride)
+                            .setPrePadding(convDim, pad)
+                            .setPostPadding(convDim, pad)
+                            .setDilation(convDim, dilation)
+                            .build();
+        DEBUG_CUDNN_MSG(log_buf, convDesc.describe());
+
+        // Define the genIndex descriptor
+        auto genIndexDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_GEN_INDEX)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .setAxis(axis)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, genIndexDesc.describe());
+
+        // Define the lessThan descriptor
+        auto lessThanDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_CMP_LT)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, lessThanDesc.describe());
+
+        // Define the greaterThan descriptor
+        auto greaterThanDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_CMP_GT)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, greaterThanDesc.describe());
+
+        // Define the logical_or descriptor
+        auto logicalOrDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_LOGICAL_OR)
+                           .setMathPrecision(CUDNN_DATA_BOOLEAN)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, logicalOrDesc.describe());
+
+        // Define the binary_selection descriptor
+        auto selectionDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_BINARY_SELECT)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, selectionDesc.describe());
+
+        float alpha  = 1.0f;
+        float beta   = 0.0f;
+
+        // Create a convolution Node
+        auto conv_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR)
+                           .setxDesc(std::get<X_TENSOR>(tensors))
+                           .setwDesc(std::get<W_TENSOR>(tensors))
+                           .setyDesc(std::get<AFTERCONV_TENSOR>(tensors))
+                           .setcDesc(convDesc)
+                           .setAlpha(alpha)
+                           .setBeta(beta)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, conv_op.describe());
+
+        // Create a Add Node with scaling parameters.
+        auto scale_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                           .setxDesc(conv_op.getOutputTensor())
+                           .setbDesc(std::get<Z_TENSOR>(tensors))
+                           .setyDesc(std::get<AFTERADD_TENSOR>(tensors))
+                           .setpwDesc(scaleDesc)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, scale_op.describe());
+
+        // Create a Bias Node.
+        auto bias_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                           .setxDesc(scale_op.getOutputTensor())
+                           .setbDesc(std::get<B_TENSOR>(tensors))
+                           .setyDesc(std::get<AFTERBIAS_TENSOR>(tensors))
+                           .setpwDesc(biasDesc)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, bias_op.describe());
+
+        // Create a optional add Node.
+        auto add_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                           .setxDesc(bias_op.getOutputTensor())
+                           .setbDesc(std::get<OPTIONAL>(tensors))
+                           .setyDesc(std::get<AFTEROPT_TENSOR>(tensors))
+                           .setpwDesc(addDesc)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, add_op.describe());
+
+
+        // Create an Activation Node.
+        auto act_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+          .setxDesc(devPtrI ? add_op.getOutputTensor() : bias_op.getOutputTensor())
+                          .setyDesc(std::get<AFTERACT_TENSOR>(tensors))
+                          .setpwDesc(actDesc)
+                          .build();
+        DEBUG_CUDNN_MSG(log_buf, act_op.describe());
+
+        // Create a Gen_Index Node.
+        auto genIndex_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                          .setxDesc(std::get<AFTERACT_TENSOR>(tensors))
+                          .setyDesc(std::get<GEN_INDEX_TENSOR>(tensors))
+                          .setpwDesc(genIndexDesc)
+                          .build();
+        DEBUG_CUDNN_MSG(log_buf, genIndex_op.describe());
+
+        // Create a LessThan Node.
+        auto lessThan_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                          .setxDesc(std::get<GEN_INDEX_TENSOR>(tensors))
+                          .setbDesc(std::get<THRESHOLD_TOP_TENSOR>(tensors))
+                          .setyDesc(std::get<MASK_TOP_TENSOR>(tensors))
+                          .setpwDesc(lessThanDesc)
+                          .build();
+        DEBUG_CUDNN_MSG(log_buf, lessThan_op.describe());
+
+        // Create a GreaterThan Node.
+        auto greaterThan_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                          .setxDesc(std::get<GEN_INDEX_TENSOR>(tensors))
+                          .setbDesc(std::get<THRESHOLD_BOTTOM_TENSOR>(tensors))
+                          .setyDesc(std::get<MASK_BOTTOM_TENSOR>(tensors))
+                          .setpwDesc(greaterThanDesc)
+                          .build();
+        DEBUG_CUDNN_MSG(log_buf, greaterThan_op.describe());
+
+        // Create a LogicalOr Node.
+        auto logicalOr_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                          .setxDesc(std::get<MASK_TOP_TENSOR>(tensors))
+                          .setbDesc(std::get<MASK_BOTTOM_TENSOR>(tensors))
+                          .setyDesc(std::get<MASK_TENSOR>(tensors))
+                          .setpwDesc(logicalOrDesc)
+                          .build();
+        DEBUG_CUDNN_MSG(log_buf, logicalOr_op.describe());
+
+        // Create a Binary_Selection Node.
+        auto selection_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                          .setxDesc(std::get<AFTERCONV_TENSOR>(tensors))
+                          .setbDesc(std::get<AFTERACT_TENSOR>(tensors))
+                          .settDesc(std::get<MASK_TENSOR>(tensors))
+                          .setyDesc(std::get<Y_TENSOR>(tensors))
+                          .setpwDesc(selectionDesc)
+                          .build();
+        DEBUG_CUDNN_MSG(log_buf, selection_op.describe());
+
+        // Create an Operation Graph. In this case it is convolution add bias activation
+	if (devPtrI) {
+
+	  std::array<cudnn_frontend::Operation const*, 10> ops = {&conv_op, &scale_op, &bias_op, &add_op, &act_op, &genIndex_op, &lessThan_op, &greaterThan_op, &logicalOr_op, &selection_op};
+
+	  auto opGraph = cudnn_frontend::OperationGraphBuilder()
+            .setHandle(handle_)
+            .setOperationGraph(ops.size(), ops.data())
+            .build();
+
+	  // Create string encoding for plan caching
+	  auto cache_string = getConvFusionString(x_dim_padded, pad, convstride, dilation, w_dim_padded, dataType, opGraph.getTag());
+	  DEBUG_CUDNN_MSG(log_buf, "[convstring] " << cache_string);
+
+	  auto& plan = getOrCreatePlan(handle_, log_buf, opGraph, cache_string);
+	  DEBUG_CUDNN_MSG(log_buf, "Plan tag: " << plan.getTag());
+
+	  auto workspace_size = plan.getWorkspaceSize();
+	  DEBUG_CUDNN_MSG(log_buf, plan.describe() << " requires workspace " << workspace_size);
+
+	  void* workspace_ptr = nullptr;
+	  auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
+	  if (workspace_size > 0) {
+	    workspace_ptr = workspace_tensor.data_ptr<float>();
+	  }
+	  void* data_ptrs[] = {devPtrX, devPtrY, devPtrW, devPtrZ, devPtrB, devPtrI, devPtrT, devPtrU};
+	  int64_t uids[]    = {'x', 'y', 'w', 'z', 'b', 'i', 't', 'u'};
+	  auto variantPack  = cudnn_frontend::VariantPackBuilder()
+	    .setWorkspacePointer(workspace_ptr)
+	    .setDataPointers(8, data_ptrs)
+	    .setUids(8, uids)
+	    .build();
+	  DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
+	  cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
+	  checkCudnnErr(status);
+	  cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
+	} else {
+
+	  std::array<cudnn_frontend::Operation const*, 9> ops = {&conv_op, &scale_op, &bias_op, &act_op, &genIndex_op, &lessThan_op, &greaterThan_op, &logicalOr_op, &selection_op};
+
+	  auto opGraph = cudnn_frontend::OperationGraphBuilder()
+            .setHandle(handle_)
+            .setOperationGraph(ops.size(), ops.data())
+            .build();
+
+	  // Create string encoding for plan caching
+	  auto cache_string = getConvFusionString(x_dim_padded, pad, convstride, dilation, w_dim_padded, dataType, opGraph.getTag());
+	  DEBUG_CUDNN_MSG(log_buf, "[convstring] " << cache_string);
+
+	  auto& plan = getOrCreatePlan(handle_, log_buf, opGraph, cache_string);
+	  DEBUG_CUDNN_MSG(log_buf, "Plan tag: " << plan.getTag());
+
+	  auto workspace_size = plan.getWorkspaceSize();
+	  DEBUG_CUDNN_MSG(log_buf, plan.describe() << " requires workspace " << workspace_size);
+
+	  void* workspace_ptr = nullptr;
+	  auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
+	  if (workspace_size > 0) {
+	    workspace_ptr = workspace_tensor.data_ptr<float>();
+	  }
+	  void* data_ptrs[] = {devPtrX, devPtrY, devPtrW, devPtrZ, devPtrB, devPtrT, devPtrU};
+	  int64_t uids[]    = {'x', 'y', 'w', 'z', 'b', 't', 'u'};
+	  auto variantPack  = cudnn_frontend::VariantPackBuilder()
+	    .setWorkspacePointer(workspace_ptr)
+	    .setDataPointers(7, data_ptrs)
+	    .setUids(7, uids)
+	    .build();
+	  DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
+	  cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
+	  checkCudnnErr(status);
+	  cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
+	}
+    } catch (cudnn_frontend::cudnnException e) {
+      std::cout << log_buf.str() << "[ERROR] Exception " << e.what() << std::endl;
+    }
+}
+
+void
+run_dconv_add_drelu_dscale(int64_t* x_dim_padded,
+                       int64_t* pad,
+                       int64_t* convstride,
+                       int64_t* dilation,
+                       int64_t* w_dim_padded,
+                       int64_t* y_dim_padded,
+                       cudnnDataType_t dataType,
+                       at::Half* devPtrX,
+                       at::Half* devPtrW,
+                       at::Half* devPtrY,
+                       at::Half* devPtrZ,
+                       at::Half* devPtrR,
+		       at::Half* devPtrI) {
+    cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+    std::stringstream log_buf;
+    try {
+        int convDim = 2;
+
+        // Creates the necessary tensor descriptors
+        dconv_add_descriptors tensors = create_dconv_add_descriptors(
+            x_dim_padded, pad, convstride, dilation, w_dim_padded, y_dim_padded, dataType);
+        DEBUG_CUDNN_MSG(log_buf, std::get<X_OR_DX_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<DY_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<W_OR_DW_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<SCALE_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<RELU_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<AFTER_DCONV_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<AFTER_DRELU_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_INPUT_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_OPTIONAL_TENSOR>(tensors).describe());
+
+        // Define the convolution problem
+        auto convDesc = cudnn_frontend::ConvDescBuilder()
+                            .setDataType(CUDNN_DATA_FLOAT)
+                            .setMathMode(CUDNN_CROSS_CORRELATION)
+                            .setNDims(convDim)
+                            .setStrides(convDim, convstride)
+                            .setPrePadding(convDim, pad)
+                            .setPostPadding(convDim, pad)
+                            .setDilation(convDim, dilation)
+                            .build();
+        DEBUG_CUDNN_MSG(log_buf, convDesc.describe());
+
+        // optional add
+        auto addDesc = cudnn_frontend::PointWiseDescBuilder()
+                            .setMode(CUDNN_POINTWISE_ADD)
+                            .setMathPrecision(CUDNN_DATA_FLOAT)
+                            .build();
+        DEBUG_CUDNN_MSG(log_buf, addDesc.describe());
+
+        // Define the activation backward operation
+        auto actDesc = cudnn_frontend::PointWiseDescBuilder()
+          .setMode(CUDNN_POINTWISE_RELU_BWD)
+          .setMathPrecision(CUDNN_DATA_FLOAT)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, actDesc.describe());
+
+        // Define the scale backward operation
+        auto scaleDesc = cudnn_frontend::PointWiseDescBuilder()
+          .setMode(CUDNN_POINTWISE_MUL)
+          .setMathPrecision(CUDNN_DATA_FLOAT)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, scaleDesc.describe());
+
+        float alpha  = 1.0f;
+        float beta   = 0.0f;
+
+        // Create a convolution Node
+        auto conv_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR)
+          .setdxDesc(std::get<AFTER_DCONV_TENSOR>(tensors))
+          .setwDesc(std::get<W_OR_DW_TENSOR>(tensors))
+          .setdyDesc(std::get<DY_TENSOR>(tensors))
+          .setcDesc(convDesc)
+          .setAlpha(alpha)
+          .setBeta(beta)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, conv_op.describe());
+
+        // Create add Node.
+        auto add_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                           .setxDesc(std::get<AFTER_DCONV_TENSOR>(tensors))
+                           .setbDesc(std::get<DGRAD_INPUT_TENSOR>(tensors))
+                           .setyDesc(std::get<DGRAD_OPTIONAL_TENSOR>(tensors))
+                           .setpwDesc(addDesc)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, add_op.describe());
+
+        // TODO: do we need getOutputTensor(), and what it returns in backward case?
+        // Create an relu backward Node.
+        auto act_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+          .setdyDesc(std::get<DGRAD_OPTIONAL_TENSOR>(tensors))
+          .setxDesc(std::get<RELU_TENSOR>(tensors))
+          .setdxDesc(std::get<AFTER_DRELU_TENSOR>(tensors))
+          .setpwDesc(actDesc)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, act_op.describe());
+
+        // Create a Scale Node.
+        auto scale_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+          .setxDesc(std::get<AFTER_DRELU_TENSOR>(tensors))
+          .setbDesc(std::get<SCALE_TENSOR>(tensors))
+          .setyDesc(std::get<X_OR_DX_TENSOR>(tensors))
+          .setpwDesc(scaleDesc)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, scale_op.describe());
+
+        // Create an Operation Graph. In this case it is convolution add bias activation
+        std::array<cudnn_frontend::Operation const*, 4> ops = {&conv_op, &add_op, &act_op, &scale_op};
+
+        auto opGraph = cudnn_frontend::OperationGraphBuilder()
+          .setHandle(handle_)
+          .setOperationGraph(ops.size(), ops.data())
+          .build();
+
+        // Create string encoding for plan caching
+        auto cache_string = getConvFusionString(x_dim_padded, pad, convstride, dilation, w_dim_padded, dataType, opGraph.getTag());
+        DEBUG_CUDNN_MSG(log_buf, "[convstring] " << cache_string);
+
+        auto& plan = getOrCreatePlan(handle_, log_buf, opGraph, cache_string);
+        DEBUG_CUDNN_MSG(log_buf, "Plan tag: " << plan.getTag());
+
+        auto workspace_size = plan.getWorkspaceSize();
+        DEBUG_CUDNN_MSG(log_buf, plan.describe() << " requires workspace " << workspace_size);
+
+        void* workspace_ptr = nullptr;
+        auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
+        if (workspace_size > 0) {
+          workspace_ptr = workspace_tensor.data_ptr<float>();
+        }
+        void* data_ptrs[] = {devPtrX, devPtrY, devPtrW, devPtrZ, devPtrR, devPtrI};
+        int64_t uids[]    = {'x', 'y', 'w', 's', 'r', 'i'};
+        auto variantPack  = cudnn_frontend::VariantPackBuilder()
+          .setWorkspacePointer(workspace_ptr)
+          .setDataPointers(6, data_ptrs)
+          .setUids(6, uids)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
+        cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
+        checkCudnnErr(status);
+        cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
+    } catch (cudnn_frontend::cudnnException e) {
+      std::cout << log_buf.str() << "[ERROR] Exception " << e.what() << std::endl;
+    }
+}
+
+void
+run_dconv_drelu_dscale_mask(int64_t* x_dim_padded,
+                            int64_t* pad,
+			    int64_t* convstride,
+			    int64_t* dilation,
+			    int64_t* w_dim_padded,
+			    int64_t* y_dim_padded,
+			    int64_t* threshold_dim,
+			    cudnnDataType_t dataType,
+			    at::Half* devPtrX,
+			    at::Half* devPtrW,
+			    at::Half* devPtrY,
+			    at::Half* devPtrZ,
+			    at::Half* devPtrR,
+			    int* devPtrT,
+			    int* devPtrU,
+			    int axis) {
+    cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+    std::stringstream log_buf;
+    try {
+        int convDim = 2;
+
+        // Creates the necessary tensor descriptors
+        dconv_mask_descriptors tensors = create_dconv_mask_descriptors(
+            x_dim_padded, pad, convstride, dilation, w_dim_padded, y_dim_padded, threshold_dim, dataType);
+        DEBUG_CUDNN_MSG(log_buf, std::get<X_OR_DX_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<DY_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<W_OR_DW_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<SCALE_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<RELU_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<AFTER_DCONV_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<AFTER_DRELU_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_OPTIONAL_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_GEN_INDEX_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_MASK_TOP_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_MASK_BOTTOM_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_MASK_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_THRESHOLD_TOP_TENSOR>(tensors).describe());
+        DEBUG_CUDNN_MSG(log_buf, std::get<DGRAD_THRESHOLD_BOTTOM_TENSOR>(tensors).describe());
+
+        // Define the convolution problem
+        auto convDesc = cudnn_frontend::ConvDescBuilder()
+                            .setDataType(CUDNN_DATA_FLOAT)
+                            .setMathMode(CUDNN_CROSS_CORRELATION)
+                            .setNDims(convDim)
+                            .setStrides(convDim, convstride)
+                            .setPrePadding(convDim, pad)
+                            .setPostPadding(convDim, pad)
+                            .setDilation(convDim, dilation)
+                            .build();
+        DEBUG_CUDNN_MSG(log_buf, convDesc.describe());
+
+        // Define the activation backward operation
+        auto actDesc = cudnn_frontend::PointWiseDescBuilder()
+          .setMode(CUDNN_POINTWISE_RELU_BWD)
+          .setMathPrecision(CUDNN_DATA_FLOAT)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, actDesc.describe());
+
+        // Define the scale backward operation
+        auto scaleDesc = cudnn_frontend::PointWiseDescBuilder()
+          .setMode(CUDNN_POINTWISE_MUL)
+          .setMathPrecision(CUDNN_DATA_FLOAT)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, scaleDesc.describe());
+
+        // Define the genIndex descriptor
+        auto genIndexDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_GEN_INDEX)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .setAxis(axis)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, genIndexDesc.describe());
+
+        // Define the lessThan descriptor
+        auto lessThanDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_CMP_LT)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, lessThanDesc.describe());
+
+        // Define the greaterThan descriptor
+        auto greaterThanDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_CMP_GT)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, greaterThanDesc.describe());
+
+        // Define the logical_or descriptor
+        auto logicalOrDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_LOGICAL_OR)
+                           .setMathPrecision(CUDNN_DATA_BOOLEAN)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, logicalOrDesc.describe());
+
+        // Define the binary_selection descriptor
+        auto selectionDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_BINARY_SELECT)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, selectionDesc.describe());
+
+        float alpha  = 1.0f;
+        float beta   = 0.0f;
+
+        // Create a convolution Node
+        auto conv_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR)
+          .setdxDesc(std::get<AFTER_DCONV_TENSOR>(tensors))
+          .setwDesc(std::get<W_OR_DW_TENSOR>(tensors))
+          .setdyDesc(std::get<DY_TENSOR>(tensors))
+          .setcDesc(convDesc)
+          .setAlpha(alpha)
+          .setBeta(beta)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, conv_op.describe());
+
+        // TODO: do we need getOutputTensor(), and what it returns in backward case?
+        // Create an relu backward Node.
+        auto act_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+          .setdyDesc(std::get<AFTER_DCONV_TENSOR>(tensors))
+          .setxDesc(std::get<RELU_TENSOR>(tensors))
+          .setdxDesc(std::get<AFTER_DRELU_TENSOR>(tensors))
+          .setpwDesc(actDesc)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, act_op.describe());
+
+        // Create a Scale Node.
+        auto scale_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+          .setxDesc(std::get<AFTER_DRELU_TENSOR>(tensors))
+          .setbDesc(std::get<SCALE_TENSOR>(tensors))
+          .setyDesc(std::get<DGRAD_OPTIONAL_TENSOR>(tensors))
+          .setpwDesc(scaleDesc)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, scale_op.describe());
+
+        // Create a Gen_Index Node.
+        auto genIndex_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                          .setxDesc(std::get<DGRAD_OPTIONAL_TENSOR>(tensors))
+                          .setyDesc(std::get<DGRAD_GEN_INDEX_TENSOR>(tensors))
+                          .setpwDesc(genIndexDesc)
+                          .build();
+        DEBUG_CUDNN_MSG(log_buf, genIndex_op.describe());
+
+        // Create a LessThan Node.
+        auto lessThan_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                          .setxDesc(std::get<DGRAD_GEN_INDEX_TENSOR>(tensors))
+                          .setbDesc(std::get<DGRAD_THRESHOLD_TOP_TENSOR>(tensors))
+                          .setyDesc(std::get<DGRAD_MASK_TOP_TENSOR>(tensors))
+                          .setpwDesc(lessThanDesc)
+                          .build();
+        DEBUG_CUDNN_MSG(log_buf, lessThan_op.describe());
+
+        // Create a GreaterThan Node.
+        auto greaterThan_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                          .setxDesc(std::get<DGRAD_GEN_INDEX_TENSOR>(tensors))
+                          .setbDesc(std::get<DGRAD_THRESHOLD_BOTTOM_TENSOR>(tensors))
+                          .setyDesc(std::get<DGRAD_MASK_BOTTOM_TENSOR>(tensors))
+                          .setpwDesc(greaterThanDesc)
+                          .build();
+        DEBUG_CUDNN_MSG(log_buf, greaterThan_op.describe());
+
+        // Create a LogicalOr Node.
+        auto logicalOr_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                          .setxDesc(std::get<DGRAD_MASK_TOP_TENSOR>(tensors))
+                          .setbDesc(std::get<DGRAD_MASK_BOTTOM_TENSOR>(tensors))
+                          .setyDesc(std::get<DGRAD_MASK_TENSOR>(tensors))
+                          .setpwDesc(logicalOrDesc)
+                          .build();
+        DEBUG_CUDNN_MSG(log_buf, logicalOr_op.describe());
+
+        // Create a Binary_Selection Node.
+        auto selection_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                          .setxDesc(std::get<AFTER_DCONV_TENSOR>(tensors))
+                          .setbDesc(std::get<DGRAD_OPTIONAL_TENSOR>(tensors))
+                          .settDesc(std::get<DGRAD_MASK_TENSOR>(tensors))
+                          .setyDesc(std::get<X_OR_DX_TENSOR>(tensors))
+                          .setpwDesc(selectionDesc)
+                          .build();
+        DEBUG_CUDNN_MSG(log_buf, selection_op.describe());
+
+        // Create an Operation Graph. In this case it is convolution add bias activation
+        std::array<cudnn_frontend::Operation const*, 8> ops = {&conv_op, &act_op, &scale_op, &genIndex_op, &lessThan_op, &greaterThan_op, &logicalOr_op, &selection_op};
+
+        auto opGraph = cudnn_frontend::OperationGraphBuilder()
+          .setHandle(handle_)
+          .setOperationGraph(ops.size(), ops.data())
+          .build();
+
+        // Create string encoding for plan caching
+        auto cache_string = getConvFusionString(x_dim_padded, pad, convstride, dilation, w_dim_padded, dataType, opGraph.getTag());
+        DEBUG_CUDNN_MSG(log_buf, "[convstring] " << cache_string);
+
+        auto& plan = getOrCreatePlan(handle_, log_buf, opGraph, cache_string);
+        DEBUG_CUDNN_MSG(log_buf, "Plan tag: " << plan.getTag());
+
+        auto workspace_size = plan.getWorkspaceSize();
+        DEBUG_CUDNN_MSG(log_buf, plan.describe() << " requires workspace " << workspace_size);
+
+        void* workspace_ptr = nullptr;
+        auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
+        if (workspace_size > 0) {
+          workspace_ptr = workspace_tensor.data_ptr<float>();
+        }
+        void* data_ptrs[] = {devPtrX, devPtrY, devPtrW, devPtrZ, devPtrR, devPtrT, devPtrU};
+        int64_t uids[]    = {'x', 'y', 'w', 's', 'r', 't', 'u'};
+        auto variantPack  = cudnn_frontend::VariantPackBuilder()
+          .setWorkspacePointer(workspace_ptr)
+          .setDataPointers(7, data_ptrs)
+          .setUids(7, uids)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
+        cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
+        checkCudnnErr(status);
+        cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
+    } catch (cudnn_frontend::cudnnException e) {
+      std::cout << log_buf.str() << "[ERROR] Exception " << e.what() << std::endl;
+    }
+}
 
 struct bottleneck_forward_status {
 
