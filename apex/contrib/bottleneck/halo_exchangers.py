@@ -2,7 +2,7 @@ import torch
 import torch.distributed as dist
 from torch import nn
 import nccl_p2p as inc
-import peer_memory as pm
+import peer_memory_cuda as pm
 
 # Communication free halo exchanger.
 # NB! This halo exchanger does not exchange halos with neighbors as it should, it merely swaps the inputs

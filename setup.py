@@ -632,7 +632,7 @@ if "--peer_memory" in sys.argv:
     raise_if_cuda_home_none("--peer_memory")
     ext_modules.append(
         CUDAExtension(
-            name="peer_memory",
+            name="peer_memory_cuda",
             sources=[
                 "apex/contrib/csrc/peer_memory/peer_memory_cuda.cu",
                 "apex/contrib/csrc/peer_memory/peer_memory.cpp",

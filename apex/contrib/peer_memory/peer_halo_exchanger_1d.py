@@ -1,6 +1,6 @@
 import torch
 from apex.contrib.peer_memory import PeerMemoryPool
-import peer_memory as pm
+import peer_memory_cuda as pm
 
 class PeerHaloExchanger1d:
     def __init__(self, rank, peer_group_size, peer_pool, half_halo):
