@@ -2,7 +2,7 @@ import torch
 import torch.distributed as dist
 from torch import nn
 import fast_bottleneck
-import nccl_p2p as inc
+import nccl_p2p_cuda as inc
 
 def kaiming_uniform_(tensor, a=0, mode='fan_in', nonlinearity='leaky_relu'):
     weight_tensor_nchw = tensor

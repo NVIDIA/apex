@@ -646,7 +646,7 @@ if "--nccl_p2p" in sys.argv:
     raise_if_cuda_home_none("--nccl_p2p")
     ext_modules.append(
         CUDAExtension(
-            name="nccl_p2p",
+            name="nccl_p2p_cuda",
             sources=[
                 "apex/contrib/csrc/nccl_p2p/nccl_p2p_cuda.cu",
                 "apex/contrib/csrc/nccl_p2p/nccl_p2p.cpp",

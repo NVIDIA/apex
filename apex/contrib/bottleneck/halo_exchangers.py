@@ -1,7 +1,7 @@
 import torch
 import torch.distributed as dist
 from torch import nn
-import nccl_p2p as inc
+import nccl_p2p_cuda as inc
 import peer_memory_cuda as pm
 
 # Communication free halo exchanger.
