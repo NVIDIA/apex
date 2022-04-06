@@ -9,6 +9,21 @@ import os
 
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
+torch_dir = torch.__path__[0]
+
+# https://github.com/pytorch/pytorch/pull/71881
+# For the extensions which have rocblas_gemm_flags_fp16_alt_impl we need to make sure if at::BackwardPassGuard exists.
+# It helps the extensions be backward compatible with old PyTorch versions.
+# The check and ROCM_BACKWARD_PASS_GUARD in nvcc/hipcc args can be retired once the PR is merged into PyTorch upstream.
+
+context_file = os.path.join(torch_dir, "include", "ATen", "Context.h")
+if os.path.exists(context_file):
+    lines = open(context_file, 'r').readlines()
+    found_Backward_Pass_Guard = False
+    for line in lines:
+        if "BackwardPassGuard" in line:
+            found_Backward_Pass_Guard = True
+            break
 
 def get_cuda_bare_metal_version(cuda_dir):
     raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)
@@ -237,7 +252,9 @@ if "--cuda_ext" in sys.argv:
                                    'csrc/mlp_cuda.cu'],
                           include_dirs=[os.path.join(this_dir, 'csrc')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
-                                              'nvcc':['-O3'] + version_dependent_macros}))
+                                              'nvcc':['-O3'] + version_dependent_macros if not found_Backward_Pass_Guard 
+                                              else ['-O3'] + version_dependent_macros + ['-DROCM_BACKWARD_PASS_GUARD']}))
+
         ext_modules.append(
             CUDAExtension(name='fused_dense_cuda',
                           sources=['csrc/fused_dense.cpp',
@@ -365,7 +382,6 @@ if "--deprecated_fused_lamb" in sys.argv or "--cuda_ext" in sys.argv:
 # Check, if ATen/CUDAGeneratorImpl.h is found, otherwise use ATen/cuda/CUDAGeneratorImpl.h
 # See https://github.com/pytorch/pytorch/pull/70650
 generator_flag = []
-torch_dir = torch.__path__[0]
 if os.path.exists(os.path.join(torch_dir, "include", "ATen", "cuda", "CUDAGeneratorImpl.h")):
     generator_flag = ["-DNEW_GENERATOR_PATH"]
 
@@ -475,6 +491,8 @@ if "--fast_multihead_attn" in sys.argv or "--cuda_ext" in sys.argv:
                           '-I/opt/rocm/include/rocrand',
                           '-U__HIP_NO_HALF_OPERATORS__',
                           '-U__HIP_NO_HALF_CONVERSIONS__'] + version_dependent_macros + generator_flag
+        if found_Backward_Pass_Guard:
+            hipcc_args_mha = hipcc_args_mha + ['-DROCM_BACKWARD_PASS_GUARD']
 
         ext_modules.append(
             CUDAExtension(name='fast_additive_mask_softmax_dropout',

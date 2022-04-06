@@ -22,10 +22,6 @@
 #define BIAS_RELU_BW_NTHREADS_Y 16 // backward number of thread in batch dim
 #define BIAS_RELU_RED_PER_THREAD 16 // backward minimal reduction length per thread
 
-// #ifdef __HIP_PLATFORM_HCC__
-// #define PYTORCH_ROCBLAS_VERSION_DECIMAL (ROCBLAS_VERSION_MAJOR * 100 + ROCBLAS_VERSION_MINOR)
-// #define USE_GEMM_FLAGS_FP16_ALT_IMPL (PYTORCH_ROCBLAS_VERSION_DECIMAL >= 242)
-// #endif
 
 // move to a header later on
 #define ILP 4
@@ -1514,7 +1510,9 @@ int mlp_bp(
     #define PYTORCH_ROCBLAS_VERSION_DECIMAL (ROCBLAS_VERSION_MAJOR * 100 + ROCBLAS_VERSION_MINOR)
     #define USE_GEMM_FLAGS_FP16_ALT_IMPL (PYTORCH_ROCBLAS_VERSION_DECIMAL >= 242)
     #if USE_GEMM_FLAGS_FP16_ALT_IMPL
+      #ifdef ROCM_BACKWARD_PASS_GUARD
         flag = at::BackwardPassGuard::is_backward_pass() ? rocblas_gemm_flags_fp16_alt_impl : 0;
+      #endif
     #endif
   #endif
   

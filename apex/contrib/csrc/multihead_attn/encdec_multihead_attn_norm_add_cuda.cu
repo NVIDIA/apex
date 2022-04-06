@@ -113,10 +113,6 @@ std::vector<torch::Tensor> fwd_cuda(
       1.0e-5, static_cast<const at::Half *>(lyr_nrm_gamma_weights.data_ptr()),
       static_cast<const at::Half *>(lyr_nrm_beta_weights.data_ptr()));
 
-  #if USE_GEMM_FLAGS_FP16_ALT_IMPL
-    flags = at::BackwardPassGuard::is_backward_pass() ? rocblas_gemm_flags_fp16_alt_impl : 0;
-  #endif
-
   // Input Linear Q Fwd
   TORCH_CUDABLAS_CHECK(rocblas_gemm_ex(handle,
                              CUBLAS_OP_T, 
@@ -377,10 +373,15 @@ std::vector<torch::Tensor> bwd_cuda(
   char b_layout_t{'t'}; 
   
   //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
-  #if USE_GEMM_FLAGS_FP16_ALT_IMPL
-    flags = at::BackwardPassGuard::is_backward_pass() ? rocblas_gemm_flags_fp16_alt_impl : 0;
+  #ifdef __HIP_PLATFORM_HCC__
+    #define PYTORCH_ROCBLAS_VERSION_DECIMAL (ROCBLAS_VERSION_MAJOR * 100 + ROCBLAS_VERSION_MINOR)
+    #define USE_GEMM_FLAGS_FP16_ALT_IMPL (PYTORCH_ROCBLAS_VERSION_DECIMAL >= 242)
+    #if USE_GEMM_FLAGS_FP16_ALT_IMPL
+      #ifdef ROCM_BACKWARD_PASS_GUARD
+        flags = at::BackwardPassGuard::is_backward_pass() ? rocblas_gemm_flags_fp16_alt_impl : 0;
+      #endif
+    #endif
   #endif
-
   
   // Dropout Add Backward  
   apex_masked_scale_cuda<at::Half,float,uint32_t>(

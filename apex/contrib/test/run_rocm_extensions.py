@@ -4,7 +4,6 @@ import sys
 
 test_dirs = ["groupbn", "layer_norm", "multihead_attn", "."] # "." for test_label_smoothing.py
 ROCM_BLACKLIST = [
-    "groupbn",
     "layer_norm"
 ]
 
