@@ -1,3 +1,6 @@
+import warnings
+warnings.warn("reparameterization will be removed by the end of June, 2022", FutureWarning)
+
 from .weight_norm import WeightNorm
 from .reparameterization import Reparameterization
 
