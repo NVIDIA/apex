@@ -7,7 +7,7 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import (
-    setup_microbatch_calculator,
+    _reconfigure_microbatch_calculator,
     get_micro_batch_size,
     get_num_microbatches,
     get_current_global_batch_size,
@@ -42,10 +42,10 @@ class MicrobatchCalculatorTest(DistributedTestBase):
                 parallel_state.initialize_model_parallel(
                     tensor_model_parallel_size_=self.world_size // data_parallel_size,
                     pipeline_model_parallel_size_=1,
-                ) 
+                )
                 self.assertEqual(data_parallel_size, parallel_state.get_data_parallel_world_size())
 
-                setup_microbatch_calculator(
+                _reconfigure_microbatch_calculator(
                     self.rank,
                     rampup_batch_size,
                     MicrobatchCalculatorTest.GLOBAL_BATCH_SIZE,
@@ -67,10 +67,11 @@ class MicrobatchCalculatorTest(DistributedTestBase):
                         update_num_microbatches(current_global_batch_size)
                     current_global_batch_size = get_current_global_batch_size()
                     self.assertEqual(get_current_global_batch_size(), MicrobatchCalculatorTest.GLOBAL_BATCH_SIZE)
-                    
+                parallel_state.destroy_model_parallel()
+
     def test_constant_microbatch_calculator(self):
         self._test(rampup_batch_size=None)
-    
+
     def test_dynamic_microbatch_calculator(self):
         self._test(rampup_batch_size=[256, 128, 500])
 
