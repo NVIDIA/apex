@@ -60,8 +60,7 @@ def build_num_microbatches_calculator(
                     global_batch_size,
                     batch_size_increment,
                     ramup_samples,
-                ),
-                flush=True,
+                )
             )
         num_microbatches_calculator = RampupBatchsizeNumMicroBatches(
             start_batch_size,
