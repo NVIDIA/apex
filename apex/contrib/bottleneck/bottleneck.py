@@ -1,3 +1,4 @@
+import functools as func
 import torch
 import torch.distributed as dist
 from torch import nn
@@ -7,6 +8,17 @@ import nccl_p2p_cuda as inc
 def kaiming_uniform_(tensor, a=0, mode='fan_in', nonlinearity='leaky_relu'):
     weight_tensor_nchw = tensor
     nn.init.kaiming_uniform_(weight_tensor_nchw, a=a, mode=mode, nonlinearity=nonlinearity)
+
+def compute_scale_bias_one(nhwc, weight, bias, running_mean, running_var, w_scale, w_bias):
+    scale = weight * running_var.rsqrt()
+    bias = bias - running_mean * scale
+    w_scale.copy_(scale)
+    w_bias.copy_(bias)
+
+def compute_scale_bias_method(nhwc, args):
+    for arg in args:
+        # arg is tuple of (weight, bias, running_mean, running_var, w_scale, w_bias)
+        compute_scale_bias_one(nhwc, *arg)
 
 class FrozenBatchNorm2d(torch.jit.ScriptModule):
     """
@@ -150,6 +162,7 @@ class Bottleneck(torch.nn.Module):
         self.bn1 = norm_func(bottleneck_channels)
         self.bn2 = norm_func(bottleneck_channels)
         self.bn3 = norm_func(out_channels)
+        self.w_scale = None
 
         self.use_cudnn = use_cudnn
 
@@ -173,23 +186,47 @@ class Bottleneck(torch.nn.Module):
             for p in self.parameters():
                 with torch.no_grad():
                     p.data = p.data.permute(0,2,3,1).contiguous()
+
         return
+
+    # Returns single callable that recomputes scale and bias for all frozen batch-norms.
+    # This method must be called before cuda graphing.
+    # The callable it returns can be called anytime.
+    # Calling this method will prevent these from being computed every forward call.
+    def get_scale_bias_callable(self):
+        self.w_scale, self.w_bias, args = [], [], []
+        batch_norms = [self.bn1, self.bn2, self.bn3]
+        if self.downsample is not None:
+            batch_norms.append(self.downsample[1])
+        for bn in batch_norms:
+            s = torch.empty_like(bn.weight)
+            b = torch.empty_like(s)
+            args.append( (bn.weight, bn.bias, bn.running_mean, bn.running_var, s, b) )
+            if self.explicit_nhwc:
+                self.w_scale.append( s.reshape(1, 1, 1, -1) )
+                self.w_bias.append( b.reshape(1, 1, 1, -1) )
+            else:
+                self.w_scale.append( s.reshape(1, -1, 1, 1) )
+                self.w_bias.append( b.reshape(1, -1, 1, 1) )
+        return func.partial(compute_scale_bias_method, self.explicit_nhwc, args)
 
     def forward(self, x):
         if self.use_cudnn:
-            # calculate scale/bias from registered buffers
-            # TODO: make this better
-            s1, b1 = self.bn1.get_scale_bias(self.explicit_nhwc)
-            s2, b2 = self.bn2.get_scale_bias(self.explicit_nhwc)
-            s3, b3 = self.bn3.get_scale_bias(self.explicit_nhwc)
-            w_scale = [s1, s2, s3]
-            w_bias = [b1, b2, b3]
-            if self.downsample is not None:
-                s4, b4 = self.downsample[1].get_scale_bias(self.explicit_nhwc)
-                w_scale.append(s4)
-                w_bias.append(b4)
-
-            out = bottleneck_function(self.explicit_nhwc, self.stride, w_scale, w_bias, x, *self.w_conv)
+            if self.w_scale is None:
+                # calculate scale/bias from registered buffers
+                # TODO: make this better
+                s1, b1 = self.bn1.get_scale_bias(self.explicit_nhwc)
+                s2, b2 = self.bn2.get_scale_bias(self.explicit_nhwc)
+                s3, b3 = self.bn3.get_scale_bias(self.explicit_nhwc)
+                w_scale = [s1, s2, s3]
+                w_bias = [b1, b2, b3]
+                if self.downsample is not None:
+                    s4, b4 = self.downsample[1].get_scale_bias(self.explicit_nhwc)
+                    w_scale.append(s4)
+                    w_bias.append(b4)
+                out = bottleneck_function(self.explicit_nhwc, self.stride, w_scale, w_bias, x, *self.w_conv)
+            else:
+                out = bottleneck_function(self.explicit_nhwc, self.stride, self.w_scale, self.w_bias, x, *self.w_conv)
             return out
 
         if self.explicit_nhwc:
@@ -251,7 +288,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                 memory_format = torch.channels_last if out1.is_contiguous(memory_format=torch.channels_last) else torch.contiguous_format
                 out1_pad = torch.empty([N,C,Hs+2,W], dtype=out1.dtype, device='cuda', memory_format=memory_format)
             stream1.wait_stream(torch.cuda.current_stream())
-            stream3.wait_stream(torch.cuda.current_stream())
+            if spatial_method != 2: stream3.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(stream3):
                 if explicit_nhwc:
                     out1_pad[:,1:Hs+1,:,:].copy_(out1)
@@ -291,7 +328,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                             top_fat_halo[:,:,:1,:].copy_(top_out1_halo)
                             top_fat_halo[:,:,1:3,:].copy_(out1[:,:,:2,:])
                         top_out2 = fast_bottleneck.forward_out2_halo(explicit_nhwc, top_fat_halo, args)
-                inc.add_delay(10)
+                #inc.add_delay(10)
             elif spatial_method != 2 and spatial_method != 3:
                 assert(False), "spatial_method must be 1, 2 or 3"
 
@@ -299,13 +336,26 @@ class SpatialBottleneckFunction(torch.autograd.Function):
             fast_bottleneck.forward_out2(explicit_nhwc, stride_1x1, args, outputs)
         elif spatial_method == 1:
             fast_bottleneck.forward_out2(explicit_nhwc, stride_1x1, args, outputs)
+            with torch.cuda.stream(stream3):
+                if explicit_nhwc:
+                    out1_pad[:,1:Hs+1,:,:].copy_(out1)
+                else:
+                    out1_pad[:,:,1:Hs+1,:].copy_(out1)
         elif spatial_method == 2:
             # wait for halo transfer to finish before doing a full convolution of padded x
             torch.cuda.current_stream().wait_stream(stream1)
-            torch.cuda.current_stream().wait_stream(stream3)
+            if explicit_nhwc:
+                out1_pad[:,1:Hs+1,:,:].copy_(out1)
+            else:
+                out1_pad[:,:,1:Hs+1,:].copy_(out1)
             fast_bottleneck.forward_out2_pad(explicit_nhwc, stride_1x1, args, outputs, out1_pad)
         elif spatial_method == 3:
             fast_bottleneck.forward_out2_mask(explicit_nhwc, stride_1x1, args, outputs, thresholdTop, thresholdBottom)
+            with torch.cuda.stream(stream3):
+                if explicit_nhwc:
+                    out1_pad[:,1:Hs+1,:,:].copy_(out1)
+                else:
+                    out1_pad[:,:,1:Hs+1,:].copy_(out1)
 
         # compute halo cells for outputs[1] (out2)
         if spatial_group_size > 1:
@@ -405,6 +455,11 @@ class SpatialBottleneckFunction(torch.autograd.Function):
         grad_out2 = fast_bottleneck.backward_grad_out2(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads)
         wgrad2_stream = torch.cuda.Stream()
         wgrad2_stream.wait_stream(torch.cuda.current_stream())
+        with torch.cuda.stream(wgrad2_stream):
+            if ctx.spatial_group_size > 1:
+                wgrad2 = fast_bottleneck.backward_wgrad2_pad(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, out1_pad, grad_out2)
+            else:
+                wgrad2 = fast_bottleneck.backward_wgrad2(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, grad_out2)
         # do halo exchange of grad_out2 here
         # compute halo cells for grad_out1
         if ctx.spatial_group_size > 1:
@@ -463,15 +518,9 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                             top_grad_out1_halo = top_grad_out1_halo[:,1:2,:,:]
                         else:
                             top_grad_out1_halo = top_grad_out1_halo[:,:,1:2,:]
-                inc.add_delay(10)
+                #inc.add_delay(10)
             elif ctx.spatial_method != 3:
                 assert(False), "spatial_method must be 1, 2 or 3"
-
-        with torch.cuda.stream(wgrad2_stream):
-            if ctx.spatial_group_size > 1:
-                wgrad2 = fast_bottleneck.backward_wgrad2_pad(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, out1_pad, grad_out2)
-            else:
-                wgrad2 = fast_bottleneck.backward_wgrad2(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, grad_out2)
 
         # compute grad_out1 for internal cells
         if ctx.spatial_group_size <= 1 or ctx.spatial_method == 1 or ctx.spatial_method == 2:
@@ -577,6 +626,7 @@ class SpatialBottleneck(torch.nn.Module):
         self.bn1 = norm_func(bottleneck_channels)
         self.bn2 = norm_func(bottleneck_channels)
         self.bn3 = norm_func(out_channels)
+        self.w_scale = None
 
         self.use_cudnn = use_cudnn
 
@@ -610,6 +660,27 @@ class SpatialBottleneck(torch.nn.Module):
             self.spatial_parallel_args = spatial_parallel_args
         return
 
+    # Returns single callable that recomputes scale and bias for all frozen batch-norms.
+    # This method must be called before cuda graphing.
+    # The callable it returns can be called anytime.
+    # Calling this method will prevent these from being computed every forward call.
+    def get_scale_bias_callable(self):
+        self.w_scale, self.w_bias, args = [], [], []
+        batch_norms = [self.bn1, self.bn2, self.bn3]
+        if self.downsample is not None:
+            batch_norms.append(self.downsample[1])
+        for bn in batch_norms:
+            s = torch.empty_like(bn.weight)
+            b = torch.empty_like(s)
+            args.append( (bn.weight, bn.bias, bn.running_mean, bn.running_var, s, b) )
+            if self.explicit_nhwc:
+                self.w_scale.append( s.reshape(1, 1, 1, -1) )
+                self.w_bias.append( b.reshape(1, 1, 1, -1) )
+            else:
+                self.w_scale.append( s.reshape(1, -1, 1, 1) )
+                self.w_bias.append( b.reshape(1, -1, 1, 1) )
+        return func.partial(compute_scale_bias_method, self.explicit_nhwc, args)
+
     def forward(self, x):
         if self.use_cudnn:
             if self.thresholdTop is None:
@@ -620,19 +691,24 @@ class SpatialBottleneck(torch.nn.Module):
                     N,C,H,W = list(x.shape)
                 self.thresholdTop = torch.tensor([1 if spatial_group_rank > 0 else 0], dtype=torch.int32, device='cuda')
                 self.thresholdBottom = torch.tensor([H-2 if spatial_group_rank < spatial_group_size - 1 else H-1], dtype=torch.int32, device='cuda')
-            # calculate scale/bias from registered buffers
-            # TODO: make this better
-            s1, b1 = self.bn1.get_scale_bias(self.explicit_nhwc)
-            s2, b2 = self.bn2.get_scale_bias(self.explicit_nhwc)
-            s3, b3 = self.bn3.get_scale_bias(self.explicit_nhwc)
-            w_scale = [s1, s2, s3]
-            w_bias = [b1, b2, b3]
-            if self.downsample is not None:
-                s4, b4 = self.downsample[1].get_scale_bias(self.explicit_nhwc)
-                w_scale.append(s4)
-                w_bias.append(b4)
-
-            out = spatial_bottleneck_function(*self.spatial_parallel_args, self.explicit_nhwc, self.stride, w_scale, w_bias, self.thresholdTop, self.thresholdBottom, x, *self.w_conv)
+            
+            if self.w_scale is None:
+                # calculate scale/bias from registered buffers
+                # TODO: make this better
+                s1, b1 = self.bn1.get_scale_bias(self.explicit_nhwc)
+                s2, b2 = self.bn2.get_scale_bias(self.explicit_nhwc)
+                s3, b3 = self.bn3.get_scale_bias(self.explicit_nhwc)
+                w_scale = [s1, s2, s3]
+                w_bias = [b1, b2, b3]
+                if self.downsample is not None:
+                    s4, b4 = self.downsample[1].get_scale_bias(self.explicit_nhwc)
+                    w_scale.append(s4)
+                    w_bias.append(b4)
+                self.w_scale = w_scale
+                self.w_bias = w_bias
+                out = spatial_bottleneck_function(*self.spatial_parallel_args, self.explicit_nhwc, self.stride, w_scale, w_bias, self.thresholdTop, self.thresholdBottom, x, *self.w_conv)
+            else:
+                out = spatial_bottleneck_function(*self.spatial_parallel_args, self.explicit_nhwc, self.stride, self.w_scale, self.w_bias, self.thresholdTop, self.thresholdBottom, x, *self.w_conv)
             return out
 
         if self.explicit_nhwc:

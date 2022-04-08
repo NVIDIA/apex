@@ -148,33 +148,58 @@ __device__ void strided_copy_kernel(
     }
 }
 
-template<bool wait, bool clear> 
-__device__ void dual_signal_wait_clear(
-	volatile int* signal1_flag, volatile int* wait1_flag,
-	volatile int* signal2_flag, volatile int* wait2_flag,
+__device__ void checked_signal(
+	volatile int* signal1_flag, volatile int* signal2_flag,
 	const int v1, const int v2, const int v3, const int v4
 	)
 {
-    register int r1, r2, r3, r4, r5, r6, r7, r8;
-    bool is_main_thread = (blockIdx.x == 0 && threadIdx.x == 0) ? true : false;
-    // signal and wait
-    if (is_main_thread) {
-	asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal1_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
-	asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal2_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
-	if (wait) {
+    if (blockIdx.x == 0) {
+    	register int r1, r2, r3, r4;
+	if (threadIdx.x == 0) {
+	    // wait for top neighbor to clear bottom signal (indicating ready for new input)
 	    do {
-	        asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(wait1_flag) : "memory");
-	        asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r5), "=r"(r6), "=r"(r7), "=r"(r8) : "l"(wait2_flag) : "memory");
-	    } while (r1 != v1 || r5 != v1 || r2 != v2 || r6 != v2 || r3 != v3 || r7 != v3 || r4 != v4 || r8 != v4);
+		asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(signal1_flag) : "memory");
+	    } while (r1 == v1 && r2 == v2 && r3 == v3 && r4 == v4);
+	    // signal to top neighbor my output is ready
+	    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal1_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
+	} else if (threadIdx.x == 1) {
+	    // wait for bottom neighbor to clear top signal (indicating ready for new input)
+	    do {
+		asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(signal2_flag) : "memory");
+	    } while (r1 == v1 && r2 == v2 && r3 == v3 && r4 == v4);
+	    // signal to bottom neighbor my output is ready
+	    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal2_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
 	}
     }
-    cg::this_grid().sync();
-    if (clear) {
-        if (is_main_thread) {
-	    r1 = 0;  r2 = 0;  r3 = 0;  r4 = 0;
-	    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(wait1_flag), "r"(r1), "r"(r2), "r"(r3), "r"(r4) : "memory");
-	    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(wait2_flag), "r"(r1), "r"(r2), "r"(r3), "r"(r4) : "memory");
-        }
+}
+
+__device__ void wait_for(
+	volatile int* wait_flag,
+	const int v1, const int v2, const int v3, const int v4
+	)
+{
+    bool is_main_thread = (blockIdx.x == 0 && threadIdx.x == 0) ? true : false;
+    if (is_main_thread) {
+    	register int r1, r2, r3, r4;
+	// wait for senders to signal their output is read
+	do {
+	    asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(wait_flag) : "memory");
+	} while (r1 != v1 || r2 != v2 || r3 != v3 || r4 != v4);
+    }
+    cg::this_grid().sync();  // all threads wait for main
+}
+
+
+__device__ void clear_flag(
+	volatile int* wait_flag
+	)
+{
+    cg::this_grid().sync();  // wait for all threads in kernel to finish
+    bool is_main_thread = (blockIdx.x == 0 && threadIdx.x == 0) ? true : false;
+    if (is_main_thread) {
+	register int r1, r2, r3, r4;
+	r1 = 0;  r2 = 0;  r3 = 0;  r4 = 0;
+	asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(wait_flag), "r"(r1), "r"(r2), "r"(r3), "r"(r4) : "memory");
     }
 }
 
@@ -208,11 +233,15 @@ __global__ void push_pull_halos_1d_kernel(
     strided_copy_kernel<T,is_HWC>(box, box_stride_C, box_stride_H, box_stride_W, boh, boh_stride_C, boh_stride_H, boh_stride_W, NC, NH, NW);
     // signal to top and btm neigbhbors that output halos are ready to be read
     // the choice of values for v1-v4 is arbitrary and does not matter, as long as all ranks use the same values
-    dual_signal_wait_clear<true,true>(signal1_flag, wait1_flag, signal2_flag, wait2_flag, -987751720, 840868300, -225529332, 281513358);
+    checked_signal(signal1_flag, signal2_flag, -987751720, 840868300, -225529332, 281513358);
     // pull top halo from transfer buffer in peer memory to input
+    wait_for(wait1_flag, -987751720, 840868300, -225529332, 281513358);
     strided_copy_kernel<T,is_HWC>(tih, tih_stride_C, tih_stride_H, tih_stride_W, tix, tix_stride_C, tix_stride_H, tix_stride_W, NC, NH, NW);
+    clear_flag(wait1_flag);
     // pull btm halo from transfer buffer in peer memory to input
+    wait_for(wait2_flag, -987751720, 840868300, -225529332, 281513358);
     strided_copy_kernel<T,is_HWC>(bih, bih_stride_C, bih_stride_H, bih_stride_W, bix, bix_stride_C, bix_stride_H, bix_stride_W, NC, NH, NW);
+    clear_flag(wait2_flag);
 }
 
 __global__ void delay_kernel(int delay_nanoseconds, int* counter)
@@ -246,6 +275,11 @@ int64_t allocate_raw(int64_t size)
 void free_raw(int64_t raw)
 {
     cudaFree((void*)raw);
+}
+
+void zero(int64_t raw, int64_t size)
+{
+    cudaMemset((void*)raw, 0, size);
 }
 
 at::Tensor get_raw_ipc_address(int64_t raw)

@@ -19,6 +19,7 @@
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("allocate_raw", &apex::contrib::peer_memory::allocate_raw, "allocate_raw");
     m.def("free_raw", &apex::contrib::peer_memory::free_raw, "free_raw");
+    m.def("zero", &apex::contrib::peer_memory::zero, "zero");
     m.def("get_raw_ipc_address", &apex::contrib::peer_memory::get_raw_ipc_address, "get_raw_ipc_address");
     m.def("get_raw_peers", &apex::contrib::peer_memory::get_raw_peers, "get_raw_peers");
     m.def("blob_view_half", &apex::contrib::peer_memory::blob_view_half, "blob_view_half");

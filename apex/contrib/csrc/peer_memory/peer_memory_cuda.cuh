@@ -22,6 +22,7 @@
 namespace apex { namespace contrib { namespace peer_memory {
     int64_t allocate_raw(int64_t size);
     void free_raw(int64_t raw);
+    void zero(int64_t raw, int64_t size);
     at::Tensor get_raw_ipc_address(int64_t raw);
     std::vector<int64_t> get_raw_peers(at::Tensor ipc_addresses, int peer_rank, int64_t raw);
     at::Tensor blob_view_half(int64_t raw, std::vector<int64_t> shape, bool channels_last);
