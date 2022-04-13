@@ -11,10 +11,9 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <torch/extension.h>
 
-#include "dropout.h"
-#include "layer_norm.h"
-#include "softmax.h"
-#include "strided_batched_gemm.h"
+#include "dropout.cuh"
+#include "softmax.cuh"
+#include "strided_batched_gemm.cuh"
 
 namespace multihead_attn {
 namespace encdec {
@@ -86,6 +85,8 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
   char a_layout_n{'n'};
   char b_layout_n{'n'};
 
+  rocblas_int flags = 0;
+
   //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
 
   // Input Linear Q Fwd
@@ -110,8 +111,8 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
                              rocblas_datatype_f16_r, 
                              output_lin_q_dim,
                              rocblas_datatype_f32_r,
-                             algo,
-                             solution_index,
+                             rocblas_gemm_algo_standard /*algo*/,
+                             0 /*solution_index*/,
                              flags));
   
   // Input Linear KV Fwd
@@ -136,8 +137,8 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
                              rocblas_datatype_f16_r, 
                              output_lin_kv_dim,
                              rocblas_datatype_f32_r,
-                             algo,
-                             solution_index,
+                             rocblas_gemm_algo_standard /*algo*/,
+                             0 /*solution_index*/,
                              flags));
 
   // MatMul1 of Dot-Product Attention Plus scaling by 1/Sqrt(head size)
@@ -161,7 +162,7 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
                              k_seq_len, 
                              k_seq_len*q_seq_len, 
                              attn_batches,
-			     flags);
+                             flags);
 
   // Padded Softmax
   bool softmax_success = false;
@@ -215,7 +216,7 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
                              head_dim*attn_batches, 
                              head_dim, 
                              attn_batches,
-			     flags);
+                             flags);
 
   // Output Linear
   TORCH_CUDABLAS_CHECK(rocblas_gemm_ex(handle,
@@ -239,8 +240,8 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
                              rocblas_datatype_f16_r, 
                              embed_dim,
                              rocblas_datatype_f32_r,
-                             algo,
-                             solution_index,
+                             rocblas_gemm_algo_standard /*algo*/,
+                             0 /*solution_index*/,
                              flags));
   //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
 
@@ -317,6 +318,8 @@ std::vector<torch::Tensor> bwd_cuda(
   char b_layout_n{'n'};
   char b_layout_t{'t'}; 
   
+  rocblas_int flags = 0;
+
   //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
   #ifdef __HIP_PLATFORM_HCC__
     #define PYTORCH_ROCBLAS_VERSION_DECIMAL (ROCBLAS_VERSION_MAJOR * 100 + ROCBLAS_VERSION_MINOR)
@@ -350,8 +353,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              rocblas_datatype_f16_r, 
                              embed_dim,
                              rocblas_datatype_f32_r,
-                             algo,
-                             solution_index,
+                             rocblas_gemm_algo_standard /*algo*/,
+                             0 /*solution_index*/,
                              flags));
  
   // Output Linear Wgrad
@@ -376,8 +379,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              rocblas_datatype_f16_r, 
                              embed_dim,
                              rocblas_datatype_f32_r,
-                             algo,
-                             solution_index,
+                             rocblas_gemm_algo_standard /*algo*/,
+                             0 /*solution_index*/,
                              flags));
   
   // MatMul2 Dgrad1
@@ -401,7 +404,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              k_seq_len, 
                              k_seq_len*q_seq_len,
                              attn_batches,
-			     flags);
+                             flags);
   
   // Matmul2 Dgrad2
   gemm_switch_fp32accum(     a_layout_n, 
@@ -424,7 +427,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              lead_dim_kv, 
                              batch_stride_kv, 
                              attn_batches,
-			     flags);
+                             flags);
 
   // Apply Dropout Mask and Scale by Dropout Probability 
   apex_masked_scale_cuda<at::Half,float,uint32_t>(
@@ -464,7 +467,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              lead_dim_q, 
                              batch_stride_q, 
                              attn_batches,
-			     flags);
+                             flags);
   
   // Matmul1 Dgrad2
   gemm_switch_fp32accum(     a_layout_n, 
@@ -487,7 +490,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              lead_dim_kv, 
                              batch_stride_kv, 
                              attn_batches,
-			     flags);
+                             flags);
 
   // Input Linear Q Dgrad  
   TORCH_CUDABLAS_CHECK(rocblas_gemm_ex(handle,
@@ -511,8 +514,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              rocblas_datatype_f16_r, 
                              embed_dim,
                              rocblas_datatype_f32_r,
-                             algo,
-                             solution_index,
+                             rocblas_gemm_algo_standard /*algo*/,
+                             0 /*solution_index*/,
                              flags));
   
   // Input Linear Q Wgrad  
@@ -537,8 +540,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              rocblas_datatype_f16_r, 
                              embed_dim,
                              rocblas_datatype_f32_r,
-                             algo,
-                             solution_index,
+                             rocblas_gemm_algo_standard /*algo*/,
+                             0 /*solution_index*/,
                              flags));
   
   // Input Linear KV Dgrad  
@@ -563,8 +566,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              rocblas_datatype_f16_r, 
                              embed_dim,
                              rocblas_datatype_f32_r,
-                             algo,
-                             solution_index,
+                             rocblas_gemm_algo_standard /*algo*/,
+                             0 /*solution_index*/,
                              flags));
   
   // Input Linear KV Wgrad  
@@ -589,8 +592,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              rocblas_datatype_f16_r, 
                              embed_dim,
                              rocblas_datatype_f32_r,
-                             algo,
-                             solution_index,
+                             rocblas_gemm_algo_standard /*algo*/,
+                             0 /*solution_index*/,
                              flags));
   // TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
   return { 

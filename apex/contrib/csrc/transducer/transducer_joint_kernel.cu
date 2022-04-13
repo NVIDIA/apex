@@ -15,7 +15,7 @@
 #include <ATen/cuda/CUDAGraphsUtils.cuh>
 #include <c10/macros/Macros.h>
 
-#include "philox.h"
+#include "philox.cuh"
 
 // Warp reduce kernels to reduce N groups of data into N numbers, where N = warpSize / width.
 // width should be a power of 2 and should be less than warpSize.

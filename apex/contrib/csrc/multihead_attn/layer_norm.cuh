@@ -1,9 +1,10 @@
-#include "ATen/ATen.h"
-#include "ATen/cuda/DeviceUtils.cuh"
-
+#pragma once
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <ATen/ATen.h>
+#include <ATen/cuda/DeviceUtils.cuh>
 
+namespace {
 template <typename U>
 __device__ void cuWelfordOnlineSum(const U curr, U &mu, U &sigma2, U &count) {
   count = count + U(1);
@@ -211,19 +212,15 @@ template<typename U> U rsqrt(U v) {
 //}
 
 #if defined __HIP_PLATFORM_HCC__
-__device__ float rsqrt(float v) {
-  return rsqrtf(v);
-}
+__device__ float rsqrt(float v) { return rsqrtf(v); }
 #else
-template<> float rsqrt(float v) {
-  return rsqrtf(v);
-}
+template<> float rsqrt(float v) { return rsqrtf(v); }
 #endif
-template<> double rsqrt(double v) {
-  return rsqrt(v);
-}
+template<> double rsqrt(double v) { return rsqrt(v); }
+// template <typename U> __device__ U rsqrt(U v) { return U(1) / sqrt(v); }
+// template <> __device__ float rsqrt(float v) { return rsqrtf(v); }
+// template <> __device__ double rsqrt(double v) { return rsqrt(v); }
 
-namespace {
 // This is the un-specialized struct.  Note that we prevent instantiation of
 // this struct by putting an undefined symbol in the function body so it won't
 // compile.
@@ -240,7 +237,6 @@ namespace {
 //  };
 // https://github.com/NVIDIA/apex/issues/246
 template <typename T> struct SharedMemory;
-
 template <> struct SharedMemory<float> {
   __device__ float *getPointer() {
     extern __shared__ float s_float[];
@@ -254,7 +250,6 @@ template <> struct SharedMemory<double> {
     return s_double;
   }
 };
-} // namespace
 
 template <typename T, typename U>
 __global__ void
@@ -473,6 +468,7 @@ cuComputeGradGammaBeta(const U *part_grad_gamma, const U *part_grad_beta,
   }
 }
 
+
 template <typename T, typename U>
 __global__ void
 cuComputeGradInput(const T *__restrict__ dout, const T *__restrict__ dout_resid,
@@ -650,3 +646,4 @@ void HostLayerNormGradient(const T *dout, const T *dout_resid, const U *mean,
       dout, dout_resid, static_cast<T *>(input.data_ptr()), n1, n2, mean,
       invvar, U(epsilon), gamma, grad_input);
 }
+} // namespace

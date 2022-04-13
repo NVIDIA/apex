@@ -1,5 +1,5 @@
 #pragma once
-#include "philox.h"
+#include "philox.cuh"
 #include <ATen/cuda/CUDAGraphsUtils.cuh>
 #include <curand_kernel.h>
 
@@ -26,6 +26,14 @@
 namespace {
 template <typename Datatype, int ELEMENTS_PER_LDG>
 __device__ __inline__ void copy_vector(Datatype *dst, const Datatype *src);
+
+template <typename Datatype, int ELEMENTS_PER_LDG>
+__device__ __inline__ void apply_mask(Datatype *dst, Datatype value,
+                                      const uint8_t *src);
+
+template <typename Datatype, int ELEMENTS_PER_LDG>
+__device__ __inline__ void apply_additive_mask(Datatype *dst,
+                                               const Datatype *additive_mask);
 
 template <>
 __device__ __inline__ void copy_vector<__half, 1>(__half *dst,
@@ -55,10 +63,6 @@ __device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst,
   *((half2 *)dst) = *((half2 *)src);
 }
 
-template <typename Datatype, int ELEMENTS_PER_LDG>
-__device__ __inline__ void apply_mask(Datatype *dst, Datatype value,
-                                      const uint8_t *src);
-
 template <>
 __device__ __inline__ void apply_mask<__half, 1>(__half *dst, __half value,
                                                  const uint8_t *src) {
@@ -66,14 +70,13 @@ __device__ __inline__ void apply_mask<__half, 1>(__half *dst, __half value,
     *dst = value;
   }
 }
-template <typename Datatype, int ELEMENTS_PER_LDG>
-__device__ __inline__ void apply_additive_mask(Datatype *dst,
-                                               const Datatype *additive_mask);
+
 template <>
 __device__ __inline__ void
 apply_additive_mask<__half, 1>(__half *dst, const __half *additive_mask) {
   *dst += *additive_mask;
 }
+
 template <>
 __device__ __inline__ void
 apply_additive_mask<__half, 4>(__half *dst, const __half *additive_mask) {
@@ -82,7 +85,6 @@ apply_additive_mask<__half, 4>(__half *dst, const __half *additive_mask) {
   *(dst + 2) += *(additive_mask + 2);
   *(dst + 3) += *(additive_mask + 3);
 }
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Warp Softmax forward
@@ -3142,4 +3144,4 @@ bool dispatch_masked_softmax_backward(output_t *grad_input, const input_t *grad,
   }
   return false;
 }
-
+} // namespace
