@@ -153,23 +153,36 @@ __device__ void checked_signal(
 	const int v1, const int v2, const int v3, const int v4
 	)
 {
-    if (blockIdx.x == 0) {
-    	register int r1, r2, r3, r4;
-	if (threadIdx.x == 0) {
-	    // wait for top neighbor to clear bottom signal (indicating ready for new input)
+    cg::this_grid().sync();
+    bool is_main_thread = (blockIdx.x == 0 && threadIdx.x == 0) ? true : false;
+    if (is_main_thread) {
+	// flush all writes to global memory
+	__threadfence_system();
+	// wait for top or bottom neighbor to clear signal
+	register int r1, r2, r3, r4;
+	bool top_zeroed=false, btm_zeroed=false, top_done=false, btm_done=false;
+	do {
 	    do {
-		asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(signal1_flag) : "memory");
-	    } while (r1 == v1 && r2 == v2 && r3 == v3 && r4 == v4);
-	    // signal to top neighbor my output is ready
-	    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal1_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
-	} else if (threadIdx.x == 1) {
-	    // wait for bottom neighbor to clear top signal (indicating ready for new input)
-	    do {
-		asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(signal2_flag) : "memory");
-	    } while (r1 == v1 && r2 == v2 && r3 == v3 && r4 == v4);
-	    // signal to bottom neighbor my output is ready
-	    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal2_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
-	}
+		if (!top_zeroed) {
+		    asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(signal1_flag) : "memory");
+		    if (r1 != v1 || r2 != v2 || r3 != v3 || r4 != v4) top_zeroed = true;
+		}
+		if (!btm_zeroed) {
+		    asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(signal2_flag) : "memory");
+		    if (r1 != v1 || r2 != v2 || r3 != v3 || r4 != v4) btm_zeroed = true;
+		}
+	    } while((top_zeroed == top_done) && (btm_zeroed == btm_done));
+	    if (!top_done && top_zeroed) {
+		// signal to top neighbor my output is ready
+		asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal1_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
+		top_done = true;
+	    }
+	    if (!btm_done && btm_zeroed) {
+		// signal to bottom neighbor my output is ready
+		asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal2_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
+		btm_done = true;
+	    }
+	} while (!top_done || !btm_done);
     }
 }
 
