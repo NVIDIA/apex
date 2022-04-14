@@ -448,14 +448,11 @@ class SpatialBottleneckFunction(torch.autograd.Function):
             t_list.append(ctx.saved_tensors[10])
 
         grads = fast_bottleneck.backward_init(ctx.explicit_nhwc, ctx.stride_1x1, t_list)
+        wgrad3_stream = torch.cuda.Stream()
+        wgrad3_stream.wait_stream(torch.cuda.current_stream())
         grad_out2 = fast_bottleneck.backward_grad_out2(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads)
         wgrad2_stream = torch.cuda.Stream()
         wgrad2_stream.wait_stream(torch.cuda.current_stream())
-        with torch.cuda.stream(wgrad2_stream):
-            if ctx.spatial_group_size > 1:
-                wgrad2 = fast_bottleneck.backward_wgrad2_pad(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, out1_pad, grad_out2)
-            else:
-                wgrad2 = fast_bottleneck.backward_wgrad2(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, grad_out2)
         # do halo exchange of grad_out2 here
         # compute halo cells for grad_out1
         if ctx.spatial_group_size > 1:
@@ -576,8 +573,21 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                 if ctx.spatial_group_rank > 0:
                     torch.cuda.current_stream().wait_stream(ctx.stream1)
 
-        fast_bottleneck.backward_rest(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, grad_out2, grad_out1, wgrad2)
+        wgrad1_stream = torch.cuda.Stream()
+        wgrad1_stream.wait_stream(torch.cuda.current_stream())
+        fast_bottleneck.backward_rest(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, grad_out2, grad_out1)
+        with torch.cuda.stream(wgrad3_stream):
+            fast_bottleneck.backward_wgrad3(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads)
+        with torch.cuda.stream(wgrad2_stream):
+            if ctx.spatial_group_size > 1:
+                fast_bottleneck.backward_wgrad2_pad(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, out1_pad, grad_out2)
+            else:
+                fast_bottleneck.backward_wgrad2(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, grad_out2)
+        with torch.cuda.stream(wgrad1_stream):
+            fast_bottleneck.backward_wgrad1(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, grad_out1)
+        torch.cuda.current_stream().wait_stream(wgrad3_stream)
         torch.cuda.current_stream().wait_stream(wgrad2_stream)
+        torch.cuda.current_stream().wait_stream(wgrad1_stream)
 
         return (None, None, None, None, None, None, None, None, None, None, None, None, *grads)
 

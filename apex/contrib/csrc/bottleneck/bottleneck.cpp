@@ -3554,18 +3554,11 @@ std::vector<at::Tensor> bottleneck_backward_init(bool explicit_nhwc, int stride_
   return outputs;
 }
 
-at::Tensor bottleneck_backward_grad_out2(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs) {
-
-  bool requires_grad = inputs[0].requires_grad();
-
-  std::cout << std::fixed;
-  auto output_format = explicit_nhwc ? at::MemoryFormat::Contiguous : at::MemoryFormat::ChannelsLast;
+void bottleneck_backward_wgrad3(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs) {
 
   // dconv3+drelu2+dscale2
   at::Half* conv_in = inputs[13].data_ptr<at::Half>();
   at::Half* dy3 = inputs[10].data_ptr<at::Half>();
-
-  DEBUG_MSG("[DEBUG] new dconv3 : " << inputs[10].to(at::kFloat).sum().item<float>());
 
   // wgrad
   auto wgrad3 = outputs[3];
@@ -3582,6 +3575,21 @@ at::Tensor bottleneck_backward_grad_out2(bool explicit_nhwc, int stride_1X1, std
             dy3,
             CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
   DEBUG_MSG("[DEBUG] new wgrad3 : " << wgrad3.to(at::kFloat).sum().item<float>());
+
+}
+
+at::Tensor bottleneck_backward_grad_out2(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs) {
+
+  bool requires_grad = inputs[0].requires_grad();
+
+  std::cout << std::fixed;
+  auto output_format = explicit_nhwc ? at::MemoryFormat::Contiguous : at::MemoryFormat::ChannelsLast;
+
+  // dconv3+drelu2+dscale2
+  at::Half* conv_in = inputs[13].data_ptr<at::Half>();
+  at::Half* dy3 = inputs[10].data_ptr<at::Half>();
+
+  DEBUG_MSG("[DEBUG] new dconv3 : " << inputs[10].to(at::kFloat).sum().item<float>());
 
   // dgrad
   auto grad_out2 = at::empty(backward_state.outdim2, inputs[0].type(), output_format);
@@ -3769,7 +3777,7 @@ at::Tensor bottleneck_backward_grad_out1_halo(bool explicit_nhwc, int stride_1X1
   return grad_out1_halo;
 }
 
-at::Tensor bottleneck_backward_wgrad2_pad(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor input, at::Tensor grad_out2) {
+void bottleneck_backward_wgrad2_pad(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor input, at::Tensor grad_out2) {
 
   std::cout << std::fixed;
   auto output_format = explicit_nhwc ? at::MemoryFormat::Contiguous : at::MemoryFormat::ChannelsLast;
@@ -3798,11 +3806,9 @@ at::Tensor bottleneck_backward_wgrad2_pad(bool explicit_nhwc, int stride_1X1, st
             dy2,
             CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
   DEBUG_MSG("[DEBUG] new wgrad2 : " << wgrad2.to(at::kFloat).sum().item<float>());
-
-  return wgrad2;
 }
 
-at::Tensor bottleneck_backward_wgrad2(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2) {
+void bottleneck_backward_wgrad2(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2) {
 
   bool requires_grad = inputs[0].requires_grad();
 
@@ -3832,8 +3838,6 @@ at::Tensor bottleneck_backward_wgrad2(bool explicit_nhwc, int stride_1X1, std::v
             dy2,
             CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
   DEBUG_MSG("[DEBUG] new wgrad2 : " << wgrad2.to(at::kFloat).sum().item<float>());
-
-  return wgrad2;
 }
 
 // compute halo cells for input volume of dimension [N,1,W,C] with padding=(0,1) to produce output volume of dimension [N,1,W,C]
@@ -3876,7 +3880,30 @@ at::Tensor bottleneck_backward_wgrad2_halo(bool explicit_nhwc, int stride_1X1, s
   return wgrad2_halo;
 }
 
-void bottleneck_backward_rest(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2, at::Tensor grad_out1, at::Tensor wgrad2) {
+void bottleneck_backward_wgrad1(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out1) {
+
+  at::Half* x = inputs[0].data_ptr<at::Half>();
+  at::Half* dy1 = grad_out1.data_ptr<at::Half>();
+
+  // dconv1+add
+  // wgrad
+  auto wgrad1 = outputs[1];
+  at::Half* dw1 = wgrad1.data_ptr<at::Half>();
+  run_dconv(backward_state.dimA,
+            backward_state.padA,
+            backward_state.convstride1X1,
+            backward_state.dilationA,
+            backward_state.filterdimA1,
+            backward_state.outdimA1,
+            CUDNN_DATA_HALF,
+            x,
+            dw1,
+            dy1,
+            CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
+
+}
+
+void bottleneck_backward_rest(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2, at::Tensor grad_out1) {
 
   bool requires_grad = inputs[0].requires_grad();
 
@@ -3974,22 +4001,6 @@ void bottleneck_backward_rest(bool explicit_nhwc, int stride_1X1, std::vector<at
     dx_conv4 = inputs[11].data_ptr<at::Half>();
   }
 
-  // dconv1+add
-  // wgrad
-  auto wgrad1 = outputs[1];
-  at::Half* dw1 = wgrad1.data_ptr<at::Half>();
-  run_dconv(backward_state.dimA,
-            backward_state.padA,
-            backward_state.convstride1X1,
-            backward_state.dilationA,
-            backward_state.filterdimA1,
-            backward_state.outdimA1,
-            CUDNN_DATA_HALF,
-            x,
-            dw1,
-            dy1,
-            CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
-
   // dgrad
   w = inputs[1].data_ptr<at::Half>();
   auto grad_x = outputs[0];
@@ -4056,5 +4067,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("backward_wgrad2_pad", &bottleneck_backward_wgrad2_pad, "Bottleneck block backward");
   m.def("backward_wgrad2", &bottleneck_backward_wgrad2, "Bottleneck block backward");
   m.def("backward_wgrad2_halo", &bottleneck_backward_wgrad2_halo, "Bottleneck block backward");
+  m.def("backward_wgrad3", &bottleneck_backward_wgrad3, "Bottleneck block backward");
+  m.def("backward_wgrad1", &bottleneck_backward_wgrad1, "Bottleneck block backward");
   m.def("backward_rest", &bottleneck_backward_rest, "Bottleneck block backward");
 }
