@@ -11,10 +11,12 @@ def generate_uniform_tensor(size, np_dtype, pyt_dtype, device):
     return torch.from_numpy(array).to(device).to(pyt_dtype)
 
 def to_channels_last(tensor):
-    return tensor.permute(0, 2, 3, 1).contiguous()
+    #return tensor.permute(0, 2, 3, 1).contiguous()
+    return tensor.to(memory_format = torch.channels_last)
 
 def to_channels_first(tensor):
-    return tensor.permute(0, 3, 1, 2).contiguous()
+    #return tensor.permute(0, 3, 1, 2).contiguous()
+    return tensor.to(memory_format = torch.contiguous_format)
 
 class Bn(torch.nn.BatchNorm2d):
     def __init__(self, planes, mode):
@@ -30,15 +32,17 @@ class Bn(torch.nn.BatchNorm2d):
         return out
 
 def bn_nhwc_bwd_ref(grad_y, x, mu, ivar, gamma):
+    grad_y = grad_y.permute(0, 2, 3, 1).contiguous()
+    x = x.permute(0, 2, 3, 1).contiguous()
     sum_dim_c = (0, 1, 2)
-    grad_y_f32 = grad_y.float()
+    grad_y_f32 = grad_y.float() 
     x_f32 = x.float()
     N = x.shape[0] * x.shape[1] * x.shape[2] # nhw
     ones = torch.ones(x.shape, dtype=torch.float32, device='cuda')
 
     xmu = x_f32 - mu
+    
     xhat = xmu * ivar
-
     dbias = torch.sum(grad_y_f32, dim=sum_dim_c)
 
     dscale = torch.sum(grad_y_f32 * xhat, dim=sum_dim_c)
@@ -46,11 +50,13 @@ def bn_nhwc_bwd_ref(grad_y, x, mu, ivar, gamma):
     dx1 = (gamma * ivar) / N
     dx2 = (N * grad_y_f32) - (dbias * ones)
     dx3 = -xhat * dscale
-    dx = dx1 * (dx2 + dx3)
+    dx23 = dx2 + dx3
+    dx = dx1 * (dx23)
     dx = dx.half()
+    dx = dx.permute(0, 3, 1, 2).contiguous()
     return dx, dscale, dbias
 
-class TestGroupBN(unittest.TestCase):
+class TestGroupBNChannelLast(unittest.TestCase):
 
     def setUp(self, seed=5, verbose=False):
         torch.manual_seed(seed)
@@ -58,16 +64,16 @@ class TestGroupBN(unittest.TestCase):
         np.random.seed(seed)
         self.verbose = verbose
 
-    def test_bn(self):
-        self.run_group_bn('bn')
+    def test_bn_channel_last(self):
+        self.run_group_bn_channel_last('bn')
 
-    def test_bn_relu(self):
-        self.run_group_bn('bn_relu')
+    def test_bn_relu_channel_last(self):
+        self.run_group_bn_channel_last('bn_relu')
 
-    def test_bn_add_relu(self):
-        self.run_group_bn('bn_add_relu')
+    def test_bn_add_relu_channel_last(self):
+        self.run_group_bn_channel_last('bn_add_relu')
 
-    def run_group_bn(self, mode):
+    def run_group_bn_channel_last(self, mode):
         if self.verbose:
             print('Running {}'.format(mode))
 
@@ -101,13 +107,14 @@ class TestGroupBN(unittest.TestCase):
 
             # Create models
             batchnorm_model = Bn(num_channels, mode).cuda()
-            group_batchnorm = BatchNorm2d_NHWC(num_channels, fuse_relu=fuse_relu, bn_group=1,torch_channels_last=False).cuda()
+            group_batchnorm = BatchNorm2d_NHWC(num_channels, fuse_relu=fuse_relu, bn_group=1, torch_channels_last=True).cuda()
 
             # Run reference forward
             bn_output = batchnorm_model(input_data, residual_data)
 
             # Run GBN forward
             gbn_input_data = to_channels_last(gbn_input)
+            #gbn_input_data = gbn_input
             gbn_output = group_batchnorm(gbn_input_data, gbn_residual_data)
 
             torch.cuda.synchronize()
@@ -115,6 +122,7 @@ class TestGroupBN(unittest.TestCase):
             # Run reference backward
             # (Use the same input and parameters as GBN)
             gbn_grad = to_channels_last(bn_grad)
+            #gbn_grad = bn_grad
             grad = gbn_grad.clone().detach()
             input_data = torch.from_numpy(np.load('input.npy')).cuda().half()
             input_data = to_channels_last(input_data)
@@ -183,3 +191,4 @@ class TestGroupBN(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

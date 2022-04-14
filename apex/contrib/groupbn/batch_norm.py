@@ -14,11 +14,20 @@ def check_if_rocm_pytorch():
 
 IS_ROCM_PYTORCH = check_if_rocm_pytorch()
 
+def check_and_convert_channels_last(tensor, torch_channels_last):
+    if torch_channels_last:
+        channels_last = tensor.is_contiguous(memory_format = torch.channels_last)
+        if not channels_last:
+            tensor = tensor.to(memory_format = torch.channels_last)
+    return tensor
+
 class bn_NHWC_impl(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x, s, b, rm, riv, mini_m, mini_riv, ret_cta, mom, epsilon, fuse_relu, is_train, bn_group, my_data, pair_data, magic, pair_data2, pair_data3, fwd_occup, fwd_grid_x, bwd_occup, bwd_grid_x, multi_stream):
+    def forward(ctx, x, s, b, rm, riv, mini_m, mini_riv, ret_cta, mom, epsilon, fuse_relu, is_train, torch_channels_last, bn_group, my_data, pair_data, magic, pair_data2, pair_data3, fwd_occup, fwd_grid_x, bwd_occup, bwd_grid_x, multi_stream):
+        x = check_and_convert_channels_last(x, torch_channels_last)
         if is_train:
             ctx.save_for_backward(x, s, b, rm, riv, mini_m, mini_riv)
+            ctx.torch_channels_last = torch_channels_last
             ctx.epsilon = epsilon
             ctx.momentum = mom
             ctx.ret_cta = ret_cta
@@ -41,6 +50,8 @@ class bn_NHWC_impl(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_y):
         x, s, b, rm, riv, mini_m, mini_riv = ctx.saved_variables
+        grad_y = check_and_convert_channels_last(grad_y, ctx.torch_channels_last)
+        x = check_and_convert_channels_last(x, ctx.torch_channels_last)
         epsilon = ctx.epsilon
         mom = ctx.momentum
         ret_cta = ctx.ret_cta
@@ -57,20 +68,26 @@ class bn_NHWC_impl(torch.autograd.Function):
 
         dx, dscale, dbias = bnp.bn_bwd_nhwc(x, grad_y, s, b, rm, riv, mini_m, mini_riv, ret_cta, mom, epsilon, fuse_relu, my_data, pair_data, pair_data2, pair_data3, bn_group, magic, bwd_occup, bwd_grid_x, multi_stream)
 
-        return dx, dscale, dbias, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None
+        return dx, dscale, dbias, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None
 
 
 class bn_addrelu_NHWC_impl(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x, z, s, b, rm, riv, mini_m, mini_riv, grid_dim_y, ret_cta, mom, epsilon, is_train, bn_group, my_data, pair_data, magic, pair_data2, pair_data3, fwd_occup, fwd_grid_x, bwd_occup, bwd_grid_x, multi_stream):
+    def forward(ctx, x, z, s, b, rm, riv, mini_m, mini_riv, grid_dim_y, ret_cta, mom, epsilon, is_train, torch_channels_last, bn_group, my_data, pair_data, magic, pair_data2, pair_data3, fwd_occup, fwd_grid_x, bwd_occup, bwd_grid_x, multi_stream):
+        x = check_and_convert_channels_last(x, torch_channels_last)
+        z = check_and_convert_channels_last(z, torch_channels_last)
         if is_train:
             if IS_ROCM_PYTORCH:
-                nhw = x.shape[0] * x.shape[1] * x.shape[2]
+                if torch_channels_last:
+                    nhw = x.shape[0] * x.shape[2] * x.shape[3]
+                else:
+                    nhw = x.shape[0] * x.shape[1] * x.shape[2]
                 shape = int(((nhw + 3) & ~3) * grid_dim_y)
                 bitmask = torch.cuda.LongTensor(shape)
             else:
                 bitmask = torch.cuda.IntTensor(((x.numel()+31)//32) * 2 * grid_dim_y)
             ctx.save_for_backward(x, s, b, rm, riv, mini_m, mini_riv, bitmask)
+            ctx.torch_channels_last = torch_channels_last
             ctx.epsilon = epsilon
             ctx.momentum = mom
             ctx.ret_cta = ret_cta
@@ -92,6 +109,8 @@ class bn_addrelu_NHWC_impl(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_y):
         x, s, b, rm, riv, mini_m, mini_riv, bitmask = ctx.saved_variables
+        grad_y = check_and_convert_channels_last(grad_y, ctx.torch_channels_last)
+        x = check_and_convert_channels_last(x, ctx.torch_channels_last)
         epsilon = ctx.epsilon
         mom = ctx.momentum
         ret_cta = ctx.ret_cta
@@ -107,7 +126,7 @@ class bn_addrelu_NHWC_impl(torch.autograd.Function):
 
         dx, dz, dscale, dbias = bnp.bn_addrelu_bwd_nhwc(x, grad_y, s, b, rm, riv, mini_m, mini_riv, bitmask, ret_cta, mom, epsilon, my_data, pair_data, pair_data2, pair_data3, bn_group, magic, bwd_occup, bwd_grid_x, multi_stream)
 
-        return dx, dz, dscale, dbias, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None
+        return dx, dz, dscale, dbias, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None
 
 
 
@@ -115,10 +134,11 @@ class bn_addrelu_NHWC_impl(torch.autograd.Function):
 
 class BatchNorm2d_NHWC(_BatchNorm):
     # if using BatchNorm2d_NHWC simultaneously with multiple streams set multi_stream to True
-    def __init__(self, num_features, fuse_relu=False, bn_group=1, max_cta_per_sm=2, cta_launch_margin=12, multi_stream=False):
+    def __init__(self, num_features, fuse_relu=False, bn_group=1, torch_channels_last=False,max_cta_per_sm=2, cta_launch_margin=12, multi_stream=False):
         super(BatchNorm2d_NHWC, self).__init__(num_features)
 
         self.fuse_relu = fuse_relu
+        self.torch_channels_last = torch_channels_last
         self.multi_stream = multi_stream
 
         self.minibatch_mean = torch.cuda.FloatTensor(num_features)
@@ -216,7 +236,7 @@ class BatchNorm2d_NHWC(_BatchNorm):
                                   self.running_mean, self.running_var,
                                   self.minibatch_mean, self.minibatch_riv, self.grid_dim_y, self.ret_cta,
                                   self.momentum,
-                                  self.eps, self.training, self.bn_group, self.my_data, self.pair_data, (self.magic), self.pair_data2, self.pair_data3,
+                                  self.eps, self.training, self.torch_channels_last, self.bn_group, self.my_data, self.pair_data, (self.magic), self.pair_data2, self.pair_data3,
                                   self.addrelu_fwd_occupancy, self.addrelu_fwd_grid_dim_x,
                                   self.addrelu_bwd_occupancy, self.addrelu_bwd_grid_dim_x,
                                   self.multi_stream)
@@ -226,7 +246,7 @@ class BatchNorm2d_NHWC(_BatchNorm):
                                   self.running_mean, self.running_var,
                                   self.minibatch_mean, self.minibatch_riv, self.ret_cta,
                                   self.momentum,
-                                  self.eps, self.fuse_relu, self.training, self.bn_group, self.my_data, self.pair_data, (self.magic), self.pair_data2, self.pair_data3,
+                                  self.eps, self.fuse_relu, self.training, self.torch_channels_last, self.bn_group, self.my_data, self.pair_data, (self.magic), self.pair_data2, self.pair_data3,
                                   self.fwd_occupancy, self.fwd_grid_dim_x,
                                   self.bwd_occupancy, self.bwd_grid_dim_x,
                                   self.multi_stream)

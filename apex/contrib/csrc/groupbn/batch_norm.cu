@@ -63,17 +63,19 @@ at::Tensor nhwc_bn_fwd_train(
                        const int grid_dim_x,
                        const bool coop) {
 
+  auto memory_format = x.suggest_memory_format();
+  const bool check_channels_last = x.is_contiguous(at::MemoryFormat::ChannelsLast);
   const int N = x.size(0);
-  const int H = x.size(1);
-  const int W = x.size(2);
-  const int C = x.size(3);
+  const int H = check_channels_last ? x.size(2) : x.size(1);
+  const int W = check_channels_last ? x.size(3) : x.size(2);
+  const int C = check_channels_last ? x.size(1) : x.size(3);
 
   // generating new magic number and use that for sync
   int* magic = magic_tensor.DATA_PTR<int>();
   *magic = (*magic + 1) & 0xff;
 
   // Allocate output tensor
-  at::Tensor y = at::empty({N, H, W, C}, x.options());
+  at::Tensor y = check_channels_last ? at::empty({N, C, H, W}, x.options().memory_format(memory_format)) : at::empty({N, H, W, C}, x.options());
 
   // Create wrapper
   NhwcBatchNorm *bn = new NhwcBatchNorm();
@@ -84,9 +86,9 @@ at::Tensor nhwc_bn_fwd_train(
   bn->setConstants(momentum, epsilon);
 
   // set pointers within the wrapper
-  bn->setInputOutputPointers(x.contiguous().DATA_PTR<at::Half>(),
+  bn->setInputOutputPointers(x.contiguous(memory_format).DATA_PTR<at::Half>(),
                              nullptr,
-                             y.DATA_PTR<at::Half>(),
+                             y.contiguous(memory_format).DATA_PTR<at::Half>(),
                              nullptr);
 
   bn->setWeightPointers({scale.contiguous().DATA_PTR<float>(),
@@ -132,7 +134,7 @@ at::Tensor nhwc_bn_fwd_train(
   // Don't fuse in ReLU for now at least
   bn->fwd(stream, fuse_relu, my_data, pair_data, pair_data2, pair_data3, bn_group, *magic, occupancy, grid_dim_x, coop);
 
-  return y;
+  return y.contiguous(memory_format);
 }
 
 at::Tensor nhwc_bn_fwd_eval(
@@ -147,13 +149,15 @@ at::Tensor nhwc_bn_fwd_eval(
                        const float epsilon,
                        const bool fuse_relu) {
 
+  const bool check_channels_last = x.is_contiguous(at::MemoryFormat::ChannelsLast);
+  auto memory_format = x.suggest_memory_format();
   const int N = x.size(0);
-  const int H = x.size(1);
-  const int W = x.size(2);
-  const int C = x.size(3);
+  const int H = check_channels_last ? x.size(2) : x.size(1);
+  const int W = check_channels_last ? x.size(3) : x.size(2);
+  const int C = check_channels_last ? x.size(1) : x.size(3);
 
   // Allocate output tensor
-  at::Tensor y = at::empty({N, H, W, C}, x.options());
+  at::Tensor y = check_channels_last ? at::empty({N, C, H, W}, x.options().memory_format(memory_format)) : at::empty({N, H, W, C}, x.options());
 
   // Create wrapper
   NhwcBatchNorm *bn = new NhwcBatchNorm();
@@ -164,9 +168,9 @@ at::Tensor nhwc_bn_fwd_eval(
   bn->setConstants(momentum, epsilon);
 
   // set pointers within the wrapper
-  bn->setInputOutputPointers(x.contiguous().DATA_PTR<at::Half>(),
+  bn->setInputOutputPointers(x.contiguous(memory_format).DATA_PTR<at::Half>(),
                              nullptr,
-                             y.DATA_PTR<at::Half>(),
+                             y.contiguous(memory_format).DATA_PTR<at::Half>(),
                              nullptr);
 
   bn->setWeightPointers({scale.contiguous().DATA_PTR<float>(),
@@ -212,7 +216,7 @@ at::Tensor nhwc_bn_fwd_eval(
   // Don't fuse in ReLU for now at least
   bn->fwdInference(stream, fuse_relu);
 
-  return y;
+  return y.contiguous(memory_format);
 
 }
 
@@ -239,10 +243,12 @@ std::vector<at::Tensor> nhwc_bn_bwd(
                        const int grid_dim_x,
                        const bool coop) {
   // shape
+  const bool check_channels_last = x.is_contiguous(at::MemoryFormat::ChannelsLast);
+  auto memory_format = x.suggest_memory_format();
   const int N = x.size(0);
-  const int H = x.size(1);
-  const int W = x.size(2);
-  const int C = x.size(3);
+  const int H = check_channels_last ? x.size(2) : x.size(1);
+  const int W = check_channels_last ? x.size(3) : x.size(2);
+  const int C = check_channels_last ? x.size(1) : x.size(3);
 
   // generating new magic number and use that for sync
   int* magic = magic_tensor.DATA_PTR<int>();
@@ -252,7 +258,7 @@ std::vector<at::Tensor> nhwc_bn_bwd(
   at::Tensor x_grad, scale_grad, bias_grad;
 
   // Allocate outputs
-  x_grad = at::empty_like(x);
+  x_grad = check_channels_last ? at::empty({N, C, H, W}, dy.options().memory_format(memory_format)) : at::empty_like(x);
   scale_grad = at::empty_like(scale);
   bias_grad = at::empty_like(bias);
 
@@ -265,10 +271,10 @@ std::vector<at::Tensor> nhwc_bn_bwd(
   bn->setConstants(momentum, epsilon);
 
   // set pointers within the wrapper
-  bn->setInputOutputPointers(x.contiguous().DATA_PTR<at::Half>(),
-                             x_grad.DATA_PTR<at::Half>(),
+  bn->setInputOutputPointers(x.contiguous(memory_format).DATA_PTR<at::Half>(),
+                             x_grad.contiguous(memory_format).DATA_PTR<at::Half>(),
                              nullptr,
-                             dy.contiguous().DATA_PTR<at::Half>());
+                             dy.contiguous(memory_format).DATA_PTR<at::Half>());
 
   bn->setWeightPointers({scale.contiguous().DATA_PTR<float>(),
                          bias.contiguous().DATA_PTR<float>()},
@@ -314,7 +320,7 @@ std::vector<at::Tensor> nhwc_bn_bwd(
 
   bn->dgrad(stream, fuse_relu, my_data, pair_data, pair_data2, pair_data3, bn_group, *magic, occupancy, grid_dim_x, coop);
 
-  return std::vector<at::Tensor>{x_grad, scale_grad, bias_grad};
+  return std::vector<at::Tensor>{x_grad.contiguous(memory_format), scale_grad, bias_grad};
 }
 
 int nhwc_bn_fwd_occupancy() {
