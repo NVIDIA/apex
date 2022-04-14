@@ -649,15 +649,18 @@ if "--fast_bottleneck" in sys.argv:
 if "--fused_conv_bias_relu" in sys.argv:
     sys.argv.remove("--fused_conv_bias_relu")
     raise_if_cuda_home_none("--fused_conv_bias_relu")
-    subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
-    ext_modules.append(
-        CUDAExtension(
-            name="fused_conv_bias_relu",
-            sources=["apex/contrib/csrc/conv_bias_relu/conv_bias_relu.cpp"],
-            include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
-            extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+    if torch.backends.cudnn.is_available() and torch.backends.cudnn.version() < 8400:
+        subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
+        ext_modules.append(
+            CUDAExtension(
+                name="fused_conv_bias_relu",
+                sources=["apex/contrib/csrc/conv_bias_relu/conv_bias_relu.cpp"],
+                include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
+                extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+            )
         )
-    )
+    else:
+        warnings.warn("cuDNN 8.4 or later is required to use --fused_conv_bias_relu")
 
 
 setup(
