@@ -58,6 +58,13 @@ def append_nvcc_threads(nvcc_extra_args):
     return nvcc_extra_args
 
 
+def check_cudnn_version_and_warn(global_option: str, required_cudnn_version: int) -> bool:
+    green = torch.backends.cudnn.is_available() and torch.backends.cudnn.version() >= required_cudnn_version
+    if not green:
+        warnings.warn(f"Skip `{global_option}` as it requires cuDNN {required_cudnn_version} or later")
+    return green
+
+
 if not torch.cuda.is_available():
     # https://github.com/NVIDIA/apex/issues/486
     # Extension builds after https://github.com/pytorch/pytorch/pull/23408 attempt to query torch.cuda.get_device_capability(),
@@ -649,7 +656,7 @@ if "--fast_bottleneck" in sys.argv:
 if "--fused_conv_bias_relu" in sys.argv:
     sys.argv.remove("--fused_conv_bias_relu")
     raise_if_cuda_home_none("--fused_conv_bias_relu")
-    if torch.backends.cudnn.is_available() and torch.backends.cudnn.version() < 8400:
+    if check_cudnn_version_and_warn("--fused_conv_bias_relu", 8400):
         subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
         ext_modules.append(
             CUDAExtension(
@@ -659,8 +666,6 @@ if "--fused_conv_bias_relu" in sys.argv:
                 extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
             )
         )
-    else:
-        warnings.warn("cuDNN 8.4 or later is required to use --fused_conv_bias_relu")
 
 
 setup(
