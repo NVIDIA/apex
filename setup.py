@@ -261,31 +261,30 @@ if "--cuda_ext" in sys.argv:
                                    'csrc/fused_dense_cuda.cu'],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
-        """
+        nvcc_args_transformer = ['-O3',
+                                 '-U__CUDA_NO_HALF_OPERATORS__',
+                                 '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                 '--expt-relaxed-constexpr',
+                                 '--expt-extended-lambda'] + version_dependent_macros
+        hipcc_args_transformer = ['-O3',
+                                 '-U__CUDA_NO_HALF_OPERATORS__',
+                                 '-U__CUDA_NO_HALF_CONVERSIONS__'] + version_dependent_macros
         ext_modules.append(
             CUDAExtension(name='scaled_upper_triang_masked_softmax_cuda',
                           sources=['csrc/megatron/scaled_upper_triang_masked_softmax.cpp',
                                    'csrc/megatron/scaled_upper_triang_masked_softmax_cuda.cu'],
                           include_dirs=[os.path.join(this_dir, 'csrc')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
-                                              'nvcc':['-O3',
-                                                      '-U__CUDA_NO_HALF_OPERATORS__',
-                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '--expt-relaxed-constexpr',
-                                                      '--expt-extended-lambda'] + version_dependent_macros}))
-
+                                              'nvcc':nvcc_args_transformer if not IS_ROCM_PYTORCH else hipcc_args_transformer}))
         ext_modules.append(
             CUDAExtension(name='scaled_masked_softmax_cuda',
                           sources=['csrc/megatron/scaled_masked_softmax.cpp',
                                    'csrc/megatron/scaled_masked_softmax_cuda.cu'],
-                          include_dirs=[os.path.join(this_dir, 'csrc')],
+                          include_dirs=[os.path.join(this_dir, 'csrc'),
+                                        os.path.join(this_dir, 'csrc/megatron')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
-                                              'nvcc':['-O3',
-                                                      '-U__CUDA_NO_HALF_OPERATORS__',
-                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
-                                                      '--expt-relaxed-constexpr',
-                                                      '--expt-extended-lambda'] + version_dependent_macros}))
-        """
+                                              'nvcc':nvcc_args_transformer if not IS_ROCM_PYTORCH else hipcc_args_transformer}))
+
 
 if "--bnp" in sys.argv or "--cuda_ext" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
