@@ -1,7 +1,7 @@
 import unittest
 import os
 import random
-
+import itertools
 import torch
 import apex
 from torch.autograd import Variable
