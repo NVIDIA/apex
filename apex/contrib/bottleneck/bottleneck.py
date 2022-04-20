@@ -1,9 +1,16 @@
 import functools as func
+
 import torch
 import torch.distributed as dist
 from torch import nn
+
+from apex import check_cudnn_version_and_warn
 import fast_bottleneck
 import nccl_p2p_cuda as inc
+
+
+assert check_cudnn_version_and_warn(__name__, 8400)
+
 
 def kaiming_uniform_(tensor, a=0, mode='fan_in', nonlinearity='leaky_relu'):
     weight_tensor_nchw = tensor
