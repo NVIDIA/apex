@@ -644,9 +644,7 @@ if "--transducer" in sys.argv:
         )
     )
 
-# note (mkozuki): Now `--fast_bottleneck` option depends on `--peer_memory` and `--nccl_p2p`.
-# Therefore, if you want to build this, it's mandated to put the two options before this.
-# e.g. `pip install --global-option="--peer_memory" --global-option="--nccl_p2p" --global-option="--fast_bottleneck"`.
+# note (mkozuki): Now `--fast_bottleneck` option (i.e. apex/contrib/bottleneck) depends on `--peer_memory` and `--nccl_p2p`.
 if "--fast_bottleneck" in sys.argv:
     sys.argv.remove("--fast_bottleneck")
     raise_if_cuda_home_none("--fast_bottleneck")
