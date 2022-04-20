@@ -45,7 +45,7 @@ def check_cudnn_version_and_warn(global_option: str, required_cudnn_version: int
     cudnn_version = torch.backends.cudnn.version() if cudnn_available else None
     if not (cudnn_available and (cudnn_version >= required_cudnn_version)):
         warnings.warn(
-            f"Skip `{global_option}` as it requires cuDNN {required_cudnn_version} or later, "
+            f"`{global_option}` depends on cuDNN {required_cudnn_version} or later, "
             f"but {'cuDNN is not available' if not cudnn_available else cudnn_version}"
         )
         return False
