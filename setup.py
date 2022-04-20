@@ -652,6 +652,34 @@ if "--fast_bottleneck" in sys.argv:
         )
     )
 
+if "--peer_memory" in sys.argv:
+    sys.argv.remove("--peer_memory")
+    raise_if_cuda_home_none("--peer_memory")
+    ext_modules.append(
+        CUDAExtension(
+            name="peer_memory_cuda",
+            sources=[
+                "apex/contrib/csrc/peer_memory/peer_memory_cuda.cu",
+                "apex/contrib/csrc/peer_memory/peer_memory.cpp",
+            ],
+            extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+        )
+    )
+
+if "--nccl_p2p" in sys.argv:
+    sys.argv.remove("--nccl_p2p")
+    raise_if_cuda_home_none("--nccl_p2p")
+    ext_modules.append(
+        CUDAExtension(
+            name="nccl_p2p_cuda",
+            sources=[
+                "apex/contrib/csrc/nccl_p2p/nccl_p2p_cuda.cu",
+                "apex/contrib/csrc/nccl_p2p/nccl_p2p.cpp",
+            ],
+            extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+        )
+    )
+
 
 if "--fused_conv_bias_relu" in sys.argv:
     sys.argv.remove("--fused_conv_bias_relu")
