@@ -25,13 +25,21 @@
 #
 ###############################################################################
 
+import math
 import sys
+import unittest
+
 import torch
 import numpy as np
-import unittest
-import math
 
 import fmhalib as mha
+
+
+def _get_device_properties(device = torch.device("cuda")):
+    # type: (str or torch.device) -> Tuple[int, int]
+    properties = torch.cuda.get_device_properties(device)
+    return properties.major, properties.minor
+
 
 def py_mha(qkv, amask, b, s, h, d):
     qkv = qkv.view(b, s, h, 3, d)
@@ -48,6 +56,7 @@ def py_mha(qkv, amask, b, s, h, d):
 
     return ctx
 
+@unittest.skipIf(not _get_device_properties() == (8, 0), "FMHA only supports sm80")
 class TestFMHA(unittest.TestCase):
 
     def run_test(self, s: int, b: int, zero_tensors: bool):

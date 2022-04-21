@@ -1,12 +1,21 @@
+import copy
+import math
+import random
+import unittest
+
 import torch
 import torch.nn.functional as F
-import unittest
-import copy
-import random
-import math
-from apex.contrib.conv_bias_relu import ConvBiasReLU, ConvBias, ConvBiasMaskReLU
+
+HAS_CONV_BIAS_RELU = None
+try:
+    from apex.contrib.conv_bias_relu import ConvBiasReLU, ConvBias, ConvBiasMaskReLU
+except ImportError as e:
+    HAS_CONV_BIAS_RELU = False
+else:
+    HAS_CONV_BIAS_RELU = True
 
 
+@unittest.skipIf(not HAS_CONV_BIAS_RELU, "`apex.contrib.conv_bias_relu` is not found.")
 class FusedDenseTest(unittest.TestCase):
     def setUp(self, seed=0):
         torch.manual_seed(seed)
