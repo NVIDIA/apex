@@ -12,6 +12,7 @@ except ImportError:
 from apex.contrib.focal_loss import focal_loss
 
 
+@unittest.skipIf(not reference_available, "Reference implementation `torchvision.ops.focal_loss.sigmoid_focal_loss` is not available.")
 class FocalLossTest(unittest.TestCase):
 
     N_SAMPLES = 12
