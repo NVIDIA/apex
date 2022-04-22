@@ -335,6 +335,9 @@ def backward_step(
         input_tensor:
         output_tensor:
         output_tensor_grad:
+    Keyword Arguments:
+        grad_scaler:
+        deallocate_pipeline_outputs: Experimental.
     Returns:
         input_tensor_grad
     """
