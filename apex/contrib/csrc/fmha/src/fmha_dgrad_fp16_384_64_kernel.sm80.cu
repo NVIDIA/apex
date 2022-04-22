@@ -28,7 +28,7 @@
 #include "fmha.h"
 #include "fmha_dgrad_kernel_1xN_reload.h"
 
-using Kernel_traits = FMHA_kernel_traits< 384, 64, 16, 1, 8, 0x08u>;
+using Kernel_traits = FMHA_kernel_traits<384, 64, 16, 1, 8, 0x08u>;
 
 extern "C" __global__ void fmha_dgrad_fp16_384_64_sm80_kernel(Fused_multihead_attention_fprop_params params) {
     fmha::compute_dv_1xN<Kernel_traits>(params);

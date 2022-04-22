@@ -1,4 +1,4 @@
-/******************************************************************************
+/***************************************************************************************************
  * Copyright (c) 2011-2021, NVIDIA CORPORATION.  All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,159 @@ namespace fmha {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Kernel_traits, bool Is_training, typename Params> inline __device__ void device_1xN(const Params &params) {
+template<typename Kernel_traits>
+struct Gemm_Q_K_base {
+    using Smem_tile_o = typename Kernel_traits::Smem_tile_o;
+    using Smem_tile_q = typename Kernel_traits::Smem_tile_q;
+    using Smem_tile_k = typename Kernel_traits::Smem_tile_k;
+    using Fragment_q = typename Smem_tile_q::Fragment;
+    using Fragment_k = typename Smem_tile_k::Fragment;
+
+    // The description of the CTA tile for the 1st batched GEMM.
+    using Cta_tile_p = typename Kernel_traits::Cta_tile_p;
+
+    // The MMA tile for the 1st GEMM.
+    using Mma_tile_p = fmha::Hmma_tile<Cta_tile_p>;
+
+    static constexpr int SMEM_BYTES_SOFTMAX = Cta_tile_p::M * Cta_tile_p::WARPS_N * sizeof(float) * 2;
+
+    __device__ inline Gemm_Q_K_base(char * smem_ptr_q, char * smem_ptr_k, const int tidx) 
+        : smem_q(smem_ptr_q, tidx)
+        , smem_k(smem_ptr_k, tidx) {
+
+    }
+
+    __device__ inline void load_q() {
+        smem_q.load(frag_q[0], 0);
+    }
+
+    __device__ inline void reload_q() {
+        smem_q.load(frag_q[0], 0);
+    }
+
+    Fragment_q frag_q[2][Mma_tile_p::MMAS_M];
+    Smem_tile_q smem_q;
+    Smem_tile_k smem_k;
+};
+
+template<typename Kernel_traits, bool K_in_regs>
+struct Gemm_Q_K : public Gemm_Q_K_base<Kernel_traits> {
+
+    using Base = Gemm_Q_K_base<Kernel_traits>;
+    using Smem_tile_o = typename Base::Smem_tile_o;
+    using Smem_tile_q = typename Base::Smem_tile_q;
+    using Smem_tile_k = typename Base::Smem_tile_k;
+    using Fragment_k = typename Base::Fragment_k;
+    using Mma_tile_p = typename Base::Mma_tile_p;
+
+    enum { SHARE_SMEM_FOR_K_AND_V = Kernel_traits::SHARE_SMEM_FOR_K_AND_V };
+
+    enum { SMEM_OFFSET_O = Smem_tile_q::BYTES_PER_TILE };
+    enum { SMEM_OFFSET_V = Smem_tile_q::BYTES_PER_TILE + (SHARE_SMEM_FOR_K_AND_V ? 0 : Smem_tile_k::BYTES_PER_TILE) };
+
+    // Q | K / V
+    //   | O | SOFTMAX
+    static constexpr int SMEM_BYTES = Smem_tile_q::BYTES_PER_TILE 
+                                    + std::max((SHARE_SMEM_FOR_K_AND_V ? 1 : 2) * Smem_tile_k::BYTES_PER_TILE,
+                                               Smem_tile_o::BYTES_PER_TILE + Base::SMEM_BYTES_SOFTMAX);
+
+    __device__ inline Gemm_Q_K(char * smem_, const int tidx) 
+        : Base(smem_, smem_ + Smem_tile_q::BYTES_PER_TILE, tidx) {
+    }
+
+    __device__ inline void load_k(){
+        #pragma unroll
+        for( int ki = 0; ki < Mma_tile_p::MMAS_K; ++ki ) {
+            Base::smem_k.load(frag_k[ki], ki);
+        }
+    }
+
+    template<typename Acc, int M, int N>
+    __device__ inline void operator()(Acc (&acc_p)[M][N]){
+        // Do this part of P^T = (Q * K^T)^T.
+        #pragma unroll
+        for( int ki = 1; ki < Mma_tile_p::MMAS_K; ++ki ) {
+            // Trigger the load from shared memory for the next series of Q values.
+            Base::smem_q.load(Base::frag_q[ki & 1], ki);
+            // Do the math for the values already in registers.
+            fmha::gemm(acc_p, Base::frag_q[(ki - 1) & 1], frag_k[(ki - 1)]);
+        }
+        // Do the final stage of math.
+        {
+            int ki = Mma_tile_p::MMAS_K;
+            fmha::gemm(acc_p, Base::frag_q[(ki - 1) & 1], frag_k[(ki - 1)]);
+        }
+    }
+
+    __device__ inline void reload_k(){
+        // Noop.
+    }
+
+    Fragment_k frag_k[Mma_tile_p::MMAS_K][Mma_tile_p::MMAS_N];
+};
+
+
+template<typename Kernel_traits>
+struct Gemm_Q_K<Kernel_traits, false> : public Gemm_Q_K_base<Kernel_traits> {
+    using Base = Gemm_Q_K_base<Kernel_traits>;
+    using Smem_tile_o = typename Base::Smem_tile_o;
+    using Smem_tile_q = typename Base::Smem_tile_q;
+    using Smem_tile_k = typename Base::Smem_tile_k;
+    using Smem_tile_v = typename Kernel_traits::Smem_tile_v;
+    using Fragment_k = typename Base::Fragment_k;
+    using Mma_tile_p = typename Base::Mma_tile_p;
+    Fragment_k frag_k[2][Mma_tile_p::MMAS_N];
+
+    enum { SHARE_SMEM_FOR_K_AND_V = Kernel_traits::SHARE_SMEM_FOR_K_AND_V };
+
+    enum { SMEM_OFFSET_V = Smem_tile_q::BYTES_PER_TILE + (SHARE_SMEM_FOR_K_AND_V ? 0 : Smem_tile_k::BYTES_PER_TILE) };
+    static_assert(Smem_tile_v::BYTES_PER_TILE == (int) Smem_tile_k::BYTES_PER_TILE);
+    enum { SMEM_OFFSET_O = SMEM_OFFSET_V + Smem_tile_v::BYTES_PER_TILE };
+
+    // Q | K/V + O + SOFTMAX
+    static constexpr int SMEM_BYTES = Smem_tile_q::BYTES_PER_TILE
+                                    + (SHARE_SMEM_FOR_K_AND_V ? 1 : 2) * Smem_tile_k::BYTES_PER_TILE 
+                                    + Smem_tile_o::BYTES_PER_TILE + Base::SMEM_BYTES_SOFTMAX;
+
+    __device__ inline Gemm_Q_K(char * smem_, const int tidx) 
+      : Base(smem_, smem_ + Smem_tile_q::BYTES_PER_TILE, tidx) {
+    }
+
+    __device__ inline void load_k(){
+        Base::smem_k.load(frag_k[0], 0);
+    }
+
+    template<typename Acc, int M, int N>
+    __device__ inline void operator()(Acc (&acc_p)[M][N]){
+        // Do this part of P^T = (Q * K^T)^T.
+        #pragma unroll
+        for( int ki = 1; ki < Mma_tile_p::MMAS_K; ++ki ) {
+            // Trigger the load from shared memory for the next series of Q values.
+            Base::smem_q.load(Base::frag_q[ki & 1], ki);
+            Base::smem_k.load(frag_k[ki & 1], ki);
+            // Do the math for the values already in registers.
+            fmha::gemm(acc_p, Base::frag_q[(ki - 1) & 1], frag_k[(ki - 1) & 1]);
+        }
+        // Do the final stage of math.
+        {
+            int ki = Mma_tile_p::MMAS_K;
+            fmha::gemm(acc_p, Base::frag_q[(ki - 1) & 1], frag_k[(ki - 1) & 1]);
+        }
+    }
+
+    __device__ inline void reload_k(){
+        Base::smem_k.load(frag_k[0], 0);
+    }
+};
+
+template<typename Kernel_traits>
+constexpr size_t get_dynamic_smem_size(){
+    return Gemm_Q_K<Kernel_traits, Kernel_traits::K_IN_REGS>::SMEM_BYTES;
+}
+
+template<typename Kernel_traits, bool Is_training, typename Params, typename Prng>
+inline __device__ void device_1xN_(const Params &params, const int bidb, const int bidh, const int begin, const int steps, Prng & ph) {
+
 
     // The description of the CTA tile for the 1st batched GEMM.
     using Cta_tile_p = typename Kernel_traits::Cta_tile_p;
@@ -49,13 +201,9 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
 
     // The global memory tile to load Q.
     using Gmem_tile_q = typename Kernel_traits::Gmem_tile_q;
-    // The shared memory tile to swizzle Q.
-    using Smem_tile_q = typename Kernel_traits::Smem_tile_q;
 
     // The global memory tile to load K.
     using Gmem_tile_k = typename Kernel_traits::Gmem_tile_k;
-    // The shared memory tile to swizzle K.
-    using Smem_tile_k = typename Kernel_traits::Smem_tile_k;
 
     // The global memory tile to load V.
     using Gmem_tile_v = typename Kernel_traits::Gmem_tile_v;
@@ -69,94 +217,82 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
 
     using Gmem_tile_s = typename Kernel_traits::Gmem_tile_s;
 
+    using Gemm1 = Gemm_Q_K<Kernel_traits, Kernel_traits::K_IN_REGS>;
+
+    using Softmax = fmha::Softmax<Cta_tile_p, Kernel_traits>;
+
+
+    // The number of threads per row.
+    enum { THREADS_PER_ROW = 32 };
+
+    enum { BITS_PER_ELT_S = sizeof(fmha::A_type) * 8 };
+
     // Shared memory.
     extern __shared__ char smem_[];
 
-    // The block index for the batch.
-    const int bidb = blockIdx.y;
-    // The block index for the head.
-    const int bidh = blockIdx.x;
     // The thread index.
     const int tidx = threadIdx.x;
 
     const BlockInfoPadded<Kernel_traits::THREADS> binfo(params, bidb, bidh, tidx);
-    if( binfo.stop_early() )
-        return;
+    if( binfo.stop_early() ) return;
 
-    auto seeds = at::cuda::philox::unpack(params.philox_args);
-
-    Philox ph(std::get<0>(seeds), binfo.tidx_global, std::get<1>(seeds));
-
-    Mask<Cta_tile_p> mask(params, binfo, tidx);
-
+    Gemm1 gemm_q_k(smem_, tidx);
     // Allocate the global memory tile loader for Q.
     Gmem_tile_q gmem_q(params, 0, binfo, tidx);
-    // Allocate the shared memory tile loader for Q.
-    Smem_tile_q smem_q(&smem_[0], tidx);
+    // Allocate the global memory tile loader for O.
+    Gmem_tile_o gmem_o(params, binfo, tidx);
+    // Allocate the global memory tile loader for S.
+    Gmem_tile_s gmem_s(params, binfo, tidx);
+    // Wind gmem tiles to the correct position.
+    for( int it = 0; it < begin; it++ ) {
+        gmem_q.move();
+        gmem_s.move();
+        gmem_o.move();
+    }
+
+    fmha::Mask<Cta_tile_p> mask(params, binfo, tidx);
 
     // Allocate the global memory tile loader for K.
     Gmem_tile_k gmem_k(params, 1, binfo, tidx);
-    // Allocate the shared memory tile loader for K.
-    Smem_tile_k smem_k(&smem_[Smem_tile_q::BYTES_PER_TILE], tidx);
-
     // Allocate the global memory tile loader for V.
     Gmem_tile_v gmem_v(params, 2, binfo, tidx);
     // The base pointer of smem_v;
-    char *smem_v_ = nullptr;
-    if( Kernel_traits::SHARE_SMEM_FOR_K_AND_V ) {
-        smem_v_ = &smem_[Smem_tile_q::BYTES_PER_TILE];
-    } else {
-        smem_v_ = &smem_[Smem_tile_q::BYTES_PER_TILE + Smem_tile_k::BYTES_PER_TILE];
-    }
+    char *smem_v_ = &smem_[Gemm1::SMEM_OFFSET_V];
+    
     // Allocate the shared memory tile loader for V. We use the same as K so be careful!!!
     Smem_tile_v smem_v(smem_v_, tidx);
 
-    // Allocate the global memory tile loader for O.
-    Gmem_tile_o gmem_o(params, binfo, tidx);
     // Allocate the shared memory tile loader for O. We use the same as K so be careful!!!
-    Smem_tile_o smem_o(&smem_[Smem_tile_q::BYTES_PER_TILE], tidx);
+    Smem_tile_o smem_o(&smem_[Gemm1::SMEM_OFFSET_O], tidx);
 
+    // Trigger the loads for K.
+    gmem_k.load(gemm_q_k.smem_k);
     // Trigger the loads for Q.
-    gmem_q.load(smem_q);
-    // Trigger the loads for K.
-    gmem_k.load(smem_k);
-    // Trigger the loads for K.
+    gmem_q.load(gemm_q_k.smem_q);
+    // Trigger the loads for V.
     gmem_v.load(smem_v);
 
-    // Commit the data for Q and K to shared memory.
-    gmem_q.commit(smem_q);
-    gmem_k.commit(smem_k);
-
-    // Commit the data for V to shared memory.
-    if( !Kernel_traits::SHARE_SMEM_FOR_K_AND_V ) {
-        gmem_v.commit(smem_v);
+    const uint32_t scale_bmm1 = reinterpret_cast<const uint32_t&>(params.scale_bmm1);
+    #pragma unroll
+    for(int it=0;it < Gmem_tile_k::LDGS;it++){
+        gmem_k.fetch_[it] = fmha::hmul8(scale_bmm1, gmem_k.fetch_[it]);
     }
 
-    // Make sure the data is in shared memory.
+
+
+    // Commit the data for Q and V to shared memory.
+    gmem_q.commit(gemm_q_k.smem_q);
+    gmem_v.commit(smem_v);
+
+    // Commit the data for K to shared memory.
+    if( !Kernel_traits::SHARE_SMEM_FOR_K_AND_V ) {
+        gmem_k.commit(gemm_q_k.smem_k);
+    }
+
     __syncthreads();
 
     // Load the fragments for Q.
-    typename Smem_tile_q::Fragment frag_q[2][Mma_tile_p::MMAS_M];
-    smem_q.load(frag_q[0], 0);
-
-    // Load the fragments for K. We keep the data in registers during the entire kernel.
-    typename Smem_tile_k::Fragment frag_k[Mma_tile_p::MMAS_K][Mma_tile_p::MMAS_N];
-    #pragma unroll
-    for( int ki = 0; ki < Mma_tile_p::MMAS_K; ++ki ) {
-        smem_k.load(frag_k[ki], ki);
-    }
-
-    // Commit the data for V to shared memory if it has not been done already.
-    if( Kernel_traits::SHARE_SMEM_FOR_K_AND_V ) {
-        // Make sure we are done loading the fragments for K.
-        __syncthreads();
-
-        // Commit the data to shared memory for V.
-        gmem_v.commit(smem_v);
-
-        // Make sure the data is in shared memory.
-        __syncthreads();
-    }
+    gemm_q_k.load_q();
 
     // Load the fragments for V. We keep the data in registers during the entire kernel.
     typename Smem_tile_v::Fragment frag_v[Mma_tile_o::MMAS_K][Mma_tile_o::MMAS_N];
@@ -165,48 +301,47 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
         smem_v.load(frag_v[ki], ki);
     }
 
-    enum { BITS_PER_ELT_S = sizeof(fmha::A_type) * 8 };
+    // Commit the data for V to shared memory if it has not been done already.
+    if( Kernel_traits::SHARE_SMEM_FOR_K_AND_V ) {
+        // Make sure we are done loading the fragments for K.
+        __syncthreads();
 
-    Gmem_tile_s gmem_s(params.s_ptr, params, tidx);
+        // Commit the data to shared memory for V.
+        gmem_k.commit(gemm_q_k.smem_k);
+
+        // Make sure the data is in shared memory.
+        __syncthreads();
+    }
+
+    // Load the fragments for K. 
+    gemm_q_k.load_k();
 
     // Create the object to do the softmax.
-    using Softmax = fmha::Softmax< Cta_tile_p, Kernel_traits>;
-    Softmax softmax(params, &smem_[Smem_tile_q::BYTES_PER_TILE + Smem_tile_o::BYTES_PER_TILE], bidb, tidx);
-
-    enum { THREADS_PER_ROW = 32 };
-    enum { STEPS = Cta_tile_p::N / Cta_tile_p::M };
+    Softmax softmax(params, &smem_[Gemm1::SMEM_OFFSET_O + Smem_tile_o::BYTES_PER_TILE], bidb, tidx);
 
     // Load over the entire sequence length.
-    for( int l = 0; l < STEPS; l++ ) {
-        const int loop = l * Cta_tile_p::M;
-        if( loop >= binfo.actual_seqlen )
-            break;
+    for( int l = 0; l < steps; l++ ) {
+        if(begin + l * Cta_tile_p::M >= binfo.actual_seqlen) break;
 
         // Declare the accumulators for the 1st gemm.
         fmha::Fragment_accumulator acc_p[Mma_tile_p::MMAS_M][Mma_tile_p::MMAS_N];
         fmha::Clear_accumulator<typename fmha::Accumulator_type, Cta_tile_p::WARPS_K>::apply(acc_p);
 
-    // Do this part of P^T = (Q * K^T)^T.
-    #pragma unroll
-        for( int ki = 1; ki < Mma_tile_p::MMAS_K; ++ki ) {
+        // Do this part of P^T = (Q * K^T)^T.
+        gemm_q_k(acc_p);
 
-            // Trigger the load from shared memory for the next series of Q values.
-            smem_q.load(frag_q[ki & 1], ki);
-            // Do the math for the values already in registers.
-            fmha::gemm(acc_p, frag_q[(ki - 1) & 1], frag_k[(ki - 1)]);
-        }
-
-        // Do the final stage of math.
-        {
-            int ki = Mma_tile_p::MMAS_K;
-            fmha::gemm(acc_p, frag_q[(ki - 1) & 1], frag_k[(ki - 1)]);
+        // Trigger the load for the next Q values.
+        if( l < steps - 1) {
+            gemm_q_k.smem_q.move_to_next_write_buffer();
+            gmem_q.move();
+            gmem_q.load(gemm_q_k.smem_q);
         }
 
         // Load the mask for that iteration.
-        mask.load(l);
+        mask.load(begin + l);
 
         // Convert from the accumulator type to FP32 for Softmax.
-        softmax.unpack(acc_p);
+        softmax.unpack_noscale(acc_p);
 
         // Apply the mask.
         softmax.apply_mask(mask);
@@ -217,21 +352,21 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
         }
         // Compute the max.
         float p_max[Mma_tile_p::MMAS_M * 2];
-        softmax.template reduce<fmha::Max_>(p_max);
-
-        // Make sure we are done reading shared memory.
-        __syncthreads();
+        //softmax.template reduce<fmha::Max_>(p_max);
+        softmax.reduce_max(p_max);
 
         // Compute the exponential value.
         softmax.apply_exp(p_max);
 
         // Compute the sum.
         float p_sum[Mma_tile_p::MMAS_M * 2];
-        softmax.template reduce<fmha::Sum_>(p_sum);
+        softmax.reduce_sum(p_sum);
 
         // Finalize softmax on the accumulators of P^T.
         softmax.scale(p_sum);
 
+        using Frag_p = fmha::Fragment_a<fmha::Row>;
+        Frag_p frag_p[Mma_tile_o::MMAS_K][Mma_tile_o::MMAS_M];
         if( Is_training ) {
             auto encode_dropout = [](bool keep, float val) { return keep ? val : -val; };
             #pragma unroll
@@ -241,8 +376,7 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
                     #pragma unroll
                     for( int ni = 0; ni < Mma_tile_p::MMAS_N; ni++ ) {
                         float4 tmp = uniform4(ph());
-                        // We encode the dropout pattern in the sign bit of the non-negative softmax to distinguish from
-                        // pre-existing zeros
+                        // We encode the dropout pattern in the sign bit of the non-negative softmax to distinguish from pre-existing zeros
                         softmax.elt_[2 * mi + ii][4 * ni + 0] =
                             encode_dropout(tmp.x <= params.p_dropout, softmax.elt_[2 * mi + ii][4 * ni + 0]);
                         softmax.elt_[2 * mi + ii][4 * ni + 1] =
@@ -254,20 +388,18 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
                     }
                 }
             }
-            gmem_s.store(softmax.elt_, mask);
+            softmax.pack(frag_p);
+            gmem_s.store(frag_p, mask);
             gmem_s.move();
+        } else {
+            softmax.pack(frag_p);
         }
 
-        // Trigger the load for the next Q values.
-        if(l < STEPS - 1) {
-            smem_q.move_to_next_write_buffer();
-            gmem_q.move();
-            gmem_q.load(smem_q);
+        // Commit the values for Q into shared memory.
+        if(l < steps - 1) {
+            gmem_q.commit(gemm_q_k.smem_q);
         }
 
-        using Frag_p = fmha::Fragment_a< fmha::Row>;
-        Frag_p frag_p[Mma_tile_o::MMAS_K][Mma_tile_o::MMAS_M];
-        softmax.pack(frag_p);
         #pragma unroll
         for( int ki = 0; ki < Mma_tile_o::MMAS_K; ki++ ) {
             #pragma unroll
@@ -316,21 +448,84 @@ template <typename Kernel_traits, bool Is_training, typename Params> inline __de
 
         // Move to the next part of the output.
         gmem_o.move();
+        gemm_q_k.reload_k();
 
         // Commit the values for Q into shared memory.
-        if(l < STEPS - 1) {
-            gmem_q.commit(smem_q);
+        if(l < steps - 1) {
+            gemm_q_k.reload_q();
         }
-
-        // Make sure the data is in shared memory.
-        __syncthreads();
-
-        // Trigger the loads for the values of Q for the next iteration.
-        smem_q.load(frag_q[0], 0);
 
     }  // Outer loop over the sequence length.
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace fmha
+template<typename Kernel_traits, bool Is_training, typename Params>
+inline __device__ void device_1xN(const Params &params, 
+                                  const int num_full_heads,
+                                  const int num_main_groups,
+                                  const int main_group_size,
+                                  const int main_steps,
+                                  const int rest_steps) {
+
+    constexpr int STEPS = Kernel_traits::Cta_tile_p::N / Kernel_traits::Cta_tile_p::M;
+    const int tidx_global = blockIdx.x * gridDim.x + threadIdx.x;
+    auto seeds = at::cuda::philox::unpack(params.philox_args);
+    Philox ph(std::get<0>(seeds), tidx_global, std::get<1>(seeds));
+    for( int it = 0; it < num_full_heads; it++ ) {
+        const int bidx = it * gridDim.x + blockIdx.x;
+        const int bidh = bidx % params.h;
+        const int bidb = bidx / params.h;
+        fmha::device_1xN_<Kernel_traits, Is_training>(params, bidb, bidh, 0, STEPS, ph);
+        __syncthreads();
+    }
+    if( main_group_size == 0 )
+        return;
+    const int head_offset = num_full_heads * gridDim.x;
+
+    if( blockIdx.x < main_group_size * num_main_groups ) {
+        // process within heads
+        const int group = blockIdx.x % num_main_groups;
+        const int bidx = blockIdx.x / num_main_groups;
+        const int bidh = (head_offset + bidx) % params.h;
+        const int bidb = (head_offset + bidx) / params.h;
+        const int offset = group * main_steps;
+        fmha::device_1xN_<Kernel_traits, Is_training>(params, bidb, bidh, offset, main_steps, ph);
+    } else {
+        if(rest_steps == 0 ) return;
+        // process across heads
+        const int bidx = blockIdx.x - main_group_size * num_main_groups;
+        const int offset = num_main_groups * main_steps;
+        const int total_heads = params.b * params.h;
+        const int rest_ctas = gridDim.x - main_group_size * num_main_groups;
+        for( int it = head_offset + bidx; it < total_heads; it += rest_ctas ) {
+            const int bidh = it % params.h;
+            const int bidb = it / params.h;
+            fmha::device_1xN_<Kernel_traits, Is_training>(params, bidb, bidh, offset, rest_steps, ph);
+            __syncthreads();
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<typename Kernel_traits, bool Is_training, typename Params>
+inline __device__ void device_1xN(const Params &params, const int total_heads) {
+
+    const int tidx_global = blockIdx.x * gridDim.x + threadIdx.x;
+    auto seeds = at::cuda::philox::unpack(params.philox_args);
+    Philox ph(std::get<0>(seeds), tidx_global, std::get<1>(seeds));
+    constexpr int STEPS = Kernel_traits::Cta_tile_p::N / Kernel_traits::Cta_tile_p::M;
+
+    for(int bidx = blockIdx.x; bidx < total_heads; bidx += gridDim.x){
+        const int bidh = bidx % params.h;
+        const int bidb = bidx / params.h;
+        fmha::device_1xN_<Kernel_traits, Is_training>(params, bidb, bidh, 0, STEPS, ph);
+        __syncthreads();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace fmha
+

@@ -53,8 +53,15 @@ def init_checkpointed_activations_memory_buffer(
 ):
     """Initializ the memory buffer for the checkpointed activations."""
 
-    per_layer = micro_batch_size * max_position_embeddings * hidden_size // tensor_model_parallel_size
-    assert num_layers % checkpoint_num_layers == 0, "number of layers is not divisible by checkpoint-num-layers"
+    per_layer = (
+        micro_batch_size
+        * max_position_embeddings
+        * hidden_size
+        // tensor_model_parallel_size
+    )
+    assert (
+        num_layers % checkpoint_num_layers == 0
+    ), "number of layers is not divisible by checkpoint-num-layers"
     num_checkpointer_layers = num_layers // checkpoint_num_layers
     numel = per_layer * num_checkpointer_layers
     dtype = torch.half
@@ -217,7 +224,9 @@ def model_parallel_cuda_manual_seed(seed):
     # Set the default state.
     torch.cuda.manual_seed(data_parallel_seed)
     # and model parallel state.
-    _CUDA_RNG_STATE_TRACKER.add(_MODEL_PARALLEL_RNG_TRACKER_NAME, tensor_model_parallel_seed)
+    _CUDA_RNG_STATE_TRACKER.add(
+        _MODEL_PARALLEL_RNG_TRACKER_NAME, tensor_model_parallel_seed
+    )
 
 
 # TODO (mkozuki): Move the below gradient checkpoint related features to another (new) file.
@@ -255,7 +264,10 @@ class CheckpointFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, *args):
         if not torch.autograd._is_checkpoint_valid():
-            raise RuntimeError("Checkpointing is not compatible with .grad(), " "please use .backward() if possible")
+            raise RuntimeError(
+                "Checkpointing is not compatible with .grad(), "
+                "please use .backward() if possible"
+            )
         inputs = ctx.saved_tensors
         if _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER is not None:
             inputs[0].data = gather_split_1d_tensor(inputs[0].data)
@@ -284,7 +296,10 @@ class CheckpointFunction(torch.autograd.Function):
         if isinstance(outputs, torch.Tensor):
             outputs = (outputs,)
         torch.autograd.backward(outputs, args)
-        grads = tuple(inp.grad if isinstance(inp, torch.Tensor) else inp for inp in detached_inputs)
+        grads = tuple(
+            inp.grad if isinstance(inp, torch.Tensor) else inp
+            for inp in detached_inputs
+        )
         return (None,) + grads
 
 

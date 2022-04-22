@@ -1,7 +1,5 @@
-from typing import Optional
 import logging
 import os
-import threading
 
 
 def get_transformer_logger(name: str) -> logging.Logger:
@@ -16,4 +14,5 @@ def set_logging_level(verbosity) -> None:
         verbosity
     """
     from apex import _library_root_logger
+
     _library_root_logger.setLevel(verbosity)

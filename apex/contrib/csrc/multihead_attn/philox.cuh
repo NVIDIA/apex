@@ -7,14 +7,19 @@ class Philox {
 public:
   __device__ inline Philox(unsigned long long seed,
                            unsigned long long subsequence,
-                           unsigned long long offset) {
-    key.x = (unsigned int)seed;
-    key.y = (unsigned int)(seed >> 32);
-    counter = make_uint4(0, 0, 0, 0);
-    counter.z = (unsigned int)(subsequence);
-    counter.w = (unsigned int)(subsequence >> 32);
-    STATE = 0;
-    incr_n(offset / 4);
+                           unsigned long long offset) : STATE(0) {
+    //key.x = (unsigned int)seed;
+    //key.y = (unsigned int)(seed >> 32);
+    //counter = make_uint4(0, 0, 0, 0);
+    //counter.z = (unsigned int)(subsequence);
+    //counter.w = (unsigned int)(subsequence >> 32);
+    //STATE = 0;
+    //incr_n(offset / 4);
+
+    key = reinterpret_cast<const uint2&>(seed);
+    ull2 * tmp = reinterpret_cast<ull2*>(&counter);
+    tmp->x = offset / 4;
+    tmp->y = subsequence;
   }
   __device__ inline uint4 operator()() {
     if (STATE == 0) {
@@ -42,6 +47,10 @@ public:
   }
 
 private:
+  struct ull2 {
+      uint64_t x;
+      uint64_t y;
+  };
   uint4 counter;
   uint4 output;
   uint2 key;

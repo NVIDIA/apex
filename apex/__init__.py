@@ -1,4 +1,5 @@
 import logging
+import warnings
 
 # May help avoid undefined symbol errors https://pytorch.org/cppdocs/notes/faq.html#undefined-symbol-errors-from-pytorch-aten
 import torch
@@ -37,3 +38,15 @@ handler = logging.StreamHandler()
 handler.setFormatter(RankInfoFormatter("%(asctime)s - PID:%(process)d - rank:%(rank_info)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s", "%y-%m-%d %H:%M:%S"))
 _library_root_logger.addHandler(handler)
 _library_root_logger.propagate = False
+
+
+def check_cudnn_version_and_warn(global_option: str, required_cudnn_version: int) -> bool:
+    cudnn_available = torch.backends.cudnn.is_available()
+    cudnn_version = torch.backends.cudnn.version() if cudnn_available else None
+    if not (cudnn_available and (cudnn_version >= required_cudnn_version)):
+        warnings.warn(
+            f"`{global_option}` depends on cuDNN {required_cudnn_version} or later, "
+            f"but {'cuDNN is not available' if not cudnn_available else cudnn_version}"
+        )
+        return False
+    return True
