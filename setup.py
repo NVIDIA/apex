@@ -147,6 +147,13 @@ if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 4):
     version_ge_1_5 = ["-DVERSION_GE_1_5"]
 version_dependent_macros = version_ge_1_1 + version_ge_1_3 + version_ge_1_5
 
+# Check, if ATen/CUDAGeneratorImpl.h is found, otherwise use ATen/cuda/CUDAGeneratorImpl.h
+# See https://github.com/pytorch/pytorch/pull/70650
+generator_flag = []
+torch_dir = torch.__path__[0]
+if os.path.exists(os.path.join(torch_dir, "include", "ATen", "CUDAGeneratorImpl.h")):
+    generator_flag = ["-DOLD_GENERATOR_PATH"]
+
 if "--distributed_adam" in sys.argv:
     sys.argv.remove("--distributed_adam")
     raise_if_cuda_home_none("--distributed_adam")
@@ -206,9 +213,10 @@ if "--cuda_ext" in sys.argv:
                 "csrc/multi_tensor_novograd.cu",
                 "csrc/multi_tensor_lamb.cu",
                 "csrc/multi_tensor_lamb_mp.cu",
+                "csrc/multi_tensor_lans.cu"
             ],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"] + version_dependent_macros + generator_flag,
                 "nvcc": append_nvcc_threads(
                     [
                         "-lineinfo",
@@ -217,6 +225,7 @@ if "--cuda_ext" in sys.argv:
                         "--use_fast_math",
                     ]
                     + version_dependent_macros
+                    + generator_flag
                 ),
             },
         )
@@ -458,13 +467,6 @@ if "--deprecated_fused_lamb" in sys.argv:
             },
         )
     )
-
-# Check, if ATen/CUDAGeneratorImpl.h is found, otherwise use ATen/cuda/CUDAGeneratorImpl.h
-# See https://github.com/pytorch/pytorch/pull/70650
-generator_flag = []
-torch_dir = torch.__path__[0]
-if os.path.exists(os.path.join(torch_dir, "include", "ATen", "CUDAGeneratorImpl.h")):
-    generator_flag = ["-DOLD_GENERATOR_PATH"]
 
 if "--fast_layer_norm" in sys.argv:
     sys.argv.remove("--fast_layer_norm")

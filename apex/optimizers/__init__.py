@@ -4,3 +4,4 @@ from .fused_novograd import FusedNovoGrad
 from .fused_lamb import FusedLAMB
 from .fused_adagrad import FusedAdagrad
 from .fused_mixed_precision_lamb import FusedMixedPrecisionLamb
+from .fused_lans import FusedLANS
