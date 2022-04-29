@@ -45,7 +45,7 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
         forward_only: bool,
         fwd_bwd_func: FwdStepFunc,
         pipeline_model_parallel_world_size: Optional[int],
-        vriatual_pipeline_model_parallel_size: Optional[int],
+        virtual_pipeline_model_parallel_size: Optional[int],
     ) -> None:
         for dtype, deallocate_pipeline_outputs in itertools.product(
             [torch.float32] + _get_autocast_dtypes(), (True, False),
