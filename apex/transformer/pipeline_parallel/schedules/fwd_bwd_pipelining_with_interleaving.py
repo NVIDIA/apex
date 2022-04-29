@@ -1,4 +1,5 @@
 from typing import List, Union, Optional, Sequence
+import warnings
 
 import torch
 
@@ -69,6 +70,12 @@ def _forward_backward_pipelining_with_interleaving(
     """
     if not isinstance(model, list):
         raise RuntimeError("`model` must be a list of `nn.Module`'s'")
+
+    if deallocate_pipeline_outputs:
+        warnings.warn(
+            "`deallocate_pipeline_outputs` is experimental and subject to change. "
+            "This option is not recommended."
+        )
 
     num_model_chunks: int = len(model)
     input_tensors: List[List[Union[None, torch.Tensor]]] = [

@@ -1,4 +1,5 @@
 from typing import Union, List, Optional, Sequence
+import warnings
 
 import torch
 
@@ -195,6 +196,12 @@ def forward_backward_pipelining_without_interleaving(
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
     """
     # timers = get_timers()
+
+    if deallocate_pipeline_outputs:
+        warnings.warn(
+            "`deallocate_pipeline_outputs` is experimental and subject to change. "
+            "This option is not recommended."
+        )
 
     model: List[torch.nn.Module] = listify_model(model)
     if len(model) != 1:
