@@ -24,7 +24,7 @@ from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interl
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
     forward_backward_pipelining_without_interleaving,
 )
-from apex.transformer.testing.distributed_test_base import DistributedTestBase
+from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 from apex.transformer.testing import commons as testing_utils
 
 logging.getLogger("apex").setLevel(logging.WARNING)
@@ -54,7 +54,7 @@ def get_target_loss(hidden_size: int, microbatch_size: int, parallel_model_world
     return hidden_size * hidden_size * torch.sum(data).item() * microbatch_size / layers_per_rank
 
 
-class PipelineParallelForwardBackwardTest(DistributedTestBase):
+class PipelineParallelForwardBackwardTest(NcclDistributedTestBase):
 
     GLOBAL_BATCH_SIZE = 16
     MICRO_BATCH_SIZE = 2

@@ -9,7 +9,7 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import layers
 from apex.transformer.testing.commons import set_random_seed
-from apex.transformer.testing.distributed_test_base import DistributedTestBase
+from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 
@@ -20,7 +20,7 @@ logging.getLogger("apex").setLevel(logging.WARNING)
 torch.backends.cuda.matmul.allow_tf32 = False
 
 
-class TensorParallelLayerTest(DistributedTestBase):
+class TensorParallelLayerTest(NcclDistributedTestBase):
 
     BATCH_SIZE: int = 17
     SEQUENCE_LENGTH: int = 23

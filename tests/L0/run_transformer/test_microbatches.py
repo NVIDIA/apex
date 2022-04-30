@@ -13,12 +13,12 @@ from apex.transformer.pipeline_parallel.utils import (
     get_current_global_batch_size,
     update_num_microbatches,
 )
-from apex.transformer.testing.distributed_test_base import DistributedTestBase
+from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 
 
-class MicrobatchCalculatorTest(DistributedTestBase):
+class MicrobatchCalculatorTest(NcclDistributedTestBase):
 
     GLOBAL_BATCH_SIZE: int = 1024
     MICRO_BATCH_SIZE: int = 1

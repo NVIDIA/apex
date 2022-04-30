@@ -7,12 +7,12 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import mappings
-from apex.transformer.testing.distributed_test_base import DistributedTestBase
+from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 
 
-class MappingTest(DistributedTestBase):
+class MappingTest(NcclDistributedTestBase):
     def test_reduce(self):
         for tensor_model_paralell_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_paralell_world_size > 0:

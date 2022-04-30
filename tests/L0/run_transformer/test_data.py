@@ -7,12 +7,12 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import data as data_utils
-from apex.transformer.testing.distributed_test_base import DistributedTestBase
+from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 
 logging.getLogger("torch").setLevel(logging.WARNING)
 
 
-class BroadcastDataTest(DistributedTestBase):
+class BroadcastDataTest(NcclDistributedTestBase):
     def test_broadcast_data(self):
         tensor_model_parallel_world_size: int = self.world_size // (
             1 + self.world_size > 1
