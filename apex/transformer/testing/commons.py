@@ -117,6 +117,10 @@ def initialize_distributed(backend="nccl"):
     # parser.add_argument('--local_rank', type=int, default=None,
     #                    help='local rank passed from distributed launcher')
     # args = parser.parse_args()
+    if backend not in ("nccl", "ucc"):
+        raise RuntimeError(f"Currently only nccl & ucc are supported but {backend}")
+    if backend == "ucc":
+        import torch_ucc  # NOQA
     args = global_vars.get_args()
     local_rank = args.local_rank
 
