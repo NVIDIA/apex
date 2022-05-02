@@ -77,7 +77,10 @@ class NcclDistributedTestBase(DistributedTestBase):
     DISTRIBUTED_BACKEND = "nccl"
 
 
-@unittest.skipUnless(HAS_TORCH_UCC, "Requires torch_ucc")
+@unittest.skipUnless(
+    HAS_TORCH_UCC,
+    "Requires [`torch_ucc`](https://github.com/facebookresearch/torch_ucc)",
+)
 class UccDistributedTestBase(DistributedTestBase):
 
     DISTRIBUTED_BACKEND = "ucc"
@@ -86,7 +89,7 @@ class UccDistributedTestBase(DistributedTestBase):
         self.master_addr = "localhost"
         os.environ["MASTER_ADDR"] = "localhost"
         self._has_master_port = "MASTER_PORT" in os.environ
-        if self._has_master_port in os.environ:
+        if self._has_master_port:
             self.master_port = os.environ["MASTER_PORT"]
         else:
             try:
