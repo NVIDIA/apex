@@ -25,6 +25,7 @@ from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_int
     forward_backward_pipelining_without_interleaving,
 )
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 from apex.transformer.testing import commons as testing_utils
 
 logging.getLogger("apex").setLevel(logging.WARNING)
@@ -54,11 +55,16 @@ def get_target_loss(hidden_size: int, microbatch_size: int, parallel_model_world
     return hidden_size * hidden_size * torch.sum(data).item() * microbatch_size / layers_per_rank
 
 
-class PipelineParallelForwardBackwardTest(NcclDistributedTestBase):
+class PipelineParallelForwardBackwardTestBase:
 
     GLOBAL_BATCH_SIZE = 16
     MICRO_BATCH_SIZE = 2
     HIDDEN_SIZE = 32
+
+    deallocate_options = (True, False)
+    # If :obj:`None`, (torch.float32, torch.float16, torch.bfloat16) are dtype options on Ampere.
+    # You can limit the options by overriding the following `dtypes`.
+    dtypes = None
 
     @property
     def world_size(self) -> int:
@@ -72,8 +78,9 @@ class PipelineParallelForwardBackwardTest(NcclDistributedTestBase):
         virtual_pipeline_model_parallel_size: Optional[int],
         async_comm: bool = False,
     ) -> None:
+        dtype_options = self.dtypes or [torch.float32] + _get_autocast_dtypes()
         for dtype, deallocate_pipeline_outputs in itertools.product(
-            [torch.float32] + _get_autocast_dtypes(), (True, False),
+            dtype_options, self.deallocate_options,
         ):
             grad_scaler = (
                 torch.cuda.amp.GradScaler(init_scale=4.0)
@@ -96,16 +103,16 @@ class PipelineParallelForwardBackwardTest(NcclDistributedTestBase):
             pp_utils._reconfigure_microbatch_calculator(
                 rank=parallel_state.get_tensor_model_parallel_rank(),
                 rampup_batch_size=None,
-                global_batch_size=PipelineParallelForwardBackwardTest.GLOBAL_BATCH_SIZE,
-                micro_batch_size=PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE,
+                global_batch_size=self.GLOBAL_BATCH_SIZE,
+                micro_batch_size=self.MICRO_BATCH_SIZE,
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
             global_batch_shape = (
-                PipelineParallelForwardBackwardTest.GLOBAL_BATCH_SIZE
+                self.GLOBAL_BATCH_SIZE
                 // parallel_state.get_data_parallel_world_size(),
-                PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
-                PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
+                self.HIDDEN_SIZE,
+                self.HIDDEN_SIZE,
             )
 
             batch =(((self.rank + 1) * torch.ones(global_batch_shape)).cuda(), )
@@ -114,7 +121,7 @@ class PipelineParallelForwardBackwardTest(NcclDistributedTestBase):
                 testing_utils.model_provider_func,
                 wrap_with_ddp=True,
                 virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
-                hidden_size=PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
+                hidden_size=self.HIDDEN_SIZE,
             )
 
             for model_module in model:
@@ -132,9 +139,9 @@ class PipelineParallelForwardBackwardTest(NcclDistributedTestBase):
                 forward_only=forward_only,
                 # `tensor_shape` is the shape of micro batch.
                 tensor_shape=(
-                    PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE,
-                    PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
-                    PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
+                    self.MICRO_BATCH_SIZE,
+                    self.HIDDEN_SIZE,
+                    self.HIDDEN_SIZE,
                 ),
                 dtype=dtype,
                 async_comm=async_comm,
@@ -195,6 +202,19 @@ class PipelineParallelForwardBackwardTest(NcclDistributedTestBase):
         self._forward_backward_test_impl(
             True, _forward_backward_pipelining_with_interleaving, None, None
         )
+
+
+class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineParallelForwardBackwardTestBase):
+
+    pass
+
+
+# TODO(mkozuki): Fix pipeline parallel w/o interleaving.
+# Currently `test_pipelining` and `test_pipelining_inference` are failing.
+class UccPipelineParallelForwardBackwardTest(UccDistributedTestBase, PipelineParallelForwardBackwardTestBase):
+
+    deallocate_options = (False,)
+    dtypes = (torch.float32,)
 
 
 if __name__ == "__main__":
