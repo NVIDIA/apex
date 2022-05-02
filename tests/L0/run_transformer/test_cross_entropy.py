@@ -12,6 +12,7 @@ from apex.transformer import tensor_parallel
 from apex.transformer.tensor_parallel import cross_entropy
 from apex.transformer.testing.commons import set_random_seed, IdentityLayer
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 
@@ -54,7 +55,7 @@ def tensor_sharded_cross_entropy(
     return loss, identity.weight.grad
 
 
-class VocabParallelCrossEntropy(NcclDistributedTestBase):
+class VocabParallelCrossEntropyTestBase:
     def test_cross_entropy(self):
         batch_size, sequence_length, vocab_size_per_partition = 13, 17, 11
         logits_scale = 1000.0
@@ -83,6 +84,10 @@ class VocabParallelCrossEntropy(NcclDistributedTestBase):
                 torch.testing.assert_close(grad_torch, grad_tensor_parallel)
 
                 parallel_state.destroy_model_parallel()
+
+
+class NcclVocabParallelCrossEntropyTest(VocabParallelCrossEntropyTestBase, NcclDistributedTestBase): pass
+class UccVocabParallelCrossEntropyTest(VocabParallelCrossEntropyTestBase, UccDistributedTestBase): pass
 
 
 if __name__ == "__main__":
