@@ -70,6 +70,7 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
         fwd_bwd_func: FwdStepFunc,
         pipeline_model_parallel_world_size: Optional[int],
         virtual_pipeline_model_parallel_size: Optional[int],
+        async_comm: bool = False,
     ) -> None:
         for dtype, deallocate_pipeline_outputs in itertools.product(
             [torch.float32] + _get_autocast_dtypes(), (True, False),
@@ -136,6 +137,7 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                     PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
                 ),
                 dtype=dtype,
+                async_comm=async_comm,
                 grad_scaler=grad_scaler,
                 deallocate_pipeline_output=deallocate_pipeline_outputs,
             )
@@ -167,6 +169,11 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
     def test_pipelining(self):
         self._forward_backward_test_impl(
             False, forward_backward_pipelining_without_interleaving, None, None
+        )
+
+    def test_pipelining_async(self):
+        self._forward_backward_test_impl(
+            False, forward_backward_pipelining_without_interleaving, None, None, True
         )
 
     def test_pipelining_inference(self):
