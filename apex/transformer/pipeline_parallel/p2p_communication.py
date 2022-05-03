@@ -39,7 +39,7 @@ class FutureTensor(object):
             # To protect against race condition when using batch_isend_irecv().
             torch.cuda.synchronize()
             if isinstance(res, torch.Tensor):
-                self.tensor = tensor
+                self.tensor = res
             self.waitfunc = None
         return self.tensor
 
@@ -235,9 +235,14 @@ def _communicate(
             tensor_recv_next_waitfunc = gather_recv_next_wait
     if async_comm:
         if tensor_recv_prev is not None:
-            tensor_recv_prev = FutureTensor(tensor_recv_prev, tensor_recv_prev_waitfunc)
+            future_tensor_recv_prev = FutureTensor(tensor_recv_prev, tensor_recv_prev_waitfunc)
+        else:
+            future_tensor_recv_prev = None
         if tensor_recv_next is not None:
-            tensor_recv_next = FutureTensor(tensor_recv_next, tensor_recv_next_waitfunc)
+            future_tensor_recv_next = FutureTensor(tensor_recv_next, tensor_recv_next_waitfunc)
+        else:
+            future_tensor_recv_next = None
+        return future_tensor_recv_prev, future_tensor_recv_next
         
     return tensor_recv_prev, tensor_recv_next
 
