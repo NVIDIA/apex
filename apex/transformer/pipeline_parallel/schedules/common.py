@@ -6,6 +6,7 @@ from torch.autograd.variable import Variable
 from apex.normalization.fused_layer_norm import FusedLayerNorm
 from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
+from apex.transformer.pipeline_parallel.p2p_communication import FutureTensor
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import unwrap_model
@@ -288,6 +289,8 @@ def forward_step(
     if unwrap_output_tensor:
         input_tensor = [input_tensor]
 
+    input_tensor = [inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor]
+
     unwrapped_model.set_input_tensor(input_tensor)
     with torch.cuda.amp.autocast(
         enabled=not disable_autocast and dtype in (torch.half, torch.bfloat16),
@@ -349,14 +352,22 @@ def backward_step(
     unwrap_input_tensor_grad = not isinstance(input_tensor, list)
     if unwrap_input_tensor_grad:
         input_tensor = [input_tensor]
+
+    input_tensor = [inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor]
+
     for x in input_tensor:
         if x is not None:
             x.retain_grad()
 
     if not isinstance(output_tensor, list):
         output_tensor = [output_tensor]
+
+    output_tensor = [out.get() if isinstance(out, FutureTensor) else out for out in output_tensor]
+
     if not isinstance(output_tensor_grad, list):
         output_tensor_grad = [output_tensor_grad]
+
+    output_tensor_grad = [ogr.get() if isinstance(ogr, FutureTensor) else ogr for ogr in output_tensor_grad]
 
     # Backward pass.
     if grad_scaler is not None and output_tensor_grad[0] is None:
