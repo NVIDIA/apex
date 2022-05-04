@@ -92,6 +92,7 @@ def loss_func(loss_mask, output_tensor):
 
     # Reduce loss for logging.
     averaged_loss = average_losses_across_data_parallel_group([loss])
+
     return loss, {"lm loss": averaged_loss[0]}
 
 
@@ -144,12 +145,13 @@ if __name__ == "__main__":
         if init:
             init = False
             global_vars.set_global_variables()
-            args = global_vars.get_args()
+
             fancy_data = download_fancy_data()
+            args = global_vars.get_args()
             effective_length = fancy_data.size(0) // args.seq_length
             effective_length = fancy_data.size(0) - args.seq_length
 
-            initialize_distributed()
+            initialize_distributed("nccl")
             world_size = torch.distributed.get_world_size()
 
             failure = None
@@ -185,7 +187,7 @@ if __name__ == "__main__":
         assert isinstance(model, list), model
         _param_groups = _get_params_for_weight_decay_optimization(model)
         optim = torch.optim.Adam(_param_groups)
-        runtime = train(model, optim, args.pipeline_model_parallel_size, async_comm)
+        runtime = train(model, optim, args.pipeline_model_parallel_size)
 
         parallel_state.destroy_model_parallel()
     torch.distributed.barrier()

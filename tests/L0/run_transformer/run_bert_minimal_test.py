@@ -3,6 +3,7 @@ import torch
 
 from apex.transformer import tensor_parallel
 from apex.transformer import parallel_state
+from apex.transformer.log_util import set_logging_level
 from apex.transformer.tensor_parallel import vocab_parallel_cross_entropy
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import (
@@ -27,6 +28,7 @@ class DebugWarning(Warning):
     pass
 
 
+set_logging_level("WARNING")
 mode = None
 MANUAL_SEED = 42
 inds = None
@@ -154,7 +156,7 @@ if __name__ == "__main__":
     effective_length = fancy_data.size(0) // global_vars.get_args().seq_length
     effective_length = fancy_data.size(0) - global_vars.get_args().seq_length
 
-    initialize_distributed()
+    initialize_distributed("nccl")
     world_size = torch.distributed.get_world_size()
     failure = None
     init = True

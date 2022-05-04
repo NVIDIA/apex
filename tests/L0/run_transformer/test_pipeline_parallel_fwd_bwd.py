@@ -40,7 +40,7 @@ def init_weights(m):
         m.bias.fill_(1.0)
 
 
-def get_target_loss(hidden_size: int, microbatch_size: int, parallel_model_world_size: int, world_size: int) -> float:  
+def get_target_loss(hidden_size: int, microbatch_size: int, parallel_model_world_size: int, world_size: int) -> float:
     layers_per_rank = world_size // parallel_model_world_size
     data = torch.arange(start = 0, end = layers_per_rank, dtype = torch.int) + 1
 
@@ -119,7 +119,8 @@ class PipelineParallelForwardBackwardTestBase:
 
             model = build_model(
                 testing_utils.model_provider_func,
-                wrap_with_ddp=True,
+                # Use DDP only when it's better to have
+                wrap_with_ddp=data_parallel_size > 1,
                 virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
                 hidden_size=self.HIDDEN_SIZE,
             )
@@ -173,7 +174,7 @@ class PipelineParallelForwardBackwardTestBase:
     def test_no_pipelining_inference(self):
         self._forward_backward_test_impl(True, forward_backward_no_pipelining, 1, None)
 
-    def test_pipelining_default(self):
+    def test_pipelining_without_interleaving(self):
         self._forward_backward_test_impl(
             False, forward_backward_pipelining_without_interleaving, None, None
         )
@@ -183,7 +184,7 @@ class PipelineParallelForwardBackwardTestBase:
             False, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
         )
 
-    def test_pipelining_inference(self):
+    def test_pipelining_without_interleaving_inference(self):
         self._forward_backward_test_impl(
             True, forward_backward_pipelining_without_interleaving, None, None
         )
@@ -204,13 +205,22 @@ class PipelineParallelForwardBackwardTestBase:
         )
 
 
-class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineParallelForwardBackwardTestBase):
-
-    pass
+class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineParallelForwardBackwardTestBase): pass
 
 
-# TODO(mkozuki): Fix pipeline parallel w/o interleaving.
-# Currently `test_pipelining` and `test_pipelining_inference` are failing.
+# TODO(mkozuki): Fix pipeline parallel w/o interleaving with UCX_TLS other than tcp,cuda_copy & with redundant DDP.
+# Currently, there seems to be some gotchas in the combination of torch_ucc & DDP.
+# [P2P Ops Involved in Pipeline Model Parallel forward/backward]
+# **forward_backward_pipelining_without_interleaving**
+# - send_forward  / recv_forward
+# - send_backward / recv_backward
+# - send_forward_recv_backward
+# - send_backward_recv_forward
+# **forward_backward_pipelining_with_interleaving**
+# - recv_backward / recv_forward
+# - send_forward_backward_recv_forward_backward
+# - send_forward_recv_forward
+# - send_backward_recv_backward
 class UccPipelineParallelForwardBackwardTest(UccDistributedTestBase, PipelineParallelForwardBackwardTestBase):
 
     deallocate_options = (False,)

@@ -101,7 +101,7 @@ def send_forward(
 ) -> None:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
-    for (output_tensor, tensor_shape) in zip(output_tensors, tensor_shapes):
+    for output_tensor, tensor_shape in zip(output_tensors, tensor_shapes):
         if tensor_shape is None:
             continue
         p2p_communication.send_forward(output_tensor, tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm)
@@ -116,7 +116,7 @@ def send_backward(
 ) -> None:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
-    for (input_tensor_grad, tensor_shape) in zip(input_tensor_grads, tensor_shapes):
+    for input_tensor_grad, tensor_shape in zip(input_tensor_grads, tensor_shapes):
         if tensor_shape is None:
             continue
         p2p_communication.send_backward(input_tensor_grad, tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm)
@@ -132,7 +132,7 @@ def send_forward_recv_backward(
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
     output_tensor_grads = []
-    for (output_tensor, tensor_shape) in zip(output_tensors, tensor_shapes):
+    for output_tensor, tensor_shape in zip(output_tensors, tensor_shapes):
         if tensor_shape is None:
             output_tensor_grads.append(None)
             continue
@@ -151,7 +151,7 @@ def send_backward_recv_forward(
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
     input_tensors = []
-    for (input_tensor_grad, tensor_shape) in zip(input_tensor_grads, tensor_shapes):
+    for input_tensor_grad, tensor_shape in zip(input_tensor_grads, tensor_shapes):
         if tensor_shape is None:
             input_tensors.append(None)
             continue
