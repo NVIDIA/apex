@@ -27,7 +27,7 @@ from apex.transformer.pipeline_parallel._timers import _Timers
 
 
 
-class FutureTensor():
+class FutureTensor:
     def __init__(self, tensor: torch.Tensor, waitfunc):
         self.tensor = tensor
         self.waitfunc = waitfunc
