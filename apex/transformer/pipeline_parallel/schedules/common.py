@@ -20,7 +20,7 @@ from apex.transformer.log_util import get_transformer_logger
 _logger = get_transformer_logger(__name__)
 
 
-Batch = Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor, ...]]
+Batch = Union[torch.Tensor, FutureTensor, List[Union[torch.Tensor, FutureTensor]], Tuple[Union[torch.Tensor, FutureTensor], ...]]
 LossFunc = Callable[[torch.Tensor], torch.Tensor]
 FwdStepFunc = Callable[
     [Optional[Batch], torch.nn.Module], Tuple[torch.Tensor, LossFunc]

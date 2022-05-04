@@ -6,6 +6,7 @@ import torch
 from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
 from apex.transformer.pipeline_parallel import p2p_communication
+from apex.transformer.pipeline_parallel.p2p_communication import FutureTensor
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -66,7 +67,7 @@ def recv_forward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
-) -> List[Union[None, torch.Tensor]]:
+) -> List[Union[None, torch.Tensor, FutureTensor]]:
     input_tensors = []
     for tensor_shape in tensor_shapes:
         if tensor_shape is None:
@@ -81,7 +82,7 @@ def recv_backward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
-) -> List[Union[None, torch.Tensor]]:
+) -> List[Union[None, torch.Tensor, FutureTensor]]:
     output_tensor_grads = []
     for tensor_shape in tensor_shapes:
         if tensor_shape is None:
@@ -127,7 +128,7 @@ def send_forward_recv_backward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
-) -> List[Union[None, torch.Tensor]]:
+) -> List[Union[None, torch.Tensor, FutureTensor]]:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
     output_tensor_grads = []
@@ -146,7 +147,7 @@ def send_backward_recv_forward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
-) -> List[Union[None, torch.Tensor]]:
+) -> List[Union[None, torch.Tensor, FutureTensor]]:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
     input_tensors = []
@@ -274,7 +275,7 @@ def forward_backward_pipelining_without_interleaving(
     # receive this tensor here.
     if num_microbatches_remaining > 0:
         _logger.debug("recv_forward before steady state start")
-        input_tensor: List[Union[None, torch.Tensor]] = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
+        input_tensor: List[Union[None, torch.Tensor, FutureTensor]] = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
 
     ###################################################################################################################
     # Run 1F1B in steady state.

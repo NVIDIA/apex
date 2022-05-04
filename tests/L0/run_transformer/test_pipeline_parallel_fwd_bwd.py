@@ -173,12 +173,17 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
     def test_pipelining_async(self):
         self._forward_backward_test_impl(
-            False, forward_backward_pipelining_without_interleaving, None, None, True
+            False, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
         )
 
     def test_pipelining_inference(self):
         self._forward_backward_test_impl(
             True, forward_backward_pipelining_without_interleaving, None, None
+        )
+
+    def test_pipelining_inference_async(self):
+        self._forward_backward_test_impl(
+            True, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
         )
 
     def test_pipelining_with_interleaving(self):

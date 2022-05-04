@@ -27,7 +27,7 @@ from apex.transformer.pipeline_parallel._timers import _Timers
 
 
 
-class FutureTensor(object):
+class FutureTensor():
     def __init__(self, tensor: torch.Tensor, waitfunc):
         self.tensor = tensor
         self.waitfunc = waitfunc
@@ -109,7 +109,7 @@ def _communicate(
     params_dtype: Optional[torch.dtype] = None,
     fp32_residual_connection: bool = False,
     async_comm: bool = False,
-) -> Tuple[Union[torch.Tensor, None], Union[torch.Tensor, None]]:
+) -> Tuple[Union[torch.Tensor, FutureTensor, None], Union[torch.Tensor, FutureTensor, None]]:
     """Base function for communication of tensors between stages.
 
     dtype logic: If none of ``dtype_``, ``params_dtype``, ``fp32_residual_connection`` is specified,
@@ -234,14 +234,12 @@ def _communicate(
             tensor_recv_prev_waitfunc = gather_recv_prev_wait
             tensor_recv_next_waitfunc = gather_recv_next_wait
     if async_comm:
+        future_tensor_recv_prev = None
+        future_tensor_recv_next = None
         if tensor_recv_prev is not None:
             future_tensor_recv_prev = FutureTensor(tensor_recv_prev, tensor_recv_prev_waitfunc)
-        else:
-            future_tensor_recv_prev = None
         if tensor_recv_next is not None:
             future_tensor_recv_next = FutureTensor(tensor_recv_next, tensor_recv_next_waitfunc)
-        else:
-            future_tensor_recv_next = None
         return future_tensor_recv_prev, future_tensor_recv_next
         
     return tensor_recv_prev, tensor_recv_next
@@ -254,7 +252,7 @@ def recv_forward(
         dtype: Optional[torch.dtype] = None,
         timers: _Timers = None,
         async_comm: bool = False,
-) -> torch.Tensor:
+) -> Union[torch.Tensor, FutureTensor, None]:
     """Receive tensor from previous rank in pipeline (forward receive)."""
     if parallel_state.is_pipeline_first_stage():
         return None
@@ -281,7 +279,7 @@ def recv_backward(
         dtype: Optional[torch.dtype] = None,
         timers: _Timers = None,
         async_comm: bool = False,
-) -> torch.Tensor:
+) -> Union[torch.Tensor, FutureTensor, None]:
     """Receive tensor from next rank in pipeline (backward receive)."""
     if parallel_state.is_pipeline_last_stage():
         return None
@@ -363,7 +361,7 @@ def send_forward_recv_backward(
         dtype: Optional[torch.dtype] = None,
         timers: _Timers = None,
         async_comm: bool = False,
-) -> Union[None, torch.Tensor]:
+) -> Union[torch.Tensor, FutureTensor, None]:
     """Batched send and recv with next rank in pipeline."""
     if parallel_state.is_pipeline_last_stage():
         return None
@@ -390,7 +388,7 @@ def send_backward_recv_forward(
         dtype: Optional[torch.dtype] = None,
         timers: _Timers = None,
         async_comm: bool = False,
-) -> Union[None, torch.Tensor]:
+) -> Union[torch.Tensor, FutureTensor, None]:
     """Batched send and recv with previous rank in pipeline."""
     if parallel_state.is_pipeline_first_stage():
         return None
@@ -418,7 +416,7 @@ def send_forward_recv_forward(
         dtype: Optional[torch.dtype] = None,
         timers: _Timers = None,
         async_comm: bool = False,
-) -> torch.Tensor:
+) -> Union[torch.Tensor, FutureTensor]:
     """Batched recv from previous rank and send to next rank in pipeline."""
     # if timers is not None:
     #     timers("forward-send-forward-recv").start()
@@ -444,7 +442,7 @@ def send_backward_recv_backward(
         dtype: Optional[torch.dtype] = None,
         timers: _Timers = None,
         async_comm: bool = False,
-) -> torch.Tensor:
+) -> Union[torch.Tensor, FutureTensor]:
     """Batched recv from next rank and send to previous rank in pipeline."""
     # if timers is not None:
     #     timers("backward-send-backward-recv").start()
@@ -472,7 +470,7 @@ def send_forward_backward_recv_forward_backward(
         dtype: Optional[torch.dtype] = None,
         timers: _Timers = None,
         async_comm: bool = False,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[Union[torch.Tensor, FutureTensor], Union[torch.Tensor, FutureTensor]]:
     """Batched send and recv with previous and next ranks in pipeline."""
     # if timers is not None:
     #     timers("forward-backward-send-forward-backward-recv").start()
