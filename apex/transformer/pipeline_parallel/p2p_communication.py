@@ -35,9 +35,6 @@ class FutureTensor:
     def get(self):
         if self.waitfunc is not None:
             res = self.waitfunc()
-            # TODO: this is currently blindly pattern-matched from the previous "non-async" implementation
-            # To protect against race condition when using batch_isend_irecv().
-            # torch.cuda.synchronize()
             if isinstance(res, torch.Tensor):
                 self.tensor = res
             self.waitfunc = None
@@ -203,7 +200,8 @@ def _communicate(
         tensor_recv_prev_waitfunc = None if tensor_recv_prev_req is None else tensor_recv_prev_req.wait
         tensor_recv_next_waitfunc = None if tensor_recv_next_req is None else tensor_recv_next_req.wait
         # TODO: investigate whether this is necessary for correctness (ref: https://github.com/pytorch/pytorch/issues/38642)
-        torch.cuda.synchronize()
+        # see also: sync added for async_comm callbacks below in gather_recv_prev_wait and gather_recv_next_wait
+        # torch.cuda.synchronize()
     else:
         # To protect against race condition when using batch_isend_irecv().
         torch.cuda.synchronize()
@@ -227,6 +225,9 @@ def _communicate(
         else:
             def gather_recv_prev_wait():
                 tensor_recv_prev_req.wait()
+                # From @Deepak's PR https://github.com/NVIDIA/Megatron-LM/commit/27fc468964064eeb33b703c9a0b2af938d80dd14
+                # A sync seems to be needed before gather otherwise losses jump around e.g., in run_gpt_minimal_test
+                torch.cuda.synchronize()
                 return (
                     gather_split_1d_tensor(tensor_recv_prev)
                     .view(tensor_shape)
@@ -234,6 +235,7 @@ def _communicate(
                 )
             def gather_recv_next_wait():
                 tensor_recv_next_req.wait()
+                torch.cuda.synchronize()
                 return (
                     gather_split_1d_tensor(tensor_recv_next)
                     .view(tensor_shape)
