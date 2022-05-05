@@ -83,7 +83,8 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                 PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
                 PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
             )
-            batch = (torch.randn(global_batch_shape).cuda(),)
+            nums = torch.cuda.current_device() + 1
+            batch =((nums * torch.ones(global_batch_shape)).cuda(), )
 
             model = build_model(
                 testing_utils.model_provider_func,
@@ -96,7 +97,7 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
             pp_utils.update_num_microbatches(0)
 
-            fwd_bwd_func(
+            loss = fwd_bwd_func(
                 testing_utils.fwd_step_func,
                 batch,
                 model,
@@ -111,6 +112,17 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                 grad_scaler=grad_scaler,
                 deallocate_pipeline_output=deallocate_pipeline_outputs,
             )
+
+            h_size = PipelineParallelForwardBackwardTest.HIDDEN_SIZE
+            m_size = PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE
+            target_loss = 0
+            for r in range(self.world_size):
+                target_loss = target_loss + h_size*(r + 1) + 1
+            target_loss = target_loss * (h_size ** 2) * m_size / self.world_size
+
+            for loss_item in loss:
+                x = loss_item['avg']
+                self.assertTrue(torch.allclose(x, target_loss*torch.ones_like(x)))
 
             if not forward_only:
                 for m in model:
