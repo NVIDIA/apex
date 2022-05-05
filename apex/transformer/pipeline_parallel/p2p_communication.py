@@ -197,11 +197,20 @@ def _communicate(
     tensor_send_prev_req, tensor_recv_prev_req, tensor_send_next_req, tensor_recv_next_req = _run_p2pops(tensor_send_prev, tensor_send_next, tensor_recv_prev, tensor_recv_next, async_comm=async_comm)
 
     if async_comm:
-        tensor_recv_prev_waitfunc = None if tensor_recv_prev_req is None else tensor_recv_prev_req.wait
-        tensor_recv_next_waitfunc = None if tensor_recv_next_req is None else tensor_recv_next_req.wait
+        tensor_recv_prev_waitfunc = None
+        tensor_recv_next_waitfunc = None
         # TODO: investigate whether this is necessary for correctness (ref: https://github.com/pytorch/pytorch/issues/38642)
         # see also: sync added for async_comm callbacks below in gather_recv_prev_wait and gather_recv_next_wait
-        # torch.cuda.synchronize()
+        if tensor_recv_prev_req is not None:
+            def tensor_recv_prev_wait():
+                tensor_recv_prev_req.wait()
+                torch.cuda.synchronize()
+            tensor_recv_prev_waitfunc = tensor_recv_prev_wait
+        if tensor_recv_next_req is not None:
+            def tensor_recv_next_wait():
+                tensor_recv_next_req.wait()
+                torch.cuda.synchronize()
+            tensor_recv_next_waitfunc = tensor_recv_next_wait
     else:
         # To protect against race condition when using batch_isend_irecv().
         torch.cuda.synchronize()
