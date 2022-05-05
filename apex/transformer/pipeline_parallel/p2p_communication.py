@@ -37,7 +37,7 @@ class FutureTensor:
             res = self.waitfunc()
             # TODO: this is currently blindly pattern-matched from the previous "non-async" implementation
             # To protect against race condition when using batch_isend_irecv().
-            torch.cuda.synchronize()
+            # torch.cuda.synchronize()
             if isinstance(res, torch.Tensor):
                 self.tensor = res
             self.waitfunc = None
@@ -88,6 +88,12 @@ def _run_p2pops(
             tensor_recv_prev_req = None if tensor_recv_prev is None else reqs.pop(0)
             tensor_send_next_req = None if tensor_send_next is None else reqs.pop(0)
             tensor_recv_next_req = None if tensor_recv_next is None else reqs.pop(0)
+            #for req in reqs:
+            #    req.wait()
+            #if tensor_send_prev_req is not None:
+            #    tensor_send_prev_req.wait()
+            #if tensor_send_next_req is not None:
+            #    tensor_send_next_req.wait()
             return (tensor_send_prev_req, tensor_recv_prev_req, tensor_send_next_req, tensor_recv_next_req)
         else:
             for req in reqs:
@@ -196,6 +202,8 @@ def _communicate(
     if async_comm:
         tensor_recv_prev_waitfunc = None if tensor_recv_prev_req is None else tensor_recv_prev_req.wait
         tensor_recv_next_waitfunc = None if tensor_recv_next_req is None else tensor_recv_next_req.wait
+        # TODO: investigate whether this is necessary for correctness (ref: https://github.com/pytorch/pytorch/issues/38642)
+        torch.cuda.synchronize()
     else:
         # To protect against race condition when using batch_isend_irecv().
         torch.cuda.synchronize()
