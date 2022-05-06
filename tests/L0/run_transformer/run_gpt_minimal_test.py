@@ -138,7 +138,7 @@ def train(model, optim, pipeline_model_parallel_size, async_comm):
 
 if __name__ == "__main__":
     init = True
-    for async_comm in (True, False):
+    for async_comm in (False, True):
         global fancy_data
         global effective_length
 
@@ -166,6 +166,8 @@ if __name__ == "__main__":
             )
             world_size = torch.distributed.get_world_size()
 
+        print(args.tensor_model_parallel_size, "MODEL PARALLEL SIZE")
+
         parallel_state.initialize_model_parallel(
             tensor_model_parallel_size_=args.tensor_model_parallel_size,
             pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
@@ -187,7 +189,7 @@ if __name__ == "__main__":
         runtime = train(model, optim, args.pipeline_model_parallel_size, async_comm)
 
         parallel_state.destroy_model_parallel()
-        torch.distributed.barrier()
-        if torch.distributed.get_rank() == 0:
-            print(TEST_SUCCESS_MESSAGE)
-            print("Average Iteration Time:", runtime)
+    torch.distributed.barrier()
+    if torch.distributed.get_rank() == 0:
+        print(TEST_SUCCESS_MESSAGE)
+        print("Average Iteration Time:", runtime)
