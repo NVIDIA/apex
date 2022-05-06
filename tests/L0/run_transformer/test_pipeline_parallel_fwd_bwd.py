@@ -166,7 +166,7 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
     def test_no_pipelining_inference(self):
         self._forward_backward_test_impl(True, forward_backward_no_pipelining, 1, None)
 
-    def test_pipelining(self):
+    def test_pipelining_default(self):
         self._forward_backward_test_impl(
             False, forward_backward_pipelining_without_interleaving, None, None
         )
