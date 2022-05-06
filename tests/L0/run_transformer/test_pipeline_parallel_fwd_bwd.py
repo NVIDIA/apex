@@ -29,6 +29,20 @@ from apex.transformer.testing import commons as testing_utils
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 
+@torch.no_grad()
+def init_weights(m):
+    rank = torch.distributed.get_rank()
+    if type(m) == torch.nn.Linear:
+        m.weight.fill_(rank + 1.0)
+        m.bias.fill_(1.0)
+
+def get_target_loss(h_size, m_size, world_size):
+    data = torch.arange(world_size) + 1
+    w = torch.arange(world_size) + 1
+    b = torch.ones(world_size)
+    w = h_size * w
+    data = w * data + b
+    return h_size * h_size * torch.sum(data).item() * m_size / world_size
 
 class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
@@ -83,8 +97,8 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                 PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
                 PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
             )
-            nums = torch.cuda.current_device() + 1
-            batch =((nums * torch.ones(global_batch_shape)).cuda(), )
+
+            batch =(((self.rank + 1) * torch.ones(global_batch_shape)).cuda(), )
 
             model = build_model(
                 testing_utils.model_provider_func,
@@ -92,6 +106,10 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                 virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
                 hidden_size=PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
             )
+
+            for model_module in model:
+                model_module.apply(init_weights)
+
             _param_groups = _get_params_for_weight_decay_optimization(model)
             optimizer = torch.optim.Adam(_param_groups, lr=1e-3)
 
@@ -115,14 +133,11 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
             h_size = PipelineParallelForwardBackwardTest.HIDDEN_SIZE
             m_size = PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE
-            target_loss = 0
-            for r in range(self.world_size):
-                target_loss = target_loss + h_size*(r + 1) + 1
-            target_loss = target_loss * (h_size ** 2) * m_size / self.world_size
+            target_loss = get_target_loss(h_size, m_size, self.world_size)
 
             for loss_item in loss:
                 x = loss_item['avg']
-                self.assertTrue(torch.allclose(x, target_loss*torch.ones_like(x)))
+                torch.testing.assert_close(x, target_loss*torch.ones_like(x))
 
             if not forward_only:
                 for m in model:

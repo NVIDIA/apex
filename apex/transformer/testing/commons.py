@@ -38,13 +38,6 @@ class MyLayer(nn.Module):
         self.post_process = post_process
         self.layer = nn.Linear(hidden_size, hidden_size)
 
-        with torch.no_grad():
-            rank = torch.cuda.current_device()
-            weights = torch.ones((hidden_size, hidden_size)) + rank
-            biases = torch.ones((hidden_size))
-            self.layer.weight.copy_(weights)
-            self.layer.bias.copy_(biases)
-
     def forward(self, x):
         return self.layer(x)
 
