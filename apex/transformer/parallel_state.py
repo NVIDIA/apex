@@ -247,6 +247,18 @@ def initialize_model_parallel(
             _POSITION_EMBEDDING_GLOBAL_RANKS = position_embedding_ranks
 
 
+def get_world_info() -> Tuple[int, int, int]:
+    """Returns a tuple of (data, tensor, pipeline, virtual pipeline)-parallel-world_size for logger."""
+    if model_parallel_is_initialized():
+        return (
+            get_data_parallel_world_size(),
+            get_tensor_model_parallel_world_size(),
+            get_pipeline_model_parallel_world_size(),
+            get_virtual_pipeline_model_parallel_world_size(),
+        )
+    return (0, 0, 0, 0)
+
+
 def get_rank_info() -> Tuple[int, int, int]:
     """Returns a tuple of (data, tensor, pipeline, virtual pipeline)-parallel-rank for logger."""
     if model_parallel_is_initialized():
