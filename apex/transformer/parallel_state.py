@@ -256,6 +256,8 @@ def get_world_info() -> Tuple[int, int, int, int]:
             get_pipeline_model_parallel_world_size(),
             get_virtual_pipeline_model_parallel_world_size(),
         )
+    else:
+        print("Warning: model and data parallel groups are not initialized")
     return (0, 0, 0, 0)
 
 
@@ -268,6 +270,8 @@ def get_rank_info() -> Tuple[int, int, int, int]:
             get_pipeline_model_parallel_rank(),
             get_virtual_pipeline_model_parallel_rank(),
         )
+    else:
+        print("Warning: model and data parallel groups are not initialized")
     return (-1, -1, -1, -1)
 
 
