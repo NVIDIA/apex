@@ -268,7 +268,7 @@ def get_rank_info() -> Tuple[int, int, int]:
             get_pipeline_model_parallel_rank(),
             get_virtual_pipeline_model_parallel_rank(),
         )
-    return (0, 0, 0, 0)
+    return (-1, -1, -1, -1)
 
 
 def model_parallel_is_initialized():
