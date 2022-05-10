@@ -172,6 +172,7 @@ if __name__ == "__main__":
         parallel_state.initialize_model_parallel(
             tensor_model_parallel_size_=args.tensor_model_parallel_size,
             pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
+            use_ucc_for_pipeline_parallel=True,
         )
 
         pipeline_model_parallel_size = (
