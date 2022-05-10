@@ -36,13 +36,19 @@ def init_weights(m):
         m.weight.fill_(rank + 1.0)
         m.bias.fill_(1.0)
 
-def get_target_loss(h_size, m_size, world_size):
-    data = torch.arange(world_size) + 1
-    w = torch.arange(world_size) + 1
-    b = torch.ones(world_size)
-    w = h_size * w
-    data = w * data + b
-    return h_size * h_size * torch.sum(data).item() * m_size / world_size
+def get_target_loss(hidden_size: int, microbatch_size: int, parallel_model_world_size: int, world_size: int) -> float:  
+    layers_per_rank = world_size // parallel_model_world_size
+    data = torch.arange(start = 0, end = layers_per_rank, dtype = torch.int) + 1
+    
+    w = torch.arange(world_size, dtype = torch.int) + 1
+    b = torch.ones(world_size, dtype = torch.int)
+    w = hidden_size * w
+
+    for pd in range(0, world_size, layers_per_rank):
+        eid = pd+layers_per_rank
+        data = w[pd:eid] * data + b[pd:eid]
+    
+    return hidden_size * hidden_size * torch.sum(data).item() * microbatch_size / layers_per_rank
 
 class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
@@ -71,12 +77,9 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
             )
             tensor_model_parallel_world_size = 1
             data_parallel_size = 1 + (self.world_size >= 8 and self.world_size % 2 == 0)
-            pipeline_model_parallel_world_size = (
-                self.world_size
-                // (tensor_model_parallel_world_size * data_parallel_size)
-                if pipeline_model_parallel_world_size is None
-                else 1
-            )
+
+            if pipeline_model_parallel_world_size is None:
+                pipeline_model_parallel_world_size =  self.world_size // (tensor_model_parallel_world_size * data_parallel_size)
 
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size,
@@ -131,9 +134,9 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                 deallocate_pipeline_output=deallocate_pipeline_outputs,
             )
 
-            h_size = PipelineParallelForwardBackwardTest.HIDDEN_SIZE
-            m_size = PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE
-            target_loss = get_target_loss(h_size, m_size, self.world_size)
+            hidden_size = PipelineParallelForwardBackwardTest.HIDDEN_SIZE
+            microbatch_size = PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE
+            target_loss = get_target_loss(hidden_size, microbatch_size, pipeline_model_parallel_world_size, self.world_size)
 
             for loss_item in loss:
                 x = loss_item['avg']
