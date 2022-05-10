@@ -77,6 +77,8 @@ class PipelineParallelForwardBackwardTestBase:
         pipeline_model_parallel_world_size: Optional[int],
         virtual_pipeline_model_parallel_size: Optional[int],
         async_comm: bool = False,
+        *,
+        use_ucc_for_pipeline_parallel: bool = False,
     ) -> None:
         dtype_options = self.dtypes or [torch.float32] + _get_autocast_dtypes()
         for dtype, deallocate_pipeline_outputs in itertools.product(
@@ -99,6 +101,7 @@ class PipelineParallelForwardBackwardTestBase:
                 tensor_model_parallel_size_=tensor_model_parallel_world_size,
                 pipeline_model_parallel_size_=pipeline_model_parallel_world_size,
                 virtual_pipeline_model_parallel_size_=virtual_pipeline_model_parallel_size,
+                use_ucc_for_pipeline_parallel=use_ucc_for_pipeline_parallel
             )
             pp_utils._reconfigure_microbatch_calculator(
                 rank=parallel_state.get_tensor_model_parallel_rank(),
@@ -205,7 +208,19 @@ class PipelineParallelForwardBackwardTestBase:
         )
 
 
-class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineParallelForwardBackwardTestBase): pass
+class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineParallelForwardBackwardTestBase):
+
+    def test_pipelining_without_interleaving_ucc_backend(self):
+        self._forward_backward_test_impl(
+            False, forward_backward_pipelining_without_interleaving, None, None,
+            use_ucc_for_pipeline_parallel=True,
+        )
+
+    def test_pipelining_without_interleaving_inference_ucc_backend(self):
+        self._forward_backward_test_impl(
+            True, forward_backward_pipelining_without_interleaving, None, None,
+            use_ucc_for_pipeline_parallel=True,
+        )
 
 
 # TODO(mkozuki): Fix pipeline parallel w/o interleaving with UCX_TLS other than tcp,cuda_copy & with redundant DDP.

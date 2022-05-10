@@ -75,6 +75,8 @@ def initialize_model_parallel(
     pipeline_model_parallel_size_: int = 1,
     virtual_pipeline_model_parallel_size_: Optional[int] = None,
     pipeline_model_parallel_split_rank_: Optional[int] = None,
+    *,
+    use_ucc_for_pipeline_parallel: bool = False,
 ) -> None:
     """
     Initialize model data parallel groups.
@@ -84,6 +86,9 @@ def initialize_model_parallel(
         pipeline_model_parallel_size: number of GPUs used to parallelize model pipeline.
         virtual_pipeline_model_parallel_size: number of virtual stages (interleaved pipeline).
         pipeline_model_parallel_split_rank: for models with both encoder and decoder, rank in pipeline with split point.
+    Keyword Arguments:
+        use_ucc_for_pipeline_parallel: If :obj:`True`, use `torch_ucc` as a backend of process groups used for
+            pipeline model parallel assuming the default backend is nccl.
 
     Let's say we have a total of 16 GPUs denoted by g0 ... g15 and we
     use 2 GPUs to parallelize the model tensor, and 4 GPUs to parallelize
@@ -103,6 +108,8 @@ def initialize_model_parallel(
     """
     # Get world size and rank. Ensure some consistencies.
     assert torch.distributed.is_initialized()
+    if use_ucc_for_pipeline_parallel:
+        check_torch_ucc_availability()
     world_size: int = torch.distributed.get_world_size()
     tensor_model_parallel_size: int = min(tensor_model_parallel_size_, world_size)
     pipeline_model_parallel_size: int = min(pipeline_model_parallel_size_, world_size)
@@ -204,9 +211,10 @@ def initialize_model_parallel(
     assert (
         _POSITION_EMBEDDING_GROUP is None
     ), "position embedding group is already initialized"
+    pp_pg_kwargs = {"backend": "ucc"} if use_ucc_for_pipeline_parallel else {}
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size, num_pipeline_model_parallel_groups)
-        group = torch.distributed.new_group(ranks)
+        group = torch.distributed.new_group(ranks, **pp_pg_kwargs)
         if rank in ranks:
             _PIPELINE_MODEL_PARALLEL_GROUP = group
             _PIPELINE_GLOBAL_RANKS = ranks
@@ -578,3 +586,7 @@ def destroy_model_parallel():
     _MPU_TENSOR_MODEL_PARALLEL_RANK = None
     global _MPU_PIPELINE_MODEL_PARALLEL_RANK
     _MPU_PIPELINE_MODEL_PARALLEL_RANK = None
+
+
+def check_torch_ucc_availability() -> None:
+    import torch_ucc  # NOQA
