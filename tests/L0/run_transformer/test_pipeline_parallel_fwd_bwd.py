@@ -43,9 +43,9 @@ def get_target_loss(hidden_size: int, microbatch_size: int, parallel_model_world
     layers_per_rank = world_size // parallel_model_world_size
     data = torch.arange(start = 0, end = layers_per_rank, dtype = torch.int) + 1
     
-    w = (torch.arange(world_size, dtype = torch.int) + 1)
+    w = (torch.arange(world_size, dtype = torch.int) + 1) / weight_coeff
     b = torch.ones(world_size, dtype = torch.int)
-    w = hidden_size * w / weight_coeff
+    w = hidden_size * w
 
     for pd in range(0, world_size, layers_per_rank):
         eid = pd+layers_per_rank
@@ -83,6 +83,8 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
             if pipeline_model_parallel_world_size is None:
                 pipeline_model_parallel_world_size =  self.world_size // (tensor_model_parallel_world_size * data_parallel_size)
+            else:
+                data_parallel_size = self.world_size // (tensor_model_parallel_world_size * pipeline_model_parallel_world_size)
 
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size,
