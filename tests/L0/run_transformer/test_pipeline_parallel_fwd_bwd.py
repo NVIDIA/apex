@@ -29,20 +29,23 @@ from apex.transformer.testing import commons as testing_utils
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 
+weight_coeff = 1024
+
 @torch.no_grad()
 def init_weights(m):
     rank = torch.distributed.get_rank()
     if type(m) == torch.nn.Linear:
-        m.weight.fill_(rank + 1.0)
+        m.weight.fill_((rank + 1.0) / weight_coeff)
         m.bias.fill_(1.0)
+
 
 def get_target_loss(hidden_size: int, microbatch_size: int, parallel_model_world_size: int, world_size: int) -> float:  
     layers_per_rank = world_size // parallel_model_world_size
     data = torch.arange(start = 0, end = layers_per_rank, dtype = torch.int) + 1
     
-    w = torch.arange(world_size, dtype = torch.int) + 1
+    w = (torch.arange(world_size, dtype = torch.int) + 1)
     b = torch.ones(world_size, dtype = torch.int)
-    w = hidden_size * w
+    w = hidden_size * w / weight_coeff
 
     for pd in range(0, world_size, layers_per_rank):
         eid = pd+layers_per_rank
@@ -50,10 +53,11 @@ def get_target_loss(hidden_size: int, microbatch_size: int, parallel_model_world
     
     return hidden_size * hidden_size * torch.sum(data).item() * microbatch_size / layers_per_rank
 
+
 class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
     GLOBAL_BATCH_SIZE = 16
-    MICRO_BATCH_SIZE = 1
+    MICRO_BATCH_SIZE = 2
     HIDDEN_SIZE = 32
 
     @property
@@ -66,10 +70,9 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
         fwd_bwd_func: FwdStepFunc,
         pipeline_model_parallel_world_size: Optional[int],
         virtual_pipeline_model_parallel_size: Optional[int],
+        dtype: Optional[torch.dtype] = torch.float32,
     ) -> None:
-        for dtype, deallocate_pipeline_outputs in itertools.product(
-            [torch.float32] + _get_autocast_dtypes(), (True, False),
-        ):
+        for deallocate_pipeline_outputs in (True, False):
             grad_scaler = (
                 torch.cuda.amp.GradScaler(init_scale=4.0)
                 if dtype == torch.half
@@ -159,22 +162,22 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
     def test_pipelining(self):
         self._forward_backward_test_impl(
-            False, forward_backward_pipelining_without_interleaving, None, None
+            False, forward_backward_pipelining_without_interleaving, 8, None
         )
 
     def test_pipelining_inference(self):
         self._forward_backward_test_impl(
-            True, forward_backward_pipelining_without_interleaving, None, None
+            True, forward_backward_pipelining_without_interleaving, 8, None
         )
 
     def test_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
-            False, _forward_backward_pipelining_with_interleaving, 2, None
+            False, _forward_backward_pipelining_with_interleaving, 8, None
         )
 
     def test_pipelining_with_interleaving_inference(self):
         self._forward_backward_test_impl(
-            True, _forward_backward_pipelining_with_interleaving, 2, None
+            True, _forward_backward_pipelining_with_interleaving, 8, None
         )
 
 
