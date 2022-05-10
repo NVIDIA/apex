@@ -126,7 +126,7 @@ def fwd_step_func(batch, model):
 
 
 def train(
-    model, optim, virtual_pipeline_model_parallel_size, pipeline_model_parallel_size
+    model, optim, virtual_pipeline_model_parallel_size, pipeline_model_parallel_size, async_comm
 ):
     sequence_len = global_vars.get_args().seq_length
     micro_batch_size = global_vars.get_args().micro_batch_size
@@ -139,7 +139,7 @@ def train(
         batch = generate_fancy_data_labels(sequence_len, batch_size)
         optim.zero_grad()
         forward_backward_func(
-            fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape, #async_comm=True,
+            fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape, async_comm=async_comm,
         )
         optim.step()
 
@@ -159,8 +159,10 @@ if __name__ == "__main__":
     failure = None
     init = True
     try:
-        for virtual_pipeline_model_parallel_size in (None, 2):
+        for virtual_pipeline_model_parallel_size in (2, None):
+            async_comm = virtual_pipeline_model_parallel_size is None
             data_idx = 0
+            ONCE = False
             if init:
                 init = False
                 args = global_vars.get_args()
@@ -207,6 +209,7 @@ if __name__ == "__main__":
                 optim,
                 virtual_pipeline_model_parallel_size,
                 args.pipeline_model_parallel_size,
+                async_comm,
             )
     except Exception as e:
         failure = str(e)
