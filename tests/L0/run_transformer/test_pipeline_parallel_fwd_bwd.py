@@ -1,9 +1,16 @@
 import logging
 import itertools
+import re
 from typing import Optional
 
 import torch
 from torch.testing._internal import common_utils
+try:
+    import torch_ucc
+except ImportError:
+    HAS_TORCH_UCC = False
+else:
+    HAS_TORCH_UCC = True
 
 logging.getLogger("torch").setLevel(logging.WARNING)
 
@@ -212,17 +219,27 @@ class PipelineParallelForwardBackwardTestBase:
 
 class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineParallelForwardBackwardTestBase):
 
-    def test_pipelining_without_interleaving_ucc_for_p2p(self):
+    def _run_hybrid_distributed_backend(self, forward_only: bool) -> None:
         self._forward_backward_test_impl(
-            False, forward_backward_pipelining_without_interleaving, None, None,
+            forward_only, forward_backward_pipelining_without_interleaving, None, None,
             default_backend="nccl", p2p_backend="ucc",
         )
 
+    def _test_hybrid_backends(self, forward_only: bool) -> None:
+        if HAS_TORCH_UCC:
+            self._run_hybrid_distributed_backend(forward_only)
+        else:
+            with self.assertRaisesRegex(
+                ImportError,
+                re.escape("UCC backend requires [torch_ucc](https://github.com/facebookresearch/torch_ucc) but not found"),
+            ):
+                self._run_hybrid_distributed_backend(forward_only)
+
+    def test_pipelining_without_interleaving_ucc_for_p2p(self):
+        self._test_hybrid_backends(False)
+
     def test_pipelining_without_interleaving_inference_ucc_for_p2p(self):
-        self._forward_backward_test_impl(
-            True, forward_backward_pipelining_without_interleaving, None, None,
-            default_backend="nccl", p2p_backend="ucc",
-        )
+        self._test_hybrid_backends(True)
 
 
 # n.b.(mkozuki): pipeline parallel w/o interleaving with UCX_TLS=tcp,sm fails.
