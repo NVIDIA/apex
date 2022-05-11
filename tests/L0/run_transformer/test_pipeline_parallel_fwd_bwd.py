@@ -34,7 +34,7 @@ weight_coeff = 1024
 @torch.no_grad()
 def init_weights(m):
     rank = torch.distributed.get_rank()
-    if type(m) == torch.nn.Linear:
+    if isinstance(m, torch.nn.Linear):
         m.weight.fill_((rank + 1.0) / weight_coeff)
         m.bias.fill_(1.0)
 
@@ -42,15 +42,15 @@ def init_weights(m):
 def get_target_loss(hidden_size: int, microbatch_size: int, parallel_model_world_size: int, world_size: int) -> float:  
     layers_per_rank = world_size // parallel_model_world_size
     data = torch.arange(start = 0, end = layers_per_rank, dtype = torch.int) + 1
-    
-    w = (torch.arange(world_size, dtype = torch.int) + 1) / weight_coeff
+
+    w = (torch.arange(world_size, dtype = torch.float) + 1.0) / weight_coeff
     b = torch.ones(world_size, dtype = torch.int)
     w = hidden_size * w
 
-    for pd in range(0, world_size, layers_per_rank):
-        eid = pd+layers_per_rank
-        data = w[pd:eid] * data + b[pd:eid]
-    
+    for s_id in range(0, world_size, layers_per_rank):
+        e_id = s_id+layers_per_rank
+        data = w[s_id:e_id] * data + b[s_id:e_id]
+
     return hidden_size * hidden_size * torch.sum(data).item() * microbatch_size / layers_per_rank
 
 
@@ -70,9 +70,10 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
         fwd_bwd_func: FwdStepFunc,
         pipeline_model_parallel_world_size: Optional[int],
         virtual_pipeline_model_parallel_size: Optional[int],
-        dtype: Optional[torch.dtype] = torch.float32,
     ) -> None:
-        for deallocate_pipeline_outputs in (True, False):
+        for dtype, deallocate_pipeline_outputs in itertools.product(
+            [torch.float32] + _get_autocast_dtypes(), (True, False),
+        ):
             grad_scaler = (
                 torch.cuda.amp.GradScaler(init_scale=4.0)
                 if dtype == torch.half
@@ -139,13 +140,14 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                 deallocate_pipeline_output=deallocate_pipeline_outputs,
             )
 
-            hidden_size = PipelineParallelForwardBackwardTest.HIDDEN_SIZE
-            microbatch_size = PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE
-            target_loss = get_target_loss(hidden_size, microbatch_size, pipeline_model_parallel_world_size, self.world_size)
+            if dtype == torch.float32:
+                hidden_size = PipelineParallelForwardBackwardTest.HIDDEN_SIZE
+                microbatch_size = PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE
+                target_loss = get_target_loss(hidden_size, microbatch_size, pipeline_model_parallel_world_size, self.world_size)
 
-            for loss_item in loss:
-                x = loss_item['avg']
-                torch.testing.assert_close(x, target_loss*torch.ones_like(x))
+                for loss_item in loss:
+                    x = loss_item['avg']
+                    torch.testing.assert_close(x, target_loss*torch.ones_like(x))
 
             if not forward_only:
                 for m in model:
@@ -164,22 +166,22 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
     def test_pipelining(self):
         self._forward_backward_test_impl(
-            False, forward_backward_pipelining_without_interleaving, 8, None
+            False, forward_backward_pipelining_without_interleaving, None, None
         )
 
     def test_pipelining_inference(self):
         self._forward_backward_test_impl(
-            True, forward_backward_pipelining_without_interleaving, 8, None
+            True, forward_backward_pipelining_without_interleaving, None, None
         )
 
     def test_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
-            False, _forward_backward_pipelining_with_interleaving, 8, None
+            False, _forward_backward_pipelining_with_interleaving, None, None
         )
 
     def test_pipelining_with_interleaving_inference(self):
         self._forward_backward_test_impl(
-            True, _forward_backward_pipelining_with_interleaving, 8, None
+            True, _forward_backward_pipelining_with_interleaving, None, None
         )
 
 
