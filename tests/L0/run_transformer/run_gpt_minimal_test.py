@@ -3,6 +3,13 @@ from typing import List
 import time
 
 import torch
+try:
+    import torch_ucc
+except ImportError:
+    HAS_TORCH_UCC = False
+else:
+    HAS_TORCH_UCC = True
+    print("Use UCC as backend of Pipeline Parallel ProcessGroups")
 
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import model_parallel_cuda_manual_seed
@@ -173,7 +180,7 @@ if __name__ == "__main__":
             tensor_model_parallel_size_=args.tensor_model_parallel_size,
             pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
             default_backend="nccl",
-            p2p_backend="ucc",
+            p2p_backend="ucc" if HAS_TORCH_UCC else "nccl",
         )
 
         pipeline_model_parallel_size = (

@@ -1,5 +1,12 @@
 import random
 import torch
+try:
+    import torch_ucc
+except ImportError:
+    HAS_TORCH_UCC = False
+else:
+    HAS_TORCH_UCC = True
+    print("Use UCC as backend of Pipeline Parallel ProcessGroups")
 
 from apex.transformer import tensor_parallel
 from apex.transformer import parallel_state
@@ -184,6 +191,8 @@ if __name__ == "__main__":
                 args.tensor_model_parallel_size,
                 args.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size,
+                default_backend="nccl",
+                p2p_backend="ucc" if HAS_TORCH_UCC else "nccl",
             )
             pipeline_model_parallel_size = (
                 parallel_state.get_pipeline_model_parallel_world_size()
