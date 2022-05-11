@@ -16,6 +16,7 @@
 # TODO (mkozuki): Sort the functions in the same order of megatron/mpu/initialize.py
 """Model and data parallel groups."""
 from typing import Tuple, Optional
+import warnings
 
 import torch
 
@@ -89,7 +90,9 @@ def initialize_model_parallel(
         pipeline_model_parallel_split_rank: for models with both encoder and decoder, rank in pipeline with split point.
     Keyword Arguments:
         default_backend: Backend of process groups except for pipeline parallel ones.
+            If :obj:`None`, the backend specified in `torch.distributed.init_process_group` will be used.
         p2p_backend: Backend of process groups for pipeline model parallel.
+            If :obj:`None`, the backend specified in `torch.distributed.init_process_group` will be used.
 
     .. note::
         `torch_ucc <https://github.com/facebookresearch/torch_ucc>`_ is
@@ -117,6 +120,10 @@ def initialize_model_parallel(
     assert p2p_backend is None or p2p_backend in ("nccl", "ucc")
     if "ucc" in (default_backend, p2p_backend):
         check_torch_ucc_availability()
+        warnings.warn("`ucc` backend support is experimental", ExperimentalWarning)
+    if default_backend == "ucc":
+        warnings.warn("The UCC's functionalit as `default_backend` is not well verified", ExperimentalWarning)
+
     world_size: int = torch.distributed.get_world_size()
     tensor_model_parallel_size: int = min(tensor_model_parallel_size_, world_size)
     pipeline_model_parallel_size: int = min(pipeline_model_parallel_size_, world_size)
@@ -594,5 +601,14 @@ def destroy_model_parallel():
     _MPU_PIPELINE_MODEL_PARALLEL_RANK = None
 
 
+# Used to warn when the UCC is specified.
+class ExperimentalWarning(Warning): pass
+
+
 def check_torch_ucc_availability() -> None:
-    import torch_ucc  # NOQA
+    try:
+        import torch_ucc  # NOQA
+    except ImportError:
+        raise ImportError(
+            "UCC backend requires [torch_ucc](https://github.com/facebookresearch/torch_ucc) but not found"
+        )
