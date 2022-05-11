@@ -78,7 +78,8 @@ class PipelineParallelForwardBackwardTestBase:
         virtual_pipeline_model_parallel_size: Optional[int],
         async_comm: bool = False,
         *,
-        use_ucc_for_pipeline_parallel: bool = False,
+        default_backend: Optional[str] = None,
+        p2p_backend: Optional[str] = None,
     ) -> None:
         dtype_options = self.dtypes or [torch.float32] + _get_autocast_dtypes()
         for dtype, deallocate_pipeline_outputs in itertools.product(
@@ -101,7 +102,8 @@ class PipelineParallelForwardBackwardTestBase:
                 tensor_model_parallel_size_=tensor_model_parallel_world_size,
                 pipeline_model_parallel_size_=pipeline_model_parallel_world_size,
                 virtual_pipeline_model_parallel_size_=virtual_pipeline_model_parallel_size,
-                use_ucc_for_pipeline_parallel=use_ucc_for_pipeline_parallel
+                default_backend=default_backend,
+                p2p_backend=p2p_backend,
             )
             pp_utils._reconfigure_microbatch_calculator(
                 rank=parallel_state.get_tensor_model_parallel_rank(),
@@ -210,32 +212,20 @@ class PipelineParallelForwardBackwardTestBase:
 
 class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineParallelForwardBackwardTestBase):
 
-    def test_pipelining_without_interleaving_ucc_backend(self):
+    def test_pipelining_without_interleaving_ucc_for_p2p(self):
         self._forward_backward_test_impl(
             False, forward_backward_pipelining_without_interleaving, None, None,
-            use_ucc_for_pipeline_parallel=True,
+            default_backend="nccl", p2p_backend="ucc",
         )
 
-    def test_pipelining_without_interleaving_inference_ucc_backend(self):
+    def test_pipelining_without_interleaving_inference_ucc_for_p2p(self):
         self._forward_backward_test_impl(
             True, forward_backward_pipelining_without_interleaving, None, None,
-            use_ucc_for_pipeline_parallel=True,
+            default_backend="nccl", p2p_backend="ucc",
         )
 
 
-# TODO(mkozuki): Fix pipeline parallel w/o interleaving with UCX_TLS other than tcp,cuda_copy & with redundant DDP.
-# Currently, there seems to be some gotchas in the combination of torch_ucc & DDP.
-# [P2P Ops Involved in Pipeline Model Parallel forward/backward]
-# **forward_backward_pipelining_without_interleaving**
-# - send_forward  / recv_forward
-# - send_backward / recv_backward
-# - send_forward_recv_backward
-# - send_backward_recv_forward
-# **forward_backward_pipelining_with_interleaving**
-# - recv_backward / recv_forward
-# - send_forward_backward_recv_forward_backward
-# - send_forward_recv_forward
-# - send_backward_recv_backward
+# n.b.(mkozuki): pipeline parallel w/o interleaving with UCX_TLS=tcp,sm fails.
 class UccPipelineParallelForwardBackwardTest(UccDistributedTestBase, PipelineParallelForwardBackwardTestBase):
 
     deallocate_options = (False,)
