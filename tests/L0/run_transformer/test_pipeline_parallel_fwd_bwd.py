@@ -163,8 +163,8 @@ class PipelineParallelForwardBackwardTestBase:
             )
 
             if dtype == torch.float32:
-                hidden_size = PipelineParallelForwardBackwardTest.HIDDEN_SIZE
-                microbatch_size = PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE
+                hidden_size = self.HIDDEN_SIZE
+                microbatch_size = self.MICRO_BATCH_SIZE
                 target_loss = get_target_loss(hidden_size, microbatch_size, pipeline_model_parallel_world_size, self.world_size)
 
                 for loss_item in loss:
