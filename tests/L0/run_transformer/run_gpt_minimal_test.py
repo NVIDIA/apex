@@ -92,7 +92,6 @@ def loss_func(loss_mask, output_tensor):
 
     # Reduce loss for logging.
     averaged_loss = average_losses_across_data_parallel_group([loss])
-
     return loss, {"lm loss": averaged_loss[0]}
 
 
@@ -104,7 +103,7 @@ def fwd_step_func(batch, model):
     return output_tensor, partial(loss_func, loss_mask)
 
 
-def train(model, optim, pipeline_model_parallel_size):
+def train(model, optim, pipeline_model_parallel_size, async_comm):
     sequence_len = global_vars.get_args().seq_length
     micro_batch_size = global_vars.get_args().micro_batch_size
     hidden_size = global_vars.get_args().hidden_size
@@ -125,7 +124,7 @@ def train(model, optim, pipeline_model_parallel_size):
             print("finished making batch...")
         optim.zero_grad()
         fwd_bwd_func(
-            fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape
+            fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape, async_comm=async_comm
         )
         if torch.distributed.get_rank() == 0:
             print("finished forward step")
@@ -137,52 +136,58 @@ def train(model, optim, pipeline_model_parallel_size):
 
 
 if __name__ == "__main__":
-    global fancy_data
-    global effective_length
+    init = True
+    for async_comm in (False, True):
+        global fancy_data
+        global effective_length
 
-    global_vars.set_global_variables()
+        if init:
+            init = False
+            global_vars.set_global_variables()
+            args = global_vars.get_args()
+            fancy_data = download_fancy_data()
+            effective_length = fancy_data.size(0) // args.seq_length
+            effective_length = fancy_data.size(0) - args.seq_length
 
-    fancy_data = download_fancy_data()
-    args = global_vars.get_args()
-    effective_length = fancy_data.size(0) // args.seq_length
-    effective_length = fancy_data.size(0) - args.seq_length
+            initialize_distributed()
+            world_size = torch.distributed.get_world_size()
 
-    initialize_distributed()
-    world_size = torch.distributed.get_world_size()
+            failure = None
+            args.padded_vocab_size = 128
+            batch_size = args.global_batch_size
+            micro_batch_size = args.micro_batch_size
+            setup_microbatch_calculator(
+                args.rank,
+                args.rampup_batch_size,
+                args.global_batch_size,
+                args.micro_batch_size,
+                args.data_parallel_size,  # args.data_parallel_size,
+            )
+            world_size = torch.distributed.get_world_size()
 
-    failure = None
-    args.padded_vocab_size = 128
-    batch_size = args.global_batch_size
-    micro_batch_size = args.micro_batch_size
-    setup_microbatch_calculator(
-        args.rank,
-        args.rampup_batch_size,
-        args.global_batch_size,
-        args.micro_batch_size,
-        args.data_parallel_size,  # args.data_parallel_size,
-    )
-    world_size = torch.distributed.get_world_size()
-    parallel_state.initialize_model_parallel(
-        tensor_model_parallel_size_=args.tensor_model_parallel_size,
-        pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
-    )
+        print(args.tensor_model_parallel_size, "MODEL PARALLEL SIZE")
 
-    pipeline_model_parallel_size = (
-        parallel_state.get_pipeline_model_parallel_world_size()
-    )
-    model_parallel_cuda_manual_seed(0)
-    model = build_model(
-        gpt_model_provider,
-        wrap_with_ddp=True,
-        virtual_pipeline_model_parallel_size=None,
-        cpu_offload=args.cpu_offload,
-    )
-    assert isinstance(model, list), model
-    _param_groups = _get_params_for_weight_decay_optimization(model)
-    optim = torch.optim.Adam(_param_groups)
-    runtime = train(model, optim, args.pipeline_model_parallel_size)
+        parallel_state.initialize_model_parallel(
+            tensor_model_parallel_size_=args.tensor_model_parallel_size,
+            pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
+        )
 
-    parallel_state.destroy_model_parallel()
+        pipeline_model_parallel_size = (
+            parallel_state.get_pipeline_model_parallel_world_size()
+        )
+        model_parallel_cuda_manual_seed(0)
+        model = build_model(
+            gpt_model_provider,
+            wrap_with_ddp=True,
+            virtual_pipeline_model_parallel_size=None,
+            cpu_offload=args.cpu_offload,
+        )
+        assert isinstance(model, list), model
+        _param_groups = _get_params_for_weight_decay_optimization(model)
+        optim = torch.optim.Adam(_param_groups)
+        runtime = train(model, optim, args.pipeline_model_parallel_size, async_comm)
+
+        parallel_state.destroy_model_parallel()
     torch.distributed.barrier()
     if torch.distributed.get_rank() == 0:
         print(TEST_SUCCESS_MESSAGE)

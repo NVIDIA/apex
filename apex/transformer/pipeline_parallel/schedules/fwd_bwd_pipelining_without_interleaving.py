@@ -6,6 +6,7 @@ import torch
 from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
 from apex.transformer.pipeline_parallel import p2p_communication
+from apex.transformer.pipeline_parallel.p2p_communication import FutureTensor
 from apex.transformer.pipeline_parallel.utils import get_kth_microbatch
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -65,13 +66,14 @@ def recv_forward(
     tensor_shapes: List[Union[None, List[int]]],
     *,
     dtype: Optional[torch.dtype] = None,
-) -> List[Union[None, torch.Tensor]]:
+    async_comm: bool = False,
+) -> List[Union[None, torch.Tensor, FutureTensor]]:
     input_tensors = []
     for tensor_shape in tensor_shapes:
         if tensor_shape is None:
             input_tensors.append(None)
         else:
-            input_tensors.append(p2p_communication.recv_forward(tensor_shape=tensor_shape, dtype=dtype))
+            input_tensors.append(p2p_communication.recv_forward(tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm))
     return input_tensors
 
 
@@ -79,13 +81,14 @@ def recv_backward(
     tensor_shapes: List[Union[None, List[int]]],
     *,
     dtype: Optional[torch.dtype] = None,
-) -> List[Union[None, torch.Tensor]]:
+    async_comm: bool = False,
+) -> List[Union[None, torch.Tensor, FutureTensor]]:
     output_tensor_grads = []
     for tensor_shape in tensor_shapes:
         if tensor_shape is None:
             output_tensor_grads.append(None)
         else:
-            output_tensor_grads.append(p2p_communication.recv_backward(tensor_shape=tensor_shape, dtype=dtype))
+            output_tensor_grads.append(p2p_communication.recv_backward(tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm))
     return output_tensor_grads
 
 
@@ -94,13 +97,14 @@ def send_forward(
     tensor_shapes: List[Union[None, List[int]]],
     *,
     dtype: Optional[torch.dtype] = None,
+    async_comm: bool = False,
 ) -> None:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
     for (output_tensor, tensor_shape) in zip(output_tensors, tensor_shapes):
         if tensor_shape is None:
             continue
-        p2p_communication.send_forward(output_tensor, tensor_shape=tensor_shape, dtype=dtype)
+        p2p_communication.send_forward(output_tensor, tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm)
 
 
 def send_backward(
@@ -108,13 +112,14 @@ def send_backward(
     tensor_shapes: List[Union[None, List[int]]],
     *,
     dtype: Optional[torch.dtype] = None,
+    async_comm: bool = False,
 ) -> None:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
     for (input_tensor_grad, tensor_shape) in zip(input_tensor_grads, tensor_shapes):
         if tensor_shape is None:
             continue
-        p2p_communication.send_backward(input_tensor_grad, tensor_shape=tensor_shape, dtype=dtype)
+        p2p_communication.send_backward(input_tensor_grad, tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm)
 
 
 def send_forward_recv_backward(
@@ -122,7 +127,8 @@ def send_forward_recv_backward(
     tensor_shapes: List[Union[None, List[int]]],
     *,
     dtype: Optional[torch.dtype] = None,
-) -> List[Union[None, torch.Tensor]]:
+    async_comm: bool = False,
+) -> List[Union[None, torch.Tensor, FutureTensor]]:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
     output_tensor_grads = []
@@ -130,7 +136,7 @@ def send_forward_recv_backward(
         if tensor_shape is None:
             output_tensor_grads.append(None)
             continue
-        output_tensor_grad = p2p_communication.send_forward_recv_backward(output_tensor, tensor_shape=tensor_shape, dtype=dtype)
+        output_tensor_grad = p2p_communication.send_forward_recv_backward(output_tensor, tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm)
         output_tensor_grads.append(output_tensor_grad)
     return output_tensor_grads
 
@@ -140,7 +146,8 @@ def send_backward_recv_forward(
     tensor_shapes: List[Union[None, List[int]]],
     *,
     dtype: Optional[torch.dtype] = None,
-) -> List[Union[None, torch.Tensor]]:
+    async_comm: bool = False,
+) -> List[Union[None, torch.Tensor, FutureTensor]]:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
     input_tensors = []
@@ -148,7 +155,7 @@ def send_backward_recv_forward(
         if tensor_shape is None:
             input_tensors.append(None)
             continue
-        input_tensor = p2p_communication.send_backward_recv_forward(input_tensor_grad, tensor_shape=tensor_shape, dtype=dtype)
+        input_tensor = p2p_communication.send_backward_recv_forward(input_tensor_grad, tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm)
         input_tensors.append(input_tensor)
     return input_tensors
 
@@ -165,7 +172,8 @@ def forward_backward_pipelining_without_interleaving(
     grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
     disable_autocast: bool = False,
     deallocate_pipeline_outputs: bool = False,
-    **kwawrgs,
+    async_comm: bool = False,
+    **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
 
@@ -243,7 +251,7 @@ def forward_backward_pipelining_without_interleaving(
     for i in range(num_warmup_microbatches):
         _logger.debug(f"warmup iter: {i} / {num_warmup_microbatches}")
         _logger.debug("receive fwd")
-        input_tensor = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype)
+        input_tensor = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
         cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i)
         output_tensor = forward_step(
             forward_step_func,
@@ -255,7 +263,7 @@ def forward_backward_pipelining_without_interleaving(
             disable_autocast,
         )
         _logger.debug("send fwd")
-        send_forward(output_tensor, tensor_shapes=send_tensor_shapes, dtype=dtype)
+        send_forward(output_tensor, tensor_shapes=send_tensor_shapes, dtype=dtype, async_comm=async_comm)
 
         if not forward_only:
             input_tensors.append(input_tensor)
@@ -267,7 +275,7 @@ def forward_backward_pipelining_without_interleaving(
     # receive this tensor here.
     if num_microbatches_remaining > 0:
         _logger.debug("recv_forward before steady state start")
-        input_tensor: List[Union[None, torch.Tensor]] = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype)
+        input_tensor: List[Union[None, torch.Tensor, FutureTensor]] = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
 
     ###################################################################################################################
     # Run 1F1B in steady state.
@@ -289,15 +297,15 @@ def forward_backward_pipelining_without_interleaving(
         )
         if forward_only:
             _logger.debug("send fwd")
-            send_forward(output_tensor, tensor_shapes=send_tensor_shapes, dtype=dtype)
+            send_forward(output_tensor, tensor_shapes=send_tensor_shapes, dtype=dtype, async_comm=async_comm)
 
             if not last_iteration:
                 _logger.debug("receive fwd (last iteration)")
-                input_tensor = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype)
+                input_tensor = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
 
         else:
             _logger.debug("send fwd & receive bwd")
-            output_tensor_grad = send_forward_recv_backward(output_tensor, tensor_shapes=send_tensor_shapes, dtype=dtype)
+            output_tensor_grad = send_forward_recv_backward(output_tensor, tensor_shapes=send_tensor_shapes, dtype=dtype, async_comm=async_comm)
 
             # Add input_tensor and output_tensor to end of list.
             input_tensors.append(input_tensor)
@@ -320,10 +328,10 @@ def forward_backward_pipelining_without_interleaving(
             if last_iteration:
                 input_tensor = None
                 _logger.debug("send bwd")
-                send_backward(input_tensor_grad, tensor_shapes=recv_tensor_shapes, dtype=dtype)
+                send_backward(input_tensor_grad, tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
             else:
                 _logger.debug("send bwd and receive fwd")
-                input_tensor = send_backward_recv_forward(input_tensor_grad, tensor_shapes=recv_tensor_shapes, dtype=dtype)
+                input_tensor = send_backward_recv_forward(input_tensor_grad, tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
     ###################################################################################################################
     # Run cooldown backward passes.
     ###################################################################################################################
@@ -335,7 +343,7 @@ def forward_backward_pipelining_without_interleaving(
             output_tensor = output_tensors.pop(0)
 
             _logger.debug("receive bwd")
-            output_tensor_grad = recv_backward(tensor_shapes=send_tensor_shapes, dtype=dtype)
+            output_tensor_grad = recv_backward(tensor_shapes=send_tensor_shapes, dtype=dtype, async_comm=async_comm)
 
             input_tensor_grad = backward_step(
                 input_tensor,
@@ -347,6 +355,6 @@ def forward_backward_pipelining_without_interleaving(
             )
 
             _logger.debug("send bwd")
-            send_backward(input_tensor_grad, tensor_shapes=recv_tensor_shapes, dtype=dtype)
+            send_backward(input_tensor_grad, tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
 
     return losses_reduced
