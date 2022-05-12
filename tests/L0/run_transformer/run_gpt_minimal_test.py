@@ -196,7 +196,7 @@ if __name__ == "__main__":
         assert isinstance(model, list), model
         _param_groups = _get_params_for_weight_decay_optimization(model)
         optim = torch.optim.Adam(_param_groups)
-        runtime = train(model, optim, args.pipeline_model_parallel_size)
+        runtime = train(model, optim, args.pipeline_model_parallel_size, async_comm)
 
         parallel_state.destroy_model_parallel()
     torch.distributed.barrier()
