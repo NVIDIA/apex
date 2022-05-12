@@ -122,7 +122,7 @@ def initialize_model_parallel(
         check_torch_ucc_availability()
         warnings.warn("`ucc` backend support is experimental", ExperimentalWarning)
     if default_backend == "ucc":
-        warnings.warn("The UCC's functionalit as `default_backend` is not well verified", ExperimentalWarning)
+        warnings.warn("The UCC's functionality as `default_backend` is not well verified", ExperimentalWarning)
 
     world_size: int = torch.distributed.get_world_size()
     tensor_model_parallel_size: int = min(tensor_model_parallel_size_, world_size)
