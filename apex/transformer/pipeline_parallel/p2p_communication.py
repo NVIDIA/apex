@@ -85,12 +85,6 @@ def _run_p2pops(
             tensor_recv_prev_req = None if tensor_recv_prev is None else reqs.pop(0)
             tensor_send_next_req = None if tensor_send_next is None else reqs.pop(0)
             tensor_recv_next_req = None if tensor_recv_next is None else reqs.pop(0)
-            #for req in reqs:
-            #    req.wait()
-            #if tensor_send_prev_req is not None:
-            #    tensor_send_prev_req.wait()
-            #if tensor_send_next_req is not None:
-            #    tensor_send_next_req.wait()
             return (tensor_send_prev_req, tensor_recv_prev_req, tensor_send_next_req, tensor_recv_next_req)
         else:
             for req in reqs:
