@@ -4,6 +4,7 @@ from typing import Optional
 
 import torch
 from torch.testing._internal import common_utils
+from torch.testing._internal import common_cuda
 
 logging.getLogger("torch").setLevel(logging.WARNING)
 
@@ -72,8 +73,6 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
         virtual_pipeline_model_parallel_size: Optional[int],
         async_comm: bool = False,
     ) -> None:
-        orig = torch.backends.cuda.matmul.allow_tf32
-        torch.backends.cuda.matmul.allow_tf32 = False
         for dtype, deallocate_pipeline_outputs in itertools.product(
             [torch.float32] + _get_autocast_dtypes(), (True, False),
         ):
@@ -126,23 +125,24 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
             optimizer = torch.optim.Adam(_param_groups, lr=1e-3)
 
             pp_utils.update_num_microbatches(0)
-
-            loss = fwd_bwd_func(
-                testing_utils.fwd_step_func,
-                batch,
-                model,
-                forward_only=forward_only,
-                # `tensor_shape` is the shape of micro batch.
-                tensor_shape=(
-                    PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE,
-                    PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
-                    PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
-                ),
-                dtype=dtype,
-                async_comm=async_comm,
-                grad_scaler=grad_scaler,
-                deallocate_pipeline_output=deallocate_pipeline_outputs,
-            )
+            
+            with common_cuda.tf32_off():
+                loss = fwd_bwd_func(
+                    testing_utils.fwd_step_func,
+                    batch,
+                    model,
+                    forward_only=forward_only,
+                    # `tensor_shape` is the shape of micro batch.
+                    tensor_shape=(
+                        PipelineParallelForwardBackwardTest.MICRO_BATCH_SIZE,
+                        PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
+                        PipelineParallelForwardBackwardTest.HIDDEN_SIZE,
+                    ),
+                    dtype=dtype,
+                    async_comm=async_comm,
+                    grad_scaler=grad_scaler,
+                    deallocate_pipeline_output=deallocate_pipeline_outputs,
+                )
 
             if dtype == torch.float32:
                 hidden_size = PipelineParallelForwardBackwardTest.HIDDEN_SIZE
@@ -161,7 +161,6 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                 optimizer.zero_grad(set_to_none=True)
 
             parallel_state.destroy_model_parallel()
-        torch.backends.cuda.matmul.allow_tf32 = orig
 
     def test_no_pipelining(self):
         self._forward_backward_test_impl(False, forward_backward_no_pipelining, 1, None)
