@@ -72,6 +72,8 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
         virtual_pipeline_model_parallel_size: Optional[int],
         async_comm: bool = False,
     ) -> None:
+        orig = torch.backends.cuda.matmul.allow_tf32
+        torch.backends.cuda.matmul.allow_tf32 = False
         for dtype, deallocate_pipeline_outputs in itertools.product(
             [torch.float32] + _get_autocast_dtypes(), (True, False),
         ):
@@ -159,6 +161,7 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
                 optimizer.zero_grad(set_to_none=True)
 
             parallel_state.destroy_model_parallel()
+        torch.backends.cuda.matmul.allow_tf32 = orig
 
     def test_no_pipelining(self):
         self._forward_backward_test_impl(False, forward_backward_no_pipelining, 1, None)
