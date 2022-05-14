@@ -244,7 +244,7 @@ class DistributedDataParallel(Module):
 
         if multi_tensor_applier.available:
             # TODO:  I really need to centralize the C++ backed imports
-            import amp_C
+            from apex.extensions import amp_C
             self.multi_tensor_scale = amp_C.multi_tensor_scale
             self._overflow_buf = torch.cuda.IntTensor([0])
 

@@ -33,7 +33,7 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
                 self.param_groups[idx][item] = group[item].to(device=device)
 
         if multi_tensor_applier.available:
-            import amp_C
+            from apex.extensions import amp_C
             self.multi_tensor_l2norm=amp_C.multi_tensor_l2norm_mp
             # Skip buffer
             self._dummy_overflow_buf = torch.tensor([0], dtype=torch.int, device=device)
