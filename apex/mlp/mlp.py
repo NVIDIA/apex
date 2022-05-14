@@ -2,7 +2,7 @@ from copy import copy
 import math
 import torch
 from torch import nn
-import mlp_cuda
+from apex.extensions import mlp_cuda
 from .. import amp
 
 class MlpFunction(torch.autograd.Function):

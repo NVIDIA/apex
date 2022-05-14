@@ -1,6 +1,6 @@
 import torch
-import transducer_loss_cuda
-import transducer_joint_cuda
+from . import transducer_loss_cuda
+from . import transducer_joint_cuda
 
 class TransducerJoint(torch.nn.Module):
     """Transducer joint

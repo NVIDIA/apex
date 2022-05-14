@@ -1,6 +1,6 @@
 import torch
 
-import focal_loss_cuda
+from . import focal_loss_cuda
 
 
 class FocalLoss(torch.autograd.Function):

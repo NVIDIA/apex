@@ -49,7 +49,7 @@ class FusedAdagrad(torch.optim.Optimizer):
         self.set_grad_none = set_grad_none
 
         if multi_tensor_applier.available:
-            import amp_C
+            from apex.extensions import amp_C
             # Skip buffer
             self._dummy_overflow_buf = torch.cuda.IntTensor([0])
             self.multi_tensor_adagrad = amp_C.multi_tensor_adagrad

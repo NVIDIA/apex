@@ -24,7 +24,7 @@ def manual_rms_norm(input, normalized_shape, weight, eps):
 
     # convert into half-precision if necessary
     if weight.dtype in [torch.float16, torch.bfloat16]:
-        input = input.to(self.weight.dtype)
+        input = input.to(weight.dtype)
 
     return weight * input
 
@@ -34,7 +34,7 @@ class FusedLayerNormAffineFunction(torch.autograd.Function):
     def forward(ctx, input, weight, bias, normalized_shape, eps):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex.extensions.fused_layer_norm_cuda")
         ctx.normalized_shape = normalized_shape
         ctx.eps = eps
         input_ = input.contiguous()
@@ -61,7 +61,7 @@ class FusedRMSNormAffineFunction(torch.autograd.Function):
     def forward(ctx, input, weight, normalized_shape, eps):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex.extensions.fused_layer_norm_cuda")
         ctx.normalized_shape = normalized_shape
         ctx.eps = eps
         input_ = input.contiguous()
@@ -87,7 +87,7 @@ class FusedLayerNormAffineMixedDtypesFunction(FusedLayerNormAffineFunction):
     def forward(ctx, input, weight, bias, normalized_shape, eps):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex.extensions.fused_layer_norm_cuda")
         ctx.normalized_shape = normalized_shape
         ctx.eps = eps
         input_ = input.contiguous()
@@ -106,7 +106,7 @@ class FusedRMSNormAffineMixedDtypesFunction(FusedRMSNormAffineFunction):
     def forward(ctx, input, weight, normalized_shape, eps):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex.extensions.fused_layer_norm_cuda")
         ctx.normalized_shape = normalized_shape
         ctx.eps = eps
         input_ = input.contiguous()
@@ -124,7 +124,7 @@ class FusedLayerNormFunction(torch.autograd.Function):
     def forward(ctx, input, normalized_shape, eps):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex.extensions.fused_layer_norm_cuda")
         ctx.normalized_shape = normalized_shape
         ctx.eps = eps
         input_ = input.contiguous()
@@ -147,7 +147,7 @@ class FusedRMSNormFunction(torch.autograd.Function):
     def forward(ctx, input, normalized_shape, eps):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex.extensions.fused_layer_norm_cuda")
         ctx.normalized_shape = normalized_shape
         ctx.eps = eps
         input_ = input.contiguous()

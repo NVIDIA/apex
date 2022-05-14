@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from torch.nn.modules.batchnorm import _BatchNorm
 
-import bnp
+from . import bnp
 
 class bn_NHWC_impl(torch.autograd.Function):
     @staticmethod

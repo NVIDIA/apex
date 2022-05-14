@@ -7,7 +7,7 @@
 
 import torch
 
-import fast_multihead_attn
+from . import fast_multihead_attn
 
 
 class FastEncdecAttnNormAddFunc(torch.autograd.Function):

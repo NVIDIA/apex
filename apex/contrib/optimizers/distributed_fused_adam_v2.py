@@ -1,7 +1,7 @@
 import math
 import torch
 import importlib
-import amp_C
+from apex.extensions import amp_C
 from apex.multi_tensor_apply import multi_tensor_applier
 
 class DistributedFusedAdamV2(torch.optim.Optimizer):
@@ -51,7 +51,7 @@ class DistributedFusedAdamV2(torch.optim.Optimizer):
                  dwu_num_chunks=4, predivide=True, e5m2_allgather=False,
                  do_not_flatten_model=False):
         global fused_adam_cuda
-        fused_adam_cuda = importlib.import_module("fused_adam_cuda")
+        fused_adam_cuda = importlib.import_module("apex.contrib.optimizers.fused_adam_cuda")
 
         self._amp_scale_adjustment = amp_scale_adjustment
 

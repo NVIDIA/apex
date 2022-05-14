@@ -28,7 +28,7 @@
 
 import torch
 import torch.nn.functional as F
-import fmhalib as mha
+from . import fmhalib as mha
 
 class FMHAFun(torch.autograd.Function):
     @staticmethod
