@@ -32,7 +32,7 @@ import unittest
 import torch
 import numpy as np
 
-import fmhalib as mha
+from apex.contrib.fmha import fmhalib as mha
 
 
 def _get_device_properties(device = torch.device("cuda")):

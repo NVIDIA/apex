@@ -5,7 +5,7 @@ import os
 import numpy as np
 import torch
 
-import fast_layer_norm as fln
+from apex.contrib.layer_norm import fast_layer_norm as fln
 from apex.contrib.layer_norm.layer_norm import FastLayerNorm
 
 

@@ -265,7 +265,7 @@ class FusedLayerNorm(torch.nn.Module):
         super().__init__()
 
         global fused_layer_norm_cuda
-        fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+        fused_layer_norm_cuda = importlib.import_module("apex.extensions.fused_layer_norm_cuda")
 
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
@@ -361,7 +361,7 @@ class FusedRMSNorm(torch.nn.Module):
         super().__init__()
 
         global fused_layer_norm_cuda
-        fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+        fused_layer_norm_cuda = importlib.import_module("apex.extensions.fused_layer_norm_cuda")
 
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)

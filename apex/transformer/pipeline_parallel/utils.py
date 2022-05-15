@@ -25,7 +25,7 @@ from apex.transformer.enums import ModelType
 from apex.transformer.microbatches import build_num_microbatches_calculator
 from apex.transformer.pipeline_parallel._timers import _Timers
 if multi_tensor_applier.available:
-    import amp_C
+    from apex.extensions import amp_C
 
 
 _GLOBAL_ARGS = None
