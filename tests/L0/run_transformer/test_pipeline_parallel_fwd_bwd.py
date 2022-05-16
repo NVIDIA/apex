@@ -36,7 +36,7 @@ def get_init_weights_func(offset: int = 0):
     def init_weights(m):
         rank = parallel_state.get_pipeline_model_parallel_rank()
         if isinstance(m, torch.nn.Linear):
-            m.weight.fill_((rank + offset + 1.0)/weight_coeff)
+            m.weight.fill_((rank + offset + 1.0) / weight_coeff)
             m.bias.fill_(1.0)
     return init_weights
 
@@ -45,7 +45,7 @@ def get_target_loss(global_batch_shape: tuple, hidden_size: int, total_layers: i
     with torch.no_grad():
         data = torch.ones(global_batch_shape, dtype=torch.float)
         for i in range(total_layers):
-            w = torch.ones(hidden_size, hidden_size)*(i + 1.0)/weight_coeff
+            w = torch.ones(hidden_size, hidden_size) * (i + 1.0) / weight_coeff
             # don't need to care about transpose semantics as all values are the same
             data = torch.matmul(w, data)
             data += 1.0
