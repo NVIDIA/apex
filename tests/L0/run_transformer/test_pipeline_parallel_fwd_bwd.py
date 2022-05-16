@@ -33,7 +33,7 @@ logging.getLogger("apex").setLevel(logging.WARNING)
 
 weight_coeff = 1024
 
-def get_init_weights_func(offset=0):
+def get_init_weights_func(offset: int = 0):
     @torch.no_grad()
     def init_weights(m):
         rank = parallel_state.get_pipeline_model_parallel_rank()
