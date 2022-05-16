@@ -2,8 +2,6 @@ import logging
 import itertools
 from typing import Optional
 
-import numpy as np
-
 import torch
 from torch.testing._internal import common_utils
 
