@@ -110,7 +110,7 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
             )
 
             batch = None
-            if parallel_state.is_pipeline_first_stage:
+            if parallel_state.is_pipeline_first_stage():
                 batch = (torch.ones(global_batch_shape, dtype=torch.float).cuda(), )
 
             model = build_model(
