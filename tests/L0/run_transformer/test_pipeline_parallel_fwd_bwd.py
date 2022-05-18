@@ -197,32 +197,32 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
     def test_pipelining_default(self):
         self._forward_backward_test_impl(
-            False, forward_backward_pipelining_without_interleaving, 8, None
+            False, forward_backward_pipelining_without_interleaving, None, None
         )
 
     def test_pipelining_async(self):
         self._forward_backward_test_impl(
-            False, forward_backward_pipelining_without_interleaving, 8, None, async_comm=True
+            False, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
         )
 
     def test_pipelining_inference(self):
         self._forward_backward_test_impl(
-            True, forward_backward_pipelining_without_interleaving, 8, None
+            True, forward_backward_pipelining_without_interleaving, None, None
         )
 
     def test_pipelining_inference_async(self):
         self._forward_backward_test_impl(
-            True, forward_backward_pipelining_without_interleaving, 8, None, async_comm=True
+            True, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
         )
 
     def test_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
-            False, _forward_backward_pipelining_with_interleaving, 8, virtual_pipeline_model_parallel_size=4
+            False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=4
         )
 
     def test_pipelining_with_interleaving_inference(self):
         self._forward_backward_test_impl(
-            True, _forward_backward_pipelining_with_interleaving, 8, virtual_pipeline_model_parallel_size=4
+            True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=4
         )
 
 if __name__ == "__main__":
