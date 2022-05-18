@@ -2,6 +2,7 @@ import logging
 import itertools
 import re
 from typing import Optional
+import unittest
 
 import torch
 from torch.testing._internal import common_utils
