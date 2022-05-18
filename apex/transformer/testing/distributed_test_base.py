@@ -91,7 +91,8 @@ class NcclDistributedTestBase(DistributedTestBase):
 )
 @unittest.skipUnless(
     HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER,
-    f"`torch_ucc` requires NVIDIA driver >= {_TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION} but {_driver_version} found",
+    f"`torch_ucc` requires NVIDIA driver >= {_TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION} but {_driver_version} found. "
+    "See https://github.com/openucx/ucc/issues/496",
 )
 class UccDistributedTestBase(DistributedTestBase):
 
