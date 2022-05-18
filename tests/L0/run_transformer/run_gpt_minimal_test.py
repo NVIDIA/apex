@@ -3,6 +3,13 @@ from typing import List
 import time
 
 import torch
+try:
+    import torch_ucc
+except ImportError:
+    HAS_TORCH_UCC = False
+else:
+    HAS_TORCH_UCC = True
+    print("Use UCC as backend of Pipeline Parallel ProcessGroups")
 
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import model_parallel_cuda_manual_seed
@@ -92,6 +99,7 @@ def loss_func(loss_mask, output_tensor):
 
     # Reduce loss for logging.
     averaged_loss = average_losses_across_data_parallel_group([loss])
+
     return loss, {"lm loss": averaged_loss[0]}
 
 
@@ -144,12 +152,13 @@ if __name__ == "__main__":
         if init:
             init = False
             global_vars.set_global_variables()
-            args = global_vars.get_args()
+
             fancy_data = download_fancy_data()
+            args = global_vars.get_args()
             effective_length = fancy_data.size(0) // args.seq_length
             effective_length = fancy_data.size(0) - args.seq_length
 
-            initialize_distributed()
+            initialize_distributed("nccl")
             world_size = torch.distributed.get_world_size()
 
             failure = None
@@ -170,6 +179,8 @@ if __name__ == "__main__":
         parallel_state.initialize_model_parallel(
             tensor_model_parallel_size_=args.tensor_model_parallel_size,
             pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
+            default_backend="nccl",
+            p2p_backend="ucc" if HAS_TORCH_UCC else "nccl",
         )
 
         pipeline_model_parallel_size = (
