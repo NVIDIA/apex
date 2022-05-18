@@ -4,6 +4,7 @@ import unittest
 
 import torch
 from torch import distributed as dist
+from torch.utils import collect_env
 from torch.testing._internal import common_utils
 from torch.testing._internal import common_distributed
 
@@ -13,6 +14,13 @@ try:
     HAS_TORCH_UCC = True
 except ImportError:
     HAS_TORCH_UCC = False
+
+# NOTE(mkozuki): Version guard for ucc. ref: https://github.com/openucx/ucc/issues/496
+_TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION = "470.42.01"
+_driver_version = None
+if torch.cuda.is_available():
+    _driver_version = collect_env.get_nvidia_driver_version(collect_env.run)
+HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER = _driver_version is not None and _driver_version >= _TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION
 
 
 class DistributedTestBase(common_distributed.MultiProcessTestCase):
@@ -80,6 +88,10 @@ class NcclDistributedTestBase(DistributedTestBase):
 @unittest.skipUnless(
     HAS_TORCH_UCC,
     "Requires [`torch_ucc`](https://github.com/facebookresearch/torch_ucc)",
+)
+@unittest.skipUnless(
+    HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER,
+    f"`torch_ucc` requires NVIDIA driver >= {_TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION} but {_driver_version} found",
 )
 class UccDistributedTestBase(DistributedTestBase):
 

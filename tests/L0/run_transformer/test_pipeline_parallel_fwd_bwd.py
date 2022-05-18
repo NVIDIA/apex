@@ -5,12 +5,6 @@ from typing import Optional
 
 import torch
 from torch.testing._internal import common_utils
-try:
-    import torch_ucc
-except ImportError:
-    HAS_TORCH_UCC = False
-else:
-    HAS_TORCH_UCC = True
 
 logging.getLogger("torch").setLevel(logging.WARNING)
 
@@ -33,6 +27,7 @@ from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_int
 )
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
+from apex.transformer.testing.distributed_test_base import HAS_TORCH_UCC
 from apex.transformer.testing import commons as testing_utils
 
 logging.getLogger("apex").setLevel(logging.WARNING)
@@ -225,6 +220,7 @@ class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineP
             default_backend="nccl", p2p_backend="ucc",
         )
 
+    # TODO(mkozuki): Investigate why this hybrid path doesn't require 470.42.01.
     def _test_hybrid_backends(self, forward_only: bool) -> None:
         if HAS_TORCH_UCC:
             self._run_hybrid_distributed_backend(forward_only)
