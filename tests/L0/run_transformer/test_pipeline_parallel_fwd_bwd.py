@@ -70,8 +70,8 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
         async_comm: bool = False,
     ) -> None:
         if fwd_bwd_func == _forward_backward_pipelining_with_interleaving:
-            assert virtual_pipeline_model_parallel_size is not None
-            assert virtual_pipeline_model_parallel_size > 1
+            self.assertIsNotNone(virtual_pipeline_model_parallel_size)
+            self.assertGreater(virtual_pipeline_model_parallel_size, 1)
 
         for dtype, deallocate_pipeline_outputs in itertools.product(
             [torch.float32] + _get_autocast_dtypes(), (True, False),
