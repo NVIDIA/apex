@@ -68,10 +68,6 @@ class PipelineParallelForwardBackwardTestBase:
     # You can limit the options by overriding the following `dtypes`.
     dtypes = None
 
-    @property
-    def world_size(self) -> int:
-        return min(torch.cuda.device_count(), 8)
-
     def _forward_backward_test_impl(
         self,
         forward_only: bool,
@@ -214,6 +210,10 @@ class PipelineParallelForwardBackwardTestBase:
 
 class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineParallelForwardBackwardTestBase):
 
+    @property
+    def world_size(self) -> int:
+        return min(torch.cuda.device_count(), 8)
+
     def _run_hybrid_distributed_backend(self, forward_only: bool) -> None:
         self._forward_backward_test_impl(
             forward_only, forward_backward_pipelining_without_interleaving, None, None,
@@ -240,6 +240,10 @@ class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineP
 
 # n.b.(mkozuki): pipeline parallel w/o interleaving with UCX_TLS=tcp,sm fails.
 class UccPipelineParallelForwardBackwardTest(UccDistributedTestBase, PipelineParallelForwardBackwardTestBase):
+
+    @property
+    def world_size(self) -> int:
+        return min(torch.cuda.device_count(), 8)
 
     deallocate_options = (False,)
     dtypes = (torch.float32,)
