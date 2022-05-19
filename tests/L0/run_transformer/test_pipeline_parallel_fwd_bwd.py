@@ -37,6 +37,7 @@ logging.getLogger("apex").setLevel(logging.WARNING)
 
 weight_coeff = 1024
 
+
 def get_init_weights_func(offset: int = 0):
     @torch.no_grad()
     def init_weights(m):
@@ -46,7 +47,8 @@ def get_init_weights_func(offset: int = 0):
             m.bias.fill_(1.0)
     return init_weights
 
-def get_target_loss(global_batch_shape: tuple, hidden_size: int, total_layers: int) -> float:  
+
+def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total_layers: int) -> float:  
     model = []
     data = torch.ones(global_batch_shape, dtype=torch.float)
     for i in range(total_layers):
@@ -63,9 +65,11 @@ def get_target_loss(global_batch_shape: tuple, hidden_size: int, total_layers: i
     loss = data.sum() / global_batch_shape[0]
     loss.backward()
 
-    return float((data.sum()/global_batch_shape[0]).item()), model
+    return loss, model
+
 
 class PipelineParallelForwardBackwardTestBase:
+
     GLOBAL_BATCH_SIZE = 16
     MICRO_BATCH_SIZE = 2
     HIDDEN_SIZE = 32
@@ -90,6 +94,7 @@ class PipelineParallelForwardBackwardTestBase:
             self.assertIsNotNone(virtual_pipeline_model_parallel_size)
             self.assertGreater(virtual_pipeline_model_parallel_size, 1)
         dtype_options = self.dtypes or [torch.float32] + _get_autocast_dtypes()
+
         for dtype, deallocate_pipeline_outputs in itertools.product(
             dtype_options, self.deallocate_options,
         ):
@@ -174,10 +179,11 @@ class PipelineParallelForwardBackwardTestBase:
                 total_layers = pipeline_model_parallel_world_size
                 if virtual_pipeline_model_parallel_size is not None:
                     total_layers *= virtual_pipeline_model_parallel_size
-                target_loss, target_model = get_target_loss(global_batch_shape, hidden_size, total_layers)
+                target_loss, target_model = get_target_loss_and_model(global_batch_shape, hidden_size, total_layers)
+
                 for loss_item in loss:
                     x = loss_item['avg']
-                    torch.testing.assert_close(x / microbatch_size, target_loss*torch.ones_like(x))
+                    torch.testing.assert_close(x / microbatch_size, target_loss)
 
                 if not forward_only:
                     for vm_id, model_module in enumerate(model):
@@ -191,7 +197,6 @@ class PipelineParallelForwardBackwardTestBase:
                         torch.testing.assert_close(params[1].cpu(), target_params[1])
                         torch.testing.assert_close(params[0].grad.cpu() / microbatch_size, target_params[0].grad)
                         torch.testing.assert_close(params[1].grad.cpu() / microbatch_size, target_params[1].grad)
-
 
             if not forward_only:
                 for m in model:
@@ -238,6 +243,7 @@ class PipelineParallelForwardBackwardTestBase:
             True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
         )
 
+
 class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineParallelForwardBackwardTestBase):
 
     @property
@@ -277,6 +283,7 @@ class UccPipelineParallelForwardBackwardTest(UccDistributedTestBase, PipelinePar
 
     deallocate_options = (False,)
     dtypes = (torch.float32,)
+
 
 if __name__ == "__main__":
     common_utils.run_tests()
