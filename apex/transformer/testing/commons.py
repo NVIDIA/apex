@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import os
 import random
 from typing import Optional, Union, List
@@ -117,6 +118,10 @@ def initialize_distributed(backend="nccl"):
     # parser.add_argument('--local_rank', type=int, default=None,
     #                    help='local rank passed from distributed launcher')
     # args = parser.parse_args()
+    if backend not in ("nccl", "ucc"):
+        raise RuntimeError(f"Currently only nccl & ucc are supported but {backend}")
+    if backend == "ucc":
+        import torch_ucc  # NOQA
     args = global_vars.get_args()
     local_rank = args.local_rank
 
@@ -141,7 +146,8 @@ def initialize_distributed(backend="nccl"):
     master_port = os.getenv("MASTER_PORT", "6000")
     init_method += master_ip + ":" + master_port
     torch.distributed.init_process_group(
-        backend=backend, world_size=world_size, rank=rank, init_method=init_method
+        backend=backend, world_size=world_size, rank=rank, init_method=init_method,
+        timeout=datetime.timedelta(seconds=60),
     )
 
 

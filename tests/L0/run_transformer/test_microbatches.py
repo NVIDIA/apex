@@ -13,12 +13,13 @@ from apex.transformer.pipeline_parallel.utils import (
     get_current_global_batch_size,
     update_num_microbatches,
 )
-from apex.transformer.testing.distributed_test_base import DistributedTestBase
+from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 
 
-class MicrobatchCalculatorTest(DistributedTestBase):
+class MicrobatchCalculatorTestBase:
 
     GLOBAL_BATCH_SIZE: int = 1024
     MICRO_BATCH_SIZE: int = 1
@@ -26,8 +27,8 @@ class MicrobatchCalculatorTest(DistributedTestBase):
     def _test(self, rampup_batch_size: Optional[List[int]]) -> None:
         for data_parallel_size in range(1, self.world_size + 1):
 
-            expected_global_batch_size = MicrobatchCalculatorTest.GLOBAL_BATCH_SIZE
-            expected_micro_batch_size = MicrobatchCalculatorTest.MICRO_BATCH_SIZE
+            expected_global_batch_size = self.GLOBAL_BATCH_SIZE
+            expected_micro_batch_size = self.MICRO_BATCH_SIZE
             if rampup_batch_size:
                 expected_global_batch_size = rampup_batch_size[0]
                 num_consumed_samples = 0
@@ -48,8 +49,8 @@ class MicrobatchCalculatorTest(DistributedTestBase):
                 _reconfigure_microbatch_calculator(
                     self.rank,
                     rampup_batch_size,
-                    MicrobatchCalculatorTest.GLOBAL_BATCH_SIZE,
-                    MicrobatchCalculatorTest.MICRO_BATCH_SIZE,
+                    self.GLOBAL_BATCH_SIZE,
+                    self.MICRO_BATCH_SIZE,
                     data_parallel_size,
                 )
 
@@ -66,7 +67,7 @@ class MicrobatchCalculatorTest(DistributedTestBase):
                         current_global_batch_size = get_current_global_batch_size()
                         update_num_microbatches(current_global_batch_size)
                     current_global_batch_size = get_current_global_batch_size()
-                    self.assertEqual(get_current_global_batch_size(), MicrobatchCalculatorTest.GLOBAL_BATCH_SIZE)
+                    self.assertEqual(get_current_global_batch_size(), self.GLOBAL_BATCH_SIZE)
                 parallel_state.destroy_model_parallel()
 
     def test_constant_microbatch_calculator(self):
@@ -74,6 +75,10 @@ class MicrobatchCalculatorTest(DistributedTestBase):
 
     def test_dynamic_microbatch_calculator(self):
         self._test(rampup_batch_size=[256, 128, 500])
+
+
+class NcclMicrobatchCalculatorTest(MicrobatchCalculatorTestBase, NcclDistributedTestBase): pass
+class UccMicrobatchCalculatorTest(MicrobatchCalculatorTestBase, UccDistributedTestBase): pass
 
 
 if __name__ == "__main__":

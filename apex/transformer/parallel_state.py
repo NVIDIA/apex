@@ -16,6 +16,7 @@
 # TODO (mkozuki): Sort the functions in the same order of megatron/mpu/initialize.py
 """Model and data parallel groups."""
 from typing import Tuple, Optional
+import warnings
 
 import torch
 
@@ -75,6 +76,9 @@ def initialize_model_parallel(
     pipeline_model_parallel_size_: int = 1,
     virtual_pipeline_model_parallel_size_: Optional[int] = None,
     pipeline_model_parallel_split_rank_: Optional[int] = None,
+    *,
+    default_backend: Optional[str] = None,
+    p2p_backend: Optional[str] = None,
 ) -> None:
     """
     Initialize model data parallel groups.
@@ -84,6 +88,15 @@ def initialize_model_parallel(
         pipeline_model_parallel_size: number of GPUs used to parallelize model pipeline.
         virtual_pipeline_model_parallel_size: number of virtual stages (interleaved pipeline).
         pipeline_model_parallel_split_rank: for models with both encoder and decoder, rank in pipeline with split point.
+    Keyword Arguments:
+        default_backend: Backend of process groups except for pipeline parallel ones.
+            If :obj:`None`, the backend specified in `torch.distributed.init_process_group` will be used.
+        p2p_backend: Backend of process groups for pipeline model parallel.
+            If :obj:`None`, the backend specified in `torch.distributed.init_process_group` will be used.
+
+    .. note::
+        `torch_ucc <https://github.com/facebookresearch/torch_ucc>`_ is
+        necessary for "ucc" backend.
 
     Let's say we have a total of 16 GPUs denoted by g0 ... g15 and we
     use 2 GPUs to parallelize the model tensor, and 4 GPUs to parallelize
@@ -103,6 +116,14 @@ def initialize_model_parallel(
     """
     # Get world size and rank. Ensure some consistencies.
     assert torch.distributed.is_initialized()
+    assert default_backend is None or default_backend in ("nccl", "ucc")
+    assert p2p_backend is None or p2p_backend in ("nccl", "ucc")
+    if "ucc" in (default_backend, p2p_backend):
+        check_torch_ucc_availability()
+        warnings.warn("`ucc` backend support is experimental", ExperimentalWarning)
+    if default_backend == "ucc":
+        warnings.warn("The UCC's functionality as `default_backend` is not well verified", ExperimentalWarning)
+
     world_size: int = torch.distributed.get_world_size()
     tensor_model_parallel_size: int = min(tensor_model_parallel_size_, world_size)
     pipeline_model_parallel_size: int = min(pipeline_model_parallel_size_, world_size)
@@ -160,7 +181,7 @@ def initialize_model_parallel(
         for j in range(tensor_model_parallel_size):
             ranks = range(start_rank + j, end_rank, tensor_model_parallel_size)
             all_data_parallel_group_ranks.append(list(ranks))
-            group = torch.distributed.new_group(ranks)
+            group = torch.distributed.new_group(ranks, backend=default_backend)
             if rank in ranks:
                 _DATA_PARALLEL_GROUP = group
 
@@ -172,7 +193,7 @@ def initialize_model_parallel(
             data_parallel_group_ranks[i]
             for data_parallel_group_ranks in all_data_parallel_group_ranks
         ]
-        group = torch.distributed.new_group(ranks)
+        group = torch.distributed.new_group(ranks, backend=default_backend)
         if rank in ranks:
             _MODEL_PARALLEL_GROUP = group
 
@@ -185,7 +206,7 @@ def initialize_model_parallel(
         ranks = list(
             range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size)
         )
-        group = torch.distributed.new_group(ranks)
+        group = torch.distributed.new_group(ranks, backend=default_backend)
         if rank in ranks:
             _TENSOR_MODEL_PARALLEL_GROUP = group
 
@@ -206,7 +227,7 @@ def initialize_model_parallel(
     ), "position embedding group is already initialized"
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size, num_pipeline_model_parallel_groups)
-        group = torch.distributed.new_group(ranks)
+        group = torch.distributed.new_group(ranks, backend=p2p_backend)
         if rank in ranks:
             _PIPELINE_MODEL_PARALLEL_GROUP = group
             _PIPELINE_GLOBAL_RANKS = ranks
@@ -234,13 +255,13 @@ def initialize_model_parallel(
             embedding_ranks = ranks
             position_embedding_ranks = ranks
 
-        group = torch.distributed.new_group(embedding_ranks)
+        group = torch.distributed.new_group(embedding_ranks, backend=default_backend)
         if rank in embedding_ranks:
             _EMBEDDING_GROUP = group
         if rank in ranks:
             _EMBEDDING_GLOBAL_RANKS = embedding_ranks
 
-        group = torch.distributed.new_group(position_embedding_ranks)
+        group = torch.distributed.new_group(position_embedding_ranks, backend=default_backend)
         if rank in position_embedding_ranks:
             _POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
@@ -578,3 +599,16 @@ def destroy_model_parallel():
     _MPU_TENSOR_MODEL_PARALLEL_RANK = None
     global _MPU_PIPELINE_MODEL_PARALLEL_RANK
     _MPU_PIPELINE_MODEL_PARALLEL_RANK = None
+
+
+# Used to warn when the UCC is specified.
+class ExperimentalWarning(Warning): pass
+
+
+def check_torch_ucc_availability() -> None:
+    try:
+        import torch_ucc  # NOQA
+    except ImportError:
+        raise ImportError(
+            "UCC backend requires [torch_ucc](https://github.com/facebookresearch/torch_ucc) but not found"
+        )
