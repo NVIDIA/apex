@@ -6,6 +6,7 @@ import unittest
 
 import torch
 from torch.testing._internal import common_utils
+from torch.testing._internal import common_cuda
 
 logging.getLogger("torch").setLevel(logging.WARNING)
 
@@ -137,23 +138,24 @@ class PipelineParallelForwardBackwardTestBase:
             optimizer = torch.optim.Adam(_param_groups, lr=1e-3)
 
             pp_utils.update_num_microbatches(0)
-
-            loss = fwd_bwd_func(
-                testing_utils.fwd_step_func,
-                batch,
-                model,
-                forward_only=forward_only,
-                # `tensor_shape` is the shape of micro batch.
-                tensor_shape=(
-                    self.MICRO_BATCH_SIZE,
-                    self.HIDDEN_SIZE,
-                    self.HIDDEN_SIZE,
-                ),
-                dtype=dtype,
-                async_comm=async_comm,
-                grad_scaler=grad_scaler,
-                deallocate_pipeline_output=deallocate_pipeline_outputs,
-            )
+            
+            with common_cuda.tf32_off():
+                loss = fwd_bwd_func(
+                    testing_utils.fwd_step_func,
+                    batch,
+                    model,
+                    forward_only=forward_only,
+                    # `tensor_shape` is the shape of micro batch.
+                    tensor_shape=(
+                        self.MICRO_BATCH_SIZE,
+                        self.HIDDEN_SIZE,
+                        self.HIDDEN_SIZE,
+                    ),
+                    dtype=dtype,
+                    async_comm=async_comm,
+                    grad_scaler=grad_scaler,
+                    deallocate_pipeline_output=deallocate_pipeline_outputs,
+                )
 
             if dtype == torch.float32:
                 hidden_size = self.HIDDEN_SIZE
