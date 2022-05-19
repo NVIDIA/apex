@@ -62,8 +62,8 @@ def get_target_loss(global_batch_shape: tuple, hidden_size: int, total_layers: i
 
 class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
-    GLOBAL_BATCH_SIZE = 32
-    MICRO_BATCH_SIZE = 1
+    GLOBAL_BATCH_SIZE = 16
+    MICRO_BATCH_SIZE = 2
     HIDDEN_SIZE = 32
 
     @property
@@ -217,12 +217,12 @@ class PipelineParallelForwardBackwardTest(DistributedTestBase):
 
     def test_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
-            False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=4
+            False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
         )
 
     def test_pipelining_with_interleaving_inference(self):
         self._forward_backward_test_impl(
-            True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=4
+            True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
         )
 
 if __name__ == "__main__":
