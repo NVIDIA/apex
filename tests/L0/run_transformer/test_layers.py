@@ -9,7 +9,8 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import layers
 from apex.transformer.testing.commons import set_random_seed
-from apex.transformer.testing.distributed_test_base import DistributedTestBase
+from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 
@@ -20,7 +21,7 @@ logging.getLogger("apex").setLevel(logging.WARNING)
 torch.backends.cuda.matmul.allow_tf32 = False
 
 
-class TensorParallelLayerTest(DistributedTestBase):
+class TensorParallelLayerTestBase:
 
     BATCH_SIZE: int = 17
     SEQUENCE_LENGTH: int = 23
@@ -40,29 +41,29 @@ class TensorParallelLayerTest(DistributedTestBase):
                 parallel_state.initialize_model_parallel(
                     tensor_model_parallel_size_=tensor_model_parallel_world_size,
                 )
-                set_random_seed(TensorParallelLayerTest.SEED + 1)
+                set_random_seed(self.SEED + 1)
                 input_tensor = torch.randint(
                     0,
-                    TensorParallelLayerTest.VOCAB_SIZE,
+                    self.VOCAB_SIZE,
                     (
-                        TensorParallelLayerTest.BATCH_SIZE,
-                        TensorParallelLayerTest.SEQUENCE_LENGTH,
+                        self.BATCH_SIZE,
+                        self.SEQUENCE_LENGTH,
                     ),
                     device="cuda",
                 )
                 loss_weight = torch.randn(
                     (
-                        TensorParallelLayerTest.BATCH_SIZE,
-                        TensorParallelLayerTest.SEQUENCE_LENGTH,
-                        TensorParallelLayerTest.HIDDEN_SIZE,
+                        self.BATCH_SIZE,
+                        self.SEQUENCE_LENGTH,
+                        self.HIDDEN_SIZE,
                     ),
                     device="cuda",
                 )
 
-                set_random_seed(TensorParallelLayerTest.SEED)
+                set_random_seed(self.SEED)
                 embedding_torch = nn.Embedding(
-                    TensorParallelLayerTest.VOCAB_SIZE,
-                    TensorParallelLayerTest.HIDDEN_SIZE,
+                    self.VOCAB_SIZE,
+                    self.HIDDEN_SIZE,
                 ).cuda()
                 output_torch = embedding_torch(input_tensor)
                 loss_torch = torch.mul(output_torch, loss_weight).sum()
@@ -71,10 +72,10 @@ class TensorParallelLayerTest(DistributedTestBase):
                 # N.B. (mkozuki): With affine weight initialization on GPU,
                 # it's super difficult to keep the consistency with nn.Embedding.
                 # Thus, turning on `use_cpu_initialization`.
-                set_random_seed(TensorParallelLayerTest.SEED)
+                set_random_seed(self.SEED)
                 embedding_vocab_parallel = layers.VocabParallelEmbedding(
-                    TensorParallelLayerTest.VOCAB_SIZE,
-                    TensorParallelLayerTest.HIDDEN_SIZE,
+                    self.VOCAB_SIZE,
+                    self.HIDDEN_SIZE,
                     init_method=nn.init.normal_,
                     use_cpu_initialization=True,
                 ).cuda()
@@ -89,7 +90,7 @@ class TensorParallelLayerTest(DistributedTestBase):
 
                 splitted_weight_torch = torch.split(
                     embedding_torch.weight.grad,
-                    TensorParallelLayerTest.VOCAB_SIZE
+                    self.VOCAB_SIZE
                     // tensor_model_parallel_world_size,
                     0,
                 )[parallel_state.get_tensor_model_parallel_rank()]
@@ -112,21 +113,21 @@ class TensorParallelLayerTest(DistributedTestBase):
                 parallel_state.initialize_model_parallel(
                     tensor_model_parallel_size_=tensor_model_parallel_world_size
                 )
-                input_size: int = TensorParallelLayerTest.INPUT_SIZE_COEFF * tensor_model_parallel_world_size
-                output_size: int = TensorParallelLayerTest.OUTPUT_SIZE_COEFF * tensor_model_parallel_world_size
+                input_size: int = self.INPUT_SIZE_COEFF * tensor_model_parallel_world_size
+                output_size: int = self.OUTPUT_SIZE_COEFF * tensor_model_parallel_world_size
 
                 weight_shape = (
-                    (TensorParallelLayerTest.OUTPUT_SIZE_COEFF, input_size)
+                    (self.OUTPUT_SIZE_COEFF, input_size)
                     if is_column_parallel
-                    else (output_size, TensorParallelLayerTest.INPUT_SIZE_COEFF)
+                    else (output_size, self.INPUT_SIZE_COEFF)
                 )
                 weight = torch.empty(weight_shape)
-                set_random_seed(TensorParallelLayerTest.SEED)
+                set_random_seed(self.SEED)
 
                 sharding_dim_size = (
-                    TensorParallelLayerTest.OUTPUT_SIZE_COEFF
+                    self.OUTPUT_SIZE_COEFF
                     if is_column_parallel
-                    else TensorParallelLayerTest.INPUT_SIZE_COEFF
+                    else self.INPUT_SIZE_COEFF
                 )
 
                 if init_device == "cpu":
@@ -144,7 +145,7 @@ class TensorParallelLayerTest(DistributedTestBase):
                         weight, torch.nn.init.normal_, dim
                     )
                 # Target
-                set_random_seed(TensorParallelLayerTest.SEED)
+                set_random_seed(self.SEED)
                 if init_device == "cpu":
                     main_weight = torch.empty(output_size, input_size)
                     nn.init.normal_(main_weight)
@@ -180,10 +181,10 @@ class TensorParallelLayerTest(DistributedTestBase):
                     tensor_model_parallel_size_=tensor_model_parallel_world_size
                 )
 
-                input_size: int = TensorParallelLayerTest.INPUT_SIZE_COEFF * tensor_model_parallel_world_size
-                output_size: int = TensorParallelLayerTest.OUTPUT_SIZE_COEFF * tensor_model_parallel_world_size
+                input_size: int = self.INPUT_SIZE_COEFF * tensor_model_parallel_world_size
+                output_size: int = self.OUTPUT_SIZE_COEFF * tensor_model_parallel_world_size
 
-                set_random_seed(TensorParallelLayerTest.SEED)
+                set_random_seed(self.SEED)
                 linear_layer = layers.RowParallelLinear(
                     input_size,
                     output_size,
@@ -192,12 +193,12 @@ class TensorParallelLayerTest(DistributedTestBase):
                     use_cpu_initialization=True,
                 ).cuda()
                 loss_weight = torch.randn(
-                    (TensorParallelLayerTest.BATCH_SIZE, output_size)
+                    (self.BATCH_SIZE, output_size)
                 ).cuda()
 
                 # Forward and backward
                 input_tensor = torch.randn(
-                    TensorParallelLayerTest.BATCH_SIZE, input_size, requires_grad=True
+                    self.BATCH_SIZE, input_size, requires_grad=True
                 ).cuda()
                 input_tensor.retain_grad()
                 output, _ = linear_layer(input_tensor)
@@ -211,13 +212,13 @@ class TensorParallelLayerTest(DistributedTestBase):
                     a = linear_layer.master_weight.cuda()
                 dlda = torch.matmul(dldy.t(), x)
                 dldb = torch.matmul(
-                    torch.ones(TensorParallelLayerTest.BATCH_SIZE, 1).cuda().t(), dldy
+                    torch.ones(self.BATCH_SIZE, 1).cuda().t(), dldy
                 ).view(-1)
                 dldx = torch.matmul(dldy, a)
 
                 with torch.no_grad():
                     curr_dlda = torch.split(
-                        dlda, TensorParallelLayerTest.INPUT_SIZE_COEFF, dim=1
+                        dlda, self.INPUT_SIZE_COEFF, dim=1
                     )[parallel_state.get_tensor_model_parallel_rank()].clone()
                 self.assertEqual(linear_layer.weight.grad, curr_dlda)
                 self.assertEqual(input_tensor.grad, dldx)
@@ -240,9 +241,6 @@ class TensorParallelLayerTest(DistributedTestBase):
         gradient_accumulation_fusion: bool,
     ):
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
-            print(
-                f"tensor_model_parallel_world_size={tensor_model_parallel_world_size}"
-            )
             with self.subTest(
                 tensor_model_parallel_world_size=tensor_model_parallel_world_size
             ):
@@ -252,13 +250,13 @@ class TensorParallelLayerTest(DistributedTestBase):
                     tensor_model_parallel_size_=tensor_model_parallel_world_size,
                 )
 
-                feature_size_coeff = TensorParallelLayerTest.INPUT_SIZE_COEFF
+                feature_size_coeff = self.INPUT_SIZE_COEFF
                 feature_size = feature_size_coeff * tensor_model_parallel_world_size
                 hidden_size = feature_size
 
-                set_random_seed(TensorParallelLayerTest.SEED)
+                set_random_seed(self.SEED)
                 input_tensor = torch.randn(
-                    TensorParallelLayerTest.BATCH_SIZE,
+                    self.BATCH_SIZE,
                     hidden_size,
                     feature_size,
                     device="cuda",
@@ -266,7 +264,7 @@ class TensorParallelLayerTest(DistributedTestBase):
                 )
                 input_tensor.retain_grad()
                 loss_weight = torch.randn(
-                    (TensorParallelLayerTest.BATCH_SIZE, hidden_size, feature_size,),
+                    (self.BATCH_SIZE, hidden_size, feature_size,),
                     device="cuda",
                 )
                 linear = layers.ColumnParallelLinear(
@@ -285,7 +283,7 @@ class TensorParallelLayerTest(DistributedTestBase):
                 output, _ = linear(input_tensor)
                 self.assertEqual(
                     output.shape,
-                    (TensorParallelLayerTest.BATCH_SIZE, hidden_size, feature_size,),
+                    (self.BATCH_SIZE, hidden_size, feature_size,),
                 )
                 loss = torch.mul(output, loss_weight).sum()
                 loss.backward()
@@ -296,7 +294,7 @@ class TensorParallelLayerTest(DistributedTestBase):
                     a = linear.master_weight.cuda().clone()
                 dldx = torch.matmul(dldy, a)
                 self.assertEqual(input_tensor.grad, dldx)
-                # TODO (mkozuki): Cover the other cases.
+                # TODO(mkozuki): Cover the other cases.
                 if (
                     tensor_model_parallel_world_size == 1
                     and not gradient_accumulation_fusion
@@ -308,6 +306,14 @@ class TensorParallelLayerTest(DistributedTestBase):
                     self.assertEqual(linear.weight.grad, curr_dlda)
 
                 parallel_state.destroy_model_parallel()
+
+
+class NcclTensorParallelLayerTest(TensorParallelLayerTestBase, NcclDistributedTestBase):
+    pass
+
+
+class UccTensorParallelLayerTest(TensorParallelLayerTestBase, UccDistributedTestBase):
+    pass
 
 
 if __name__ == "__main__":

@@ -1,8 +1,16 @@
 import random
 import torch
+try:
+    import torch_ucc
+except ImportError:
+    HAS_TORCH_UCC = False
+else:
+    HAS_TORCH_UCC = True
+    print("Use UCC as backend of Pipeline Parallel ProcessGroups")
 
 from apex.transformer import tensor_parallel
 from apex.transformer import parallel_state
+from apex.transformer.log_util import set_logging_level
 from apex.transformer.tensor_parallel import vocab_parallel_cross_entropy
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import (
@@ -27,6 +35,7 @@ class DebugWarning(Warning):
     pass
 
 
+set_logging_level("WARNING")
 mode = None
 MANUAL_SEED = 42
 inds = None
@@ -154,7 +163,7 @@ if __name__ == "__main__":
     effective_length = fancy_data.size(0) // global_vars.get_args().seq_length
     effective_length = fancy_data.size(0) - global_vars.get_args().seq_length
 
-    initialize_distributed()
+    initialize_distributed("nccl")
     world_size = torch.distributed.get_world_size()
     failure = None
     init = True
@@ -182,6 +191,8 @@ if __name__ == "__main__":
                 args.tensor_model_parallel_size,
                 args.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size,
+                default_backend="nccl",
+                p2p_backend="ucc" if HAS_TORCH_UCC else "nccl",
             )
             pipeline_model_parallel_size = (
                 parallel_state.get_pipeline_model_parallel_world_size()
