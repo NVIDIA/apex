@@ -400,83 +400,126 @@ class TensorParallelLayerTestBase:
                 parallel_state.destroy_model_parallel()
 
     def test_column_parallel_linear(self):
-        self._column_parallel_linear_test_impl(False, False)
+        self._column_parallel_linear_test_impl(False, False, False, False)
 
-    def test_column_parallel_linear_no_async(self):
-        self._column_parallel_linear_test_impl(True, False)
+    def test_column_parallel_linear_async(self):
+        self._column_parallel_linear_test_impl(True, False, False, False)
 
     def test_column_parallel_linear_gradient_accumulation_fusion(self):
-        self._column_parallel_linear_test_impl(False, True)
+        self._column_parallel_linear_test_impl(False, True, False, False)
+
+    def test_column_parallel_linear_gradient_accumulation_fusion_in_fp16(self):
+        self._column_parallel_linear_test_impl(False, True, True, False)
+
+    def test_column_parallel_linear_sequence_parallel(self):
+        self._column_parallel_linear_test_impl(False, False, False, True)
+
+    @unittest.skipIf(torch.cuda.device_count() < 2, "Sequence Parallel requires >= 2 GPUs")
+    def test_column_parallel_linear_exception(self):
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "`async_tensor_model_parallel_allreduce` and `sequence_parallel_enabled` cannot be enabled at the same time.",
+        ):
+            self._column_parallel_linear_test_impl(True, False, False, True)
 
     def _column_parallel_linear_test_impl(
         self,
-        no_async_tensor_model_parallel_allreduce: bool,
+        async_tensor_model_parallel_allreduce: bool,
         gradient_accumulation_fusion: bool,
+        accumulation_in_fp16: bool,
+        sequence_parallel_enabled: bool,
     ):
+        tensor_shape = (
+            TensorParallelLayerTest.SEQUENCE_LENGTH,
+            TensorParallelLayerTest.BATCH_SIZE,
+            TensorParallelLayerTest.HIDDEN_SIZE,
+        )
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
-            with self.subTest(
-                tensor_model_parallel_world_size=tensor_model_parallel_world_size
-            ):
+            if async_tensor_model_parallel_allreduce and sequence_parallel_enabled:
+                if tensor_model_parallel_world_size == 1:
+                    continue
+            with self.subTest(tensor_model_parallel_world_size=tensor_model_parallel_world_size):
                 if self.world_size % tensor_model_parallel_world_size:
                     continue
                 parallel_state.initialize_model_parallel(
                     tensor_model_parallel_size_=tensor_model_parallel_world_size,
                 )
 
-                feature_size_coeff = self.INPUT_SIZE_COEFF
-                feature_size = feature_size_coeff * tensor_model_parallel_world_size
-                hidden_size = feature_size
-
-                set_random_seed(self.SEED)
-                input_tensor = torch.randn(
-                    self.BATCH_SIZE,
-                    hidden_size,
-                    feature_size,
-                    device="cuda",
-                    requires_grad=True,
-                )
-                input_tensor.retain_grad()
-                loss_weight = torch.randn(
-                    (self.BATCH_SIZE, hidden_size, feature_size,),
-                    device="cuda",
-                )
+                # tensor's shape is [sequence length, batch size, hidden size]
+                set_random_seed(TensorParallelLayerTest.SEED)
                 linear = layers.ColumnParallelLinear(
-                    feature_size,
-                    feature_size,
+                    TensorParallelLayerTest.HIDDEN_SIZE,
+                    TensorParallelLayerTest.HIDDEN_SIZE,
                     bias=False,
                     keep_master_weight_for_test=True,
                     params_dtype=torch.float32,
                     use_cpu_initialization=True,
-                    no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+                    no_async_tensor_model_parallel_allreduce=not async_tensor_model_parallel_allreduce,
                     gradient_accumulation_fusion=gradient_accumulation_fusion,
+                    accumulation_in_fp16=accumulation_in_fp16,
+                    sequence_parallel_enabled=sequence_parallel_enabled,
                 ).cuda()
+                if accumulation_in_fp16:
+                    linear = linear.half()
+
+                # Simulate the situation where fusion of weight grad calculation and gradient accumulation happens.
                 if gradient_accumulation_fusion:
                     with torch.no_grad():
-                        linear.weight.main_grad = torch.randn_like(linear.weight)
+                        linear.weight.main_grad = torch.zeros_like(linear.weight)
+
+                orig_input_tensor = torch.randn(tensor_shape, device="cuda", requires_grad=True)
+                if accumulation_in_fp16:
+                    orig_input_tensor = orig_input_tensor.half()
+                if sequence_parallel_enabled:
+                    input_tensor = list(
+                        orig_input_tensor.chunk(tensor_model_parallel_world_size, dim=0)
+                    )[parallel_state.get_tensor_model_parallel_rank()]
+                else:
+                    input_tensor = orig_input_tensor
                 output, _ = linear(input_tensor)
-                self.assertEqual(
-                    output.shape,
-                    (self.BATCH_SIZE, hidden_size, feature_size,),
-                )
+                self.assertEqual(output.shape, tensor_shape)
+
+                loss_weight = torch.randn(tensor_shape, device="cuda")
+                if accumulation_in_fp16:
+                    loss_weight = loss_weight.half()
                 loss = torch.mul(output, loss_weight).sum()
                 loss.backward()
 
                 with torch.no_grad():
                     dldy = loss_weight.clone()
-                    x = input_tensor.clone()
-                    a = linear.master_weight.cuda().clone()
-                dldx = torch.matmul(dldy, a)
-                self.assertEqual(input_tensor.grad, dldx)
-                # TODO(mkozuki): Cover the other cases.
-                if (
-                    tensor_model_parallel_world_size == 1
-                    and not gradient_accumulation_fusion
-                ):
-                    dlda = torch.matmul(torch.transpose(dldy, 1, 2), x).sum(dim=0)
-                    curr_dlda = torch.split(dlda, feature_size_coeff, dim=0)[
-                        parallel_state.get_tensor_model_parallel_rank()
-                    ]
-                    self.assertEqual(linear.weight.grad, curr_dlda)
+                    x = orig_input_tensor.clone()
+                    ref_linear = nn.Linear(
+                        in_features=TensorParallelLayerTest.HIDDEN_SIZE,
+                        out_features=TensorParallelLayerTest.HIDDEN_SIZE,
+                        bias=False,
+                        device="cuda",
+                    )
+                    if accumulation_in_fp16:
+                        ref_linear = ref_linear.half()
+                    # NOTE(mkozuki): `master_weight` is available because `keep_master_weight_for_test` is set.
+                    ref_linear.weight.copy_(linear.master_weight)
+                x.requires_grad_()
+                expected_output = ref_linear(x)
+                expected_loss = torch.mul(expected_output, dldy).sum()
+                expected_loss.backward()
+
+                torch.testing.assert_close(
+                    actual=output,
+                    expected=expected_output,
+                    msg=f"tensor parallel: {tensor_model_parallel_world_size}",
+                )
+                grad_attr_name = "main_grad" if gradient_accumulation_fusion else "grad"
+                # NOTE(mkozuki): Numerical errors seems to be enlarged by tensor model parallel.
+                # TODO(mkozuki): Try to find the root cause to if it's fixme or not in a short term.
+                if tensor_model_parallel_world_size == 1:
+                    torch.testing.assert_close(
+                        actual=getattr(linear.weight, grad_attr_name),
+                        expected=ref_linear.weight.grad.chunk(
+                            chunks=tensor_model_parallel_world_size,
+                            dim=0,
+                        )[parallel_state.get_tensor_model_parallel_rank()],
+                        msg=f"tensor parallel: {tensor_model_parallel_world_size}",
+                    )
 
                 parallel_state.destroy_model_parallel()
 
