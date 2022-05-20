@@ -1,4 +1,4 @@
-fromtyping import Union, List, Optional, Sequence
+from typing import Union, List, Optional, Sequence
 import warnings
 
 import torch
