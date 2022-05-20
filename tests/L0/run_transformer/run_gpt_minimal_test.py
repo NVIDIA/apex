@@ -14,6 +14,7 @@ else:
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import model_parallel_cuda_manual_seed
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
+from apex.transformer.pipeline_parallel.utils import unwrap_model
 from apex.transformer.pipeline_parallel.utils import (
     average_losses_across_data_parallel_group,
 )
@@ -136,6 +137,15 @@ def train(model, optim, pipeline_model_parallel_size, async_comm):
         )
         if torch.distributed.get_rank() == 0:
             print("finished forward step")
+        # All-reduce layernorm parameters across model parallel nodes
+        # when sequence parallelism is used
+        if parallel_state.get_tensor_model_parallel_world_size() > 1 and global_vars.get_args().sequence_parallel:
+            for model_module in model:
+                unwrapped_model = unwrap_model(model_module)
+                for param in unwrapped_model.parameters():
+                    if getattr(param, 'sequence_parallel', False):
+                        grad = param.main_grad if args.DDP_impl == 'local' else param.grad
+                        torch.distributed.all_reduce(grad, group=parallel_state.get_tensor_model_parallel_group())
         optim.step()
         if torch.distributed.get_rank() == 0:
             print("finished iter", i)
