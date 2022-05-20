@@ -2,6 +2,8 @@
 
 This serves as a quick-start for ASP (Automatic SParsity), a tool that enables sparse training and inference for PyTorch models by adding 2 lines of Python.
 
+For details on "[Channel Permutations for N:M Sparsity](https://proceedings.neurips.cc/paper/2021/hash/6e8404c3b93a9527c8db241a1846599a-Abstract.html)," please see the [permutation_tests](permutation_tests/README.md) directory.
+
 ## Importing ASP
 
 ```
@@ -121,14 +123,16 @@ More details about sparsity support on the NVIDIA Ampere GPU with Sparse Tensor 
 }
 ```
 
-The details about sparsity with permutation can refer to our [paper](https://proceedings.neurips.cc/paper/2021/hash/6e8404c3b93a9527c8db241a1846599a-Abstract.html) published in *Thirty-fifth Conference on Neural Information Processing Systems* (**NeurIPS 2021**):
+The details about sparsity with permutation can refer to our [paper](https://proceedings.neurips.cc/paper/2021/hash/6e8404c3b93a9527c8db241a1846599a-Abstract.html) published in *Thirty-fourth Conference on Neural Information Processing Systems* (**NeurIPS 2021**):
 
 ```
-@article{pool2021channel,
-  title={Channel Permutations for N: M Sparsity},
-  author={Pool, Jeff and Yu, Chong},
-  journal={Advances in Neural Information Processing Systems},
-  volume={34},
-  year={2021}
+@inproceedings{pool2021channel,
+  author    = {Pool, Jeff and Yu, Chong},
+  booktitle = {Advances in Neural Information Processing Systems ({NeurIPS})},
+  title     = {Channel Permutations for {N:M} Sparsity},
+  url       = {https://proceedings.neurips.cc/paper/2021/file/6e8404c3b93a9527c8db241a1846599a-Paper.pdf},
+  volume    = {34},
+  year      = {2021}
 }
+
 ```
