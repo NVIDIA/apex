@@ -1,5 +1,6 @@
 import logging
 import unittest
+import typing
 
 import torch
 import torch.nn as nn
@@ -30,6 +31,7 @@ class TensorParallelLayerTestBase:
     HIDDEN_SIZE: int = 256
     INPUT_SIZE_COEFF: int = 256
     OUTPUT_SIZE_COEFF: int = 256
+    SEED: int = 123456
 
     @property
     def tensor_shape(self) -> typing.Sequence[int]:
@@ -289,9 +291,9 @@ class TensorParallelLayerTestBase:
         sequence_parallel_enabled: bool,
     ) -> None:
         tensor_shape = (
-            TensorParallelLayerTest.SEQUENCE_LENGTH,
-            TensorParallelLayerTest.BATCH_SIZE,
-            TensorParallelLayerTest.HIDDEN_SIZE,
+            self.SEQUENCE_LENGTH,
+            self.BATCH_SIZE,
+            self.HIDDEN_SIZE,
         )
         for tensor_model_parallel_world_size in range(
             1 + int(sequence_parallel_enabled), self.world_size + 1
@@ -306,11 +308,11 @@ class TensorParallelLayerTestBase:
                 parallel_state.initialize_model_parallel(
                     tensor_model_parallel_size_=tensor_model_parallel_world_size,
                 )
-                set_random_seed(TensorParallelLayerTest.SEED)
+                set_random_seed(self.SEED)
 
                 linear = layers.RowParallelLinear(
-                    TensorParallelLayerTest.HIDDEN_SIZE,
-                    TensorParallelLayerTest.HIDDEN_SIZE,
+                    self.HIDDEN_SIZE,
+                    self.HIDDEN_SIZE,
                     keep_master_weight_for_test=True,
                     params_dtype=torch.float32,
                     use_cpu_initialization=True,
@@ -360,8 +362,8 @@ class TensorParallelLayerTestBase:
                 self.assertIsNotNone(input_tensor.grad)
 
                 ref_linear = nn.Linear(
-                    in_features=TensorParallelLayerTest.HIDDEN_SIZE,
-                    out_features=TensorParallelLayerTest.HIDDEN_SIZE,
+                    in_features=self.HIDDEN_SIZE,
+                    out_features=self.HIDDEN_SIZE,
                     bias=False,
                     device="cuda",
                 )
@@ -430,9 +432,9 @@ class TensorParallelLayerTestBase:
         sequence_parallel_enabled: bool,
     ):
         tensor_shape = (
-            TensorParallelLayerTest.SEQUENCE_LENGTH,
-            TensorParallelLayerTest.BATCH_SIZE,
-            TensorParallelLayerTest.HIDDEN_SIZE,
+            self.SEQUENCE_LENGTH,
+            self.BATCH_SIZE,
+            self.HIDDEN_SIZE,
         )
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
             if async_tensor_model_parallel_allreduce and sequence_parallel_enabled:
@@ -446,10 +448,10 @@ class TensorParallelLayerTestBase:
                 )
 
                 # tensor's shape is [sequence length, batch size, hidden size]
-                set_random_seed(TensorParallelLayerTest.SEED)
+                set_random_seed(self.SEED)
                 linear = layers.ColumnParallelLinear(
-                    TensorParallelLayerTest.HIDDEN_SIZE,
-                    TensorParallelLayerTest.HIDDEN_SIZE,
+                    self.HIDDEN_SIZE,
+                    self.HIDDEN_SIZE,
                     bias=False,
                     keep_master_weight_for_test=True,
                     params_dtype=torch.float32,
@@ -489,8 +491,8 @@ class TensorParallelLayerTestBase:
                     dldy = loss_weight.clone()
                     x = orig_input_tensor.clone()
                     ref_linear = nn.Linear(
-                        in_features=TensorParallelLayerTest.HIDDEN_SIZE,
-                        out_features=TensorParallelLayerTest.HIDDEN_SIZE,
+                        in_features=self.HIDDEN_SIZE,
+                        out_features=self.HIDDEN_SIZE,
                         bias=False,
                         device="cuda",
                     )
