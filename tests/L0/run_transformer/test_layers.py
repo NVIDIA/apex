@@ -1,10 +1,9 @@
 import logging
+import unittest
 
 import torch
 import torch.nn as nn
 from torch.testing._internal import common_utils
-
-logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import layers
@@ -12,10 +11,12 @@ from apex.transformer.testing.commons import set_random_seed
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 
+
+logging.getLogger("torch").setLevel(logging.WARNING)
 logging.getLogger("apex").setLevel(logging.WARNING)
 
 
-# N.B. (mkozuki): Disable TF32 matrix multiply.
+# N.B.(mkozuki): Disable TF32 matrix multiply.
 # Matrices used in this test are so small that TF32 matmul
 # can be less precise so that `self.assertEqual` raises.
 torch.backends.cuda.matmul.allow_tf32 = False
@@ -23,13 +24,109 @@ torch.backends.cuda.matmul.allow_tf32 = False
 
 class TensorParallelLayerTestBase:
 
-    BATCH_SIZE: int = 17
-    SEQUENCE_LENGTH: int = 23
-    VOCAB_SIZE: int = 48
-    HIDDEN_SIZE: int = 16
-    INPUT_SIZE_COEFF: int = 13
-    OUTPUT_SIZE_COEFF: int = 17
-    SEED: int = 123
+    BATCH_SIZE: int = 8
+    SEQUENCE_LENGTH: int = 128
+    VOCAB_SIZE: int = 1024
+    HIDDEN_SIZE: int = 256
+    INPUT_SIZE_COEFF: int = 256
+    OUTPUT_SIZE_COEFF: int = 256
+
+    @property
+    def tensor_shape(self) -> typing.Sequence[int]:
+        return [self.SEQUENCE_LENGTH, self.BATCH_SIZE, self.HIDDEN_SIZE]
+
+    @torch.no_grad()
+    @unittest.skipIf(torch.cuda.device_count() < 2, "Requires >=2 GPUs")
+    def test_all_gather_parity(self) -> None:
+        from torch.distributed.distributed_c10d import all_gather, _all_gather_base  # NOQA
+
+        for tensor_model_parallel_world_size in range(1, self.world_size + 1):
+            if self.world_size % tensor_model_parallel_world_size:
+                continue
+            with self.subTest(tensor_model_parallel_world_size=tensor_model_parallel_world_size):
+                parallel_state.initialize_model_parallel(
+                    tensor_model_parallel_size_=tensor_model_parallel_world_size,
+                )
+                tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
+                cur_tensor_model_device = torch.device(f"cuda:{tensor_model_parallel_rank}")
+                with torch.no_grad():
+                    tensor = tensor_model_parallel_rank * torch.ones(
+                        self.tensor_shape, dtype=torch.float32, device=cur_tensor_model_device)
+                numel = tensor.numel()
+                numel_gathered = tensor_model_parallel_world_size * numel
+                gathered = torch.empty(
+                    torch.Size((numel_gathered,)),
+                    device=cur_tensor_model_device,
+                    dtype=torch.float32,
+                    requires_grad=False,
+                )
+                chunks = [
+                    gathered[i * numel : (i + 1) * numel]
+                    for i in range(tensor_model_parallel_world_size)
+                ]
+                all_gather(chunks, tensor, group=parallel_state.get_tensor_model_parallel_group())
+
+                gathered_for_base = torch.empty(
+                    torch.Size((numel_gathered,)),
+                    device=cur_tensor_model_device,
+                    dtype=torch.float32,
+                    requires_grad=False,
+                )
+                _all_gather_base(
+                    gathered_for_base,
+                    tensor,
+                    group=parallel_state.get_tensor_model_parallel_group(),
+                )
+
+                torch.testing.assert_close(gathered, gathered_for_base)
+                parallel_state.destroy_model_parallel()
+
+    @torch.no_grad()
+    @unittest.skipIf(torch.cuda.device_count() < 2, "Requires >=2 GPUs")
+    def test_reduce_scatter_parity(self) -> None:
+        from torch.distributed.distributed_c10d import reduce_scatter, _reduce_scatter_base  # NOQA
+
+        for tensor_model_parallel_world_size in range(2, self.world_size + 1):
+            if self.world_size % tensor_model_parallel_world_size:
+                continue
+            with self.subTest(tensor_model_parallel_world_size=tensor_model_parallel_world_size):
+                parallel_state.initialize_model_parallel(
+                    tensor_model_parallel_size_=tensor_model_parallel_world_size,
+                )
+                tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
+                cur_tensor_model_device = torch.device(f"cuda:{tensor_model_parallel_rank}")
+                with torch.no_grad():
+                    input = torch.cat([
+                        i * torch.ones(self.tensor_shape, dtype=torch.float32, device=cur_tensor_model_device)
+                        for i in range(tensor_model_parallel_world_size)
+                    ])
+                    input_list = [t.clone() for t in input.chunk(tensor_model_parallel_world_size)]
+                output = torch.empty(
+                    self.tensor_shape,
+                    device=cur_tensor_model_device,
+                    dtype=torch.float32,
+                    requires_grad=False,
+                )
+                reduce_scatter(
+                    output, input_list,
+                    group=parallel_state.get_tensor_model_parallel_group(),
+                )
+
+                output_for_base = torch.empty(
+                    self.tensor_shape,
+                    device=cur_tensor_model_device,
+                    dtype=torch.float32,
+                    requires_grad=False,
+                )
+                _reduce_scatter_base(
+                    output_for_base,
+                    input,
+                    group=parallel_state.get_tensor_model_parallel_group(),
+                )
+
+                torch.testing.assert_close(output, output_for_base)
+                torch.testing.assert_close(input, torch.cat(input_list))
+                parallel_state.destroy_model_parallel()
 
     def test_parallel_embedding(self) -> None:
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
