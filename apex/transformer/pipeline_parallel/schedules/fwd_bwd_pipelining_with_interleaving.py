@@ -34,6 +34,7 @@ def _forward_backward_pipelining_with_interleaving(
     grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
     disable_autocast: bool = False,
     deallocate_pipeline_outputs: bool = False,
+    sequence_parallel_enabled: bool = False,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run interleaved 1F1B schedule with communication between pipeline stages as needed.
@@ -64,6 +65,7 @@ def _forward_backward_pipelining_with_interleaving(
         disable_autocast:
         deallocate_pipeline_outputs: If :obj:`True`, free the data of the output tensor of
             each pipeline stage. Experimental.
+        sequence_parallel_enabled: This argument in Megatron-LM matters to `tensor_shape`
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
@@ -201,7 +203,11 @@ def _forward_backward_pipelining_with_interleaving(
     ###################################################################################################################
     parallel_state.set_virtual_pipeline_model_parallel_rank(0)
     input_tensors[0].append(
-        p2p_communication.recv_forward(tensor_shape=tensor_shape, dtype=dtype)
+        p2p_communication.recv_forward(
+            tensor_shape=tensor_shape,
+            dtype=dtype,
+            sequence_parallel_enabled=sequence_parallel_enabled,
+        )
     )
     _logger.info("Warmup phase")
     for k in range(num_warmup_microbatches):
@@ -247,6 +253,7 @@ def _forward_backward_pipelining_with_interleaving(
                 recv_next=recv_next,
                 tensor_shape=tensor_shape,
                 dtype=dtype,
+                sequence_parallel_enabled=sequence_parallel_enabled,
             )
             output_tensor_grads[num_model_chunks - 1].append(output_tensor_grad)
         else:
@@ -256,6 +263,7 @@ def _forward_backward_pipelining_with_interleaving(
                 recv_prev=recv_prev,
                 tensor_shape=tensor_shape,
                 dtype=dtype,
+                sequence_parallel_enabled=sequence_parallel_enabled,
             )
         free_output_tensor(output_tensor, deallocate_pipeline_outputs)
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
@@ -339,6 +347,7 @@ def _forward_backward_pipelining_with_interleaving(
             recv_next=recv_next,
             tensor_shape=tensor_shape,
             dtype=dtype,
+            sequence_parallel_enabled=sequence_parallel_enabled,
         )
         free_output_tensor(output_tensor, deallocate_pipeline_outputs)
 
@@ -356,7 +365,11 @@ def _forward_backward_pipelining_with_interleaving(
     if not forward_only:
         if all_warmup_microbatches:
             output_tensor_grads[num_model_chunks - 1].append(
-                p2p_communication.recv_backward(tensor_shape=tensor_shape, dtype=dtype)
+                p2p_communication.recv_backward(
+                    tensor_shape=tensor_shape,
+                    dtype=dtype,
+                    sequence_parallel_enabled=sequence_parallel_enabled,
+                )
             )
         for k in range(num_microbatches_remaining, num_microbatches):
             _logger.debug(
@@ -376,6 +389,7 @@ def _forward_backward_pipelining_with_interleaving(
                     recv_next=recv_next,
                     tensor_shape=tensor_shape,
                     dtype=dtype,
+                    sequence_parallel_enabled=sequence_parallel_enabled,
                 )
             )
 
