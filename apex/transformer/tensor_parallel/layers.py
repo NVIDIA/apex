@@ -604,7 +604,6 @@ class ColumnParallelLinear(torch.nn.Module):
         )
         if self.gather_output:
             # All-gather across the partitions.
-            # TODO(mkozuki): Ideally move this logic to dunder init.
             assert not self.sequence_parallel_enabled
             output = gather_from_tensor_model_parallel_region(output_parallel)
         else:
