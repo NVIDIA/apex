@@ -7,12 +7,13 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer import tensor_parallel
-from apex.transformer.testing.distributed_test_base import DistributedTestBase
+from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 
 
-class TransformerRandomTest(DistributedTestBase):
+class TransformerRandomTestBase:
     def test_set_cuda_rng_state(self):
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_parallel_world_size:
@@ -109,6 +110,10 @@ class TransformerRandomTest(DistributedTestBase):
 
                 tensor_parallel.random.get_cuda_rng_tracker().reset()
                 parallel_state.destroy_model_parallel()
+
+
+class NcclTransformerRandomTest(TransformerRandomTestBase, NcclDistributedTestBase): pass
+class UccTransformerRandomTest(TransformerRandomTestBase, UccDistributedTestBase): pass
 
 
 if __name__ == "__main__":
