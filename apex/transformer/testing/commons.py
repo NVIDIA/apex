@@ -45,7 +45,10 @@ class MyLayer(nn.Module):
 
 class MyModel(nn.Module):
     def __init__(
-        self, hidden_size: int, pre_process: bool = False, post_process: bool = False
+        self,
+        hidden_size: int, pre_process: bool = False, post_process: bool = False,
+        *,
+        add_encoder: bool = False, add_decoder: bool = False,
     ) -> None:
         super().__init__()
         self.pre_process = pre_process
@@ -68,8 +71,14 @@ class MyModel(nn.Module):
         return self.layer(self.input_tensor)
 
 
-def model_provider_func(hidden_size, pre_process, post_process) -> MyModel:
-    return MyModel(hidden_size, pre_process, post_process)
+def model_provider_func(
+    hidden_size: int,
+    pre_process: bool,
+    post_process: bool,
+    *,
+    add_encoder: bool = False,
+    add_decoder: bool = False) -> MyModel:
+    return MyModel(hidden_size, pre_process, post_process, add_encoder=add_encoder, add_decoder=add_decoder)
 
 
 def process_batch(batch):
@@ -82,6 +91,22 @@ def process_batch(batch):
 
 def fwd_step_func(batch, model):
     x = process_batch(batch)
+    y = model(x)
+
+    # note (mkozuki): I don't think this function is nice but I do think this is enough for now
+    # just to check the sanity of ported pipeline functions.
+    def loss_func(x):
+        loss = torch.sum(x)
+        averaged_loss = average_losses_across_data_parallel_group([loss])
+        return loss, {"avg": averaged_loss}
+
+    return y, loss_func
+
+
+def encdec_fwd_step_func(batch, model):
+    x = batch[0] if isinstance(batch, list) else batch
+    if isinstance(x, torch.Tensor):
+        x = x.transpose(0, 1).contiguous()
     y = model(x)
 
     # note (mkozuki): I don't think this function is nice but I do think this is enough for now

@@ -1,17 +1,16 @@
 import logging
 import itertools
 import re
-from typing import Optional
+from typing import Optional, Tuple
 import unittest
 
 import torch
 from torch.testing._internal import common_utils
 from torch.testing._internal import common_cuda
 
-logging.getLogger("torch").setLevel(logging.WARNING)
-
 from apex._autocast_utils import _get_autocast_dtypes
 from apex.transformer import parallel_state
+from apex.transformer.enums import ModelType
 from apex.transformer.pipeline_parallel import utils as pp_utils
 from apex.transformer.pipeline_parallel.schedules.common import (
     FwdStepFunc,
@@ -33,6 +32,8 @@ from apex.transformer.testing.distributed_test_base import HAS_TORCH_UCC
 from apex.transformer.testing.distributed_test_base import HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER
 from apex.transformer.testing import commons as testing_utils
 
+
+logging.getLogger("torch").setLevel(logging.WARNING)
 logging.getLogger("apex").setLevel(logging.WARNING)
 
 weight_coeff = 1024
@@ -283,6 +284,94 @@ class UccPipelineParallelForwardBackwardTest(UccDistributedTestBase, PipelinePar
 
     deallocate_options = (False,)
     dtypes = (torch.float32,)
+
+
+# Sanity checking the functionality of `forward_backward_pipelining_without_interleaving` with
+# `model_type=ModelType.encoder_and_decoder` which is used for pipeline training of transformer
+# models such as T5.
+@unittest.skipIf(torch.cuda.device_count() < 4, "Requires >= 4 GPUs")
+class NcclPipelineParallelEncDecForwardBackwardTest(NcclDistributedTestBase):
+
+    GLOBAL_BATCH_SIZE = 16
+    MICRO_BATCH_SIZE = 2
+    HIDDEN_SIZE = 64
+    # TODO(mkozuki): Change `DECODER_SEQUENCE_LENGTH` to a value different from `ENCODER_SEQUENCE_LENGTH`.
+    # To test forward_backward_pipelining_without_interleaving with `model_type=ModelType.encoder_and_decoder`,
+    # `decoder_seq_length` is necessary and ideally should be different from `encoder_sequence_length`
+    # but my laziness let me use the same value.
+    # Note that you may have to either update `MyModel` def or define another `MyModel`.
+    # to support different `DECODER_SEQUENCE_LENGTH`.
+    ENCODER_SEQUENCE_LENGTH = 32
+    DECODER_SEQUENCE_LENGTH = 32
+
+    @property
+    def world_size(self) -> int:
+        return min(torch.cuda.device_count(), 8)
+
+    def _forward_backward_test_impl(
+        self,
+        forward_only: bool,
+    ) -> None:
+        pipeline_model_parallel_world_size = self.world_size
+        tensor_model_parallel_world_size = 1
+        pipeline_model_parallel_split_rank = pipeline_model_parallel_world_size // 2
+
+        parallel_state.initialize_model_parallel(
+            tensor_model_parallel_size_=1,
+            pipeline_model_parallel_size_=pipeline_model_parallel_world_size,
+            virtual_pipeline_model_parallel_size_=None,
+            pipeline_model_parallel_split_rank_=pipeline_model_parallel_split_rank,
+        )
+        pp_utils._reconfigure_microbatch_calculator(
+            rank=parallel_state.get_tensor_model_parallel_rank(),
+            rampup_batch_size=None,
+            global_batch_size=self.GLOBAL_BATCH_SIZE,
+            micro_batch_size=self.MICRO_BATCH_SIZE,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        model = build_model(
+            testing_utils.model_provider_func,
+            wrap_with_ddp=False,
+            virtual_pipeline_model_parallel_size=None,
+            hidden_size=self.HIDDEN_SIZE,
+            # TODO(mkozuki): Use `model_type=ModelType.encoder_and_decoder`.
+            # This way of calling `build_model` w/o specifying `model_type` is kind of cheating.
+            # model_type=ModelType.encoder_and_decoder,
+        )
+        batch: Tuple[torch.Tensor] = (
+            torch.ones(
+                (self.GLOBAL_BATCH_SIZE, self.ENCODER_SEQUENCE_LENGTH, self.HIDDEN_SIZE),
+                dtype=torch.float,
+            ).cuda(),
+        )
+
+        # TODO(mkozuki): Add loss parity check.
+        _ = forward_backward_pipelining_without_interleaving(
+            forward_step_func=testing_utils.encdec_fwd_step_func,
+            batch=batch,
+            model=model,
+            forward_only=forward_only,
+            tensor_shape=(
+                self.ENCODER_SEQUENCE_LENGTH,
+                self.MICRO_BATCH_SIZE,
+                self.HIDDEN_SIZE,
+            ),
+            model_type=ModelType.encoder_and_decoder,
+            decoder_sequence_length=self.DECODER_SEQUENCE_LENGTH,
+            # TODO(mkozuki): Add cases of async_comm=True
+            async_comm=False,
+            grad_scaler=None,
+            deallocate_pipeline_outputs=False,
+            # TODO(mkozuki): Add cases of sequence_parallel_enabled=True which would require
+            # modifications in apex.transformer.testing.commons.
+            sequence_parallel_enabled=False,
+        )
+
+    def test_pipelining_without_interleaving(self) -> None:
+        self._forward_backward_test_impl(False)
+
+    def test_pipelining_without_interleaving_inference(self) -> None:
+        self._forward_backward_test_impl(True)
 
 
 if __name__ == "__main__":
