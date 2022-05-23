@@ -308,9 +308,16 @@ class NcclPipelineParallelEncDecForwardBackwardTest(NcclDistributedTestBase):
     def world_size(self) -> int:
         return min(torch.cuda.device_count(), 8)
 
+    # TODO(mkozuki): Add cases of async_comm=True
+    # TODO(mkozuki): Parity check loss.
+    # TODO(mkozuki): Call `build_model` with `model_type=ModelType.encoder_and_decoder`.
+    # TODO(mkozuki): Set `tensor_model_parallel>1` if there's enough GPUs
+    # in order to let `sequence_parallel_enabled` have an effect on tensor shape logic.
     def _forward_backward_test_impl(
         self,
+        *,
         forward_only: bool,
+        sequence_parallel_enabled: bool,
     ) -> None:
         pipeline_model_parallel_world_size = self.world_size
         tensor_model_parallel_world_size = 1
@@ -334,9 +341,6 @@ class NcclPipelineParallelEncDecForwardBackwardTest(NcclDistributedTestBase):
             wrap_with_ddp=False,
             virtual_pipeline_model_parallel_size=None,
             hidden_size=self.HIDDEN_SIZE,
-            # TODO(mkozuki): Use `model_type=ModelType.encoder_and_decoder`.
-            # This way of calling `build_model` w/o specifying `model_type` is kind of cheating.
-            # model_type=ModelType.encoder_and_decoder,
         )
         batch: Tuple[torch.Tensor] = (
             torch.ones(
@@ -345,7 +349,6 @@ class NcclPipelineParallelEncDecForwardBackwardTest(NcclDistributedTestBase):
             ).cuda(),
         )
 
-        # TODO(mkozuki): Add loss parity check.
         _ = forward_backward_pipelining_without_interleaving(
             forward_step_func=testing_utils.encdec_fwd_step_func,
             batch=batch,
@@ -358,20 +361,23 @@ class NcclPipelineParallelEncDecForwardBackwardTest(NcclDistributedTestBase):
             ),
             model_type=ModelType.encoder_and_decoder,
             decoder_sequence_length=self.DECODER_SEQUENCE_LENGTH,
-            # TODO(mkozuki): Add cases of async_comm=True
             async_comm=False,
             grad_scaler=None,
             deallocate_pipeline_outputs=False,
-            # TODO(mkozuki): Add cases of sequence_parallel_enabled=True which would require
-            # modifications in apex.transformer.testing.commons.
-            sequence_parallel_enabled=False,
+            sequence_parallel_enabled=sequence_parallel_enabled,
         )
 
     def test_pipelining_without_interleaving(self) -> None:
-        self._forward_backward_test_impl(False)
+        self._forward_backward_test_impl(forward_only=False, sequence_parallel_enabled=False)
 
     def test_pipelining_without_interleaving_inference(self) -> None:
-        self._forward_backward_test_impl(True)
+        self._forward_backward_test_impl(forward_only=True, sequence_parallel_enabled=False)
+
+    def test_pipelining_without_interleaving_sequence_parallel(self) -> None:
+        self._forward_backward_test_impl(forward_only=False, sequence_parallel_enabled=True)
+
+    def test_pipelining_without_interleaving_inference_sequence_parallel(self) -> None:
+        self._forward_backward_test_impl(forward_only=True, sequence_parallel_enabled=True)
 
 
 if __name__ == "__main__":
