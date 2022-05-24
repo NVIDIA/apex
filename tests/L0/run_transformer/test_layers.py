@@ -444,7 +444,7 @@ class TensorParallelLayerTestBase:
 
                 input_tensor_shape = self.tensor_shape
                 expected_output_shape = self.tensor_shape
-                # When sequence parallel, `gather_ouptut` is disabled, i.e.,
+                # When sequence parallel, `gather_output` is disabled, i.e.,
                 # output of matmul isn't gathered in dimension of feature/hidden (last dim).
                 if sequence_parallel_enabled:
                     expected_output_shape[-1] //= tensor_model_parallel_world_size
@@ -482,6 +482,7 @@ class TensorParallelLayerTestBase:
                 else:
                     input_tensor = orig_input_tensor
                 output, _ = linear(input_tensor)
+                # The order of dimension is expected to be (sequence, batch, hidden)
                 self.assertEqual(output.shape, expected_output_shape)
 
                 orig_loss_weight = torch.randn(input_tensor_shape, device="cuda")
