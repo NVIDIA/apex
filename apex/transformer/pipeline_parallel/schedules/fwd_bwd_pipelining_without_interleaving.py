@@ -255,14 +255,17 @@ def forward_backward_pipelining_without_interleaving(
 
     Keyword args:
         forward_only:
-        tensor_shape: Shape of tensor. Required for P2P communication.
+        tensor_shape: Shape of tensor. The tensor is expected to be 3D and its order of dimension
+            is supposed to be ``(sequence, batch, hidden)``.
         dtype: dtype used in p2p communication. If ``None`` (default value),
             torch.float32 will be used even if ``autocast`` is enabled.
         grad_scaler:
         disable_autocast:
         deallocate_pipeline_outputs: If :obj:`True`, free the data of the output tensor of
             each pipeline stage. Experimental.
-        sequence_parallle_enabled:
+        sequence_parallel_enabled: Set to :obj:`True` for this function to handle sequence length.
+            When :obj:`True`, the sequence length on each tensor model parallel rank is updated
+            to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
