@@ -58,14 +58,17 @@ def _forward_backward_pipelining_with_interleaving(
 
     Keyword args:
         forward_only:
-        tensor_shape: Shape of tensor.
+        tensor_shape: Shape of tensor. The tensor is expected to be 3D and its order of dimension
+            is supposed to be ``(sequence, batch, hidden)``.
         dtype: dtype used in p2p communication. If ``None`` (default value),
             torch.float32 will be used even if ``autocast`` is enabled.
         grad_scaler:
         disable_autocast:
         deallocate_pipeline_outputs: If :obj:`True`, free the data of the output tensor of
             each pipeline stage. Experimental.
-        sequence_parallel_enabled: This argument in Megatron-LM matters to `tensor_shape`
+        sequence_parallel_enabled: Set to :obj:`True` for this function to handle sequence length.
+            When :obj:`True`, the sequence length on each tensor model parallel rank is updated
+            to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
@@ -77,6 +80,15 @@ def _forward_backward_pipelining_with_interleaving(
         warnings.warn(
             "`deallocate_pipeline_outputs` is experimental and subject to change. "
             "This option is not recommended."
+        )
+
+    # mypy will blame the following if statement
+    if sequence_parallel_enabled:
+        seq_length, batch_size, hidden = tensor_shape
+        tensor_shape = (
+            seq_length // parallel_state.get_tensor_model_parallel_world_size(),
+            batch_size,
+            hidden,
         )
 
     num_model_chunks: int = len(model)
