@@ -94,6 +94,10 @@ def _run_p2pops(
 
 
 # TODO(mkozuki): Check if it's possible to sunset `override_scatter_gather_tensors_in_pipeline`.
+# TODO(mkozuki): Think about if it's possible to push some logic and arguments e.g.
+# `scatter_gather_tensors_in_pipeline`, `sequence_parallel_enabled`, and
+# `override_scatter_gather_tensors_in_pipeline` # to the user of
+# apex.transformer forward_backwardfunctions.
 def _communicate(
     tensor_send_next: Optional[torch.Tensor],
     tensor_send_prev: Optional[torch.Tensor],
@@ -136,8 +140,9 @@ def _communicate(
         params_dtype: Optional and legacy. Defaults to torch.float. If you manually call `.half()` or `.bfloat16()` on
             your model deliberately, pass this argument.
         fp32_residual_connection: Optional. If :obj:`True`, move residual connections to fp32.
-        sequence_parallel_enabled: Set to :obj:`True` if sequence parallel is employed. Note that this argument updates  this argument doesn't change
-            the `tensor_shape`. This behavior is different from Megatron-LM.
+        sequence_parallel_enabled: Set to :obj:`True` if sequence parallel is enabled.
+            This argument is here for consistency with Megatron-LM.
+            This argument has an effect on the communication optimization, not on tensor_shape update.
 
     Returns:
         tuple containing
