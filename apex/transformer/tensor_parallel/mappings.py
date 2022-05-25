@@ -61,7 +61,7 @@ def _split_along_first_dim(input_: torch.Tensor) -> torch.Tensor:
 
     # Split along first dimension.
     dim_size = input_.size(0)
-    assert dim_size & world_size == 0
+    assert dim_size % world_size == 0
     local_dim_size = dim_size // world_size
     dim_offset = get_tensor_model_parallel_rank() * local_dim_size
     output = input_[dim_offset:dim_offset + local_dim_size].contiguous()
@@ -69,7 +69,7 @@ def _split_along_first_dim(input_: torch.Tensor) -> torch.Tensor:
 
 
 def _gather_along_last_dim(input_: torch.Tensor) -> torch.Tensor:
-    """Gather tensors and concatinate along the last dimension."""
+    """Gather tensors and concatenate along the last dimension."""
 
     world_size = get_tensor_model_parallel_world_size()
     # Bypass the function if we are using only 1 GPU.
@@ -93,7 +93,7 @@ def _gather_along_last_dim(input_: torch.Tensor) -> torch.Tensor:
 
 
 def _gather_along_first_dim(input_: torch.Tensor) -> torch.Tensor:
-    """Gather tensors and concatinate along the first dimension."""
+    """Gather tensors and concatenate along the first dimension."""
     world_size = get_tensor_model_parallel_world_size()
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
@@ -139,7 +139,7 @@ def _reduce_scatter_along_first_dim(input_: torch.Tensor) -> torch.Tensor:
 
 
 class _CopyToModelParallelRegion(torch.autograd.Function):
-    """Pass the input to the model parallel region."""
+    """Pass the input to the tensor model parallel region."""
 
     # FIXME(mkozuki): Definition of static symbolic methods don't look correct according to
     # https://pytorch.org/docs/stable/onnx.html#static-symbolic-method
@@ -157,7 +157,7 @@ class _CopyToModelParallelRegion(torch.autograd.Function):
 
 
 class _ReduceFromModelParallelRegion(torch.autograd.Function):
-    """All-reduce the input from the model parallel region."""
+    """All-reduce the input from the tensor model parallel region."""
 
     # FIXME(mkozuki): Definition of static symbolic methods don't look correct according to
     # https://pytorch.org/docs/stable/onnx.html#static-symbolic-method
@@ -193,7 +193,7 @@ class _ScatterToModelParallelRegion(torch.autograd.Function):
 
 
 class _GatherFromModelParallelRegion(torch.autograd.Function):
-    """Gather the input from model parallel region and concatinate."""
+    """Gather the input from tensor model parallel region and concatenate."""
 
     # FIXME(mkozuki): Definition of static symbolic methods don't look correct according to
     # https://pytorch.org/docs/stable/onnx.html#static-symbolic-method
@@ -229,25 +229,29 @@ class _ScatterToSequenceParallelRegion(torch.autograd.Function):
 
 
 class _GatherFromSequenceParallelRegion(torch.autograd.Function):
-    """Gather the input from model parallel region and concatenate."""
+    """Gather the input from sequence parallel region and concatenate."""
 
     # FIXME(mkozuki): Definition of static symbolic methods don't look correct according to
     # https://pytorch.org/docs/stable/onnx.html#static-symbolic-method
     @staticmethod
-    def symbolic(graph, input_):
+    def symbolic(graph, input_, to_model_parallel: bool = True):
         return _gather_along_first_dim(input_)
 
     @staticmethod
-    def forward(ctx, input_):
+    def forward(ctx, input_, to_model_parallel: bool = True):
+        ctx.to_model_parallel = to_model_parallel
         return _gather_along_first_dim(input_)
 
     @staticmethod
     def backward(ctx, grad_output):
-        return _reduce_scatter_along_first_dim(grad_output)
+        if ctx.to_model_parallel:
+            return _reduce_scatter_along_first_dim(grad_output), None
+        else:
+            return _split_along_first_dim(grad_output), None
 
 
 class _ReduceScatterToSequenceParallelRegion(torch.autograd.Function):
-    """Reduce scatter the input from the model parallel region and concatenate."""
+    """Reduce scatter the input from the sequence parallel region and concatenate."""
 
     # FIXME(mkozuki): Definition of static symbolic methods don't look correct according to
     # https://pytorch.org/docs/stable/onnx.html#static-symbolic-method
@@ -289,8 +293,8 @@ def scatter_to_sequence_parallel_region(input_: torch.Tensor) -> torch.Tensor:
     return _ScatterToSequenceParallelRegion.apply(input_)
 
 
-def gather_from_sequence_parallel_region(input_: torch.Tensor) -> torch.Tensor:
-    return _GatherFromSequenceParallelRegion.apply(input_)
+def gather_from_sequence_parallel_region(input_: torch.Tensor, to_model_parallel: bool = True) -> torch.Tensor:
+    return _GatherFromSequenceParallelRegion.apply(input_, to_model_parallel)
 
 
 def reduce_scatter_to_sequence_parallel_region(input_: torch.Tensor) -> torch.Tensor:
