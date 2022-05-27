@@ -331,23 +331,23 @@ class TensorParallelLayerTestBase:
                     with torch.no_grad():
                         linear.weight.main_grad = torch.zeros_like(linear.weight)
 
-                loss_weight = torch.randn(tensor_shape, device="cuda")
                 with torch.no_grad():
                     orig_input_tensor = torch.randn(tensor_shape, requires_grad=True, device="cuda")
+                    orig_loss_weight = torch.randn(tensor_shape, device="cuda")
                     input_tensor = orig_input_tensor.chunk(
                         chunks=tensor_model_parallel_world_size,
                         dim=2,
                     )[parallel_state.get_tensor_model_parallel_rank()].contiguous()
                     if sequence_parallel_enabled:
-                        input_tensor = input_tensor.chunk(
-                            chunks=tensor_model_parallel_world_size,
-                            dim=0,
-                        )[parallel_state.get_tensor_model_parallel_rank()]
-                        orig_input_tensor = orig_input_tensor.chunk(
-                            chunks=tensor_model_parallel_world_size,
-                            dim=0,
-                        )[parallel_state.get_tensor_model_parallel_rank()]
-                        loss_weight = loss_weight.chunk(
+                        # input_tensor = input_tensor.chunk(
+                        #     chunks=tensor_model_parallel_world_size,
+                        #     dim=0,
+                        # )[parallel_state.get_tensor_model_parallel_rank()]
+                        # orig_input_tensor = orig_input_tensor.chunk(
+                        #     chunks=tensor_model_parallel_world_size,
+                        #     dim=0,
+                        # )[parallel_state.get_tensor_model_parallel_rank()]
+                        loss_weight = orig_loss_weight.chunk(
                             chunks=tensor_model_parallel_world_size,
                             dim=0,
                         )[parallel_state.get_tensor_model_parallel_rank()]
@@ -357,6 +357,7 @@ class TensorParallelLayerTestBase:
                         loss_weight = loss_weight.half()
                 input_tensor.requires_grad_()
                 output, _ = linear(input_tensor)
+                # print(input_tensor.shape, output.shape, loss_weight.shape)
                 loss = torch.mul(output, loss_weight).sum()
                 loss.backward()
                 self.assertIsNotNone(input_tensor.grad)
@@ -368,25 +369,31 @@ class TensorParallelLayerTestBase:
                     device="cuda",
                 )
                 with torch.no_grad():
-                    dldy = loss_weight.clone()
+                    dldy = orig_loss_weight.clone()
                     x = orig_input_tensor.clone()
                     ref_linear.weight.copy_(linear.master_weight)
                     if accumulation_in_fp16:
                         ref_linear = ref_linear.half()
                 x.requires_grad_()
                 expected_output = ref_linear(x)
-
-                # FIXME(mkozuki): It feels like this test is doing something wrong with
-                # `sequence_parallel_enabled`. I don't know what exactly is wrong though, so fix me.
-                # It's really lovely though that grad check looks okay.
-                if not sequence_parallel_enabled and not accumulation_in_fp16:
-                    torch.testing.assert_close(
-                        actual=output,
-                        expected=expected_output,
-                    )
-
                 expected_loss = torch.mul(expected_output, dldy).sum()
                 expected_loss.backward()
+
+                if not accumulation_in_fp16:
+                    if sequence_parallel_enabled:
+                        torch.testing.assert_close(
+                            actual=output,
+                            expected=expected_output.chunk(
+                                chunks=tensor_model_parallel_world_size,
+                                dim=0,
+                            )[parallel_state.get_tensor_model_parallel_rank()],
+                        )
+                    else:
+                        torch.testing.assert_close(
+                            actual=output,
+                            expected=expected_output,
+                        )
+
                 grad_attr_name = "main_grad" if gradient_accumulation_fusion else "grad"
                 # NOTE(mkozuki): Numerical errors seems to be enlarged by tensor model parallel.
                 if tensor_model_parallel_world_size == 1:
