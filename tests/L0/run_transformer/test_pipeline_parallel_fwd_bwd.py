@@ -1,7 +1,7 @@
 import logging
 import itertools
 import re
-from typing import Optional
+from typing import Optional, Tuple
 import unittest
 
 import torch
@@ -68,6 +68,22 @@ def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total
     return loss, model
 
 
+def _get_default_world_sizes_model_parallel_world_size(pipeline_model_parallel_world_size: Optional[int] = None
+    ) -> Tuple[int, int, int]:
+    # TODO: revisit if we can fold this into the class for skip logic / avoid duplication
+    # of world size computation
+    world_size = torch.cuda.device_count()
+    tensor_model_parallel_world_size = 1
+    data_parallel_size = 1 + (world_size >= 8 and world_size % 2 == 0)
+
+    if pipeline_model_parallel_world_size is None:
+        pipeline_model_parallel_world_size =  world_size // (tensor_model_parallel_world_size * data_parallel_size)
+    else:
+        data_parallel_size = world_size // (tensor_model_parallel_world_size * pipeline_model_parallel_world_size)
+
+    return tensor_model_parallel_world_size, data_parallel_size, pipeline_model_parallel_world_size
+
+
 class PipelineParallelForwardBackwardTestBase:
 
     GLOBAL_BATCH_SIZE = 16
@@ -103,13 +119,10 @@ class PipelineParallelForwardBackwardTestBase:
                 if dtype == torch.half
                 else None
             )
-            tensor_model_parallel_world_size = 1
-            data_parallel_size = 1 + (self.world_size >= 8 and self.world_size % 2 == 0)
 
-            if pipeline_model_parallel_world_size is None:
-                pipeline_model_parallel_world_size =  self.world_size // (tensor_model_parallel_world_size * data_parallel_size)
-            else:
-                data_parallel_size = self.world_size // (tensor_model_parallel_world_size * pipeline_model_parallel_world_size)
+            (tensor_model_parallel_world_size,
+            data_parallel_size,
+            pipeline_model_parallel_world_size) = _get_default_world_sizes_model_parallel_world_size(pipeline_model_parallel_world_size)
 
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size,
@@ -233,11 +246,13 @@ class PipelineParallelForwardBackwardTestBase:
             True, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
         )
 
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
     def test_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
         )
 
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
     def test_pipelining_with_interleaving_inference(self):
         self._forward_backward_test_impl(
             True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
