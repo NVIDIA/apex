@@ -90,7 +90,7 @@ def reset_checkpointed_activations_memory_buffer():
 def _set_cuda_rng_state(new_state, device=-1):
     """Sets the random number generator state of the current GPU.
 
-    Argumentss:
+    Arguments:
         new_state (torch.ByteTensor): The desired state
     This function is adapted from PyTorch repo (torch.cuda.set_rng_state)
     with a single change: the input state is not cloned. Cloning caused
