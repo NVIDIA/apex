@@ -277,8 +277,8 @@ def _forward_backward_pipelining_with_interleaving(
                 dtype=dtype,
                 sequence_parallel_enabled=sequence_parallel_enabled,
             )
-        free_output_tensor(output_tensor, deallocate_pipeline_outputs)
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
+        free_output_tensor(output_tensor, deallocate_pipeline_outputs)
 
     ###################################################################################################################
     # Run 1F1B in steady state.
