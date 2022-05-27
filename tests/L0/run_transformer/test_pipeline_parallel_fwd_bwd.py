@@ -320,7 +320,6 @@ class NcclPipelineParallelEncDecForwardBackwardTest(NcclDistributedTestBase):
         sequence_parallel_enabled: bool,
     ) -> None:
         pipeline_model_parallel_world_size = self.world_size
-        tensor_model_parallel_world_size = 1
         pipeline_model_parallel_split_rank = pipeline_model_parallel_world_size // 2
 
         parallel_state.initialize_model_parallel(
