@@ -15,7 +15,7 @@
 import datetime
 import os
 import random
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Tuple, Callable
 
 import numpy
 import torch
@@ -24,6 +24,9 @@ import torch.nn as nn
 from apex import transformer
 from apex.transformer.pipeline_parallel.utils import (
     average_losses_across_data_parallel_group,
+)
+from apex.transformer.pipeline_parallel.schedules.common import (
+    Batch,
 )
 from apex.transformer.testing import global_vars
 
@@ -103,7 +106,10 @@ def fwd_step_func(batch, model):
     return y, loss_func
 
 
-def encdec_fwd_step_func(batch, model):
+def encdec_fwd_step_func(
+    batch: Batch,
+    model: torch.nn.Module,
+) -> Tuple[torch.Tensor, Callable[[torch.Tensor], Tuple[torch.Tensor, Dict[str, torch.Tensor]]]]:
     x = batch[0] if isinstance(batch, list) else batch
     if isinstance(x, torch.Tensor):
         x = x.transpose(0, 1).contiguous()
