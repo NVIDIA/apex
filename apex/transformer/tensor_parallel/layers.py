@@ -292,6 +292,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
 
         if ctx.sequence_parallel_enabled:
             world_size = get_tensor_model_parallel_world_size()
+            # `input` is supposed to be 3D and its order of dimension is [sequence, batch, hidden]
             shape = list(input.shape)
             shape[0] *= world_size
 
@@ -423,7 +424,7 @@ def linear_with_grad_accumulation_and_async_allreduce_in16bit(
     gradient_accumulation_fusion: bool,
     async_grad_allreduce: bool,
     sequence_parallel_enabled: bool,
-):
+) -> torch.Tensor:
     args = _cast_if_autocast_enabled(
         input,
         weight,
@@ -586,6 +587,15 @@ class ColumnParallelLinear(torch.nn.Module):
         )
 
     def forward(self, input_: torch.Tensor) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Forward of ColumnParallelLinear
+
+        Args:
+            input_: 3D tensor whose order of dimension is [sequence, batch, hidden]
+
+        Returns:
+            - output
+            - bias
+        """
         bias = self.bias if not self.skip_bias_add else None
 
         if self.async_tensor_model_parallel_allreduce or self.sequence_parallel_enabled:
@@ -744,6 +754,15 @@ class RowParallelLinear(torch.nn.Module):
         )
 
     def forward(self, input_: torch.Tensor) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Forward of RowParallelLinear
+
+        Args:
+            input_: 3D tensor whose order of dimension is [sequence, batch, hidden]
+
+        Returns:
+            - output
+            - bias
+        """
         # Set up backprop all-reduce.
         if self.input_is_parallel:
             input_parallel = input_

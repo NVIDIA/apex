@@ -351,6 +351,8 @@ class TensorParallelLayerTestBase:
                             chunks=tensor_model_parallel_world_size,
                             dim=0,
                         )[parallel_state.get_tensor_model_parallel_rank()]
+                    else:
+                        loss_weight = orig_loss_weight
                     if accumulation_in_fp16:
                         orig_input_tensor = orig_input_tensor.half()
                         input_tensor = input_tensor.half()
