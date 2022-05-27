@@ -733,7 +733,6 @@ class RowParallelLinear(torch.nn.Module):
             # Always initialize bias to zero.
             with torch.no_grad():
                 self.bias.zero_()
-            # TODO(mkozuki): Avoid this attribute registration if possible. Check the use cases.
             setattr(self.bias, "sequence_parallel_enabled", sequence_parallel_enabled)
         else:
             self.register_parameter("bias", None)
@@ -758,7 +757,7 @@ class RowParallelLinear(torch.nn.Module):
             bias=None,
             gradient_accumulation_fusion=self.gradient_accumulation_fusion,
             async_grad_allreduce=False,
-            sequence_parallel_enabled=self.sequence_parallel_enabled,
+            sequence_parallel_enabled=False,
         )
         # All-reduce across all the partitions.
         if self.sequence_parallel_enabled:
