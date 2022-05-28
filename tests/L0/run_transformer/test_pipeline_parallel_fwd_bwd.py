@@ -1,7 +1,7 @@
 import logging
 import itertools
 import re
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import unittest
 
 import torch
@@ -48,7 +48,7 @@ def get_init_weights_func(offset: int = 0):
     return init_weights
 
 
-def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total_layers: int) -> float:  
+def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total_layers: int) -> Tuple[float, List[torch.nn.Module]]: 
     model = []
     data = torch.ones(global_batch_shape, dtype=torch.double)
     for i in range(total_layers):
