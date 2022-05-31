@@ -48,7 +48,7 @@ def get_init_weights_func(offset: int = 0):
     return init_weights
 
 
-def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total_layers: int) -> Tuple[float, List[torch.nn.Module]]: 
+def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total_layers: int) -> Tuple[torch.Tensor, List[torch.Tensor]]: 
     model = []
     data = torch.ones(global_batch_shape, dtype=torch.double)
     for i in range(total_layers):
