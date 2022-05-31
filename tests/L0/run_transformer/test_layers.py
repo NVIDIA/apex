@@ -339,14 +339,6 @@ class TensorParallelLayerTestBase:
                         dim=2,
                     )[parallel_state.get_tensor_model_parallel_rank()].contiguous()
                     if sequence_parallel_enabled:
-                        # input_tensor = input_tensor.chunk(
-                        #     chunks=tensor_model_parallel_world_size,
-                        #     dim=0,
-                        # )[parallel_state.get_tensor_model_parallel_rank()]
-                        # orig_input_tensor = orig_input_tensor.chunk(
-                        #     chunks=tensor_model_parallel_world_size,
-                        #     dim=0,
-                        # )[parallel_state.get_tensor_model_parallel_rank()]
                         loss_weight = orig_loss_weight.chunk(
                             chunks=tensor_model_parallel_world_size,
                             dim=0,
@@ -359,7 +351,6 @@ class TensorParallelLayerTestBase:
                         loss_weight = loss_weight.half()
                 input_tensor.requires_grad_()
                 output, _ = linear(input_tensor)
-                # print(input_tensor.shape, output.shape, loss_weight.shape)
                 loss = torch.mul(output, loss_weight).sum()
                 loss.backward()
                 self.assertIsNotNone(input_tensor.grad)
@@ -405,7 +396,6 @@ class TensorParallelLayerTestBase:
                             chunks=tensor_model_parallel_world_size,
                             dim=0,
                         )[parallel_state.get_tensor_model_parallel_rank()],
-                        msg=f"tensor parallel world size: {tensor_model_parallel_world_size}",
                     )
 
                 parallel_state.destroy_model_parallel()
@@ -529,13 +519,11 @@ class TensorParallelLayerTestBase:
                     torch.testing.assert_close(
                         actual=output,
                         expected=chunk,
-                        # msg=f"tensor parallel: {tensor_model_parallel_world_size}",
                     )
                 else:
                     torch.testing.assert_close(
                         actual=output,
                         expected=expected_output,
-                        # msg=f"tensor parallel: {tensor_model_parallel_world_size}",
                     )
 
                 expected_loss = torch.mul(expected_output, dldy).sum()
@@ -549,7 +537,6 @@ class TensorParallelLayerTestBase:
                             chunks=tensor_model_parallel_world_size,
                             dim=0,
                         )[parallel_state.get_tensor_model_parallel_rank()],
-                        msg=f"tensor parallel: {tensor_model_parallel_world_size}",
                     )
 
                 parallel_state.destroy_model_parallel()
