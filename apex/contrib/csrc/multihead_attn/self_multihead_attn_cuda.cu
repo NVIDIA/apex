@@ -276,8 +276,8 @@ std::vector<torch::Tensor> bwd_cuda(
     #define PYTORCH_ROCBLAS_VERSION_DECIMAL (ROCBLAS_VERSION_MAJOR * 100 + ROCBLAS_VERSION_MINOR)
     #define USE_GEMM_FLAGS_FP16_ALT_IMPL (PYTORCH_ROCBLAS_VERSION_DECIMAL >= 242)
     #if USE_GEMM_FLAGS_FP16_ALT_IMPL
-      #ifdef ROCM_BACKWARD_PASS_GUARD
-        flags = at::BackwardPassGuard::is_backward_pass() ? rocblas_gemm_flags_fp16_alt_impl : 0;
+      #ifdef BACKWARD_PASS_GUARD
+        flags = at::BACKWARD_PASS_GUARD_CLASS::is_backward_pass() ? rocblas_gemm_flags_fp16_alt_impl : 0;
       #endif
     #endif
   #endif

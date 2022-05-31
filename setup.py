@@ -20,9 +20,15 @@ context_file = os.path.join(torch_dir, "include", "ATen", "Context.h")
 if os.path.exists(context_file):
     lines = open(context_file, 'r').readlines()
     found_Backward_Pass_Guard = False
+    found_ROCmBackward_Pass_Guard = False
     for line in lines:
         if "BackwardPassGuard" in line:
-            found_Backward_Pass_Guard = True
+            # BackwardPassGuard has been renamed to ROCmBackwardPassGuard
+            # https://github.com/pytorch/pytorch/pull/71881/commits/4b82f5a67a35406ffb5691c69e6b4c9086316a43
+            if "ROCmBackwardPassGuard" in line:
+                found_ROCmBackward_Pass_Guard = True
+            else:
+                found_Backward_Pass_Guard = True
             break
 
 def get_cuda_bare_metal_version(cuda_dir):
@@ -245,6 +251,12 @@ if "--cuda_ext" in sys.argv:
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc': nvcc_args_layer_norm if not IS_ROCM_PYTORCH else hipcc_args_layer_norm}))
 
+        hipcc_args_mlp = ['-O3'] + version_dependent_macros
+        if found_Backward_Pass_Guard:
+            hipcc_args_mlp = hipcc_args_mlp + ['-DBACKWARD_PASS_GUARD'] + ['-DBACKWARD_PASS_GUARD_CLASS=BackwardPassGuard']
+        if found_ROCmBackward_Pass_Guard:
+            hipcc_args_mlp = hipcc_args_mlp + ['-DBACKWARD_PASS_GUARD'] + ['-DBACKWARD_PASS_GUARD_CLASS=ROCmBackwardPassGuard']
+
         print ("INFO: Building the MLP Extension.")
         ext_modules.append(
             CUDAExtension(name='mlp_cuda',
@@ -252,8 +264,8 @@ if "--cuda_ext" in sys.argv:
                                    'csrc/mlp_cuda.cu'],
                           include_dirs=[os.path.join(this_dir, 'csrc')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
-                                              'nvcc':['-O3'] + version_dependent_macros if not found_Backward_Pass_Guard 
-                                              else ['-O3'] + version_dependent_macros + ['-DROCM_BACKWARD_PASS_GUARD']}))
+                                              'nvcc':['-O3'] + version_dependent_macros
+                                              if not IS_ROCM_PYTORCH else hipcc_args_mlp}))
 
         ext_modules.append(
             CUDAExtension(name='fused_dense_cuda',
@@ -493,7 +505,9 @@ if "--fast_multihead_attn" in sys.argv or "--cuda_ext" in sys.argv:
                           '-U__HIP_NO_HALF_OPERATORS__',
                           '-U__HIP_NO_HALF_CONVERSIONS__'] + version_dependent_macros + generator_flag
         if found_Backward_Pass_Guard:
-            hipcc_args_mha = hipcc_args_mha + ['-DROCM_BACKWARD_PASS_GUARD']
+            hipcc_args_mha = hipcc_args_mha + ['-DBACKWARD_PASS_GUARD'] + ['-DBACKWARD_PASS_GUARD_CLASS=BackwardPassGuard']
+        if found_ROCmBackward_Pass_Guard:
+            hipcc_args_mha = hipcc_args_mha + ['-DBACKWARD_PASS_GUARD'] + ['-DBACKWARD_PASS_GUARD_CLASS=ROCmBackwardPassGuard']
 
         ext_modules.append(
             CUDAExtension(
