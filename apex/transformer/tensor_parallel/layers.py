@@ -559,7 +559,7 @@ class ColumnParallelLinear(torch.nn.Module):
                 warnings.warn(
                     f"`sequence_parallel_enabled` is set to `True`, but got world_size of {world_size}"
                 )
-                sequence_parallel_enabled = False
+                # sequence_parallel_enabled = False
         self.sequence_parallel_enabled = sequence_parallel_enabled
         if gradient_accumulation_fusion:
             if not _grad_accum_fusion_available:
