@@ -22,6 +22,10 @@ import torch
 import torch.nn as nn
 
 from apex import transformer
+from apex.transformer.tensor_parallel import(
+    ColumnParallelLinear,
+    RowParallelLinear,
+)
 from apex.transformer.pipeline_parallel.utils import (
     average_losses_across_data_parallel_group,
 )
@@ -74,6 +78,71 @@ class MyModel(nn.Module):
         return self.layer(self.input_tensor)
 
 
+class MLP(nn.Module):
+    def __init__(
+        self,
+        hidden_size: int, pre_process: bool = False, post_process: bool = False,
+        *,
+        sequence_parallel_enabled: bool = False,
+        # TODO(mkozuki): Support these two?
+        add_encoder: bool = False, add_decoder: bool = False,
+    ) -> None:
+        super().__init__()
+        self.pre_process = pre_process
+        self.post_process = post_process
+        self.sequence_parallel_enabled = sequence_parallel_enabled
+
+        ffn_hidden_size = 4 * hidden_size
+        self.dense_h_to_4h = ColumnParallelLinear(
+            hidden_size,
+            ffn_hidden_size,
+            gather_output=False,
+            # init_method=init_method,
+            skip_bias_add=True,
+            # use_cpu_initialization=use_cpu_initialization,
+            bias=True,
+            sequence_parallel_enabled=sequence_parallel_enabled,
+            no_async_tensor_model_parallel_allreduce=True,
+        )
+        self.dense_4h_to_h = RowParallelLinear(
+            ffn_hidden_size,
+            hidden_size,
+            input_is_parallel=True,
+            # init_method=output_layer_init_method,
+            skip_bias_add=False,
+            # use_cpu_initialization=use_cpu_initialization,
+            bias=True,
+            sequence_parallel_enabled=sequence_parallel_enabled,
+        )
+        self.activation_func = torch.nn.GELU()
+
+    def set_input_tensor(
+        self,
+        input_tensor: Union[torch.Tensor, List[torch.Tensor]],
+    ) -> None:
+        if not isinstance(input_tensor, list):
+            input_tensor = [input_tensor]
+        self.input_tensor = input_tensor[0]
+
+    def forward(
+        self,
+        hidden_states: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        # [s, b, 4hp]
+        if hidden_states is None:
+            input = self.input_tensor
+        else:
+            input = hidden_states
+        intermediate_parallel, bias_parallel = self.dense_h_to_4h(input)
+
+        if bias_parallel is not None:
+            intermediate_parallel += bias_parallel
+        intermediate_parallel = self.activation_func(intermediate_parallel)
+        # [s, b, h]
+        output, output_bias = self.dense_4h_to_h(intermediate_parallel)
+        return output
+
+
 def model_provider_func(
     hidden_size: int,
     pre_process: bool,
@@ -82,6 +151,25 @@ def model_provider_func(
     add_encoder: bool = False,
     add_decoder: bool = False) -> MyModel:
     return MyModel(hidden_size, pre_process, post_process, add_encoder=add_encoder, add_decoder=add_decoder)
+
+
+def mlp_provider_func(
+    hidden_size: int,
+    pre_process: bool,
+    post_process: bool,
+    *,
+    add_encoder: bool = False,
+    add_decoder: bool = False,
+    sequence_parallel_enabled: bool = False,
+) -> MLP:
+    return MLP(
+        hidden_size,
+        pre_process,
+        post_process,
+        add_encoder=add_encoder,
+        add_decoder=add_decoder,
+        sequence_parallel_enabled=sequence_parallel_enabled,
+    )
 
 
 def process_batch(batch):
