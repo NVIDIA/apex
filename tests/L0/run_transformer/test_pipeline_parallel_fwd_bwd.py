@@ -1,7 +1,7 @@
 import logging
 import itertools
 import re
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import unittest
 
 import torch
@@ -49,12 +49,12 @@ def get_init_weights_func(offset: int = 0):
     return init_weights
 
 
-def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total_layers: int) -> float:  
+def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total_layers: int) -> Tuple[torch.Tensor, List[torch.Tensor]]: 
     model = []
-    data = torch.ones(global_batch_shape, dtype=torch.float)
+    data = torch.ones(global_batch_shape, dtype=torch.double)
     for i in range(total_layers):
-        w = torch.ones((hidden_size, hidden_size)) * (i + 1.0) / weight_coeff
-        b = torch.ones(hidden_size)
+        w = torch.ones((hidden_size, hidden_size), dtype=torch.double) * (i + 1.0) / weight_coeff
+        b = torch.ones(hidden_size, dtype=torch.double)
 
         w.requires_grad_()
         b.requires_grad_()
@@ -67,6 +67,22 @@ def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total
     loss.backward()
 
     return loss, model
+
+
+def _get_default_world_sizes_model_parallel_world_size(pipeline_model_parallel_world_size: Optional[int] = None
+    ) -> Tuple[int, int, int]:
+    # TODO: revisit if we can fold this into the class for skip logic / avoid duplication
+    # of world size computation
+    world_size = torch.cuda.device_count()
+    tensor_model_parallel_world_size = 1
+    data_parallel_size = 1 + (world_size >= 8 and world_size % 2 == 0)
+
+    if pipeline_model_parallel_world_size is None:
+        pipeline_model_parallel_world_size =  world_size // (tensor_model_parallel_world_size * data_parallel_size)
+    else:
+        data_parallel_size = world_size // (tensor_model_parallel_world_size * pipeline_model_parallel_world_size)
+
+    return tensor_model_parallel_world_size, data_parallel_size, pipeline_model_parallel_world_size
 
 
 class PipelineParallelForwardBackwardTestBase:
@@ -94,7 +110,7 @@ class PipelineParallelForwardBackwardTestBase:
         if fwd_bwd_func == _forward_backward_pipelining_with_interleaving:
             self.assertIsNotNone(virtual_pipeline_model_parallel_size)
             self.assertGreater(virtual_pipeline_model_parallel_size, 1)
-        dtype_options = self.dtypes or [torch.float32] + _get_autocast_dtypes()
+        dtype_options = self.dtypes or [torch.float32, torch.double] + _get_autocast_dtypes()
 
         for dtype, deallocate_pipeline_outputs in itertools.product(
             dtype_options, self.deallocate_options,
@@ -104,13 +120,10 @@ class PipelineParallelForwardBackwardTestBase:
                 if dtype == torch.half
                 else None
             )
-            tensor_model_parallel_world_size = 1
-            data_parallel_size = 1 + (self.world_size >= 8 and self.world_size % 2 == 0)
 
-            if pipeline_model_parallel_world_size is None:
-                pipeline_model_parallel_world_size =  self.world_size // (tensor_model_parallel_world_size * data_parallel_size)
-            else:
-                data_parallel_size = self.world_size // (tensor_model_parallel_world_size * pipeline_model_parallel_world_size)
+            (tensor_model_parallel_world_size,
+            data_parallel_size,
+            pipeline_model_parallel_world_size) = _get_default_world_sizes_model_parallel_world_size(pipeline_model_parallel_world_size)
 
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size,
@@ -136,7 +149,7 @@ class PipelineParallelForwardBackwardTestBase:
 
             batch = None
             if parallel_state.is_pipeline_first_stage():
-                batch = (torch.ones(global_batch_shape, dtype=torch.float).cuda(), )
+                batch = (torch.ones(global_batch_shape, dtype=dtype).cuda(), )
 
             model = build_model(
                 testing_utils.model_provider_func,
@@ -149,6 +162,7 @@ class PipelineParallelForwardBackwardTestBase:
             
             offset = pipeline_model_parallel_world_size if virtual_pipeline_model_parallel_size is not None else 0
             for idx, model_module in enumerate(model):
+                model_module = model_module.to(dtype)
                 model_module.apply(get_init_weights_func(idx*offset))
 
             _param_groups = _get_params_for_weight_decay_optimization(model)
@@ -156,25 +170,24 @@ class PipelineParallelForwardBackwardTestBase:
 
             pp_utils.update_num_microbatches(0)
             
-            with common_cuda.tf32_off():
-                loss = fwd_bwd_func(
-                    testing_utils.fwd_step_func,
-                    batch,
-                    model,
-                    forward_only=forward_only,
-                    # `tensor_shape` is the shape of micro batch.
-                    tensor_shape=(
-                        self.MICRO_BATCH_SIZE,
-                        self.HIDDEN_SIZE,
-                        self.HIDDEN_SIZE,
-                    ),
-                    dtype=dtype,
-                    async_comm=async_comm,
-                    grad_scaler=grad_scaler,
-                    deallocate_pipeline_output=deallocate_pipeline_outputs,
-                )
+            loss = fwd_bwd_func(
+                testing_utils.fwd_step_func,
+                batch,
+                model,
+                forward_only=forward_only,
+                # `tensor_shape` is the shape of micro batch.
+                tensor_shape=(
+                    self.MICRO_BATCH_SIZE,
+                    self.HIDDEN_SIZE,
+                    self.HIDDEN_SIZE,
+                ),
+                dtype=dtype,
+                async_comm=async_comm,
+                grad_scaler=grad_scaler,
+                deallocate_pipeline_output=deallocate_pipeline_outputs,
+            )
 
-            if dtype == torch.float32:
+            if dtype == torch.double:
                 hidden_size = self.HIDDEN_SIZE
                 microbatch_size = self.MICRO_BATCH_SIZE
                 total_layers = pipeline_model_parallel_world_size
@@ -234,11 +247,13 @@ class PipelineParallelForwardBackwardTestBase:
             True, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
         )
 
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
     def test_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
         )
 
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
     def test_pipelining_with_interleaving_inference(self):
         self._forward_backward_test_impl(
             True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
