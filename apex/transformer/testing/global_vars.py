@@ -158,17 +158,20 @@ def _set_adlr_autoresume(args):
     global _GLOBAL_ADLR_AUTORESUME
     _ensure_var_is_not_initialized(_GLOBAL_ADLR_AUTORESUME, 'adlr autoresume')
 
-    if args.adlr_autoresume:
-        if args.rank == 0:
-            print('enabling autoresume ...', flush=True)
-        sys.path.append(os.environ.get('SUBMIT_SCRIPTS', '.'))
-        try:
-            from userlib.auto_resume import AutoResume
-        except BaseException:
-            print('ADLR autoresume is not available, exiting ...')
-            sys.exit()
+    # note(mkozuki): I can't find `userlib.auto_resume`, which makes me fail to
+    # have transformer module conform with mypy.
+    assert not args.adlr_autoresume
+    # if args.adlr_autoresume:
+    #     if args.rank == 0:
+    #         print('enabling autoresume ...', flush=True)
+    #     sys.path.append(os.environ.get('SUBMIT_SCRIPTS', '.'))
+    #     try:
+    #         from userlib.auto_resume import AutoResume
+    #     except BaseException:
+    #         print('ADLR autoresume is not available, exiting ...')
+    #         sys.exit()
 
-        _GLOBAL_ADLR_AUTORESUME = AutoResume
+    #     _GLOBAL_ADLR_AUTORESUME = AutoResume
 
 
 def _set_timers():

@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-import peer_memory_cuda as pm
+from . import peer_memory_cuda as pm
 
 class PeerMemoryPool(object):
 

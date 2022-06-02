@@ -12,7 +12,7 @@ from utils import common_init, HALF, FLOAT,\
     ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
 
 try:
-  import amp_C
+  from apex.extensions import amp_C
   from amp_C import multi_tensor_scale 
   from apex.multi_tensor_apply import MultiTensorApply
   disabled = False

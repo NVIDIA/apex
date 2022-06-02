@@ -83,7 +83,7 @@ class FusedSGD(Optimizer):
         self.wd_after_momentum = wd_after_momentum
 
         if multi_tensor_applier.available:
-            import amp_C
+            from apex.extensions import amp_C
             # Skip buffer
             self._dummy_overflow_buf = torch.cuda.IntTensor([0])
             self.multi_tensor_sgd = amp_C.multi_tensor_sgd

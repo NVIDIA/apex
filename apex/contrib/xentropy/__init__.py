@@ -1,6 +1,6 @@
 try:
     import torch
-    import xentropy_cuda
+    from . import xentropy_cuda
     from .softmax_xentropy import SoftmaxCrossEntropyLoss
     del torch
     del xentropy_cuda

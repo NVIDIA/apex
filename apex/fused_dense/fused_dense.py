@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-import fused_dense_cuda
+from apex.extensions import fused_dense_cuda
 from .. import amp
 #implements fused GEMM+bias in forward pass using mlp_cuda from apex
 class FusedDenseFunc(torch.autograd.Function):

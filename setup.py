@@ -1,11 +1,11 @@
-import torch
-from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension, CUDA_HOME
 from setuptools import setup, find_packages
 import subprocess
-
 import sys
 import warnings
 import os
+
+import torch
+from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension, CUDA_HOME
 
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -120,6 +120,7 @@ if "--pyprof" in sys.argv:
 else:
     warnings.warn("Option --pyprof not specified. Not installing PyProf dependencies!")
 
+# TODO(mkozuki): Remove some guards for old PyTorch
 if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
     if TORCH_MAJOR == 0:
         raise RuntimeError(
@@ -128,9 +129,10 @@ if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
 
 if "--cpp_ext" in sys.argv:
     sys.argv.remove("--cpp_ext")
-    ext_modules.append(CppExtension("apex_C", ["csrc/flatten_unflatten.cpp"]))
+    ext_modules.append(CppExtension("apex.extensions.apex_C", ["csrc/flatten_unflatten.cpp"]))
 
 
+# TODO(mkozuki): Remove some guards for old PyTorch
 # Set up macros for forward/backward compatibility hack around
 # https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
 # and
@@ -152,7 +154,7 @@ if "--distributed_adam" in sys.argv:
     raise_if_cuda_home_none("--distributed_adam")
     ext_modules.append(
         CUDAExtension(
-            name="distributed_adam_cuda",
+            name="apex.contrib.optimizers.distributed_adam_cuda",
             sources=[
                 "apex/contrib/csrc/optimizers/multi_tensor_distopt_adam.cpp",
                 "apex/contrib/csrc/optimizers/multi_tensor_distopt_adam_kernel.cu",
@@ -170,7 +172,7 @@ if "--distributed_lamb" in sys.argv:
     raise_if_cuda_home_none("--distributed_lamb")
     ext_modules.append(
         CUDAExtension(
-            name="distributed_lamb_cuda",
+            name="apex.contrib.optimizers.distributed_lamb_cuda",
             sources=[
                 "apex/contrib/csrc/optimizers/multi_tensor_distopt_lamb.cpp",
                 "apex/contrib/csrc/optimizers/multi_tensor_distopt_lamb_kernel.cu",
@@ -190,7 +192,7 @@ if "--cuda_ext" in sys.argv:
 
     ext_modules.append(
         CUDAExtension(
-            name="amp_C",
+            name="apex.extensions.amp_C",
             sources=[
                 "csrc/amp_C_frontend.cpp",
                 "csrc/multi_tensor_sgd_kernel.cu",
@@ -223,7 +225,7 @@ if "--cuda_ext" in sys.argv:
     )
     ext_modules.append(
         CUDAExtension(
-            name="syncbn",
+            name="apex.extensions.syncbn",
             sources=["csrc/syncbn.cpp", "csrc/welford.cu"],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
@@ -234,7 +236,7 @@ if "--cuda_ext" in sys.argv:
 
     ext_modules.append(
         CUDAExtension(
-            name="fused_layer_norm_cuda",
+            name="apex.extensions.fused_layer_norm_cuda",
             sources=["csrc/layer_norm_cuda.cpp", "csrc/layer_norm_cuda_kernel.cu"],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
@@ -245,7 +247,7 @@ if "--cuda_ext" in sys.argv:
 
     ext_modules.append(
         CUDAExtension(
-            name="mlp_cuda",
+            name="apex.extensions.mlp_cuda",
             sources=["csrc/mlp.cpp", "csrc/mlp_cuda.cu"],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
@@ -255,7 +257,7 @@ if "--cuda_ext" in sys.argv:
     )
     ext_modules.append(
         CUDAExtension(
-            name="fused_dense_cuda",
+            name="apex.extensions.fused_dense_cuda",
             sources=["csrc/fused_dense.cpp", "csrc/fused_dense_cuda.cu"],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
@@ -266,7 +268,7 @@ if "--cuda_ext" in sys.argv:
 
     ext_modules.append(
         CUDAExtension(
-            name="scaled_upper_triang_masked_softmax_cuda",
+            name="apex.extensions.scaled_upper_triang_masked_softmax_cuda",
             sources=[
                 "csrc/megatron/scaled_upper_triang_masked_softmax.cpp",
                 "csrc/megatron/scaled_upper_triang_masked_softmax_cuda.cu",
@@ -290,7 +292,7 @@ if "--cuda_ext" in sys.argv:
 
     ext_modules.append(
         CUDAExtension(
-            name="scaled_masked_softmax_cuda",
+            name="apex.extensions.scaled_masked_softmax_cuda",
             sources=["csrc/megatron/scaled_masked_softmax.cpp", "csrc/megatron/scaled_masked_softmax_cuda.cu"],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
@@ -320,7 +322,7 @@ if "--cuda_ext" in sys.argv:
             cc_flag.append("arch=compute_86,code=sm_86")
         ext_modules.append(
             CUDAExtension(
-                name="fused_weight_gradient_mlp_cuda",
+                name="apex.extensions.fused_weight_gradient_mlp_cuda",
                 include_dirs=[os.path.join(this_dir, "csrc")],
                 sources=[
                     "csrc/megatron/fused_weight_gradient_dense.cpp",
@@ -355,7 +357,7 @@ if "--permutation_search" in sys.argv:
     else:
         cc_flag = ['-Xcompiler', '-fPIC', '-shared']
         ext_modules.append(
-            CUDAExtension(name='permutation_search_cuda',
+            CUDAExtension(name='apex.contrib.sparsity.permutation_search_cuda',
                           sources=['apex/contrib/sparsity/permutation_search_kernels/CUDA_kernels/permutation_search_kernels.cu'],
                           include_dirs=[os.path.join(this_dir, 'apex', 'contrib', 'sparsity', 'permutation_search_kernels', 'CUDA_kernels')],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
@@ -366,7 +368,7 @@ if "--bnp" in sys.argv:
     raise_if_cuda_home_none("--bnp")
     ext_modules.append(
         CUDAExtension(
-            name="bnp",
+            name="apex.contrib.groupbn.bnp",
             sources=[
                 "apex/contrib/csrc/groupbn/batch_norm.cu",
                 "apex/contrib/csrc/groupbn/ipc.cu",
@@ -394,7 +396,7 @@ if "--xentropy" in sys.argv:
     raise_if_cuda_home_none("--xentropy")
     ext_modules.append(
         CUDAExtension(
-            name="xentropy_cuda",
+            name="apex.contrib.xentropy.xentropy_cuda",
             sources=["apex/contrib/csrc/xentropy/interface.cpp", "apex/contrib/csrc/xentropy/xentropy_kernel.cu"],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
@@ -409,7 +411,7 @@ if "--focal_loss" in sys.argv:
     raise_if_cuda_home_none("--focal_loss")
     ext_modules.append(
         CUDAExtension(
-            name='focal_loss_cuda',
+            name='apex.contrib.focal_loss.focal_loss_cuda',
             sources=[
                 'apex/contrib/csrc/focal_loss/focal_loss_cuda.cpp',
                 'apex/contrib/csrc/focal_loss/focal_loss_cuda_kernel.cu',
@@ -427,7 +429,7 @@ if "--deprecated_fused_adam" in sys.argv:
     raise_if_cuda_home_none("--deprecated_fused_adam")
     ext_modules.append(
         CUDAExtension(
-            name="fused_adam_cuda",
+            name="apex.contrib.optimizers.fused_adam_cuda",
             sources=[
                 "apex/contrib/csrc/optimizers/fused_adam_cuda.cpp",
                 "apex/contrib/csrc/optimizers/fused_adam_cuda_kernel.cu",
@@ -445,7 +447,7 @@ if "--deprecated_fused_lamb" in sys.argv:
     raise_if_cuda_home_none("--deprecated_fused_lamb")
     ext_modules.append(
         CUDAExtension(
-            name="fused_lamb_cuda",
+            name="apex.contrib.optimizers.fused_lamb_cuda",
             sources=[
                 "apex/contrib/csrc/optimizers/fused_lamb_cuda.cpp",
                 "apex/contrib/csrc/optimizers/fused_lamb_cuda_kernel.cu",
@@ -478,7 +480,7 @@ if "--fast_layer_norm" in sys.argv:
 
     ext_modules.append(
         CUDAExtension(
-            name="fast_layer_norm",
+            name="apex.contrib.layer_norm.fast_layer_norm",
             sources=[
                 "apex/contrib/csrc/layer_norm/ln_api.cpp",
                 "apex/contrib/csrc/layer_norm/ln_fwd_cuda_kernel.cu",
@@ -524,7 +526,7 @@ if "--fmha" in sys.argv:
 
     ext_modules.append(
         CUDAExtension(
-            name="fmhalib",
+            name="apex.contrib.fmha.fmhalib",
             sources=[
                 "apex/contrib/csrc/fmha/fmha_api.cpp",
                 "apex/contrib/csrc/fmha/src/fmha_noloop_reduce.cu",
@@ -578,7 +580,7 @@ if "--fast_multihead_attn" in sys.argv:
     subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
     ext_modules.append(
         CUDAExtension(
-            name="fast_multihead_attn",
+            name="apex.contrib.multihead_attn.fast_multihead_attn",
             sources=[
                 "apex/contrib/csrc/multihead_attn/multihead_attn_frontend.cpp",
                 "apex/contrib/csrc/multihead_attn/additive_masked_softmax_dropout_cuda.cu",
@@ -617,7 +619,7 @@ if "--transducer" in sys.argv:
     raise_if_cuda_home_none("--transducer")
     ext_modules.append(
         CUDAExtension(
-            name="transducer_joint_cuda",
+            name="apex.contrib.transducer.transducer_joint_cuda",
             sources=[
                 "apex/contrib/csrc/transducer/transducer_joint.cpp",
                 "apex/contrib/csrc/transducer/transducer_joint_kernel.cu",
@@ -631,7 +633,7 @@ if "--transducer" in sys.argv:
     )
     ext_modules.append(
         CUDAExtension(
-            name="transducer_loss_cuda",
+            name="apex.contrib.transducer.transducer_loss_cuda",
             sources=[
                 "apex/contrib/csrc/transducer/transducer_loss.cpp",
                 "apex/contrib/csrc/transducer/transducer_loss_kernel.cu",
@@ -652,7 +654,7 @@ if "--fast_bottleneck" in sys.argv:
         subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
         ext_modules.append(
             CUDAExtension(
-                name="fast_bottleneck",
+                name="apex.contrib.bottleneck.fast_bottleneck",
                 sources=["apex/contrib/csrc/bottleneck/bottleneck.cpp"],
                 include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
                 extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
@@ -664,7 +666,7 @@ if "--peer_memory" in sys.argv:
     raise_if_cuda_home_none("--peer_memory")
     ext_modules.append(
         CUDAExtension(
-            name="peer_memory_cuda",
+            name="apex.contrib.peer_memory.peer_memory_cuda",
             sources=[
                 "apex/contrib/csrc/peer_memory/peer_memory_cuda.cu",
                 "apex/contrib/csrc/peer_memory/peer_memory.cpp",
@@ -678,7 +680,7 @@ if "--nccl_p2p" in sys.argv:
     raise_if_cuda_home_none("--nccl_p2p")
     ext_modules.append(
         CUDAExtension(
-            name="nccl_p2p_cuda",
+            name="apex.contrib.bottleneck.nccl_p2p_cuda",
             sources=[
                 "apex/contrib/csrc/nccl_p2p/nccl_p2p_cuda.cu",
                 "apex/contrib/csrc/nccl_p2p/nccl_p2p.cpp",
@@ -695,7 +697,7 @@ if "--fused_conv_bias_relu" in sys.argv:
         subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
         ext_modules.append(
             CUDAExtension(
-                name="fused_conv_bias_relu",
+                name="apex.contrib.conv_bias_relu.fused_conv_bias_relu",
                 sources=["apex/contrib/csrc/conv_bias_relu/conv_bias_relu.cpp"],
                 include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
                 extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},

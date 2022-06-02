@@ -41,7 +41,7 @@ class FusedAdam(torch.optim.Optimizer):
                  weight_decay=0., max_grad_norm=0., amsgrad=False, use_mt=False,
                  amp_scale_adjustment=1.0):
         global fused_adam_cuda
-        fused_adam_cuda = importlib.import_module("fused_adam_cuda")
+        fused_adam_cuda = importlib.import_module("apex.contrib.optimizers.fused_adam_cuda")
 
         self._use_multi_tensor = False
         if use_mt:

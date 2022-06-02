@@ -1,7 +1,7 @@
 import math
 import torch
 import importlib
-import amp_C
+from apex.extensions import amp_C
 from apex.multi_tensor_apply import multi_tensor_applier
 
 import torch.distributed.distributed_c10d as c10d
@@ -71,8 +71,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  clip_grad_norm=True,
                  model_parallel=False):
         global fused_adam_cuda, distributed_adam_cuda
-        fused_adam_cuda = importlib.import_module("fused_adam_cuda")
-        distributed_adam_cuda = importlib.import_module("distributed_adam_cuda")
+        fused_adam_cuda = importlib.import_module("apex.contrib.optimiers.fused_adam_cuda")
+        distributed_adam_cuda = importlib.import_module("apex.contrib.optimiers.distributed_adam_cuda")
         self.multi_tensor_l2norm = amp_C.multi_tensor_l2norm
 
         if amsgrad:
