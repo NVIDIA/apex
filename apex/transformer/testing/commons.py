@@ -126,13 +126,20 @@ class MLP(nn.Module):
 
     def forward(
         self,
-        hidden_states: Optional[torch.Tensor],
+        x: Optional[torch.Tensor],
     ) -> torch.Tensor:
+        """Forward of Simplified ParallelMLP.
+
+        Args:
+            x: :obj:`None` if pipeline rank != pippeline first rank. When :obj:`None`,
+                `self.input_tensor` is taken care of by `forward_step` defined in
+                apex/transformer/pipeline_parallel/schedules/common.py
+        """
         # [s, b, 4hp]
-        if hidden_states is None:
-            input = self.input_tensor
+        if self.input_tensor is None:
+            input = x
         else:
-            input = hidden_states
+            input = self.input_tensor
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(input)
 
         if bias_parallel is not None:
