@@ -336,11 +336,20 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
         sequence_parallel_enabled: bool,
         model_type: ModelType = ModelType.encoder_and_decoder,
     ) -> None:
-        pipeline_model_parallel_world_size = self.world_size
-        pipeline_model_parallel_split_rank = pipeline_model_parallel_world_size // 2
+        tensor_model_parallel_size = 1
+        if model_type == ModelType.encoder_and_decoder:
+            pipeline_model_parallel_world_size = self.world_size
+            pipeline_model_parallel_split_rank = pipeline_model_parallel_world_size // 2
+        else:
+            pipeline_model_parallel_split_rank = None
+            tensor_model_parallel_size = 1 + int(self.world_size > 4)
+            pipeline_model_parallel_world_size = self.world_size // tensor_model_parallel_size
+
+        if torch.distributed.get_rank() == 0:
+            print(f"tensor / pipeline size: {tensor_model_parallel_size} / {pipeline_model_parallel_world_size}")
 
         parallel_state.initialize_model_parallel(
-            tensor_model_parallel_size_=1,
+            tensor_model_parallel_size_=tensor_model_parallel_size,
             pipeline_model_parallel_size_=pipeline_model_parallel_world_size,
             virtual_pipeline_model_parallel_size_=None,
             pipeline_model_parallel_split_rank_=pipeline_model_parallel_split_rank,
@@ -360,12 +369,16 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
             hidden_size=self.HIDDEN_SIZE,
             sequence_parallel_enabled=sequence_parallel_enabled,
         )
-        batch: Tuple[torch.Tensor] = (
-            torch.ones(
-                (self.GLOBAL_BATCH_SIZE, self.ENCODER_SEQUENCE_LENGTH, self.HIDDEN_SIZE),
-                dtype=torch.float,
-            ).cuda(),
-        )
+
+        if parallel_state.is_pipeline_first_stage():
+            batch: Tuple[torch.Tensor] = (
+                torch.ones(
+                    (self.GLOBAL_BATCH_SIZE, self.ENCODER_SEQUENCE_LENGTH, self.HIDDEN_SIZE),
+                    dtype=torch.float,
+                ).cuda(),
+            )
+        else:
+            batch = None
 
         _ = forward_backward_pipelining_without_interleaving(
             forward_step_func=testing_utils.encdec_fwd_step_func,
