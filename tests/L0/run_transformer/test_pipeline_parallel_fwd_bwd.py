@@ -323,7 +323,8 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
     def world_size(self) -> int:
         return min(torch.cuda.device_count(), 8)
 
-    # TODO(mkozuki): No default value for the keyword argument `model_type`
+    # TODO(mkozuki): Support real tensor parallel with toy ParallelMLP.
+    #   Currently grad and output shape don't match.
     # TODO(mkozuki): Add cases of async_comm=True
     # TODO(mkozuki): Check loss.
     # TODO(mkozuki): Call `build_model` with `model_type`.
@@ -334,16 +335,14 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
         *,
         forward_only: bool,
         sequence_parallel_enabled: bool,
-        model_type: ModelType = ModelType.encoder_and_decoder,
+        model_type: ModelType,
     ) -> None:
         tensor_model_parallel_size = 1
+        pipeline_model_parallel_world_size = self.world_size
         if model_type == ModelType.encoder_and_decoder:
-            pipeline_model_parallel_world_size = self.world_size
             pipeline_model_parallel_split_rank = pipeline_model_parallel_world_size // 2
         else:
             pipeline_model_parallel_split_rank = None
-            tensor_model_parallel_size = 1 + int(self.world_size > 4)
-            pipeline_model_parallel_world_size = self.world_size // tensor_model_parallel_size
 
         if torch.distributed.get_rank() == 0:
             print(f"tensor / pipeline size: {tensor_model_parallel_size} / {pipeline_model_parallel_world_size}")
@@ -399,16 +398,16 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
         )
 
     def test_pipelining_without_interleaving_encoder_and_decoder(self) -> None:
-        self._forward_backward_test_impl(forward_only=False, sequence_parallel_enabled=False)
+        self._forward_backward_test_impl(forward_only=False, sequence_parallel_enabled=False, model_type=ModelType.encoder_and_decoder)
 
     def test_pipelining_without_interleaving_inferenc_encoder_and_decodere(self) -> None:
-        self._forward_backward_test_impl(forward_only=True, sequence_parallel_enabled=False)
+        self._forward_backward_test_impl(forward_only=True, sequence_parallel_enabled=False, model_type=ModelType.encoder_and_decoder)
 
     def test_pipelining_without_interleaving_sequence_paralle_encoder_and_decoderl(self) -> None:
-        self._forward_backward_test_impl(forward_only=False, sequence_parallel_enabled=True)
+        self._forward_backward_test_impl(forward_only=False, sequence_parallel_enabled=True, model_type=ModelType.encoder_and_decoder)
 
     def test_pipelining_without_interleaving_inference_sequence_paralle_encoder_and_decoderl(self) -> None:
-        self._forward_backward_test_impl(forward_only=True, sequence_parallel_enabled=True)
+        self._forward_backward_test_impl(forward_only=True, sequence_parallel_enabled=True, model_type=ModelType.encoder_and_decoder)
 
     def test_pipelining_without_interleaving_encoder_or_decoder(self) -> None:
         self._forward_backward_test_impl(forward_only=False, sequence_parallel_enabled=False, model_type=ModelType.encoder_or_decoder)
