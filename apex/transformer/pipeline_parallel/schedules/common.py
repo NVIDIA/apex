@@ -355,7 +355,6 @@ def backward_step(
 
     input_tensor = [inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor]
 
-    # n.b.(mkozuki): Tentatively commenting out
     for x in input_tensor:
         if x is not None:
             x.retain_grad()
