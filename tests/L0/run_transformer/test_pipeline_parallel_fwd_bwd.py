@@ -337,11 +337,13 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
         sequence_parallel_enabled: bool,
         model_type: ModelType,
     ) -> None:
-        tensor_model_parallel_size = 1
-        pipeline_model_parallel_world_size = self.world_size
         if model_type == ModelType.encoder_and_decoder:
+            tensor_model_parallel_size = 1
+            pipeline_model_parallel_world_size = self.world_size
             pipeline_model_parallel_split_rank = pipeline_model_parallel_world_size // 2
         else:
+            tensor_model_parallel_size = 1 + int(self.world_size >= 4)
+            pipeline_model_parallel_world_size = self.world_size // tensor_model_parallel_size
             pipeline_model_parallel_split_rank = None
 
         if torch.distributed.get_rank() == 0:
@@ -379,8 +381,8 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
         else:
             batch = None
 
-        _ = forward_backward_pipelining_without_interleaving(
-            forward_step_func=testing_utils.encdec_fwd_step_func,
+        forward_backward_pipelining_without_interleaving(
+            forward_step_func=testing_utils.ToyParallelMLPFwdBwdStepFunc(sequence_parallel_enabled=sequence_parallel_enabled),
             batch=batch,
             model=model,
             forward_only=forward_only,
