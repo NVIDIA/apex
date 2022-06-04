@@ -335,13 +335,14 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
         sequence_parallel_enabled: bool,
         model_type: ModelType,
     ) -> None:
+        # N.B.(mkozuki): It might be better to set `tensor_model_parallel_size` to >1
+        # if `self.world_size > 5`. Otherwise, `pipeline_model_parallel_split_rank`
+        # can be 1, which can be too far real usecase.
+        tensor_model_parallel_size = 1 + int(self.world_size >= 4)
+        pipeline_model_parallel_world_size = self.world_size // tensor_model_parallel_size
         if model_type == ModelType.encoder_and_decoder:
-            tensor_model_parallel_size = 1
-            pipeline_model_parallel_world_size = self.world_size
             pipeline_model_parallel_split_rank = pipeline_model_parallel_world_size // 2
         else:
-            tensor_model_parallel_size = 1 + int(self.world_size >= 4)
-            pipeline_model_parallel_world_size = self.world_size // tensor_model_parallel_size
             pipeline_model_parallel_split_rank = None
 
         parallel_state.initialize_model_parallel(
