@@ -1351,7 +1351,6 @@ class Embedding(MegatronModule):
                 embeddings = self.embedding_dropout(embeddings)
         else:
             embeddings = self.embedding_dropout(embeddings)
-        _logger.warn(f"embeddings.shape: {embeddings.shape}")
 
         return embeddings
 
