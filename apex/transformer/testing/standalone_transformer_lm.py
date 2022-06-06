@@ -29,12 +29,17 @@ from apex.transformer import tensor_parallel
 from apex.transformer.tensor_parallel.layers import ColumnParallelLinear
 from apex.transformer.tensor_parallel.layers import RowParallelLinear
 from apex.transformer.tensor_parallel.layers import VocabParallelEmbedding
+from apex.transformer.tensor_parallel.mappings import scatter_to_sequence_parallel_region
 from apex.transformer import parallel_state
 from apex.transformer.testing.global_vars import get_args
 from apex.transformer.enums import ModelType
 from apex.transformer.enums import LayerType
 from apex.transformer.enums import AttnType
 from apex.transformer.enums import AttnMaskType
+from apex.transformer.log_util import get_transformer_logger
+
+
+_logger = get_transformer_logger(__name__)
 
 
 def param_is_not_shared(param: torch.Tensor) -> bool:
@@ -577,7 +582,6 @@ class ParallelAttention(MegatronModule):
         return output, bias
 
 
-@torch.jit.script
 def bias_dropout_add(x: torch.Tensor, bias: torch.Tensor, residual: torch.Tensor, prob: float, training: bool) -> torch.Tensor:
     out = torch.nn.functional.dropout(x + bias, p=prob, training=training)
     out = residual + out
@@ -589,20 +593,6 @@ def get_bias_dropout_add(training):
         return bias_dropout_add(x, bias, residual, prob, training)
 
     return _bias_dropout_add
-
-
-@torch.jit.script
-def bias_dropout_add_fused_train(
-    x: torch.Tensor, bias: torch.Tensor, residual: torch.Tensor, prob: float
-) -> torch.Tensor:
-    return bias_dropout_add(x, bias, residual, prob, True)
-
-
-@torch.jit.script
-def bias_dropout_add_fused_inference(
-    x: torch.Tensor, bias: torch.Tensor, residual: torch.Tensor, prob: float
-) -> torch.Tensor:
-    return bias_dropout_add(x, bias, residual, prob, False)
 
 
 class ParallelTransformerLayer(MegatronModule):
@@ -1361,6 +1351,7 @@ class Embedding(MegatronModule):
                 embeddings = self.embedding_dropout(embeddings)
         else:
             embeddings = self.embedding_dropout(embeddings)
+        _logger.warn(f"embeddings.shape: {embeddings.shape}")
 
         return embeddings
 

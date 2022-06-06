@@ -134,7 +134,13 @@ def train(model, optim, pipeline_model_parallel_size, async_comm):
             print("finished making batch...")
         optim.zero_grad()
         fwd_bwd_func(
-            fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape, async_comm=async_comm
+            fwd_step_func,
+            batch,
+            model,
+            forward_only=False,
+            tensor_shape=tensor_shape,
+            async_comm=async_comm,
+            sequence_parallel_enabled=args.sequence_parallel,
         )
         if torch.distributed.get_rank() == 0:
             print("finished forward step")
@@ -156,13 +162,13 @@ def train(model, optim, pipeline_model_parallel_size, async_comm):
 
 if __name__ == "__main__":
     init = True
-    for async_comm in (False, True):
+    global_vars.set_global_variables()
+    for async_comm in (False,) if global_vars.get_args().sequence_parallel else (False, True):
         global fancy_data
         global effective_length
 
         if init:
             init = False
-            global_vars.set_global_variables()
 
             fancy_data = download_fancy_data()
             args = global_vars.get_args()
@@ -201,7 +207,7 @@ if __name__ == "__main__":
         model_parallel_cuda_manual_seed(0)
         model = build_model(
             gpt_model_provider,
-            wrap_with_ddp=True,
+            wrap_with_ddp=parallel_state.get_data_parallel_world_size() > 1,
             virtual_pipeline_model_parallel_size=None,
             cpu_offload=args.cpu_offload,
         )
