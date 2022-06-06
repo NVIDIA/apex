@@ -12,6 +12,7 @@ else:
     print("Use UCC as backend of Pipeline Parallel ProcessGroups")
 
 from apex.transformer import parallel_state
+from apex.transformer.enums import ModelType
 from apex.transformer.tensor_parallel import model_parallel_cuda_manual_seed
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import unwrap_model
@@ -165,6 +166,7 @@ if __name__ == "__main__":
 
             fancy_data = download_fancy_data()
             args = global_vars.get_args()
+            args.model_type = ModelType.encoder_or_decoder
             effective_length = fancy_data.size(0) // args.seq_length
             effective_length = fancy_data.size(0) - args.seq_length
 

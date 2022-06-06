@@ -8,6 +8,7 @@ else:
     HAS_TORCH_UCC = True
     print("Use UCC as backend of Pipeline Parallel ProcessGroups")
 
+from apex.transformer.enums import ModelType
 from apex.transformer import tensor_parallel
 from apex.transformer import parallel_state
 from apex.transformer.log_util import set_logging_level
@@ -187,6 +188,7 @@ if __name__ == "__main__":
                 init = False
                 args = global_vars.get_args()
                 args.padded_vocab_size = 128  # needed in standalone gpt
+                args.model_type = ModelType.encoder_or_decoder
                 batch_size = args.global_batch_size
                 micro_batch_size = args.micro_batch_size
                 setup_microbatch_calculator(

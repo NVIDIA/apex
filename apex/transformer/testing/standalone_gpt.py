@@ -2,8 +2,8 @@ import contextlib
 import torch
 
 from apex.transformer.enums import AttnMaskType
+from apex.transformer.enums import ModelType
 from apex.transformer import tensor_parallel
-
 from apex.transformer.testing.global_vars import get_args
 from apex.transformer.testing.standalone_transformer_lm import MegatronModule
 from apex.transformer.testing.standalone_transformer_lm import parallel_lm_logits
@@ -16,15 +16,17 @@ from apex.transformer.testing.standalone_transformer_lm import (
 
 
 
-def gpt_model_provider(pre_process: bool = True, post_process: bool = True) -> "GPTModel":
+def gpt_model_provider(pre_process: bool = True, post_process: bool = True, cpu_offload: bool = False,) -> "GPTModel":
     args = get_args()
-    return GPTModel(
+    model = GPTModel(
         num_tokentypes=0,
         parallel_output=True,
         pre_process=pre_process,
         post_process=post_process,
         cpu_offload=args.cpu_offload,
     )
+    model.model_type = ModelType.encoder_or_decoder
+    return model
 
 
 class GPTModel(MegatronModule):

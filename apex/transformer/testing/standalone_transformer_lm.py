@@ -26,6 +26,9 @@ import apex.transformer.utils
 from apex.transformer.layers import FusedLayerNorm as LayerNorm
 from apex.transformer.functional import FusedScaleMaskSoftmax
 from apex.transformer import tensor_parallel
+from apex.transformer.tensor_parallel.layers import ColumnParallelLinear
+from apex.transformer.tensor_parallel.layers import RowParallelLinear
+from apex.transformer.tensor_parallel.layers import VocabParallelEmbedding
 from apex.transformer import parallel_state
 from apex.transformer.testing.global_vars import get_args
 from apex.transformer.enums import ModelType
@@ -1308,14 +1311,14 @@ class Pooler(MegatronModule):
 
     def __init__(self, hidden_size, init_method):
         super().__init__()
-        args = global_vars.get_args()
+        args = get_args()
         self.dense = get_linear_layer(hidden_size, hidden_size, init_method)
         self.sequence_parallel = args.sequence_parallel
 
     def forward(self, hidden_states, sequence_index=0):
         # hidden_states: [s, b, h]
         # sequence_index: index of the token to pool.
-        gather data along sequence dimensions
+        # gather data along sequence dimensions
         # same pooler is run on all tensor parallel nodes
         if self.sequence_parallel:
             hidden_states = tensor_parallel.mappings.gather_from_sequence_parallel_region(hidden_states)
@@ -1644,7 +1647,7 @@ class TransformerLanguageModel(MegatronModule):
         output_enc_hidden=False,
     ):
 
-        args = global_vars.get_args()
+        args = get_args()
         # Encoder embedding.
         if self.pre_process:
             encoder_input = self.embedding(

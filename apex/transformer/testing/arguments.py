@@ -44,7 +44,7 @@ def parse_args(extra_args_provider=None, defaults={},
 
     # NOTE(mkozuki): This option is added to investigate the potential of `torch.autograd.graph.save_on_cpu()`.
     # ref: https://pytorch.org/docs/stable/autograd.html#torch.autograd.graph.save_on_cpu.
-    parse.add_argument('--cpu-offload', action='store_true', default=False, help='Turns on CPU offloading')
+    parser.add_argument('--cpu-offload', action='store_true', default=False, help='Turns on CPU offloading')
 
     # Custom arguments.
     if extra_args_provider is not None:

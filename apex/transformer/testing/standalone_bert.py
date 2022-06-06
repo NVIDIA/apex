@@ -3,8 +3,9 @@ import contextlib
 import torch
 
 from apex.transformer import tensor_parallel
-from apex.transformer.layers import FusedLayerNorm as LayerNorm
 from apex.transformer.enums import AttnMaskType
+from apex.transformer.enums import ModelType
+from apex.transformer.layers import FusedLayerNorm as LayerNorm
 from apex.transformer.testing.global_vars import get_args
 from apex.transformer.testing.standalone_transformer_lm import (
     MegatronModule,
@@ -71,7 +72,7 @@ class BertLMHead(MegatronModule):
         setattr(self.dense.bias, 'sequence_parallel', args.sequence_parallel)
 
         self.layernorm = LayerNorm(
-            hidden_size, eps=layernorm_epsilon, sequence_parallel=args.sequence_parallel)
+            hidden_size, eps=layernorm_epsilon, sequence_parallel_enabled=args.sequence_parallel)
         self.gelu = torch.nn.functional.gelu
         if args.openai_gelu:
             self.gelu = openai_gelu
@@ -163,13 +164,17 @@ class BertModel(MegatronModule):
                                                     init_method)
                 self._binary_head_key = 'binary_head'
 
+        self.forward_context = contextlib.nullcontext
+        if cpu_offload:
+            self.forward_context = torch.autograd.graph.save_on_cpu
+
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
         self.language_model.set_input_tensor(input_tensor)
 
     def forward(self, bert_model_input, attention_mask,
                 tokentype_ids=None, lm_labels=None):
-        with torch.autograd.graph.save_on_cpu() if self.cpu_offload else contextlib.nullcontext():
+        with self.forward_context():
             extended_attention_mask = bert_extended_attention_mask(attention_mask)
             input_ids = bert_model_input
             position_ids = bert_position_ids(input_ids)
@@ -247,4 +252,5 @@ def bert_model_provider(pre_process=True, post_process=True, cpu_offload=False):
         post_process=post_process,
         cpu_offload=cpu_offload,
     )
+    model.model_type = ModelType.encoder_or_decoder
     return model
