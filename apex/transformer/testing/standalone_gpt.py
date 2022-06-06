@@ -25,7 +25,6 @@ def gpt_model_provider(pre_process: bool = True, post_process: bool = True, cpu_
         post_process=post_process,
         cpu_offload=args.cpu_offload,
     )
-    model.model_type = ModelType.encoder_or_decoder
     return model
 
 
@@ -88,7 +87,8 @@ class GPTModel(MegatronModule):
             if self.post_process:
                 return post_language_model_processing(
                     lm_output,
-                    labels,
+                    # note(mkozuki): Am I overlooking some order of dim change?
+                    labels.t().contiguous(),
                     self.word_embeddings_weight(),
                     self.parallel_output,
                     self.fp16_lm_cross_entropy,

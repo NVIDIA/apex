@@ -33,8 +33,6 @@ def get_launch_option(test_filename) -> Tuple[bool, str]:
 
 def run_transformer_tests():
     python_executable_path = sys.executable
-    # repository_root = os.path.join(os.path.dirname(__file__), "../../../")
-    # directory = os.path.abspath(os.path.join(repository_root, "tests/mpu"))
     directory = os.path.dirname(__file__)
     files = [
         os.path.join(directory, f)
@@ -66,8 +64,9 @@ def run_transformer_tests():
             tensor_model_parallel_size = 1 + (1 - (num_devices % 2 and num_devices > 4))
             pipeline_model_parallel_size = num_devices // tensor_model_parallel_size
             test_run_cmd += f" --pipeline-model-parallel-size {pipeline_model_parallel_size} --tensor-model-parallel-size {tensor_model_parallel_size}"
-            # TODO(mkozuki): Update apex.transformer.testing
-            # continue
+
+            if "bert" in test_file:
+                test_run_cmd += f" --bert-no-binary-head"
         else:
             test_run_cmd += f" --use-cpu-initialization"
         print(f"### {i} / {len(files)}: cmd: {test_run_cmd}")

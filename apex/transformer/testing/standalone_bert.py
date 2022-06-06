@@ -252,5 +252,4 @@ def bert_model_provider(pre_process=True, post_process=True, cpu_offload=False):
         post_process=post_process,
         cpu_offload=cpu_offload,
     )
-    model.model_type = ModelType.encoder_or_decoder
     return model

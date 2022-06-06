@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021-22, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,47 +37,16 @@ from apex.transformer.enums import AttnType
 from apex.transformer.enums import AttnMaskType
 
 
-_FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
-_HALF_TYPES = (torch.HalfTensor, torch.cuda.HalfTensor)
-_BF16_TYPES = (torch.BFloat16Tensor, torch.cuda.BFloat16Tensor)
+def param_is_not_shared(param: torch.Tensor) -> bool:
+    return getattr(param, "shared", False)
 
-
-###### BIAS GELU FUSION/ NO AUTOGRAD ################
-# 1/sqrt(2*pi)-> 0.3989423
-# 1/sqrt(2)   -> 0.70710678
-# sqrt(2/pi)  -> 0.79788456
-# this function is tanh approximation of gelu
-# actual gelu is:
-# x * 0.5 * (1.0 + torch.erf(x * 0.70710678))
-
-
-@torch.jit.script
-def bias_gelu(bias, y):
-    x = bias + y
-    return x * 0.5 * (1.0 + torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x)))
-
-
-# gradient of tanh approximation of gelu
-# gradient of actual gelu is:
-# 0.5 * (1. + torch.erf(x * 0.70710678)) + 0.3989423 * x * torch.exp(-0.5 * x * x)
-@torch.jit.script
-def bias_gelu_back(g, bias, y):
-    x = bias + y
-    tanh_out = torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x))
-    # sqrt(2/pi) * 3 * 0.044715 -> 0.1070322243
-    ff = 0.5 * x * ((1 - tanh_out * tanh_out) * (0.79788456 + 0.1070322243 * x * x)) + 0.5 * (1 + tanh_out)
-    return ff * g
 
 class MegatronModule(torch.nn.Module):
     """Megatron specific extensions of torch Module with support for pipelining."""
 
-    def __init__(self, share_word_embeddings=True):
+    def __init__(self, share_word_embeddings: bool = True) -> None:
         super().__init__()
         self.share_word_embeddings = share_word_embeddings
-
-    def state_dict_for_save_checkpoint(self, destination=None, prefix="", keep_vars=False):
-        """Use this function to override the state dict for saving checkpoints."""
-        return self.state_dict(destination, prefix, keep_vars)
 
     def word_embeddings_weight(self):
         if self.pre_process:
@@ -86,6 +55,7 @@ class MegatronModule(torch.nn.Module):
             if not self.share_word_embeddings:
                 raise Exception('word_embeddings_weight() called for last stage, but share_word_embeddings is false')
             return self.word_embeddings.weight
+
 
     def initialize_word_embeddings(self, init_method_normal):
         args = get_args()
@@ -152,23 +122,6 @@ class MegatronModule(torch.nn.Module):
                   "something is definitely wrong.")
 
 
-class GeLUFunction(torch.autograd.Function):
-    @staticmethod
-    # bias is an optional argument
-    def forward(ctx, input, bias):
-        ctx.save_for_backward(input, bias)
-        return bias_gelu(bias, input)
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        input, bias = ctx.saved_tensors
-        tmp = bias_gelu_back(grad_output, bias, input)
-        return tmp, tmp
-
-
-bias_gelu_impl = GeLUFunction.apply
-
-
 def get_linear_layer(rows, columns, init_method):
     """Simple linear layer with weight initialization."""
     layer = torch.nn.Linear(rows, columns)
@@ -179,26 +132,10 @@ def get_linear_layer(rows, columns, init_method):
 
 
 # NOTE(mkozuki): Avoid inplace op.
-def attention_mask_func(attention_scores, attention_mask):
+def attention_mask_func(attention_scores: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
     # attention_scores.masked_fill_(attention_mask, -10000.0)
     # return attention_scores
     return attention_scores.masked_fill(attention_mask, -10000.0)
-
-
-@torch.jit.script
-def gelu_impl(x):
-    """OpenAI's gelu implementation."""
-    return 0.5 * x * (1.0 + torch.tanh(0.7978845608028654 * x * (1.0 + 0.044715 * x * x)))
-
-
-def openai_gelu(x):
-    return gelu_impl(x)
-
-
-# This is actually Python equivalent of torch.nn.functional.gelu(), also with type hints for ONNX exporter
-@torch.jit.script
-def erf_gelu(x):
-    return x * 0.5 * (torch.erf(x / 1.41421).to(dtype=x.dtype) + torch.ones_like(x).to(dtype=x.dtype))
 
 
 def init_method_normal(sigma):
@@ -245,10 +182,6 @@ class ParallelMLP(MegatronModule):
 
         self.bias_gelu_fusion = args.bias_gelu_fusion
         self.activation_func = F.gelu
-        if args.openai_gelu:
-            self.activation_func = openai_gelu
-        elif args.onnx_safe:
-            self.activation_func = erf_gelu
 
         # Project back to h.
         self.dense_4h_to_h = RowParallelLinear(
@@ -265,10 +198,7 @@ class ParallelMLP(MegatronModule):
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-        if self.bias_gelu_fusion:
-            intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
-        else:
-            intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
+        intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
 
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
@@ -487,7 +417,6 @@ class ParallelAttention(MegatronModule):
         self.checkpoint_core_attention = args.recompute_granularity == "selective"
 
         # Output.
-        print(f"projection_size, args.hidden_size: {projection_size, args.hidden_size}")
         self.dense = RowParallelLinear(
             projection_size,
             args.hidden_size,
@@ -791,17 +720,7 @@ class ParallelTransformerLayer(MegatronModule):
             residual = hidden_states
 
         if self.drop_path is None:
-            # jit scripting for a nn.module (with dropout) is not
-            # trigerring the fusion kernel. For now, we use two
-            # different nn.functional routines to account for varying
-            # dropout semantics during training and inference phases.
-            if self.bias_dropout_fusion:
-                if self.training:
-                    bias_dropout_add_func = bias_dropout_add_fused_train
-                else:
-                    bias_dropout_add_func = bias_dropout_add_fused_inference
-            else:
-                bias_dropout_add_func = get_bias_dropout_add(self.training)
+            bias_dropout_add_func = get_bias_dropout_add(self.training)
 
             with self.bias_dropout_add_exec_handler():
                 layernorm_input = bias_dropout_add_func(
@@ -866,7 +785,6 @@ class ParallelTransformerLayer(MegatronModule):
             output = residual + self.drop_path(out)
 
         return output
-
 
 
 class ParallelTransformer(MegatronModule):
@@ -1446,71 +1364,6 @@ class Embedding(MegatronModule):
 
         return embeddings
 
-    def state_dict_for_save_checkpoint(
-        self, destination=None, prefix="", keep_vars=False
-    ):
-        """For easy load."""
-
-        state_dict_ = {}
-        state_dict_[self._word_embeddings_key] = self.word_embeddings.state_dict(
-            destination, prefix, keep_vars
-        )
-        state_dict_[
-            self._position_embeddings_key
-        ] = self.position_embeddings.state_dict(destination, prefix, keep_vars)
-        if self.num_tokentypes > 0:
-            state_dict_[
-                self._tokentype_embeddings_key
-            ] = self.tokentype_embeddings.state_dict(destination, prefix, keep_vars)
-
-        return state_dict_
-
-    def load_state_dict(self, state_dict, strict=True):
-        """Customized load."""
-
-        # Word embedding.
-        if self._word_embeddings_key in state_dict:
-            state_dict_ = state_dict[self._word_embeddings_key]
-        else:
-            # for backward compatibility.
-            state_dict_ = {}
-            for key in state_dict.keys():
-                if "word_embeddings" in key:
-                    state_dict_[key.split("word_embeddings.")[1]] = state_dict[key]
-        self.word_embeddings.load_state_dict(state_dict_, strict=strict)
-
-        # Position embedding.
-        if self._position_embeddings_key in state_dict:
-            state_dict_ = state_dict[self._position_embeddings_key]
-        else:
-            # for backward compatibility.
-            state_dict_ = {}
-            for key in state_dict.keys():
-                if "position_embeddings" in key:
-                    state_dict_[key.split("position_embeddings.")[1]] = state_dict[key]
-        self.position_embeddings.load_state_dict(state_dict_, strict=strict)
-
-        # Tokentype embedding.
-        if self.num_tokentypes > 0:
-            state_dict_ = {}
-            if self._tokentype_embeddings_key in state_dict:
-                state_dict_ = state_dict[self._tokentype_embeddings_key]
-            else:
-                # for backward compatibility.
-                for key in state_dict.keys():
-                    if "tokentype_embeddings" in key:
-                        state_dict_[key.split("tokentype_embeddings.")[1]] = state_dict[
-                            key
-                        ]
-            if len(state_dict_.keys()) > 0:
-                self.tokentype_embeddings.load_state_dict(state_dict_, strict=strict)
-            else:
-                print(
-                    "***WARNING*** expected tokentype embeddings in the "
-                    "checkpoint but could not find it",
-                    flush=True,
-                )
-
 
 class TransformerLanguageModel(MegatronModule):
     """Transformer language model.
@@ -1699,96 +1552,6 @@ class TransformerLanguageModel(MegatronModule):
             return decoder_output, encoder_output, pooled_output
         else:
             return decoder_output, encoder_output
-
-    def state_dict_for_save_checkpoint(
-        self, destination=None, prefix="", keep_vars=False
-    ):
-        """For easy load."""
-
-        state_dict_ = {}
-        if self.pre_process:
-            state_dict_[
-                self._embedding_key
-            ] = self.embedding.state_dict_for_save_checkpoint(
-                destination, prefix, keep_vars
-            )
-        if self.add_encoder:
-            state_dict_[
-                self._encoder_key
-            ] = self.encoder.state_dict_for_save_checkpoint(
-                destination, prefix, keep_vars
-            )
-        if self.post_process:
-            if self.add_pooler:
-                state_dict_[
-                    self._pooler_key
-                ] = self.pooler.state_dict_for_save_checkpoint(
-                    destination, prefix, keep_vars
-                )
-        if self.add_decoder:
-            state_dict_[
-                self._decoder_key
-            ] = self.decoder.state_dict_for_save_checkpoint(
-                destination, prefix, keep_vars
-            )
-
-        return state_dict_
-
-    def load_state_dict(self, state_dict, strict=True):
-        """Customized load."""
-
-        # Embedding.
-        if self.pre_process:
-            if self._embedding_key in state_dict:
-                state_dict_ = state_dict[self._embedding_key]
-            else:
-                # for backward compatibility.
-                state_dict_ = {}
-                for key in state_dict.keys():
-                    if "_embeddings" in key:
-                        state_dict_[key] = state_dict[key]
-            self.embedding.load_state_dict(state_dict_, strict=strict)
-
-        # Encoder.
-        if self.add_encoder:
-            if self._encoder_key in state_dict:
-                state_dict_ = state_dict[self._encoder_key]
-            # For backward compatibility.
-            elif "transformer" in state_dict:
-                state_dict_ = state_dict["transformer"]
-            else:
-                # For backward compatibility.
-                state_dict_ = {}
-                for key in state_dict.keys():
-                    if "transformer." in key:
-                        state_dict_[key.split("transformer.")[1]] = state_dict[key]
-
-            # For backward compatibility.
-            state_dict_self_attention = {}
-            for key in state_dict_.keys():
-                if ".attention." in key:
-                    state_dict_self_attention[
-                        key.replace(".attention.", ".self_attention.")
-                    ] = state_dict_[key]
-                else:
-                    state_dict_self_attention[key] = state_dict_[key]
-            state_dict_ = state_dict_self_attention
-
-            self.encoder.load_state_dict(state_dict_, strict=strict)
-
-        # Pooler.
-        if self.post_process:
-            if self.add_pooler:
-                assert (
-                    "pooler" in state_dict
-                ), "could not find data for pooler in the checkpoint"
-                self.pooler.load_state_dict(state_dict[self._pooler_key], strict=strict)
-        # Decoder.
-        if self.add_decoder:
-            assert (
-                "decoder" in state_dict
-            ), "could not find data for pooler in the checkpoint"
-            self.decoder.load_state_dict(state_dict[self._decoder_key], strict=strict)
 
 
 def post_language_model_processing(
