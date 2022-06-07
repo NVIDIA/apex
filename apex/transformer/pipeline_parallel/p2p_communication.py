@@ -186,7 +186,9 @@ def _communicate(
     requires_grad = True
     if dtype_ is not None:
         dtype = dtype_
-        requires_grad = False
+        # TODO(mkozuki): Figure out why this logic of requires_grad isn't working
+        # when sequence_parallel_enabled=True, this turning off of requires_grad.
+        # requires_grad = False
 
     if recv_prev:
         tensor_recv_prev = torch.empty(
