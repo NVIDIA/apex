@@ -171,7 +171,7 @@ def _communicate(
 
     tensor_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
     override_scatter_gather_tensors_in_pipeline_ = False
-    # TODO(mkozuki): Demystify hardcode False of `scatter_gather_tensors_in_pipeline`
+    # TODO(mkozuki): Demystify hardcode False of `scatter_gather_tensors_in_pipeline` and add a testcase if possible.
     # NOTE(mkozuki): This is super strange and doesn't make sense to me. I have no idea what is happening here.
     # However, I can say that this hardcoding override is necessary for sequence parallel in nemo megatron to work.
     # I've not managed to reproduce the hang using standalone GPT with sequence parallel.
@@ -180,7 +180,7 @@ def _communicate(
     # size of 2 and pipeline model parallel world size of 2). The commit then of APEX and NeMo were
     # https://github.com/NVIDIA/apex/pull/1396/commits/3060c98dd8ba42abf7702ea9d2cff0f39ea74f45 and
     # https://github.com/NVIDIA/NeMo/pull/4232/commits/1cb32dfca2ab9b20f53ebdb84476c34cb42f0205.
-    # The PyTorch version was 1.13.0a0+git2d354cd, FWIW.
+    # The PyTorch version was 1.13.0a0+git2d354cd, for what is worth.
     # Currently, indiscriminately this is set to `False`, which can lead to an unexpected performance regression
     # for non sequence parallel case.
     scatter_gather_tensors_in_pipeline = False
