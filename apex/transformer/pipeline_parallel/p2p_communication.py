@@ -21,10 +21,14 @@ from typing import Union, Optional, Tuple
 import torch
 
 from apex.transformer import parallel_state
+from apex.transformer.log_util import get_transformer_logger
 from apex.transformer.utils import split_tensor_into_1d_equal_chunks
 from apex.transformer.utils import gather_split_1d_tensor
 from apex.transformer.pipeline_parallel.utils import Shape
 from apex.transformer.pipeline_parallel._timers import _Timers
+
+
+_logger = get_transformer_logger(__name__)
 
 
 class FutureTensor:
@@ -167,7 +171,19 @@ def _communicate(
 
     tensor_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
     override_scatter_gather_tensors_in_pipeline_ = False
-    tensor_chunk_shape: Shape
+    # TODO(mkozuki): Demystify hardcode False of `scatter_gather_tensors_in_pipeline`
+    # NOTE(mkozuki): This is super strange and doesn't make sense to me. I have no idea what is happening here.
+    # However, I can say that this hardcoding override is necessary for sequence parallel in nemo megatron to work.
+    # I've not managed to reproduce the hang using standalone GPT with sequence parallel.
+    # The hang in NeMo Megatron happens in the 3rd iteration, the last iteration of stead phase inside
+    # forward_backward_pipelining_without_interleaving, pipeline parallel rank of 0 (tensor model parallel world
+    # size of 2 and pipeline model parallel world size of 2). The commit then of APEX and NeMo were
+    # https://github.com/NVIDIA/apex/pull/1396/commits/3060c98dd8ba42abf7702ea9d2cff0f39ea74f45 and
+    # https://github.com/NVIDIA/NeMo/pull/4232/commits/1cb32dfca2ab9b20f53ebdb84476c34cb42f0205.
+    # The PyTorch version was 1.13.0a0+git2d354cd, FWIW.
+    # Currently, indiscriminately this is set to `False`, which can lead to an unexpected performance regression
+    # for non sequence parallel case.
+    scatter_gather_tensors_in_pipeline = False
     if scatter_gather_tensors_in_pipeline and not sequence_parallel_enabled:
         tensor_chunk_size = int(reduce(operator.mul, tensor_shape, 1))
         if tensor_chunk_size % tensor_parallel_size == 0:
