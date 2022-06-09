@@ -203,7 +203,9 @@ def _communicate(
     if dtype_ is not None:
         dtype = dtype_
         # TODO(mkozuki): Figure out why this logic of requires_grad isn't working
-        # when sequence_parallel_enabled=True, this turning off of requires_grad.
+        # when sequence_parallel_enabled=True. Otherwise, `x.retain_grad()` of
+        # https://github.com/crcrpar/apex/blob/069832078a652b4bd8a99db84faf953a81415ab3/apex/transformer/pipeline_parallel/schedules/common.py#L360
+        # fails.
         # requires_grad = False
 
     if recv_prev:
