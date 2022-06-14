@@ -16,8 +16,8 @@ class TestModel(torch.nn.Module):
 
     def forward(self, x):
         y = 0
-        for l in self.linear:
-            y += l(x)
+        for i, l in enumerate(self.linear):
+            y += (i+1) * l(x)
         return y
 
 def setup(args):
@@ -36,17 +36,17 @@ def setup(args):
     )
 
     # Construct optimizers with same hyperparameters
-    optim_args = { 'lr': 1e-3, 'eps': 1e-6, 'weight_decay': 0.01 }
-    ref_optim = torch.optim.Adam(
+    optim_args = { 'lr': 1, 'betas': (0.5,0.75), 'eps': 0.1, 'weight_decay': 0.1 }
+    ref_optim = torch.optim.AdamW(
         [
-            {'params': list(ref_model.parameters())[1::2], 'lr': 5e-3},
+            {'params': list(ref_model.parameters())[1::2], 'lr': 0.5},
             {'params': list(ref_model.parameters())[0::2]},
         ],
         **optim_args,
     )
     dist_optim = DistributedFusedAdam(
         [
-            {'params': list(dist_model.parameters())[1::2], 'lr': 5e-3},
+            {'params': list(dist_model.parameters())[1::2], 'lr': 0.5},
             {'params': list(dist_model.parameters())[0::2]},
         ],
         bucket_cap_mb=71/(4*1024*1024),
@@ -59,12 +59,12 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--local_rank', type=int, default=-1)
-    parser.add_argument('--steps', type=int, default=11)
+    parser.add_argument('--steps', type=int, default=3)
     parser.add_argument('--batch', type=int, default=5)
     parser.add_argument('--dim', type=int, default=7)
     parser.add_argument('--layers', type=int, default=11)
-    parser.add_argument('--atol', type=float, default=1e-3)
-    parser.add_argument('--rtol', type=float, default=1e-3)
+    parser.add_argument('--atol', type=float, default=1e-5)
+    parser.add_argument('--rtol', type=float, default=1e-5)
 
     args = parser.parse_args()
 
