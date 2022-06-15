@@ -40,6 +40,8 @@ class TensorParallelLayerTestBase:
     @torch.no_grad()
     @unittest.skipIf(torch.cuda.device_count() < 2, "Requires >=2 GPUs")
     def test_all_gather_parity(self) -> None:
+        if self.DISTRIBUTED_BACKEND == "ucc":
+            self.skipTest("torch_ucc does NOT support `torch.distributed._all_gather_base` as of 2022/06/15")
         from torch.distributed.distributed_c10d import all_gather, _all_gather_base  # NOQA
 
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
@@ -86,6 +88,8 @@ class TensorParallelLayerTestBase:
     @torch.no_grad()
     @unittest.skipIf(torch.cuda.device_count() < 2, "Requires >=2 GPUs")
     def test_reduce_scatter_parity(self) -> None:
+        if self.DISTRIBUTED_BACKEND == "ucc":
+            self.skipTest("torch_ucc does NOT support `torch.distributed._reduce_scatter_base` as of 2022/06/15")
         from torch.distributed.distributed_c10d import reduce_scatter, _reduce_scatter_base  # NOQA
 
         for tensor_model_parallel_world_size in range(2, self.world_size + 1):
@@ -413,6 +417,8 @@ class TensorParallelLayerTestBase:
         self._column_parallel_linear_test_impl(False, True, True, False)
 
     def test_column_parallel_linear_sequence_parallel(self):
+        if self.DISTRIBUTED_BACKEND == "ucc":
+            self.skipTest("Backward's reduce_scatter fails. as of 2022/06/15")
         self._column_parallel_linear_test_impl(False, False, False, True)
 
     @unittest.skipIf(torch.cuda.device_count() < 2, "Sequence Parallel requires >= 2 GPUs")
