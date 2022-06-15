@@ -45,24 +45,25 @@ class SelfMultiheadAttnNormAddTest(unittest.TestCase):
     def test_self_multihead_attn_norm_add(self) :
         grads         = torch.randn_like(self.tst_inputs)
 
-        ref_outputs,_ = self.ref_layer.forward(self.ref_inputs, 
-                                               self.ref_inputs, 
-                                               self.ref_inputs,
-                                               key_padding_mask=None, 
-                                               need_weights=False, 
-                                               attn_mask=None,
-                                               is_training=True)
-
-        tst_outputs,_ = self.tst_layer.forward(self.tst_inputs, 
-                                               self.tst_inputs, 
-                                               self.tst_inputs,
-                                               key_padding_mask=None, 
-                                               need_weights=False, 
-                                               attn_mask=None,
-                                               is_training=True)
-        
-        self.ref_inputs.backward(grads)
-        self.tst_inputs.backward(grads)
+        for _ in range(0, 5) :
+            ref_outputs,_ = self.ref_layer.forward(self.ref_inputs, 
+                                                   self.ref_inputs, 
+                                                   self.ref_inputs,
+                                                   key_padding_mask=None, 
+                                                   need_weights=False, 
+                                                   attn_mask=None,
+                                                   is_training=True)
+         
+            tst_outputs,_ = self.tst_layer.forward(self.tst_inputs, 
+                                                   self.tst_inputs, 
+                                                   self.tst_inputs,
+                                                   key_padding_mask=None, 
+                                                   need_weights=False, 
+                                                   attn_mask=None,
+                                                   is_training=True)
+            
+            self.ref_inputs.backward(grads)
+            self.tst_inputs.backward(grads)
 
         self.assertTrue(torch.allclose(self.ref_inputs,  self.tst_inputs,  atol=1e-5, rtol=1e-5))
         self.assertTrue(torch.allclose(ref_outputs, tst_outputs, atol=1e-3, rtol=1e-3))

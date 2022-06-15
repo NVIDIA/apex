@@ -10,12 +10,6 @@ from .fast_encdec_multihead_attn_func import fast_encdec_attn_func
 from .fast_encdec_multihead_attn_norm_add_func import fast_encdec_attn_norm_add_func
 from apex.normalization.fused_layer_norm import FusedLayerNorm
 
-if hasattr(torch._C, "_jit_set_profiling_executor"):
-    torch._C._jit_set_profiling_executor(False)
-if hasattr(torch._C, "_jit_set_profiling_mode"):
-    torch._C._jit_set_profiling_mode(False)
-
-
 @torch.jit.script
 def jit_dropout_add(x, residual, prob, is_training):
     # type: (Tensor, Tensor, float, bool) -> Tensor
