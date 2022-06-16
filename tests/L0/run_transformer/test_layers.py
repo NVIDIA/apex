@@ -304,8 +304,6 @@ class TensorParallelLayerTestBase:
         ):
             if self.world_size % tensor_model_parallel_world_size:
                 continue
-            if sequence_parallel_enabled and tensor_model_parallel_world_size == 1:
-                continue
             with self.subTest(
                 tensor_model_parallel_world_size=tensor_model_parallel_world_size,
             ):

@@ -26,6 +26,7 @@ from apex import transformer
 from apex.transformer.tensor_parallel import(
     ColumnParallelLinear,
     RowParallelLinear,
+    scatter_to_sequence_parallel_region,
 )
 from apex.transformer.pipeline_parallel.utils import (
     average_losses_across_data_parallel_group,
@@ -216,10 +217,7 @@ class ToyParallelMLPFwdBwdStepFunc:
         if isinstance(x, torch.Tensor):
             x = x.transpose(0, 1).contiguous()
             if self.sequence_parallel_enabled:
-                x = x.chunk(
-                    chunks=transformer.parallel_state.get_tensor_model_parallel_world_size(),
-                    dim=0
-                )[transformer.parallel_state.get_tensor_model_parallel_rank()].contiguous()
+                x = scatter_to_sequence_parallel_region(x)
         y = model(x)
 
         # note (mkozuki): I don't think this function is nice but I do think this is enough for now

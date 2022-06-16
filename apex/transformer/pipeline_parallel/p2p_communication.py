@@ -159,7 +159,7 @@ def _communicate(
         class ExperimentalWarning(UserWarning): pass  # NOQA
         warnings.warn(
             "The combination of `async_comm` and `sequence_parallel_enabled` is not well tested.",
-            ExperimentalWarnings,
+            ExperimentalWarning,
         )
     # Create placeholder tensors for receive in forward and backward directions if needed.
     tensor_recv_prev = None
