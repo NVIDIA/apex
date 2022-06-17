@@ -61,7 +61,12 @@ def run_transformer_tests():
             import torch
 
             num_devices = torch.cuda.device_count()
-            tensor_model_parallel_size = 1 + (1 - (num_devices % 2 and num_devices > 4))
+            if "bert" in test_file:
+                # "bert" uses the interleaving.
+                tensor_model_parallel_size = 2 if num_devices % 2 == 0 and num_devices > 4 else 1
+            if "gpt" in test_file:
+                # "gpt" uses the non-interleaving.
+                tensor_model_parallel_size = 2 if num_devices % 2 == 0 and num_devices >= 4 else 1
             pipeline_model_parallel_size = num_devices // tensor_model_parallel_size
             test_run_cmd += f" --pipeline-model-parallel-size {pipeline_model_parallel_size} --tensor-model-parallel-size {tensor_model_parallel_size}"
 
