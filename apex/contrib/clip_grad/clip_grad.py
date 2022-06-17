@@ -2,13 +2,13 @@ import torch
 from torch._six import inf
 from typing import Union, Iterable
 
-kernel_import_succeeded = False
+_kernel_import_succeeded = False
 try:
     import amp_C
     from apex.multi_tensor_apply import multi_tensor_applier
-    kernel_import_succeeded = True
+    _kernel_import_succeeded = True
 except:
-    kernel_import_succeeded = False
+    _kernel_import_succeeded = False
 
 _tensor_or_tensors = Union[torch.Tensor, Iterable[torch.Tensor]]
 
@@ -49,7 +49,7 @@ def clip_grad_norm_(
         return torch.tensor(0.)
 
     # Fallback implementation
-    if not (kernel_import_succeeded
+    if not (_kernel_import_succeeded
             and norm_type == 2.0
             and any(p.is_cuda for p in parameters)):
         return torch.nn.utils.clip_grad_norm_(
