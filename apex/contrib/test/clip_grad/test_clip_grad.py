@@ -40,7 +40,6 @@ class ClipGradNormTest(unittest.TestCase):
     def setUp(self, seed=1234):
         random.seed(seed)
         torch.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
 
     def test_matches_pytorch(
             self,
@@ -50,6 +49,7 @@ class ClipGradNormTest(unittest.TestCase):
             max_norm=0.54321,
             norm_type=2.0,
             rtol=1e-3,
+            atol=1e-15
     ):
         """Make sure PyTorch and Apex gradient clipping produce same results"""
         torch_params, apex_params = make_params(
@@ -68,24 +68,23 @@ class ClipGradNormTest(unittest.TestCase):
             max_norm,
             norm_type=norm_type,
         )
-        self.assertTrue(
-            torch.allclose(
-                torch_norm.to(dtype=torch.float64),
-                apex_norm.to(dtype=torch.float64),
-                rtol=rtol,
-            ),
-            msg=('Discrepancy in gradient norms: '
-                 f'torch = {torch_norm.item()}, apex = {apex_norm.item()})'))
+        torch.testing.assert_close(
+            apex_norm, torch_norm,
+            rtol=rtol,
+            atol=atol,
+            check_dtype=False,
+        )
         for torch_p, apex_p in zip(torch_params, apex_params):
-            torch_g = torch_p.grad.to(dtype=torch.float64, device='cpu')
-            apex_g = apex_p.grad.to(dtype=torch.float64, device='cpu')
-            g_rel_err = torch.max(torch.abs((torch_g-apex_g)/(torch_g+1e-32)))
-            self.assertTrue(
-                torch.equal(torch_p, apex_p),
-                msg=f'Torch and Apex parameters are not identical')
-            self.assertTrue(
-                torch.allclose(torch_g, apex_g, rtol=rtol),
-                msg=f'Discrepancy in gradients: relative error = {g_rel_err}')
+            torch.testing.assert_close(
+                apex_p, torch_p,
+                rtol=0,
+                atol=0,
+            ) # Params should be unaffected
+            torch.testing.assert_close(
+                apex_p.grad, torch_p.grad,
+                rtol=rtol,
+                atol=atol,
+            )
 
     def test_matches_pytorch_fp16(self):
         self.test_matches_pytorch(num_params=11, dtypes=[torch.float16])
@@ -104,6 +103,10 @@ class ClipGradNormTest(unittest.TestCase):
 
     def test_matches_pytorch_1norm(self):
         self.test_matches_pytorch(norm_type=1.0)
+
+    def test_raises_on_mismatch(self):
+        self.assertRaises(
+            AssertionError, self.test_matches_pytorch, rtol=1e-20)
 
     def test_raises_on_nan(self):
         params = make_params(5, num_dims=[1])
