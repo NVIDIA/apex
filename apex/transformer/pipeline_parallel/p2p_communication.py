@@ -45,13 +45,44 @@ class FutureTensor:
         return self.tensor
 
 
+# NOTE(mkozuki): [Necessity of `torch.cuda.synchronize()`]
+# When multiple torch.distributed backends are used, e.g.
+# `torch_ucc` for P2P (= Pipeline Parallel) and `nccl` for the rest,
+# it's possible that a preceding NCCL `torch.distributed.all_reduce` call
+# does not finish before P2P collective using UCC, which would resolved by
+# `torch.cuda.synchronize()`.
+# TODO(mkozuki): Think about a way to tell P2P functions whether or not
+# various torch.distributed backends are used via `_different_pg`
 def _run_p2pops(
+<<<<<<< HEAD
     tensor_send_prev: Union[torch.Tensor, None],
     tensor_send_next: Union[torch.Tensor, None],
     tensor_recv_prev: Union[torch.Tensor, None],
     tensor_recv_next: Union[torch.Tensor, None],
-    async_comm: bool = False
+    async_comm: bool = False,
+    *,
+    # `_different_pg` is a placeholder argument and is not effective at all at the moment.
+    _different_pg: Union[bool] = None,
+=======
+        tensor_send_prev: Union[torch.Tensor, None],
+        tensor_send_next: Union[torch.Tensor, None],
+        tensor_recv_prev: Union[torch.Tensor, None],
+        tensor_recv_next: Union[torch.Tensor, None],
+        async_comm: bool = False,
+>>>>>>> 7aa6e1c5... `torch.cuda.synchronize()` before `torch.distributed.batch_isend_irecv`
 ):
+    """Helper function of `torch.distributed.distributed_c10d.batch_isend_irecv`.
+
+    Args:
+        tensor_send_prev:
+        tensor_send_next:
+        tensor_recv_prev:
+        tensor_recv_next:
+        async_comm:
+
+    Returns:
+        Tuple of 4 elements either :obj:`None` or distributed request object.
+    """
     ops = []
     group = parallel_state.get_pipeline_model_parallel_group()
     if tensor_send_prev is not None:
@@ -87,6 +118,9 @@ def _run_p2pops(
         )
         ops.append(recv_next_op)
     if len(ops) > 0:
+        # This is a temporary fix. See [Necessity of `torch.cuda.synchronize()`]
+        assert _different_pg is None
+        torch.cuda.synchronize()
         reqs = torch.distributed.batch_isend_irecv(ops)
         if async_comm:
             assert len(reqs) == len(ops)
