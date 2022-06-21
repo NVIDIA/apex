@@ -151,7 +151,7 @@ def train(model, optim, pipeline_model_parallel_size, async_comm):
                 unwrapped_model = unwrap_model(model_module)
                 for param in unwrapped_model.parameters():
                     if getattr(param, 'sequence_parallel', False):
-                        grad = param.main_grad if args.DDP_impl == 'local' else param.grad
+                        grad = param.grad
                         torch.distributed.all_reduce(grad, group=parallel_state.get_tensor_model_parallel_group())
         optim.step()
         if torch.distributed.get_rank() == 0:

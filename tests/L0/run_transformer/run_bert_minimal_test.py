@@ -165,7 +165,7 @@ def train(
                 unwrapped_model = unwrap_model(model_module)
                 for param in unwrapped_model.parameters():
                     if getattr(param, 'sequence_parallel', False):
-                        grad = param.main_grad if args.DDP_impl == 'local' else param.grad
+                        grad = param.grad
                         torch.distributed.all_reduce(grad, group=parallel_state.get_tensor_model_parallel_group())
 
         optim.step()
@@ -221,7 +221,7 @@ if __name__ == "__main__":
             tensor_parallel.random.model_parallel_cuda_manual_seed(0)
             model = build_model(
                 bert_model_provider,
-                wrap_with_ddp=True,
+                wrap_with_ddp=parallel_state.get_data_parallel_world_size() > 1,
                 virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
                 cpu_offload=args.cpu_offload,
             )
