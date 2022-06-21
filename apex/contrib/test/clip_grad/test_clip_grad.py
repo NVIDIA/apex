@@ -49,15 +49,19 @@ class ClipGradNormTest(unittest.TestCase):
             max_norm=0.54321,
             norm_type=2.0,
             rtol=1e-3,
-            atol=1e-15
+            atol=1e-20,
     ):
         """Make sure PyTorch and Apex gradient clipping produce same results"""
+
+        # Construct identical sets of parameters
         torch_params, apex_params = make_params(
             num_params,
             dtypes=dtypes,
             devices=devices,
             make_copy=True,
         )
+
+        # Apply gradient clipping
         torch_norm = torch.nn.utils.clip_grad_norm_(
             torch_params,
             max_norm,
@@ -68,6 +72,8 @@ class ClipGradNormTest(unittest.TestCase):
             max_norm,
             norm_type=norm_type,
         )
+
+        # Make sure PyTorch and Apex get same results
         torch.testing.assert_close(
             apex_norm, torch_norm,
             rtol=rtol,
@@ -105,8 +111,40 @@ class ClipGradNormTest(unittest.TestCase):
         self.test_matches_pytorch(norm_type=1.0)
 
     def test_raises_on_mismatch(self):
+
+        # Construct different sets of parameters
+        torch_params, apex_params = make_params(7, make_copy=True)
+        with torch.no_grad():
+            torch_params[0].grad.view(-1)[0] = 1.23
+            apex_params[0].grad.view(-1)[0] = 3.21
+
+        # Apply gradient clipping
+        torch_norm = torch.nn.utils.clip_grad_norm_(
+            torch_params,
+            0.54321,
+        )
+        apex_norm = clip_grad_norm_(
+            apex_params,
+            0.54321,
+        )
+
+        # Make sure PyTorch and Apex get different results
         self.assertRaises(
-            AssertionError, self.test_matches_pytorch, rtol=1e-20)
+            AssertionError,
+            torch.testing.assert_close,
+            apex_norm, torch_norm,
+            rtol=1e-3,
+            atol=1e-20,
+            check_dtype=False,
+        )
+        for torch_p, apex_p in zip(torch_params, apex_params):
+            self.assertRaises(
+                AssertionError,
+                torch.testing.assert_close,
+                apex_p.grad, torch_p.grad,
+                rtol=1e-3,
+                atol=1e-20,
+            )
 
     def test_raises_on_nan(self):
         params = make_params(5, num_dims=[1])
