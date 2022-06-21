@@ -150,7 +150,13 @@ def train(
         batch = generate_fancy_data_labels(sequence_len, batch_size)
         optim.zero_grad()
         forward_backward_func(
-            fwd_step_func, batch, model, forward_only=False, tensor_shape=tensor_shape, async_comm=async_comm,
+            fwd_step_func,
+            batch,
+            model,
+            forward_only=False,
+            tensor_shape=tensor_shape,
+            async_comm=async_comm,
+            sequence_parallel_enabled=global_vars.get_args().sequence_parallel,
         )
         # All-reduce layernorm parameters across model parallel nodes
         # when sequence parallelism is used
@@ -181,7 +187,8 @@ if __name__ == "__main__":
     init = True
     try:
         for virtual_pipeline_model_parallel_size in (2, None):
-            async_comm = virtual_pipeline_model_parallel_size is None
+            args = global_vars.get_args()
+            async_comm = not args.sequence_parallel and virtual_pipeline_model_parallel_size is None
             data_idx = 0
             ONCE = False
             if init:
