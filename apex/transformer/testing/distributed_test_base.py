@@ -16,10 +16,10 @@ except ImportError:
     HAS_TORCH_UCC = False
 
 # NOTE(mkozuki): Version guard for ucc. ref: https://github.com/openucx/ucc/issues/496
-_TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION = "470.42.01"
+_TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION = [int(x) for x in "470.42.01".split('.')]
 _driver_version = None
 if torch.cuda.is_available():
-    _driver_version = collect_env.get_nvidia_driver_version(collect_env.run)
+    _driver_version = [int(x) for x in collect_env.get_nvidia_driver_version(collect_env.run).split('.')]
 HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER = _driver_version is not None and _driver_version >= _TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION
 
 
