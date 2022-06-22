@@ -1,9 +1,10 @@
 from contextlib import contextmanager
 import os
-import unittest
 
 import torch
+from torch.testing._internal import common_utils
 from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 
 class SimpleModel(torch.nn.Module):
 
@@ -66,22 +67,9 @@ def dummy_context():
     finally:
         pass
 
-class TestDistributedFusedAdam(unittest.TestCase):
+class TestDistributedFusedAdam(NcclDistributedTestBase):
 
-    def setUp(self, seed=1234):
-
-        # Initialize NCCL
-        if not torch.distributed.is_initialized():
-            local_rank = int(os.getenv('LOCAL_RANK', 0))
-            torch.cuda.set_device(local_rank % torch.cuda.device_count())
-            torch.distributed.init_process_group(
-                backend='nccl',
-                init_method='env://',
-            )
-        rank = torch.distributed.get_rank()
-
-        # Initialize RNG
-        torch.manual_seed(seed + rank)
+    seed = 1234
 
     def test_matches_pytorch(
             self,
@@ -96,6 +84,8 @@ class TestDistributedFusedAdam(unittest.TestCase):
             rtol=1e-5,
             atol=1e-5,
     ):
+
+        torch.manual_seed(self.seed + self.rank)
 
         # Identical models with data-parallel and ZeRO
         ref_model, ref_optim, dist_model, dist_optim = make_models(
@@ -162,6 +152,8 @@ class TestDistributedFusedAdam(unittest.TestCase):
 
     def test_raises_on_mismatch(self):
 
+        torch.manual_seed(self.seed + self.rank)
+
         # Identical models with data-parallel and ZeRO
         num_layers = 11
         layer_size = 7
@@ -192,4 +184,4 @@ class TestDistributedFusedAdam(unittest.TestCase):
 
 if __name__ == "__main__":
     # Assume script has been run with torchrun
-    unittest.main()
+    common_utils.run_tests()
