@@ -234,6 +234,9 @@ def send_backward_recv_forward(
     return input_tensors
 
 
+# TODO(mkozuki): Make `_different_pg` public and utilize the argument
+# to avoid a redundant `torch.cuda.synchronize` in p2p_communication.py
+# See [Necessity of `torch.cuda.synchronize()`]
 def forward_backward_pipelining_without_interleaving(
     forward_step_func: FwdStepFunc,
     batch: Optional[Batch],
@@ -276,6 +279,10 @@ def forward_backward_pipelining_without_interleaving(
         disable_autocast:
         deallocate_pipeline_outputs: If :obj:`True`, free the data of the output tensor of
             each pipeline stage. Experimental.
+        async_comm:
+        _different_pg: Set to :obj:`True` if the backend of pipeline model parallel process groups
+            is different from that of the other PGs. For example, `torch_ucc` for Pipeline parallel
+            and NCCL for the rest.
         sequence_parallel_enabled: Set to :obj:`True` for this function to handle sequence length.
             When :obj:`True`, the sequence length on each tensor model parallel rank is updated
             to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
