@@ -154,10 +154,13 @@ def initialize_model_parallel(
     num_data_parallel_groups: int = world_size // data_parallel_size
 
     if virtual_pipeline_model_parallel_size_ is not None:
-        # assert pipeline_model_parallel_size_ > 2, (
-        #     "pipeline-model-parallel size should be greater than 2 with "
-        #     "interleaved schedule"
-        # )
+        # n.b. (eqy) This check was inherited from Megatron-LM, need to revisit
+        # the root cause as we do see numerical mismatches with 2 stages and
+        # the interleaved schedule
+        assert pipeline_model_parallel_size_ > 2, (
+            "pipeline-model-parallel size should be greater than 2 with "
+            "interleaved schedule"
+        )
         global _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK
         global _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
         _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = 0
