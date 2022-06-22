@@ -54,7 +54,6 @@ class FutureTensor:
 # TODO(mkozuki): Think about a way to tell P2P functions whether or not
 # various torch.distributed backends are used via `_different_pg`
 def _run_p2pops(
-<<<<<<< HEAD
     tensor_send_prev: Union[torch.Tensor, None],
     tensor_send_next: Union[torch.Tensor, None],
     tensor_recv_prev: Union[torch.Tensor, None],
@@ -63,13 +62,6 @@ def _run_p2pops(
     *,
     # `_different_pg` is a placeholder argument and is not effective at all at the moment.
     _different_pg: Union[bool] = None,
-=======
-        tensor_send_prev: Union[torch.Tensor, None],
-        tensor_send_next: Union[torch.Tensor, None],
-        tensor_recv_prev: Union[torch.Tensor, None],
-        tensor_recv_next: Union[torch.Tensor, None],
-        async_comm: bool = False,
->>>>>>> 7aa6e1c5... `torch.cuda.synchronize()` before `torch.distributed.batch_isend_irecv`
 ):
     """Helper function of `torch.distributed.distributed_c10d.batch_isend_irecv`.
 
@@ -155,6 +147,7 @@ def _communicate(
     fp32_residual_connection: bool = False,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    _different_pg: Optional[bool],
 ) -> Tuple[Union[torch.Tensor, FutureTensor, None], Union[torch.Tensor, FutureTensor, None]]:
     """Base function for communication of tensors between stages.
 
@@ -276,7 +269,7 @@ def _communicate(
             tensor_send_prev = split_tensor_into_1d_equal_chunks(tensor_send_prev)
 
     # Send tensors in both the forward and backward directions as appropriate.
-    tensor_send_prev_req, tensor_recv_prev_req, tensor_send_next_req, tensor_recv_next_req = _run_p2pops(tensor_send_prev, tensor_send_next, tensor_recv_prev, tensor_recv_next, async_comm=async_comm)
+    tensor_send_prev_req, tensor_recv_prev_req, tensor_send_next_req, tensor_recv_next_req = _run_p2pops(tensor_send_prev, tensor_send_next, tensor_recv_prev, tensor_recv_next, async_comm=async_comm, _different_pg=_different_pg)
 
     if async_comm:
         tensor_recv_prev_waitfunc = None
@@ -351,6 +344,7 @@ def recv_forward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    _different_pg: Optional[bool] = None,
     sequence_parallel_enabled: bool = False,
     timers: _Timers = None,
 ) -> Union[torch.Tensor, FutureTensor, None]:
@@ -369,6 +363,7 @@ def recv_forward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        _different_pg=_different_pg,
     )
     # if timers is not None:
     #     timers("forward-recv").stop()
@@ -380,6 +375,7 @@ def recv_backward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    _different_pg: Optional[bool] = None,
     sequence_parallel_enabled: bool = False,
     timers: _Timers = None,
 ) -> Union[torch.Tensor, FutureTensor, None]:
@@ -397,6 +393,7 @@ def recv_backward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        _different_pg=_different_pg,
     )
     # if timers is not None:
     #     timers("backward-recv").stop()
@@ -410,6 +407,7 @@ def send_forward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    _different_pg: Optional[bool] = None,
     sequence_parallel_enabled: bool = False,
     timers: _Timers = None,
 ) -> None:
@@ -428,6 +426,7 @@ def send_forward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        _different_pg=_different_pg,
     )
     # if timers is not None:
     #     timers("forward-send").stop()
@@ -439,6 +438,7 @@ def send_backward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    _different_pg: Optional[bool] = None,
     sequence_parallel_enabled: bool = False,
     timers: _Timers = None,
 ) -> None:
@@ -456,6 +456,7 @@ def send_backward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        _different_pg=_different_pg,
     )
     # if timers is not None:
     #     timers("backward-send").stop()
@@ -467,6 +468,7 @@ def send_forward_recv_backward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    _different_pg: Optional[bool] = None,
     sequence_parallel_enabled: bool = False,
     timers: _Timers = None,
 ) -> Union[torch.Tensor, FutureTensor, None]:
@@ -484,6 +486,7 @@ def send_forward_recv_backward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        _different_pg=_different_pg,
     )
     # if timers is not None:
     #     timers("forward-send-backward-recv").stop()
@@ -496,6 +499,7 @@ def send_backward_recv_forward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    _different_pg: Optional[bool] = None,
     sequence_parallel_enabled: bool = False,
     timers: _Timers = None,
 ) -> Union[torch.Tensor, FutureTensor, None]:
@@ -513,6 +517,7 @@ def send_backward_recv_forward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        _different_pg=_different_pg,
     )
     # if timers is not None:
     #     timers("backward-send-forward-recv").stop()
@@ -526,6 +531,7 @@ def send_forward_recv_forward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    _different_pg: Optional[bool] = None,
     sequence_parallel_enabled: bool = False,
     timers: _Timers = None,
 ) -> Union[torch.Tensor, FutureTensor]:
@@ -541,6 +547,7 @@ def send_forward_recv_forward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        _different_pg=_different_pg,
     )
     # if timers is not None:
     #     timers("forward-send-forward-recv").stop()
@@ -554,6 +561,7 @@ def send_backward_recv_backward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    _different_pg: Optional[bool] = None,
     sequence_parallel_enabled: bool = False,
     timers: _Timers = None,
 ) -> Union[torch.Tensor, FutureTensor]:
@@ -569,6 +577,7 @@ def send_backward_recv_backward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        _different_pg=_different_pg,
     )
     # if timers is not None:
     #     timers("backward-send-backward-recv").stop()
@@ -584,6 +593,7 @@ def send_forward_backward_recv_forward_backward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    _different_pg: Optional[bool] = None,
     sequence_parallel_enabled: bool = False,
     timers: _Timers = None,
 ) -> Tuple[Union[torch.Tensor, FutureTensor], Union[torch.Tensor, FutureTensor]]:
@@ -599,6 +609,7 @@ def send_forward_backward_recv_forward_backward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        _different_pg=_different_pg,
     )
     # if timers is not None:
     #     timers("forward-backward-send-forward-backward-recv").stop()

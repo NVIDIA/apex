@@ -86,6 +86,7 @@ def recv_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    _different_pg: Optional[bool] = None,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     input_tensors = []
     for tensor_shape in tensor_shapes:
@@ -97,6 +98,7 @@ def recv_forward(
                     tensor_shape=tensor_shape,
                     dtype=dtype,
                     async_comm=async_comm,
+                    _different_pg=_different_pg,
                     sequence_parallel_enabled=sequence_parallel_enabled,
                 )
             )
@@ -109,6 +111,7 @@ def recv_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    _different_pg: Optional[bool] = None,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     output_tensor_grads = []
     for tensor_shape in tensor_shapes:
@@ -120,6 +123,7 @@ def recv_backward(
                     tensor_shape=tensor_shape,
                     dtype=dtype,
                     async_comm=async_comm,
+                    _different_pg=_different_pg,
                     sequence_parallel_enabled=sequence_parallel_enabled,
                 )
             )
@@ -133,6 +137,7 @@ def send_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    _different_pg: Optional[bool] = None,
 ) -> None:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
@@ -144,6 +149,7 @@ def send_forward(
             tensor_shape=tensor_shape,
             dtype=dtype,
             async_comm=async_comm,
+            _different_pg=_different_pg,
             sequence_parallel_enabled=sequence_parallel_enabled,
         )
 
@@ -155,6 +161,7 @@ def send_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    _different_pg: Optional[bool] = None,
 ) -> None:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
@@ -166,6 +173,7 @@ def send_backward(
             tensor_shape=tensor_shape,
             dtype=dtype,
             async_comm=async_comm,
+            _different_pg=_different_pg,
             sequence_parallel_enabled=sequence_parallel_enabled,
         )
 
@@ -177,6 +185,7 @@ def send_forward_recv_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    _different_pg: Optional[bool] = None,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
@@ -190,6 +199,7 @@ def send_forward_recv_backward(
             tensor_shape=tensor_shape,
             dtype=dtype,
             async_comm=async_comm,
+            _different_pg=_different_pg,
             sequence_parallel_enabled=sequence_parallel_enabled,
         )
         output_tensor_grads.append(output_tensor_grad)
@@ -203,6 +213,7 @@ def send_backward_recv_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    _different_pg: Optional[bool] = None,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
@@ -216,6 +227,7 @@ def send_backward_recv_forward(
             tensor_shape=tensor_shape,
             dtype=dtype,
             async_comm=async_comm,
+            _different_pg=_different_pg,
             sequence_parallel_enabled=sequence_parallel_enabled,
         )
         input_tensors.append(input_tensor)
@@ -236,6 +248,7 @@ def forward_backward_pipelining_without_interleaving(
     deallocate_pipeline_outputs: bool = False,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    _different_pg: Optional[bool] = None,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
@@ -330,6 +343,7 @@ def forward_backward_pipelining_without_interleaving(
             tensor_shapes=recv_tensor_shapes,
             dtype=dtype,
             async_comm=async_comm,
+            _different_pg=_different_pg,
             sequence_parallel_enabled=sequence_parallel_enabled,
         )
         cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i)
@@ -348,6 +362,7 @@ def forward_backward_pipelining_without_interleaving(
             tensor_shapes=send_tensor_shapes,
             dtype=dtype,
             async_comm=async_comm,
+            _different_pg=_different_pg,
             sequence_parallel_enabled=sequence_parallel_enabled,
         )
 
@@ -361,7 +376,7 @@ def forward_backward_pipelining_without_interleaving(
     # receive this tensor here.
     if num_microbatches_remaining > 0:
         _logger.debug("recv_forward before steady state start")
-        input_tensor: List[Union[None, torch.Tensor, FutureTensor]] = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
+        input_tensor: List[Union[None, torch.Tensor, FutureTensor]] = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm, _different_pg=_different_pg)
 
     ###################################################################################################################
     # Run 1F1B in steady state.
@@ -388,6 +403,7 @@ def forward_backward_pipelining_without_interleaving(
                 tensor_shapes=send_tensor_shapes,
                 dtype=dtype,
                 async_comm=async_comm,
+                _different_pg=_different_pg,
                 sequence_parallel_enabled=sequence_parallel_enabled,
             )
 
@@ -397,6 +413,7 @@ def forward_backward_pipelining_without_interleaving(
                     tensor_shapes=recv_tensor_shapes,
                     dtype=dtype,
                     async_comm=async_comm,
+                    _different_pg=_different_pg,
                     sequence_parallel_enabled=sequence_parallel_enabled,
                 )
 
@@ -436,6 +453,7 @@ def forward_backward_pipelining_without_interleaving(
                     tensor_shapes=recv_tensor_shapes,
                     dtype=dtype,
                     async_comm=async_comm,
+                    _different_pg=_different_pg,
                     sequence_parallel_enabled=sequence_parallel_enabled,
                 )
             else:
@@ -445,6 +463,7 @@ def forward_backward_pipelining_without_interleaving(
                     tensor_shapes=recv_tensor_shapes,
                     dtype=dtype,
                     async_comm=async_comm,
+                    _different_pg=_different_pg,
                     sequence_parallel_enabled=sequence_parallel_enabled,
                 )
     ###################################################################################################################
@@ -462,6 +481,7 @@ def forward_backward_pipelining_without_interleaving(
                 tensor_shapes=send_tensor_shapes,
                 dtype=dtype,
                 async_comm=async_comm,
+                _different_pg=_different_pg,
                 sequence_parallel_enabled=sequence_parallel_enabled,
             )
 
@@ -480,6 +500,7 @@ def forward_backward_pipelining_without_interleaving(
                 tensor_shapes=recv_tensor_shapes,
                 dtype=dtype,
                 async_comm=async_comm,
+                _different_pg=_different_pg,
                 sequence_parallel_enabled=sequence_parallel_enabled,
             )
 
