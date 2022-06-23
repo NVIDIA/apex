@@ -31,7 +31,19 @@ def get_tensor_shapes(
     *,
     tensor_shape: Union[List[int], torch.Size],
     decoder_sequence_length: Optional[int] = None,
+    sequence_parallel_enabled: bool = False,
 ) -> Sequence[Sequence[int]]:
+    """Get tensors shapes
+
+    Args:
+        rank: pipeline parallel rank
+        model_type:
+
+    Keyword Args:
+        tensor_shape:
+        decoder_sequence_length:
+        sequence_parallel_enabled:
+    """
     # Determine right tensor sizes (based on position of rank with respect to split
     # rank) and model size.
     # Send two tensors if model is T5 and rank is in decoder stage:
@@ -44,21 +56,27 @@ def get_tensor_shapes(
         len(tensor_shape) == 3
     ), f"`tensor_shape` should be [sequence_length, micro_batch_size, hidden_size] but {tensor_shape}"
     sequence_length, micro_batch_size, hidden_size = tensor_shape
+    seq_len = sequence_length
+    if sequence_parallel_enabled:
+        seq_len = sequence_length // parallel_state.get_tensor_model_parallel_world_size()
     tensor_shapes = []
     if model_type == ModelType.encoder_and_decoder:
         if decoder_sequence_length is None:
             raise ValueError("`decoder_sequence_length` is required for `ModelType.encoder_and_decoder`")
+        dec_seq_len = decoder_sequence_length
+        if sequence_parallel_enabled:
+            dec_seq_len = decoder_sequence_length // parallel_state.get_tensor_model_parallel_world_size()
         if parallel_state.is_pipeline_stage_before_split(rank):
             # If next rank is after split, then need transpose for encoder_hidden_state.
             if parallel_state.is_pipeline_stage_before_split(rank + 1):
-                tensor_shapes.append((sequence_length, micro_batch_size, hidden_size))
+                tensor_shapes.append((seq_len, micro_batch_size, hidden_size))
             else:
-                tensor_shapes.append((micro_batch_size, sequence_length, hidden_size))
+                tensor_shapes.append((dec_seq_len, micro_batch_size, hidden_size))
         else:
-            tensor_shapes.append((decoder_sequence_length, micro_batch_size, hidden_size))
-            tensor_shapes.append((micro_batch_size, sequence_length, hidden_size))
+            tensor_shapes.append((dec_seq_len, micro_batch_size, hidden_size))
+            tensor_shapes.append((seq_len, micro_batch_size, hidden_size))
     else:
-        tensor_shapes.append((sequence_length, micro_batch_size, hidden_size))
+        tensor_shapes.append((seq_len, micro_batch_size, hidden_size))
     return tensor_shapes
 
 
@@ -67,13 +85,21 @@ def recv_forward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    sequence_parallel_enabled: bool = False,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     input_tensors = []
     for tensor_shape in tensor_shapes:
         if tensor_shape is None:
             input_tensors.append(None)
         else:
-            input_tensors.append(p2p_communication.recv_forward(tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm))
+            input_tensors.append(
+                p2p_communication.recv_forward(
+                    tensor_shape=tensor_shape,
+                    dtype=dtype,
+                    async_comm=async_comm,
+                    sequence_parallel_enabled=sequence_parallel_enabled,
+                )
+            )
     return input_tensors
 
 
@@ -82,13 +108,21 @@ def recv_backward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    sequence_parallel_enabled: bool = False,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     output_tensor_grads = []
     for tensor_shape in tensor_shapes:
         if tensor_shape is None:
             output_tensor_grads.append(None)
         else:
-            output_tensor_grads.append(p2p_communication.recv_backward(tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm))
+            output_tensor_grads.append(
+                p2p_communication.recv_backward(
+                    tensor_shape=tensor_shape,
+                    dtype=dtype,
+                    async_comm=async_comm,
+                    sequence_parallel_enabled=sequence_parallel_enabled,
+                )
+            )
     return output_tensor_grads
 
 
@@ -98,13 +132,20 @@ def send_forward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    sequence_parallel_enabled: bool = False,
 ) -> None:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
     for (output_tensor, tensor_shape) in zip(output_tensors, tensor_shapes):
         if tensor_shape is None:
             continue
-        p2p_communication.send_forward(output_tensor, tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm)
+        p2p_communication.send_forward(
+            output_tensor,
+            tensor_shape=tensor_shape,
+            dtype=dtype,
+            async_comm=async_comm,
+            sequence_parallel_enabled=sequence_parallel_enabled,
+        )
 
 
 def send_backward(
@@ -113,13 +154,20 @@ def send_backward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    sequence_parallel_enabled: bool = False,
 ) -> None:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
     for (input_tensor_grad, tensor_shape) in zip(input_tensor_grads, tensor_shapes):
         if tensor_shape is None:
             continue
-        p2p_communication.send_backward(input_tensor_grad, tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm)
+        p2p_communication.send_backward(
+            input_tensor_grad,
+            tensor_shape=tensor_shape,
+            dtype=dtype,
+            async_comm=async_comm,
+            sequence_parallel_enabled=sequence_parallel_enabled,
+        )
 
 
 def send_forward_recv_backward(
@@ -128,6 +176,7 @@ def send_forward_recv_backward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    sequence_parallel_enabled: bool = False,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
@@ -136,7 +185,13 @@ def send_forward_recv_backward(
         if tensor_shape is None:
             output_tensor_grads.append(None)
             continue
-        output_tensor_grad = p2p_communication.send_forward_recv_backward(output_tensor, tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm)
+        output_tensor_grad = p2p_communication.send_forward_recv_backward(
+            output_tensor,
+            tensor_shape=tensor_shape,
+            dtype=dtype,
+            async_comm=async_comm,
+            sequence_parallel_enabled=sequence_parallel_enabled,
+        )
         output_tensor_grads.append(output_tensor_grad)
     return output_tensor_grads
 
@@ -147,6 +202,7 @@ def send_backward_recv_forward(
     *,
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
+    sequence_parallel_enabled: bool = False,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
@@ -155,7 +211,13 @@ def send_backward_recv_forward(
         if tensor_shape is None:
             input_tensors.append(None)
             continue
-        input_tensor = p2p_communication.send_backward_recv_forward(input_tensor_grad, tensor_shape=tensor_shape, dtype=dtype, async_comm=async_comm)
+        input_tensor = p2p_communication.send_backward_recv_forward(
+            input_tensor_grad,
+            tensor_shape=tensor_shape,
+            dtype=dtype,
+            async_comm=async_comm,
+            sequence_parallel_enabled=sequence_parallel_enabled,
+        )
         input_tensors.append(input_tensor)
     return input_tensors
 
@@ -173,6 +235,7 @@ def forward_backward_pipelining_without_interleaving(
     disable_autocast: bool = False,
     deallocate_pipeline_outputs: bool = False,
     async_comm: bool = False,
+    sequence_parallel_enabled: bool = False,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
@@ -192,13 +255,17 @@ def forward_backward_pipelining_without_interleaving(
 
     Keyword args:
         forward_only:
-        tensor_shape: Shape of tensor. Required for P2P communication.
+        tensor_shape: Shape of tensor. The tensor is expected to be 3D and its order of dimension
+            is supposed to be ``(sequence, batch, hidden)``.
         dtype: dtype used in p2p communication. If ``None`` (default value),
             torch.float32 will be used even if ``autocast`` is enabled.
         grad_scaler:
         disable_autocast:
         deallocate_pipeline_outputs: If :obj:`True`, free the data of the output tensor of
             each pipeline stage. Experimental.
+        sequence_parallel_enabled: Set to :obj:`True` for this function to handle sequence length.
+            When :obj:`True`, the sequence length on each tensor model parallel rank is updated
+            to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
@@ -228,10 +295,18 @@ def forward_backward_pipelining_without_interleaving(
     model_type = get_model_type(model)
     rank: int = parallel_state.get_pipeline_model_parallel_rank()
     recv_tensor_shapes: List[List[int]] = get_tensor_shapes(
-        rank - 1, model_type, tensor_shape=tensor_shape, decoder_sequence_length=decoder_sequence_length
+        rank - 1,
+        model_type,
+        tensor_shape=tensor_shape,
+        decoder_sequence_length=decoder_sequence_length,
+        sequence_parallel_enabled=sequence_parallel_enabled,
     )
     send_tensor_shapes: List[List[int]] = get_tensor_shapes(
-        rank, model_type, tensor_shape=tensor_shape, decoder_sequence_length=decoder_sequence_length
+        rank,
+        model_type,
+        tensor_shape=tensor_shape,
+        decoder_sequence_length=decoder_sequence_length,
+        sequence_parallel_enabled=sequence_parallel_enabled,
     )
 
     _logger.info(
@@ -251,7 +326,12 @@ def forward_backward_pipelining_without_interleaving(
     for i in range(num_warmup_microbatches):
         _logger.debug(f"warmup iter: {i} / {num_warmup_microbatches}")
         _logger.debug("receive fwd")
-        input_tensor = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
+        input_tensor = recv_forward(
+            tensor_shapes=recv_tensor_shapes,
+            dtype=dtype,
+            async_comm=async_comm,
+            sequence_parallel_enabled=sequence_parallel_enabled,
+        )
         cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i)
         output_tensor = forward_step(
             forward_step_func,
@@ -263,7 +343,13 @@ def forward_backward_pipelining_without_interleaving(
             disable_autocast,
         )
         _logger.debug("send fwd")
-        send_forward(output_tensor, tensor_shapes=send_tensor_shapes, dtype=dtype, async_comm=async_comm)
+        send_forward(
+            output_tensor,
+            tensor_shapes=send_tensor_shapes,
+            dtype=dtype,
+            async_comm=async_comm,
+            sequence_parallel_enabled=sequence_parallel_enabled,
+        )
 
         if not forward_only:
             input_tensors.append(input_tensor)
@@ -297,15 +383,32 @@ def forward_backward_pipelining_without_interleaving(
         )
         if forward_only:
             _logger.debug("send fwd")
-            send_forward(output_tensor, tensor_shapes=send_tensor_shapes, dtype=dtype, async_comm=async_comm)
+            send_forward(
+                output_tensor,
+                tensor_shapes=send_tensor_shapes,
+                dtype=dtype,
+                async_comm=async_comm,
+                sequence_parallel_enabled=sequence_parallel_enabled,
+            )
 
             if not last_iteration:
                 _logger.debug("receive fwd (last iteration)")
-                input_tensor = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
+                input_tensor = recv_forward(
+                    tensor_shapes=recv_tensor_shapes,
+                    dtype=dtype,
+                    async_comm=async_comm,
+                    sequence_parallel_enabled=sequence_parallel_enabled,
+                )
 
         else:
             _logger.debug("send fwd & receive bwd")
-            output_tensor_grad = send_forward_recv_backward(output_tensor, tensor_shapes=send_tensor_shapes, dtype=dtype, async_comm=async_comm)
+            output_tensor_grad = send_forward_recv_backward(
+                output_tensor,
+                tensor_shapes=send_tensor_shapes,
+                dtype=dtype,
+                async_comm=async_comm,
+                sequence_parallel_enabled=sequence_parallel_enabled,
+            )
 
             # Add input_tensor and output_tensor to end of list.
             input_tensors.append(input_tensor)
@@ -328,10 +431,22 @@ def forward_backward_pipelining_without_interleaving(
             if last_iteration:
                 input_tensor = None
                 _logger.debug("send bwd")
-                send_backward(input_tensor_grad, tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
+                send_backward(
+                    input_tensor_grad,
+                    tensor_shapes=recv_tensor_shapes,
+                    dtype=dtype,
+                    async_comm=async_comm,
+                    sequence_parallel_enabled=sequence_parallel_enabled,
+                )
             else:
                 _logger.debug("send bwd and receive fwd")
-                input_tensor = send_backward_recv_forward(input_tensor_grad, tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
+                input_tensor = send_backward_recv_forward(
+                    input_tensor_grad,
+                    tensor_shapes=recv_tensor_shapes,
+                    dtype=dtype,
+                    async_comm=async_comm,
+                    sequence_parallel_enabled=sequence_parallel_enabled,
+                )
     ###################################################################################################################
     # Run cooldown backward passes.
     ###################################################################################################################
@@ -343,7 +458,12 @@ def forward_backward_pipelining_without_interleaving(
             output_tensor = output_tensors.pop(0)
 
             _logger.debug("receive bwd")
-            output_tensor_grad = recv_backward(tensor_shapes=send_tensor_shapes, dtype=dtype, async_comm=async_comm)
+            output_tensor_grad = recv_backward(
+                tensor_shapes=send_tensor_shapes,
+                dtype=dtype,
+                async_comm=async_comm,
+                sequence_parallel_enabled=sequence_parallel_enabled,
+            )
 
             input_tensor_grad = backward_step(
                 input_tensor,
@@ -355,6 +475,12 @@ def forward_backward_pipelining_without_interleaving(
             )
 
             _logger.debug("send bwd")
-            send_backward(input_tensor_grad, tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
+            send_backward(
+                input_tensor_grad,
+                tensor_shapes=recv_tensor_shapes,
+                dtype=dtype,
+                async_comm=async_comm,
+                sequence_parallel_enabled=sequence_parallel_enabled,
+            )
 
     return losses_reduced

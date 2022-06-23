@@ -12,12 +12,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import List, Sequence
+
 import torch
 
 from apex.transformer.utils import divide
 
 
-def split_tensor_along_last_dim(tensor, num_partitions, contiguous_split_chunks=False):
+def split_tensor_along_last_dim(
+    tensor: torch.Tensor,
+    num_partitions: int,
+    contiguous_split_chunks: bool = False,
+) -> List[torch.Tensor]:
     """Split a tensor along its last dimension.
     Arguments:
         tensor: input tensor.
@@ -44,14 +50,14 @@ class VocabUtility:
 
     @staticmethod
     def vocab_range_from_per_partition_vocab_size(
-        per_partition_vocab_size, rank, world_size
-    ):
+        per_partition_vocab_size: int, rank, world_size: int
+    ) -> Sequence[int]:
         index_f = rank * per_partition_vocab_size
         index_l = index_f + per_partition_vocab_size
         return index_f, index_l
 
     @staticmethod
-    def vocab_range_from_global_vocab_size(global_vocab_size, rank, world_size):
+    def vocab_range_from_global_vocab_size(global_vocab_size: int, rank: int, world_size: int) -> Sequence[int]:
         per_partition_vocab_size = divide(global_vocab_size, world_size)
         return VocabUtility.vocab_range_from_per_partition_vocab_size(
             per_partition_vocab_size, rank, world_size
