@@ -124,7 +124,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                  model_parallel_rank=0,
                  average_grad_sync=True,
                  overlap_grad_sync=True,
-                 bucket_cap_mb=15,
+                 bucket_cap_mb=100,
                  pipeline_size=2,
                  fused_grad_copy=False,
                  max_grad_norm=0.,
