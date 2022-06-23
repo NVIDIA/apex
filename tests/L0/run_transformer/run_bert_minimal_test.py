@@ -164,7 +164,7 @@ def train(
             for model_module in model:
                 unwrapped_model = unwrap_model(model_module)
                 for param in unwrapped_model.parameters():
-                    if getattr(param, 'sequence_parallel', False):
+                    if getattr(param, 'sequence_parallel_enabled', False):
                         grad = param.grad
                         torch.distributed.all_reduce(grad, group=parallel_state.get_tensor_model_parallel_group())
 
