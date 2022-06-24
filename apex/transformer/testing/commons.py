@@ -12,17 +12,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from dataclasses import dataclass
+import datetime
 import os
 import random
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Tuple, Callable, Dict
 
 import numpy
 import torch
 import torch.nn as nn
 
 from apex import transformer
+from apex.transformer.tensor_parallel import(
+    ColumnParallelLinear,
+    RowParallelLinear,
+    scatter_to_sequence_parallel_region,
+)
 from apex.transformer.pipeline_parallel.utils import (
     average_losses_across_data_parallel_group,
+)
+from apex.transformer.pipeline_parallel.schedules.common import (
+    Batch,
 )
 from apex.transformer.testing import global_vars
 
@@ -44,7 +54,10 @@ class MyLayer(nn.Module):
 
 class MyModel(nn.Module):
     def __init__(
-        self, hidden_size: int, pre_process: bool = False, post_process: bool = False
+        self,
+        hidden_size: int, pre_process: bool = False, post_process: bool = False,
+        *,
+        add_encoder: bool = False, add_decoder: bool = False,
     ) -> None:
         super().__init__()
         self.pre_process = pre_process
@@ -67,8 +80,105 @@ class MyModel(nn.Module):
         return self.layer(self.input_tensor)
 
 
-def model_provider_func(hidden_size, pre_process, post_process) -> MyModel:
-    return MyModel(hidden_size, pre_process, post_process)
+class ToyParallelMLP(nn.Module):
+    def __init__(
+        self,
+        hidden_size: int, pre_process: bool = False, post_process: bool = False,
+        *,
+        sequence_parallel_enabled: bool = False,
+        # TODO(mkozuki): Support these two?
+        add_encoder: bool = False, add_decoder: bool = False,
+    ) -> None:
+        super().__init__()
+        self.pre_process = pre_process
+        self.post_process = post_process
+        self.sequence_parallel_enabled = sequence_parallel_enabled
+
+        ffn_hidden_size = 4 * hidden_size
+        self.dense_h_to_4h = ColumnParallelLinear(
+            hidden_size,
+            ffn_hidden_size,
+            gather_output=False,
+            # init_method=init_method,
+            skip_bias_add=True,
+            # use_cpu_initialization=use_cpu_initialization,
+            bias=True,
+            sequence_parallel_enabled=sequence_parallel_enabled,
+            no_async_tensor_model_parallel_allreduce=True,
+        )
+        self.dense_4h_to_h = RowParallelLinear(
+            ffn_hidden_size,
+            hidden_size,
+            input_is_parallel=True,
+            # init_method=output_layer_init_method,
+            skip_bias_add=False,
+            # use_cpu_initialization=use_cpu_initialization,
+            bias=True,
+            sequence_parallel_enabled=sequence_parallel_enabled,
+        )
+        self.activation_func = torch.nn.GELU()
+
+    def set_input_tensor(
+        self,
+        input_tensor: Union[torch.Tensor, List[torch.Tensor]],
+    ) -> None:
+        if not isinstance(input_tensor, list):
+            input_tensor = [input_tensor]
+        self.input_tensor = input_tensor[0]
+
+    def forward(
+        self,
+        x: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        """Forward of Simplified ParallelMLP.
+
+        Args:
+            x: :obj:`None` if pipeline rank != pippeline first rank. When :obj:`None`,
+                `self.input_tensor` is taken care of by `forward_step` defined in
+                apex/transformer/pipeline_parallel/schedules/common.py
+        """
+        # [s, b, h]
+        if self.input_tensor is None:
+            input = x
+        else:
+            input = self.input_tensor
+        intermediate_parallel, bias_parallel = self.dense_h_to_4h(input)
+
+        if bias_parallel is not None:
+            intermediate_parallel += bias_parallel
+        intermediate_parallel = self.activation_func(intermediate_parallel)
+        # [s, b, h]
+        output, output_bias = self.dense_4h_to_h(intermediate_parallel)
+        return output
+
+
+def model_provider_func(
+    hidden_size: int,
+    pre_process: bool,
+    post_process: bool,
+    *,
+    add_encoder: bool = False,
+    add_decoder: bool = False) -> MyModel:
+    return MyModel(hidden_size, pre_process, post_process, add_encoder=add_encoder, add_decoder=add_decoder)
+
+
+def mlp_provider_func(
+    hidden_size: int,
+    pre_process: bool,
+    post_process: bool,
+    *,
+    add_encoder: bool = False,
+    add_decoder: bool = False,
+    sequence_parallel_enabled: bool = False,
+) -> ToyParallelMLP:
+    return ToyParallelMLP(
+        hidden_size,
+        pre_process,
+        post_process,
+        add_encoder=add_encoder,
+        add_decoder=add_decoder,
+        sequence_parallel_enabled=sequence_parallel_enabled,
+    )
 
 
 def process_batch(batch):
@@ -91,6 +201,33 @@ def fwd_step_func(batch, model):
         return loss, {"avg": averaged_loss}
 
     return y, loss_func
+
+
+@dataclass(frozen=True)
+class ToyParallelMLPFwdBwdStepFunc:
+
+    sequence_parallel_enabled: bool
+
+    def __call__(
+        self,
+        batch: Batch,
+        model: torch.nn.Module,
+    ) -> Tuple[torch.Tensor, Callable[[torch.Tensor], Tuple[torch.Tensor, Dict[str, torch.Tensor]]]]:
+        x = batch[0] if isinstance(batch, list) else batch
+        if isinstance(x, torch.Tensor):
+            x = x.transpose(0, 1).contiguous()
+            if self.sequence_parallel_enabled:
+                x = scatter_to_sequence_parallel_region(x)
+        y = model(x)
+
+        # note (mkozuki): I don't think this function is nice but I do think this is enough for now
+        # just to check the sanity of ported pipeline functions.
+        def loss_func(x):
+            loss = torch.sum(x)
+            averaged_loss = average_losses_across_data_parallel_group([loss])
+            return loss, {"avg": averaged_loss}
+
+        return y, loss_func
 
 
 class IdentityLayer(torch.nn.Module):
@@ -117,6 +254,10 @@ def initialize_distributed(backend="nccl"):
     # parser.add_argument('--local_rank', type=int, default=None,
     #                    help='local rank passed from distributed launcher')
     # args = parser.parse_args()
+    if backend not in ("nccl", "ucc"):
+        raise RuntimeError(f"Currently only nccl & ucc are supported but {backend}")
+    if backend == "ucc":
+        import torch_ucc  # NOQA
     args = global_vars.get_args()
     local_rank = args.local_rank
 
@@ -141,7 +282,8 @@ def initialize_distributed(backend="nccl"):
     master_port = os.getenv("MASTER_PORT", "6000")
     init_method += master_ip + ":" + master_port
     torch.distributed.init_process_group(
-        backend=backend, world_size=world_size, rank=rank, init_method=init_method
+        backend=backend, world_size=world_size, rank=rank, init_method=init_method,
+        timeout=datetime.timedelta(seconds=60),
     )
 
 

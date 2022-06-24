@@ -3,16 +3,17 @@ import logging
 import torch
 from torch.testing._internal import common_utils
 
-logging.getLogger("torch").setLevel(logging.WARNING)
-
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import mappings
-from apex.transformer.testing.distributed_test_base import DistributedTestBase
+from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 
+
+logging.getLogger("torch").setLevel(logging.WARNING)
 logging.getLogger("apex").setLevel(logging.WARNING)
 
 
-class MappingTest(DistributedTestBase):
+class MappingTestBase:
     def test_reduce(self):
         for tensor_model_paralell_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_paralell_world_size > 0:
@@ -48,7 +49,7 @@ class MappingTest(DistributedTestBase):
                     for rank in range(tensor_model_paralell_world_size)
                 ]
                 x = torch.cat(tensors, 1)
-                out = mappings._split(x)
+                out = mappings._split_along_last_dim(x)
                 self.assertTrue(
                     torch.equal(
                         out, tensors[parallel_state.get_tensor_model_parallel_rank()]
@@ -67,7 +68,7 @@ class MappingTest(DistributedTestBase):
                     tensor_model_parallel_size_=tensor_model_paralell_world_size
                 )
                 device = f"cuda:{self.rank}"
-                gathered = mappings._gather(
+                gathered = mappings._gather_along_last_dim(
                     torch.tensor(
                         [parallel_state.get_tensor_model_parallel_rank()], device=device
                     )
@@ -78,6 +79,10 @@ class MappingTest(DistributedTestBase):
                 )
                 self.assertTrue(torch.equal(gathered, expected))
                 parallel_state.destroy_model_parallel()
+
+
+class NcclMappingTest(MappingTestBase, NcclDistributedTestBase): pass
+class UccMappingTest(MappingTestBase, UccDistributedTestBase): pass
 
 
 if __name__ == "__main__":

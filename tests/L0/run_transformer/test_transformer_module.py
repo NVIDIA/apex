@@ -33,8 +33,6 @@ def get_launch_option(test_filename) -> Tuple[bool, str]:
 
 def run_transformer_tests():
     python_executable_path = sys.executable
-    # repository_root = os.path.join(os.path.dirname(__file__), "../../../")
-    # directory = os.path.abspath(os.path.join(repository_root, "tests/mpu"))
     directory = os.path.dirname(__file__)
     files = [
         os.path.join(directory, f)
@@ -63,7 +61,17 @@ def run_transformer_tests():
             import torch
 
             num_devices = torch.cuda.device_count()
-            test_run_cmd += f" --pipeline-model-parallel-size {num_devices}"
+            if "bert" in test_file:
+                # "bert" uses the interleaving.
+                tensor_model_parallel_size = 2 if num_devices % 2 == 0 and num_devices > 4 else 1
+            if "gpt" in test_file:
+                # "gpt" uses the non-interleaving.
+                tensor_model_parallel_size = 2 if num_devices % 2 == 0 and num_devices >= 4 else 1
+            pipeline_model_parallel_size = num_devices // tensor_model_parallel_size
+            test_run_cmd += f" --pipeline-model-parallel-size {pipeline_model_parallel_size} --tensor-model-parallel-size {tensor_model_parallel_size}"
+
+            if "bert" in test_file:
+                test_run_cmd += f" --bert-no-binary-head"
         else:
             test_run_cmd += f" --use-cpu-initialization"
         print(f"### {i} / {len(files)}: cmd: {test_run_cmd}")

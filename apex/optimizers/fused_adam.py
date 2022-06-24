@@ -115,6 +115,7 @@ class FusedAdam(torch.optim.Optimizer):
 
             # create lists for multi-tensor apply
             g_16, p_16, m_16, v_16 = [], [], [], []
+            g_bf, p_bf, m_bf, v_bf = [], [], [], []
             g_32, p_32, m_32, v_32 = [], [], [], []
 
             for p in group['params']:
@@ -136,6 +137,11 @@ class FusedAdam(torch.optim.Optimizer):
                     p_16.append(p.data)
                     m_16.append(state['exp_avg'])
                     v_16.append(state['exp_avg_sq'])
+                elif p.dtype == torch.bfloat16:
+                    g_bf.append(p.grad)
+                    p_bf.append(p)
+                    m_bf.append(state['exp_avg'])
+                    v_bf.append(state['exp_avg_sq'])
                 elif p.dtype == torch.float32:
                     g_32.append(p.grad.data)
                     p_32.append(p.data)
@@ -156,6 +162,20 @@ class FusedAdam(torch.optim.Optimizer):
                                      self.adam_w_mode,
                                      bias_correction,
                                      group['weight_decay'])
+            if g_bf:
+                multi_tensor_applier(
+                    self.multi_tensor_adam,
+                    self._dummy_overflow_buf,
+                    [g_bf, p_bf, m_bf, v_bf],
+                    group['lr'],
+                    beta1,
+                    beta2,
+                    group['eps'],
+                    group['step'],
+                    self.adam_w_mode,
+                    bias_correction,
+                    group['weight_decay'],
+                )
             if(len(g_32) > 0):
                 multi_tensor_applier(self.multi_tensor_adam,
                                      self._dummy_overflow_buf,

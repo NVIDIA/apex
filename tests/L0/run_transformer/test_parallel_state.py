@@ -6,7 +6,8 @@ from torch.testing._internal import common_utils
 logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
-from apex.transformer.testing.distributed_test_base import DistributedTestBase
+from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 
@@ -21,7 +22,7 @@ def calc_expected_tensor_model_paralell_rank(
     return rank % tensor_model_parallel_world_size
 
 
-class ParallelStateTest(DistributedTestBase):
+class ParallelStateTestBase:
     def test_initialize_model_parallel(self) -> None:
 
         self.assertFalse(parallel_state.model_parallel_is_initialized())
@@ -120,6 +121,10 @@ class ParallelStateTest(DistributedTestBase):
         )
 
         parallel_state.destroy_model_parallel()
+
+
+class NcclParallelStateTest(ParallelStateTestBase, NcclDistributedTestBase): pass
+class UccParallelStateTest(ParallelStateTestBase, UccDistributedTestBase): pass
 
 
 if __name__ == "__main__":
