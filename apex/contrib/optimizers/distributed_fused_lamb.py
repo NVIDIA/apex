@@ -381,7 +381,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 return [p[block_id*self._block_size:(block_id+1)*self._block_size] for block_id in range(self._num_blocks)]
             def __chunkify(p):
                 return [p[chunk_id*self._chunk_size:(chunk_id+1)*self._chunk_size] for chunk_id in range(self._num_chunks)]
-            list_of_blocks = __blockify(self._flat_grads)
+            list_of_blocks = __blockify(p)
             list_of_list_of_chunks = [__chunkify(block) for block in list_of_blocks]
             return list_of_blocks, list_of_list_of_chunks
         def _full_packed_split(p):
