@@ -8,15 +8,6 @@ def demangle(name):
 	"""
 	return cxxfilt.demangle(name)
 
-def encode_object_id(pid, tid):
-	"""
-	Given process id (pid) and thread id (tid), return the object id.
-	object id = pid (little endian 4 bytes) + tid (little endian 8 bytes)
-	"""
-	objId = struct.pack('<i', pid) + struct.pack('<q',tid)
-	objId = binascii.hexlify(objId).decode('ascii').upper()
-	return objId
-
 def getShortName(name):
 	"""
 	Returns a shorter kernel name
@@ -96,13 +87,13 @@ class Kernel(object):
 		self.kShortName = getShortName(cadena)
 
 	def setRunTimeInfo(self, info):
-		start, end, pid, tid = info
+		start, end, pid, tid, objId = info
 		self.rStartTime = start
 		self.rEndTime = end
 		self.rDuration = end - start
 		self.pid = pid
 		self.tid = tid
-		self.objId = encode_object_id(pid, tid)
+		self.objId = objId
 
 	def setMarkerInfo(self, info):
 		self.layerMarkers, self.traceMarkers, self.reprMarkers, self.pyprofMarkers, self.seqMarkers, self.otherMarkers, self.altMarkers, self.seqId, self.altSeqId, self.layer = info

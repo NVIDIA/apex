@@ -1,32 +1,42 @@
 #!/usr/bin/env python3
 
 """
-Parse the SQL db and print a dictionary for every kernel.
+Parse the SQLite3 database from NVprof or Nsight and print a dictionary for every kernel.
 """
 
 import sys
 import argparse
 from tqdm import tqdm
 
-from .db import DB
-from .kernel import Kernel
-from .nvvp import NVVP
+from db import DB
+from kernel import Kernel
+from nvvp import NVVP
+from nsight import Nsight
 
 def parseArgs():
-	parser = argparse.ArgumentParser(prog=sys.argv[0], description="Parse SQL (nvvp) db.")
+	parser = argparse.ArgumentParser(prog=sys.argv[0], description="Parse SQLite3 DB from NVprof or Nsight.")
 	parser.add_argument("file",
 		type=str,
 		default=None,
-		help="SQL db (nvvp) file.")
+		help="SQLite3 database.")
 
 	args = parser.parse_args()
 	return args
+
+def dbIsNvvp(db):
+	cmd = "SELECT * FROM sqlite_master where type='table' AND name='StringTable'"
+	result = db.select(cmd)
+	return True if len(result) == 1 else False
 
 def main():
 	args = parseArgs()
 
 	db = DB(args.file)
-	nvvp = NVVP(db)
+	nvvp = None
+	if dbIsNvvp(db):
+		nvvp = NVVP(db)
+	else:
+		nvvp = Nsight(db)
 
 	kInfo = nvvp.getKernelInfo()
 	if len(kInfo) == 0:

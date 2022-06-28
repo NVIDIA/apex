@@ -1,6 +1,6 @@
 from collections import OrderedDict
-from .utility import Utility
-from .base import OperatorLayerBase
+from utility import Utility
+from base import OperatorLayerBase
 
 class BatchNorm(OperatorLayerBase):
 
@@ -16,13 +16,14 @@ class BatchNorm(OperatorLayerBase):
 		self.args = args
 
 		assert (op == "batch_norm")
-		assert (len(args) == 8)
+		assert (len(args) >= 1)
 		i = args[0]
 		assert (i['type'] == "tensor")
 
 		self.shape = i['shape']
 		self.type = i['dtype']
 		self.dir = d.dir
+		self.sub = d.sub
 
 	def params(self):
 		p = OrderedDict([('T', self.shape), ('type', self.type)])
@@ -51,4 +52,7 @@ class BatchNorm(OperatorLayerBase):
 		else:
 			e *= 5
 
-		return e * Utility.typeToBytes(self.type)
+		if self.sub > 0:
+			return 0
+		else:
+			return e * Utility.typeToBytes(self.type)

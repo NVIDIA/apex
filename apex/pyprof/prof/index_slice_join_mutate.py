@@ -1,7 +1,7 @@
 from collections import OrderedDict
-from .utility import Utility
+from utility import Utility
 import numpy as np
-from .base import OperatorLayerBase
+from base import OperatorLayerBase
 
 class Cat(OperatorLayerBase):
 
@@ -30,6 +30,7 @@ class Cat(OperatorLayerBase):
 
 		self.type = t
 		self.shapes = shapes
+		self.sub = d.sub
 
 	def params(self):
 		p = OrderedDict([('T', self.shapes), ('type', self.type)])
@@ -51,7 +52,13 @@ class Cat(OperatorLayerBase):
 		b = 0
 		for s in self.shapes:
 			b += Utility.numElems(s)
-		return 2 * b * Utility.typeToBytes(self.type)
+
+		b = 2 * b * Utility.typeToBytes(self.type)
+
+		if (self.sub == 0):
+			return b
+		else:
+			return 0
 
 class Reshape(OperatorLayerBase):
 
@@ -174,6 +181,7 @@ class MaskedScatter(OperatorLayerBase):
 		self.shape = dst['shape']
 		self.type = dst['dtype']
 		self.seqId = d.seqId
+		self.sub = d.sub
 
 	def params(self):
 		p = OrderedDict([('T', self.shape),('type', self.type)])
@@ -200,7 +208,7 @@ class MaskedScatter(OperatorLayerBase):
 		#mask (uint8)
 		b += elems
 
-		if (self.seqId > 0):
+		if (self.sub > 0):
 			b = 0
 		return b
 
@@ -225,6 +233,7 @@ class Nonzero(OperatorLayerBase):
 		self.shape = arg['shape']
 		self.type = arg['dtype']
 		self.seqId = d.seqId
+		self.sub = d.sub
 
 	def params(self):
 		p = OrderedDict([('T', self.shape),('type', self.type)])
@@ -252,7 +261,7 @@ class Nonzero(OperatorLayerBase):
 		#in the worst case, the output is a (elems x dim) tensor of type "long"
 		b += elems * dim * Utility.typeToBytes("int64")
 
-		if self.seqId > 0:
+		if self.sub > 0:
 			return 0
 		else:
 			return b
@@ -328,6 +337,7 @@ class IndexSelect(OperatorLayerBase):
 		#determine the shape of the output tensor
 		shape = list(self.shape)
 		shape[self.dim] = self.indices
+		shape = tuple(shape)
 
 		b = 0
 

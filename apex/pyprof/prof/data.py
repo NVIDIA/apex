@@ -1,4 +1,4 @@
-from .utility import Utility
+from utility import Utility
 
 class Data(object):
 	"""

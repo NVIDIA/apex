@@ -2,7 +2,7 @@
 
 ### What does this tool do?                                                                                                                                                                                                                  
 
-Analyzing the performance of deep neural networks is hard. Getting kernels out of [NvProf]([https://developer.nvidia.com/nvidia-visual-profiler](https://developer.nvidia.com/nvidia-visual-profiler)) or [NSight Compute]([https://developer.nvidia.com/nsight-compute](https://developer.nvidia.com/nsight-compute)) provides some generic kernel name and its execution time, but not detailed information regarding the following:
+Analyzing the performance of deep neural networks is hard. Getting kernels out of [Nsight Systems](https://developer.nvidia.com/nsight-systems), [NvProf](https://developer.nvidia.com/nvidia-visual-profiler) or [NSight Compute](https://developer.nvidia.com/nsight-compute) provides some generic kernel name and its execution time, but not detailed information regarding the following:
 
  - Which layer launched it: e.g. the association of `ComputeOffsetsKernel` with a concrete PyTorch layer or API is not obvious.
  - What the tensor dimensions and precision were: without knowing the tensor dimensions and precision, it's impossible to reason about whether the actual (silicon) kernel time is close to maximum performance of such a kernel on the GPU. Knowing the tensor dimensions and precision, we can figure out the FLOPs and bandwidth required by a layer, and then determine how close to maximum performance the kernel is for that operation.
@@ -10,9 +10,11 @@ Analyzing the performance of deep neural networks is hard. Getting kernels out o
  - Did the kernel use [Tensor Cores]([https://www.youtube.com/watch?v=yyR0ZoCeBO8](https://www.youtube.com/watch?v=yyR0ZoCeBO8))?
  - Which line in the user's code resulted in launching this particular kernel (program trace)?
 
+### **Note that Visual Profiler and nvprof will be deprecated in a future CUDA release.**
+
 PyProf addresses all of the issues above by:
 
- 1. Instrumenting PyTorch operations to capture the tensor dimensions and precision using [NVTX](https://devblogs.nvidia.com/cuda-pro-tip-generate-custom-application-profile-timelines-nvtx). This information is recorded at profile capture time, e.g. using [NvProf](https://developer.nvidia.com/nvidia-visual-profiler).
+ 1. Instrumenting PyTorch operations to capture the tensor dimensions and precision using [NVTX](https://devblogs.nvidia.com/cuda-pro-tip-generate-custom-application-profile-timelines-nvtx). This information is recorded at profile capture time, e.g. using [Nsight Systems](https://developer.nvidia.com/nsight-systems).
  2. Querying the record produced by the profiler to correlate the kernel name and duration with PyTorch API/layer name, tensor dimensions, tensor precision, as well as calculating FLOPs and bandwidth for common operations. In addition, extra information from the profile is added for use by CUDA professionals, such as CUDA launch parameters (block/grid dimensions).
 
 Regarding FLOP and bandwidth implementations, these are usually quite straightforward. For example, for matrices A<sub>MxK</sub> and B<sub>KxN</sub>, the FLOP count for a matrix multiplication is 2 * M * N * K, and bandwidth is M * K + N * K + M * N. Note that these numbers are based on the algorithm, not the actual performance of the specific kernel. For more details, see NVIDIA's [Deep Learning Performance Guide](https://docs.nvidia.com/deeplearning/sdk/dl-performance-guide/index.html).
@@ -67,13 +69,22 @@ Armed with such information, the user can determine various issues to help them 
     # Profile everything
     nvprof -f -o net.sql -- python net.py
     ```
+    OR  
+    Run Nsight Systems to generate a sqlite file.
+    ```sh
+    # If you used profiler.start() and profiler.stop() in net.py
+    nsys profile -f true -o net -c cudaProfilerApi --stop-on-range-end true --export sqlite python net.py
+
+    # Profile everything
+    nsys profile -f true -o net --export sqlite python net.py
+    ```
 
 **Note:** if you're experiencing issues with hardware counters and you get a message such as `**_ERR_NVGPUCTRPERM The user running <tool_name/application_name> does not have permission to access NVIDIA GPU Performance Counters on the target device_**`, please follow the steps described in [Hardware Counters](#hardware-counters).
 
 3. Run parser on the SQL file. The output is an ASCII file. Each line
 is a python dictionary which contains information about the kernel name,
 duration, parameters etc. This file can be used as input to other custom
-scripts as well.
+scripts as well. **Note:** Nsys will create a file called net.sqlite.
 
     ```sh
     python -m apex.pyprof.parse net.sql > net.dict
@@ -117,22 +128,28 @@ For both Tensor Core and non-Tensor Core Deep Learning performance optimization 
 
 ### TODOs
 1. The support for conv transpose is currently missing.
-2. PyProf currently works only with NvProf, but Nsight Compute support will be added in the future.
+2. PyProf currently works with NvProf and NSight Systems. Nsight Compute support will be added in the future.
 
 ### Example
 
-1. Run `nvprof` on the LeNet model in `examples/lenet.py`. This will output a SQL file called `net.sql`.
+1.  Run `nvprof` on the LeNet model in `examples/lenet.py`. This will output a SQL file called `net.sql`.
 
-```sh
-nvprof -f -o net.sql --profile-from-start off -- python examples/lenet.py
-```
+    ```sh
+    nvprof -f -o net.sql --profile-from-start off -- python examples/lenet.py
+    ```
+    OR  
+    Run `nsys` on the LeNet model in `examples/lenet.py`. This will output a SQLite file called `net.sqlite`.
+
+    ```sh
+    nsys profile -f true -o net -c cudaProfilerApi --stop-on-range-end true --export sqlite python net.py
+    ```
 
 **Note**: DO NOT add --analysis-metrics since that will change which table nvprof writes the kernels to (`CUPTI_ACTIVITY_KIND_KERNEL` instead of the usual `CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL`). Support for running with metrics may be added in the future.
 
 If you don't care about a full correlation analysis and you'd just like to view the timeline with detailed NVTX annotations, you can do so, e.g. in the NVIDIA Visual Profiler (NVVP). For example, you can call `nvvp net.sql` to view the annotated timeline.
 
-2. Run the `parse.py` script on `net.sql` to extract kernel and runtime information and
-save it as `net.dict`.
+2. Run the `parse.py` script on `net.sql(ite)` to extract kernel and runtime information and
+save it as `net.dict`. **Note:** Nsys will create a file called net.sqlite.
 
 ```sh
 python -m apex.pyprof.parse net.sql > net.dict
@@ -242,7 +259,7 @@ The above steps should result in a permanent change.
 
 _Temporary solution_
 
-When running on bare metal, you can run nvprof with `sudo`.
+When running on bare metal, you can run nvprof or nsys with `sudo`.
 
 If you're running in a Docker image, you can temporarily elevate your privileges with one of the following (oldest to newest syntax):
 <pre>

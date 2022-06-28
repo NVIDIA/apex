@@ -1,5 +1,5 @@
-from .collections import OrderedDict
-from .utility import Utility
+from collections import OrderedDict
+from utility import Utility
 
 # Work in progress.
 
