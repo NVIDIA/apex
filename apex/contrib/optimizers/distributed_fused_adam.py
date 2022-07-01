@@ -761,14 +761,21 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._inv_grad_scale = torch.clamp(inv_clip_coef, min=1.0).view(1)
         return total_norm
 
-    def step(self, grad_scaler=None):
+    def step(self, closure=None, *, grad_scaler=None):
         """Apply Adam optimizer step
 
         Arguments:
+            closure (callable, optional): closure to recompute loss
+                (default: None)
             grad_scaler (torch.cuda.amp.GradScaler, optional):
                 gradient scaler (default: None)
 
         """
+
+        # Apply closure
+        loss = None
+        if closure is not None:
+            loss = closure()
 
         # Make sure that gradients have been reduced
         self.grad_sync()
@@ -929,3 +936,5 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Synchronize pipeline streams
         for stream in self._pipeline_streams:
             current_stream.wait_stream(stream)
+
+        return loss
