@@ -3,3 +3,4 @@ tqdm>=4.28.1
 numpy>=1.15.3
 PyYAML>=5.1
 pytest>=3.5.1
+packaging>=14.0
