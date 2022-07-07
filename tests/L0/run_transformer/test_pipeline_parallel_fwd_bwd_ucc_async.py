@@ -172,10 +172,6 @@ class PipelineParallelForwardBackwardTestBase:
         torch.distributed.barrier(group = parallel_state.get_pipeline_model_parallel_group())
         torch.distributed.barrier(group = parallel_state.get_data_parallel_group())
 
-
-        # time.sleep(2 + 2 * (10 - torch.cuda.current_device()))
-
-
         for i in range(20):
             loss = fwd_bwd_func(
                 testing_utils.fwd_step_func,
