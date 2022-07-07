@@ -120,6 +120,16 @@ class ParallelStateTestBase:
             fake_split_rank, parallel_state.get_pipeline_model_parallel_split_rank()
         )
 
+        # relative position embedding groups check
+        self.assertEqual(
+           expected_pipeline_rank < pipeline_model_parallel_split_rank,
+           parallel_state.is_rank_in_encoder_relative_position_embedding_group();
+        )
+        self.assertEqual(
+           expected_pipeline_rank >= pipeline_model_parallel_split_rank,
+           parallel_state.is_rank_in_decoder_relative_position_embedding_group();
+        )
+
         parallel_state.destroy_model_parallel()
 
 
