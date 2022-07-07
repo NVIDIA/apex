@@ -20,8 +20,6 @@ TEST_DIRS = [
     "run_fp16util",
     "run_optimizers",
     "run_fused_layer_norm",
-    "run_pyprof_nvtx",
-    "run_pyprof_data",
     "run_mlp",
     "run_transformer",
 ]
