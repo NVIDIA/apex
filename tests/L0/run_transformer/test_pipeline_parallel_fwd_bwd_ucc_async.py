@@ -265,7 +265,6 @@ class PipelineParallelForwardBackwardTestBase:
         )
 
 
-# n.b.(mkozuki): pipeline parallel w/o interleaving with UCX_TLS=tcp,sm fails.
 class UccPipelineParallelForwardBackwardTest(UccDistributedTestBase, PipelineParallelForwardBackwardTestBase):
 
     @property
