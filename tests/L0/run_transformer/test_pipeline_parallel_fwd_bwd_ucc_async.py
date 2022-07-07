@@ -111,6 +111,8 @@ class PipelineParallelForwardBackwardTestBase:
         deallocate_pipeline_outputs = False
         dtype = torch.double
 
+        number_of_iterations = 20 if not "NUM_FWD_BWD_FUNC_ITER" in os.environ else int(os.environ["NUM_FWD_BWD_FUNC_ITER"])
+
         grad_scaler = (
             torch.cuda.amp.GradScaler(init_scale=4.0)
             if dtype == torch.half
@@ -166,13 +168,7 @@ class PipelineParallelForwardBackwardTestBase:
 
         pp_utils.update_num_microbatches(0)
 
-        torch.cuda.synchronize()
-        torch.distributed.barrier(group = parallel_state.get_model_parallel_group())
-        torch.distributed.barrier(group = parallel_state.get_tensor_model_parallel_group())
-        torch.distributed.barrier(group = parallel_state.get_pipeline_model_parallel_group())
-        torch.distributed.barrier(group = parallel_state.get_data_parallel_group())
-
-        for i in range(20):
+        for i in range(number_of_iterations):
             loss = fwd_bwd_func(
                 testing_utils.fwd_step_func,
                 batch,
@@ -191,11 +187,6 @@ class PipelineParallelForwardBackwardTestBase:
             )
 
             if i == 0:
-                torch.distributed.barrier(group = parallel_state.get_model_parallel_group())
-                torch.distributed.barrier(group = parallel_state.get_tensor_model_parallel_group())
-                torch.distributed.barrier(group = parallel_state.get_pipeline_model_parallel_group())
-                torch.distributed.barrier(group = parallel_state.get_data_parallel_group())
-
                 hidden_size = self.HIDDEN_SIZE
                 microbatch_size = self.MICRO_BATCH_SIZE
                 total_layers = pipeline_model_parallel_world_size
