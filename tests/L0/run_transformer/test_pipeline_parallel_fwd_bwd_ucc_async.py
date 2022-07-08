@@ -6,8 +6,6 @@ from torch.testing._internal import common_utils
 from torch.testing._internal import common_distributed
 
 from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
-from apex.transformer.testing.distributed_test_base import HAS_TORCH_UCC
-from apex.transformer.testing.distributed_test_base import HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER
 
 from test_pipeline_parallel_fwd_bwd import PipelineParallelForwardBackwardTestBase
 
