@@ -14,6 +14,8 @@
 # limitations under the License.
 # TODO(mkozuki): Consider removing `timers`.
 
+import os
+
 from functools import reduce
 import operator
 from typing import Union, Optional, Tuple
@@ -53,13 +55,20 @@ def _run_p2pops(
     async_comm: bool = False
 ):
     ops = []
-    group = parallel_state.get_pipeline_model_parallel_group()
+    p2p_group = parallel_state.get_pipeline_model_parallel_group()
+    default_group = parallel_state.get_model_parallel_group()
+
+    ucc_tls_ucp = False
+    if "UCC_TLS" in os.environ:
+        ucc_tls_ucp = os.environ["UCC_TLS"] == "ucp"
+    need_to_sync = p2p_group.name() != default_group.name() and not ucc_tls_ucp
+
     if tensor_send_prev is not None:
         send_prev_op = torch.distributed.P2POp(
             op=torch.distributed.isend,
             tensor=tensor_send_prev,
             peer=parallel_state.get_pipeline_model_parallel_prev_rank(),
-            group=group,
+            group=p2p_group,
         )
         ops.append(send_prev_op)
     if tensor_recv_prev is not None:
@@ -67,7 +76,7 @@ def _run_p2pops(
             op=torch.distributed.irecv,
             tensor=tensor_recv_prev,
             peer=parallel_state.get_pipeline_model_parallel_prev_rank(),
-            group=group,
+            group=p2p_group,
         )
         ops.append(recv_prev_op)
     if tensor_send_next is not None:
@@ -75,7 +84,7 @@ def _run_p2pops(
             op=torch.distributed.isend,
             tensor=tensor_send_next,
             peer=parallel_state.get_pipeline_model_parallel_next_rank(),
-            group=group,
+            group=p2p_group,
         )
         ops.append(send_next_op)
     if tensor_recv_next is not None:
@@ -83,10 +92,13 @@ def _run_p2pops(
             op=torch.distributed.irecv,
             tensor=tensor_recv_next,
             peer=parallel_state.get_pipeline_model_parallel_next_rank(),
-            group=group,
+            group=p2p_group,
         )
         ops.append(recv_next_op)
     if len(ops) > 0:
+        if need_to_sync:
+            torch.cuda.synchronize()
+
         reqs = torch.distributed.batch_isend_irecv(ops)
         if async_comm:
             assert len(reqs) == len(ops)
