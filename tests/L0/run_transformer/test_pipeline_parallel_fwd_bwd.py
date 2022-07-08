@@ -90,6 +90,7 @@ class PipelineParallelForwardBackwardTestBase:
     GLOBAL_BATCH_SIZE = 16
     MICRO_BATCH_SIZE = 2
     HIDDEN_SIZE = 32
+    NUM_EPOCHS = 1
 
     deallocate_options = (True, False)
     # If :obj:`None`, (torch.float32, torch.float16, torch.bfloat16) are dtype options on Ampere.
@@ -170,93 +171,106 @@ class PipelineParallelForwardBackwardTestBase:
 
             pp_utils.update_num_microbatches(0)
 
-            loss = fwd_bwd_func(
-                testing_utils.fwd_step_func,
-                batch,
-                model,
-                forward_only=forward_only,
-                # `tensor_shape` is the shape of micro batch.
-                tensor_shape=(
-                    self.MICRO_BATCH_SIZE,
-                    self.HIDDEN_SIZE,
-                    self.HIDDEN_SIZE,
-                ),
-                dtype=dtype,
-                async_comm=async_comm,
-                grad_scaler=grad_scaler,
-                deallocate_pipeline_output=deallocate_pipeline_outputs,
-            )
+            for epoch in range(self.NUM_EPOCHS):
+                loss = fwd_bwd_func(
+                    testing_utils.fwd_step_func,
+                    batch,
+                    model,
+                    forward_only=forward_only,
+                    # `tensor_shape` is the shape of micro batch.
+                    tensor_shape=(
+                        self.MICRO_BATCH_SIZE,
+                        self.HIDDEN_SIZE,
+                        self.HIDDEN_SIZE,
+                    ),
+                    dtype=dtype,
+                    async_comm=async_comm,
+                    grad_scaler=grad_scaler,
+                    deallocate_pipeline_output=deallocate_pipeline_outputs,
+                )
 
-            if dtype == torch.double:
-                hidden_size = self.HIDDEN_SIZE
-                microbatch_size = self.MICRO_BATCH_SIZE
-                total_layers = pipeline_model_parallel_world_size
-                if virtual_pipeline_model_parallel_size is not None:
-                    total_layers *= virtual_pipeline_model_parallel_size
-                target_loss, target_model = get_target_loss_and_model(global_batch_shape, hidden_size, total_layers)
+                if dtype == torch.double and epoch == 0:
+                    hidden_size = self.HIDDEN_SIZE
+                    microbatch_size = self.MICRO_BATCH_SIZE
+                    total_layers = pipeline_model_parallel_world_size
+                    if virtual_pipeline_model_parallel_size is not None:
+                        total_layers *= virtual_pipeline_model_parallel_size
+                    target_loss, target_model = get_target_loss_and_model(global_batch_shape, hidden_size, total_layers)
 
-                for loss_item in loss:
-                    x = loss_item['avg']
-                    torch.testing.assert_close(x.item() / microbatch_size, target_loss.item())
+                    for loss_item in loss:
+                        x = loss_item['avg']
+                        torch.testing.assert_close(x.item() / microbatch_size, target_loss.item())
+
+                    if not forward_only:
+                        for vm_id, model_module in enumerate(model):
+                            params = list(model_module.parameters())
+                            rank = params[0].get_device()
+                            offset = pipeline_model_parallel_world_size
+                            param_id = rank // data_parallel_size + vm_id * offset
+                            target_params = target_model[param_id]
+
+                            torch.testing.assert_close(params[0].cpu(), target_params[0])
+                            torch.testing.assert_close(params[1].cpu(), target_params[1])
+                            torch.testing.assert_close(params[0].grad.cpu() / microbatch_size, target_params[0].grad)
+                            torch.testing.assert_close(params[1].grad.cpu() / microbatch_size, target_params[1].grad)
 
                 if not forward_only:
-                    for vm_id, model_module in enumerate(model):
-                        params = list(model_module.parameters())
-                        rank = params[0].get_device()
-                        offset = pipeline_model_parallel_world_size
-                        param_id = rank // data_parallel_size + vm_id * offset
-                        target_params = target_model[param_id]
-
-                        torch.testing.assert_close(params[0].cpu(), target_params[0])
-                        torch.testing.assert_close(params[1].cpu(), target_params[1])
-                        torch.testing.assert_close(params[0].grad.cpu() / microbatch_size, target_params[0].grad)
-                        torch.testing.assert_close(params[1].grad.cpu() / microbatch_size, target_params[1].grad)
-
-            if not forward_only:
-                for m in model:
-                    for p in m.parameters():
-                        self.assertIsNotNone(p.grad)
-                optimizer.step()
-                optimizer.zero_grad(set_to_none=True)
+                    for m in model:
+                        for p in m.parameters():
+                            self.assertIsNotNone(p.grad)
+                    optimizer.step()
+                    optimizer.zero_grad(set_to_none=True)
 
             parallel_state.destroy_model_parallel()
 
-    def test_no_pipelining(self):
+    def test_learning_no_pipelining(self):
         self._forward_backward_test_impl(False, forward_backward_no_pipelining, 1, None)
 
-    def test_no_pipelining_inference(self):
+    def test_inference_no_pipelining(self):
         self._forward_backward_test_impl(True, forward_backward_no_pipelining, 1, None)
 
-    def test_pipelining_without_interleaving(self):
+    def test_learning_pipelining_without_interleaving(self):
         self._forward_backward_test_impl(
             False, forward_backward_pipelining_without_interleaving, None, None
         )
 
-    def test_pipelining_async(self):
-        self._forward_backward_test_impl(
-            False, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
-        )
-
-    def test_pipelining_without_interleaving_inference(self):
+    def test_inference_pipelining_without_interleaving(self):
         self._forward_backward_test_impl(
             True, forward_backward_pipelining_without_interleaving, None, None
         )
 
-    def test_pipelining_inference_async(self):
+    def test_learning_async_pipelining_without_interleaving(self):
+        self._forward_backward_test_impl(
+            False, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
+        )
+
+    def test_inference_async_pipelining_without_interleaving(self):
         self._forward_backward_test_impl(
             True, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
         )
 
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
-    def test_pipelining_with_interleaving(self):
+    def test_learning_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
         )
 
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
-    def test_pipelining_with_interleaving_inference(self):
+    def test_inference_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
+        )
+
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
+    def test_learning_async_pipelining_with_interleaving(self):
+        self._forward_backward_test_impl(
+            False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True
+        )
+
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
+    def test_inference_async_pipelining_with_interleaving(self):
+        self._forward_backward_test_impl(
+            True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True
         )
 
 
@@ -283,10 +297,10 @@ class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineP
             ):
                 self._run_hybrid_distributed_backend(forward_only)
 
-    def test_pipelining_without_interleaving_ucc_for_p2p(self):
+    def test_learning_pipelining_without_interleaving_ucc_for_p2p(self):
         self._test_hybrid_backends(False)
 
-    def test_pipelining_without_interleaving_inference_ucc_for_p2p(self):
+    def test_inference_pipelining_without_interleaving_ucc_for_p2p(self):
         self._test_hybrid_backends(True)
 
 
