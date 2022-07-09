@@ -12,7 +12,7 @@ from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interl
     _forward_backward_pipelining_with_interleaving,
 )
 from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
-from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+from apex.transformer.pipeline_parallel.utils import reconfigure_microbatch_calculator
 from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
@@ -58,7 +58,7 @@ def run_interleaved_with_dynamic_batch_size(
     pipeline_model_parallel_size: int, forward_only: bool, BatchSamplerCls,
 ) -> None:
     args = global_vars.get_args()
-    _reconfigure_microbatch_calculator(
+    reconfigure_microbatch_calculator(
         args.rank,
         args.rampup_batch_size,
         args.global_batch_size,

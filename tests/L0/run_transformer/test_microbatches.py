@@ -7,7 +7,7 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import (
-    _reconfigure_microbatch_calculator,
+    reconfigure_microbatch_calculator,
     get_micro_batch_size,
     get_num_microbatches,
     get_current_global_batch_size,
@@ -46,7 +46,7 @@ class MicrobatchCalculatorTestBase:
                 )
                 self.assertEqual(data_parallel_size, parallel_state.get_data_parallel_world_size())
 
-                _reconfigure_microbatch_calculator(
+                reconfigure_microbatch_calculator(
                     self.rank,
                     rampup_batch_size,
                     self.GLOBAL_BATCH_SIZE,

@@ -132,7 +132,7 @@ class PipelineParallelForwardBackwardTestBase:
                 default_backend=default_backend,
                 p2p_backend=p2p_backend,
             )
-            pp_utils._reconfigure_microbatch_calculator(
+            pp_utils.reconfigure_microbatch_calculator(
                 rank=parallel_state.get_tensor_model_parallel_rank(),
                 rampup_batch_size=None,
                 global_batch_size=self.GLOBAL_BATCH_SIZE,
@@ -353,7 +353,7 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
             pipeline_model_parallel_split_rank_=pipeline_model_parallel_split_rank,
         )
         testing_utils.set_random_seed(567)
-        pp_utils._reconfigure_microbatch_calculator(
+        pp_utils.reconfigure_microbatch_calculator(
             rank=parallel_state.get_tensor_model_parallel_rank(),
             rampup_batch_size=None,
             global_batch_size=self.GLOBAL_BATCH_SIZE,
