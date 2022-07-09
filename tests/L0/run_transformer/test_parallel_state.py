@@ -127,7 +127,7 @@ class ParallelStateTestBase:
         )
         self.assertEqual(
            expected_pipeline_rank >= pipeline_model_parallel_split_rank,
-           parallel_state.is_rank_in_decoder_relative_position_embedding_group();
+           parallel_state.is_rank_in_decoder_relative_position_embedding_group(),
         )
 
         parallel_state.destroy_model_parallel()
