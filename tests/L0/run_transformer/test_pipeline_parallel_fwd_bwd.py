@@ -49,12 +49,19 @@ def get_init_weights_func(offset: int = 0):
     return init_weights
 
 
+def get_dtype_for_comparison():
+    if(torch.cuda.get_device_capability() >= (8, 0)):
+        return torch.float64
+    return torch.float32
+
+
 def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total_layers: int) -> Tuple[torch.Tensor, List[torch.Tensor]]:
     model = []
-    data = torch.ones(global_batch_shape, dtype=torch.double)
+    dtype = get_dtype_for_comparison()
+    data = torch.ones(global_batch_shape, dtype=dtype)
     for i in range(total_layers):
-        w = torch.ones((hidden_size, hidden_size), dtype=torch.double) * (i + 1.0) / weight_coeff
-        b = torch.ones(hidden_size, dtype=torch.double)
+        w = torch.ones((hidden_size, hidden_size), dtype=dtype) * (i + 1.0) / weight_coeff
+        b = torch.ones(hidden_size, dtype=dtype)
 
         w.requires_grad_()
         b.requires_grad_()
@@ -67,12 +74,6 @@ def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total
     loss.backward()
 
     return loss, model
-
-
-def get_dtype_for_comparison():
-    if(torch.cuda.get_device_capability() >= (8, 0)):
-        return torch.float64
-    return torch.float32
 
 
 def _get_default_world_sizes_model_parallel_world_size(pipeline_model_parallel_world_size: Optional[int] = None
