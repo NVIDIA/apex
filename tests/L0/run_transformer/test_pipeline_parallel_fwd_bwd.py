@@ -69,6 +69,12 @@ def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total
     return loss, model
 
 
+def get_dtype_for_comparison():
+    if(torch.cuda.get_device_capability() >= (8, 0)):
+        return torch.float64
+    return torch.float32
+
+
 def _get_default_world_sizes_model_parallel_world_size(pipeline_model_parallel_world_size: Optional[int] = None
     ) -> Tuple[int, int, int]:
     # TODO: revisit if we can fold this into the class for skip logic / avoid duplication
@@ -189,7 +195,7 @@ class PipelineParallelForwardBackwardTestBase:
                     deallocate_pipeline_output=deallocate_pipeline_outputs,
                 )
 
-                if dtype == torch.double and epoch == 0:
+                if dtype == get_dtype_for_comparison() and epoch == 0:
                     hidden_size = self.HIDDEN_SIZE
                     microbatch_size = self.MICRO_BATCH_SIZE
                     total_layers = pipeline_model_parallel_world_size
