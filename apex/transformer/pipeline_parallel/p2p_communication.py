@@ -58,9 +58,7 @@ def _run_p2pops(
     p2p_group = parallel_state.get_pipeline_model_parallel_group()
     default_group = parallel_state.get_model_parallel_group()
 
-    ucc_tls_ucp = False
-    if "UCC_TLS" in os.environ:
-        ucc_tls_ucp = os.environ["UCC_TLS"] == "ucp"
+    ucc_tlc_ucp = "ucp" == os.getenv("UCC_TLS", "")
     need_to_sync = p2p_group.name() != default_group.name() and not ucc_tls_ucp
 
     if tensor_send_prev is not None:

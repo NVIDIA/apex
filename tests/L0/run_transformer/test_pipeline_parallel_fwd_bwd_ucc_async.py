@@ -12,8 +12,6 @@ from test_pipeline_parallel_fwd_bwd import PipelineParallelForwardBackwardTestBa
 logging.getLogger("torch").setLevel(logging.WARNING)
 logging.getLogger("apex").setLevel(logging.WARNING)
 
-weight_coeff = 1024
-
 class UccPipelineParallelForwardBackwardUnderLoadTest(UccDistributedTestBase, PipelineParallelForwardBackwardTestBase):
 
     def __init__(self, *args, **kwargs) -> None:

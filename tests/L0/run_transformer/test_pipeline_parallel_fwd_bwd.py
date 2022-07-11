@@ -249,25 +249,25 @@ class PipelineParallelForwardBackwardTestBase:
             True, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
         )
 
-    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
     def test_learning_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
         )
 
-    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
     def test_inference_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
         )
 
-    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
     def test_learning_async_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True
         )
 
-    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
     def test_inference_async_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True
