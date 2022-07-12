@@ -21,7 +21,7 @@ class UccPipelineParallelForwardBackwardUnderLoadTest(UccDistributedTestBase, Pi
         self.HIDDEN_SIZE = 32
         self.NUM_EPOCHS = int(os.getenv("NUM_EPOCHS", "1"))
         self.deallocate_options = (False,)
-        self.dtypes = (torch.float32,)
+        self.dtypes = (torch.float64,)
 
     @property
     def world_size(self) -> int:
