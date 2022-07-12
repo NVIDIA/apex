@@ -16,15 +16,12 @@ class UccPipelineParallelForwardBackwardUnderLoadTest(UccDistributedTestBase, Pi
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.GLOBAL_BATCH_SIZE = 8192
-        self.MICRO_BATCH_SIZE =  self.GLOBAL_BATCH_SIZE // self.world_size
-        self.HIDDEN_SIZE = 256
-        self.NUM_EPOCHS = 1
+        self.GLOBAL_BATCH_SIZE = 1024
+        self.MICRO_BATCH_SIZE = 64
+        self.HIDDEN_SIZE = 32
+        self.NUM_EPOCHS = int(os.getenv("NUM_EPOCHS", "1"))
         self.deallocate_options = (False,)
         self.dtypes = (torch.float32,)
-
-        if "NUM_EPOCHS" in os.environ:
-            self.NUM_EPOCHS = int(os.environ["NUM_EPOCHS"])
 
     @property
     def world_size(self) -> int:

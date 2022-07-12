@@ -58,6 +58,7 @@ def _run_p2pops(
     p2p_group = parallel_state.get_pipeline_model_parallel_group()
     default_group = parallel_state.get_model_parallel_group()
 
+    # ucp layer is CUDA kernel based, it is necessary to call `torch.cuda.synchronize()`
     ucc_tls_ucp = "ucp" == os.getenv("UCC_TLS", "")
     need_to_sync = p2p_group.name() != default_group.name() and not ucc_tls_ucp
 
