@@ -43,29 +43,31 @@ class SelfMultiheadAttnTest(unittest.TestCase):
                                       dtype=torch.float16, device=torch.device("cuda")).requires_grad_(True)
 
     def test_self_multihead_attn(self) :
-        grads         = torch.randn_like(self.tst_inputs)
-
-        ref_outputs,_ = self.ref_layer.forward(self.ref_inputs, 
-                                               self.ref_inputs, 
+        ref_outputs,_ = self.ref_layer.forward(self.ref_inputs,
                                                self.ref_inputs,
-                                               key_padding_mask=None, 
-                                               need_weights=False, 
+                                               self.ref_inputs,
+                                               key_padding_mask=None,
+                                               need_weights=False,
                                                attn_mask=None,
                                                is_training=True)
 
-        tst_outputs,_ = self.tst_layer.forward(self.tst_inputs, 
-                                               self.tst_inputs, 
+        tst_outputs,_ = self.tst_layer.forward(self.tst_inputs,
                                                self.tst_inputs,
-                                               key_padding_mask=None, 
-                                               need_weights=False, 
+                                               self.tst_inputs,
+                                               key_padding_mask=None,
+                                               need_weights=False,
                                                attn_mask=None,
                                                is_training=True)
-        
-        self.ref_inputs.backward(grads)
-        self.tst_inputs.backward(grads)
 
         self.assertTrue(torch.allclose(self.ref_inputs,  self.tst_inputs,  atol=1e-5, rtol=1e-5))
         self.assertTrue(torch.allclose(ref_outputs, tst_outputs, atol=1e-3, rtol=1e-3))
+
+        with torch.no_grad():
+            ref_grads         = torch.randn_like(self.tst_inputs)
+            tst_grads         = ref_grads.clone()
+
+        ref_outputs.backward(ref_grads)
+        tst_outputs.backward(tst_grads)
         self.assertTrue(torch.allclose(self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3))
 
     def test_self_multihead_attn_time_mask(self) :
