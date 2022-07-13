@@ -85,7 +85,8 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 )
                 with torch.no_grad():
                     attention_scores_1 = attention_scores_0.clone().requires_grad_(True)
-                mask = torch.randint(0, 2, shape, device="cuda").bool()
+                mask_shape = (shape[0],) + (1,) + shape[2:]
+                mask = torch.randint(0, 2, mask_shape, device="cuda").bool()
                 expected = fused_fn(attention_scores_0, mask)
                 actual = torch_fn(attention_scores_1, mask)
                 torch.testing.assert_close(actual, expected)
