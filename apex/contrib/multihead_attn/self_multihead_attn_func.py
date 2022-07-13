@@ -236,7 +236,7 @@ class SelfAttnFunc(torch.autograd.Function):
         dropout_grads = torch._masked_scale(matmul2_dgrad1, dropout_mask, 1.0 / (1.0 - dropout_prob_t[0]))
 
         # Softmax Grad (not a publically documented op)
-        softmax_grads = torch._softmax_backward_data(dropout_grads, softmax_results, -1, softmax_results)
+        softmax_grads = torch._softmax_backward_data(dropout_grads, softmax_results, -1, softmax_results.dtype)
 
         # Matmul1 - DGRAD1
         # Input1: (data grads)  [seqs*heads, seql_q, seql_k]
@@ -299,6 +299,7 @@ class SelfAttnFunc(torch.autograd.Function):
             output_weight_grads,
             input_bias_grads,
             output_bias_grads,
+            None,
             None,
             None,
         )
