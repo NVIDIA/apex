@@ -118,19 +118,12 @@ class UccDistributedTestBase(DistributedTestBase):
             os.environ["UCX_TLS"] = "tcp,cuda"
         print('os.environ[\"UCX_TLS\"] = {}'.format(os.environ["UCX_TLS"]))
 
-        self._has_ucc_tls = "UCC_TLS" in os.environ
-        if not self._has_ucc_tls:
-            os.environ["UCC_TLS"] = "ucp,cuda"
-        print('os.environ[\"UCC_TLS\"] = {}'.format(os.environ["UCC_TLS"]))
-
     def tearDown(self) -> None:
         super().tearDown()
         if not self._has_master_port:
             del os.environ["MASTER_PORT"]
         if not self._has_ucx_tls:
             del os.environ["UCX_TLS"]
-        if not self._has_ucc_tls:
-            del os.environ["UCC_TLS"]
 
     @property
     def init_method(self):

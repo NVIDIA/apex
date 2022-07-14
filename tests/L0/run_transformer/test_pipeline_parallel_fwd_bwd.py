@@ -195,6 +195,7 @@ class PipelineParallelForwardBackwardTestBase:
             )
 
             if dtype == get_dtype_for_comparison():
+                torch.cuda.synchronize()
                 hidden_size = self.HIDDEN_SIZE
                 microbatch_size = self.MICRO_BATCH_SIZE
                 total_layers = pipeline_model_parallel_world_size
