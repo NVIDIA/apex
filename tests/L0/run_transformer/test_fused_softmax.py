@@ -54,8 +54,8 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
         attention_scores.shape = [4, 12, 24, 24]
         mask.shape = [4, 1, 24, 24]
         """
-        for (dtype, scale, softmax_in_fp32) in itertools.product(
-            (torch.half, torch.bfloat16), (None, 2.0), (False, True),
+        for (dtype, scale, softmax_in_fp32, shape) in itertools.product(
+            (torch.half, torch.bfloat16), (None, 2.0), (False, True), ((4, 12, 24, 24), (32, 12, 4, 214))
         ):
             with self.subTest(f"{dtype}-{scale}-{softmax_in_fp32}"):
                 input_in_fp16 = dtype == torch.half
@@ -79,13 +79,14 @@ class TestFusedScaleMaskSoftmax(unittest.TestCase):
                 )
 
                 attention_scores_0 = (
-                    torch.randn((4, 12, 24, 24))
+                    torch.randn(shape)
                     .to(device="cuda", dtype=dtype)
                     .requires_grad_(True)
                 )
                 with torch.no_grad():
                     attention_scores_1 = attention_scores_0.clone().requires_grad_(True)
-                mask = torch.randint(0, 2, (4, 1, 24, 24), device="cuda").bool()
+                mask_shape = (shape[0],) + (1,) + shape[2:]
+                mask = torch.randint(0, 2, mask_shape, device="cuda").bool()
                 expected = fused_fn(attention_scores_0, mask)
                 actual = torch_fn(attention_scores_1, mask)
                 torch.testing.assert_close(actual, expected)
