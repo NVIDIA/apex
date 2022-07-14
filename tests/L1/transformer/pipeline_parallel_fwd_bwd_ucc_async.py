@@ -1,6 +1,6 @@
+import os
 import logging
 import itertools
-import re
 from typing import Optional, Tuple, List
 import unittest
 
@@ -11,7 +11,6 @@ from torch.testing._internal import common_distributed
 
 from apex._autocast_utils import _get_autocast_dtypes
 from apex.transformer import parallel_state
-from apex.transformer.enums import ModelType
 from apex.transformer.pipeline_parallel import utils as pp_utils
 from apex.transformer.pipeline_parallel.schedules.common import (
     FwdStepFunc,
@@ -27,7 +26,6 @@ from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interl
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
     forward_backward_pipelining_without_interleaving,
 )
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 from apex.transformer.testing.distributed_test_base import HAS_TORCH_UCC
 from apex.transformer.testing.distributed_test_base import HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER
@@ -37,10 +35,9 @@ from apex.transformer.testing import commons as testing_utils
 logging.getLogger("torch").setLevel(logging.WARNING)
 logging.getLogger("apex").setLevel(logging.WARNING)
 
-weight_coeff = 1024
-
 
 def get_init_weights_func(offset: int = 0):
+    weight_coeff = 1024
     @torch.no_grad()
     def init_weights(m):
         rank = parallel_state.get_pipeline_model_parallel_rank()
@@ -48,33 +45,6 @@ def get_init_weights_func(offset: int = 0):
             m.weight.fill_((rank + offset + 1.0) / weight_coeff)
             m.bias.fill_(1.0)
     return init_weights
-
-
-def get_dtype_for_comparison():
-    if(torch.cuda.get_device_capability() >= (8, 0)):
-        return torch.float64
-    return torch.float32
-
-
-def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total_layers: int) -> Tuple[torch.Tensor, List[torch.Tensor]]:
-    model = []
-    dtype = get_dtype_for_comparison()
-    data = torch.ones(global_batch_shape, dtype=dtype)
-    for i in range(total_layers):
-        w = torch.ones((hidden_size, hidden_size), dtype=dtype) * (i + 1.0) / weight_coeff
-        b = torch.ones(hidden_size, dtype=dtype)
-
-        w.requires_grad_()
-        b.requires_grad_()
-
-        # don't need to care about transpose semantics as all values are the same
-        data = torch.matmul(w, data) + b
-        model.append([w, b])
-
-    loss = data.sum() / global_batch_shape[0]
-    loss.backward()
-
-    return loss, model
 
 
 def _get_default_world_sizes_model_parallel_world_size(pipeline_model_parallel_world_size: Optional[int] = None
@@ -100,9 +70,9 @@ class UccPipelineParallelForwardBackwardProf(UccDistributedTestBase):
         self.GLOBAL_BATCH_SIZE = 1024
         self.MICRO_BATCH_SIZE = 64
         self.HIDDEN_SIZE = 256
-        self.NUM_EPOCHS = 4
+        self.NUM_FWD_BWD_ITERATIONS = 4
         self.deallocate_options = (False,)
-        self.dtypes = (torch.float64,)
+        self.dtypes = (torch.float32,)
 
     @property
     def world_size(self) -> int:
@@ -188,7 +158,7 @@ class UccPipelineParallelForwardBackwardProf(UccDistributedTestBase):
 
             pp_utils.update_num_microbatches(0)
 
-            for epoch in range(self.NUM_EPOCHS):
+            for _ in range(self.NUM_FWD_BWD_ITERATIONS):
                 loss = fwd_bwd_func(
                     testing_utils.fwd_step_func,
                     batch,
@@ -260,5 +230,6 @@ class UccPipelineParallelForwardBackwardProf(UccDistributedTestBase):
 
 
 if __name__ == "__main__":
+    os.environ["UCC_TLS"] = "ucp,cuda"
     common_distributed.TIMEOUT_DEFAULT = 500
     common_utils.run_tests()
