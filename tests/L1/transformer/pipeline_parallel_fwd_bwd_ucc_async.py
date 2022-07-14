@@ -78,12 +78,6 @@ class UccPipelineParallelForwardBackwardProf(UccDistributedTestBase):
     def world_size(self) -> int:
         return min(torch.cuda.device_count(), 8)
 
-
-    deallocate_options = (True, False)
-    # If :obj:`None`, (torch.float32, torch.float16, torch.bfloat16) are dtype options on Ampere.
-    # You can limit the options by overriding the following `dtypes`.
-    dtypes = None
-
     def _forward_backward_test_impl(
         self,
         forward_only: bool,
