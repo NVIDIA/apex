@@ -177,7 +177,6 @@ class PipelineParallelForwardBackwardTestBase:
 
             pp_utils.update_num_microbatches(0)
 
-
             loss = fwd_bwd_func(
                 testing_utils.fwd_step_func,
                 batch,
