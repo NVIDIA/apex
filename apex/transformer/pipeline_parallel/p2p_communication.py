@@ -14,8 +14,6 @@
 # limitations under the License.
 # TODO(mkozuki): Consider removing `timers`.
 
-import os
-
 from functools import reduce
 import operator
 from typing import Union, Optional, Tuple
@@ -58,9 +56,7 @@ def _run_p2pops(
     p2p_group = parallel_state.get_pipeline_model_parallel_group()
     default_group = parallel_state.get_model_parallel_group()
 
-    # ucp layer is CUDA kernel based, it is not necessary to call `torch.cuda.synchronize()`
-    ucc_tls_ucp = "ucp" == os.getenv("UCC_TLS", "")
-    need_to_sync = p2p_group.name() != default_group.name() and not ucc_tls_ucp
+    need_to_sync = p2p_group.name() != default_group.name()
 
     if tensor_send_prev is not None:
         send_prev_op = torch.distributed.P2POp(

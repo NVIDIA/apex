@@ -110,10 +110,7 @@ class UccDistributedTestBase(DistributedTestBase):
                 from caffe2.torch.fb.common.utils import get_free_port
                 self.master_port = str(get_free_port())
             except ImportError:
-                try:
-                    self.master_port = str(common_utils.find_free_port())
-                except:
-                    self.master_port = "12375"
+                self.master_port = "12375"
             os.environ["MASTER_PORT"] = self.master_port
 
         self._has_ucx_tls = "UCX_TLS" in os.environ
@@ -123,7 +120,7 @@ class UccDistributedTestBase(DistributedTestBase):
 
         self._has_ucc_tls = "UCC_TLS" in os.environ
         if not self._has_ucc_tls:
-            os.environ["UCC_TLS"] = "ucp"
+            os.environ["UCC_TLS"] = "ucp,cuda"
         print('os.environ[\"UCC_TLS\"] = {}'.format(os.environ["UCC_TLS"]))
 
     def tearDown(self) -> None:

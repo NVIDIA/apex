@@ -97,7 +97,6 @@ class PipelineParallelForwardBackwardTestBase:
     GLOBAL_BATCH_SIZE = 16
     MICRO_BATCH_SIZE = 2
     HIDDEN_SIZE = 32
-    NUM_EPOCHS = 1
 
     deallocate_options = (True, False)
     # If :obj:`None`, (torch.float32, torch.float16, torch.bfloat16) are dtype options on Ampere.
@@ -178,55 +177,55 @@ class PipelineParallelForwardBackwardTestBase:
 
             pp_utils.update_num_microbatches(0)
 
-            for epoch in range(self.NUM_EPOCHS):
-                loss = fwd_bwd_func(
-                    testing_utils.fwd_step_func,
-                    batch,
-                    model,
-                    forward_only=forward_only,
-                    # `tensor_shape` is the shape of micro batch.
-                    tensor_shape=(
-                        self.MICRO_BATCH_SIZE,
-                        self.HIDDEN_SIZE,
-                        self.HIDDEN_SIZE,
-                    ),
-                    dtype=dtype,
-                    async_comm=async_comm,
-                    grad_scaler=grad_scaler,
-                    deallocate_pipeline_output=deallocate_pipeline_outputs,
-                )
 
-                if dtype == get_dtype_for_comparison() and epoch == 0:
-                    hidden_size = self.HIDDEN_SIZE
-                    microbatch_size = self.MICRO_BATCH_SIZE
-                    total_layers = pipeline_model_parallel_world_size
-                    if virtual_pipeline_model_parallel_size is not None:
-                        total_layers *= virtual_pipeline_model_parallel_size
-                    target_loss, target_model = get_target_loss_and_model(global_batch_shape, hidden_size, total_layers)
+            loss = fwd_bwd_func(
+                testing_utils.fwd_step_func,
+                batch,
+                model,
+                forward_only=forward_only,
+                # `tensor_shape` is the shape of micro batch.
+                tensor_shape=(
+                    self.MICRO_BATCH_SIZE,
+                    self.HIDDEN_SIZE,
+                    self.HIDDEN_SIZE,
+                ),
+                dtype=dtype,
+                async_comm=async_comm,
+                grad_scaler=grad_scaler,
+                deallocate_pipeline_output=deallocate_pipeline_outputs,
+            )
 
-                    for loss_item in loss:
-                        x = loss_item['avg']
-                        torch.testing.assert_close(x.item() / microbatch_size, target_loss.item())
+            if dtype == get_dtype_for_comparison():
+                hidden_size = self.HIDDEN_SIZE
+                microbatch_size = self.MICRO_BATCH_SIZE
+                total_layers = pipeline_model_parallel_world_size
+                if virtual_pipeline_model_parallel_size is not None:
+                    total_layers *= virtual_pipeline_model_parallel_size
+                target_loss, target_model = get_target_loss_and_model(global_batch_shape, hidden_size, total_layers)
 
-                    if not forward_only:
-                        for vm_id, model_module in enumerate(model):
-                            params = list(model_module.parameters())
-                            rank = params[0].get_device()
-                            offset = pipeline_model_parallel_world_size
-                            param_id = rank // data_parallel_size + vm_id * offset
-                            target_params = target_model[param_id]
-
-                            torch.testing.assert_close(params[0].cpu(), target_params[0])
-                            torch.testing.assert_close(params[1].cpu(), target_params[1])
-                            torch.testing.assert_close(params[0].grad.cpu() / microbatch_size, target_params[0].grad)
-                            torch.testing.assert_close(params[1].grad.cpu() / microbatch_size, target_params[1].grad)
+                for loss_item in loss:
+                    x = loss_item['avg']
+                    torch.testing.assert_close(x.item() / microbatch_size, target_loss.item())
 
                 if not forward_only:
-                    for m in model:
-                        for p in m.parameters():
-                            self.assertIsNotNone(p.grad)
-                    optimizer.step()
-                    optimizer.zero_grad(set_to_none=True)
+                    for vm_id, model_module in enumerate(model):
+                        params = list(model_module.parameters())
+                        rank = params[0].get_device()
+                        offset = pipeline_model_parallel_world_size
+                        param_id = rank // data_parallel_size + vm_id * offset
+                        target_params = target_model[param_id]
+
+                        torch.testing.assert_close(params[0].cpu(), target_params[0])
+                        torch.testing.assert_close(params[1].cpu(), target_params[1])
+                        torch.testing.assert_close(params[0].grad.cpu() / microbatch_size, target_params[0].grad)
+                        torch.testing.assert_close(params[1].grad.cpu() / microbatch_size, target_params[1].grad)
+
+            if not forward_only:
+                for m in model:
+                    for p in m.parameters():
+                        self.assertIsNotNone(p.grad)
+                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
 
             parallel_state.destroy_model_parallel()
 
