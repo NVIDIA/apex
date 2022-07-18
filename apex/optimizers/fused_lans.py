@@ -120,7 +120,7 @@ class FusedLANS(torch.optim.Optimizer):
 
                 # Buffer for scaled grad
                 scaled_grad = torch.zeros_like(p.data)
-                if p.dtype == torch.float16 or torch.bfloat16:
+                if p.dtype == torch.float16 or p.dtype == torch.bfloat16:
                     g_16.append(p.grad.data)
                     q_16.append(scaled_grad)
                     p_16.append(p.data)
