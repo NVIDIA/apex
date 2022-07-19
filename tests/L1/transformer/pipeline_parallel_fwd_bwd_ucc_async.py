@@ -27,24 +27,11 @@ from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_int
     forward_backward_pipelining_without_interleaving,
 )
 from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
-from apex.transformer.testing.distributed_test_base import HAS_TORCH_UCC
-from apex.transformer.testing.distributed_test_base import HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER
 from apex.transformer.testing import commons as testing_utils
 
 
 logging.getLogger("torch").setLevel(logging.WARNING)
 logging.getLogger("apex").setLevel(logging.WARNING)
-
-
-def get_init_weights_func(offset: int = 0):
-    weight_coeff = 1024
-    @torch.no_grad()
-    def init_weights(m):
-        rank = parallel_state.get_pipeline_model_parallel_rank()
-        if isinstance(m, torch.nn.Linear):
-            m.weight.fill_((rank + offset + 1.0) / weight_coeff)
-            m.bias.fill_(1.0)
-    return init_weights
 
 
 def _get_default_world_sizes_model_parallel_world_size(pipeline_model_parallel_world_size: Optional[int] = None
@@ -64,6 +51,10 @@ def _get_default_world_sizes_model_parallel_world_size(pipeline_model_parallel_w
 
 
 class UccPipelineParallelForwardBackwardProf(UccDistributedTestBase):
+
+    # The purpose of this class is to test and confirm asynchronous communication via profiling.
+    # Having that in mind, it is safe to skip all the numerical checks.
+    # For unit testing with numerical checks please refer to `tests/L0/run_transformer/test_pipeline_parallel_fwd_bwd.py`.
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -145,7 +136,6 @@ class UccPipelineParallelForwardBackwardProf(UccDistributedTestBase):
             offset = pipeline_model_parallel_world_size if virtual_pipeline_model_parallel_size is not None else 0
             for idx, model_module in enumerate(model):
                 model_module = model_module.to(dtype)
-                model_module.apply(get_init_weights_func(idx*offset))
 
             _param_groups = _get_params_for_weight_decay_optimization(model)
             optimizer = torch.optim.Adam(_param_groups, lr=1e-3)
