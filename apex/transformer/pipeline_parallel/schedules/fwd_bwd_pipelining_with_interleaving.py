@@ -34,6 +34,7 @@ def _forward_backward_pipelining_with_interleaving(
     grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
     disable_autocast: bool = False,
     deallocate_pipeline_outputs: bool = False,
+    async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
@@ -218,6 +219,7 @@ def _forward_backward_pipelining_with_interleaving(
         p2p_communication.recv_forward(
             tensor_shape=tensor_shape,
             dtype=dtype,
+            async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
         )
     )
@@ -265,6 +267,7 @@ def _forward_backward_pipelining_with_interleaving(
                 recv_next=recv_next,
                 tensor_shape=tensor_shape,
                 dtype=dtype,
+                async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
             )
             output_tensor_grads[num_model_chunks - 1].append(output_tensor_grad)
@@ -275,6 +278,7 @@ def _forward_backward_pipelining_with_interleaving(
                 recv_prev=recv_prev,
                 tensor_shape=tensor_shape,
                 dtype=dtype,
+                async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
             )
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
@@ -359,6 +363,7 @@ def _forward_backward_pipelining_with_interleaving(
             recv_next=recv_next,
             tensor_shape=tensor_shape,
             dtype=dtype,
+            async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
         )
         free_output_tensor(output_tensor, deallocate_pipeline_outputs)
@@ -380,6 +385,7 @@ def _forward_backward_pipelining_with_interleaving(
                 p2p_communication.recv_backward(
                     tensor_shape=tensor_shape,
                     dtype=dtype,
+                    async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
                 )
             )
@@ -401,6 +407,7 @@ def _forward_backward_pipelining_with_interleaving(
                     recv_next=recv_next,
                     tensor_shape=tensor_shape,
                     dtype=dtype,
+                    async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
                 )
             )

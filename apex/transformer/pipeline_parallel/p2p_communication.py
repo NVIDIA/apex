@@ -53,35 +53,47 @@ def _run_p2pops(
     async_comm: bool = False
 ):
     ops = []
+    p2p_group = parallel_state.get_pipeline_model_parallel_group()
+    default_group = parallel_state.get_model_parallel_group()
+
+    need_to_sync = p2p_group.name() != default_group.name()
+
     if tensor_send_prev is not None:
         send_prev_op = torch.distributed.P2POp(
-            torch.distributed.isend,
-            tensor_send_prev,
-            parallel_state.get_pipeline_model_parallel_prev_rank(),
+            op=torch.distributed.isend,
+            tensor=tensor_send_prev,
+            peer=parallel_state.get_pipeline_model_parallel_prev_rank(),
+            group=p2p_group,
         )
         ops.append(send_prev_op)
     if tensor_recv_prev is not None:
         recv_prev_op = torch.distributed.P2POp(
-            torch.distributed.irecv,
-            tensor_recv_prev,
-            parallel_state.get_pipeline_model_parallel_prev_rank(),
+            op=torch.distributed.irecv,
+            tensor=tensor_recv_prev,
+            peer=parallel_state.get_pipeline_model_parallel_prev_rank(),
+            group=p2p_group,
         )
         ops.append(recv_prev_op)
     if tensor_send_next is not None:
         send_next_op = torch.distributed.P2POp(
-            torch.distributed.isend,
-            tensor_send_next,
-            parallel_state.get_pipeline_model_parallel_next_rank(),
+            op=torch.distributed.isend,
+            tensor=tensor_send_next,
+            peer=parallel_state.get_pipeline_model_parallel_next_rank(),
+            group=p2p_group,
         )
         ops.append(send_next_op)
     if tensor_recv_next is not None:
         recv_next_op = torch.distributed.P2POp(
-            torch.distributed.irecv,
-            tensor_recv_next,
-            parallel_state.get_pipeline_model_parallel_next_rank(),
+            op=torch.distributed.irecv,
+            tensor=tensor_recv_next,
+            peer=parallel_state.get_pipeline_model_parallel_next_rank(),
+            group=p2p_group,
         )
         ops.append(recv_next_op)
     if len(ops) > 0:
+        if need_to_sync:
+            torch.cuda.synchronize()
+
         reqs = torch.distributed.batch_isend_irecv(ops)
         if async_comm:
             assert len(reqs) == len(ops)

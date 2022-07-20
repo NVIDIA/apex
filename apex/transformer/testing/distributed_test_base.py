@@ -115,7 +115,7 @@ class UccDistributedTestBase(DistributedTestBase):
 
         self._has_ucx_tls = "UCX_TLS" in os.environ
         if not self._has_ucx_tls:
-            os.environ["UCX_TLS"] = "tcp,cuda_copy"
+            os.environ["UCX_TLS"] = "tcp,cuda"
         print('os.environ[\"UCX_TLS\"] = {}'.format(os.environ["UCX_TLS"]))
 
     def tearDown(self) -> None:

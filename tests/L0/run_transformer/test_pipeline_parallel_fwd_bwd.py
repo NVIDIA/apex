@@ -49,12 +49,19 @@ def get_init_weights_func(offset: int = 0):
     return init_weights
 
 
+def get_dtype_for_comparison():
+    if(torch.cuda.get_device_capability() >= (8, 0)):
+        return torch.float64
+    return torch.float32
+
+
 def get_target_loss_and_model(global_batch_shape: tuple, hidden_size: int, total_layers: int) -> Tuple[torch.Tensor, List[torch.Tensor]]:
     model = []
-    data = torch.ones(global_batch_shape, dtype=torch.double)
+    dtype = get_dtype_for_comparison()
+    data = torch.ones(global_batch_shape, dtype=dtype)
     for i in range(total_layers):
-        w = torch.ones((hidden_size, hidden_size), dtype=torch.double) * (i + 1.0) / weight_coeff
-        b = torch.ones(hidden_size, dtype=torch.double)
+        w = torch.ones((hidden_size, hidden_size), dtype=dtype) * (i + 1.0) / weight_coeff
+        b = torch.ones(hidden_size, dtype=dtype)
 
         w.requires_grad_()
         b.requires_grad_()
@@ -187,7 +194,8 @@ class PipelineParallelForwardBackwardTestBase:
                 deallocate_pipeline_output=deallocate_pipeline_outputs,
             )
 
-            if dtype == torch.double:
+            if dtype == get_dtype_for_comparison():
+                torch.cuda.synchronize()
                 hidden_size = self.HIDDEN_SIZE
                 microbatch_size = self.MICRO_BATCH_SIZE
                 total_layers = pipeline_model_parallel_world_size
@@ -221,42 +229,54 @@ class PipelineParallelForwardBackwardTestBase:
 
             parallel_state.destroy_model_parallel()
 
-    def test_no_pipelining(self):
+    def test_learning_no_pipelining(self):
         self._forward_backward_test_impl(False, forward_backward_no_pipelining, 1, None)
 
-    def test_no_pipelining_inference(self):
+    def test_inference_no_pipelining(self):
         self._forward_backward_test_impl(True, forward_backward_no_pipelining, 1, None)
 
-    def test_pipelining_without_interleaving(self):
+    def test_learning_pipelining_without_interleaving(self):
         self._forward_backward_test_impl(
             False, forward_backward_pipelining_without_interleaving, None, None
         )
 
-    def test_pipelining_async(self):
-        self._forward_backward_test_impl(
-            False, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
-        )
-
-    def test_pipelining_without_interleaving_inference(self):
+    def test_inference_pipelining_without_interleaving(self):
         self._forward_backward_test_impl(
             True, forward_backward_pipelining_without_interleaving, None, None
         )
 
-    def test_pipelining_inference_async(self):
+    def test_learning_async_pipelining_without_interleaving(self):
+        self._forward_backward_test_impl(
+            False, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
+        )
+
+    def test_inference_async_pipelining_without_interleaving(self):
         self._forward_backward_test_impl(
             True, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
         )
 
-    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
-    def test_pipelining_with_interleaving(self):
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
+    def test_learning_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
         )
 
-    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Megatron-LM voodoo")
-    def test_pipelining_with_interleaving_inference(self):
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
+    def test_inference_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
+        )
+
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
+    def test_learning_async_pipelining_with_interleaving(self):
+        self._forward_backward_test_impl(
+            False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True
+        )
+
+    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
+    def test_inference_async_pipelining_with_interleaving(self):
+        self._forward_backward_test_impl(
+            True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True
         )
 
 
@@ -283,10 +303,10 @@ class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineP
             ):
                 self._run_hybrid_distributed_backend(forward_only)
 
-    def test_pipelining_without_interleaving_ucc_for_p2p(self):
+    def test_learning_pipelining_without_interleaving_ucc_for_p2p(self):
         self._test_hybrid_backends(False)
 
-    def test_pipelining_without_interleaving_inference_ucc_for_p2p(self):
+    def test_inference_pipelining_without_interleaving_ucc_for_p2p(self):
         self._test_hybrid_backends(True)
 
 
