@@ -1,7 +1,7 @@
 from itertools import product
-import unittest
 
 import torch
+from torch.testing._internal import common_utils
 from torch.utils.data import Dataset
 from torch.utils.data import RandomSampler
 from torch.utils.data import BatchSampler
@@ -80,7 +80,7 @@ class MegatronPretrainingRandomSampler:
 
 # Samples 8 tensors in total.
 # First sample 4 tensors twice, then sample 2 tensors fourth.
-class TestBatchSamplerBehavior(unittest.TestCase):
+class TestBatchSamplerBehavior(common_utils.TestCase):
     def test_batch_sampler_behavior(self):
         dataset = MyIterableDataset(0, 100)
 
@@ -101,7 +101,7 @@ class TestBatchSamplerBehavior(unittest.TestCase):
                     samples2.append(batch)
                     if i == 4 - 1:
                         break
-                torch.testing.assert_close(torch.cat(samples), torch.cat(samples2))
+                self.assertEqual(torch.cat(samples), torch.cat(samples2))
 
     def test_split_batch(self):
 
@@ -139,4 +139,4 @@ class TestBatchSamplerBehavior(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    common_utils.run_tests()

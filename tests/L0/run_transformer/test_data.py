@@ -51,7 +51,7 @@ class BroadcastDataTestBase:
 
         broadcasted_data = data_utils.broadcast_data(keys, data, torch.int64)
         for key in keys:
-            torch.testing.assert_close(broadcasted_data[key], data_t[key].cuda())
+            self.assertEqual(broadcasted_data[key], data_t[key].cuda())
 
         parallel_state.destroy_model_parallel()
 

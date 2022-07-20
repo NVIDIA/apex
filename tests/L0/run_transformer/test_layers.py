@@ -82,7 +82,7 @@ class TensorParallelLayerTestBase:
                     group=parallel_state.get_tensor_model_parallel_group(),
                 )
 
-                torch.testing.assert_close(gathered, gathered_for_base)
+                self.assertEqual(gathered, gathered_for_base)
                 parallel_state.destroy_model_parallel()
 
     @torch.no_grad()
@@ -130,8 +130,8 @@ class TensorParallelLayerTestBase:
                     group=parallel_state.get_tensor_model_parallel_group(),
                 )
 
-                torch.testing.assert_close(output, output_for_base)
-                torch.testing.assert_close(input, torch.cat(input_list))
+                self.assertEqual(output, output_for_base)
+                self.assertEqual(input, torch.cat(input_list))
                 parallel_state.destroy_model_parallel()
 
     def test_parallel_embedding(self) -> None:
@@ -376,25 +376,25 @@ class TensorParallelLayerTestBase:
 
                 if not accumulation_in_fp16:
                     if sequence_parallel_enabled:
-                        torch.testing.assert_close(
-                            actual=output,
-                            expected=expected_output.chunk(
+                        self.assertEqual(
+                            x=output,
+                            y=expected_output.chunk(
                                 chunks=tensor_model_parallel_world_size,
                                 dim=0,
                             )[parallel_state.get_tensor_model_parallel_rank()],
                         )
                     else:
-                        torch.testing.assert_close(
-                            actual=output,
-                            expected=expected_output,
+                        self.assertEqual(
+                            x=output,
+                            y=expected_output,
                         )
 
                 grad_attr_name = "main_grad" if gradient_accumulation_fusion else "grad"
                 # NOTE(mkozuki): Numerical errors seems to be enlarged by tensor model parallel.
                 if tensor_model_parallel_world_size == 1:
-                    torch.testing.assert_close(
-                        actual=getattr(linear.weight, grad_attr_name),
-                        expected=ref_linear.weight.grad.chunk(
+                    self.assertEqual(
+                        x=getattr(linear.weight, grad_attr_name),
+                        y=ref_linear.weight.grad.chunk(
                             chunks=tensor_model_parallel_world_size,
                             dim=0,
                         )[parallel_state.get_tensor_model_parallel_rank()],
@@ -520,14 +520,14 @@ class TensorParallelLayerTestBase:
                         tensor_model_parallel_world_size,
                         dim=2,
                     )[parallel_state.get_tensor_model_parallel_rank()]
-                    torch.testing.assert_close(
-                        actual=output,
-                        expected=chunk,
+                    self.assertEqual(
+                        x=output,
+                        y=chunk,
                     )
                 else:
-                    torch.testing.assert_close(
-                        actual=output,
-                        expected=expected_output,
+                    self.assertEqual(
+                        x=output,
+                        y=expected_output,
                     )
 
                 expected_loss = torch.mul(expected_output, dldy).sum()
@@ -535,9 +535,9 @@ class TensorParallelLayerTestBase:
                 grad_attr_name = "main_grad" if gradient_accumulation_fusion else "grad"
                 # NOTE(mkozuki): Numerical errors seems to be enlarged by tensor model parallel.
                 if tensor_model_parallel_world_size == 1:
-                    torch.testing.assert_close(
-                        actual=getattr(linear.weight, grad_attr_name),
-                        expected=ref_linear.weight.grad.chunk(
+                    self.assertEqual(
+                        x=getattr(linear.weight, grad_attr_name),
+                        y=ref_linear.weight.grad.chunk(
                             chunks=tensor_model_parallel_world_size,
                             dim=0,
                         )[parallel_state.get_tensor_model_parallel_rank()],
