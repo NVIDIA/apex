@@ -152,16 +152,6 @@ def spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, spatial_
             sb[n].copy_(b)
     return spatial_bottleneck
 
-
-#class HaloExchangerNoComm(HaloExchanger):
-#    def __init__(self, world_size, spatial_group_size, rank, comm):
-#class HaloExchangerAllGather(HaloExchanger):
-#    def __init__(self, world_size, spatial_group_size, rank, comm):
-#class HaloExchangerSendRecv(HaloExchanger):
-#    def __init__(self, world_size, spatial_group_size, rank, comm):
-#class HaloExchangerPeer(HaloExchanger):
-#    def __init__(self, world_size, spatial_group_size, rank, comm, peer_pool, explicit_nhwc, numSM=1):
-
 def n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp32_reduce=False):
     assert(explicit_nhwc), "Only tested for explicit nhwc"
 
@@ -228,15 +218,29 @@ def main():
     #print_bottleneck_p_and_b(gt_bottleneck)
     #print_bottleneck_p_and_b(spatial_bottleneck)
 
+    group_size = world_size
+    group = rank // group_size
+    ranks = [group*group_size+i for i in range(group_size)]
+    rank_in_group = rank % group_size
+
     spatial_group_size = world_size
     spatial_communicator = None
 
-    peer_pool = PeerMemoryPool(rank, world_size, spatial_group_size, 64*1024*1024, 2*1024*1024)
+    peer_pool = PeerMemoryPool(64*1024*1024, 2*1024*1024, ranks)
 
-    #halex = HaloExchangerAllGather(world_size, spatial_group_size, rank, spatial_communicator)
-    #halex = HaloExchangerSendRecv(world_size, spatial_group_size, rank, spatial_communicator)
+    #class HaloExchangerNoComm(HaloExchanger):
+    #    def __init__(self, ranks, rank_in_group):
+    #class HaloExchangerAllGather(HaloExchanger):
+    #    def __init__(self, ranks, rank_in_group, comm):
+    #class HaloExchangerSendRecv(HaloExchanger):
+    #    def __init__(self, ranks, rank_in_group):
+    #class HaloExchangerPeer(HaloExchanger):
+    #    def __init__(self, ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=1):
 
-    halex = HaloExchangerPeer(world_size, spatial_group_size, rank, spatial_communicator, peer_pool, explicit_nhwc, numSM=1)
+    #halex = HaloExchangerAllGather(ranks, rank_in_group)
+    #halex = HaloExchangerSendRecv(ranks, rank_in_group)
+
+    halex = HaloExchangerPeer(ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=1)
     #print("halex.signals = %s" % (str(halex.signals)))
     # Make sure peer memory halo exchanger has finished initializing flags on all ranks before proceeding
     #torch.cuda.synchronize()
