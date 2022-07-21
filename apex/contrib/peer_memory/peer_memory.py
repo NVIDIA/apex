@@ -4,23 +4,40 @@ import peer_memory_cuda as pm
 
 class PeerMemoryPool(object):
 
-    def __init__(self, rank, world_size, peer_group_size, static_size, dynamic_size):
-        self.peer_group = rank // peer_group_size
-        self.peer_rank = rank % peer_group_size
-        self.peer_group_size = peer_group_size
+    def __init__(self, static_size, dynamic_size, peer_ranks=None):
+        rank = torch.distributed.get_rank()
+        world_size = torch.distributed.get_world_size()
+        ngpus = min(torch.cuda.device_count(), world_size)
+        peer_group_size = ngpus
+        peer_group = rank // ngpus
+        peer_rank_base = peer_group * ngpus
+        peer_rank = rank - peer_rank_base
+        if peer_ranks is None:
+            peer_ranks = [i+peer_rank_base for i in range(peer_group_size)]
+        peer_rank_start = peer_rank_base
+        peer_rank_end = peer_rank_start + peer_group_size - 1
+        for pr in peer_ranks:
+            assert(pr >= peer_rank_start and pr <= peer_rank_end), "%d :: peer_rank %d not on same node (ranks=[%d,%d])" % (rank, pr, peer_rank_start, peer_rank_end)
+
         self.alignment = 256
         self.static_size = ((static_size + self.alignment - 1) // self.alignment) * self.alignment
         self.dynamic_size = ((dynamic_size + self.alignment - 1) // self.alignment) * self.alignment
+
         # allocate giant pool of device memory
         self.raw = pm.allocate_raw(self.static_size+self.dynamic_size)
+
         # exchange peer pointers with nccl
         raw_ipc = pm.get_raw_ipc_address(self.raw).cuda()
         peer_raw_ipcs = [torch.empty_like(raw_ipc) for _ in range(world_size)]
         torch.distributed.all_gather(peer_raw_ipcs, raw_ipc)
         peer_raw_ipcs = torch.stack(peer_raw_ipcs).cpu()
-        self.peer_raw = pm.get_raw_peers(peer_raw_ipcs, self.peer_rank, self.raw)
+
+        # extract IPC pointers for ranks on same node
+        peer_raw = pm.get_raw_peers(peer_raw_ipcs[peer_rank_base:peer_rank_base+ngpus], peer_rank, self.raw)
+        self.peer_raw = [peer_raw[peer_rank-peer_rank_base] for peer_rank in peer_ranks]
         self.static_offset = 0
         self.dynamic_offset = 0
+        self.peer_ranks = peer_ranks
 
     def __del__(self):
         pm.free_raw(self.raw)

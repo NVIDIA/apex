@@ -26,33 +26,20 @@ int init_nccl_comm(
         int my_rank, 
         int num_ranks
         );
-void nccl_send(
-        int handle, 
-        at::Tensor input, 
-        int destination
-        );
-void nccl_recv(
-        int handle, 
-        at::Tensor input, 
-        int sender
-        );
 void left_right_halo_exchange_inplace(
         int handle,
-	bool left_zero,
-	bool right_zero,
+        int left_rank,
+        int right_rank,
 	at::Tensor left_output_halo,
 	at::Tensor right_output_halo,
 	at::Tensor left_input_halo,
-	at::Tensor right_input_halo,
-	int group_size);
+	at::Tensor right_input_halo);
 std::vector<at::Tensor> left_right_halo_exchange(
         int handle,
-	bool left_zero,
-	bool right_zero,
+        int left_rank,
+        int right_rank,
         at::Tensor left_output_halo, 
-        at::Tensor right_output_halo,
-        int group_size
-        );
+        at::Tensor right_output_halo);
 void add_delay(int delay);
 }}}
 #endif
