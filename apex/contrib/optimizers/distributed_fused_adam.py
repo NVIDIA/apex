@@ -96,7 +96,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
     """
 
-    class ParameterFragment():
+    class ParameterFragment:
         """Buffer ranges for a parameter fragment
 
         Describes corresponding regions in parameter buffer and
@@ -134,7 +134,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             # Range of local fragment shard within parameter
             self.shard_param_range = shard_param_range
 
-    class StateBucket():
+    class StateBucket:
         def __init__(self, shard_size, dtype, device):
             """Optimizer state for a bucket"""
             # Buffer ranges corresponding to parameter fragments
@@ -157,7 +157,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Asynchronous reduction is in progress
         SYNCING = enum.auto()
 
-    class GradientBucket():
+    class GradientBucket:
         """Gradient buffers and state for a bucket"""
         def __init__(self):
             # Local shard of gradients
