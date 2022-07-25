@@ -44,7 +44,7 @@ _EMBEDDING_GROUP = None
 _POSITION_EMBEDDING_GROUP = None
 # Relative position embedding group.
 _ENCODER_RELATIVE_POSITION_EMBEDDING_GROUP = None
-_DECODER_RELATIVE_POSITION_EMBEDDING_GROUP = None 
+_DECODER_RELATIVE_POSITION_EMBEDDING_GROUP = None
 # Data parallel group that the current rank belongs to.
 _DATA_PARALLEL_GROUP = None
 
@@ -294,14 +294,16 @@ def initialize_model_parallel(
         if rank in ranks:
             _POSITION_EMBEDDING_GLOBAL_RANKS = position_embedding_ranks
 
-        group = torch.distributed.new_group(encoder_relative_position_embedding_ranks)
+        if encoder_relative_position_embedding_ranks:
+            group = torch.distributed.new_group(encoder_relative_position_embedding_ranks)
         if rank in encoder_relative_position_embedding_ranks:
             _ENCODER_RELATIVE_POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
             _ENCODER_RELATIVE_POSITION_EMBEDDING_GLOBAL_RANKS = \
                 encoder_relative_position_embedding_ranks
 
-        group = torch.distributed.new_group(decoder_relative_position_embedding_ranks)
+        if decoder_relative_position_embedding_ranks:
+            group = torch.distributed.new_group(decoder_relative_position_embedding_ranks)
         if rank in decoder_relative_position_embedding_ranks:
             _DECODER_RELATIVE_POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
