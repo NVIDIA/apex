@@ -52,7 +52,7 @@ class TransformerRandomTestBase:
                     torch.randn(size, out=tensor)
                 result_2 = tensor.clone()
 
-                torch.testing.assert_close(result_2, result_1)
+                self.assertEqual(result_2, result_1)
 
                 self.assertEqual(rng_state.sub(rng_state_clone).max(), 0)
 

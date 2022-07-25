@@ -80,8 +80,8 @@ class VocabParallelCrossEntropyTestBase:
                     batch_size, sequence_length, vocab_size, logits_scale, seed
                 )
 
-                torch.testing.assert_close(loss_torch, loss_tensor_parallel)
-                torch.testing.assert_close(grad_torch, grad_tensor_parallel)
+                self.assertEqual(loss_torch, loss_tensor_parallel)
+                self.assertEqual(grad_torch, grad_tensor_parallel)
 
                 parallel_state.destroy_model_parallel()
 

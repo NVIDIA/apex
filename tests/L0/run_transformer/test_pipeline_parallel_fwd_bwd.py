@@ -205,7 +205,7 @@ class PipelineParallelForwardBackwardTestBase:
 
                 for loss_item in loss:
                     x = loss_item['avg']
-                    torch.testing.assert_close(x.item() / microbatch_size, target_loss.item())
+                    self.assertEqual(x.item() / microbatch_size, target_loss.item())
 
                 if not forward_only:
                     for vm_id, model_module in enumerate(model):
@@ -215,10 +215,10 @@ class PipelineParallelForwardBackwardTestBase:
                         param_id = rank // data_parallel_size + vm_id * offset
                         target_params = target_model[param_id]
 
-                        torch.testing.assert_close(params[0].cpu(), target_params[0])
-                        torch.testing.assert_close(params[1].cpu(), target_params[1])
-                        torch.testing.assert_close(params[0].grad.cpu() / microbatch_size, target_params[0].grad)
-                        torch.testing.assert_close(params[1].grad.cpu() / microbatch_size, target_params[1].grad)
+                        self.assertEqual(params[0].cpu(), target_params[0])
+                        self.assertEqual(params[1].cpu(), target_params[1])
+                        self.assertEqual(params[0].grad.cpu() / microbatch_size, target_params[0].grad)
+                        self.assertEqual(params[1].grad.cpu() / microbatch_size, target_params[1].grad)
 
             if not forward_only:
                 for m in model:
