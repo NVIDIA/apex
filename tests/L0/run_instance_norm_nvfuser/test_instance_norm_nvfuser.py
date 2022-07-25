@@ -69,9 +69,10 @@ class TestInstanceNormNVFuser(unittest.TestCase):
         if torch.cuda.get_device_capability() >= (8, 0):
             dtypes.append(torch.bfloat16)
         for dtype, track_running_stats, channels_last, affine in itertools.product(dtypes, (False, True), (False, True), (False, True)):
-            self.dtype = dtype
-            self.track_running_stats = track_running_stats
-            self.channels_last = channels_last
-            self.affine = affine
-            self.init_modules()
-            self.check_same_output() 
+            with self.subTest(dtype=dtype, track_running_stats=track_running_stats, channels_last=channels_last, affine=affine):
+                self.dtype = dtype
+                self.track_running_stats = track_running_stats
+                self.channels_last = channels_last
+                self.affine = affine
+                self.init_modules()
+                self.check_same_output() 
