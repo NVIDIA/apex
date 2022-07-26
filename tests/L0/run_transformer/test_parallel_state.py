@@ -132,6 +132,50 @@ class ParallelStateTestBase:
 
         parallel_state.destroy_model_parallel()
 
+    def test_initialize_model_parallel_decoder_only(self) -> None:
+        """Initialize model parallelism for decoder-only Transformers like GPT-3"""
+
+        self.assertFalse(parallel_state.model_parallel_is_initialized())
+
+        for tensor_model_parallel_world_size in range(1, self.world_size + 1):
+            with self.subTest(
+                tensor_model_parallel_world_size=tensor_model_parallel_world_size
+            ):
+                if self.world_size % tensor_model_parallel_world_size:
+                    continue
+
+                pipeline_model_parallel_world_size = (
+                    self.world_size // tensor_model_parallel_world_size
+                )
+
+                parallel_state.initialize_model_parallel(
+                    tensor_model_parallel_size_=tensor_model_parallel_world_size,
+                    pipeline_model_parallel_size_=pipeline_model_parallel_world_size,
+                    pipeline_model_parallel_split_rank_=0,
+                )
+                self.assertEqual(
+                    tensor_model_parallel_world_size,
+                    parallel_state.get_tensor_model_parallel_world_size(),
+                )
+                expected_tensor_model_parallel_rank = calc_expected_tensor_model_paralell_rank(
+                    self.rank, tensor_model_parallel_world_size
+                )
+                self.assertEqual(
+                    expected_tensor_model_parallel_rank,
+                    parallel_state.get_tensor_model_parallel_rank(),
+                )
+
+                expected_tensor_model_parallel_src_rank = (
+                    self.rank // tensor_model_parallel_world_size
+                ) * tensor_model_parallel_world_size
+                self.assertEqual(
+                    expected_tensor_model_parallel_src_rank,
+                    parallel_state.get_tensor_model_parallel_src_rank(),
+                )
+
+                parallel_state.destroy_model_parallel()
+                self.assertFalse(parallel_state.model_parallel_is_initialized())
+
 
 class NcclParallelStateTest(ParallelStateTestBase, NcclDistributedTestBase): pass
 class UccParallelStateTest(ParallelStateTestBase, UccDistributedTestBase): pass
