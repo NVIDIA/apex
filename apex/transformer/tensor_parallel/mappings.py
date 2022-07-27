@@ -122,15 +122,11 @@ def _reduce_scatter_along_first_dim(input_: torch.Tensor) -> torch.Tensor:
     assert shape[0] % world_size == 0
     shape[0] //= world_size
     output = torch.empty(shape, dtype=input_.dtype, device=torch.cuda.current_device())
-    # Original implementation uses `_reduce_scatter_base` as follows.
-    # Deliberately keep the comment-out for reference because
-    # I'd love to switch to this API once this gets public/stable.
-    # torch.distributed._reduce_scatter_base(output, input_.contiguous(), group=get_tensor_model_parallel_group())
-    torch.distributed.reduce_scatter(
+    torch.distributed._reduce_scatter_base(
         output,
-        list(input_.contiguous().chunk(world_size)),
-        group=get_tensor_model_parallel_group(),
-    )
+        input_.contiguous(),
+        group=get_tensor_model_parallel_group()
+        )
     return output
 
 
