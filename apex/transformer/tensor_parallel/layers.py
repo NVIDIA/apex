@@ -302,11 +302,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
                 device=torch.cuda.current_device(),
                 requires_grad=False,
             )
-            torch.distributed.all_gather(
-                list(all_gather_buffer.chunk(world_size)),
-                input,
-                group=get_tensor_model_parallel_group(),
-            )
+            torch.distributed._all_gather_base(all_gather_buffer, input, group=get_tensor_model_parallel_group())
             total_input = all_gather_buffer
         else:
             total_input = input
@@ -331,8 +327,8 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
                 device=torch.cuda.current_device(),
                 requires_grad=False,
             )
-            handle = torch.distributed.all_gather(
-                list(all_gather_buffer.chunk(get_tensor_model_parallel_world_size())),
+            handle = torch.distributed._all_gather_base(
+                all_gather_buffer,
                 input,
                 group=get_tensor_model_parallel_group(),
                 async_op=True,

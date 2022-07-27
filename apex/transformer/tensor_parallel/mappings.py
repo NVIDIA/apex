@@ -103,15 +103,11 @@ def _gather_along_first_dim(input_: torch.Tensor) -> torch.Tensor:
     shape[0] *= world_size
 
     output = torch.empty(shape, dtype=input_.dtype, device=torch.cuda.current_device())
-    # Original implementation uses `_all_gather_base` as follows.
-    # Deliberately keep the comment-out for reference because
-    # I'd love to switch to this API once this gets public/stable.
-    # torch.distributed._all_gather_base(output, input_.contiguous(), group=get_tensor_model_parallel_group())
-    torch.distributed.all_gather(
-        list(output.chunk(world_size)),
+    torch.distributed._all_gather_base(
+        output,
         input_.contiguous(),
-        group=get_tensor_model_parallel_group(),
-    )
+        group=get_tensor_model_parallel_group()
+        )
     return output
 
 
