@@ -40,8 +40,9 @@ def gather_split_1d_tensor(tensor):
         device=torch.cuda.current_device(),
         requires_grad=False,
     )
-    chunks = [gathered[i * numel : (i + 1) * numel] for i in range(world_size)]
-    torch.distributed.all_gather(
-        chunks, tensor, group=parallel_state.get_tensor_model_parallel_group()
-    )
+    torch.distributed._all_gather_base(
+        gathered,
+        tensor,
+        group=parallel_state.get_tensor_model_parallel_group()
+        )
     return gathered
