@@ -232,11 +232,15 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
         klen = [1, 2, 3, 4, 5, 8, 10, 11, 13, 128, 256, 1200, 1234, 2048, 3123, 4096, 4128, 7234, 8192, 10232]
         return itertools.product(qlen, klen)
 
-    def test_forward(self):
-        import generic_scaled_masked_softmax_cuda
+    def _setup_batch_attn_scalar(self):
         batch = 2
         attn = 16
         scale_t = 1.0
+        return batch, attn, scale_t
+
+    def test_forward(self):
+        import generic_scaled_masked_softmax_cuda
+        batch, attn, scale_t = self._setup_batch_attn_scalar()
         for qlen, klen in self._setup_qk():
             inputs = torch.normal(0, 2, (batch, attn, qlen, klen), dtype=torch.float16, device='cuda:0')
             masks = torch.randint(0, 2, (batch, 1, qlen, klen), dtype=torch.bool, device='cuda:0')
@@ -246,10 +250,7 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
 
     def test_backward(self):
         import generic_scaled_masked_softmax_cuda
-
-        batch = 2
-        attn = 16
-        scale_t = 1.0
+        batch, attn, scale_t = self._setup_batch_attn_scalar()
         for qlen, klen in self._setup_qk():
             inputs = torch.normal(0, 2, (batch, attn, qlen, klen), dtype=torch.float16, device='cuda:0')
             backward = torch.rand_like(inputs, dtype=torch.float16, device='cuda:0')
@@ -263,9 +264,7 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
 
     def test_allmasked(self):
         import generic_scaled_masked_softmax_cuda
-        batch = 2
-        attn = 16
-        scale_t = 1.0
+        batch, attn, scale_t = self._setup_batch_attn_scalar()
         for qlen, klen in self._setup_qk():
             inputs = torch.normal(0, 2, (batch, attn, qlen, klen), dtype=torch.float16, device='cuda:0')
             masks = torch.ones((batch, 1, qlen, klen), dtype=torch.bool, device='cuda:0')
@@ -275,10 +274,7 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
 
     def test_allmask_backward(self):
         import generic_scaled_masked_softmax_cuda
-
-        batch = 2
-        attn = 16
-        scale_t = 1.0
+        batch, attn, scale_t = self._setup_batch_attn_scalar()
         for qlen, klen in self._setup_qk():
             inputs = torch.normal(0, 2, (batch, attn, qlen, klen), dtype=torch.float16, device='cuda:0')
             backward = torch.rand_like(inputs, dtype=torch.float16, device='cuda:0')
