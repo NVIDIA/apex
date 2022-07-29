@@ -1,10 +1,9 @@
-import unittest
-import os
-import random
 import itertools
+import unittest
+
 import torch
+
 import apex
-from torch.autograd import Variable
 
 
 class TestFusedLayerNorm(unittest.TestCase):
@@ -31,20 +30,43 @@ class TestFusedLayerNorm(unittest.TestCase):
                 normalized_shape=self.normalized_shape).to(device="cuda", dtype=self.dtype)
 
 
-    def _test_same_output(self, batch_size):
+    def _check_same_output(self, batch_size, contiguous):
         torch.cuda.manual_seed(42)
-        self.input_ = torch.randn((batch_size, *self.module_cpu_.normalized_shape), device="cpu").requires_grad_(True)
-        self.input_cuda_ = self.input_.cuda().detach().requires_grad_(True)
-        out_cpu_ = self.module_cpu_(self.input_)
+        if contiguous:
+            input_shape = [batch_size] + self.normalized_shape
+            input_ = torch.randn(input_shape, device="cpu").requires_grad_(True)
+            input_cuda_ = input_.to(device="cuda", dtype=self.dtype).detach().requires_grad_(True)
+            self.assertTrue(input_.is_contiguous())
+            self.assertTrue(input_cuda_.is_contiguous())
+        else:
+            input_shape = [batch_size] + self.normalized_shape
+            input_shape = [batch_size * 3] + [self.normalized_shape[0] * 5, self.normalized_shape[1] * 3]
+            input_src_ = torch.randn(input_shape, device="cpu")
+            input_ = input_src_[::3, ::5, ::3].detach().requires_grad_(True)
+            input_cuda_ = input_src_.to(device="cuda", dtype=self.dtype)[::3, ::5, ::3].detach().requires_grad_(True)
+            # make sure that tensors are NOT contiguous.
+            self.assertFalse(input_.is_contiguous())
+            self.assertFalse(input_cuda_.is_contiguous())
+        out_cpu_ = self.module_cpu_(input_)
         gO = torch.rand_like(out_cpu_)
         out_cpu_.backward(gO)
-        out_cuda_ = self.module_cuda_(self.input_cuda_)
-        gO = gO.cuda()
+        out_cuda_ = self.module_cuda_(input_cuda_)
+        gO = gO.to(device="cuda", dtype=self.dtype)
         out_cuda_.backward(gO)
-        assert out_cpu_.is_cuda == False
-        assert out_cuda_.is_cuda == True
-        torch.testing.assert_allclose(out_cpu_, out_cuda_.cpu())
-        torch.testing.assert_allclose(self.input_.grad, self.input_cuda_.grad.cpu())
+        self.assertFalse(out_cpu_.is_cuda)
+        self.assertTrue(out_cuda_.is_cuda)
+        # TODO (mkozuki): `torch.testing.assert_allclose` is deprecated.
+        # Use `torch.testing.assert_close`.
+        # See https://github.com/pytorch/pytorch/issues/61844
+        torch.testing.assert_allclose(
+            out_cpu_.to(device="cuda", dtype=self.dtype), out_cuda_, **self.fwd_thresholds)
+        torch.testing.assert_allclose(
+            input_.grad.to(device="cuda", dtype=self.dtype), input_cuda_.grad, **self.bwd_thresholds)
+
+    def _test_same_output(self, batch_size):
+        for contiguous in (True, False):
+            with self.subTest(contiguous=contiguous):
+                self._check_same_output(batch_size, contiguous)
 
     def test_layer_norm(self):
         self._test_same_output(16)
@@ -205,11 +227,8 @@ def _prep_inputs(batch_size, normalized_shape, dtype):
         native = fused.clone().to(dtype).requires_grad_(True)
     return native, fused
 
-TORCH_MAJOR, TORCH_MINOR = int(torch.__version__.split('.')[0]), int(torch.__version__.split('.')[1])
-if (TORCH_MAJOR <= 1 and TORCH_MINOR < 10):
-    autocast_dtypes = (torch.half,)
-else:
-    autocast_dtypes = (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
+
+autocast_dtypes = (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
 
 class TestAutocastFusedLayerNorm(unittest.TestCase):
     bf16_fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
@@ -235,6 +254,8 @@ class TestAutocastFusedLayerNorm(unittest.TestCase):
         expected.backward(g_native)
         actual.backward(g_fused)
 
+        tols = {'rtol': None, 'atol': None} if dtype == torch.half else TestAutocastFusedLayerNorm.bf16_bwd_thresholds
+        torch.testing.assert_allclose(native_x.grad, fused_x.grad, **tols)
 
     def test_autocast(self):
         for (dtype, elementwise_affine) in itertools.product(autocast_dtypes, (True, False)):
