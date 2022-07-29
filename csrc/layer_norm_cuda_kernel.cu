@@ -931,28 +931,6 @@ void HostApplyRMSNorm(
       output, invvar, input, n1, n2, U(epsilon), gamma, warp_size);
 }
 
-template<typename T, typename U, typename V=T>
-void HostApplyRMSNorm(
-    V* output,
-    U* invvar,
-    const T* input,
-    int n1,
-    int n2,
-    double epsilon,
-    const V* gamma)
-{
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
-    const dim3 threads(32,4,1);
-    const uint64_t maxGridY = at::cuda::getCurrentDeviceProperties()->maxGridSize[1];
-    const dim3 blocks(1, std::min((uint64_t)n1, maxGridY), 1);
-    int nshared =
-        threads.y > 1 ?
-            threads.y*sizeof(U)+(threads.y/2)*sizeof(U) :
-            0;
-    cuApplyRMSNorm<<<blocks, threads, nshared, stream>>>(
-      output, invvar, input, n1, n2, U(epsilon), gamma);
-}
-
 void cuda_layer_norm(
     at::Tensor* output,
     at::Tensor* mean,

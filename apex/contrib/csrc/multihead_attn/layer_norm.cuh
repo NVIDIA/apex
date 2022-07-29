@@ -261,7 +261,7 @@ cuApplyLayerNorm(T *__restrict__ output_vals, U *__restrict__ mean,
   // 1) blockDim.x == warpSize
   // 2) Tensors are contiguous
   //
-  for (auto i1 = blockIdx.y; i1 < n1; i1 += gridDim.y) {
+  for (int i1 = blockIdx.y; i1 < n1; i1 += gridDim.y) {
     SharedMemory<U> shared;
     U *buf = shared.getPointer();
     U mu, sigma2;
@@ -475,7 +475,7 @@ cuComputeGradInput(const T *__restrict__ dout, const T *__restrict__ dout_resid,
                    const T *__restrict__ input, const int n1, const int n2,
                    const U *__restrict__ mean, const U *__restrict__ invvar,
                    U epsilon, const T *gamma, T *grad_input) {
-  for (auto i1 = blockIdx.y; i1 < n1; i1 += gridDim.y) {
+  for (int i1 = blockIdx.y; i1 < n1; i1 += gridDim.y) {
     U sum_loss1 = U(0);
     U sum_loss2 = U(0);
     const U c_mean = mean[i1];
