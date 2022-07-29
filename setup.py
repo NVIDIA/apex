@@ -553,7 +553,7 @@ if "--fmha" in sys.argv:
     raise_if_cuda_home_none("--fmha")
 
     if bare_metal_version < Version("11.0"):
-        raise RuntimeError("--fmha only supported on sm_80 and later GPUs")
+        raise RuntimeError("--fmha only supported on sm_80 and sm_90 GPUs")
 
     cc_flag = []
     cc_flag.append("-gencode")
