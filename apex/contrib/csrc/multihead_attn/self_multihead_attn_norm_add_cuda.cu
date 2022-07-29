@@ -578,4 +578,3 @@ std::vector<torch::Tensor> bwd_cuda(
 } // end namespace rocblas_gemmex
 } // end namespace self_norm_add 
 } // end namespace multihead_attn
-

@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,6 +32,7 @@ from apex.transformer.tensor_parallel.mappings import (
     gather_from_tensor_model_parallel_region,
     reduce_from_tensor_model_parallel_region,
     scatter_to_tensor_model_parallel_region,
+    scatter_to_sequence_parallel_region,
 )
 
 from .random import (
@@ -63,6 +63,7 @@ __all__ = [
     "gather_from_tensor_model_parallel_region",
     "reduce_from_tensor_model_parallel_region",
     "scatter_to_tensor_model_parallel_region",
+    "scatter_to_sequence_parallel_region",
     # random.py
     "checkpoint",
     "get_cuda_rng_tracker",

@@ -28,3 +28,8 @@ class AttnType(enum.Enum):
 class AttnMaskType(enum.Enum):
     padding = 1
     causal = 2
+
+
+class ModelType(enum.Enum):
+    encoder_or_decoder = 1
+    encoder_and_decoder = 2

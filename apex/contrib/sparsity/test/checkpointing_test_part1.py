@@ -55,7 +55,7 @@ def main(args):
     step = train_loop(args, model, optimizer, step, args.num_dense_steps)
 
     # simulate sparsity by inserting zeros into existing dense weights
-    ASP.enable_sparsity()
+    ASP.compute_sparse_masks()
 
     # train for a few steps with sparse weights
     print("SPARSE :: ",one_ll)

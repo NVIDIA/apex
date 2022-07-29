@@ -67,7 +67,7 @@ __device__ void cuWelfordMuSigma2(const T *__restrict__ vals, const int n1,
     }
     // intra-warp reductions
     for (int l = 0;  l <= 4;  ++l) {
-      int srcLaneB = (threadIdx.x+(1<<l))&31;
+      int srcLaneB = (threadIdx.x + (1 << l)) & 31;
       U muB = WARP_SHFL(mu, srcLaneB, 32);
       U countB = WARP_SHFL(count, srcLaneB, 32);
       U sigma2B = WARP_SHFL(sigma2, srcLaneB, 32);
@@ -108,7 +108,7 @@ __device__ void cuWelfordMuSigma2(const T *__restrict__ vals, const int n1,
       // don't care about final value of count, we know count == n2
     } else {
       mu = WARP_SHFL(mu, 0, 32);
-      sigma2 = WARP_SHFL(sigma2/U(n2), 0, 32);
+      sigma2 = WARP_SHFL(sigma2 / U(n2), 0, 32);
     }
   }
 }
@@ -158,7 +158,7 @@ __device__ void cuWelfordMuSigma2(const at::Half *__restrict__ vals,
     }
     // intra-warp reductions
     for (int l = 0;  l <= 4;  ++l) {
-      int srcLaneB = (threadIdx.x+(1<<l))&31;
+      int srcLaneB = (threadIdx.x + (1 << l)) & 31;
       float muB = WARP_SHFL(mu, srcLaneB, 32);
       float countB = WARP_SHFL(count, srcLaneB, 32);
       float sigma2B = WARP_SHFL(sigma2, srcLaneB, 32);
@@ -199,7 +199,7 @@ __device__ void cuWelfordMuSigma2(const at::Half *__restrict__ vals,
       // don't care about final value of count, we know count == n2
     } else {
       mu = WARP_SHFL(mu, 0, 32);
-      sigma2 = WARP_SHFL(sigma2/float(n2), 0, 32);
+      sigma2 = WARP_SHFL(sigma2 / float(n2), 0, 32);
     }
   }
 }
@@ -261,7 +261,7 @@ cuApplyLayerNorm(T *__restrict__ output_vals, U *__restrict__ mean,
   // 1) blockDim.x == warpSize
   // 2) Tensors are contiguous
   //
-  for (int i1 = blockIdx.y; i1 < n1; i1 += gridDim.y) {
+  for (auto i1 = blockIdx.y; i1 < n1; i1 += gridDim.y) {
     SharedMemory<U> shared;
     U *buf = shared.getPointer();
     U mu, sigma2;
@@ -475,7 +475,7 @@ cuComputeGradInput(const T *__restrict__ dout, const T *__restrict__ dout_resid,
                    const T *__restrict__ input, const int n1, const int n2,
                    const U *__restrict__ mean, const U *__restrict__ invvar,
                    U epsilon, const T *gamma, T *grad_input) {
-  for (int i1 = blockIdx.y; i1 < n1; i1 += gridDim.y) {
+  for (auto i1 = blockIdx.y; i1 < n1; i1 += gridDim.y) {
     U sum_loss1 = U(0);
     U sum_loss2 = U(0);
     const U c_mean = mean[i1];
@@ -521,7 +521,7 @@ cuComputeGradInput(const T *__restrict__ dout, const T *__restrict__ dout_resid,
       }
     }
     // intra-warp reductions
-    for (int mask = blockDim.x/2;  mask > 0;  mask /= 2) {
+    for (int mask = blockDim.x / 2;  mask > 0;  mask /= 2) {
       sum_loss1 += WARP_SHFL_XOR(sum_loss1, mask, 32);
       sum_loss2 += WARP_SHFL_XOR(sum_loss2, mask, 32);
     }

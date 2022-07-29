@@ -63,6 +63,11 @@ struct Mask {
         // return row_valid && col_valid;
     }
 
+    //BERT Mask: if upper left is invalid, none are valid
+    inline __device__ bool any_valid(int mi, int ni) const {
+        return is_valid(mi, ni, 0, 0);
+    }
+
     inline __device__ void load(int it) {
         row_offset = it * Cta_tile::M + row;
     }

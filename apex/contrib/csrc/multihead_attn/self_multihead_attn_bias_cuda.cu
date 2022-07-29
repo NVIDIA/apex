@@ -502,4 +502,3 @@ std::vector<torch::Tensor> bwd_cuda(
 } // end namespace rocblas_gemmex
 } // end namespace self
 } // end namespace multihead_attn
-

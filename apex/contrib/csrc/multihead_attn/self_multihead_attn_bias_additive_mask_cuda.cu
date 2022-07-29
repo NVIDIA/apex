@@ -19,7 +19,6 @@ namespace multihead_attn {
 namespace self_bias_additive_mask {
 namespace rocblas_gemmex {
 
-std::vector<torch::Tensor> fwd_cuda(
                                bool                 use_time_mask,
 							   bool                 is_training,
                                int                  heads,
@@ -50,32 +49,6 @@ std::vector<torch::Tensor> fwd_cuda(
 
   // There is no reason to use more than one stream as every kernel is 
   // sequentially dependent
-  cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
-  cudaStream_t stream = at::cuda::getCurrentCUDAStream().stream();
-  cublasSetStream(handle, stream);
-
-  // 3 Intermediate Results + Output (Note: dropout intermediates are generated
-  // by ATen library code)
-  auto act_options = inputs.options().requires_grad(false);
-  auto mask_options = act_options.dtype(torch::kUInt8);
-
-  torch::Tensor input_lin_results =
-      torch::empty({q_seq_len, sequences, output_lin_dim}, act_options);
-  torch::Tensor bmm1_results =
-      torch::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
-  torch::Tensor dropout_results =
-      torch::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
-  torch::Tensor dropout_mask =
-      torch::empty({attn_batches, q_seq_len, k_seq_len}, mask_options);
-  torch::Tensor matmul2_results =
-      torch::empty({q_seq_len, attn_batches, head_dim}, act_options);
-  torch::Tensor outputs = torch::empty_like(inputs, act_options);
-
-  // Input Linear Results Pointers to Q, K, and V of interviewed activations
-  void *q_lin_results_ptr = static_cast<void *>(input_lin_results.data_ptr());
-  void *k_lin_results_ptr = static_cast<void *>(
-      static_cast<half *>(input_lin_results.data_ptr()) + head_dim);
-  void *v_lin_results_ptr = static_cast<void *>(
       static_cast<half *>(input_lin_results.data_ptr()) + 2 * head_dim);
 
   // Softmax Intermediate Result Ptr (used by Matmul1 -> Softmax)

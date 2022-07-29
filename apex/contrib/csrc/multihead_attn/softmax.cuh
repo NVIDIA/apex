@@ -3,7 +3,7 @@
 #include <ATen/cuda/CUDAGraphsUtils.cuh>
 #include <curand_kernel.h>
 
-#if !defined(NEW_GENERATOR_PATH)
+#ifdef OLD_GENERATOR_PATH
 #include <ATen/CUDAGeneratorImpl.h>
 #else
 #include <ATen/cuda/CUDAGeneratorImpl.h>
@@ -1593,11 +1593,13 @@ int log2_ceil_native(int value) {
 }
 
 template <typename T>
-__device__ __forceinline__ T WARP_SHFL_XOR_NATIVE(T value, int laneMask, int width = warpSize, unsigned int mask = 0xffffffff) {
-#if CUDA_VERSION >= 9000 && !defined(__HIP_PLATFORM_HCC__)
-    return __shfl_xor_sync(mask, value, laneMask, width);
+__device__ __forceinline__ T
+WARP_SHFL_XOR_NATIVE(T value, int laneMask, int width = warpSize,
+                     unsigned int mask = 0xffffffff) {
+#if CUDA_VERSION >= 9000
+  return __shfl_xor_sync(mask, value, laneMask, width);
 #else
-    return __shfl_xor(value, laneMask, width);
+  return __shfl_xor(value, laneMask, width);
 #endif
 }
 

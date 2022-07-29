@@ -3,11 +3,12 @@ import sys
 
 from apex.testing.common_utils import TEST_WITH_ROCM
 
-test_dirs = ["run_amp", "run_fp16util", "run_optimizers", "run_fused_layer_norm", "run_pyprof_nvtx", "run_pyprof_data", "run_mlp"]
+test_dirs = ["run_amp", "run_fp16util", "run_optimizers", "run_fused_layer_norm", "run_pyprof_nvtx", "run_pyprof_data", "run_mlp", "run_transformer"]
 
 ROCM_BLACKLIST = [
     'run_pyprof_nvtx',
     'run_pyprof_data',
+    'run_transformer',
 ]
 
 runner = unittest.TextTestRunner(verbosity=2)
