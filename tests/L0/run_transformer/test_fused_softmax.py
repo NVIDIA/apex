@@ -229,7 +229,7 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
 
     def _setup_qk(self):
         qlen = [1, 2, 1234, 2322, 2348]
-        klen = [1, 2, 3, 4, 5, 8, 10, 11, 13, 128, 256, 1200, 1234, 2048, 3123, 4096, 4128, 7234, 8192, 10232]
+        klen = [1, 2, 3, 4, 5, 8, 10, 11, 13, 128, 256, 1200, 1234, 2048, 3123, 4096, 4128, 7234, 8192]
         return itertools.product(qlen, klen)
 
     def _setup_batch_attn_scalar(self):
