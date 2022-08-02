@@ -56,8 +56,8 @@ class RefLAMB(Optimizer):
         if closure is not None:
             loss = closure()
 
-        # create separate grad lists for fp32 and fp16 params
-        g_all_32, g_all_16 = [], []
+        # create separate grad lists for fp32, fp16, and bf16 params
+        g_all_32, g_all_16, g_all_bf16 = [], [], []
         for group in self.param_groups:
             for p in group['params']:
                 if p.grad is None:
@@ -66,11 +66,13 @@ class RefLAMB(Optimizer):
                     g_all_32.append(p.grad.data)
                 elif p.dtype == torch.float16:
                     g_all_16.append(p.grad.data)
+                elif p.dtype == torch.bfloat16:
+                    g_all_bf16.append(p.grad.data)
                 else:
-                    raise RuntimeError('FusedLAMB only support fp16 and fp32.')
+                    raise RuntimeError('FusedLAMB only support fp16, fp32, and bf16.')
 
         device = self.param_groups[0]["params"][0].device
-        g_norm_32, g_norm_16 = torch.zeros(1, device=device), torch.zeros(1, device=device)
+        g_norm_32, g_norm_16, g_norm_bf16 = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
         # compute grad norm for two lists
         if len(g_all_32) > 0:
             g_norm_32 = multi_tensor_applier(self.multi_tensor_l2norm,
@@ -80,11 +82,15 @@ class RefLAMB(Optimizer):
             g_norm_16 = multi_tensor_applier(self.multi_tensor_l2norm,
                                              self._dummy_overflow_buf,
                                              [g_all_16], False)[0]
+        if len(g_all_bf16) > 0:
+            g_norm_bf16 = multi_tensor_applier(self.multi_tensor_l2norm,
+                                             self._dummy_overflow_buf,
+                                             [g_all_bf16], False)[0]
 
         # blend two grad norms to get global grad norm
         global_grad_norm = multi_tensor_applier(self.multi_tensor_l2norm,
                                                 self._dummy_overflow_buf,
-                                                [[g_norm_32, g_norm_16]],
+                                                [[g_norm_32, g_norm_16, g_norm_bf16]],
                                                 False)[0]
 
         max_grad_norm = 1.0
@@ -280,6 +286,12 @@ class TestFusedMixedPrecisionLamb(TestLamb):
 
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
+
+    def test_bfloat16(self):
+        self.gen_single_type_test(param_type=torch.bfloat16)
+
+    def test_float16(self):
+        self.gen_single_type_test(param_type=torch.float16)
 
     @unittest.skip("PyTorch optimizer is not numerically correct for fp16")
     def test_half(self):

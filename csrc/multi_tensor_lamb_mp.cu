@@ -414,7 +414,7 @@ void multi_tensor_lamb_mp_cuda(
   // Generally this is not a issue since people modify grad in step() method all the time
   // We can also grab list of empty tensor to avoid this, but I'd like to save space/cpu code
   if (n_tensors == 4) {
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
+    DISPATCH_FLOAT_HALF_AND_BFLOAT(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
         multi_tensor_apply<4>(
           BLOCK_SIZE,
           chunk_size,
@@ -464,7 +464,7 @@ void multi_tensor_lamb_mp_cuda(
 
   std::vector<std::vector<at::Tensor>> grad_param_list(tensor_lists.begin(), tensor_lists.begin()+2);
   if (n_tensors == 4) {
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
+    DISPATCH_FLOAT_HALF_AND_BFLOAT(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
         multi_tensor_apply<2>(
           BLOCK_SIZE,
           chunk_size,
