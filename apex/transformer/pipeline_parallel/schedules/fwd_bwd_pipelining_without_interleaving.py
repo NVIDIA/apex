@@ -55,28 +55,31 @@ def get_tensor_shapes(
     assert (
         len(tensor_shape) == 3
     ), f"`tensor_shape` should be [sequence_length, micro_batch_size, hidden_size] but {tensor_shape}"
+
     sequence_length, micro_batch_size, hidden_size = tensor_shape
-    seq_len = sequence_length
-    if sequence_parallel_enabled:
-        seq_len = sequence_length // parallel_state.get_tensor_model_parallel_world_size()
+
     tensor_shapes = []
-    if model_type == ModelType.encoder_and_decoder:
-        if decoder_sequence_length is None:
-            raise ValueError("`decoder_sequence_length` is required for `ModelType.encoder_and_decoder`")
-        dec_seq_len = decoder_sequence_length
-        if sequence_parallel_enabled:
-            dec_seq_len = decoder_sequence_length // parallel_state.get_tensor_model_parallel_world_size()
-        if parallel_state.is_pipeline_stage_before_split(rank):
-            # If next rank is after split, then need transpose for encoder_hidden_state.
-            if parallel_state.is_pipeline_stage_before_split(rank + 1):
-                tensor_shapes.append((seq_len, micro_batch_size, hidden_size))
-            else:
-                tensor_shapes.append((dec_seq_len, micro_batch_size, hidden_size))
-        else:
-            tensor_shapes.append((dec_seq_len, micro_batch_size, hidden_size))
-            tensor_shapes.append((seq_len, micro_batch_size, hidden_size))
+
+    if sequence_parallel_enabled:
+        seq_length = sequence_length // parallel_state.get_tensor_model_parallel_world_size()
     else:
-        tensor_shapes.append((seq_len, micro_batch_size, hidden_size))
+        seq_length = sequence_length
+
+    if model_type == ModelType.encoder_and_decoder:
+
+        if sequence_parallel_enabled:
+            dec_seq_length = decoder_sequence_length // parallel_state.get_tensor_model_parallel_world_size()
+        else:
+            dec_seq_length = decoder_sequence_length
+
+        if parallel_state.is_pipeline_stage_before_split(rank):
+            tensor_shapes.append((seq_length, micro_batch_size, hidden_size))
+        else:
+            tensor_shapes.append((dec_seq_length, micro_batch_size, hidden_size))
+            tensor_shapes.append((seq_length, micro_batch_size, hidden_size))
+    else:
+        tensor_shapes.append((seq_length, micro_batch_size, hidden_size))
+
     return tensor_shapes
 
 

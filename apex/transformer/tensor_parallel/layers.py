@@ -302,11 +302,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
                 device=torch.cuda.current_device(),
                 requires_grad=False,
             )
-            torch.distributed.all_gather(
-                list(all_gather_buffer.chunk(world_size)),
-                input,
-                group=get_tensor_model_parallel_group(),
-            )
+            torch.distributed._all_gather_base(all_gather_buffer, input, group=get_tensor_model_parallel_group())
             total_input = all_gather_buffer
         else:
             total_input = input
@@ -331,15 +327,12 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
                 device=torch.cuda.current_device(),
                 requires_grad=False,
             )
-            handle = torch.distributed.all_gather(
-                list(all_gather_buffer.chunk(get_tensor_model_parallel_world_size())),
+            handle = torch.distributed._all_gather_base(
+                all_gather_buffer,
                 input,
                 group=get_tensor_model_parallel_group(),
                 async_op=True,
             )
-
-            # Delay the start of input gradient computation shortly (3us) to have gather scheduled first and have GPU resources allocated
-            _ = torch.empty(1, device=grad_output.device) + 1
             total_input = all_gather_buffer
         else:
             total_input = input
@@ -358,21 +351,16 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
             handle = torch.distributed.all_reduce(
                 grad_input, group=get_tensor_model_parallel_group(), async_op=True
             )
-            # Delay the start of weight gradient computation shortly (3us) to have
-            # all-reduce scheduled first and have GPU resources allocated
-            _ = torch.empty(1, device=grad_output.device) + 1
 
         if ctx.sequence_parallel_enabled:
             assert not ctx.async_grad_allreduce
             sub_grad_input = torch.empty(input.shape, dtype=input.dtype, device=torch.cuda.current_device(), requires_grad=False)
-            handle = torch.distributed.reduce_scatter(
+            handle = torch.distributed._reduce_scatter_base(
                 sub_grad_input,
-                list(grad_input.chunk(get_tensor_model_parallel_world_size())),
+                grad_input,
                 group=get_tensor_model_parallel_group(),
-                async_op=True,
+                async_op=True
             )
-            # Delay the start of weight gradient computation shortly (3us) to have reduce scatter scheduled first and have GPU resources allocated
-            _ = torch.empty(1, device=grad_output.device) + 1
 
         if ctx.gradient_accumulation_fusion:
             if not ctx.use_16bit_in_wgrad_accum_fusion:
