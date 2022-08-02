@@ -664,6 +664,7 @@ class Permutation:
                         child = fx_graph.get(child_name)
                         if child is None:
                             has_visit_children_num += 1
+                            continue
 
                         child_module_type = child.get('module_type')
                         if child_module_type in ['torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
