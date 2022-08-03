@@ -206,16 +206,26 @@ class TestLamb(unittest.TestCase):
             ref_param, tst_param, ref_optim, tst_optim = \
                 self.gen_param_optim([tensor], lamb_option)
 
+            if isinstance(tst_optim, apex.optimizers.FusedMixedPrecisionLamb):
+                if param_type != torch.float:
+                    # joseli: This parameter is usually passed into the constructor, 
+                    # but I do not want to change the testing interface.
+                    # As long as this parameter is set before the first call to step(), 
+                    # then it should act normally.
+                    tst_optim.reduced_precision_dtype = param_type
+
             for i in range(self.iters):
                 self.gen_grad(ref_param, tst_param)
                 ref_optim.step()
                 torch.cuda.synchronize()
                 tst_optim.step()
                 torch.cuda.synchronize()
-                max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
-
-                self.assertLessEqual(max_abs_diff, self.max_abs_diff)
-                self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+                torch.testing.assert_close(
+                    tst_param, 
+                    ref_param, 
+                    atol=self.max_abs_diff, 
+                    rtol=self.max_rel_diff
+                )
 
 class TestFusedLAMB(TestLamb):
     def __init__(self, *args, **kwargs):
@@ -290,8 +300,8 @@ class TestFusedMixedPrecisionLamb(TestLamb):
     def test_bfloat16(self):
         self.gen_single_type_test(param_type=torch.bfloat16)
 
-    def test_float16(self):
-        self.gen_single_type_test(param_type=torch.float16)
+    # def test_float16(self):
+    #     self.gen_single_type_test(param_type=torch.float16)
 
     @unittest.skip("PyTorch optimizer is not numerically correct for fp16")
     def test_half(self):
