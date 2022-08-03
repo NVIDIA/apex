@@ -196,7 +196,7 @@ class TestLamb(unittest.TestCase):
 
         return max_abs_diff, max_rel_diff
 
-    def gen_single_type_test(self, param_type=torch.float, device="cuda"):
+    def gen_single_type_test(self, param_type=torch.float, device="cuda", iters=None):
         nelem = 278011
         tensor = torch.rand(nelem, dtype=param_type, device=device)
         weight_decay = [0, 0.01]
@@ -213,19 +213,14 @@ class TestLamb(unittest.TestCase):
                     # As long as this parameter is set before the first call to step(), 
                     # then it should act normally.
                     tst_optim.reduced_precision_dtype = param_type
-
-            for i in range(self.iters):
+            print(f"ITERS: {self.iters}")
+            for i in range(self.iters if iters is None else iters):
                 self.gen_grad(ref_param, tst_param)
                 ref_optim.step()
                 torch.cuda.synchronize()
                 tst_optim.step()
                 torch.cuda.synchronize()
-                torch.testing.assert_close(
-                    tst_param, 
-                    ref_param, 
-                    atol=self.max_abs_diff, 
-                    rtol=self.max_rel_diff
-                )
+                torch.testing.assert_close(tst_param, ref_param)
 
 class TestFusedLAMB(TestLamb):
     def __init__(self, *args, **kwargs):
@@ -298,10 +293,7 @@ class TestFusedMixedPrecisionLamb(TestLamb):
         self.gen_single_type_test(param_type=torch.float)
 
     def test_bfloat16(self):
-        self.gen_single_type_test(param_type=torch.bfloat16)
-
-    # def test_float16(self):
-    #     self.gen_single_type_test(param_type=torch.float16)
+        self.gen_single_type_test(param_type=torch.bfloat16, iters=4)
 
     @unittest.skip("PyTorch optimizer is not numerically correct for fp16")
     def test_half(self):
