@@ -66,11 +66,20 @@ class FusedAdam(torch.optim.Optimizer):
 
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
-        defaults = dict(lr=lr, bias_correction=bias_correction,
+        defaults = dict(lr=torch.tensor(lr, dtype=torch.float32),
+                        bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay)
+        tensor_state = ['lr']
         super(FusedAdam, self).__init__(params, defaults)
         self.adam_w_mode = 1 if adam_w_mode else 0
         self.set_grad_none = set_grad_none
+
+        device = self.param_groups[0]['params'][0].device
+
+        for idx,group in enumerate(self.param_groups):
+            for item in tensor_state:
+                self.param_groups[idx][item] = group[item].to(device=device)
+
         if multi_tensor_applier.available:
             import amp_C
             # Skip buffer
@@ -78,6 +87,8 @@ class FusedAdam(torch.optim.Optimizer):
             self.multi_tensor_adam = amp_C.multi_tensor_adam
         else:
             raise RuntimeError('apex.optimizers.FusedAdam requires cuda extensions')
+
+        self._step_supports_amp_scaling = True
 
     def zero_grad(self):
         if self.set_grad_none:
@@ -87,7 +98,7 @@ class FusedAdam(torch.optim.Optimizer):
         else:
             super(FusedAdam, self).zero_grad()
 
-    def step(self, closure=None, grads=None, output_params=None, scale=None, grad_norms=None):
+    def step(self, closure=None, grads=None, output_params=None, scale=None, grad_norms=None, grad_scaler=None):
         """Performs a single optimization step.
 
         Arguments:
@@ -103,15 +114,16 @@ class FusedAdam(torch.optim.Optimizer):
             loss = closure()
 
         for group in self.param_groups:
+            device = group['params'][0].device
             bias_correction = 1 if group['bias_correction'] else 0
             beta1, beta2 = group['betas']
 
             # assume same step across group now to simplify things
             # per parameter step can be easily support by making it tensor, or pass list into kernel
             if 'step' in group:
-                group['step'] += 1
+                group['step'] += (self._dummy_overflow_buf != 1).to(torch.int)
             else:
-                group['step'] = 1
+                group['step'] = torch.tensor([1], dtype=torch.int, device=device)
 
             # create lists for multi-tensor apply
             g_16, p_16, m_16, v_16 = [], [], [], []
@@ -150,6 +162,22 @@ class FusedAdam(torch.optim.Optimizer):
                 else:
                     raise RuntimeError('FusedAdam only support fp16 and fp32.')
 
+            # overflow check of gradients
+            found_inf = (
+                    grad_scaler._check_inf_per_device(self)[device]
+                    if grad_scaler is not None else torch.zeros((1,), device=device)
+            )
+            self._dummy_overflow_buf.copy_(found_inf)
+
+            # get unscale scale factor
+            scale, inv_scale = None, None
+            if grad_scaler:
+                scale = grad_scaler._get_scale_async()
+                inv_scale = scale.double().reciprocal().float()
+            else:
+                scale = torch.ones((1,), device=device)
+                inv_scale = torch.ones((1,), device=device)
+
             if(len(g_16) > 0):
                 multi_tensor_applier(self.multi_tensor_adam,
                                      self._dummy_overflow_buf,
@@ -161,7 +189,8 @@ class FusedAdam(torch.optim.Optimizer):
                                      group['step'],
                                      self.adam_w_mode,
                                      bias_correction,
-                                     group['weight_decay'])
+                                     group['weight_decay'],
+                                     inv_scale)
             if g_bf:
                 multi_tensor_applier(
                     self.multi_tensor_adam,
@@ -175,7 +204,8 @@ class FusedAdam(torch.optim.Optimizer):
                     self.adam_w_mode,
                     bias_correction,
                     group['weight_decay'],
-                )
+                    inv_scale)
+
             if(len(g_32) > 0):
                 multi_tensor_applier(self.multi_tensor_adam,
                                      self._dummy_overflow_buf,
@@ -187,7 +217,7 @@ class FusedAdam(torch.optim.Optimizer):
                                      group['step'],
                                      self.adam_w_mode,
                                      bias_correction,
-                                     group['weight_decay'])
-
+                                     group['weight_decay'],
+                                     inv_scale)
 
         return loss

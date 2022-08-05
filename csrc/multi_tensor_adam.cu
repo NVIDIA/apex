@@ -29,16 +29,22 @@ struct AdamFunctor
     TensorListMetadata<4>& tl,
     const float beta1,
     const float beta2,
-    const float beta1_correction,
-    const float beta2_correction,
+    const int* step,
+    const int bias_correction,
     const float epsilon,
-    const float lr,
+    const float* lr,
     adamMode_t mode,
-    const float decay)
+    const float decay,
+    const float* inv_scale)
   {
-    // I'd like this kernel to propagate infs/nans.
-    // if(*noop_gmem == 1)
-    //   return;
+    if(*noop_gmem == 1)
+      return;
+
+    float beta1_correction = 1.0f, beta2_correction = 1.0f;
+    if (bias_correction == 1) {
+      beta1_correction = 1 - pow(beta1, *step);
+      beta2_correction = 1 - pow(beta2, *step);
+    }
 
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
 
@@ -77,7 +83,7 @@ struct AdamFunctor
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
         {
-          r_g[ii] = g[i];
+          r_g[ii] = g[i] * (*inv_scale);
           r_p[ii] = p[i];
           r_m[ii] = m[i];
           r_v[ii] = v[i];
@@ -99,7 +105,7 @@ struct AdamFunctor
           MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
           MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
           MATH_T update = next_m_unbiased / denom;
-          r_p[ii] = r_p[ii] - (lr * update);
+          r_p[ii] = r_p[ii] - (*lr * update);
         }
         else { // weight decay
           r_m[ii] = beta1 * r_m[ii] + (1-beta1) * r_g[ii];
@@ -108,7 +114,7 @@ struct AdamFunctor
           MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
           MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
           MATH_T update = (next_m_unbiased / denom) + (decay * r_p[ii]);
-          r_p[ii] = r_p[ii] - (lr * update);
+          r_p[ii] = r_p[ii] - (*lr * update);
         }
       }
 #pragma unroll
@@ -130,23 +136,24 @@ void multi_tensor_adam_cuda(
   int chunk_size,
   at::Tensor noop_flag,
   std::vector<std::vector<at::Tensor>> tensor_lists,
-  const float lr,
+  at::Tensor lr,
   const float beta1,
   const float beta2,
   const float epsilon,
-  const int step,
+  at::Tensor step,
   const int mode,
   const int bias_correction,
-  const float weight_decay)
+  const float weight_decay,
+  at::Tensor inv_scale)
 {
   using namespace at;
 
   // Handle bias correction mode
-  float bias_correction1 = 1.0f, bias_correction2 = 1.0f;
-  if (bias_correction == 1) {
-    bias_correction1 = 1 - std::pow(beta1, step);
-    bias_correction2 = 1 - std::pow(beta2, step);
-  }
+  //float bias_correction1 = 1.0f, bias_correction2 = 1.0f;
+  //if (bias_correction == 1) {
+  //  bias_correction1 = 1 - std::pow(beta1, step);
+  //  bias_correction2 = 1 - std::pow(beta2, step);
+  //}
 
   // Assume single type across p,g,m1,m2 now
   DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT(
@@ -159,12 +166,13 @@ void multi_tensor_adam_cuda(
       AdamFunctor<scalar_t_0>(),
       beta1,
       beta2,
-      bias_correction1,
-      bias_correction2,
+      step.DATA_PTR<int>(),
+      bias_correction,
       epsilon,
-      lr,
+      lr.DATA_PTR<float>(),
       (adamMode_t) mode,
-      weight_decay); )
+      weight_decay,
+      inv_scale.data_ptr<float>()); )
 
   AT_CUDA_CHECK(cudaGetLastError());
 
