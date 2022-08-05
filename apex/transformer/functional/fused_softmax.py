@@ -98,6 +98,33 @@ def scaled_masked_softmax(inputs, mask, scale):
         return ScaledMaskedSoftmax.apply(*args)
 
 
+class GenericScaledMaskedSoftmax(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, inputs, mask, scale):
+        import generic_scaled_masked_softmax_cuda
+
+        scale_t = torch.tensor([scale])
+        softmax_results = generic_scaled_masked_softmax_cuda.forward(inputs, mask, scale_t[0])
+        ctx.save_for_backward(softmax_results, scale_t)
+        return softmax_results
+
+    @staticmethod
+    def backward(ctx, output_grads):
+        import generic_scaled_masked_softmax_cuda_new
+
+        softmax_results, scale_t = ctx.saved_tensors
+
+        input_grads = generic_scaled_masked_softmax_cuda.backward(output_grads, softmax_results, scale_t[0])
+        return input_grads, None, None
+
+
+def generic_scaled_masked_softmax(inputs, mask, scale):
+    # input is 4D tensor (b, np, sq, sk)
+    args = _cast_if_autocast_enabled(inputs, mask, scale)
+    with torch.cuda.amp.autocast(enabled=False):
+        return GenericScaledMaskedSoftmax.apply(*args)
+
+
 class FusedScaleMaskSoftmax(torch.nn.Module):
     """
     fused operation: scaling + mask + softmax
@@ -209,3 +236,30 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
         import scaled_masked_softmax_cuda
 
         return scaled_masked_softmax_cuda.get_batch_per_block(sq, sk, b, np)
+
+class GenericFusedScaleMaskSoftmax(FusedScaleMaskSoftmax):
+    """
+    Generic version of FusedSacleMaskSoftmax.
+    It removes the seq-len limitations and has slight performance degragation compared with FusedScaleMaskSoftmax
+
+    fused operation: scaling + mask + softmax
+
+    Arguments:
+        input_in_fp16: flag to indicate if input in fp16 data format.
+        input_in_bf16: flag to indicate if input in bf16 data format.
+        scaled_masked_softmax_fusion: flag to indicate user want to use softmax fusion
+        mask_func: mask function to be applied.
+        softmax_in_fp32: if true, softmax in performed at fp32 precision.
+        scale: scaling factor used in input tensor scaling.
+    """
+
+    def __init__(
+        self, input_in_fp16, input_in_bf16, scaled_masked_softmax_fusion, mask_func, softmax_in_fp32, scale,
+    ):
+        super().__init__(input_in_fp16, input_in_bf16, AttnMaskType.padding, scaled_masked_softmax_fusion, mask_func, softmax_in_fp32, scale)
+        self.scaled_masked_softmax_fusion = generic_scaled_masked_softmax
+
+    def is_kernel_available(self, mask, b, np, sq, sk):
+        if self.scaled_masked_softmax_fusion and 0 < sk:  # user want to fuse  # sk must be 1 ~
+            return True
+        return False

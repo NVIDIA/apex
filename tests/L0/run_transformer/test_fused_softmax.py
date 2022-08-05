@@ -14,6 +14,14 @@ from apex.transformer.functional import FusedScaleMaskSoftmax
 def attention_mask_func(attention_scores, attention_mask):
     return attention_scores.masked_fill(attention_mask, -10000.0)
 
+def forward_torch_softmax(input, mask, scale):
+    input = input * scale
+    mask_output = attention_mask_func(input, mask) if mask is not None else input
+    probs = torch.nn.Softmax(dim=-1)(mask_output)
+    all_k_masked = mask.all(axis=-1)
+    zero_attention_mask = (1.0 - all_k_masked.float())[:, :, :, None]
+    probs = probs * zero_attention_mask
+    return probs
 
 autocast_dtypes = (
     (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
@@ -215,6 +223,70 @@ class TestFusedScaleMaskSoftmax(common_utils.TestCase):
                     g1 = g0.clone()
                 actual.backward(g0)
                 expected.backward(g1)
+
+
+class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
+
+    def _setup_qk(self):
+        qlen = [1, 2, 1234, 2322, 2348]
+        klen = [1, 2, 3, 4, 5, 8, 10, 11, 13, 128, 256, 1200, 1234, 2048, 3123, 4096, 4128, 7234, 8192]
+        return itertools.product(qlen, klen)
+
+    def _setup_batch_attn_scalar(self):
+        batch = 2
+        attn = 16
+        scale_t = 1.0
+        return batch, attn, scale_t
+
+    def test_forward(self):
+        import generic_scaled_masked_softmax_cuda
+        batch, attn, scale_t = self._setup_batch_attn_scalar()
+        for qlen, klen in self._setup_qk():
+            inputs = torch.normal(0, 2, (batch, attn, qlen, klen), dtype=torch.float16, device='cuda:0')
+            masks = torch.randint(0, 2, (batch, 1, qlen, klen), dtype=torch.bool, device='cuda:0')
+            softmax_results = generic_scaled_masked_softmax_cuda.forward(inputs, masks, scale_t)
+            softmax_results_torch = forward_torch_softmax(inputs, masks, scale_t)
+            self.assertEqual(softmax_results_torch.type(torch.float16), softmax_results, atol=1e-3, rtol=1e-3)
+
+    def test_backward(self):
+        import generic_scaled_masked_softmax_cuda
+        batch, attn, scale_t = self._setup_batch_attn_scalar()
+        for qlen, klen in self._setup_qk():
+            inputs = torch.normal(0, 2, (batch, attn, qlen, klen), dtype=torch.float16, device='cuda:0')
+            backward = torch.rand_like(inputs, dtype=torch.float16, device='cuda:0')
+            masks = torch.randint(0, 2, (batch, 1, qlen, klen), dtype=torch.bool, device='cuda:0')
+            softmax_results = generic_scaled_masked_softmax_cuda.forward(inputs, masks, scale_t)
+            back_grad = generic_scaled_masked_softmax_cuda.backward(backward, softmax_results, scale_t)
+            inputs.requires_grad = True
+            softmax_results_torch = forward_torch_softmax(inputs, masks, scale_t)
+            softmax_results_torch.backward(backward)
+            self.assertEqual(back_grad, inputs.grad, atol=1e-3, rtol=1e-3)
+
+    def test_allmasked(self):
+        import generic_scaled_masked_softmax_cuda
+        batch, attn, scale_t = self._setup_batch_attn_scalar()
+        for qlen, klen in self._setup_qk():
+            inputs = torch.normal(0, 2, (batch, attn, qlen, klen), dtype=torch.float16, device='cuda:0')
+            masks = torch.ones((batch, 1, qlen, klen), dtype=torch.bool, device='cuda:0')
+            softmax_results = generic_scaled_masked_softmax_cuda.forward(inputs, masks, scale_t)
+            softmax_results_torch = forward_torch_softmax(inputs, masks, scale_t)
+            self.assertEqual(softmax_results_torch.type(torch.float16), softmax_results, atol=1e-3, rtol=1e-3)
+
+    def test_allmask_backward(self):
+        import generic_scaled_masked_softmax_cuda
+        batch, attn, scale_t = self._setup_batch_attn_scalar()
+        for qlen, klen in self._setup_qk():
+            inputs = torch.normal(0, 2, (batch, attn, qlen, klen), dtype=torch.float16, device='cuda:0')
+            backward = torch.rand_like(inputs, dtype=torch.float16, device='cuda:0')
+            masks = torch.ones((batch, 1, qlen, klen), dtype=torch.bool, device='cuda:0')
+            softmax_results = generic_scaled_masked_softmax_cuda.forward(inputs, masks, scale_t)
+            back_grad = generic_scaled_masked_softmax_cuda.backward(backward, softmax_results, scale_t)
+
+            inputs.requires_grad = True
+            softmax_results_torch = forward_torch_softmax(inputs, masks, scale_t)
+            softmax_results_torch.backward(backward)
+            self.assertEqual(back_grad, inputs.grad, atol=1e-3, rtol=1e-3)
+
 
 if __name__ == "__main__":
     common_utils.run_tests()
