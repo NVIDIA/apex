@@ -69,20 +69,42 @@ def setup_microbatch_calculator(
         rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size)
 
 
-def _reconfigure_microbatch_calculator(
+def reconfigure_microbatch_calculator(
         rank: int,
         rampup_batch_size: Optional[List[int]],
         global_batch_size: int,
         micro_batch_size: int,
         data_parallel_size: int,
 ) -> None:
-    if torch.distributed.get_rank() == 0:
-        import warnings
-        warnings.warn("This function is only for unittest")
+    """Reset Microbatch Calculator.
+
+    ..note::
+        Use only when you already have microbatch calculator configured but
+        change it. One of the expected use-cases is finetuning.
+
+    Args:
+        rampup_batch_size
+        global_batch_size
+        micro_batch_size
+        data_parallel_size
+
+    """
     global _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
     _GLOBAL_NUM_MICROBATCHES_CALCULATOR = build_num_microbatches_calculator(
         rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size)
+
+
+def _reconfigure_microbatch_calculator(*args, **kwargs):
+    if torch.distributed.get_rank() == 0:
+        import warnings
+        warnings.warn(
+            "`_reconfigure_microbatch_calculator` is deprecated. "
+            "Use `reconfigure_microbatch_calculator`. This function will be removed in 22.12.",
+            FutureWarning,
+        )
+
+    reconfigure_microbatch_calculator(*args, **kwargs)
 
 
 def get_micro_batch_size():
