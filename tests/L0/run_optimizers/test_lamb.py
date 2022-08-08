@@ -285,6 +285,7 @@ class TestFusedMixedPrecisionLamb(TestLamb):
     def test_half(self):
         self.gen_single_type_test(param_type=torch.float16)
 
+    @unittest.skip("Skipped the test since it failed the accuracy test on the PyTorch as of 8/1/2022. Please refer to https://github.com/ROCmSoftwarePlatform/apex/issues/83")
     @unittest.skipIf(torch.cuda.device_count()<2, "more than 1 GPU required")
     def test_multi_device(self):
         devices = ("cuda:0", "cuda:1")

@@ -94,6 +94,7 @@ class TestFusedAdam(TestFusedOptimizer):
         self.ref_optim = torch.optim.Adam
         self.fused_optim = apex.optimizers.FusedAdam
 
+    @unittest.skip("Skipped the test since a regression introduced from PyTorch upstream: due to https://github.com/pytorch/pytorch/issues/80809#issuecomment-1175211598. Please also refer to https://github.com/ROCmSoftwarePlatform/apex/issues/82")
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
     
@@ -101,6 +102,7 @@ class TestFusedAdam(TestFusedOptimizer):
     def test_half(self):
         self.gen_single_type_test(param_type=torch.float16)
 
+    @unittest.skip("Skipped the test since a regression introduced from PyTorch upstream: due to https://github.com/pytorch/pytorch/issues/80809#issuecomment-1175211598. Please also refer to https://github.com/ROCmSoftwarePlatform/apex/issues/82")
     @unittest.skipIf(torch.cuda.device_count()<2, "more than 1 GPU required")
     def test_multi_device(self):
         devices = ("cuda:0", "cuda:1")
@@ -167,6 +169,7 @@ class TestFusedAdam(TestFusedOptimizer):
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
+    @unittest.skip("Skipped the test since a regression introduced from PyTorch upstream: due to https://github.com/pytorch/pytorch/issues/80809#issuecomment-1175211598. Please also refer to https://github.com/ROCmSoftwarePlatform/apex/issues/82")
     def test_adam_option(self):
         nelem = 1
         adam_option = {'lr':0.01, 'betas':(0.6, 0.9), 'eps':3e-06,
