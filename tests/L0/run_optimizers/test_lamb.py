@@ -213,8 +213,7 @@ class TestLamb(unittest.TestCase):
                     # As long as this parameter is set before the first call to step(), 
                     # then it should act normally.
                     tst_optim.reduced_precision_dtype = param_type
-            print(f"ITERS: {self.iters}")
-            for i in range(self.iters if iters is None else iters):
+            for i in range(self.iters):
                 self.gen_grad(ref_param, tst_param)
                 ref_optim.step()
                 torch.cuda.synchronize()
