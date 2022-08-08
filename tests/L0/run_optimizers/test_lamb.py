@@ -293,7 +293,8 @@ class TestFusedMixedPrecisionLamb(TestLamb):
         self.gen_single_type_test(param_type=torch.float)
 
     def test_bfloat16(self):
-        self.gen_single_type_test(param_type=torch.bfloat16, iters=4)
+        self.iters = 4
+        self.gen_single_type_test(param_type=torch.bfloat16)
 
     @unittest.skip("PyTorch optimizer is not numerically correct for fp16")
     def test_half(self):
