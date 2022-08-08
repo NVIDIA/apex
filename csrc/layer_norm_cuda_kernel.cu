@@ -886,7 +886,7 @@ void HostApplyLayerNorm(
     )
 {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
-    const int warp_size = at::cuda::getCurrentDeviceProperties()->warpSize;
+    const int warp_size = at::cuda::warp_size();
     dim3 threads(warp_size ,4, 1);  // MI100 wavefront/warp = 64
     #ifdef __HIP_PLATFORM_HCC__
     // Optimization for ROCm MI100
@@ -915,7 +915,7 @@ void HostApplyRMSNorm(
     const V* gamma)
 {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
-    const int warp_size = at::cuda::getCurrentDeviceProperties()->warpSize;
+    const int warp_size = at::cuda::warp_size();
     const uint64_t maxGridY = at::cuda::getCurrentDeviceProperties()->maxGridSize[1];
     const dim3 blocks(1, std::min((uint64_t)n1, maxGridY), 1);
     dim3 threads(warp_size,4,1);
@@ -1009,7 +1009,7 @@ void HostLayerNormGradient(
     )
 {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
-    const int warp_size = at::cuda::getCurrentDeviceProperties()->warpSize;
+    const int warp_size = at::cuda::warp_size();
     
     if (gamma != NULL && beta != NULL) {
       // compute grad_gamma(j) and grad_beta(j)
@@ -1092,7 +1092,7 @@ void HostRMSNormGradient(
     V* grad_gamma)
 {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
-    const int warp_size = at::cuda::getCurrentDeviceProperties()->warpSize;
+    const int warp_size = at::cuda::warp_size();
     if (gamma != NULL) {
       const int part_size = warp_size;
       const dim3 threads2(warp_size,4,1);
