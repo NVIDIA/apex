@@ -4,7 +4,7 @@ import unittest
 import torch
 
 import apex
-
+from apex.testing.common_utils import skipFlakyTest
 
 class TestFusedLayerNorm(unittest.TestCase):
     dtype = torch.float
@@ -188,6 +188,7 @@ class TestFusedRMSNormElemWiseHalf(TestFusedRMSNormElemWise):
         self.skipTest("Skip to save time")
 
 
+@skipFlakyTest
 class TestFusedLayerNormElemWiseBFloat16(TestFusedLayerNormElemWise):
     dtype = torch.bfloat16
     # NOTE (mkozuki): [BFloat16 Layer Norm flakiness]
