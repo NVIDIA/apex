@@ -123,7 +123,13 @@ class RefLAMB(Optimizer):
                 # m_t = beta1 * m + (1 - beta1) * g_t
                 m_t.mul_(beta1).add_(grad, alpha=1-beta1)
                 # v_t = beta2 * v + (1 - beta2) * (g_t * g_t)
-                v_t.mul_(beta2).addcmul_(grad, grad, value=1-beta2)
+                if len(g_all_16) > 0:
+                    v_t.mul_(beta2)
+                    v_t = v_t.to(torch.float32)
+                    grad32 = grad.to(torch.float32)
+                    v_t.addcmul_(grad32, grad32, value=1-beta2)
+                else:
+                    v_t.mul_(beta2).addcmul_(grad, grad, value=1-beta2)
 
                 # Debiasing
                 m_t_hat = m_t / (1.0 - beta1 ** state['step'])
@@ -135,7 +141,7 @@ class RefLAMB(Optimizer):
                     update.add_(p.data, alpha=group['weight_decay'])
 
                 trust_ratio = 1.0
-                w_norm = p.data.pow(2).sum().sqrt()
+                w_norm = p.data.to(torch.float32).pow(2).sum().sqrt()
                 g_norm = update.pow(2).sum().sqrt()
                 if w_norm > 0 and g_norm > 0:
                     trust_ratio = w_norm / g_norm
@@ -197,7 +203,7 @@ class TestLamb(unittest.TestCase):
         return max_abs_diff, max_rel_diff
 
     def gen_single_type_test(self, param_type=torch.float, device="cuda"):
-        nelem = 278011
+        nelem = 18011
         tensor = torch.rand(nelem, dtype=param_type, device=device)
         weight_decay = [0, 0.01]
 
@@ -295,8 +301,8 @@ class TestFusedMixedPrecisionLamb(TestLamb):
         self.iters = 4
         self.gen_single_type_test(param_type=torch.bfloat16)
 
-    @unittest.skip("PyTorch optimizer is not numerically correct for fp16")
     def test_half(self):
+        self.iters = 1
         self.gen_single_type_test(param_type=torch.float16)
 
     @unittest.skipIf(torch.cuda.device_count()<2, "more than 1 GPU required")
