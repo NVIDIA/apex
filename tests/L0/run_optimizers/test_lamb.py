@@ -196,7 +196,7 @@ class TestLamb(unittest.TestCase):
 
         return max_abs_diff, max_rel_diff
 
-    def gen_single_type_test(self, param_type=torch.float, device="cuda", iters=None):
+    def gen_single_type_test(self, param_type=torch.float, device="cuda"):
         nelem = 278011
         tensor = torch.rand(nelem, dtype=param_type, device=device)
         weight_decay = [0, 0.01]
