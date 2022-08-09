@@ -236,7 +236,7 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
         self.device = torch.cuda.current_device()
         self.thresh = {"atol": 1e-3, "rtol": 1e-3}
 
-        qlen = [1, 2, 1234]
+        qlen = [1, 2]
         klen = [1, 2, 3, 4, 5, 8, 10, 11, 13, 128, 256, 1200, 1234]
         available_cuda_mem = torch.cuda.memory.mem_get_info(self.device)[0] / (1024 ** 3)
         if available_cuda_mem > 40:
