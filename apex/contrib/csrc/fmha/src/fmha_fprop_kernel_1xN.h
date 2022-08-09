@@ -400,15 +400,17 @@ inline __device__ void device_1xN_(const Params &params, const int bidb, const i
             gmem_q.commit(gemm_q_k.smem_q);
         }
 
-        #pragma unroll
-        for( int ki = 0; ki < Mma_tile_o::MMAS_K; ki++ ) {
+        if( Is_training ) {
             #pragma unroll
-            for( int mi = 0; mi < Mma_tile_o::MMAS_M; mi++ ) {
+            for( int ki = 0; ki < Mma_tile_o::MMAS_K; ki++ ) {
                 #pragma unroll
-                for( int ii = 0; ii < Frag_p::NUM_REGS; ii++ ) {
-                    //"Apply" the dropout.
-                    frag_p[ki][mi].reg(ii) = fmha::hmul2(frag_p[ki][mi].reg(ii), params.scale_dropout);
-                    frag_p[ki][mi].reg(ii) = fmha::hrelu2(frag_p[ki][mi].reg(ii));
+                for( int mi = 0; mi < Mma_tile_o::MMAS_M; mi++ ) {
+                    #pragma unroll
+                    for( int ii = 0; ii < Frag_p::NUM_REGS; ii++ ) {
+                        //"Apply" the dropout.
+                        frag_p[ki][mi].reg(ii) = fmha::hmul2(frag_p[ki][mi].reg(ii), params.scale_dropout);
+                        frag_p[ki][mi].reg(ii) = fmha::hrelu2(frag_p[ki][mi].reg(ii));
+                    }
                 }
             }
         }
