@@ -8,7 +8,7 @@ import torch.optim as optim
 from apex import amp
 
 from utils import common_init, FLOAT
-
+from apex.testing.common_utils import skipFlakyTest
 
 class MyModel(torch.nn.Module):
     def __init__(self):
@@ -161,6 +161,7 @@ class TestCheckpointing(unittest.TestCase):
                             # skip tests for different opt_levels
                             continue
 
+    @skipFlakyTest
     def test_loss_scale_decrease(self):
         num_losses = 3
         nb_decrease_loss_scales = [0, 1, 2]
