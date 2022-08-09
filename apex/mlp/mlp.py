@@ -21,6 +21,7 @@ class MlpFunction(torch.autograd.Function):
         del ctx.outputs
         return (None, None, *grads)
 
+# TODO(crcrpar): Should make this compatible with torch.cuda.amp
 mlp_function = amp.half_function(MlpFunction.apply)
 
 class MLP(torch.nn.Module):
