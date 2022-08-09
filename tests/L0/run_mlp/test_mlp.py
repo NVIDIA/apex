@@ -18,6 +18,7 @@ class TestMLP(unittest.TestCase):
     def test_creation(self):
         MLP(mlp_sizes)
 
+    @skipFlakyTest
     def test_numeric(self):
         mlp = MLP(mlp_sizes).cuda()
 
@@ -52,6 +53,7 @@ class TestMLP(unittest.TestCase):
             ref_mlp[0].bias.grad.detach().cpu().numpy(),
             atol=1e-7, rtol=1e-5)
 
+    @skipFlakyTest
     def test_no_bias(self):
         for use_activation in ['none', 'relu', 'sigmoid']:
             mlp = MLP(mlp_sizes, bias=False, activation=use_activation).cuda()

@@ -180,6 +180,7 @@ class TestMixedFusedRMSNormElemWise(TestFusedRMSNorm):
     elementwise_affine = True
     mixed_fused = True
 
+@skipFlakyTest
 class TestFusedRMSNormElemWiseHalf(TestFusedRMSNormElemWise):
     dtype = torch.half
     bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
