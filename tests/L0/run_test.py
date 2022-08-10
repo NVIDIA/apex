@@ -13,6 +13,26 @@ import os
 import unittest
 import sys
 
+xml_output = None
+test_runner_kwargs = {"verbosity": 2}
+Runner = unittest.TextTestRunner
+try:
+    import xmlrunner
+except ImportError:
+    pass
+else:
+    if os.getenv("CI", "0") == "1":
+        from datetime import date  # NOQA
+        this_dir = os.path.abspath(os.path.dirname(__file__))
+        xml_filename = os.path.join(
+            this_dir,
+            f"""{date.today().strftime("%y%m%d")}.xml""",
+        )
+        print(f"\n\tReport file: {xml_filename}\n")
+        xml_output = open(xml_filename, "w")
+        test_runner_kwargs["output"] = xml_output
+        Runner = xmlrunner.XMLTestRunner
+
 
 TEST_ROOT = os.path.dirname(os.path.abspath(__file__))
 TEST_DIRS = [
@@ -47,8 +67,8 @@ def parse_args():
     return args
 
 
-def main(args):
-    runner = unittest.TextTestRunner(verbosity=2)
+def main(args: argparse.Namespace) -> None:
+    runner = Runner(**test_runner_kwargs)
     errcode = 0
     for test_dir in args.include:
         test_dir = os.path.join(TEST_ROOT, test_dir)
@@ -61,6 +81,9 @@ def main(args):
 
         if not result.wasSuccessful():
             errcode = 1
+
+    if xml_output is not None:
+        xml_output.close()
 
     sys.exit(errcode)
 
