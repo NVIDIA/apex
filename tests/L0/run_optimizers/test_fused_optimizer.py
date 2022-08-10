@@ -105,6 +105,7 @@ class TestFusedAdam(TestFusedOptimizer):
     def test_half(self):
         self.gen_single_type_test(param_type=torch.float16, skip_assert=True)
 
+    @unittest.skip("Skipped the test since a regression introduced from PyTorch upstream: due to https://github.com/pytorch/pytorch/issues/80809#issuecomment-1175211598. Please also refer to https://github.com/ROCmSoftwarePlatform/apex/issues/82")
     def test_bfloat16(self):
         self.gen_single_type_test(param_type=torch.bfloat16, skip_assert=True)
 
