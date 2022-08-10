@@ -223,12 +223,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 f'(dtype={dtype}, '
                 f'grad_sync_dtype={grad_sync_dtype}, '
                 f'param_sync_dtype={param_sync_dtype}))')
-        if device != 'cuda':
-            raise RuntimeError('DistributedFusedAdam only supports GPU')
+        device = torch.device(device)
+        if (device.type != 'cuda'
+            or device.index not in (None, torch.cuda.current_device())):
+            raise RuntimeError(f'DistributedFusedAdam is only supported on current GPU')
         self.dtype = dtype
         self.grad_sync_dtype = grad_sync_dtype
         self.param_sync_dtype = param_sync_dtype
-        self.device = device
+        self.device = torch.device('cuda', torch.cuda.current_device())
 
         # Process groups
         self.process_group = (
@@ -823,7 +825,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         if not parameters or len(parameters) == self._num_grads:
             # Compute norm of all local gradients
-            dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device='cuda')
+            dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device=self.device)
             grad_norm_sq = multi_tensor_applier(
                 amp_C.multi_tensor_l2norm,
                 dummy_overflow_buf,
@@ -840,7 +842,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         shard_start, shard_end = fragment.shard_range
                         grads.append(bucket.grads_shard[shard_start:shard_end])
             if grads:
-                dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device='cuda')
+                dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device=self.device)
                 grad_norm_sq = multi_tensor_applier(
                     amp_C.multi_tensor_l2norm,
                     dummy_overflow_buf,
@@ -1035,14 +1037,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
                     # Copy param group configs to GPU
                     num_fragments = len(group_buffers)
-                    beta1 = torch.full([num_fragments], beta1, dtype=self.dtype, device='cuda')
-                    beta2 = torch.full([num_fragments], beta2, dtype=self.dtype, device='cuda')
-                    bias_correction = torch.full([num_fragments], bias_correction, dtype=torch.int32, device='cuda')
-                    eps = torch.full([num_fragments], eps, dtype=self.dtype, device='cuda')
-                    weight_decay = torch.full([num_fragments], weight_decay, dtype=self.dtype, device='cuda')
+                    beta1 = torch.full([num_fragments], beta1, dtype=self.dtype, device=self.device)
+                    beta2 = torch.full([num_fragments], beta2, dtype=self.dtype, device=self.device)
+                    bias_correction = torch.full([num_fragments], bias_correction, dtype=torch.int32, device=self.device)
+                    eps = torch.full([num_fragments], eps, dtype=self.dtype, device=self.device)
+                    weight_decay = torch.full([num_fragments], weight_decay, dtype=self.dtype, device=self.device)
 
                     # Apply Adam step
-                    dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device='cuda')
+                    dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device=self.device)
                     multi_tensor_applier(
                         distributed_adam_cuda.multi_tensor_fused_adam,
                         dummy_overflow_buf,
@@ -1104,7 +1106,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         torch.uint8,
                     )
                     if is_cuda and dtype in fused_kernel_dtypes:
-                        dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device='cuda')
+                        dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device=self.device)
                         multi_tensor_applier(
                             fused_adam_cuda.maybe_cast_mt,
                             dummy_overflow_buf,
@@ -1157,8 +1159,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Construct workspace buffers
         chunk_size = self.shard_size * torch.finfo(self.grad_sync_dtype).bits // 8
         if self.distributed_rank == 0:
-            gathered_state_bytes = [state_bytes.getvalue()]
-            gathered_state_bytes.extend(bytearray(size) for size in state_sizes[1:])
+            gathered_state_bytes = [
+                torch.empty([size], dtype=torch.uint8, device='cpu')
+                for size in state_sizes
+            ]
+            gathered_state_bytes[0].copy_(
+                torch.frombuffer(state_bytes_view, dtype=torch.uint8)
+            )
             gathered_chunks_buffers = [
                 torch.empty(
                     [chunk_size * self.distributed_size],
@@ -1238,17 +1245,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 # Copy back to CPU
                 if self.distributed_rank == 0:
                     for rank in range(1, self.distributed_size):
-                        if offset < state_sizes[rank]:
-                            rank_chunk_size = min(chunk_size, state_sizes[rank]-offset)
-                            torch.frombuffer(
-                                gathered_state_bytes[rank],
-                                dtype=torch.uint8,
-                                count=rank_chunk_size,
-                                offset=offset,
-                            ).copy_(
-                                gathered_chunks[rank][:rank_chunk_size],
-                                non_blocking=True,
-                            )
+                        rank_chunk_start = offset
+                        rank_chunk_end = min(offset + chunk_size, state_sizes[rank])
+                        rank_chunk_size = rank_chunk_end - rank_chunk_start
+                        if rank_chunk_size > 0:
+                            src = gathered_chunks[rank][:rank_chunk_size]
+                            dst = gathered_state_bytes[rank][rank_chunk_start:rank_chunk_end]
+                            dst.copy_(src, non_blocking=True)
 
         # Synchronize GPU
         for stream in self._pipeline_streams:
@@ -1274,7 +1277,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
             # Get state for current rank and parse byte string
             state_bytes = state_dict['gathered_states'][self.distributed_rank]
-            state_bytes = io.BytesIO(state_bytes)
+            state_bytes = io.BytesIO(state_bytes.numpy())
             state_dict = torch.load(state_bytes)
 
         return super().load_state_dict(state_dict)

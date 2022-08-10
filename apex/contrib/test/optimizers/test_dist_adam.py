@@ -337,7 +337,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             state_bytes = [None]
         torch.distributed.broadcast_object_list(state_bytes, src=0)
         state_bytes = io.BytesIO(state_bytes[0])
-        state_dict = torch.load(state_bytes, map_location='cuda')
+        state_dict = torch.load(state_bytes)
         model_load.load_state_dict(state_dict['model'])
         optim_load.load_state_dict(state_dict['optim'])
 
