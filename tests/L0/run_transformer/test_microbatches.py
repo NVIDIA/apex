@@ -39,36 +39,36 @@ class MicrobatchCalculatorTestBase:
                 continue
             if self.world_size % data_parallel_size != 0:
                 continue
-            with self.subTest(data_parallel_size=data_parallel_size):
-                parallel_state.initialize_model_parallel(
-                    tensor_model_parallel_size_=self.world_size // data_parallel_size,
-                    pipeline_model_parallel_size_=1,
-                )
-                self.assertEqual(data_parallel_size, parallel_state.get_data_parallel_world_size())
+            msg = f"data_parallel_size: {data_parallel_size}"
+            parallel_state.initialize_model_parallel(
+                tensor_model_parallel_size_=self.world_size // data_parallel_size,
+                pipeline_model_parallel_size_=1,
+            )
+            self.assertEqual(data_parallel_size, parallel_state.get_data_parallel_world_size(), msg=msg)
 
-                _reconfigure_microbatch_calculator(
-                    self.rank,
-                    rampup_batch_size,
-                    self.GLOBAL_BATCH_SIZE,
-                    self.MICRO_BATCH_SIZE,
-                    data_parallel_size,
-                )
+            _reconfigure_microbatch_calculator(
+                self.rank,
+                rampup_batch_size,
+                self.GLOBAL_BATCH_SIZE,
+                self.MICRO_BATCH_SIZE,
+                data_parallel_size,
+            )
 
-                self.assertEqual(get_micro_batch_size(), expected_micro_batch_size)
-                self.assertEqual(get_num_microbatches(), expected_global_batch_size / expected_micro_batch_size / data_parallel_size)
-                current_global_batch_size = get_current_global_batch_size()
-                self.assertEqual(current_global_batch_size, expected_global_batch_size)
+            self.assertEqual(get_micro_batch_size(), expected_micro_batch_size, msg=msg)
+            self.assertEqual(get_num_microbatches(), expected_global_batch_size / expected_micro_batch_size / data_parallel_size, msg=msg)
+            current_global_batch_size = get_current_global_batch_size()
+            self.assertEqual(current_global_batch_size, expected_global_batch_size, msg=msg)
 
-                # Make sure `global_batch_size` equals to the final global batch size after
-                # certain number of updates.
-                if rampup_batch_size:
-                    update_num_microbatches(current_global_batch_size)
-                    for i in range(100):
-                        current_global_batch_size = get_current_global_batch_size()
-                        update_num_microbatches(current_global_batch_size)
+            # Make sure `global_batch_size` equals to the final global batch size after
+            # certain number of updates.
+            if rampup_batch_size:
+                update_num_microbatches(current_global_batch_size)
+                for i in range(100):
                     current_global_batch_size = get_current_global_batch_size()
-                    self.assertEqual(get_current_global_batch_size(), self.GLOBAL_BATCH_SIZE)
-                parallel_state.destroy_model_parallel()
+                    update_num_microbatches(current_global_batch_size)
+                current_global_batch_size = get_current_global_batch_size()
+                self.assertEqual(get_current_global_batch_size(), self.GLOBAL_BATCH_SIZE, msg=msg)
+            parallel_state.destroy_model_parallel()
 
     def test_constant_microbatch_calculator(self):
         self._test(rampup_batch_size=None)
