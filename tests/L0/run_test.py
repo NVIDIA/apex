@@ -83,10 +83,6 @@ def main(args: argparse.Namespace) -> None:
         if not result.wasSuccessful():
             errcode = 1
 
-    # if xml_output is not None:
-    #     xml_output.close()
-    #     print(f"\n### Report is available at {xml_filename}")
-
     sys.exit(errcode)
 
 
