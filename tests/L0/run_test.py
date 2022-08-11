@@ -66,7 +66,7 @@ def main(args: argparse.Namespace) -> None:
             this_dir,
             f"""{date.today().strftime("%y%m%d")}.xml""",
         )
-        xml_output = open(xml_filename, "w")
+        xml_output = open(xml_filename, "wb")
         test_runner_kwargs["output"] = xml_output
         Runner = xmlrunner.XMLTestRunner
 
