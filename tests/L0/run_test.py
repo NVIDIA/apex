@@ -2,7 +2,9 @@
 
 How to run this script?
 
-1. Run all the tests: `python /path/to/apex/tests/L0/run_test.py`
+1. Run all the tests: `python /path/to/apex/tests/L0/run_test.py` If you want an xml report,
+    pass `--xml-report`, i.e. `python /path/to/apex/tests/L0/run_test.py --xml-report` and
+    the file is created in `/path/to/apex/tests/L0`.
 2. Run one of the tests (e.g. fused layer norm):
     `python /path/to/apex/tests/L0/run_test.py --include run_fused_layer_norm`
 3. Run two or more of the tests (e.g. optimizers and fused layer norm):
@@ -12,26 +14,6 @@ import argparse
 import os
 import unittest
 import sys
-
-xml_output = None
-test_runner_kwargs = {"verbosity": 2}
-Runner = unittest.TextTestRunner
-try:
-    import xmlrunner
-except ImportError:
-    pass
-else:
-    if os.getenv("CI", "0") == "1":
-        from datetime import date  # NOQA
-        this_dir = os.path.abspath(os.path.dirname(__file__))
-        xml_filename = os.path.join(
-            this_dir,
-            f"""{date.today().strftime("%y%m%d")}.xml""",
-        )
-        print(f"\n\tReport file: {xml_filename}\n")
-        xml_output = open(xml_filename, "w")
-        test_runner_kwargs["output"] = xml_output
-        Runner = xmlrunner.XMLTestRunner
 
 
 TEST_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -63,11 +45,31 @@ def parse_args():
         default=DEFAULT_TEST_DIRS,
         help="select a set of tests to run (defaults to ALL tests).",
     )
+    parser.add_argument(
+        "--xml-report",
+        action="store_true",
+        help="pass this argument to get a junit xml report. (requires `xmlrunner`)",
+    )
     args, _ = parser.parse_known_args()
     return args
 
 
 def main(args: argparse.Namespace) -> None:
+    xml_output, xml_filename = None, None
+    test_runner_kwargs = {"verbosity": 2}
+    Runner = unittest.TextTestRunner
+    if args.xml_report:
+        import xmlrunner
+        from datetime import date  # NOQA
+        this_dir = os.path.abspath(os.path.dirname(__file__))
+        xml_filename = os.path.join(
+            this_dir,
+            f"""{date.today().strftime("%y%m%d")}.xml""",
+        )
+        xml_output = open(xml_filename, "w")
+        test_runner_kwargs["output"] = xml_output
+        Runner = xmlrunner.XMLTestRunner
+
     runner = Runner(**test_runner_kwargs)
     errcode = 0
     for test_dir in args.include:
@@ -84,6 +86,7 @@ def main(args: argparse.Namespace) -> None:
 
     if xml_output is not None:
         xml_output.close()
+        print(f"\n### Report is available at {xml_filename}")
 
     sys.exit(errcode)
 
