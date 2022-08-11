@@ -36,7 +36,7 @@ class TransformerRandomTestBase:
 
             self.assertEqual(rng_state.sub(rng_state_clone).max(), 0, msg=msg)
             self.assertGreater(
-                torch.cuda.get_rng_state().sub(rng_state_clone).max(), 0
+                torch.cuda.get_rng_state().sub(rng_state_clone).max(), 0,
                 msg=msg,
             )
 

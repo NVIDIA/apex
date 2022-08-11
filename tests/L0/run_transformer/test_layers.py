@@ -196,7 +196,7 @@ class TensorParallelLayerTestBase:
                 0,
             )[parallel_state.get_tensor_model_parallel_rank()]
             self.assertEqual(
-                splitted_weight_torch, embedding_vocab_parallel.weight.gra, msg=msgd,
+                splitted_weight_torch, embedding_vocab_parallel.weight.grad, msg=msg,
             )
 
             parallel_state.destroy_model_parallel()
