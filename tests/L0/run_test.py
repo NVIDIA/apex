@@ -55,26 +55,25 @@ def parse_args():
 
 
 def main(args: argparse.Namespace) -> None:
-    xml_output, xml_filename = None, None
     test_runner_kwargs = {"verbosity": 2}
     Runner = unittest.TextTestRunner
     if args.xml_report:
         import xmlrunner
         from datetime import date  # NOQA
-        this_dir = os.path.abspath(os.path.dirname(__file__))
-        xml_filename = os.path.join(
-            this_dir,
-            f"""{date.today().strftime("%y%m%d")}.xml""",
-        )
-        xml_output = open(xml_filename, "wb")
-        test_runner_kwargs["output"] = xml_output
         Runner = xmlrunner.XMLTestRunner
 
-    runner = Runner(**test_runner_kwargs)
     errcode = 0
     for test_dir in args.include:
+        if args.xml_report:
+            this_dir = os.path.abspath(os.path.dirname(__file__))
+            xml_filename = os.path.join(
+                this_dir,
+                f"""TEST_{test_dir}_{date.today().strftime("%y%m%d")}.xml""",
+            )
+            test_runner_kwargs["output"] = xml_filename
+
+        runner = Runner(**test_runner_kwargs)
         test_dir = os.path.join(TEST_ROOT, test_dir)
-        print(test_dir)
         suite = unittest.TestLoader().discover(test_dir)
 
         print("\nExecuting tests from " + test_dir)
@@ -84,9 +83,9 @@ def main(args: argparse.Namespace) -> None:
         if not result.wasSuccessful():
             errcode = 1
 
-    if xml_output is not None:
-        xml_output.close()
-        print(f"\n### Report is available at {xml_filename}")
+    # if xml_output is not None:
+    #     xml_output.close()
+    #     print(f"\n### Report is available at {xml_filename}")
 
     sys.exit(errcode)
 
