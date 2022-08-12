@@ -121,8 +121,8 @@ void multi_tensor_scale_cuda(
   // If build times suffer, think about where to put this dispatch,
   // and what logic should be moved out of multi_tensor_apply.
 
-  DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_scale_cuda",
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[1][0].scalar_type(), 1, "multi_tensor_scale_cuda",
+  DISPATCH_FLOAT_HALF_AND_BFLOAT(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_scale_cuda",
+    DISPATCH_FLOAT_HALF_AND_BFLOAT(tensor_lists[1][0].scalar_type(), 1, "multi_tensor_scale_cuda",
       multi_tensor_apply<2>(
         BLOCK_SIZE,
         chunk_size,
