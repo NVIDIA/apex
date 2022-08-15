@@ -36,9 +36,6 @@ def get_test_command(test_file: str) -> str:
     is_denied = False
     should_skip, launch_option = get_launch_option(test_file)
     if should_skip:
-        print(
-            f"### {i} / {len(files)}: {test_file} skipped. Requires multiple GPUs."
-        )
         return ""
     test_run_cmd = (
         f"{python_executable_path} {launch_option} {test_file} "
