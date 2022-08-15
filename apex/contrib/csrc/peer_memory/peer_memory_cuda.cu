@@ -124,7 +124,20 @@ void tensor_strides(at::Tensor t, bool explicit_nhwc, int& stride_N, int& stride
     }
 }
 
-template<class T, bool is_HWC>
+template<class T> 
+__device__ void __zero(T* dst)
+{
+    *dst = T(0);
+}
+
+__device__ void __zero(int4* dst)
+{
+    int4 v;
+    v.x = v.y = v.z = v.w = 0;
+    *dst = v;
+}
+
+template<class T, bool is_HWC, bool zero>
 __device__ void strided_copy_kernel(
 	T* dst, const int dst_stride_C, const int dst_stride_H, const int dst_stride_W, 
 	const T* src, const int src_stride_C, const int src_stride_H, const int src_stride_W, 
@@ -138,23 +151,28 @@ __device__ void strided_copy_kernel(
     {
 	size_t c,h,w;
 	if (is_HWC) {
-	    c = i % NC;
 	    w = i / NC;
+	    c = i - w * NC;
 	    h = w / NW;
-	    w = w % NW;
+	    w = w - h * NW;
 	}
 	else {
-	    w = i % NW;
 	    h = i / NW;
+	    w = i - h * NW;
 	    c = h / NH;
-            h = h % NH;
+            h = h - c * NH;
 	}
 	size_t dst_off = c*dst_stride_C + h*dst_stride_H + w*dst_stride_W;
-	size_t src_off = c*src_stride_C + h*src_stride_H + w*src_stride_W;
-	dst[dst_off] = src[src_off];
+	if (zero) {
+	    __zero(dst+dst_off);
+	} else {
+	    size_t src_off = c*src_stride_C + h*src_stride_H + w*src_stride_W;
+	    dst[dst_off] = src[src_off];
+	}
     }
 }
 
+template<bool top_zero, bool btm_zero> 
 __device__ void checked_signal(
 	volatile int* signal1_flag, volatile int* signal2_flag,
 	const int v1, const int v2, const int v3, const int v4
@@ -167,57 +185,119 @@ __device__ void checked_signal(
 	__threadfence_system();
 	// wait for top or bottom neighbor to clear signal
 	register int r1, r2, r3, r4;
-	bool top_zeroed=false, btm_zeroed=false, top_done=false, btm_done=false;
-	do {
+	if (!(top_zero || btm_zero)) {
+	    bool top_zeroed=false, top_done=false;
+	    bool btm_zeroed=false, btm_done=false;
 	    do {
-		if (!top_zeroed) {
+		do {
+		    if (!top_zeroed) {
 #ifdef __HIP_PLATFORM_HCC__
-		    r1 = __builtin_nontemporal_load(signal1_flag);
-		    r2 = __builtin_nontemporal_load(signal1_flag + 1);
-		    r3 = __builtin_nontemporal_load(signal1_flag + 2);
-		    r4 = __builtin_nontemporal_load(signal1_flag + 3);
+                        r1 = __builtin_nontemporal_load(signal1_flag);
+                        r2 = __builtin_nontemporal_load(signal1_flag + 1);
+                        r3 = __builtin_nontemporal_load(signal1_flag + 2);
+                        r4 = __builtin_nontemporal_load(signal1_flag + 3);
 #else
-		    asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(signal1_flag) : "memory");
+                        asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(signal1_flag) : "memory");
 #endif
-		    if (r1 != v1 || r2 != v2 || r3 != v3 || r4 != v4) top_zeroed = true;
+			if (r1 != v1 || r2 != v2 || r3 != v3 || r4 != v4) top_zeroed = true;
+		    }
+		    if (!btm_zeroed) {
+#ifdef __HIP_PLATFORM_HCC__
+                        r1 = __builtin_nontemporal_load(signal2_flag);
+			r2 = __builtin_nontemporal_load(signal2_flag + 1);
+			r3 = __builtin_nontemporal_load(signal2_flag + 2);
+			r4 = __builtin_nontemporal_load(signal2_flag + 3);
+#else
+                        asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(signal2_flag) : "memory");
+#endif
+                        if (r1 != v1 || r2 != v2 || r3 != v3 || r4 != v4) btm_zeroed = true;
+		    }
+		} while((top_zeroed == top_done) && (btm_zeroed == btm_done));
+		if (!top_done && top_zeroed) {
+		    // signal to top neighbor my output is ready
+#ifdef __HIP_PLATFORM_HCC__
+		    __builtin_nontemporal_store(v1, signal1_flag);
+		    __builtin_nontemporal_store(v2, signal1_flag + 1);
+		    __builtin_nontemporal_store(v3, signal1_flag + 2);
+		    __builtin_nontemporal_store(v4, signal1_flag + 3);
+#else
+		    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal1_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
+#endif
+		    top_done = true;
 		}
-		if (!btm_zeroed) {
+		if (!btm_done && btm_zeroed) {
+		    // signal to bottom neighbor my output is ready
 #ifdef __HIP_PLATFORM_HCC__
-		    r1 = __builtin_nontemporal_load(signal2_flag);
-		    r2 = __builtin_nontemporal_load(signal2_flag + 1);
-		    r3 = __builtin_nontemporal_load(signal2_flag + 2);
-		    r4 = __builtin_nontemporal_load(signal2_flag + 3);
+		    __builtin_nontemporal_store(v1, signal2_flag);
+		    __builtin_nontemporal_store(v2, signal2_flag + 1);
+		    __builtin_nontemporal_store(v3, signal2_flag + 2);
+		    __builtin_nontemporal_store(v4, signal2_flag + 3);
 #else
-		    asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(signal2_flag) : "memory");
+		    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal2_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
 #endif
-		    if (r1 != v1 || r2 != v2 || r3 != v3 || r4 != v4) btm_zeroed = true;
+		    btm_done = true;
 		}
-	    } while((top_zeroed == top_done) && (btm_zeroed == btm_done));
-	    if (!top_done && top_zeroed) {
-		// signal to top neighbor my output is ready
+	    } while (!top_done || !btm_done);
+	} else if (top_zero) {
+	    bool btm_zeroed=false, btm_done=false;
+	    do {
+		do {
+		    if (!btm_zeroed) {
 #ifdef __HIP_PLATFORM_HCC__
-		__builtin_nontemporal_store(v1, signal1_flag);
-        __builtin_nontemporal_store(v2, signal1_flag + 1);
-		__builtin_nontemporal_store(v3, signal1_flag + 2);
-		__builtin_nontemporal_store(v4, signal1_flag + 3);
+                        r1 = __builtin_nontemporal_load(signal2_flag);
+			r2 = __builtin_nontemporal_load(signal2_flag + 1);
+			r3 = __builtin_nontemporal_load(signal2_flag + 2);
+			r4 = __builtin_nontemporal_load(signal2_flag + 3);
 #else
-		asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal1_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
+                        asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(signal2_flag) : "memory");
 #endif
-		top_done = true;
-	    }
-	    if (!btm_done && btm_zeroed) {
-		// signal to bottom neighbor my output is ready
+                        if (r1 != v1 || r2 != v2 || r3 != v3 || r4 != v4) btm_zeroed = true;
+		    }
+		} while(btm_zeroed == btm_done);
+		if (!btm_done && btm_zeroed) {
+		    // signal to bottom neighbor my output is ready
 #ifdef __HIP_PLATFORM_HCC__
-		__builtin_nontemporal_store(v1, signal2_flag);
-        __builtin_nontemporal_store(v2, signal2_flag + 1);
-		__builtin_nontemporal_store(v3, signal2_flag + 2);
-		__builtin_nontemporal_store(v4, signal2_flag + 3);
+		    __builtin_nontemporal_store(v1, signal2_flag);
+		    __builtin_nontemporal_store(v2, signal2_flag + 1);
+		    __builtin_nontemporal_store(v3, signal2_flag + 2);
+		    __builtin_nontemporal_store(v4, signal2_flag + 3);
 #else
-		asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal2_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
+		    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal2_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
 #endif
-		btm_done = true;
-	    }
-	} while (!top_done || !btm_done);
+		    btm_done = true;
+		}
+	    } while (!btm_done);
+
+	} else if (btm_zero) {
+	    bool top_zeroed=false, top_done=false;
+	    do {
+		do {
+		    if (!top_zeroed) {
+#ifdef __HIP_PLATFORM_HCC__
+                        r1 = __builtin_nontemporal_load(signal1_flag);
+                        r2 = __builtin_nontemporal_load(signal1_flag + 1);
+			r3 = __builtin_nontemporal_load(signal1_flag + 2);
+			r4 = __builtin_nontemporal_load(signal1_flag + 3);
+#else
+                        asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(signal1_flag) : "memory");
+#endif
+                        if (r1 != v1 || r2 != v2 || r3 != v3 || r4 != v4) top_zeroed = true;
+		    }
+		} while(top_zeroed == top_done);
+		if (!top_done && top_zeroed) {
+		    // signal to top neighbor my output is ready
+#ifdef __HIP_PLATFORM_HCC__
+		    __builtin_nontemporal_store(v1, signal1_flag);
+		    __builtin_nontemporal_store(v2, signal1_flag + 1);
+		    __builtin_nontemporal_store(v3, signal1_flag + 2);
+		    __builtin_nontemporal_store(v4, signal1_flag + 3);
+#else
+		    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" :: "l"(signal1_flag), "r"(v1), "r"(v2), "r"(v3), "r"(v4) : "memory");
+#endif
+		    top_done = true;
+		}
+	    } while (!top_done);
+	}
     }
 }
 
@@ -238,7 +318,7 @@ __device__ void wait_for(
 	    r4 = __builtin_nontemporal_load(wait_flag + 3);
 #else
 	    asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];" : "=r"(r1), "=r"(r2), "=r"(r3), "=r"(r4) : "l"(wait_flag) : "memory");
-#endif
+#endif        
 	} while (r1 != v1 || r2 != v2 || r3 != v3 || r4 != v4);
     }
     cg::this_grid().sync();  // all threads wait for main
@@ -265,8 +345,8 @@ __device__ void clear_flag(
     }
 }
 
-template<class T, bool is_HWC>
-#if __CUDA_ARCH__ >= 700
+template<class T, bool is_HWC, bool top_zero, bool btm_zero>
+#if __CUDA_ARCH__ == 700 || __CUDA_ARCH__ == 800 || __CUDA_ARCH__ == 900
 __launch_bounds__(128, 16)
 #endif
 __global__ void push_pull_halos_1d_kernel(
@@ -290,20 +370,34 @@ __global__ void push_pull_halos_1d_kernel(
         )
 {
     // push top output halo to transfer buffer
-    strided_copy_kernel<T,is_HWC>(tox, tox_stride_C, tox_stride_H, tox_stride_W, toh, toh_stride_C, toh_stride_H, toh_stride_W, NC, NH, NW);
+    if (!top_zero) strided_copy_kernel<T,is_HWC,false>(tox, tox_stride_C, tox_stride_H, tox_stride_W, toh, toh_stride_C, toh_stride_H, toh_stride_W, NC, NH, NW);
     // push btm output halo to transfer buffer
-    strided_copy_kernel<T,is_HWC>(box, box_stride_C, box_stride_H, box_stride_W, boh, boh_stride_C, boh_stride_H, boh_stride_W, NC, NH, NW);
+    if (!btm_zero) strided_copy_kernel<T,is_HWC,false>(box, box_stride_C, box_stride_H, box_stride_W, boh, boh_stride_C, boh_stride_H, boh_stride_W, NC, NH, NW);
     // signal to top and btm neigbhbors that output halos are ready to be read
     // the choice of values for v1-v4 is arbitrary and does not matter, as long as all ranks use the same values
-    checked_signal(signal1_flag, signal2_flag, -987751720, 840868300, -225529332, 281513358);
+    if (!(top_zero || btm_zero)) {
+	checked_signal<false,false>(signal1_flag, signal2_flag, -987751720, 840868300, -225529332, 281513358);
+    } else if (top_zero) {
+	checked_signal<true,false>(signal1_flag, signal2_flag, -987751720, 840868300, -225529332, 281513358);
+    } else if (btm_zero) {
+	checked_signal<false,true>(signal1_flag, signal2_flag, -987751720, 840868300, -225529332, 281513358);
+    }
     // pull top halo from transfer buffer in peer memory to input
-    wait_for(wait1_flag, -987751720, 840868300, -225529332, 281513358);
-    strided_copy_kernel<T,is_HWC>(tih, tih_stride_C, tih_stride_H, tih_stride_W, tix, tix_stride_C, tix_stride_H, tix_stride_W, NC, NH, NW);
-    clear_flag(wait1_flag);
+    if (top_zero) {
+	strided_copy_kernel<T,is_HWC,true>(tih, tih_stride_C, tih_stride_H, tih_stride_W, tix, tix_stride_C, tix_stride_H, tix_stride_W, NC, NH, NW);
+    } else {
+    	wait_for(wait1_flag, -987751720, 840868300, -225529332, 281513358);
+	strided_copy_kernel<T,is_HWC,false>(tih, tih_stride_C, tih_stride_H, tih_stride_W, tix, tix_stride_C, tix_stride_H, tix_stride_W, NC, NH, NW);
+	clear_flag(wait1_flag);
+    }
     // pull btm halo from transfer buffer in peer memory to input
-    wait_for(wait2_flag, -987751720, 840868300, -225529332, 281513358);
-    strided_copy_kernel<T,is_HWC>(bih, bih_stride_C, bih_stride_H, bih_stride_W, bix, bix_stride_C, bix_stride_H, bix_stride_W, NC, NH, NW);
-    clear_flag(wait2_flag);
+    if (btm_zero) {
+	strided_copy_kernel<T,is_HWC,true>(bih, bih_stride_C, bih_stride_H, bih_stride_W, bix, bix_stride_C, bix_stride_H, bix_stride_W, NC, NH, NW);
+    } else {
+	wait_for(wait2_flag, -987751720, 840868300, -225529332, 281513358);
+	strided_copy_kernel<T,is_HWC,false>(bih, bih_stride_C, bih_stride_H, bih_stride_W, bix, bix_stride_C, bix_stride_H, bix_stride_W, NC, NH, NW);
+	clear_flag(wait2_flag);
+    }
 }
 
 __global__ void delay_kernel(int delay_nanoseconds, int* counter)
@@ -392,10 +486,12 @@ void push_pull_halos_1d(
 	bool diagnostics,
         bool explicit_nhwc,
         int numSM,                      // number of SMs to use
+	bool top_zero,			// true if top halo should be zeroed
         at::Tensor top_out_halo,        // top output halo in sender device memory
         at::Tensor top_out_tx,          // top output transfer buffer in sender peer pool memory
 	at::Tensor top_inp_tx,		// top input transfer buffer in top neighbor peer pool memory
         at::Tensor top_inp_halo,        // top input halo in receiver device memory
+	bool btm_zero,			// true if btm halo should be zeroed
         at::Tensor btm_out_halo,        // btm output halo in sender device memory
         at::Tensor btm_out_tx,          // btm output transfer buffer in sender peer pool memory
 	at::Tensor btm_inp_tx,		// btm input transfer buffer in btm neighbor peer pool memory
@@ -417,6 +513,7 @@ void push_pull_halos_1d(
     TORCH_CHECK(top_signal.is_cuda());
     TORCH_CHECK(btm_signal.is_cuda());
     TORCH_CHECK(waits.is_cuda());
+    TORCH_CHECK(!(top_zero && btm_zero));
 
     // shapes and strides
     int toh_N, toh_C, toh_H, toh_W;
@@ -541,14 +638,34 @@ void push_pull_halos_1d(
 		    &NC, &NH, &NW,
 		    &top_signal_p, &btm_signal_p, &top_wait_p, &btm_wait_p
 		};
-            	int numBlocksPerSm;
-	        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, push_pull_halos_1d_kernel<int4,true>, numThreads, 0);
-	        dim3 grid(numSM*numBlocksPerSm,1,1);
+		if (top_zero) {
+		    int numBlocksPerSm;
+		    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, push_pull_halos_1d_kernel<int4,true,true,false>, numThreads, 0);
+		    dim3 grid(numSM*numBlocksPerSm,1,1);
 #ifdef __HIP_PLATFORM_HCC__
-            hipLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<int4,true>, grid, block, kernelArgs, 0, current_stream);
+		    hipLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<int4,true,true,false>, grid, block, kernelArgs, 0, current_stream);
 #else
-	        cudaLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<int4,true>, grid, block, kernelArgs, 0, current_stream);
+		    cudaLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<int4,true,true,false>, grid, block, kernelArgs, 0, current_stream);
 #endif
+		} else if (btm_zero) {
+		    int numBlocksPerSm;
+		    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, push_pull_halos_1d_kernel<int4,true,false,true>, numThreads, 0);
+		    dim3 grid(numSM*numBlocksPerSm,1,1);
+#ifdef __HIP_PLATFORM_HCC__
+		    hipLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<int4,true,false,true>, grid, block, kernelArgs, 0, current_stream);
+#else
+		    cudaLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<int4,true,false,true>, grid, block, kernelArgs, 0, current_stream);
+#endif
+		} else {
+		    int numBlocksPerSm;
+		    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, push_pull_halos_1d_kernel<int4,true,false,false>, numThreads, 0);
+		    dim3 grid(numSM*numBlocksPerSm,1,1);
+#ifdef __HIP_PLATFORM_HCC__
+		    hipLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<int4,true,false,false>, grid, block, kernelArgs, 0, current_stream);
+#else
+		    cudaLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<int4,true,false,false>, grid, block, kernelArgs, 0, current_stream);
+#endif
+		}
             } else {
                 // cannot do int4 transfers
 		if (diagnostics) printf("CAN NOT DO INT4\n");
@@ -566,21 +683,57 @@ void push_pull_halos_1d(
 		};
                 int numBlocksPerSm;
                 if (is_nhwc) {
-	            cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, push_pull_halos_1d_kernel<scalar_t,true>, numThreads, 0);
-	            dim3 grid(numSM*numBlocksPerSm,1,1);
+		    if (top_zero) {
+			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, push_pull_halos_1d_kernel<scalar_t,true,true,false>, numThreads, 0);
+			dim3 grid(numSM*numBlocksPerSm,1,1);
 #ifdef __HIP_PLATFORM_HCC__
-	            hipLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,true>, grid, block, kernelArgs, 0, current_stream);
+			hipLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,true,true,false>, grid, block, kernelArgs, 0, current_stream);
 #else
-	            cudaLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,true>, grid, block, kernelArgs, 0, current_stream);
+			cudaLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,true,true,false>, grid, block, kernelArgs, 0, current_stream);
 #endif
+		    } else if (btm_zero) {
+			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, push_pull_halos_1d_kernel<scalar_t,true,false,true>, numThreads, 0);
+			dim3 grid(numSM*numBlocksPerSm,1,1);
+#ifdef __HIP_PLATFORM_HCC__
+			hipLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,true,false,true>, grid, block, kernelArgs, 0, current_stream);
+#else
+			cudaLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,true,false,true>, grid, block, kernelArgs, 0, current_stream);
+#endif
+		    } else {
+			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, push_pull_halos_1d_kernel<scalar_t,true,false,false>, numThreads, 0);
+			dim3 grid(numSM*numBlocksPerSm,1,1);
+#ifdef __HIP_PLATFORM_HCC__
+			hipLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,true,false,false>, grid, block, kernelArgs, 0, current_stream);
+#else
+			cudaLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,true,false,false>, grid, block, kernelArgs, 0, current_stream);
+#endif
+		    }
                 } else {
-	            cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, push_pull_halos_1d_kernel<scalar_t,false>, numThreads, 0);
-	            dim3 grid(numSM*numBlocksPerSm,1,1);
+		    if (top_zero) {
+			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, push_pull_halos_1d_kernel<scalar_t,false,true,false>, numThreads, 0);
+			dim3 grid(numSM*numBlocksPerSm,1,1);
 #ifdef __HIP_PLATFORM_HCC__
-	            hipLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,false>, grid, block, kernelArgs, 0, current_stream);
+			hipLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,false,true,false>, grid, block, kernelArgs, 0, current_stream);
 #else
-	            cudaLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,false>, grid, block, kernelArgs, 0, current_stream);
+			cudaLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,false,true,false>, grid, block, kernelArgs, 0, current_stream);
 #endif
+		    } else if (btm_zero) {
+			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, push_pull_halos_1d_kernel<scalar_t,false,false,true>, numThreads, 0);
+			dim3 grid(numSM*numBlocksPerSm,1,1);
+#ifdef __HIP_PLATFORM_HCC__
+			hipLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,false,false,true>, grid, block, kernelArgs, 0, current_stream);
+#else
+			cudaLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,false,false,true>, grid, block, kernelArgs, 0, current_stream);
+#endif
+		    } else {
+			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, push_pull_halos_1d_kernel<scalar_t,false,false,false>, numThreads, 0);
+			dim3 grid(numSM*numBlocksPerSm,1,1);
+#ifdef __HIP_PLATFORM_HCC__
+			hipLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,false,false,false>, grid, block, kernelArgs, 0, current_stream);
+#else
+			cudaLaunchCooperativeKernel((void*)push_pull_halos_1d_kernel<scalar_t,false,false,false>, grid, block, kernelArgs, 0, current_stream);
+#endif
+		    }
                 }
 	    }
         } );
