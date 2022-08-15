@@ -2,7 +2,9 @@
 
 How to run this script?
 
-1. Run all the tests: `python /path/to/apex/tests/L0/run_test.py`
+1. Run all the tests: `python /path/to/apex/tests/L0/run_test.py` If you want an xml report,
+    pass `--xml-report`, i.e. `python /path/to/apex/tests/L0/run_test.py --xml-report` and
+    the file is created in `/path/to/apex/tests/L0`.
 2. Run one of the tests (e.g. fused layer norm):
     `python /path/to/apex/tests/L0/run_test.py --include run_fused_layer_norm`
 3. Run two or more of the tests (e.g. optimizers and fused layer norm):
@@ -43,16 +45,35 @@ def parse_args():
         default=DEFAULT_TEST_DIRS,
         help="select a set of tests to run (defaults to ALL tests).",
     )
+    parser.add_argument(
+        "--xml-report",
+        action="store_true",
+        help="pass this argument to get a junit xml report. (requires `xmlrunner`)",
+    )
     args, _ = parser.parse_known_args()
     return args
 
 
-def main(args):
-    runner = unittest.TextTestRunner(verbosity=2)
+def main(args: argparse.Namespace) -> None:
+    test_runner_kwargs = {"verbosity": 2}
+    Runner = unittest.TextTestRunner
+    if args.xml_report:
+        import xmlrunner
+        from datetime import date  # NOQA
+        Runner = xmlrunner.XMLTestRunner
+
     errcode = 0
     for test_dir in args.include:
+        if args.xml_report:
+            this_dir = os.path.abspath(os.path.dirname(__file__))
+            xml_output = os.path.join(
+                this_dir,
+                f"""TEST_{test_dir}_{date.today().strftime("%y%m%d")}""",
+            )
+            test_runner_kwargs["output"] = xml_output
+
+        runner = Runner(**test_runner_kwargs)
         test_dir = os.path.join(TEST_ROOT, test_dir)
-        print(test_dir)
         suite = unittest.TestLoader().discover(test_dir)
 
         print("\nExecuting tests from " + test_dir)
