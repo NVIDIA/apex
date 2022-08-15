@@ -17,23 +17,23 @@ class TransformerUtilsTest(NcclDistributedTestBase):
         for tensor_model_paralell_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_paralell_world_size > 0:
                 continue
-            with self.subTest(
-                tensor_model_paralell_world_size=tensor_model_paralell_world_size
-            ):
-                parallel_state.initialize_model_parallel(
-                    tensor_model_parallel_size_=tensor_model_paralell_world_size
-                )
+            parallel_state.initialize_model_parallel(
+                tensor_model_parallel_size_=tensor_model_paralell_world_size
+            )
 
-                device = "cpu"
-                input_tensor = torch.randn((100, 100, 100), device=device)
-                splits = utils.split_tensor_along_last_dim(input_tensor, 10)
-                last_dim_shapes = torch.tensor(
-                    [int(split.size()[-1]) for split in splits]
-                )
+            device = "cpu"
+            input_tensor = torch.randn((100, 100, 100), device=device)
+            splits = utils.split_tensor_along_last_dim(input_tensor, 10)
+            last_dim_shapes = torch.tensor(
+                [int(split.size()[-1]) for split in splits]
+            )
 
-                self.assertTrue(torch.equal(last_dim_shapes, torch.full((10,), 10),))
+            self.assertTrue(
+                torch.equal(last_dim_shapes, torch.full((10,), 10),),
+                msg=f"tensor_model_paralell_world_size: {tensor_model_paralell_world_size}",
+            )
 
-                parallel_state.destroy_model_parallel()
+            parallel_state.destroy_model_parallel()
 
 
 if __name__ == "__main__":

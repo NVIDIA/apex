@@ -1,10 +1,6 @@
-from itertools import product
-
 import torch
 from torch.testing._internal import common_utils
 from torch.utils.data import Dataset
-from torch.utils.data import RandomSampler
-from torch.utils.data import BatchSampler
 from torch.utils.data import DataLoader
 
 from apex.transformer.pipeline_parallel.utils import _split_batch_into_microbatch as split_batch_into_microbatch
@@ -85,23 +81,22 @@ class TestBatchSamplerBehavior(common_utils.TestCase):
         dataset = MyIterableDataset(0, 100)
 
         for num_workers in (1, 2, 4):
-            with self.subTest(f"{num_workers}"):
-                torch.manual_seed(42)
-                loader = DataLoader(dataset, batch_sampler=MegatronPretrainingRandomSampler(100, 0, 4, 0, 1), num_workers=num_workers)
-                samples = []
-                for i, batch in enumerate(loader):
-                    samples.append(batch)
-                    if i == 2 - 1:
-                        break
+            torch.manual_seed(42)
+            loader = DataLoader(dataset, batch_sampler=MegatronPretrainingRandomSampler(100, 0, 4, 0, 1), num_workers=num_workers)
+            samples = []
+            for i, batch in enumerate(loader):
+                samples.append(batch)
+                if i == 2 - 1:
+                    break
 
-                torch.manual_seed(42)
-                loader = DataLoader(dataset, batch_sampler=MegatronPretrainingRandomSampler(100, 0, 2, 0, 1), num_workers=num_workers)
-                samples2 = []
-                for i, batch in enumerate(loader):
-                    samples2.append(batch)
-                    if i == 4 - 1:
-                        break
-                self.assertEqual(torch.cat(samples), torch.cat(samples2))
+            torch.manual_seed(42)
+            loader = DataLoader(dataset, batch_sampler=MegatronPretrainingRandomSampler(100, 0, 2, 0, 1), num_workers=num_workers)
+            samples2 = []
+            for i, batch in enumerate(loader):
+                samples2.append(batch)
+                if i == 4 - 1:
+                    break
+            self.assertEqual(torch.cat(samples), torch.cat(samples2), msg=f"num_workers={num_workers}")
 
     def test_split_batch(self):
 

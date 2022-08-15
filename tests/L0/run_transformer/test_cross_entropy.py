@@ -63,27 +63,30 @@ class VocabParallelCrossEntropyTestBase:
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_parallel_world_size:
                 continue
-            with self.subTest(
-                tensor_model_parallel_world_size=tensor_model_parallel_world_size
-            ):
-                parallel_state.initialize_model_parallel(
-                    tensor_model_parallel_size_=tensor_model_parallel_world_size,
-                )
-                vocab_size = vocab_size_per_partition * tensor_model_parallel_world_size
-                loss_torch, grad_torch = torch_cross_entropy(
-                    batch_size, sequence_length, vocab_size, logits_scale, seed
-                )
-                (
-                    loss_tensor_parallel,
-                    grad_tensor_parallel,
-                ) = tensor_sharded_cross_entropy(
-                    batch_size, sequence_length, vocab_size, logits_scale, seed
-                )
+            parallel_state.initialize_model_parallel(
+                tensor_model_parallel_size_=tensor_model_parallel_world_size,
+            )
+            vocab_size = vocab_size_per_partition * tensor_model_parallel_world_size
+            loss_torch, grad_torch = torch_cross_entropy(
+                batch_size, sequence_length, vocab_size, logits_scale, seed
+            )
+            (
+                loss_tensor_parallel,
+                grad_tensor_parallel,
+            ) = tensor_sharded_cross_entropy(
+                batch_size, sequence_length, vocab_size, logits_scale, seed
+            )
 
-                self.assertEqual(loss_torch, loss_tensor_parallel)
-                self.assertEqual(grad_torch, grad_tensor_parallel)
+            self.assertEqual(
+                loss_torch, loss_tensor_parallel,
+                msg=f"tensor_model_parallel_size: {tensor_model_parallel_world_size}",
+            )
+            self.assertEqual(
+                grad_torch, grad_tensor_parallel,
+                msg=f"tensor_model_parallel_size: {tensor_model_parallel_world_size}",
+            )
 
-                parallel_state.destroy_model_parallel()
+            parallel_state.destroy_model_parallel()
 
 
 class NcclVocabParallelCrossEntropyTest(VocabParallelCrossEntropyTestBase, NcclDistributedTestBase): pass
