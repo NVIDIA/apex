@@ -91,6 +91,9 @@ class TestTransformer(unittest.TestCase):
     def test_standalone_gpt(self):
         self._test_impl("gpt")
 
+    def test_dynamic_batch_size(self):
+        self._test_impl("dynamic_batchsize")
+
 
 if __name__ == "__main__":
     unittest.main()
