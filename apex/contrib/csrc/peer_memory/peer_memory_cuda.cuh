@@ -32,10 +32,12 @@ namespace apex { namespace contrib { namespace peer_memory {
         bool diagnostics,
         bool explicit_nhwc,
         int numSM,                      // number of SMs to use
+	bool top_zero,			// true if top halo should be zeroed
         at::Tensor top_out_halo,        // top output halo in sender device memory
         at::Tensor top_out_tx,          // top output transfer buffer in sender peer pool memory
 	at::Tensor top_inp_tx,		// top input transfer buffer in top neighbor peer pool memory
         at::Tensor top_inp_halo,        // top input halo in receiver device memory
+	bool btm_zero,			// true if btm halo should be zeroed
         at::Tensor btm_out_halo,        // btm output halo in sender device memory
         at::Tensor btm_out_tx,          // btm output transfer buffer in sender peer pool memory
 	at::Tensor btm_inp_tx,		// btm input transfer buffer in btm neighbor peer pool memory
