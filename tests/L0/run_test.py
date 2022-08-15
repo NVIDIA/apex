@@ -66,11 +66,11 @@ def main(args: argparse.Namespace) -> None:
     for test_dir in args.include:
         if args.xml_report:
             this_dir = os.path.abspath(os.path.dirname(__file__))
-            xml_filename = os.path.join(
+            xml_output = os.path.join(
                 this_dir,
-                f"""TEST_{test_dir}_{date.today().strftime("%y%m%d")}.xml""",
+                f"""TEST_{test_dir}_{date.today().strftime("%y%m%d")}""",
             )
-            test_runner_kwargs["output"] = xml_filename
+            test_runner_kwargs["output"] = xml_output
 
         runner = Runner(**test_runner_kwargs)
         test_dir = os.path.join(TEST_ROOT, test_dir)
