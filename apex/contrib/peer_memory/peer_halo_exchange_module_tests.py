@@ -40,8 +40,9 @@ def nccl_halo_ex(peer_rank, peer_group_size, y, half_halo, explicit_nhwc, H_spli
             btm_out_halo = y[:,:,:,W:W+half_halo]
             btm_inp_halo = y[:,:,:,W+half_halo:W+2*half_halo]
 
-    top_out_halo = top_out_halo.clone(memory_format=torch.preserve_format)
-    btm_out_halo = btm_out_halo.clone(memory_format=torch.preserve_format)
+    mf = torch.channels_last if y.is_contiguous(memory_format=torch.channels_last) else torch.contiguous_format
+    top_out_halo = top_out_halo.contiguous()
+    btm_out_halo = btm_out_halo.contiguous()
 
     top_inp_halos = [torch.empty_like(top_out_halo) for _ in range(peer_group_size)]
     torch.distributed.all_gather(top_inp_halos, top_out_halo)
@@ -49,8 +50,14 @@ def nccl_halo_ex(peer_rank, peer_group_size, y, half_halo, explicit_nhwc, H_spli
     torch.distributed.all_gather(btm_inp_halos, btm_out_halo)
     top_rank = (peer_rank + peer_group_size - 1) % peer_group_size
     btm_rank = (peer_rank + 1) % peer_group_size
-    top_inp_halo.copy_(btm_inp_halos[top_rank])
-    btm_inp_halo.copy_(top_inp_halos[btm_rank])
+    if peer_rank == 0:
+        top_inp_halo.zero_()
+    else:
+        top_inp_halo.copy_(btm_inp_halos[top_rank].to(memory_format=mf))
+    if peer_rank == peer_group_size-1:
+        btm_inp_halo.zero_()
+    else:
+        btm_inp_halo.copy_(top_inp_halos[btm_rank].to(memory_format=mf))
 
 
 def single_test(peer_rank, peer_group_size, halo_ex, C, H, W, half_halo, dtype, memory_format, H_split, num_steps, numSM=1):
@@ -141,12 +148,13 @@ def main():
     rank = torch.distributed.get_rank()
     world_size = torch.distributed.get_world_size()
     torch.cuda.set_device(rank)
-    pool = PeerMemoryPool(rank, world_size, world_size, 64*1024, 2*1024*1024)
+    peer_ranks = [i for i in range(world_size)]
+    pool = PeerMemoryPool(64*1024, 2*1024*1024, peer_ranks)
 
     num_steps = 100
 
     half_halo = 1
-    halo_ex = PeerHaloExchanger1d(rank, world_size, pool, half_halo)
+    halo_ex = PeerHaloExchanger1d(peer_ranks, rank, pool, half_halo)
 
     H_split_tests(1,64,336,200, half_halo,rank,world_size,halo_ex,num_steps)
     W_split_tests(1,64,200,336, half_halo,rank,world_size,halo_ex,num_steps)
