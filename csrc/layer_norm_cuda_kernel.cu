@@ -1227,5 +1227,3 @@ void cuda_rms_norm_gradient(
         gamma != NULL ? grad_gamma->DATA_PTR<scalar_t_out>() : NULL);
     )
 }
-
-

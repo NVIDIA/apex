@@ -1266,8 +1266,6 @@ struct Smem_tile_mma_epilogue : public Base {
         }
     }
 
-
-
     template<int M, int N>
     inline __device__ void store(const uint4 (&regs)[M][N]) {
         for( int mi = 0; mi < M; mi++ ) {

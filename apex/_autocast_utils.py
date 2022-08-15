@@ -1,6 +1,12 @@
-from typing import Optional
+from typing import Optional, Sequence
 
 import torch
+
+
+def _get_autocast_dtypes() -> Sequence[torch.dtype]:
+    if torch.cuda.is_bf16_supported():
+        return [torch.half, torch.bfloat16]
+    return [torch.half]
 
 
 def _get_current_dtype(dtype: Optional[torch.dtype] = None) -> torch.dtype:

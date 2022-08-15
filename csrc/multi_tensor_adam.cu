@@ -149,7 +149,7 @@ void multi_tensor_adam_cuda(
   }
 
   // Assume single type across p,g,m1,m2 now
-  DISPATCH_DOUBLE_FLOAT_AND_HALF_AND_BFLOAT16(
+  DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT(
     tensor_lists[0][0].scalar_type(), 0, "adam",
     multi_tensor_apply<4>(
       BLOCK_SIZE,

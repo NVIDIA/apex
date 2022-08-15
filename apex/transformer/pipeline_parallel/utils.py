@@ -21,6 +21,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 from apex.multi_tensor_apply import multi_tensor_applier
 from apex.transformer import parallel_state
+from apex.transformer.enums import ModelType
 from apex.transformer.microbatches import build_num_microbatches_calculator
 from apex.transformer.pipeline_parallel._timers import _Timers
 if multi_tensor_applier.available:
@@ -118,14 +119,24 @@ def _split_batch_into_microbatch(
 
 
 # TODO(mkozuki): Support non-tensor local minibatches?
-def get_kth_microbatch(batch: List[torch.Tensor], k: int) -> List[torch.Tensor]:
+def get_kth_microbatch(batch: Optional[List[torch.Tensor]], k: int) -> List[torch.Tensor]:
     """Create a list of microbatches from a list of local minibatches.
 
     This function creates a list of `k`th microbatches from a list of local minibatches.
     `a local minibatch` consists of `global_batch_size / data_parallel_size` samples.
     """
+    if batch is None:
+        return batch
     micro_batch_size = get_micro_batch_size()
-    return [x[k * micro_batch_size:(k + 1) * micro_batch_size] for x in batch]
+    start = k * micro_batch_size
+    end = start + micro_batch_size
+    microbatch = list()
+    for x in batch:
+        size = x.size(0)
+        assert size > start and size >= end
+        microbatch.append(x[start:end])
+    assert len(microbatch) > 0
+    return microbatch
 
 
 def get_autoresume():
@@ -184,6 +195,19 @@ def unwrap_model(model, module_instances=(DistributedDataParallel,)):
     if not return_list:
         return unwrapped_model[0]
     return unwrapped_model
+
+
+def get_model_type(
+        model: torch.nn.Module,
+) -> ModelType:
+    """Get `model_type` of `model`.
+
+    If ``model`` doesn't have ``model_type`` attribute, return ``ModelType.encoder_or_decoder``.
+
+    Args:
+        model
+    """
+    return getattr(unwrap_model(model), "model_type", ModelType.encoder_or_decoder)
 
 
 def calc_params_l2_norm(model: torch.nn.Module, bf16: bool):

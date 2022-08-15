@@ -216,6 +216,7 @@ class TestFastLayerNorm(unittest.TestCase):
             10240,
             12288,
             12800,
+            14336,
             15360,
             16384,
             18432,

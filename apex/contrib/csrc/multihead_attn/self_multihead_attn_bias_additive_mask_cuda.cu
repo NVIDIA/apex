@@ -19,19 +19,13 @@ namespace multihead_attn {
 namespace self_bias_additive_mask {
 namespace rocblas_gemmex {
 
-std::vector<torch::Tensor> fwd_cuda(
-                               bool                 use_time_mask,
-							   bool                 is_training,
-                               int                  heads,
-                               torch::Tensor const& inputs, 
-                               torch::Tensor const& input_weights,
-                               torch::Tensor const& output_weights,
-                               torch::Tensor const& input_biases,
-                               torch::Tensor const& output_biases,
-                               const half*       pad_mask,
-                               float                dropout_prob
-                                   ) 
-{
+std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
+                                    int heads, torch::Tensor const& inputs, 
+                                    torch::Tensor const& input_weights,
+                                    torch::Tensor const& output_weights,
+                                    torch::Tensor const& input_biases,
+                                    torch::Tensor const& output_biases,
+                                    const half* pad_mask, float dropout_prob) {
   const int   embed_dim      = inputs.size(2);
   const int   sequences      = inputs.size(1);
   const int   q_seq_len      = inputs.size(0);

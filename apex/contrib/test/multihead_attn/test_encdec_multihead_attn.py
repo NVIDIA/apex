@@ -40,7 +40,7 @@ class EncdecMultiheadAttnTest(unittest.TestCase):
                                              impl='fast')
         self.tst_layer.cuda().half()
         self.tst_layer.reset_parameters()
-        
+
         self.tst_inputs_q = torch.randn(self.seq_length, self.sequences, self.hidden_dim, 
                                         dtype=torch.float16, device=torch.device("cuda")).requires_grad_(True)
         self.tst_inputs_k = torch.randn(self.seq_length, self.sequences, self.hidden_dim, 
@@ -49,22 +49,22 @@ class EncdecMultiheadAttnTest(unittest.TestCase):
     def test_encdec_multihead_attn(self) :
         grads         = torch.randn_like(self.tst_inputs_q)
 
-        ref_outputs,_ = self.ref_layer.forward(self.ref_inputs_q, 
-                                               self.ref_inputs_k, 
+        ref_outputs,_ = self.ref_layer.forward(self.ref_inputs_q,
                                                self.ref_inputs_k,
-                                               key_padding_mask=None, 
-                                               need_weights=False, 
+                                               self.ref_inputs_k,
+                                               key_padding_mask=None,
+                                               need_weights=False,
                                                attn_mask=None,
                                                is_training=True)
 
-        tst_outputs,_ = self.tst_layer.forward(self.tst_inputs_q, 
-                                               self.tst_inputs_k, 
+        tst_outputs,_ = self.tst_layer.forward(self.tst_inputs_q,
                                                self.tst_inputs_k,
-                                               key_padding_mask=None, 
-                                               need_weights=False, 
+                                               self.tst_inputs_k,
+                                               key_padding_mask=None,
+                                               need_weights=False,
                                                attn_mask=None,
                                                is_training=True)
-        
+
         self.ref_inputs_q.backward(grads)
         self.tst_inputs_q.backward(grads)
 

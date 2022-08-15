@@ -5,7 +5,7 @@
 #include <torch/extension.h>
 #include <ATen/AccumulateType.h>
 
-#if !defined(NEW_GENERATOR_PATH)
+#ifdef OLD_GENERATOR_PATH
 #include <ATen/CUDAGeneratorImpl.h>
 #else
 #include <ATen/cuda/CUDAGeneratorImpl.h>

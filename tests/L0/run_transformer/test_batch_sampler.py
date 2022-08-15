@@ -1,7 +1,7 @@
 from itertools import product
-import unittest
 
 import torch
+from torch.testing._internal import common_utils
 from torch.utils.data import Dataset
 from torch.utils.data import RandomSampler
 from torch.utils.data import BatchSampler
@@ -80,7 +80,7 @@ class MegatronPretrainingRandomSampler:
 
 # Samples 8 tensors in total.
 # First sample 4 tensors twice, then sample 2 tensors fourth.
-class TestBatchSamplerBehavior(unittest.TestCase):
+class TestBatchSamplerBehavior(common_utils.TestCase):
     def test_batch_sampler_behavior(self):
         dataset = MyIterableDataset(0, 100)
 
@@ -101,7 +101,7 @@ class TestBatchSamplerBehavior(unittest.TestCase):
                     samples2.append(batch)
                     if i == 4 - 1:
                         break
-                torch.testing.assert_allclose(torch.cat(samples), torch.cat(samples2))
+                self.assertEqual(torch.cat(samples), torch.cat(samples2))
 
     def test_split_batch(self):
 
@@ -127,11 +127,6 @@ class TestBatchSamplerBehavior(unittest.TestCase):
         global_batch_size = 16
         loader = DataLoader(dataset, batch_sampler=MegatronPretrainingRandomSampler(100, 0, global_batch_size, 0, 1), num_workers=2)
         batch = next(iter(loader))
-        # samples = None
-        # for i, batch in enumerate(loader):
-        #     # samples = batch
-        #     if i == 0:
-        #         break
 
         for _micro_batch_size in (1, 2, 4, 8):
             microbatches = list(split_batch_into_microbatch(
@@ -139,11 +134,9 @@ class TestBatchSamplerBehavior(unittest.TestCase):
                 _micro_batch_size=_micro_batch_size,
                 _global_batch_size=global_batch_size,
             ))
-            # print(batch)
-            # print(microbatches)
             self.assertEqual(len(microbatches), global_batch_size // _micro_batch_size)
             self.assertEqual(len(microbatches[0][0]), _micro_batch_size)
 
 
 if __name__ == "__main__":
-    unittest.main()
+    common_utils.run_tests()

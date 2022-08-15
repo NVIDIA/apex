@@ -25,14 +25,21 @@
 #
 ###############################################################################
 
-
+import math
 import sys
+import unittest
+
 import torch
 import numpy as np
-import unittest
-import math
 
 import fmhalib as mha
+
+
+def _get_device_properties(device = torch.device("cuda")):
+    # type: (str or torch.device) -> Tuple[int, int]
+    properties = torch.cuda.get_device_properties(device)
+    return properties.major, properties.minor
+
 
 def py_mha(qkv, amask, b, s, h, d):
     qkv = qkv.view(b, s, h, 3, d)
@@ -49,10 +56,11 @@ def py_mha(qkv, amask, b, s, h, d):
 
     return ctx
 
+@unittest.skipIf(not _get_device_properties() == (8, 0), "FMHA only supports sm80")
 class TestFMHA(unittest.TestCase):
 
-    def run_test(self, s, b):
-        print(f'Test s={s} b={b}')
+    def run_test(self, s: int, b: int, zero_tensors: bool):
+        print(f'Test s={s} b={b}, zero_tensors={zero_tensors}')
 
         torch.manual_seed(1234)
         torch.cuda.manual_seed(1234)
@@ -77,9 +85,9 @@ class TestFMHA(unittest.TestCase):
         qkv.requires_grad = True
     
         if b < 4:
-            ctx, S_ = mha.fwd_nl(qkv_vs, cu_seqlens, 0.0, s, True, None)
+            ctx, S_ = mha.fwd(qkv_vs, cu_seqlens, 0.0, s, True, True, zero_tensors, None)
         else:
-            ctx, S_ = mha.fwd(qkv_vs, cu_seqlens, 0.0, s, True, None)
+            ctx, S_ = mha.fwd(qkv_vs, cu_seqlens, 0.0, s, True, False, zero_tensors, None)
         ctx = ctx.view(b,s,h,d)
     
         ctx_ref = py_mha(qkv, amask, b,s,h,d)
@@ -95,27 +103,34 @@ class TestFMHA(unittest.TestCase):
         dw2 = dw.permute(0,2,1,3).clone().detach().contiguous()
     
         if b < 4:
-            dqkv2, _, _ = mha.bwd_nl(dw2, qkv_vs, S_, cu_seqlens, 0.0, s)
+            dqkv2, _, _ = mha.bwd_nl(dw2, qkv_vs, S_, cu_seqlens, 0.0, s, zero_tensors)
         else:
-            dqkv2, _ = mha.bwd(dw2, qkv_vs, S_, cu_seqlens, 0.0, s)
-        
+            dqkv2, _ = mha.bwd(dw2, qkv_vs, S_, cu_seqlens, 0.0, s, zero_tensors)
+
         dqkv2 = dqkv2.permute(0,2,1,3).view(b,s, h,3,d)
-    
+
         self.assertTrue(torch.allclose(qkv.grad.float(), dqkv2.float(), atol=1e-3))
 
     def test_128(self):
-        self.run_test(128, 32)
+        self.run_test(128, 32, False)
+        self.run_test(128, 32, True)
 
     def test_256(self):
-        self.run_test(256, 32)
+        self.run_test(256, 32, False)
+        self.run_test(256, 32, True)
 
     def test_384(self):
-        self.run_test(384, 32)
+        self.run_test(384, 32, False)
+        self.run_test(384, 32, True)
 
     def test_512(self):
-        self.run_test(512, 32)
-        self.run_test(512, 2)
-        self.run_test(512, 3)
+        self.run_test(512, 32, False)
+        self.run_test(512, 32, True)
+        self.run_test(512, 2, False)
+        self.run_test(512, 2, True)
+        self.run_test(512, 3, False)
+        self.run_test(512, 3, True)
+
 
 if __name__ == '__main__':
     unittest.main()

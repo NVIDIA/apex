@@ -72,7 +72,7 @@ void set_params(Fused_multihead_attention_fprop_params &params,
     constexpr float scale_softmax = 1.f;
     constexpr float scale_bmm2 = 1.f;
 
-    set_alpha(params.scale_bmm1, scale_bmm1, acc_type);
+    set_alpha(params.scale_bmm1, scale_bmm1, data_type);
     set_alpha(params.scale_softmax, scale_softmax, acc_type);
     set_alpha(params.scale_bmm2, scale_bmm2, data_type);
 
@@ -83,15 +83,21 @@ void set_params(Fused_multihead_attention_fprop_params &params,
     set_alpha(params.scale_dropout, params.rp_dropout, data_type);
 }
 
-std::vector<at::Tensor>
-mha_fwd(const at::Tensor &qkv,  // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
+std::vector<at::Tensor> 
+mha_fwd(const at::Tensor &qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
         const at::Tensor &cu_seqlens,  // b+1
         const float p_dropout,
         const int max_seq_len,
         const bool is_training,
+        const bool is_nl,
+        const bool zero_tensors,
         c10::optional<at::Generator> gen_) {
+
     auto dprops = at::cuda::getCurrentDeviceProperties();
     TORCH_CHECK(dprops->major == 8 && dprops->minor == 0);
+    auto stream = at::cuda::getCurrentCUDAStream().stream();
+    Launch_params<Fused_multihead_attention_fprop_params> launch_params(dprops, stream, is_training, is_nl);
+
     int seq_len = 512;
     auto launch = &run_fmha_fp16_512_64_sm80;
     if( max_seq_len <= 128 ) {
@@ -109,18 +115,6 @@ mha_fwd(const at::Tensor &qkv,  // total x num_heads x 3 x head_size, total := \
     } else {
         TORCH_CHECK(false);
     }
-
-    constexpr int warps_m = 1;
-    constexpr int warps_n = 4;  // this leads to an upper bound
-    const int mmas_m = seq_len / 16 / warps_m;
-    const int mmas_n = seq_len / 16 / warps_n;
-    
-    const int elts_per_thread = 8 * mmas_m * mmas_n;
-
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
-
-    TORCH_CHECK(qkv.dtype() == torch::kFloat16);
-    TORCH_CHECK(cu_seqlens.dtype() == torch::kInt32);
 
     TORCH_CHECK(qkv.is_cuda())
     TORCH_CHECK(cu_seqlens.is_cuda())
@@ -147,12 +141,16 @@ mha_fwd(const at::Tensor &qkv,  // total x num_heads x 3 x head_size, total := \
 
     auto s = torch::empty({ batch_size, num_heads, seq_len, seq_len }, opts);
 
+    if( zero_tensors ) {
+        ctx.zero_();
+        s.zero_();
+    }
+
     auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
         gen_, at::cuda::detail::getDefaultCUDAGenerator());
 
-    Fused_multihead_attention_fprop_params params;
 
-    set_params(params,
+    set_params(launch_params.params,
                batch_size,
                seq_len,
                num_heads,
@@ -163,21 +161,23 @@ mha_fwd(const at::Tensor &qkv,  // total x num_heads x 3 x head_size, total := \
                s.data_ptr(),
                p_dropout);
 
-    // number of times random will be generated per thread, to offset philox counter in the random
+    launch(launch_params, /*configure=*/ true);
+    // number of times random will be generated per thread, to offset philox counter in thc random
     // state
-    int64_t counter_offset = elts_per_thread;
+    int64_t counter_offset = launch_params.elts_per_thread;
     at::PhiloxCudaState rng_engine_inputs;
 
     if( is_training ) {
         // See Note [Acquire lock when using random generators]
         std::lock_guard<std::mutex> lock(gen->mutex_);
-        params.philox_args = gen->philox_cuda_state(counter_offset);
+        launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
     }
 
-    launch(params, is_training, stream);
+    launch(launch_params, /*configure=*/ false);
 
     return { ctx, s };
 }
+
 
 std::vector<at::Tensor>
 mha_bwd(const at::Tensor &dout,  // total x num_heads, x head_size
@@ -185,7 +185,8 @@ mha_bwd(const at::Tensor &dout,  // total x num_heads, x head_size
         at::Tensor &softmax,     // b x h x s x s softmax and dmask - will be overwritten with dP
         const at::Tensor &cu_seqlens,  // b+1
         const float p_dropout,         // probability to drop
-        const int max_seq_len          // max sequence length to choose the kernel
+        const int max_seq_len,          // max sequence length to choose the kernel
+        const bool zero_tensors
 ) {
     auto dprops = at::cuda::getCurrentDeviceProperties();
     TORCH_CHECK(dprops->major == 8 && dprops->minor == 0);
@@ -235,6 +236,10 @@ mha_bwd(const at::Tensor &dout,  // total x num_heads, x head_size
 
     auto dqkv = torch::empty_like(qkv);
 
+    if( zero_tensors ) {
+        dqkv.zero_();
+    }
+
     Fused_multihead_attention_fprop_params params;
 
     set_params(params,
@@ -259,92 +264,13 @@ mha_bwd(const at::Tensor &dout,  // total x num_heads, x head_size
     return { dqkv, softmax };
 }
 
-std::vector<at::Tensor> mha_fwd_nl(const at::Tensor &qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
-                                const at::Tensor &cu_seqlens,  // b+1
-                                const float p_dropout,
-                                const int max_seq_len,
-                                const bool is_training,
-                                c10::optional<at::Generator> gen_) {
-    int seq_len = 512;
-    auto launch = &run_fmha_fp16_512_64_sm80_nl;
-    TORCH_CHECK(max_seq_len == seq_len);
-
-    constexpr int warps_m = 1;
-    constexpr int warps_n = 4;  // this leads to an upper bound
-    const int mmas_m = seq_len / 16 / warps_m;
-    const int mmas_n = seq_len / 16 / warps_n;
-    // static_assert( mmas_m == 32 );
-    // static_assert( mmas_n == 4 );
-    const int elts_per_thread = 8 * mmas_m * mmas_n;
-
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
-
-    TORCH_CHECK(qkv.is_cuda())
-    TORCH_CHECK(cu_seqlens.is_cuda())
-
-    TORCH_CHECK(qkv.is_contiguous())
-    TORCH_CHECK(cu_seqlens.is_contiguous())
-
-    TORCH_CHECK(cu_seqlens.dim() == 1);
-    TORCH_CHECK(qkv.dim() == 4);
-
-    const auto sizes = qkv.sizes();
-
-    TORCH_CHECK(sizes[THREE_DIM] == 3);
-
-    const int batch_size = cu_seqlens.numel() - 1;
-    const int total = sizes[TOTAL_DIM];
-    const int num_heads = sizes[H_DIM];
-    const int head_size = sizes[D_DIM];
-    TORCH_CHECK(batch_size > 0);
-    TORCH_CHECK(head_size == 64);
-    auto opts = qkv.options();
-
-    auto ctx = torch::empty({ total, num_heads, head_size }, opts);
-
-    auto s = torch::empty({ batch_size, num_heads, seq_len, seq_len }, opts);
-
-    auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(gen_, at::cuda::detail::getDefaultCUDAGenerator());
-
-    Fused_multihead_attention_fprop_params params;
-
-    set_params(params,
-               batch_size,
-               seq_len,
-               num_heads,
-               head_size,
-               qkv.data_ptr(),
-               cu_seqlens.data_ptr(),
-               ctx.data_ptr(),
-               s.data_ptr(),
-               p_dropout);
-
-    // number of times random will be generated per thread, to offset philox counter in the random
-    // state
-    int64_t counter_offset = elts_per_thread;
-    at::PhiloxCudaState rng_engine_inputs;
-
-    if( is_training ) {
-        // See Note [Acquire lock when using random generators]
-        std::lock_guard<std::mutex> lock(gen->mutex_);
-        params.philox_args = gen->philox_cuda_state(counter_offset);
-    }
-    int num_chunks = 3;
-    if(batch_size == 3) {
-        num_chunks = 2;
-    }
-
-    launch(params, is_training, num_chunks, stream);
-
-    return { ctx, s };
-}
-
 std::vector<at::Tensor> mha_bwd_nl(const at::Tensor &dout,        // total x num_heads, x head_size
                                 const at::Tensor &qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
                                 at::Tensor &softmax,           // b x h x s x s softmax and dmask - will be overwritten with dP
                                 const at::Tensor &cu_seqlens,  // b+1
                                 const float p_dropout,         // probability to drop
-                                const int max_seq_len          // max sequence length to choose the kernel
+                                const int max_seq_len,          // max sequence length to choose the kernel
+                                const bool zero_tensors
 ) {
 
     auto stream = at::cuda::getCurrentCUDAStream().stream();
@@ -378,6 +304,10 @@ std::vector<at::Tensor> mha_bwd_nl(const at::Tensor &dout,        // total x num
 
     auto dqkv = torch::empty_like(qkv);
 
+    if( zero_tensors ) {
+        dqkv.zero_();
+    }
+    
     int num_chunks = 2;
     if( batch_size == 1 ) {
         num_chunks = 4;
@@ -427,6 +357,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.doc() = "Fused Multi-head Self-attention for BERT";  
     m.def("fwd", &mha_fwd, "Forward pass");
     m.def("bwd", &mha_bwd, "Backward pass");
-    m.def("fwd_nl", &mha_fwd_nl, "Forward pass (small-batch)");
     m.def("bwd_nl", &mha_bwd_nl, "Backward pass (small-batch)");
 }

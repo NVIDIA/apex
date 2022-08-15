@@ -29,7 +29,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<int S, int D, int STEP, int WARPS_M, int WARPS_N, uint32_t FLAGS = 0x8u>
+template<int S, int D, int STEP, int WARPS_M, int WARPS_N, uint32_t FLAGS = 0x08u>
 struct FMHA_kernel_traits {
 
     // The CTA description for the 1st GEMM.
@@ -38,7 +38,9 @@ struct FMHA_kernel_traits {
     using Cta_tile_o = fmha::Cta_tile_extd<STEP, D, S, WARPS_M, 1, WARPS_N>;
 
     // Do we use one buffer for K and V.
-    enum { SHARE_SMEM_FOR_K_AND_V = (FLAGS & 0x8u) != 0u };
+    enum { SHARE_SMEM_FOR_K_AND_V = (FLAGS & 0x08u) != 0u };
+    // Do we keep K in registers.
+    enum { K_IN_REGS = (FLAGS & 0x10u) == 0u };
 
     // The global memory tile to load Q.
     using Gmem_tile_q = fmha::Gmem_tile_qkv<Cta_tile_p, fmha::BITS_PER_ELEMENT_A, STEP, D>;
