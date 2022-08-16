@@ -100,9 +100,9 @@ class ASP:
         }
         try:
             sparse_parameter_list.update({torchvision.ops.misc.Conv2d: ['weight']})
-        except NameError as e:
+        except (ImportError, AttributeError) as e:
             if cls.__verbosity > 1:
-                print(e)
+                print("[ASP][Warning]", e)
 
         if custom_layer_dict: # Update default list to include user supplied custom (layer type : parameter tensor), make sure this tensor type is something ASP knows how to prune
             sparse_parameter_list.update(custom_layer_dict)
