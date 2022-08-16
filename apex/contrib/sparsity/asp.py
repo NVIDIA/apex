@@ -3,12 +3,11 @@ import torch
 from .sparse_masklib import create_mask
 from .permutation_lib import Permutation
 
-torchvision_imported=True
 try:
     import torchvision
+    print("[ASP] torchvision is imported, can work with the MaskRCNN/KeypointRCNN from torchvision.")
 except ImportError:
     print("[ASP][Warning] torchvision cannot be imported.")
-    torchvision_imported=False
 
 import json
 import os
@@ -39,13 +38,13 @@ class ASP:
     @classmethod
     def init_model_for_pruning(cls, model, mask_calculator="m4n2_1d",
              verbosity=3,
-             whitelist=[torch.nn.Linear, torch.nn.Conv1d, torch.nn.Conv2d, torch.nn.Conv3d], 
+             whitelist=[torch.nn.Linear, torch.nn.Conv1d, torch.nn.Conv2d, torch.nn.Conv3d],
              allowed_layer_names=None, disallowed_layer_names=[],
              allow_recompute_mask=False, custom_layer_dict={},
              allow_permutation=True):
         """Call this method to modify your model to take advantage of sparse matrix multiplication.
         Note that this call alone only augments the model with additional buffers needed for sparse MMA,
-        it does not enable use of sparse MMA. 
+        it does not enable use of sparse MMA.
 
         If you are starting with a fresh model:
 
@@ -76,7 +75,7 @@ class ASP:
                                    Pruned weights are stored in CPU memory, hence this option does not increase GPU memory usage.
           custom_layer_dict        Dictionary of additional layer paremeters to sparsify. e.g. {CustomLinear: ['weight']}
           allow_permutation        If True, allow the input channel permutation to ease the influence of weight pruning.
-          
+
           [Future] Support for allow_recompute_mask can be removed, it is not part of sparse inference recipe.
         """
         assert (cls.__model is None), "ASP has been initialized already."
@@ -91,13 +90,20 @@ class ASP:
         else:
             cls.__calculate_mask = mask_calculator #user defined function
 
-        # function to extract variables that will be sparsified. 
+        # function to extract variables that will be sparsified.
         # idea is that you will add one of these functions for each module type that can be sparsified.
-        if torchvision_imported:
-            print("[ASP] torchvision is imported, can work with the MaskRCNN/KeypointRCNN from torchvision.")
-            sparse_parameter_list = {torch.nn.Linear: ['weight'], torch.nn.Conv1d: ['weight'], torch.nn.Conv2d: ['weight'], torch.nn.Conv3d: ['weight'], torchvision.ops.misc.Conv2d: ['weight']}
-        else:
-            sparse_parameter_list = {torch.nn.Linear: ['weight'], torch.nn.Conv1d: ['weight'], torch.nn.Conv2d: ['weight'], torch.nn.Conv3d: ['weight']}
+        sparse_parameter_list = {
+            torch.nn.Linear: ['weight'],
+            torch.nn.Conv1d: ['weight'],
+            torch.nn.Conv2d: ['weight'],
+            torch.nn.Conv3d: ['weight'],
+        }
+        try:
+            sparse_parameter_list.update({torchvision.ops.misc.Conv2d: ['weight']})
+        except NameError as e:
+            if cls.__verbosity > 1:
+                print(e)
+
         if custom_layer_dict: # Update default list to include user supplied custom (layer type : parameter tensor), make sure this tensor type is something ASP knows how to prune
             sparse_parameter_list.update(custom_layer_dict)
             whitelist += list(custom_layer_dict.keys())
@@ -139,10 +145,10 @@ class ASP:
                     if p.dtype == torch.float16 and ((p.size()[0] % 8) != 0 or (p.size()[1] % 16) != 0): #For Conv2d dim= K x CRS; we prune along C
                         print("[ASP] Auto skipping pruning %s::%s of size=%s and type=%s for sparsity" % (module_name, p_name, str(p.size()), str(p.dtype)))
                         continue
-                    
+
                     if cls.__verbosity >= 3:
                         print("[ASP] Sparsifying %s::%s of size=%s and type=%s for sparsity" % (module_name, p_name, str(p.size()), str(p.dtype)))
-                    
+
                     mask = torch.ones_like(p).bool()
                     buffname = p_name.split(".")[-1] # buffer names cannot contain "."
                     module.register_buffer('__%s_mma_mask' % buffname, mask)
@@ -242,7 +248,7 @@ class ASP:
                 if mask.sum() < mask.numel(): # when recalculating masks
                     # restore dense parameter if allow_recompute_mask is enabled
                     assert (pruned is not None), "Unable to restore dense parameter because allow_recompute_mask == False"
-                    p.add_(pruned.cuda())
+                    p.add_(pruned.to(p.device))
 
                 mask.set_(cls.__calculate_mask(p))
 
@@ -262,7 +268,7 @@ class ASP:
             for module_name, module, p_name, p, mask, pruned in cls.__sparse_parameters:
                 if mask.sum() < mask.numel():
                     assert (pruned is not None), "Unable to restore dense parameter because allow_recompute_mask == False"
-                    p.add_(pruned.cuda())
+                    p.add_(pruned.to(p.device))
                     mask.fill_(1)
                     pruned.zero_()
                     if cls.__verbosity >= 2:
@@ -288,7 +294,7 @@ class ASP:
             return False
         elif total == sp50:
             return True
-    
+
     @classmethod
     def prune_trained_model(cls, model, optimizer):
         # add mask buffers to model (init_model_for_pruning), augment optimizer (init_optimizer_for_pruning) and compute masks (compute_sparse_masks)
