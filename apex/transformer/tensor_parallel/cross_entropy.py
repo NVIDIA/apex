@@ -92,9 +92,8 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
             mean_log_probs = log_probs.mean(dim=-1)
             loss = (1.0 - smoothing) * loss - smoothing * mean_log_probs
 
-        ctx.save_for_backward(
-            exp_logits, target_mask, masked_target_1d, torch.Tensor([label_smoothing]), torch.LongTensor([vocab_size])
-        )
+        ctx.label_smoothing, ctx.vocab_size = label_smoothing, vocab_size
+        ctx.save_for_backward(exp_logits, target_mask, masked_target_1d)
 
         return loss
 
@@ -102,7 +101,8 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
     def backward(ctx, grad_output):
 
         # Retreive tensors from the forward path.
-        softmax, target_mask, masked_target_1d, label_smoothing, vocab_size = ctx.saved_tensors
+        softmax, target_mask, masked_target_1d = ctx.saved_tensors
+        label_smoothing, vocab_size = ctx.label_smoothing, ctx.vocab_size
 
         label_smoothing = label_smoothing.item()
         vocab_size = vocab_size.item()
