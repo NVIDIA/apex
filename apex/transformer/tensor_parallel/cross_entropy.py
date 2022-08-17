@@ -104,9 +104,6 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         softmax, target_mask, masked_target_1d = ctx.saved_tensors
         label_smoothing, vocab_size = ctx.label_smoothing, ctx.vocab_size
 
-        label_smoothing = label_smoothing.item()
-        vocab_size = vocab_size.item()
-
         # All the inputs have softmax as thier gradient.
         grad_input = softmax
         # For simplicity, work with the 2D gradient.
