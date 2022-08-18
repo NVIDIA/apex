@@ -95,7 +95,13 @@ class ASP:
         # idea is that you will add one of these functions for each module type that can be sparsified.
         if torchvision_imported:
             print("[ASP] torchvision is imported, can work with the MaskRCNN/KeypointRCNN from torchvision.")
-            sparse_parameter_list = {torch.nn.Linear: ['weight'], torch.nn.Conv1d: ['weight'], torch.nn.Conv2d: ['weight'], torch.nn.Conv3d: ['weight'], torchvision.ops.misc.Conv2d: ['weight']}
+            torchvision_version = str(torchvision.__version__)
+            torchvision_version_major = int(torchvision_version.split('.')[0])
+            torchvision_version_minor = int(torchvision_version.split('.')[1])
+            if torchvision_version_major == 0 and torchvision_version_minor < 12:
+                sparse_parameter_list = {torch.nn.Linear: ['weight'], torch.nn.Conv1d: ['weight'], torch.nn.Conv2d: ['weight'], torch.nn.Conv3d: ['weight'], torchvision.ops.misc.Conv2d: ['weight']}
+            else:    # Torchvision remove APIs that were deprecated before 0.8 (#5386) in 0.12.0, torchvision.ops.misc.Conv2d is removed
+                sparse_parameter_list = {torch.nn.Linear: ['weight'], torch.nn.Conv1d: ['weight'], torch.nn.Conv2d: ['weight'], torch.nn.Conv3d: ['weight']}
         else:
             sparse_parameter_list = {torch.nn.Linear: ['weight'], torch.nn.Conv1d: ['weight'], torch.nn.Conv2d: ['weight'], torch.nn.Conv3d: ['weight']}
         if custom_layer_dict: # Update default list to include user supplied custom (layer type : parameter tensor), make sure this tensor type is something ASP knows how to prune
