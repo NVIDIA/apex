@@ -92,18 +92,15 @@ class ASP:
 
         # function to extract variables that will be sparsified.
         # idea is that you will add one of these functions for each module type that can be sparsified.
-        sparse_parameter_list = {
-            torch.nn.Linear: ['weight'],
-            torch.nn.Conv1d: ['weight'],
-            torch.nn.Conv2d: ['weight'],
-            torch.nn.Conv3d: ['weight'],
-        }
-        try:
-            sparse_parameter_list.update({torchvision.ops.misc.Conv2d: ['weight']})
-        except (ImportError, AttributeError) as e:
-            if cls.__verbosity > 1:
-                print("[ASP][Warning]", e)
-
+        sparse_parameter_list = {torch.nn.Linear: ['weight'], torch.nn.Conv1d: ['weight'], torch.nn.Conv2d: ['weight'], torch.nn.Conv3d: ['weight']}
+        if torchvision_imported:
+            print("[ASP] torchvision is imported, can work with the MaskRCNN/KeypointRCNN from torchvision.")
+            torchvision_version = str(torchvision.__version__)
+            torchvision_version_major = int(torchvision_version.split('.')[0])
+            torchvision_version_minor = int(torchvision_version.split('.')[1])
+            if torchvision_version_major == 0 and torchvision_version_minor < 12:
+                # Torchvision remove APIs that were deprecated before 0.8 (#5386) in 0.12.0, torchvision.ops.misc.Conv2d is removed
+                sparse_parameter_list.update({torchvision.ops.misc.Conv2d: ['weight']})
         if custom_layer_dict: # Update default list to include user supplied custom (layer type : parameter tensor), make sure this tensor type is something ASP knows how to prune
             sparse_parameter_list.update(custom_layer_dict)
             whitelist += list(custom_layer_dict.keys())
