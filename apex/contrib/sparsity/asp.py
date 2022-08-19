@@ -3,11 +3,12 @@ import torch
 from .sparse_masklib import create_mask
 from .permutation_lib import Permutation
 
+torchvision_imported=True
 try:
     import torchvision
-    print("[ASP] torchvision is imported, can work with the MaskRCNN/KeypointRCNN from torchvision.")
 except ImportError:
     print("[ASP][Warning] torchvision cannot be imported.")
+    torchvision_imported=False
 
 import json
 import os
