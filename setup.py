@@ -536,9 +536,9 @@ if "--fast_bottleneck" in sys.argv:
             )
         )
 
-if "--peer_memory" in sys.argv:
-    sys.argv.remove("--peer_memory")
-    raise_if_cuda_home_none("--peer_memory")
+if "--peer_memory" in sys.argv or "--cuda_ext" in sys.argv:
+    if "--peer_memory" in sys.argv:
+        sys.argv.remove("--peer_memory")
     ext_modules.append(
         CUDAExtension(
             name="peer_memory_cuda",
@@ -550,9 +550,9 @@ if "--peer_memory" in sys.argv:
         )
     )
 
-if "--nccl_p2p" in sys.argv:
-    sys.argv.remove("--nccl_p2p")
-    raise_if_cuda_home_none("--nccl_p2p")
+if "--nccl_p2p" in sys.argv or "--cuda_ext" in sys.argv:
+    if "--nccl_p2p" in sys.argv:
+        sys.argv.remove("--nccl_p2p")
     ext_modules.append(
         CUDAExtension(
             name="nccl_p2p_cuda",
