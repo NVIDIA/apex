@@ -28,6 +28,12 @@ __device__ __forceinline__ void load_store(
   ((LT*)dst)[dst_offset] = ((const LT*)src)[src_offset];
 }
 
+// (1-t)*x + t*y
+__device__ __forceinline__ float lerp(float t, float x, float y) {
+  // See https://developer.nvidia.com/blog/lerp-faster-cuda/
+  return fma(t, y, fma(-t, x, x));
+}
+
 typedef enum{
   ADAM_MODE_0   =0, // L2 regularization mode
   ADAM_MODE_1   =1  // Decoupled weight decay mode(AdamW)
@@ -46,7 +52,7 @@ struct DistAdamFunctor
     T m[ILP],
     T v[ILP],
     const GRAD_T g[ILP],
-    const T grad_scale,
+    const float grad_scale,
     const float beta1,
     const float beta2,
     const float beta1_correction,
@@ -58,25 +64,29 @@ struct DistAdamFunctor
     if (mode == ADAM_MODE_0) { // L2
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
-        T scaled_grad = (g[ii] * grad_scale) + (weight_decay * p[ii]);
-        m[ii] = beta1*m[ii] + (1-beta1)*scaled_grad;
-        v[ii] = beta2*v[ii] + (1-beta2)*scaled_grad*scaled_grad;
-        T next_m_unbiased = m[ii] / beta1_correction;
-        T next_v_unbiased = v[ii] / beta2_correction;
-        T denom = sqrtf(next_v_unbiased) + eps;
-        T update = next_m_unbiased / denom;
+        float scaled_grad = (g[ii] * grad_scale) + (weight_decay * p[ii]);
+        float next_m = lerp(beta1, scaled_grad, m[ii]);
+        float next_v = lerp(beta2, scaled_grad*scaled_grad, v[ii]);
+        float next_m_unbiased = next_m / beta1_correction;
+        float next_v_unbiased = next_v / beta2_correction;
+        float denom = sqrtf(next_v_unbiased) + eps;
+        float update = next_m_unbiased / denom;
+        m[ii] = next_m;
+        v[ii] = next_v;
         p[ii] -= lr * update;
       }
     } else { // weight decay
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
-        T scaled_grad = g[ii] * grad_scale;
-        m[ii] = beta1*m[ii] + (1-beta1)*scaled_grad;
-        v[ii] = beta2*v[ii] + (1-beta2)*scaled_grad*scaled_grad;
-        T next_m_unbiased = m[ii] / beta1_correction;
-        T next_v_unbiased = v[ii] / beta2_correction;
-        T denom = sqrtf(next_v_unbiased) + eps;
-        T update = (next_m_unbiased / denom) + (weight_decay * p[ii]);
+        float scaled_grad = g[ii] * grad_scale;
+        float next_m = lerp(beta1, scaled_grad, m[ii]);
+        float next_v = lerp(beta2, scaled_grad*scaled_grad, v[ii]);
+        float next_m_unbiased = next_m / beta1_correction;
+        float next_v_unbiased = next_v / beta2_correction;
+        float denom = sqrtf(next_v_unbiased) + eps;
+        float update = (next_m_unbiased / denom) + (weight_decay * p[ii]);
+        m[ii] = next_m;
+        v[ii] = next_v;
         p[ii] -= lr * update;
       }
     }
@@ -100,7 +110,7 @@ struct DistAdamFunctor
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
-    const T grad_scale = *grad_scale_ptr;
+    const float grad_scale = *grad_scale_ptr;
 
     T* p_in = (T *)tl.addresses[0][tensor_loc];
     p_in += chunk_idx*chunk_size;

@@ -204,6 +204,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     def test_matches_pytorch_bf16(self):
         self.test_matches_pytorch(
+            rtol=5e-2,
+            atol=1e-5,
             micro_batch_steps=1,
             model_dtype=torch.bfloat16,
             optim_dtype=torch.bfloat16,
@@ -222,6 +224,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     def test_matches_pytorch_bf16_param_remainders(self):
         self.test_matches_pytorch(
+            rtol=5e-2,
+            atol=1e-5,
             micro_batch_steps=1,
             model_dtype=torch.bfloat16,
             optim_dtype=torch.float32,

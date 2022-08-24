@@ -20,10 +20,9 @@ except ImportError:
     import warnings
     warnings.warn(
         'Could not find recommended CUDA kernels when importing '
-        'apex.contrib.optimizers.distributed_fused_adam. '
-        'Apex should be installed with the following options: '
-        '`--cpp_exp`, `--cuda_ext`, '
-        '`--distributed_adam`, `--deprecated_fused_adam`.'
+        '`DistributedFusedAdam`. '
+        'For best performance, Apex should be installed with '
+        '`--deprecated_fused_adam`.'
     )
 
 def _round_to_multiple(number, multiple, round_up=True):
