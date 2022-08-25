@@ -7,36 +7,42 @@ from apex.multi_tensor_apply import multi_tensor_applier
 
 import torch.distributed.distributed_c10d as c10d
 
+_make_nccl_premul_sum = getattr(torch.distributed, "_make_nccl_premul_sum", None)
+# Ref: https://github.com/pytorch/pytorch/pull/81272
+if _make_nccl_premul_sum is None:
+    if hasattr(torch.distributed, "make_nccl_premul_sum"):
+        _make_nccl_premul_sum = torch.distributed.make_nccl_premul_sum
+
 class DistributedFusedLAMB(torch.optim.Optimizer):
 
     """Implements LAMB algorithm.
-    
+
     Currently GPU-only.  Requires Apex to be installed via
     ``pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./``.
-    
+
     This version of fused LAMB implements 2 fusions.
-      
+
       * Fusion of the LAMB update's elementwise operations
       * A multi-tensor apply launch that batches the elementwise updates applied to all the model's parameters into one or a few kernel launches.
-    
+
     :class:`apex.optimizers.FusedLAMB`'s usage is identical to any ordinary Pytorch optimizer::
-        
+
         opt = apex.optimizers.FusedLAMB(model.parameters(), lr = ....)
         ...
         opt.step()
-    
+
     :class:`apex.optimizers.FusedLAMB` may be used with or without Amp.  If you wish to use :class:`FusedLAMB` with Amp,
     you may choose any ``opt_level``::
-        
+
         opt = apex.optimizers.FusedLAMB(model.parameters(), lr = ....)
         model, opt = amp.initialize(model, opt, opt_level="O0" or "O1 or "O2")
         ...
         opt.step()
-    
+
     In general, ``opt_level="O1"`` is recommended.
-    
+
     LAMB was proposed in `Large Batch Optimization for Deep Learning: Training BERT in 76 minutes`_.
-    
+
     Arguments:
         params (iterable): iterable of parameters to optimize or dicts defining
             parameter groups.
@@ -61,7 +67,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             weight decay parameter (default: False)
         step_supports_amp_scaling(boolean, optional): whether to use customized
             gradient unscaling logic (default: True)
-    
+
     .. _Large Batch Optimization for Deep Learning - Training BERT in 76 minutes:
         https://arxiv.org/abs/1904.00962
     .. _On the Convergence of Adam and Beyond:
@@ -82,8 +88,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
     def __init__(self, params,
                  lr=1e-3, bias_correction = True, grad_averaging=True,
-                 betas=(0.9, 0.999), eps=1e-8, 
-                 weight_decay=0., max_grad_norm=0., 
+                 betas=(0.9, 0.999), eps=1e-8,
+                 weight_decay=0., max_grad_norm=0.,
                  adam_w_mode=True, use_nvlamb=False,
                  step_supports_amp_scaling=True, overlap_reductions=True,
                  dwu_group_size=0, dwu_num_blocks=4, dwu_num_chunks=4,
@@ -123,7 +129,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._verbose = verbose
         self._clip_after_ar = clip_after_ar
         self._full_ar = full_ar
-        self._fuse_scale = fuse_scale 
+        self._fuse_scale = fuse_scale
         self._L2_grad_norm = None
         self._set_flat_param_view = set_param_views_to_flat_buffer
         self._skip_ag = skip_allgather
@@ -439,7 +445,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
     def _lazy_init_stage2(self):
         if self._lazy_init_stage2_done: return
-        if not self._set_flat_param_view: 
+        if not self._set_flat_param_view:
             # reversing is needed for overlapping allreduce and backprop, but currently not supported for flat param view
             self._param_order.order.reverse()
 
@@ -576,7 +582,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
     def set_last_step(self, last_step):
         self._last_step = last_step
-        
+
     def _get_flush_block(self):
         flush_block = []
         if self._current_block > 0 and self._grads_generated[self._low_param_i[self._current_block-1]]:
@@ -595,19 +601,19 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
     def _full_all_reduce_scale(self, block_id, scale):
         works = [None]*self._num_chunks
-        if  self._clip_after_ar:    
+        if  self._clip_after_ar:
             for chunk_id in range(self._num_chunks):
                 glob_chunk_id = block_id * self._num_chunks + chunk_id
                 ar_stream = self._ar_st[glob_chunk_id%self._num_ar_pg]
                 ar_stream.wait_stream(torch.cuda.current_stream())
                 with torch.cuda.stream(ar_stream):
-                    works[chunk_id] = torch.distributed.all_reduce(self._flat_grads_chunks[block_id][chunk_id],group=self._ar_pg[glob_chunk_id%self._num_ar_pg],async_op=True,op=torch.distributed.make_nccl_premul_sum((scale,)))
+                    works[chunk_id] = torch.distributed.all_reduce(self._flat_grads_chunks[block_id][chunk_id],group=self._ar_pg[glob_chunk_id%self._num_ar_pg],async_op=True,op=_make_nccl_premul_sum((scale,)))
         else:
             glob_chunk_id = block_id
             ar_stream = self._ar_st[glob_chunk_id%self._num_ar_pg]
             ar_stream.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(ar_stream):
-                    works0 = torch.distributed.all_reduce(self._flat_grads_blocks[block_id],group=self._ar_pg[glob_chunk_id%self._num_ar_pg],async_op=True,op=torch.distributed.make_nccl_premul_sum((scale,)))
+                    works0 = torch.distributed.all_reduce(self._flat_grads_blocks[block_id],group=self._ar_pg[glob_chunk_id%self._num_ar_pg],async_op=True,op=_make_nccl_premul_sum((scale,)))
             for i in range(self._num_chunks):
                 works[i]=works0
         self._reductions_works[block_id] = works
@@ -634,7 +640,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             rs_stream.wait_stream(torch.cuda.current_stream())
             rs_stream.wait_stream(self._l2_grad_norm_st)
             with torch.cuda.stream(rs_stream):
-                works[chunk_id] = torch.distributed.reduce_scatter(self._fp16_g_chunks[block_id][chunk_id],self._flat_grads_shards[block_id][chunk_id],group=self._rs_pg[glob_chunk_id%self._num_rs_pg],async_op=True,no_copy=True,op=torch.distributed.make_nccl_premul_sum((scale,)))
+                works[chunk_id] = torch.distributed.reduce_scatter(self._fp16_g_chunks[block_id][chunk_id],self._flat_grads_shards[block_id][chunk_id],group=self._rs_pg[glob_chunk_id%self._num_rs_pg],async_op=True,no_copy=True,op=_make_nccl_premul_sum((scale,)))
 
         # Reduction across nodes for each rank
         if self._num_groups > 1:
@@ -719,7 +725,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 if self._fuse_scale:
                     self._full_all_reduce_scale(block_id, scale)
                 else:
-                    self._full_all_reduce(block_id) 
+                    self._full_all_reduce(block_id)
             else:
                 if self._fuse_scale:
                     self._reduce_scatter_and_all_reduce_scale(block_id, scale)
@@ -809,7 +815,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     global_grad_norm,
                     self._use_nvlamb)
             if not self._skip_ag:
-                # allgather chunking is currently not supported for clip after allreduce 
+                # allgather chunking is currently not supported for clip after allreduce
                 if not self._clip_after_ar:
                     for block in range(self._num_blocks):
                         for chunk in range(self._num_chunks):
@@ -931,7 +937,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                                 fused_adam_cuda.maybe_cast_mt,
                                 self._overflow_buf,
                                 self._packed_flat_to_model_params_fp32)
-    
+
         torch.cuda.current_stream().wait_stream(self._completion_st)
 
         self._reductions_works = [None]*self._num_blocks
