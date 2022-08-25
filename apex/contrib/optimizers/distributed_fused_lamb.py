@@ -10,10 +10,7 @@ import torch.distributed.distributed_c10d as c10d
 _make_nccl_premul_sum = getattr(torch.distributed, "_make_nccl_premul_sum", None)
 # Ref: https://github.com/pytorch/pytorch/pull/81272
 if _make_nccl_premul_sum is None:
-    if not hasattr(torch.distributed, "make_nccl_premul_sum"):
-        raise RuntimeError("make_nccl_premul_sum nor _make_nccl_premul_sum found")
-    else:
-        # note: assuming NGC PyTorch containers
+    if hasattr(torch.distributed, "make_nccl_premul_sum"):
         _make_nccl_premul_sum = torch.distributed.make_nccl_premul_sum
 
 class DistributedFusedLAMB(torch.optim.Optimizer):
