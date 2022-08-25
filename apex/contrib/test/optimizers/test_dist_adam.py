@@ -8,32 +8,34 @@ from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 
 class SimpleModel(torch.nn.Module):
-
     def __init__(self, num_layers, size):
         super().__init__()
-        self.layers = torch.nn.ModuleList([
-            torch.nn.Linear(size, size, bias=(i%3==0))
-            for i in range(num_layers)
+        self.params = torch.nn.ParameterList([
+            torch.nn.Parameter(torch.rand(1, size) + 1)
+            for _ in range(num_layers)
         ])
-
     def forward(self, x):
         y = 0
-        for i, l in enumerate(self.layers):
-            y += (i+1) * l(x)
+        for i, param in enumerate(self.params):
+            y += (i+1) * param * x
         return y
 
 def make_models(
         num_layers,
         size,
-        dtype=torch.float32,
+        adam_w_mode=True,
+        model_dtype=torch.float32,
+        optim_dtype=None,
         param_sync_dtype=None,
         device='cuda',
         overlap_communication=True,
+        store_params=False,
+        store_param_remainders=False,
 ):
 
     # Construct models with same parameters
-    ref_model = SimpleModel(num_layers, size).to(dtype=dtype, device=device)
-    dist_model = SimpleModel(num_layers, size).to(dtype=dtype, device=device)
+    ref_model = SimpleModel(num_layers, size).to(dtype=model_dtype, device=device)
+    dist_model = SimpleModel(num_layers, size).to(dtype=model_dtype, device=device)
     with torch.no_grad():
         for ref_param, dist_param in zip(dist_model.parameters(),
                                          ref_model.parameters()):
@@ -48,8 +50,11 @@ def make_models(
     )
 
     # Construct optimizers with same hyperparameters
+    if optim_dtype is None:
+        optim_dtype = model_dtype
     optim_args = dict(lr=0.1, betas=(0.1,0.2), eps=0.25, weight_decay=0.1)
-    ref_optim = torch.optim.AdamW(
+    ref_optim_class = torch.optim.AdamW if adam_w_mode else torch.optim.Adam
+    ref_optim = ref_optim_class(
         [
             {'params': list(ref_model.parameters())[1::2], 'lr': 0.2},
             {'params': list(ref_model.parameters())[0::2]},
@@ -61,10 +66,13 @@ def make_models(
             {'params': list(dist_model.parameters())[1::2], 'lr': 0.2},
             {'params': list(dist_model.parameters())[0::2]},
         ],
+        adam_w_mode=adam_w_mode,
         overlap_grad_sync=overlap_communication,
         bucket_cap_mb=71/(4*1024*1024),
-        dtype=torch.float32,
+        dtype=optim_dtype,
         param_sync_dtype=param_sync_dtype,
+        store_params=store_params,
+        store_param_remainders=store_param_remainders,
         **optim_args,
     )
 
@@ -83,18 +91,22 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     def test_matches_pytorch(
             self,
+            rtol=None,
+            atol=None,
             num_layers=11,
             layer_size=7,
             batch_size=3,
             num_steps=3,
             micro_batch_steps=3,
+            adam_w_mode=True,
             overlap_communication=True,
             use_nosync=True,
-            dtype=torch.float32,
+            model_dtype=torch.float32,
+            optim_dtype=None,
             param_sync_dtype=None,
             device='cuda',
-            rtol=None,
-            atol=None,
+            store_params=False,
+            store_param_remainders=False,
     ):
 
         torch.manual_seed(self.seed + self.rank)
@@ -103,10 +115,14 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         ref_model, ref_optim, dist_model, dist_optim = make_models(
             num_layers,
             layer_size,
-            dtype=dtype,
+            adam_w_mode=adam_w_mode,
+            model_dtype=model_dtype,
+            optim_dtype=optim_dtype,
             param_sync_dtype=param_sync_dtype,
             device=device,
             overlap_communication=overlap_communication,
+            store_params=store_params,
+            store_param_remainders=store_param_remainders,
         )
 
         # Training loop
@@ -122,8 +138,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 # Synthetic data
                 x = torch.rand(batch_size, layer_size) - 0.5
                 dy = torch.rand_like(x) - 0.5
-                x = x.to(dtype=dtype, device=device)
-                dy = dy.to(dtype=dtype, device=device)
+                x = x.to(dtype=model_dtype, device=device)
+                dy = dy.to(dtype=model_dtype, device=device)
 
                 # Reference implementation
                 x_ref = x.detach().clone().requires_grad_(True)
@@ -155,6 +171,11 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 torch.testing.assert_close(
                     dist_param, ref_param, rtol=rtol, atol=atol)
 
+    def test_matches_pytorch_l2_reg(self):
+        self.test_matches_pytorch(
+            adam_w_mode=False,
+        )
+
     def test_matches_pytorch_no_overlap(self):
         self.test_matches_pytorch(
             overlap_communication=False,
@@ -166,24 +187,51 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     def test_matches_pytorch_fp64(self):
         self.test_matches_pytorch(
-            dtype=torch.float64,
             rtol=1.3e-6,
             atol=1e-5,
+            model_dtype=torch.float64,
+            optim_dtype=torch.float32,
         )
 
     def test_matches_pytorch_fp16(self):
         self.test_matches_pytorch(
-            dtype=torch.float16,
-            rtol=1e-2,
-            atol=1e-2,
+            rtol=5e-3,
+            atol=1e-5,
+            micro_batch_steps=1,
+            model_dtype=torch.float16,
+            optim_dtype=torch.float16,
         )
 
-    def test_matches_pytorch_allgather_fp16(self):
+    def test_matches_pytorch_bf16(self):
         self.test_matches_pytorch(
-            dtype=torch.float32,
+            rtol=5e-2,
+            atol=1e-5,
+            micro_batch_steps=1,
+            model_dtype=torch.bfloat16,
+            optim_dtype=torch.bfloat16,
+        )
+
+    def test_matches_pytorch_fp16_params(self):
+        self.test_matches_pytorch(
+            rtol=5e-3,
+            atol=1e-5,
+            micro_batch_steps=1,
+            model_dtype=torch.float16,
+            optim_dtype=torch.float32,
             param_sync_dtype=torch.float16,
-            rtol=1e-2,
-            atol=1e-2,
+            store_params=True,
+        )
+
+    def test_matches_pytorch_bf16_param_remainders(self):
+        self.test_matches_pytorch(
+            rtol=5e-2,
+            atol=1e-5,
+            micro_batch_steps=1,
+            model_dtype=torch.bfloat16,
+            optim_dtype=torch.float32,
+            param_sync_dtype=torch.bfloat16,
+            store_params=False,
+            store_param_remainders=True,
         )
 
     def test_raises_on_mismatch(self):
@@ -200,9 +248,9 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
         # Only perform training step with distributed model
         dist_optim.zero_grad()
-        x = torch.rand(3, layer_size) + 0.5
+        x = torch.rand(3, layer_size) - 0.5
         x = x.to(dtype=torch.float32, device='cuda')
-        dy = torch.rand_like(x) + 0.5
+        dy = torch.rand_like(x) - 0.5
         y = dist_model(x)
         y.backward(dy)
         dist_optim.step()
@@ -227,8 +275,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         xs = [3, 1, 4, 1, 5, 9]
         dys = [1, -1, 1, -1, 1, -1]
         for x, dy in zip(xs, dys):
-            x = torch.tensor([x], dtype=torch.float32, device='cuda')
-            dy = torch.tensor([dy], dtype=torch.float32, device='cuda')
+            x = torch.tensor([[x]], dtype=torch.float32, device='cuda')
+            dy = torch.tensor([[dy]], dtype=torch.float32, device='cuda')
 
             # Reference implementation
             ref_optim.zero_grad()
@@ -269,8 +317,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         xs = [3, 1, 4, 1, 5, 9]
         dys = [1, float('inf'), 1, 1, float('nan'), -1]
         for x, dy in zip(xs, dys):
-            x = torch.tensor([x], dtype=torch.float32, device='cuda')
-            dy = torch.tensor([dy], dtype=torch.float32, device='cuda')
+            x = torch.tensor([[x]], dtype=torch.float32, device='cuda')
+            dy = torch.tensor([[dy]], dtype=torch.float32, device='cuda')
 
             # Reference implementation
             ref_optim.zero_grad()
