@@ -272,8 +272,7 @@ class Permutation:
         unique_siblings_groups_module_type = fx_graph.get('unique_siblings').get('module_type')
         unique_siblings_groups_permutation_sequence = []
         item_index = 0
-        print(fx_graph)
-        print(unique_siblings_groups)
+        
         for unique_siblings_group in unique_siblings_groups:    # loop through all unique siblings groups that must share a permutation sequence
             print("\n[search_for_good_permutation] this unique_siblings_group has {:} real siblings: \'{:}\', with module type: \'{:}\'.".format(len(unique_siblings_group), unique_siblings_group, unique_siblings_groups_module_type[item_index]))
             item_index = item_index + 1
