@@ -40,17 +40,14 @@ class TestRnnCells(unittest.TestCase):
             for i, x in enumerate(xs):
                 self.assertEqual(x.grad.dtype, x.dtype)
     
-    @unittest.skip("The failing unit test is introduced by a PyTorch commit sometime in between rocm/pytorch:rocm4.3.1_ubuntu18.04_py3.6_pytorch_1.9.0 and 2021/12/01. Same error is also observed on CUDA. Please refer to https://github.com/ROCmSoftwarePlatform/apex/issues/62")
     def test_rnn_cell_is_half(self):
         cell = nn.RNNCell(self.h, self.h)
         self.run_cell_test(cell)
 
-    @unittest.skip("The failing unit test is introduced by a PyTorch commit sometime in between rocm/pytorch:rocm4.3.1_ubuntu18.04_py3.6_pytorch_1.9.0 and 2021/12/01. Same error is also observed on CUDA. Please refer to https://github.com/ROCmSoftwarePlatform/apex/issues/62")
     def test_gru_cell_is_half(self):
         cell = nn.GRUCell(self.h, self.h)
         self.run_cell_test(cell)
 
-    @unittest.skip("The failing unit test is introduced by a PyTorch commit sometime in between rocm/pytorch:rocm4.3.1_ubuntu18.04_py3.6_pytorch_1.9.0 and 2021/12/01. Same error is also observed on CUDA. Please refer to https://github.com/ROCmSoftwarePlatform/apex/issues/62")
     def test_lstm_cell_is_half(self):
         cell = nn.LSTMCell(self.h, self.h)
         self.run_cell_test(cell, state_tuple=True)
