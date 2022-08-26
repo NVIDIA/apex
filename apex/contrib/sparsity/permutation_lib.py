@@ -272,6 +272,8 @@ class Permutation:
         unique_siblings_groups_module_type = fx_graph.get('unique_siblings').get('module_type')
         unique_siblings_groups_permutation_sequence = []
         item_index = 0
+        print(fx_graph)
+        print(unique_siblings_groups)
         for unique_siblings_group in unique_siblings_groups:    # loop through all unique siblings groups that must share a permutation sequence
             print("\n[search_for_good_permutation] this unique_siblings_group has {:} real siblings: \'{:}\', with module type: \'{:}\'.".format(len(unique_siblings_group), unique_siblings_group, unique_siblings_groups_module_type[item_index]))
             item_index = item_index + 1
@@ -300,13 +302,13 @@ class Permutation:
                         # 1d-tensor
                         if len(shape) == 1:
                             node_weight = node_weight.view(1, shape[0])
-                        # 2d-tensor (in, out)
+                        # 2d-tensor (K, C)
                         elif len(shape) == 2:
                             node_weight = node_weight.view(shape[0], shape[1])
-                        # 3d-tensor (batch, in, out)
+                        # 3d-tensor (K, C, R)
                         elif len(shape) == 3:
-                            node_weight = node_weight.view(shape[0]*shape[1], shape[2])
-                        # 4d-tensor (in, out, h, w)
+                            node_weight = node_weight.permute(0, 2, 1).contiguous().view(shape[0]*shape[2], shape[1])
+                        # 4d-tensor (K, C, R, S)
                         elif len(shape) == 4:
                             # convs
                             node_weight = node_weight.permute(2,3,0,1).contiguous().view(shape[2]*shape[3]*shape[0], shape[1])
@@ -389,7 +391,8 @@ class Permutation:
             start_time_accelerated_search_for_good_permutation = time.perf_counter()
             permutation_sequence = accelerated_search_for_good_permutation(matrix_group, options=search_options)
             duration_accelerated_search_for_good_permutation = time.perf_counter() - start_time_accelerated_search_for_good_permutation
-            print("[search_for_good_permutation] Take {:.4f} seconds to finish accelerated_search_for_good_permutation function.".format(duration_accelerated_search_for_good_permutation))
+            permuted_magnitude = sum_after_2_to_4(matrix_group.cpu().detach().numpy()[:,permutation_sequence])
+            print("[search_for_good_permutation] Take {:.4f} seconds to finish accelerated_search_for_good_permutation function with final magnitude {:}.".format(duration_accelerated_search_for_good_permutation, permuted_magnitude))
             unique_siblings_groups_permutation_sequence.append(permutation_sequence)
         fx_graph['unique_siblings']['permutation_sequence'] = unique_siblings_groups_permutation_sequence
 
@@ -412,7 +415,7 @@ class Permutation:
             distributed_node_name = 'module.' + node_name
             processed_distributed_node_name = 'module.' + processed_node_name
             node_module_type = fx_graph.get(node_name).get('module_type')
-            if node_module_type in ['torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
+            if node_module_type in ['torch.nn.modules.conv.Conv1d', 'torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
                 node_parents = fx_graph.get(node_name).get('parents')
                 node_children = fx_graph.get(node_name).get('children')
                 node_real_parents = fx_graph.get(node_name).get('real_parents')
@@ -530,7 +533,7 @@ class Permutation:
         for node_name in fx_graph.keys():
             node_real_children = fx_graph.get(node_name).get('real_children')
             node_module_type = fx_graph.get(node_name).get('module_type')
-            if (node_real_children is not None) and (node_module_type in ['torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear', 'torch.nn.modules.batchnorm.BatchNorm2d']):
+            if (node_real_children is not None) and (node_module_type in ['torch.nn.modules.conv.Conv1d', 'torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear', 'torch.nn.modules.batchnorm.BatchNorm2d']):
                 is_node_real_children_has_node_change_permutation = False
                 for real_child_item in node_real_children:
                     if real_child_item in node_change_permutation_due_to_siblings:
@@ -565,7 +568,7 @@ class Permutation:
             if node_real_siblings == []:
                 print("[extract_all_unique_siblings] node_name: \'{:}\', node module type: \'{:}\', has no real siblings.".format(node_name, node_module_type))
                 # for the Conv/FC layers without real_siblings, then we should insert itself as an unique_siblings
-                if node_module_type in ['torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
+                if node_module_type in ['torch.nn.modules.conv.Conv1d', 'torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
                     # direct insert will change the real_siblings info for the node in the fx_graph
                     node_real_siblings_with_node_itself = node_real_siblings.copy()
                     node_real_siblings_with_node_itself.insert(0, node_name)
@@ -611,7 +614,7 @@ class Permutation:
             node_real_siblings_module_type = []
             node_real_parents = fx_graph.get(node_name).get('real_parents')
             node_module_type = fx_graph.get(node_name).get('module_type')
-            if node_module_type not in ['torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
+            if node_module_type not in ['torch.nn.modules.conv.Conv1d', 'torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
                 print("[find_real_siblings] node_name: \'{:}\', node module type: \'{:}\', has no real siblings.".format(node_name, node_module_type))
             else:
                 print("[find_real_siblings] node_name: \'{:}\', node module type: \'{:}\', may have real siblings.".format(node_name, node_module_type))
@@ -662,7 +665,7 @@ class Permutation:
                 for child_name in node_children:
                     if child_name != 'output':    # 'output' node has no 'module_type'
                         child_module_type = fx_graph.get(child_name).get('module_type')
-                        if child_module_type in ['torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
+                        if child_module_type in ['torch.nn.modules.conv.Conv1d', 'torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
                             print("[recursive_find_real_children] node_name: \'{:}\', has one real child: \'{:}\', its real child module type: \'{:}\'.".format(node_name, child_name, child_module_type))
                             node_real_children_name.append(child_name)
                             node_real_children_module_type.append(child_module_type)
@@ -703,7 +706,7 @@ class Permutation:
             node_real_children_module_type = []
             node_children = fx_graph.get(node_name).get('children')
             node_module_type = fx_graph.get(node_name).get('module_type')
-            if node_module_type not in ['torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
+            if node_module_type not in ['torch.nn.modules.conv.Conv1d', 'torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
                 print("\n[find_real_children] node_name: \'{:}\', node module type: \'{:}\', children num: {:}, recursive to find real children.".format(node_name, node_module_type, len(node_children)))
                 node_real_children_name, node_real_children_module_type = cls.recursive_find_real_children(node_name, fx_graph)
             else:    # Quick method, but cannot get the real children for no-need-permutataion layers like BN
@@ -712,7 +715,7 @@ class Permutation:
                 for other_node_name in fx_graph.keys():
                     if (other_node_name != node_name) and (node_name in fx_graph.get(other_node_name).get('real_parents')):
                         child_module_type = fx_graph.get(other_node_name).get('module_type')
-                        if child_module_type in ['torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
+                        if child_module_type in ['torch.nn.modules.conv.Conv1d', 'torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
                             print("[find_real_children] node_name: \'{:}\', has one real child: \'{:}\', its real child module type: \'{:}\'.".format(node_name, other_node_name, child_module_type))
                             node_real_children_name.append(other_node_name)
                             node_real_children_module_type.append(child_module_type)
@@ -757,7 +760,7 @@ class Permutation:
                 for parent_name in node_parents:
                     if fx_graph.__contains__(parent_name):
                         parent_module_type = fx_graph.get(parent_name).get('module_type')
-                        if parent_module_type in ['torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
+                        if parent_module_type in ['torch.nn.modules.conv.Conv1d', 'torch.nn.modules.conv.Conv2d', 'torch.nn.modules.linear.Linear']:
                             print("[find_real_parents] node_name: \'{:}\', has one real parent: \'{:}\', its real parent module type: \'{:}\'.".format(node_name, parent_name, parent_module_type))
                             node_real_parents_name.append(parent_name)
                             node_real_parents_module_type.append(parent_module_type)
