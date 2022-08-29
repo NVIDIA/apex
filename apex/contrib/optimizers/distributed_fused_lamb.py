@@ -713,7 +713,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             # Apply clipping & pre-reduction scaling on grads
             loss_scale = self.global_scale
             max_grad_norm = loss_scale*self.defaults['max_grad_norm']
-            coeff = max_grad_norm /((loss_scale*self._contrib_epsilon)+self.L2_grad_norm)
+            coeff = max_grad_norm /((loss_scale * 1e-6) + self.L2_grad_norm)
             coeff = (coeff>1) * self._one + (coeff<=1) * coeff
             tmp = torch.cat(((self._one), (coeff)))
             index = (coeff+1>coeff).int()
