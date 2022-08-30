@@ -90,6 +90,7 @@ def recv_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     input_tensors = []
     for tensor_shape in tensor_shapes:
@@ -102,6 +103,7 @@ def recv_forward(
                     dtype=dtype,
                     async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
+                    sync_batch_comm=sync_batch_comm,
                 )
             )
     return input_tensors
@@ -113,6 +115,7 @@ def recv_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     output_tensor_grads = []
     for tensor_shape in tensor_shapes:
@@ -125,6 +128,7 @@ def recv_backward(
                     dtype=dtype,
                     async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
+                    sync_batch_comm=sync_batch_comm,
                 )
             )
     return output_tensor_grads
@@ -137,6 +141,7 @@ def send_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> None:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
@@ -149,6 +154,7 @@ def send_forward(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
 
 
@@ -159,6 +165,7 @@ def send_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> None:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
@@ -171,6 +178,7 @@ def send_backward(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
 
 
@@ -181,6 +189,7 @@ def send_forward_recv_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
@@ -195,6 +204,7 @@ def send_forward_recv_backward(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
         output_tensor_grads.append(output_tensor_grad)
     return output_tensor_grads
@@ -207,6 +217,7 @@ def send_backward_recv_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
@@ -221,6 +232,7 @@ def send_backward_recv_forward(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
         input_tensors.append(input_tensor)
     return input_tensors
@@ -241,6 +253,7 @@ def forward_backward_pipelining_without_interleaving(
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
     custom_sync_context_handler = None,
+    sync_batch_comm: bool = True,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
@@ -279,6 +292,7 @@ def forward_backward_pipelining_without_interleaving(
             gradients must be manually synchronized by the caller (in
             practice the runtime is covered up by the bubble
             overhead).
+        sync_batch_comm: If :obj:`False`, disable cuda synchronization after the batched communication.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
@@ -354,6 +368,7 @@ def forward_backward_pipelining_without_interleaving(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
         cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i)
         output_tensor = forward_step(
@@ -372,6 +387,7 @@ def forward_backward_pipelining_without_interleaving(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
 
         if not forward_only:
@@ -384,7 +400,12 @@ def forward_backward_pipelining_without_interleaving(
     # receive this tensor here.
     if num_microbatches_remaining > 0:
         _logger.debug("recv_forward before steady state start")
-        input_tensor: List[Union[None, torch.Tensor, FutureTensor]] = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
+        input_tensor: List[Union[None, torch.Tensor, FutureTensor]] = recv_forward(
+            tensor_shapes=recv_tensor_shapes,
+            dtype=dtype,
+            async_comm=async_comm,
+            sync_batch_comm=sync_batch_comm,
+        )
 
     ###################################################################################################################
     # Run 1F1B in steady state.
@@ -412,6 +433,7 @@ def forward_backward_pipelining_without_interleaving(
                 dtype=dtype,
                 async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
+                sync_batch_comm=sync_batch_comm,
             )
 
             if not last_iteration:
@@ -421,6 +443,7 @@ def forward_backward_pipelining_without_interleaving(
                     dtype=dtype,
                     async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
+                    sync_batch_comm=sync_batch_comm,
                 )
 
         else:
@@ -431,6 +454,7 @@ def forward_backward_pipelining_without_interleaving(
                 dtype=dtype,
                 async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
+                sync_batch_comm=sync_batch_comm,
             )
 
             # Add input_tensor and output_tensor to end of list.
@@ -460,6 +484,7 @@ def forward_backward_pipelining_without_interleaving(
                     dtype=dtype,
                     async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
+                    sync_batch_comm=sync_batch_comm,
                 )
             else:
                 _logger.debug("send bwd and receive fwd")
@@ -469,6 +494,7 @@ def forward_backward_pipelining_without_interleaving(
                     dtype=dtype,
                     async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
+                    sync_batch_comm=sync_batch_comm,
                 )
     ###################################################################################################################
     # Run cooldown backward passes.
@@ -489,6 +515,7 @@ def forward_backward_pipelining_without_interleaving(
                 dtype=dtype,
                 async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
+                sync_batch_comm=sync_batch_comm,
             )
 
             input_tensor_grad = backward_step(
@@ -507,6 +534,7 @@ def forward_backward_pipelining_without_interleaving(
                 dtype=dtype,
                 async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
+                sync_batch_comm=sync_batch_comm,
             )
 
     # Make sure to exit context handler for async grad reductions
