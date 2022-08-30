@@ -33,14 +33,9 @@ using Kernel_traits = FMHA_kernel_traits<384, 64, 16, 1, 4, 0x18u>;
 template<bool Is_training>
 __global__ 
 void fmha_fprop_fp16_384_64_sm80_kernel(Fused_multihead_attention_fprop_params params,
-                                           const int num_full_heads,
-                                           const int num_main_groups,
-                                           const int main_group_size,
-                                           const int main_steps,
-                                           const int rest_steps) {
+                                           const int total_heads) {
 
-    fmha::device_1xN<Kernel_traits, Is_training>(
-        params, num_full_heads, num_main_groups, main_group_size, main_steps, rest_steps);
+    fmha::device_1xN<Kernel_traits, Is_training>(params, total_heads);
 }
 
 void run_fmha_fp16_384_64_sm80(Launch_params<Fused_multihead_attention_fprop_params> &launch_params, const bool configure) {
@@ -58,27 +53,27 @@ void run_fmha_fp16_384_64_sm80(Launch_params<Fused_multihead_attention_fprop_par
     FMHA_CHECK_CUDA(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&ctas_per_sm, kernel, Kernel_traits::THREADS, smem_size));
     int total_ctas = sm_count * ctas_per_sm;
 
+    const int heads_total = launch_params.params.b * launch_params.params.h;
     if(configure) {
-        const int heads_total = launch_params.params.b * launch_params.params.h;
-        std::tie(launch_params.num_full_heads,
-                 launch_params.num_main_groups, 
-                 launch_params.heads_last_wave, 
-                 launch_params.main_steps, 
-                 launch_params.rest_steps, 
-                 launch_params.elts_per_thread) = fmha::work_dist<Kernel_traits>(total_ctas, heads_total);
+
+        using Mma_tile_p = fmha::Hmma_tile<typename Kernel_traits::Cta_tile_p>;
+        constexpr size_t STEPS = Kernel_traits::Cta_tile_p::N / Kernel_traits::Cta_tile_p::M;
+        constexpr size_t MMAS_M = Mma_tile_p::MMAS_M;
+        constexpr size_t MMAS_N = Mma_tile_p::MMAS_N;
+
+        size_t heads_per_cta = ((heads_total + total_ctas - 1) / total_ctas);
+        size_t elts_per_head = STEPS * MMAS_M * MMAS_N * 8;
+        launch_params.elts_per_thread = heads_per_cta * elts_per_head;
         return;
     }
 
     dim3 grid(total_ctas);
     kernel<<<grid, Kernel_traits::THREADS, smem_size, launch_params.stream>>>(
         launch_params.params,
-        launch_params.num_full_heads, 
-        launch_params.num_main_groups, 
-        launch_params.heads_last_wave, 
-        launch_params.main_steps, 
-        launch_params.rest_steps);
+        heads_total);
 
     FMHA_CHECK_CUDA(cudaPeekAtLastError());
 
 }
+
 
