@@ -37,6 +37,7 @@ def _forward_backward_pipelining_with_interleaving(
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
     sync_batch_comm: bool = True,
+    num_micro_batches_with_partial_activation_checkpoints: Optional[int] = None,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run interleaved 1F1B schedule with communication between pipeline stages as needed.
@@ -73,6 +74,10 @@ def _forward_backward_pipelining_with_interleaving(
             to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
         sync_batch_comm: If :obj:`False`, disable cuda synchronization after the batched communication.
             To disable, https://github.com/pytorch/pytorch/pull/82450 would be required.
+        num_micro_batches_with_partial_activation_checkpoints: If :obj:`int`, set the number of
+            micro-batches checkpointing the activation of partial number of Transformer layers.
+            The rest of the micro-batch within the window of maximum outstanding micro-batch
+            backpropagations would checkpoint all Transformer layers.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
@@ -135,6 +140,18 @@ def _forward_backward_pipelining_with_interleaving(
             num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
     num_microbatches_remaining: int = num_microbatches - num_warmup_microbatches
 
+    # Checkpoint the activations of partial Transformer layers in a number of micro-batches
+    # within the maximum outstanding micro-batch backpropagations.
+    # Micro-batches with the ids less than 'num_micro_batches_with_partial_activation_checkpoints'
+    # checkpoint partial Transformer layers (or skip checkpointing) and
+    # the rest of micro-batches within a window of micro-batches checkpoint
+    # all Transformer layers. The window of micro-batches is set by the maximum
+    # outstanding backpropagations and becomes smaller at later pipeline stages.
+    # Please refer the appendix C in https://arxiv.org/pdf/2205.05198.pdf
+    max_outstanding_backprops = None
+    if num_micro_batches_with_partial_activation_checkpoints is not None:
+        max_outstanding_backprops = num_warmup_microbatches + 1
+
     _logger.info(
         f"num_microbatches: {num_microbatches}, "
         f"num_warmup_microbatches: {num_warmup_microbatches}, "
@@ -155,7 +172,11 @@ def _forward_backward_pipelining_with_interleaving(
             model_chunk_id = num_model_chunks - model_chunk_id - 1
         return model_chunk_id
 
-    def forward_step_helper(microbatch_id: int, curr_iters: List[int]) -> torch.Tensor:
+    def forward_step_helper(
+        microbatch_id: int,
+        curr_iters: List[int],
+        checkpoint_activations_micro_batch: Optional[bool] = None,
+        ) -> torch.Tensor:
         """Helper method to run forward step with model split into chunks
 
         (run set_virtual_pipeline_model_parallel_rank() before calling forward_step()).
@@ -177,6 +198,7 @@ def _forward_backward_pipelining_with_interleaving(
             losses_reduced,
             dtype,
             disable_autocast,
+            checkpoint_activations_micro_batch,
         )
         curr_iters[model_chunk_id] += 1
         output_tensors[model_chunk_id].append(output_tensor)
@@ -230,7 +252,14 @@ def _forward_backward_pipelining_with_interleaving(
     _logger.info("Warmup phase")
     for k in range(num_warmup_microbatches):
         _logger.debug(f"warmup iter: {k} / {num_warmup_microbatches}")
-        output_tensor = forward_step_helper(k, curr_iters)
+
+        # Decide to checkpoint all layers' activations of the current micro-batch
+        if max_outstanding_backprops is not None:
+            checkpoint_activations_micro_batch = k % max_outstanding_backprops >= \
+                num_micro_batches_with_partial_activation_checkpoints
+        else:
+            checkpoint_activations_micro_batch = None
+        output_tensor = forward_step_helper(k, curr_iters, checkpoint_activations_micro_batch)
 
         # Determine if tensor should be received from previous stage.
         next_forward_model_chunk_id = get_model_chunk_id(k + 1, forward=True)
@@ -298,7 +327,15 @@ def _forward_backward_pipelining_with_interleaving(
         # Forward pass.
         _logger.debug(f" steady phase iter {k} / {num_microbatches_remaining}")
         forward_k = k + num_warmup_microbatches
-        output_tensor = forward_step_helper(forward_k, curr_iters)
+
+        # Decide to checkpoint all layers' activations of the current micro-batch
+        if max_outstanding_backprops is not None:
+            checkpoint_activations_micro_batch = (
+                forward_k % max_outstanding_backprops >= num_micro_batches_with_partial_activation_checkpoints
+            )
+        else:
+            checkpoint_activations_micro_batch = None
+        output_tensor = forward_step_helper(forward_k, curr_iters, checkpoint_activations_micro_batch)
 
         # Backward pass.
         backward_k = k
