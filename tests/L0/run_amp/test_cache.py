@@ -138,7 +138,6 @@ class TestCache(unittest.TestCase):
     def test_whitelist_module_bfp16_weight(self):
         self.train_eval_train_test(WhitelistModule, torch.bfloat16, "O4")
 
-    @unittest.skip("The failing unit test is introduced by a PyTorch commit sometime in between rocm/pytorch:rocm4.3.1_ubuntu18.04_py3.6_pytorch_1.9.0 and 2021/12/01. Same error is also observed on CUDA. Please refer to https://github.com/ROCmSoftwarePlatform/apex/issues/62")
     def test_whitelist_module_fp32_weight(self):
         self.train_eval_train_test(WhitelistModule, torch.float32, "O4")
 
