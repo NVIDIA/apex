@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 from typing import List, Union, Optional
 
 import torch
@@ -11,6 +10,7 @@ from apex.transformer.pipeline_parallel.schedules.common import Batch
 from apex.transformer.pipeline_parallel.schedules.common import FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
+from apex.transformer.pipeline_parallel.schedules.common import placeholder_handler
 from apex.transformer.log_util import get_transformer_logger
 
 
@@ -18,14 +18,6 @@ _all__ = ["forward_backward_no_pipelining"]
 
 
 _logger = get_transformer_logger(__name__)
-
-
-@contextmanager
-def placeholder_handler():
-    try:
-        yield
-    finally:
-        pass
 
 
 def forward_backward_no_pipelining(
@@ -59,7 +51,7 @@ def forward_backward_no_pipelining(
         disable_autocast: Turn off `enabled` flag of `torch.cuda.amp.autocast` if :obj:`True`.
             Should be used when your forward and loss computation is in the autocast context to
             avoid unnecesarily nest autocast context.
-        custom_sync_context_handler:
+        custom_sync_context_handler: Context manager to disable asynchronous gradient reductions.
         **kwargs: Added to handle `tensor_shape` which has no effect on this function.
 
     Returns:
