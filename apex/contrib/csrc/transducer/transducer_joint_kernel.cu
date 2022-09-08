@@ -17,12 +17,18 @@
 
 #include "philox.cuh"
 
+#ifdef __HIP_PLATFORM_HCC__
+#define SHFL_DOWN(val, laneMask, width) __shfl_down(val, laneMask, width)
+#else
+#define SHFL_DOWN(val, laneMask, width) __shfl_down_sync(0xffffffff, val, laneMask, width)
+#endif
+
 // Warp reduce kernels to reduce N groups of data into N numbers, where N = warpSize / width.
 // width should be a power of 2 and should be less than warpSize.
 template <typename scalar_t>
 __device__ __forceinline__ scalar_t warpReduce(scalar_t x, int width=C10_WARP_SIZE){
     for (unsigned offset = width/2; offset > 0; offset /= 2){
-        x += __shfl_down_sync(0xffffffff, x, offset, width);   
+        x += SHFL_DOWN(x, offset, width);
     }
     return x;
 }
@@ -864,7 +870,7 @@ std::vector<torch::Tensor> transducer_joint_cuda_backward(
     int64_t *batchOffsetPtr = (!packOutput) ? nullptr : batchOffset.data_ptr<int64_t>(); 
 
     // The number "y" I would like each thread to work on
-    const int workPerThread = 32;   
+    const int workPerThread = 32;
     // Since the bwd for f and g have the same thread block size, we need to use the max of the two.
     int numWarp = largestPowerOfTwo((std::max(maxFLen, maxGLen) + workPerThread-1) / workPerThread);
     // Would like to have at least 2 warps 

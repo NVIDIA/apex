@@ -2,7 +2,7 @@ import unittest
 import sys
 
 
-test_dirs = ["groupbn", "layer_norm", "multihead_attn", "focal_loss", "index_mul_2d", "."] # "." for test_label_smoothing.py
+test_dirs = ["groupbn", "layer_norm", "multihead_attn", "transducer", "focal_loss", "index_mul_2d", "."] # "." for test_label_smoothing.py
 ROCM_BLACKLIST = [
     "layer_norm"
 ]
