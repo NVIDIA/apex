@@ -51,11 +51,7 @@ class TestMLP(common_utils.TestCase):
         self.assertEqual(test_input.grad, ref_input.grad)
         self.assertEqual(mlp.biases[0].grad, ref_mlp[0].bias.grad)
 
-    @common_utils.parametrize(
-        "use_activation,bias,enable_autocast",
-        list(product(("none", "relu", "sigmoid"), (True, False), (True, False))),
-    )
-    def test_mlp(self, use_activation: str, bias: bool, enable_autocast: bool):
+    def _test_mlp_impl(self, use_activation: str, bias: bool, enable_autocast: bool):
         mlp = MLP(mlp_sizes, bias=bias, activation=use_activation).cuda()
 
         mlp_layers = []
@@ -87,11 +83,29 @@ class TestMLP(common_utils.TestCase):
             ref_out = ref_mlp(ref_input)
             ref_loss = ref_out.mean().mul(10.0)
 
-        self.assertEqual(mlp_out, ref_out)
         mlp_loss.backward()
         ref_loss.backward()
-        self.assertEqual(test_input.grad, ref_input.grad)
-        self.assertEqual(mlp.weights[0].grad, ref_mlp[0].weight.grad)
+        if enable_autocast:
+            self.assertEqual(mlp_out.dtype, torch.float16)
+            self.assertEqual(ref_out.dtype, torch.float16)
+        else:
+            self.assertEqual(mlp_out, ref_out)
+            self.assertEqual(test_input.grad, ref_input.grad)
+            self.assertEqual(mlp.weights[0].grad, ref_mlp[0].weight.grad)
+
+    @common_utils.parametrize(
+        "use_activation,bias",
+        list(product(("none", "relu", "sigmoid"), (True, False))),
+    )
+    def test_mlp(self, use_activation: str, bias: bool):
+        self._test_mlp_impl(use_activation, bias, enable_autocast=False)
+
+    @common_utils.parametrize(
+        "use_activation,bias",
+        list(product(("none", "relu", "sigmoid"), (True, False))),
+    )
+    def test_mlp_autocast_fp16(self, use_activation: str, bias: bool):
+        self._test_mlp_impl(use_activation, bias, enable_autocast=True)
 
     def test_no_grad(self):
         mlp = MLP(mlp_sizes).cuda()
