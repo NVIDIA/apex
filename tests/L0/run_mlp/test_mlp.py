@@ -52,12 +52,10 @@ class TestMLP(common_utils.TestCase):
         self.assertEqual(mlp.biases[0].grad, ref_mlp[0].bias.grad)
 
     @common_utils.parametrize(
-        "use_activation,bias",
-        list(product(("none", "relu", "sigmoid"), (True, False))),
+        "use_activation,bias,enable_autocast",
+        list(product(("none", "relu", "sigmoid"), (True, False), (True, False))),
     )
-    def test_mlp(self, use_activation: str, bias: bool):
-        # for use_activation in ["none", "relu", "sigmoid"]:
-        msg = f"activation: {use_activation}, bias: {bias}"
+    def test_mlp(self, use_activation: str, bias: bool, enable_autocast: bool):
         mlp = MLP(mlp_sizes, bias=bias, activation=use_activation).cuda()
 
         mlp_layers = []
@@ -81,15 +79,19 @@ class TestMLP(common_utils.TestCase):
             .requires_grad_()
         )
         ref_input = test_input.clone().detach().requires_grad_()
-        mlp_out = mlp(test_input)
-        ref_out = ref_mlp(ref_input)
-        self.assertEqual(mlp_out, ref_out, msg=msg)
 
-        # Use mean value as scalar loss. Multiply 10 to make it big enough not zero out
-        mlp_out.mean().mul(10.0).backward()
-        ref_out.mean().mul(10.0).backward()
-        self.assertEqual(test_input.grad, ref_input.grad, msg=msg)
-        self.assertEqual(mlp.weights[0].grad, ref_mlp[0].weight.grad, msg=msg)
+        with torch.cuda.amp.autocast_mode.autocast(enabled=enable_autocast):
+            mlp_out = mlp(test_input)
+            mlp_loss = mlp_out.mean().mul(10.0)
+            # Use mean value as scalar loss. Multiply 10 to make it big enough not zero out
+            ref_out = ref_mlp(ref_input)
+            ref_loss = ref_out.mean().mul(10.0)
+
+        self.assertEqual(mlp_out, ref_out)
+        mlp_loss.backward()
+        ref_loss.backward()
+        self.assertEqual(test_input.grad, ref_input.grad)
+        self.assertEqual(mlp.weights[0].grad, ref_mlp[0].weight.grad)
 
     def test_no_grad(self):
         mlp = MLP(mlp_sizes).cuda()
