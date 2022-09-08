@@ -5,7 +5,11 @@
 #include <cstdio>
 #include <ctime>
 #include <cassert>
+#ifdef __HIP_PLATFORM_HCC__
+#include "rccl.h"
+#else
 #include "nccl.h"
+#endif
 
 /*
  * This file implements a crude but effective mechanism for copying data between tenors owned by different ranks

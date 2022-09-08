@@ -107,15 +107,10 @@ class HaloExchangerPeer(HaloExchanger):
         right_tx = self.peer_pool.allocate_peer_tensors(list(right_output_halo.shape), right_output_halo.dtype, channels_last, True)
         pm.push_pull_halos_1d(
                 self.diagnostics, self.explicit_nhwc, self.numSM,
-                left_output_halo,  left_tx[self.rank_in_group],  right_tx[self.wrap_around_left_rank_in_group], left_input_halo,
-                right_output_halo, right_tx[self.rank_in_group], left_tx[self.wrap_around_right_rank_in_group],  right_input_halo,
+                self.left_zero, left_output_halo,  left_tx[self.rank_in_group],  right_tx[self.wrap_around_left_rank_in_group], left_input_halo,
+                self.right_zero, right_output_halo, right_tx[self.rank_in_group], left_tx[self.wrap_around_right_rank_in_group],  right_input_halo,
                 self.signals[self.wrap_around_left_rank_in_group], self.signals[self.wrap_around_right_rank_in_group], self.signals[self.rank_in_group]
                 )
-        # TODO: Add to push_pull_halos_1d kernel
-        if self.left_zero:
-            left_input_halo.zero_()
-        if self.right_zero:
-            right_input_halo.zero_()
         if not inplace:
             return left_input_halo, right_input_halo
 
