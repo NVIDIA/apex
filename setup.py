@@ -356,6 +356,41 @@ if "--xentropy" in sys.argv or "--cuda_ext" in sys.argv:
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
 
+if "--focal_loss" in sys.argv or "--cuda_ext" in sys.argv:
+    if "--focal_loss" in sys.argv:
+        sys.argv.remove("--focal_loss")
+    ext_modules.append(
+        CUDAExtension(
+            name='focal_loss_cuda',
+            sources=[
+                'apex/contrib/csrc/focal_loss/focal_loss_cuda.cpp',
+                'apex/contrib/csrc/focal_loss/focal_loss_cuda_kernel.cu',
+            ],
+            include_dirs=[os.path.join(this_dir, 'csrc')],
+            extra_compile_args={
+                'cxx': ['-O3'] + version_dependent_macros,
+                'nvcc':(['-O3', '--use_fast_math', '--ftz=false'] if not IS_ROCM_PYTORCH else ['-O3']) + version_dependent_macros,
+            },
+        )
+    )
+
+if "--index_mul_2d" in sys.argv or "--cuda_ext" in sys.argv:
+    if "--index_mul_2d" in sys.argv:
+        sys.argv.remove("--index_mul_2d")
+    ext_modules.append(
+        CUDAExtension(
+            name='fused_index_mul_2d',
+            sources=[
+                'apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda.cpp',
+                'apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda_kernel.cu',
+            ],
+            include_dirs=[os.path.join(this_dir, 'csrc')],
+            extra_compile_args={
+                'cxx': ['-O3'] + version_dependent_macros,
+                'nvcc':(['-O3', '--use_fast_math', '--ftz=false'] if not IS_ROCM_PYTORCH else ['-O3']) + version_dependent_macros,
+            },
+        )
+    )
 
 if "--deprecated_fused_adam" in sys.argv or "--cuda_ext" in sys.argv:
     from torch.utils.cpp_extension import CUDAExtension
