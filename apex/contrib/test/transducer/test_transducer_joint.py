@@ -123,7 +123,6 @@ class TransducerJointTest(unittest.TestCase):
     def test_transducer_joint_vec(self):
         self.run_transducer_joint(for_vector_kernel=True, pack_output=False, relu=False, dropout=False)
 
-    @unittest.expectedFailure
     def test_transducer_joint_pack(self):
         self.run_transducer_joint(for_vector_kernel=False, pack_output=True, relu=False, dropout=False)
 
