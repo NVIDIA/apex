@@ -125,7 +125,7 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
         )
 
 
-def test_(S, B, hidden_size, itype, wtype, ctype=fp32):
+def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
 
     seed = 1243
     torch.manual_seed(seed)
@@ -232,11 +232,11 @@ class TestFastLayerNorm(unittest.TestCase):
 
         for h in hidden_sizes:
             with self.subTest(f"hidden_size={h}"):
-                self.assertAll(test_(256, 2, h, fp32, fp32))
-                self.assertAll(test_(256, 2, h, fp16, fp16))
-                self.assertAll(test_(256, 2, h, fp32, fp16))
-                self.assertAll(test_(256, 2, h, bf16, bf16))
-                self.assertAll(test_(256, 2, h, fp32, bf16))
+                self.assertAll(_test_impl(256, 2, h, fp32, fp32))
+                self.assertAll(_test_impl(256, 2, h, fp16, fp16))
+                self.assertAll(_test_impl(256, 2, h, fp32, fp16))
+                self.assertAll(_test_impl(256, 2, h, bf16, bf16))
+                self.assertAll(_test_impl(256, 2, h, fp32, bf16))
 
     def test_run_benchmark(self):
         for (S, B, hidden_size, runs) in (
