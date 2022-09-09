@@ -7,7 +7,7 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import utils
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.testing.distributed_test_base import NcclDistributedTestBase
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 

@@ -1,7 +1,7 @@
 import torch
 from torch.testing._internal import common_utils
 
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.testing.distributed_test_base import NcclDistributedTestBase
 from apex.contrib.peer_memory import PeerMemoryPool, PeerHaloExchanger1d
 
 # How to run:

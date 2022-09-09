@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.testing._internal import common_utils
 
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.testing.distributed_test_base import NcclDistributedTestBase
 from apex.contrib.cudnn_gbn import GroupBatchNorm2d as GBN
 
 

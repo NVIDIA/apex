@@ -11,8 +11,8 @@ from apex.transformer import parallel_state
 from apex.transformer import tensor_parallel
 from apex.transformer.tensor_parallel import cross_entropy
 from apex.transformer.testing.commons import set_random_seed, IdentityLayer
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
-from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
+from apex.testing.distributed_test_base import NcclDistributedTestBase
+from apex.testing.distributed_test_base import UccDistributedTestBase
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 
