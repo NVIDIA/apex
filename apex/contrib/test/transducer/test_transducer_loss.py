@@ -3,7 +3,7 @@ import unittest
 import torch
 
 from apex.contrib.transducer import TransducerLoss
-import transducer_ref
+from apex.contrib.transducer import _transducer_ref as transducer_ref
 
 
 class TransducerLossTest(unittest.TestCase):

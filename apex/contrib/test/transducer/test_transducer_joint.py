@@ -3,7 +3,7 @@ import unittest
 import torch
 
 from apex.contrib.transducer import TransducerJoint
-import transducer_ref
+from apex.contrib.transducer import _transducer_ref as transducer_ref
 
 
 class TransducerJointTest(unittest.TestCase):
