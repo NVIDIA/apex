@@ -19,6 +19,7 @@ import sys
 TEST_ROOT = os.path.dirname(os.path.abspath(__file__))
 TEST_DIRS = [
     "run_amp",
+    "run_deprecated",
     "run_fp16util",
     "run_optimizers",
     "run_fused_layer_norm",
@@ -26,6 +27,7 @@ TEST_DIRS = [
     "run_transformer",
 ]
 DEFAULT_TEST_DIRS = [
+    "run_deprecated",
     "run_optimizers",
     "run_fused_layer_norm",
     "run_mlp",

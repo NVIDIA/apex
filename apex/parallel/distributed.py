@@ -1,11 +1,13 @@
+from collections import OrderedDict
+import copy
+import importlib
+from itertools import chain
+
 import torch
 import torch.distributed as dist
 from torch.nn.modules import Module
 from torch.autograd import Variable
-from collections import OrderedDict
-from itertools import chain
-import copy
-import importlib
+
 from ..multi_tensor_apply import multi_tensor_applier
 
 imported_flatten_impl = False
@@ -174,6 +176,8 @@ class DistributedDataParallel(Module):
                  gradient_average_split_factor=None,
                  prof=False):
         super(DistributedDataParallel, self).__init__()
+        from apex import deprecated_warning
+        deprecated_warning("apex.parallel.DistributedDataParallel is deprecated and will be removed by the end of February 2023.")
 
         # Backward/forward compatibility around
         # https://github.com/pytorch/pytorch/commit/540ef9b1fc5506369a48491af8a285a686689b36 and

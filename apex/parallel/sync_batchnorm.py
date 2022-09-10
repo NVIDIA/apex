@@ -49,6 +49,8 @@ class SyncBatchNorm(_BatchNorm):
     warned = False
 
     def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True, process_group=None, channel_last=False):
+        from apex import deprecated_warning
+        deprecated_warning("apex.parallel.SyncBatchNorm is deprecated and will be removed by the end of February 2023. Use `torch.nn.SyncBatchNorm`.")
         if channel_last == True:
             raise AttributeError("channel_last is not supported by primitive SyncBatchNorm implementation. Try install apex with `--cuda_ext` if channel_last is desired.")
 
