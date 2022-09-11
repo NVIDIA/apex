@@ -26,7 +26,7 @@ from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interl
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
     forward_backward_pipelining_without_interleaving,
 )
-from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
+from apex.testing.distributed_test_base import UccDistributedTestBase
 from apex.transformer.testing import commons as testing_utils
 
 

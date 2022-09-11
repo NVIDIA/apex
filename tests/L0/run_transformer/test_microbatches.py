@@ -13,8 +13,8 @@ from apex.transformer.pipeline_parallel.utils import (
     get_current_global_batch_size,
     update_num_microbatches,
 )
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
-from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
+from apex.testing.distributed_test_base import NcclDistributedTestBase
+from apex.testing.distributed_test_base import UccDistributedTestBase
 
 logging.getLogger("apex").setLevel(logging.WARNING)
 

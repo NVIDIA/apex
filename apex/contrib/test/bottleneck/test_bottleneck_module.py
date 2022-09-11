@@ -4,7 +4,7 @@ from torch.testing._internal import common_utils
 from apex.contrib.bottleneck import Bottleneck, SpatialBottleneck
 from apex.contrib.bottleneck import HaloExchangerPeer
 from apex.contrib.peer_memory import PeerMemoryPool
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.testing.distributed_test_base import NcclDistributedTestBase
 
 
 def ground_truth_bottleneck(C, dtype, explicit_nhwc):

@@ -9,8 +9,8 @@ from torch.testing._internal import common_utils
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import layers
 from apex.transformer.testing.commons import set_random_seed
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
-from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
+from apex.testing.distributed_test_base import NcclDistributedTestBase
+from apex.testing.distributed_test_base import UccDistributedTestBase
 
 
 logging.getLogger("torch").setLevel(logging.WARNING)

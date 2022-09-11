@@ -8,8 +8,8 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel import p2p_communication
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
-from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
+from apex.testing.distributed_test_base import NcclDistributedTestBase
+from apex.testing.distributed_test_base import UccDistributedTestBase
 
 logging.getLogger("apex").setLevel(logging.DEBUG)
 
