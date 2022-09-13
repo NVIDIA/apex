@@ -1,12 +1,17 @@
 import copy
 import typing
+import unittest
 
 import torch
 import torch.nn as nn
 from torch.testing._internal import common_utils
 
+SKIP_TEST = None
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
-from apex.contrib.cudnn_gbn import GroupBatchNorm2d as GBN
+try:
+    from apex.contrib.cudnn_gbn import GroupBatchNorm2d as GBN
+except ImportError as e:
+    SKIP_TEST = e
 
 
 # Usage: python /path/to/cudnn_gbn/test_gbn_with_two_gpus.py
@@ -66,6 +71,7 @@ def get_rand_tensors(global_shape, device):
     return inp_t, weight, bias, _grad_out
 
 
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class TestCudnnGBN(NcclDistributedTestBase):
     def _prep(self):
         torch.cuda.manual_seed(333)

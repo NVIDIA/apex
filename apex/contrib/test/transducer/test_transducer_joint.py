@@ -2,10 +2,15 @@ import unittest
 
 import torch
 
-from apex.contrib.transducer import TransducerJoint
-from apex.contrib.transducer import _transducer_ref as transducer_ref
+SKIP_TEST = None
+try:
+    from apex.contrib.transducer import TransducerJoint
+    from apex.contrib.transducer import _transducer_ref as transducer_ref
+except ImportError as e:
+    SKIP_TEST = e
 
 
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class TransducerJointTest(unittest.TestCase):
     def setUp(self, seed=1234):
         torch.manual_seed(seed)
