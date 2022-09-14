@@ -284,6 +284,11 @@ class TestPeerMemory(NcclDistributedTestBase):
     def world_size(self) -> int:
         return min(torch.cuda.device_count(), 2)
 
+    # TODO(crcrpar): Check if `world_size` being multiple of 2 is must.
+    def _check_world_size_and_may_skip(self) -> None:
+        if not (self.world_size >= 2 and self.world_size % 2 == 0):
+            self.skipTest(f"world_size is expected to be a multiple of 2 but, {self.world_size}")
+
     def get_halo_excnahger_1d(self):
         peer_ranks = [i for i in range(self.world_size)]
         pool = PeerMemoryPool(64 * 1024, 2 * 1024 * 1024, peer_ranks)
@@ -291,6 +296,7 @@ class TestPeerMemory(NcclDistributedTestBase):
         return halo_exchanger_1d
 
     def test_height_split(self):
+        self._check_world_size_and_may_skip()
         H_split_tests(
             1,
             64,
@@ -304,6 +310,7 @@ class TestPeerMemory(NcclDistributedTestBase):
         )
 
     def test_width_split(self):
+        self._check_world_size_and_may_skip()
         W_split_tests(
             1,
             64,
