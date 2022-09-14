@@ -24,7 +24,7 @@ def manual_rms_norm(input, normalized_shape, weight, eps):
 
     # convert into half-precision if necessary
     if weight.dtype in [torch.float16, torch.bfloat16]:
-        input = input.to(self.weight.dtype)
+        input = input.to(weight.dtype)
 
     return weight * input
 
