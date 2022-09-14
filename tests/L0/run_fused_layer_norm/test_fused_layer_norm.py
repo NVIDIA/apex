@@ -1,6 +1,3 @@
-import itertools
-import unittest
-
 import torch
 
 from apex.normalization import FusedLayerNorm
@@ -10,29 +7,8 @@ from apex.normalization import MixedFusedRMSNorm
 
 from torch.testing._internal import common_utils
 from torch.testing._internal.common_device_type import instantiate_device_type_tests
-from torch.testing._internal.common_device_type import onlyCUDA
 
 from itertools import product
-
-def _prep_layers(normalized_shape, elementwise_affine, dtype):
-    native = torch.nn.LayerNorm(
-        normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
-    ).to(device="cuda", dtype=dtype)
-    fused = FusedLayerNorm(
-        normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
-    ).cuda()
-    return native, fused
-
-
-def _prep_rms_layers(normalized_shape, elementwise_affine, dtype):
-    native = FusedRMSNorm(
-        normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
-    )
-    fused = FusedRMSNorm(
-        normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
-    ).cuda()
-    return native, fused
-
 
 def _prep_inputs(batch_size, normalized_shape, dtype):
     shape = (batch_size, *normalized_shape)
@@ -234,7 +210,13 @@ class TestFusedLayerNorm(common_utils.TestCase):
         bf16_bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
         batch_size = 16
         normalized_shape = [32, 16]
-        native, fused = _prep_layers(normalized_shape, elementwise_affine, dtype)
+        # native, fused = _prep_layers(normalized_shape, elementwise_affine, dtype)
+        native = torch.nn.LayerNorm(
+            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+        ).to(device="cuda", dtype=dtype)
+        fused = FusedLayerNorm(
+            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+        ).cuda()
         native_x, fused_x = _prep_inputs(batch_size, normalized_shape, dtype)
 
         expected = native(native_x)
@@ -264,7 +246,13 @@ class TestFusedLayerNorm(common_utils.TestCase):
         bf16_bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
         batch_size = 16
         normalized_shape = [32, 16]
-        native, fused = _prep_rms_layers(normalized_shape, elementwise_affine, dtype)
+        # native, fused = _prep_rms_layers(normalized_shape, elementwise_affine, dtype)
+        native = FusedRMSNorm(
+            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+        )
+        fused = FusedRMSNorm(
+            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+        ).cuda()
         native_x, fused_x = _prep_inputs(batch_size, normalized_shape, dtype)
 
         expected = native(native_x.cpu())
