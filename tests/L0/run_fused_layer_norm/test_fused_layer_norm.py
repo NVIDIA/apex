@@ -200,7 +200,6 @@ class TestFusedLayerNorm(common_utils.TestCase):
         self._test_fused_rms_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, 
                                 fwd_thresholds=dict(rtol=1.6e-2, atol=3e-4), bwd_thresholds=dict(rtol=1.6e-2, atol=3e-2))
 
-
     @common_utils.parametrize(
         "dtype, elementwise_affine",
         list(product(autocast_dtypes, (True, False)))
@@ -210,7 +209,6 @@ class TestFusedLayerNorm(common_utils.TestCase):
         bf16_bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
         batch_size = 16
         normalized_shape = [32, 16]
-        # native, fused = _prep_layers(normalized_shape, elementwise_affine, dtype)
         native = torch.nn.LayerNorm(
             normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
         ).to(device="cuda", dtype=dtype)
@@ -236,7 +234,6 @@ class TestFusedLayerNorm(common_utils.TestCase):
         tols = {'rtol': None, 'atol': None} if dtype == torch.half else bf16_bwd_thresholds
         torch.testing.assert_close(native_x.grad, fused_x.grad, **tols, check_dtype=False)
 
-
     @common_utils.parametrize(
         "dtype, elementwise_affine",
         list(product(autocast_dtypes, (True, False)))
@@ -246,10 +243,9 @@ class TestFusedLayerNorm(common_utils.TestCase):
         bf16_bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
         batch_size = 16
         normalized_shape = [32, 16]
-        # native, fused = _prep_rms_layers(normalized_shape, elementwise_affine, dtype)
         native = FusedRMSNorm(
             normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
-        )
+        ).to(dtype=dtype)
         fused = FusedRMSNorm(
             normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
         ).cuda()
