@@ -1,10 +1,16 @@
+import unittest
+
 import torch
 from torch.testing._internal import common_utils
 
-from apex.contrib.bottleneck import Bottleneck, SpatialBottleneck
-from apex.contrib.bottleneck import HaloExchangerPeer
-from apex.contrib.peer_memory import PeerMemoryPool
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+SKIP_TEST = None
+try:
+    from apex.contrib.bottleneck import Bottleneck, SpatialBottleneck
+    from apex.contrib.bottleneck import HaloExchangerPeer
+    from apex.contrib.peer_memory import PeerMemoryPool
+except ImportError as e:
+    SKIP_TEST = e
 
 
 def ground_truth_bottleneck(C, dtype, explicit_nhwc):
@@ -268,6 +274,7 @@ def main():
     compare(gt, bt2)
 
 
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class TestBottleneck(NcclDistributedTestBase):
     # PyTorch's float16 tolerance values, see https://pytorch.org/docs/stable/testing.html#torch.testing.assert_close
     fp16_tolerance = {"atol": 1e-5, "rtol": 1e-3}

@@ -1,8 +1,14 @@
+import unittest
+
 import torch
 from torch.testing._internal import common_utils
 
+SKIP_TEST = None
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
-from apex.contrib.peer_memory import PeerMemoryPool, PeerHaloExchanger1d
+try:
+    from apex.contrib.peer_memory import PeerMemoryPool, PeerHaloExchanger1d
+except ImportError as e:
+    SKIP_TEST = e
 
 # How to run:
 # python /path/to/test_peer_halo_exchange_module.py
@@ -269,6 +275,7 @@ def main():
     W_split_tests(1, 64, 200, 336, half_halo, rank, world_size, halo_ex, num_steps)
 
 
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class TestPeerMemory(NcclDistributedTestBase):
     HALF_HALO = 1
     NUM_STEPS = 100

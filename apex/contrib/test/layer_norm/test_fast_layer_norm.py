@@ -1,12 +1,13 @@
 import unittest
-import sys
-import os
 
-import numpy as np
 import torch
 
-import fast_layer_norm as fln
-from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+SKIP_TEST = None
+try:
+    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+    import fast_layer_norm as fln
+except ImportError as e:
+    SKIP_TEST = e
 
 
 class GPUTimer:
@@ -192,7 +193,9 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
     ]
 
 
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class TestFastLayerNorm(unittest.TestCase):
+    # TODO(crcrpar): Try `torch.testing.assert_close` instead and migrate to it if it's working.
     def assertAll(self, l):
         if not all(l):
             print(l)

@@ -1,14 +1,18 @@
-import torch
 import unittest
-import torch.nn.functional as F
-from apex import fused_dense
-from torch import nn
-from apex import amp
 
+import torch
+
+SKIP_TEST = None
+try:
+    from apex import fused_dense
+except ImportError as e:
+    SKIP_TEST = e
+
+
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class FusedDenseTest(unittest.TestCase):
     def setUp(self, seed=0):
         torch.manual_seed(seed)
-        #torch.cuda.manual_seed_all(seed)
 
         self.seq_length   = 512
         self.sequences    = 3

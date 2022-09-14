@@ -1,6 +1,6 @@
 ###############################################################################
 # Copyright (c) 2011-2021, NVIDIA CORPORATION.  All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #     * Redistributions of source code must retain the above copyright
@@ -11,7 +11,7 @@
 #     * Neither the name of the NVIDIA CORPORATION nor the
 #       names of its contributors may be used to endorse or promote products
 #       derived from this software without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 # ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -26,12 +26,17 @@
 ###############################################################################
 
 import math
-import sys
 import unittest
 
 import torch
 import numpy as np
-import fmhalib as mha
+
+SKIP_TEST = None
+try:
+    import fmhalib as mha
+except ImportError as e:
+    SKIP_TEST = e
+
 
 def _get_device_properties(device = torch.device("cuda")):
     # type: (str or torch.device) -> Tuple[int, int]
@@ -54,6 +59,8 @@ def py_mha(qkv, amask, b, s, h, d):
 
     return ctx
 
+
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 @unittest.skipIf(not _get_device_properties() == (8, 0), "FMHA only supports sm80")
 class TestFMHA(unittest.TestCase):
 
