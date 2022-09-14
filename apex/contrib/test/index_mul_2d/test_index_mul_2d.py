@@ -2,7 +2,6 @@ import random
 import unittest
 
 import torch
-import torch.nn.functional as F
 
 HAS_INDEX_MUL_2D_RELU = None
 try:
@@ -17,7 +16,7 @@ else:
 class IndexMul2dTest(unittest.TestCase):
     def setUp(self, seed=0):
         torch.manual_seed(seed)
-        
+
         self.input1_size = random.randint(1, 1000)
         self.input2_size = random.randint(1, 100000)
         self.feature_size = random.randint(1, 256)
@@ -52,7 +51,7 @@ class IndexMul2dTest(unittest.TestCase):
             energy,
             self.input1_float,
             grad_outputs=torch.ones_like(energy),
-            create_graph=True,                
+            create_graph=True,
         )[0]
         loss = (out.float()**2).sum() / out.numel() + (force.float()**2).sum()
         loss.backward()
@@ -63,7 +62,7 @@ class IndexMul2dTest(unittest.TestCase):
             energy_,
             self.input1_float_,
             grad_outputs=torch.ones_like(energy),
-            create_graph=True,                
+            create_graph=True,
         )[0]
         loss = (out_.float()**2).sum() / out_.numel() + (force_.float()**2).sum()
         loss.backward()
@@ -80,7 +79,7 @@ class IndexMul2dTest(unittest.TestCase):
             energy,
             self.input1_half,
             grad_outputs=torch.ones_like(energy),
-            create_graph=True,                
+            create_graph=True,
         )[0]
         loss = (out.float()**2).sum() / out.numel() + (force.float()**2).sum()
         loss.backward()
@@ -91,11 +90,11 @@ class IndexMul2dTest(unittest.TestCase):
             energy_,
             self.input1_half_,
             grad_outputs=torch.ones_like(energy),
-            create_graph=True,                
+            create_graph=True,
         )[0]
         loss = (out_.float()**2).sum() / out_.numel() + (force_.float()**2).sum()
         loss.backward()
-        
+
         self.assertTrue(torch.allclose(self.input1_half, self.input1_half_, atol=1e-3, rtol=1e-3, equal_nan=True))
         self.assertTrue(torch.allclose(self.input2_half, self.input2_half_, atol=1e-3, rtol=1e-3, equal_nan=True))
         self.assertTrue(torch.allclose(self.input1_half.grad, self.input1_half_.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
@@ -103,4 +102,3 @@ class IndexMul2dTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

@@ -18,8 +18,9 @@ else:
 @unittest.skipIf(not HAS_CONV_BIAS_RELU, "`apex.contrib.conv_bias_relu` is not found.")
 class FusedDenseTest(unittest.TestCase):
     def setUp(self, seed=0):
+        super().setUp()
         torch.manual_seed(seed)
-        
+
         self.batch_size = random.randint(1, 64)
         self.in_channels = random.randint(1, 64) * 8
         self.out_channels = random.randint(1, 64) * 8

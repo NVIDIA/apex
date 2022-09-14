@@ -1,11 +1,17 @@
 from contextlib import contextmanager
 import io
-import os
+import unittest
 
 import torch
 from torch.testing._internal import common_utils
-from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+
+SKIP_TEST = None
+try:
+    from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+except ImportError as e:
+    SKIP_TEST = e
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+
 
 class SimpleModel(torch.nn.Module):
     def __init__(self, num_layers, size):
@@ -19,6 +25,7 @@ class SimpleModel(torch.nn.Module):
         for i, param in enumerate(self.params):
             y += (i+1) * param * x
         return y
+
 
 def make_models(
         num_layers,
@@ -78,6 +85,7 @@ def make_models(
 
     return ref_model, ref_optim, dist_model, dist_optim
 
+
 @contextmanager
 def dummy_context():
     try:
@@ -85,6 +93,8 @@ def dummy_context():
     finally:
         pass
 
+
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     seed = 1234
