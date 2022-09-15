@@ -1,3 +1,4 @@
+import contextlib
 from typing import List, Union, Optional
 
 import torch
@@ -10,7 +11,6 @@ from apex.transformer.pipeline_parallel.schedules.common import Batch
 from apex.transformer.pipeline_parallel.schedules.common import FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
-from apex.transformer.pipeline_parallel.schedules.common import placeholder_handler
 from apex.transformer.log_util import get_transformer_logger
 
 
@@ -69,7 +69,7 @@ def forward_backward_no_pipelining(
     elif isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
         context_handler = model.no_sync
     else:
-        context_handler = placeholder_handler
+        context_handler = contextlib.nullcontext
 
     losses_reduced = []
     input_tensor, output_tensor_grad = None, None

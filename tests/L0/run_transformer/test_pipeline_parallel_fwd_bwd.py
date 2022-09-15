@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import itertools
 import re
@@ -441,6 +442,109 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
 
     def test_pipelining_without_interleaving_sequence_parallel_encoder_or_decoder_half(self) -> None:
         self._forward_backward_test_impl(forward_only=False, sequence_parallel_enabled=True, model_type=ModelType.encoder_or_decoder, dtype=torch.half)
+
+@unittest.skipIf(torch.cuda.device_count() < 4 or torch.cuda.device_count() % 2 != 0, "Requires >= 4 GPUs")
+class NcclPipelineParallelWithCustomSyncContextHandler(NcclDistributedTestBase):
+
+    GLOBAL_BATCH_SIZE = 2
+    MICRO_BATCH_SIZE = 1
+    HIDDEN_SIZE = 1
+
+    @property
+    def world_size(self) -> int:
+        return min(torch.cuda.device_count(), 8)
+
+    def test_pipelining_without_interleaving_with_custom_sync_context_handler(self) -> None:
+
+        # Parallel configuration
+        world_size = torch.cuda.device_count()
+        tensor_model_parallel_world_size = 1
+        data_parallel_size = 2
+        pipeline_model_parallel_world_size = world_size // data_parallel_size
+
+        # Initialize pipeline parallelism
+        parallel_state.initialize_model_parallel(
+            tensor_model_parallel_size_=tensor_model_parallel_world_size,
+            pipeline_model_parallel_size_=pipeline_model_parallel_world_size,
+            virtual_pipeline_model_parallel_size_=None,
+        )
+        pp_utils._reconfigure_microbatch_calculator(
+            rank=parallel_state.get_tensor_model_parallel_rank(),
+            rampup_batch_size=None,
+            global_batch_size=self.GLOBAL_BATCH_SIZE,
+            micro_batch_size=self.MICRO_BATCH_SIZE,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        pp_utils.update_num_microbatches(0)
+
+        # Construct synthetic data
+        dtype = get_dtype_for_comparison()
+        hidden_size = self.HIDDEN_SIZE
+        microbatch_size = self.MICRO_BATCH_SIZE
+        global_batch_shape = (
+            self.GLOBAL_BATCH_SIZE
+            // parallel_state.get_data_parallel_world_size(),
+            hidden_size,
+            hidden_size,
+        )
+        batch = None
+        if parallel_state.is_pipeline_first_stage():
+            batch = (torch.ones(global_batch_shape, dtype=dtype).cuda(), )
+
+        # Construct model
+        model = build_model(
+            testing_utils.model_provider_func,
+            wrap_with_ddp=True,
+            virtual_pipeline_model_parallel_size=None,
+            hidden_size=hidden_size,
+        )[0]
+        model = model.to(dtype)
+        model.module.apply(get_init_weights_func(0))
+
+        # Construct custom context
+        has_entered_context = False
+        has_exited_context = False
+        no_grad_at_context_exit = False
+        @contextlib.contextmanager
+        def custom_context():
+            try:
+                nonlocal has_entered_context
+                has_entered_context = True
+                yield
+            finally:
+                nonlocal has_exited_context, no_grad_at_context_exit
+                has_exited_context = True
+                no_grad_at_context_exit = all(
+                    p.grad is None
+                    for p in model.parameters()
+                )
+
+        # Training step with pipeline parallelism
+        loss = forward_backward_pipelining_without_interleaving(
+            testing_utils.fwd_step_func,
+            batch,
+            model,
+            forward_only=False,
+            tensor_shape=(microbatch_size, hidden_size, hidden_size),
+            dtype=dtype,
+            async_comm=False,
+            grad_scaler=None,
+            deallocate_pipeline_outputs=False,
+            sequence_parallel_enabled=False,
+            custom_sync_context_handler=custom_context,
+        )
+        torch.cuda.synchronize()
+
+        # Check context behavior
+        assert has_entered_context, 'Has not entered custom sync context'
+        assert has_exited_context, 'Has not exited custom sync context'
+        assert no_grad_at_context_exit == parallel_state.is_pipeline_first_stage(), \
+            'Expected to exit custom sync context '\
+            'before backward pass in first pipeline stage ' \
+            'and after backward pass in other pipeline stages'
+
+        # Clean up
+        parallel_state.destroy_model_parallel()
 
 
 if __name__ == "__main__":

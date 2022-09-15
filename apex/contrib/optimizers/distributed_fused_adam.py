@@ -933,6 +933,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     self._grad_copy(param)
                     self._try_start_bucket_grad_sync(
                         params=[param],
+                        ignore_last_bucket=False,
                     )
         self._force_bucket_grad_sync()
 

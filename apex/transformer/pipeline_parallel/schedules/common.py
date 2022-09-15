@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 from typing import Any, Callable, Dict, List, Tuple, Union, Optional, Sequence
 
 import torch
@@ -397,11 +396,3 @@ def backward_step(
 
     # timers("backward-compute").stop()
     return input_tensor_grad[0] if unwrap_input_tensor_grad else input_tensor_grad
-
-
-@contextmanager
-def placeholder_handler():
-    try:
-        yield
-    finally:
-        pass

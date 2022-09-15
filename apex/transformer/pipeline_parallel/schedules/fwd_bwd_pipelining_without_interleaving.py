@@ -1,3 +1,4 @@
+import contextlib
 from typing import Union, List, Optional, Sequence
 import warnings
 
@@ -16,7 +17,6 @@ from apex.transformer.pipeline_parallel.schedules.common import FwdStepFunc
 from apex.transformer.pipeline_parallel.schedules.common import backward_step
 from apex.transformer.pipeline_parallel.schedules.common import forward_step
 from apex.transformer.pipeline_parallel.schedules.common import free_output_tensor
-from apex.transformer.pipeline_parallel.schedules.common import placeholder_handler
 from apex.transformer.log_util import get_transformer_logger
 
 
@@ -302,9 +302,10 @@ def forward_backward_pipelining_without_interleaving(
     if custom_sync_context_handler is not None:
         context_handler = custom_sync_context_handler
     else:
-        context_handler = placeholder_handler
+        context_handler = contextlib.nullcontext
     context = context_handler()
     context.__enter__()
+    context_is_active = True
 
     # Compute number of warmup microbatches.
     num_microbatches: int = get_num_microbatches()
@@ -477,7 +478,7 @@ def forward_backward_pipelining_without_interleaving(
         for i in range(num_warmup_microbatches):
             if i == num_warmup_microbatches-1 and rank == 0:
                 context.__exit__(None, None, None)
-                context = None
+                context_is_active = False
             _logger.debug(f"cooldown iter: {i} / {num_warmup_microbatches}")
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
@@ -509,8 +510,8 @@ def forward_backward_pipelining_without_interleaving(
             )
 
     # Make sure to exit context handler for async grad reductions
-    if context is not None:
+    if context_is_active:
         context.__exit__(None, None, None)
-        context = None
+        context_is_active = False
 
     return losses_reduced
