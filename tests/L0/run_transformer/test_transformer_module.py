@@ -5,6 +5,8 @@ import sys
 import unittest
 
 
+# TODO(crcrpar): should move this to `apex._testing` or whatever in the near future.
+RUN_SLOW_TESTS = os.getenv('APEX_RUN_WITH_SLOW_TESTS', '0') == '1'
 SEVERALGPU_TEST = [
     "bert_minimal_test",
     "gpt_minimal_test",
@@ -33,7 +35,6 @@ def get_launch_option(test_filename) -> Tuple[bool, str]:
 
 def get_test_command(test_file: str) -> str:
     python_executable_path = sys.executable
-    is_denied = False
     should_skip, launch_option = get_launch_option(test_file)
     if should_skip:
         return ""
@@ -63,7 +64,6 @@ def get_test_command(test_file: str) -> str:
 
 
 def _get_test_file(key):
-    python_executable_path = sys.executable
     directory = os.path.dirname(__file__)
     test_file = [
         os.path.join(directory, f)
@@ -73,6 +73,7 @@ def _get_test_file(key):
     return test_file
 
 
+@unittest.skipUnless(RUN_SLOW_TESTS, "this test takes long.")
 class TestTransformer(unittest.TestCase):
     def _test_impl(self, key: str):
         test_file = _get_test_file(key)
