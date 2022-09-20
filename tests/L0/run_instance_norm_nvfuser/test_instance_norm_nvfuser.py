@@ -2,6 +2,7 @@ import itertools
 import unittest
 
 import torch
+import torch.nn as nn
 
 import apex
 from apex.normalization import InstanceNorm3dNVFuser
@@ -59,8 +60,10 @@ class TestInstanceNormNVFuser(unittest.TestCase):
                 else:
                     torch.testing.assert_close(self.m.weight.grad, self.reference_m.weight.grad)
             if self.m.bias is not None:
-                if self.dtype in (torch.float16, torch.bfloat16):
-                    torch.testing.assert_close(self.m.bias.grad, self.reference_m.bias.grad, atol=5e-3, rtol=5e-3)
+                if self.dtype == torch.float16:
+                    torch.testing.assert_close(self.m.bias.grad, self.reference_m.bias.grad, atol=5e-3, rtol=7e-2)
+                elif self.dtype == torch.bfloat16:
+                    torch.testing.assert_close(self.m.bias.grad, self.reference_m.bias.grad, atol=5e-2, rtol=1e-2)
                 else:
                     torch.testing.assert_close(self.m.bias.grad, self.reference_m.bias.grad)
 
@@ -76,3 +79,24 @@ class TestInstanceNormNVFuser(unittest.TestCase):
                 self.affine = affine
                 self.init_modules()
                 self.check_same_output() 
+
+    @unittest.skipIf(torch.cuda.device_count() < 2, "more than 1 GPU required")
+    def test_multigpu(self):
+        class Model(nn.Module):
+            def __init__(self):
+                super(Model, self).__init__()
+                self.norm = InstanceNorm3dNVFuser(4)
+
+            def forward(self, x):
+                x = self.norm(x)
+                x = torch.sum(x, dim=(1, 2, 3, 4))
+                return x
+
+        device = torch.device(f"cuda:1")
+        model = Model().to(device)
+
+        x = torch.randn(2, 4, 128, 128, 128, device=device, requires_grad=True)
+        y = torch.randn(2, device=device)
+        pred = model(x)
+        loss = nn.functional.mse_loss(pred, y.float())
+        loss.backward()
