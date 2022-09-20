@@ -536,12 +536,15 @@ class NcclPipelineParallelWithCustomSyncContextHandler(NcclDistributedTestBase):
         torch.cuda.synchronize()
 
         # Check context behavior
-        assert has_entered_context, 'Has not entered custom sync context'
-        assert has_exited_context, 'Has not exited custom sync context'
-        assert no_grad_at_context_exit == parallel_state.is_pipeline_first_stage(), \
-            'Expected to exit custom sync context '\
-            'before backward pass in first pipeline stage ' \
+        self.assertTrue(has_entered_context, 'Has not entered custom sync context')
+        self.assertTrue(has_exited_context, 'Has not exited custom sync context')
+        self.assertEqual(
+            no_grad_at_context_exit,
+            parallel_state.is_pipeline_first_stage(),
+            'Expected to exit custom sync context '
+            'before backward pass in first pipeline stage '
             'and after backward pass in other pipeline stages'
+        )
 
         # Clean up
         parallel_state.destroy_model_parallel()
