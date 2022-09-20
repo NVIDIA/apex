@@ -154,19 +154,22 @@ def create_mask(tensor, pattern="m4n2_1d", density=0.5):
         func = getattr(sys.modules[__name__], pattern, None)
         mask = func(t, density)
         return mask.view(shape).type(ttype)
-    # 2d-tensor (in, out)
+    # 2d-tensor (K, C)
     elif len(shape) == 2:
+        # linear
         t = t.view(shape[0], shape[1])
         func = getattr(sys.modules[__name__], pattern, None)
         mask = func(t, density)
         return mask.view(shape).type(ttype)
-    # 3d-tensor (batch, in, out)
+    # 3d-tensor (K, C, R)
     elif len(shape) == 3:
-        t = t.view(shape[0]*shape[1], shape[2])
+        # 1d convs
+        t = t.permute(0,2,1).contiguous().view(shape[0]*shape[2], shape[1])
         func = getattr(sys.modules[__name__], pattern, None)
         mask = func(t, density)
+        mask = mask.view(shape[0], shape[2], shape[1]).permute(0,2,1).contiguous()     
         return mask.view(shape).type(ttype)
-    # 4d-tensor (in, out, h, w)
+    # 4d-tensor (K, C, R, S)
     elif len(shape) == 4:
         """
         # transformers (bmm)
@@ -175,7 +178,7 @@ def create_mask(tensor, pattern="m4n2_1d", density=0.5):
         mask = func(t, density)
         return mask.view(shape).type(ttype)
         """
-        # convs
+        # 2d convs
         t = t.permute(2,3,0,1).contiguous().view(shape[2]*shape[3]*shape[0], shape[1])
         func = getattr(sys.modules[__name__], pattern, None)
         mask = func(t, density)
