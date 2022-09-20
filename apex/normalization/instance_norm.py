@@ -91,7 +91,7 @@ class _InstanceNormNVFuser(_NormBase):
         factory_kwargs = {'device': device, 'dtype': dtype}
         super(_InstanceNormNVFuser, self).__init__(
             num_features, eps, momentum, affine, track_running_stats, **factory_kwargs)
-        self.dummy = torch.empty([], device='cuda')
+        self.dummy = torch.empty([], device=device)
 
     def _check_input_dim(self, input):
         raise NotImplementedError
