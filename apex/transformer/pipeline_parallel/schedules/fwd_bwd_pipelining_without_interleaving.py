@@ -1,3 +1,4 @@
+import contextlib
 from typing import Union, List, Optional, Sequence
 import warnings
 
@@ -239,6 +240,7 @@ def forward_backward_pipelining_without_interleaving(
     deallocate_pipeline_outputs: bool = False,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    custom_sync_context_handler = None,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
@@ -269,9 +271,18 @@ def forward_backward_pipelining_without_interleaving(
         sequence_parallel_enabled: Set to :obj:`True` for this function to handle sequence length.
             When :obj:`True`, the sequence length on each tensor model parallel rank is updated
             to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
+        custom_sync_context_handler: Context manager to disable
+            asynchronous gradient reductions. In the first pipeline
+            stage, asynchronous gradient reductions are enabled in the
+            backward pass of the last microbatch. In other pipeline
+            stages, asynchronous gradient reductions are disabled and
+            gradients must be manually synchronized by the caller (in
+            practice the runtime is covered up by the bubble
+            overhead).
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
+
     """
     # timers = get_timers()
 
@@ -286,6 +297,15 @@ def forward_backward_pipelining_without_interleaving(
         msg = f"`model` is expected be a `nn.Module`, but {type(model)}"
         raise RuntimeError(msg)
     model: torch.nn.Module = model[0]
+
+    # Disable async grad reductions
+    if custom_sync_context_handler is not None:
+        context_handler = custom_sync_context_handler
+    else:
+        context_handler = contextlib.nullcontext
+    context = context_handler()
+    context.__enter__()
+    context_is_active = True
 
     # Compute number of warmup microbatches.
     num_microbatches: int = get_num_microbatches()
@@ -456,6 +476,9 @@ def forward_backward_pipelining_without_interleaving(
     _logger.info("Cooldown phase")
     if not forward_only:
         for i in range(num_warmup_microbatches):
+            if i == num_warmup_microbatches-1 and rank == 0:
+                context.__exit__(None, None, None)
+                context_is_active = False
             _logger.debug(f"cooldown iter: {i} / {num_warmup_microbatches}")
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
@@ -485,5 +508,10 @@ def forward_backward_pipelining_without_interleaving(
                 async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
             )
+
+    # Make sure to exit context handler for async grad reductions
+    if context_is_active:
+        context.__exit__(None, None, None)
+        context_is_active = False
 
     return losses_reduced
