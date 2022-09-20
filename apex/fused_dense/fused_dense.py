@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import fused_dense_cuda
-from .. import amp
+
 #implements fused GEMM+bias in forward pass using mlp_cuda from apex
 class FusedDenseFunc(torch.autograd.Function):
     @staticmethod
@@ -45,11 +45,6 @@ class FusedDenseGeluDenseFunc(torch.autograd.Function):
         grad_input, grad_weight1, grad_bias1, grad_weight2, grad_bias2 = fused_dense_cuda.linear_gelu_linear_backward(input, gelu_in, output1, weight1, weight2, grad_output)
         return grad_input, grad_weight1, grad_bias1, grad_weight2, grad_bias2
 
-
-fused_dense_function = amp.half_function(FusedDenseFunc.apply)
-dense_no_bias_function = amp.half_function(DenseNoBiasFunc.apply)
-fused_dense_gelu_dense_function = amp.half_function(FusedDenseGeluDenseFunc.apply)
-
 class FusedDense(nn.Module):
     def __init__(self, in_features, out_features, bias=True):
         super(FusedDense, self).__init__()
@@ -63,10 +58,12 @@ class FusedDense(nn.Module):
             self.register_parameter('bias', None)
 
     def forward(self, input):
-        if self.bias is not None:
-            return fused_dense_function(input, self.weight, self.bias)
-        else:
-            return dense_no_bias_function(input, self.weight)
+        device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
+        with torch.autocast(device_type):
+            if self.bias is not None:
+                return FusedDenseFunc.apply(input, self.weight, self.bias)
+            else:
+                return DenseNoBiasFunc.apply(input, self.weight)
 
 class FusedDenseGeluDense(nn.Module):
     def __init__(self, in_features, intermediate_features, out_features, bias=True):
@@ -81,5 +78,6 @@ class FusedDenseGeluDense(nn.Module):
         self.bias2 = nn.Parameter(torch.Tensor(out_features))
 
     def forward(self, input):
-        return fused_dense_gelu_dense_function(input, self.weight1, self.bias1, self.weight2, self.bias2)
-
+        device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
+        with torch.autocast(device_type):
+            return FusedDenseGeluDenseFunc.apply(input, self.weight1, self.bias1, self.weight2, self.bias2)
