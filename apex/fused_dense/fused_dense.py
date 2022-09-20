@@ -92,5 +92,4 @@ class FusedDenseGeluDense(nn.Module):
         self.bias2 = nn.Parameter(torch.Tensor(out_features))
 
     def forward(self, input):
-        device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
         return _fused_dense_gelu_dense(input, self.weight1, self.bias1, self.weight2, self.bias2)
