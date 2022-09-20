@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import fused_dense_cuda
+from apex._autocast_utils import _cast_if_autocast_enabled
 
 #implements fused GEMM+bias in forward pass using mlp_cuda from apex
 class FusedDenseFunc(torch.autograd.Function):
@@ -45,6 +46,21 @@ class FusedDenseGeluDenseFunc(torch.autograd.Function):
         grad_input, grad_weight1, grad_bias1, grad_weight2, grad_bias2 = fused_dense_cuda.linear_gelu_linear_backward(input, gelu_in, output1, weight1, weight2, grad_output)
         return grad_input, grad_weight1, grad_bias1, grad_weight2, grad_bias2
 
+def _fused_dense(input, weight, bias):
+    args = _cast_if_autocast_enabled(input, weight, bias)
+    with torch.cuda.amp.autocast(enabled=False):
+        return FusedDenseFunc.apply(*args)
+
+def _dense_no_bias(input, weight):
+    args = _cast_if_autocast_enabled(input, weight)
+    with torch.cuda.amp.autocast(enabled=False):
+        return DenseNoBiasFunc.apply(*args)
+
+def _fused_dense_gelu_dense(input, weight1, bias1, weight2, bias2):
+    args = _cast_if_autocast_enabled(input, weight1, bias1, weight2, bias2)
+    with torch.cuda.amp.autocast(enabled=False):
+        return FusedDenseGeluDenseFunc.apply(*args)
+
 class FusedDense(nn.Module):
     def __init__(self, in_features, out_features, bias=True):
         super(FusedDense, self).__init__()
@@ -58,12 +74,10 @@ class FusedDense(nn.Module):
             self.register_parameter('bias', None)
 
     def forward(self, input):
-        device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
-        with torch.autocast(device_type):
-            if self.bias is not None:
-                return FusedDenseFunc.apply(input, self.weight, self.bias)
-            else:
-                return DenseNoBiasFunc.apply(input, self.weight)
+        if self.bias is not None:
+            return _fused_dense(input, self.weight, self.bias)
+        else:
+            return _dense_no_bias(input, self.weight)
 
 class FusedDenseGeluDense(nn.Module):
     def __init__(self, in_features, intermediate_features, out_features, bias=True):
@@ -79,5 +93,4 @@ class FusedDenseGeluDense(nn.Module):
 
     def forward(self, input):
         device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
-        with torch.autocast(device_type):
-            return FusedDenseGeluDenseFunc.apply(input, self.weight1, self.bias1, self.weight2, self.bias2)
+        return _fused_dense_gelu_dense(input, self.weight1, self.bias1, self.weight2, self.bias2)
