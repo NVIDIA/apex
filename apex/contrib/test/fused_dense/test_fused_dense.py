@@ -1,6 +1,7 @@
 import unittest
-import torch
 import os
+
+import torch
 from torch.testing._internal import common_utils
 from torch.testing._internal.common_device_type import instantiate_device_type_tests
 
@@ -24,7 +25,7 @@ class FusedDenseTest(common_utils.TestCase):
         hidden_dim = 1024
 
         ref_inputs = torch.randn(sequences*seq_length, hidden_dim,
-                                 dtype=dtype, device=torch.device("cuda")).int().to(dtype=dtype).requires_grad_(True)
+                                 dtype=dtype, device=torch.device("cuda")).requires_grad_(True)
 
         tst_inputs = ref_inputs.clone().detach().requires_grad_(True)
         dense = fused_dense.FusedDense(1024, 3072)
