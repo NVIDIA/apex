@@ -1,7 +1,11 @@
 #include <ATen/ATen.h>
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
-#include <ATen/cuda/Atomic.cuh>
+#ifdef ATEN_ATOMIC_HEADER
+    #include <ATen/cuda/Atomic.cuh>
+#else
+    #include <THC/THCAtomics.cuh>
+#endif
 
 
 __global__ void index_mul_2d_float_dim64(
