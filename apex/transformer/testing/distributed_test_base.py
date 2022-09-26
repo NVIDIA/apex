@@ -15,6 +15,7 @@ try:
     HAS_TORCH_UCC = True
 except ImportError:
     HAS_TORCH_UCC = False
+HAS_UCC = dist.is_ucc_available() or HAS_TORCH_UCC
 
 # NOTE(mkozuki): Version guard for ucc. ref: https://github.com/openucx/ucc/issues/496
 _TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION = Version("470.42.01")
@@ -85,16 +86,16 @@ class NcclDistributedTestBase(DistributedTestBase):
 
     DISTRIBUTED_BACKEND = "nccl"
 
-
 @unittest.skipUnless(
-    HAS_TORCH_UCC,
-    "Requires [`torch_ucc`](https://github.com/facebookresearch/torch_ucc)",
+    HAS_UCC,
+    "Requires either torch ucc or pytorch build from source with native ucc installed and enabled",
 )
 @unittest.skipUnless(
     HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER,
     f"`torch_ucc` requires NVIDIA driver >= {_TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION} but {_driver_version} found. "
     "See https://github.com/openucx/ucc/issues/496",
 )
+
 class UccDistributedTestBase(DistributedTestBase):
 
     DISTRIBUTED_BACKEND = "ucc"

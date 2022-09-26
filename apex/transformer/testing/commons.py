@@ -35,7 +35,7 @@ from apex.transformer.pipeline_parallel.schedules.common import (
     Batch,
 )
 from apex.transformer.testing import global_vars
-
+from apex.transformer.testing.distributed_test_base import HAS_UCC
 
 TEST_SUCCESS_MESSAGE = ">> passed the test :-)"
 
@@ -257,7 +257,8 @@ def initialize_distributed(backend="nccl"):
     if backend not in ("nccl", "ucc"):
         raise RuntimeError(f"Currently only nccl & ucc are supported but {backend}")
     if backend == "ucc":
-        import torch_ucc  # NOQA
+        if not HAS_UCC:
+            raise ImportError("UCC backend requires pytorch source build with UCC installed and enabled")
     args = global_vars.get_args()
     local_rank = args.local_rank
 
