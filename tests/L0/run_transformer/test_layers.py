@@ -134,6 +134,7 @@ class TensorParallelLayerTestBase:
             self.assertEqual(input, torch.cat(input_list), msg=msg)
             parallel_state.destroy_model_parallel()
 
+    # Fails on native ucc: times out
     def test_parallel_embedding(self) -> None:
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_parallel_world_size:
@@ -276,9 +277,19 @@ class TensorParallelLayerTestBase:
     def test_row_parallel_linear_gradient_accumulation_fusion(self) -> None:
         self._row_parallel_linear_test_impl(True, False, False)
 
+    """
+    Fails in native ucc: reduction dtype: float16 not supported
+    Full error: 
+    ec_cuda_executor_persistent.c:39   cuda ec ERROR not supported reduction dtype: float16
+    reduce_scatter_knomial.c:174  TL_UCP ERROR failed to perform dt reduction
+    """
     def test_row_parallel_linear_gradient_accumulation_fusion_in_fp16(self) -> None:
         self._row_parallel_linear_test_impl(True, True, False)
 
+    """
+    Fails in native ucc: 
+    RuntimeError: ProcessGroup ucc does not support _reduce_scatter_base
+    """
     @unittest.skipIf(torch.cuda.device_count() < 2, "Sequence Parallel requires >=2 GPUs")
     def test_row_parallel_linear_sequence_parallel(self) -> None:
         self._row_parallel_linear_test_impl(False, False, True)
@@ -410,6 +421,12 @@ class TensorParallelLayerTestBase:
     def test_column_parallel_linear_gradient_accumulation_fusion(self):
         self._column_parallel_linear_test_impl(False, True, False, False)
 
+    """
+    Fails on native ucc: reduction dtype: float16 not supported
+    Full error: 
+    ec_cuda_executor_persistent.c:39   cuda ec ERROR not supported reduction dtype: float16
+    reduce_scatter_knomial.c:174  TL_UCP ERROR failed to perform dt reduction
+    """
     def test_column_parallel_linear_gradient_accumulation_fusion_in_fp16(self):
         self._column_parallel_linear_test_impl(False, True, True, False)
 

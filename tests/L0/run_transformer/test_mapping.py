@@ -14,6 +14,7 @@ logging.getLogger("apex").setLevel(logging.WARNING)
 
 
 class MappingTestBase:
+    # Fails on native ucc: times out
     def test_reduce(self):
         for tensor_model_paralell_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_paralell_world_size > 0:

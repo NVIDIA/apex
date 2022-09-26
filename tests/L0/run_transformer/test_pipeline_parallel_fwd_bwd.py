@@ -230,9 +230,11 @@ class PipelineParallelForwardBackwardTestBase:
 
             parallel_state.destroy_model_parallel()
 
+    # fails on native ucc: times out
     def test_learning_no_pipelining(self):
         self._forward_backward_test_impl(False, forward_backward_no_pipelining, 1, None)
 
+    # fails on native ucc: times out
     def test_inference_no_pipelining(self):
         self._forward_backward_test_impl(True, forward_backward_no_pipelining, 1, None)
 
@@ -256,24 +258,28 @@ class PipelineParallelForwardBackwardTestBase:
             True, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
         )
 
+    # fails on native ucc: times out
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
     def test_learning_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
         )
 
+    # fails on native ucc: times out
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
     def test_inference_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
         )
 
+    # fails on native ucc: times out
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
     def test_learning_async_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
             False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True
         )
 
+    # fails on native ucc: times out
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
     def test_inference_async_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(

@@ -56,6 +56,12 @@ def tensor_sharded_cross_entropy(
 
 
 class VocabParallelCrossEntropyTestBase:
+    """
+    Fails on native ucc, reduction op: max not supported for TL_UCP
+    Full error: 
+    ec_cuda_executor_persistent.c:33   cuda ec ERROR not supported reduction op: max
+    allreduce_knomial.c:147  TL_UCP ERROR failed to perform dt reduction
+    """
     def test_cross_entropy(self):
         batch_size, sequence_length, vocab_size_per_partition = 13, 17, 11
         logits_scale = 1000.0
