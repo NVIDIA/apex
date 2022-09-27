@@ -29,10 +29,9 @@ from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_int
 )
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
-from apex.transformer.testing.distributed_test_base import HAS_UCC
 from apex.transformer.testing.distributed_test_base import HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER
 from apex.transformer.testing import commons as testing_utils
-
+from apex.transformer._ucc_util import HAS_UCC
 
 logging.getLogger("torch").setLevel(logging.WARNING)
 logging.getLogger("apex").setLevel(logging.WARNING)

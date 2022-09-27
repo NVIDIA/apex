@@ -21,7 +21,7 @@ import warnings
 import torch
 
 from apex.transformer.log_util import get_transformer_logger
-from apex.transformer.testing.distributed_test_base import HAS_UCC
+from apex.transformer._ucc_util import HAS_UCC
 
 
 _logger = get_transformer_logger(__name__)

@@ -4,7 +4,7 @@ import time
 
 import torch
 
-from apex.transformer.testing.distributed_test_base import HAS_UCC
+from apex.transformer._ucc_util import HAS_UCC
 from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
 from apex.transformer.tensor_parallel import model_parallel_cuda_manual_seed
