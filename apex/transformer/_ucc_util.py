@@ -7,4 +7,3 @@ if not HAS_UCC:
         HAS_UCC = True
     except ImportError:
         HAS_UCC = False
-        
