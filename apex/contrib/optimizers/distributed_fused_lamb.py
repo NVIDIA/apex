@@ -7,6 +7,13 @@ from apex.multi_tensor_apply import multi_tensor_applier
 
 import torch.distributed.distributed_c10d as c10d
 
+# Fallback to private fields if using older PyTorch version
+try:
+    import torch.distributed.distributed_c10d.get_process_group_ranks
+except ImportError:
+    def get_process_group_ranks(group):
+        return list(c10d._pg_group_ranks[group].keys())
+
 _make_nccl_premul_sum = getattr(torch.distributed, "_make_nccl_premul_sum", None)
 # Ref: https://github.com/pytorch/pytorch/pull/81272
 if _make_nccl_premul_sum is None:
@@ -135,7 +142,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._skip_ag = skip_allgather
         self._fused_norm = fused_norm if not clip_after_ar else False
         self._current_process_group = c10d._get_default_group()
-        self._available_ranks = list(c10d._pg_group_ranks[self._current_process_group].keys())
+        self._available_ranks = get_process_group_ranks(self._current_process_group)
         self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
         self._world_size = torch.distributed.get_world_size()
         self._num_groups = self._world_size // self._group_size
