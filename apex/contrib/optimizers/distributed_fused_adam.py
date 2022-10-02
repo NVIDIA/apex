@@ -7,10 +7,17 @@ import itertools
 import threading
 
 import torch
-from torch.distributed.distributed_c10d import _get_default_group, _get_global_rank
+from torch.distributed.distributed_c10d import _get_default_group
 from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
 import distributed_adam_cuda
+
+# Fallback to private function if using older PyTorch version
+try:
+    from torch.distributed.distributed_c10d import get_global_rank
+except ImportError:
+    from torch.distributed.distributed_c10d import _get_global_rank
+    get_global_rank = _get_global_rank
 
 _FOUND_DEPRECATED_FUSED_ADAM = False
 try:
@@ -367,7 +374,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             )
         try:
             self._process_group_ranks = [
-                _get_global_rank(self.process_group, local_rank)
+                get_global_rank(self.process_group, local_rank)
                 for local_rank in range(self.distributed_size)
             ]
         except:
