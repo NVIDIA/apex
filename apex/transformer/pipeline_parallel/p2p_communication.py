@@ -267,8 +267,10 @@ def _communicate(
                 torch.cuda.synchronize()
             tensor_recv_next_waitfunc = tensor_recv_next_wait
     else:
-        # To protect against race condition when using batch_isend_irecv().
-        torch.cuda.synchronize()
+        # Need to identify if its last batch (Multiple ways to do this)
+        if not last_batch:
+            # To protect against race condition when using batch_isend_irecv().
+            torch.cuda.synchronize()
 
     # If using scatter-gather optimization, gather smaller chunks.
     if scatter_gather_optimization_doable:

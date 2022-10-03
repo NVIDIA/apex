@@ -133,7 +133,9 @@ def get_kth_microbatch(batch: Optional[List[torch.Tensor]], k: int) -> List[torc
     microbatch = list()
     for x in batch:
         size = x.size(0)
-        assert size > start and size >= end
+        #(Even if indices are not within bounds sublisting will work). 
+        # When microbatch size is smaller than expected this assert throws error. 
+        #assert size > start and size >= end  
         microbatch.append(x[start:end])
     assert len(microbatch) > 0
     return microbatch

@@ -349,13 +349,16 @@ def forward_backward_pipelining_without_interleaving(
     for i in range(num_warmup_microbatches):
         _logger.debug(f"warmup iter: {i} / {num_warmup_microbatches}")
         _logger.debug("receive fwd")
+        cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i)
+        # Rather than by default expect micro batch size, we put in recv_tensor_shapes to be what we would expect
+        cur_microbatch_size = cur_microbatch[0].shape[0]
+        recv_tensor_shapes[0][1] = cur_microbatch_size
         input_tensor = recv_forward(
             tensor_shapes=recv_tensor_shapes,
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
-        )
-        cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i)
+        )   
         output_tensor = forward_step(
             forward_step_func,
             cur_microbatch,
@@ -366,6 +369,7 @@ def forward_backward_pipelining_without_interleaving(
             disable_autocast,
         )
         _logger.debug("send fwd")
+        send_tensor_shapes[0][1] = output_tensor[0].size()[1]
         send_forward(
             output_tensor,
             tensor_shapes=send_tensor_shapes,
@@ -406,6 +410,8 @@ def forward_backward_pipelining_without_interleaving(
         )
         if forward_only:
             _logger.debug("send fwd")
+            # Same here. We get the current microbatch size and set it in send tensor shapes
+            send_tensor_shapes[0][1] = cur_microbatch[0].shape[0]
             send_forward(
                 output_tensor,
                 tensor_shapes=send_tensor_shapes,
@@ -416,6 +422,9 @@ def forward_backward_pipelining_without_interleaving(
 
             if not last_iteration:
                 _logger.debug("receive fwd (last iteration)")
+                # Same here. We set recv_tensor_shapes to what we expect to recieve 
+                next_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i + num_warmup_microbatches + 1)
+                recv_tensor_shapes[0][1] = next_microbatch[0].shape[0]
                 input_tensor = recv_forward(
                     tensor_shapes=recv_tensor_shapes,
                     dtype=dtype,

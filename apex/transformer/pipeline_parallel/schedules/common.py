@@ -292,6 +292,14 @@ def forward_step(
     input_tensor = [inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor]
 
     unwrapped_model.set_input_tensor(input_tensor)
+
+    # Sometimes we might have empty batches . 
+    # E.g num_samples = 12, global_batch_size = 8, micro_batch_size = 4
+    # The second micro batch of the second global batch will be empty. 
+    # NOTE : the forward_step_func() below can handle varying batch sizes, but cant handle 0. 
+    number_of_input_examples = batch[0].shape()[0]
+    if number_of_input_examples == 0:
+        return
     with torch.cuda.amp.autocast(
         enabled=not disable_autocast and dtype in (torch.half, torch.bfloat16),
         dtype=dtype,
