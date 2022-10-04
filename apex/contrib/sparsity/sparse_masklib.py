@@ -96,7 +96,7 @@ def mn_2d_greedy(matrix, m, n):
                 rowCounter[currMatrixEntry[0]] += 1
                 colCounter[currMatrixEntry[1]] += 1
 
-    return torch.tensor(mask.cuda())
+    return torch.tensor(mask).cuda()
 
 def m4n2_2d_greedy(mat, density):
     return mn_2d_greedy(mat, 4, 2)
