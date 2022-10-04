@@ -2,7 +2,7 @@ import sys
 import torch
 import numpy as np
 import collections
-from itertools import permutations
+from itertools import permutations, combinations
 
 
 """ compute density (helper fn to compute % NNZs in a tensor) """
@@ -27,9 +27,12 @@ def compute_valid_1d_patterns(m,n):
     global valid_m4n2_1d_patterns
 
     if m==4  and n==2 and valid_m4n2_1d_patterns  is not None: return valid_m4n2_1d_patterns
-    patterns = torch.zeros(m)
-    patterns[:n] = 1
-    valid_patterns = torch.Tensor(list(set(permutations(patterns.tolist()))))
+    valid_patterns = []
+    for i in list(combinations(range(0, m), n)):
+        cur_pattern = np.zeros(m, dtype=np.int32)
+        cur_pattern[list(i)] = 1
+        valid_patterns.append(cur_pattern)
+    valid_patterns = torch.Tensor(valid_patterns)
     if m == 4  and n == 2: valid_m4n2_1d_patterns  = valid_patterns       
     return valid_patterns
 
