@@ -781,6 +781,7 @@ setup(
     packages=find_packages(
         exclude=("build", "csrc", "include", "tests", "dist", "docs", "tests", "examples", "apex.egg-info",)
     ),
+    install_requires=["packaging>20.6",],
     description="PyTorch Extensions written by NVIDIA",
     ext_modules=ext_modules,
     cmdclass={"build_ext": BuildExtension} if ext_modules else {},
