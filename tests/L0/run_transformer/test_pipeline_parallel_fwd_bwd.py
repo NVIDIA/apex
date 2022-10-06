@@ -259,14 +259,16 @@ class PipelineParallelForwardBackwardTestBase:
             True, forward_backward_pipelining_without_interleaving, None, None, sync_batch_comm=sync_batch_comm,
         )
 
-    def test_learning_async_pipelining_without_interleaving(self):
+    def test_learning_async_pipelining_without_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
-            False, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
+            False, forward_backward_pipelining_without_interleaving, None, None, async_comm=True,
+            sync_batch_comm=sync_batch_comm,
         )
 
-    def test_inference_async_pipelining_without_interleaving(self):
+    def test_inference_async_pipelining_without_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
-            True, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
+            True, forward_backward_pipelining_without_interleaving, None, None, async_comm=True,
+            sync_batch_comm=sync_batch_comm,
         )
 
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
@@ -284,15 +286,17 @@ class PipelineParallelForwardBackwardTestBase:
         )
 
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
-    def test_learning_async_pipelining_with_interleaving(self):
+    def test_learning_async_pipelining_with_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
-            False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True
+            False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True,
+            sync_batch_comm=sync_batch_comm,
         )
 
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
-    def test_inference_async_pipelining_with_interleaving(self):
+    def test_inference_async_pipelining_with_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
-            True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True
+            True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True,
+            sync_batch_comm=sync_batch_comm,
         )
 
 
@@ -326,20 +330,36 @@ class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineP
         self._test_hybrid_backends(True)
 
     @unittest.skipUnless(CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
-    def test_learning_pipelining_without_interleaving_async_batch_isend_irecv(self):
+    def test_learning_pipelining_without_interleaving_skyp_sync_after_batch_isend_irecv(self):
         self.test_learning_pipelining_without_interleaving(sync_batch_comm=False)
 
     @unittest.skipUnless(CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
-    def test_inference_pipelining_without_interleaving_async_batch_isend_irecv(self):
+    def test_inference_pipelining_without_interleaving_skip_sync_after_batch_isend_irecv(self):
         self.test_inference_pipelining_without_interleaving(sync_batch_comm=False)
 
     @unittest.skipUnless(CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
-    def test_learning_pipelining_with_interleaving_async_batch_isend_irecv(self):
+    def test_learning_async_pipelining_without_interleaving_skip_sync_after_batch_isend_irecv(self):
+        self.test_learning_async_pipelining_without_interleaving(sync_batch_comm=True)
+
+    @unittest.skipUnless(CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
+    def test_inference_async_pipelining_without_interleaving_skip_sync_after_batch_isend_irecv(self):
+        self.test_inference_async_pipelining_without_interleaving(sync_batch_comm=True)
+
+    @unittest.skipUnless(CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
+    def test_learning_pipelining_with_interleaving_skip_sync_after_batch_isend_irecv(self):
         self.test_learning_pipelining_with_interleaving(sync_batch_comm=False)
 
     @unittest.skipUnless(CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
-    def test_inference_pipelining_with_interleaving_async_batch_isend_irecv(self):
+    def test_inference_pipelining_with_interleaving_skip_sync_after_batch_isend_irecv(self):
         self.test_inference_pipelining_with_interleaving(sync_batch_comm=False)
+
+    @unittest.skipUnless(CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
+    def test_learning_async_pipelining_with_interleaving_skip_sync_after_batch_isend_irecv(self):
+        self.test_learning_async_pipelining_with_interleaving(sync_batch_comm=False)
+
+    @unittest.skipUnless(CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
+    def test_inference_async_pipelining_with_interleaving_skip_sync_after_batch_isend_irecv(self):
+        self.test_inference_async_pipelining_with_interleaving(sync_batch_comm=False)
 
 
 # n.b.(mkozuki): pipeline parallel w/o interleaving with UCX_TLS=tcp,sm fails.
