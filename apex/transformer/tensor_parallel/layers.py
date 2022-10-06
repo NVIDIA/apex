@@ -290,12 +290,19 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
         sequence_parallel_enabled: bool,
         use_16bit_in_wgrad_accum_fusion: bool = False,
     ):
-        ctx.save_for_backward(input, weight)
         ctx.use_bias = bias is not None
         ctx.gradient_accumulation_fusion = gradient_accumulation_fusion
         ctx.async_grad_allreduce = async_grad_allreduce
         ctx.sequence_parallel_enabled = sequence_parallel_enabled
         ctx.use_16bit_in_wgrad_accum_fusion = use_16bit_in_wgrad_accum_fusion
+        ctx.compute_weight_gradient = weight.requires_grad
+
+        if ctx.compute_weight_gradient:
+            ctx.save_for_backward(input, weight)
+        else:
+            ctx.save_for_backward(weight)
+            ctx.use_bias = False
+
 
         if ctx.sequence_parallel_enabled:
             world_size = get_tensor_model_parallel_world_size()
@@ -320,44 +327,58 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        input, weight = ctx.saved_tensors
+        if ctx.compute_weight_gradient:
+            input, weight = ctx.saved_tensors
+        else:
+            weight = ctx.saved_tensors[0]
+            input = None
+
         use_bias = ctx.use_bias
 
-        if ctx.sequence_parallel_enabled:
-            world_size = get_tensor_model_parallel_world_size()
-            shape = list(input.shape)
-            shape[0] *= world_size
+        #only get sequence parallel inputs if need to calculate weight grad
+        if ctx.compute_weight_gradient:
+            if ctx.sequence_parallel_enabled:
+                world_size = get_tensor_model_parallel_world_size()
+                shape = list(input.shape)
+                shape[0] *= world_size
 
-            all_gather_buffer = torch.empty(
-                shape,
-                dtype=input.dtype,
-                device=torch.cuda.current_device(),
-                requires_grad=False,
-            )
-            handle = torch.distributed.all_gather_into_tensor(
-                all_gather_buffer,
-                input,
-                group=get_tensor_model_parallel_group(),
-                async_op=True,
-            )
-            total_input = all_gather_buffer
-        else:
-            total_input = input
+                all_gather_buffer = torch.empty(
+                    shape,
+                    dtype=input.dtype,
+                    device=torch.cuda.current_device(),
+                    requires_grad=False,
+                )
+                handle = torch.distributed.all_gather_into_tensor(
+                    all_gather_buffer,
+                    input,
+                    group=get_tensor_model_parallel_group(),
+                    async_op=True,
+                )
+                total_input = all_gather_buffer
+            else:
+                total_input = input
         grad_input = grad_output.matmul(weight)
 
-        if ctx.sequence_parallel_enabled:
+        if ctx.sequence_parallel_enabled and ctx.compute_weight_gradient:
             handle.wait()
+
+        if ctx.async_grad_allreduce:
+            # Asynchronous all-reduce
+            handle = torch.distributed.all_reduce(
+                grad_input, group=get_tensor_model_parallel_group(), async_op=True
+            )
+
+        #if no weight gradient, wait for data grad all reduce and immediately return
+        if not ctx.compute_weight_gradient:
+            if ctx.async_grad_allreduce:
+                handle.wait()
+            return grad_input, None, None, None, None, None, None
 
         # Convert the tensor shapes to 2D for execution compatibility
         grad_output = grad_output.view(
             grad_output.shape[0] * grad_output.shape[1], grad_output.shape[2]
         )
         total_input = total_input.view(total_input.shape[0] * total_input.shape[1], total_input.shape[2])
-        if ctx.async_grad_allreduce:
-            # Asynchronous all-reduce
-            handle = torch.distributed.all_reduce(
-                grad_input, group=get_tensor_model_parallel_group(), async_op=True
-            )
 
         if ctx.sequence_parallel_enabled:
             assert not ctx.async_grad_allreduce
@@ -381,7 +402,6 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
             grad_weight = None
         else:
             grad_weight = grad_output.t().matmul(total_input)
-
         grad_bias = grad_output.sum(dim=0) if use_bias else None
         if ctx.sequence_parallel_enabled:
             handle.wait()
