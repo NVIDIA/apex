@@ -335,11 +335,11 @@ class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineP
 
     @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
     def test_learning_pipelining_with_interleaving_async_batch_isend_irecv(self):
-        self.test_learning_pipelining_with_interleaving(sync_batch_comm=True)
+        self.test_learning_pipelining_with_interleaving(sync_batch_comm=False)
 
     @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
     def test_inference_pipelining_with_interleaving_async_batch_isend_irecv(self):
-        self.test_inference_pipelining_with_interleaving(sync_batch_comm=True)
+        self.test_inference_pipelining_with_interleaving(sync_batch_comm=False)
 
 
 # n.b.(mkozuki): pipeline parallel w/o interleaving with UCX_TLS=tcp,sm fails.
