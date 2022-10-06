@@ -161,6 +161,7 @@ def _communicate(
             This argument is here for consistency with Megatron-LM.
             This argument has an effect on the communication optimization, not on tensor_shape update.
         sync_batch_comm: If :obj:`False`, disable cuda synchronization after the batched communication.
+            To disable, https://github.com/pytorch/pytorch/pull/82450 would be required.
 
     Returns:
         tuple containing

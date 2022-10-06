@@ -72,6 +72,7 @@ def _forward_backward_pipelining_with_interleaving(
             When :obj:`True`, the sequence length on each tensor model parallel rank is updated
             to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
         sync_batch_comm: If :obj:`False`, disable cuda synchronization after the batched communication.
+            To disable, https://github.com/pytorch/pytorch/pull/82450 would be required.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.

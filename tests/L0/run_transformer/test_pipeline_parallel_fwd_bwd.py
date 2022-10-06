@@ -1,6 +1,8 @@
 import contextlib
 import logging
 import itertools
+import os
+from packaging.version import parse, Version
 import re
 from typing import Optional, Tuple, List
 import unittest
@@ -38,6 +40,16 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 logging.getLogger("apex").setLevel(logging.WARNING)
 
 weight_coeff = 1024
+
+# Guard for https://github.com/pytorch/pytorch/pull/82450
+SUPPORT_ASYNC_BATCH_ISEND_IRECV = False
+ngc_container_2209, pytorch_113 = Version("22.09"), Version("1.13")
+if parse(os.getenv("NVIDIA_PYTORCH_VERSION", "22.08")) >= ngc_container_2209:
+    SUPPORT_ASYNC_BATCH_ISEND_IRECV = True
+elif parse(torch.__version__) >= pytorch_113:
+    SUPPORT_ASYNC_BATCH_ISEND_IRECV = True
+else:
+    SUPPORT_ASYNC_BATCH_ISEND_IRECV = False
 
 
 def get_init_weights_func(offset: int = 0):
@@ -114,6 +126,7 @@ class PipelineParallelForwardBackwardTestBase:
         *,
         default_backend: Optional[str] = None,
         p2p_backend: Optional[str] = None,
+        sync_batch_comm: bool = True,
     ) -> None:
         if fwd_bwd_func == _forward_backward_pipelining_with_interleaving:
             self.assertIsNotNone(virtual_pipeline_model_parallel_size)
@@ -167,7 +180,6 @@ class PipelineParallelForwardBackwardTestBase:
                 hidden_size=self.HIDDEN_SIZE,
             )
 
-
             offset = pipeline_model_parallel_world_size if virtual_pipeline_model_parallel_size is not None else 0
             for idx, model_module in enumerate(model):
                 model_module = model_module.to(dtype)
@@ -193,6 +205,7 @@ class PipelineParallelForwardBackwardTestBase:
                 async_comm=async_comm,
                 grad_scaler=grad_scaler,
                 deallocate_pipeline_output=deallocate_pipeline_outputs,
+                sync_batch_comm=sync_batch_comm,
             )
 
             if dtype == get_dtype_for_comparison():
@@ -310,6 +323,58 @@ class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineP
     def test_inference_pipelining_without_interleaving_ucc_for_p2p(self):
         self._test_hybrid_backends(True)
 
+    @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
+    def test_inference_pipelining_without_interleaving_async_batch_isend_irecv(self):
+        self._forward_backward_test_impl(
+            forward_only=False,
+            fwd_bwd_func=forward_backward_pipelining_without_interleaving,
+            pipeline_model_parallel_world_size=None,
+            virtual_pipeline_model_parallel_size=None,
+            async_comm=False,
+            default_backend=None,
+            p2p_backend=None,
+            sync_batch_comm=False,
+        )
+
+    @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
+    def test_inference_pipelining_without_interleaving_async_batch_isend_irecv_infrerence(self):
+        self._forward_backward_test_impl(
+            forward_only=True,
+            fwd_bwd_func=forward_backward_pipelining_without_interleaving,
+            pipeline_model_parallel_world_size=None,
+            virtual_pipeline_model_parallel_size=None,
+            async_comm=False,
+            default_backend=None,
+            p2p_backend=None,
+            sync_batch_comm=False,
+        )
+
+    @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
+    def test_inference_pipelining_with_interleaving_async_batch_isend_irecv(self):
+        self._forward_backward_test_impl(
+            forward_only=False,
+            fwd_bwd_func=_forward_backward_pipelining_with_interleaving,
+            pipeline_model_parallel_world_size=None,
+            virtual_pipeline_model_parallel_size=None,
+            async_comm=False,
+            default_backend=None,
+            p2p_backend=None,
+            sync_batch_comm=False,
+        )
+
+    @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
+    def test_inference_pipelining_with_interleaving_async_batch_isend_irecv_inference(self):
+        self._forward_backward_test_impl(
+            forward_only=True,
+            fwd_bwd_func=_forward_backward_pipelining_with_interleaving,
+            pipeline_model_parallel_world_size=None,
+            virtual_pipeline_model_parallel_size=None,
+            async_comm=False,
+            default_backend=None,
+            p2p_backend=None,
+            sync_batch_comm=False,
+        )
+
 
 # n.b.(mkozuki): pipeline parallel w/o interleaving with UCX_TLS=tcp,sm fails.
 class UccPipelineParallelForwardBackwardTest(UccDistributedTestBase, PipelineParallelForwardBackwardTestBase):
@@ -328,25 +393,22 @@ class UccPipelineParallelForwardBackwardTest(UccDistributedTestBase, PipelinePar
 @unittest.skipIf(torch.cuda.device_count() < 4, "Requires >= 4 GPUs")
 class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
 
-    GLOBAL_BATCH_SIZE = 16
-    MICRO_BATCH_SIZE = 2
-    HIDDEN_SIZE = 64
+    GLOBAL_BATCH_SIZE: int = 16
+    MICRO_BATCH_SIZE: int = 2
+    HIDDEN_SIZE: int = 64
     # TODO(mkozuki): Change `DECODER_SEQUENCE_LENGTH` to a value different from `ENCODER_SEQUENCE_LENGTH`.
     # To test forward_backward_pipelining_without_interleaving with `model_type=ModelType.encoder_and_decoder`,
     # `decoder_seq_length` is necessary and ideally should be different from `encoder_sequence_length`
     # but my laziness let me use the same value.
     # Note that you may have to either update `MyModel` def or define another `MyModel`.
     # to support different `DECODER_SEQUENCE_LENGTH`.
-    ENCODER_SEQUENCE_LENGTH = 32
-    DECODER_SEQUENCE_LENGTH = 32
+    ENCODER_SEQUENCE_LENGTH: int = 32
+    DECODER_SEQUENCE_LENGTH: int = 32
 
     @property
     def world_size(self) -> int:
         return min(torch.cuda.device_count(), 8)
 
-    # TODO(mkozuki): Add cases of async_comm=True
-    # TODO(mkozuki): Add loss check.
-    # TODO(mkozuki): Call `build_model` with `model_type`.
     # TODO(mkozuki): Set `tensor_model_parallel>1` for encoder_and_decoder as well if there's enough GPUs
     #   in order to let `sequence_parallel_enabled` have an effect on tensor shape logic.
     def _forward_backward_test_impl(
@@ -381,6 +443,7 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
             micro_batch_size=self.MICRO_BATCH_SIZE,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
+        # TODO(mkozuki): Call `build_model` with `model_type`.
         model = build_model(
             testing_utils.mlp_provider_func,
             wrap_with_ddp=False,
@@ -442,6 +505,7 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
 
     def test_pipelining_without_interleaving_sequence_parallel_encoder_or_decoder_half(self) -> None:
         self._forward_backward_test_impl(forward_only=False, sequence_parallel_enabled=True, model_type=ModelType.encoder_or_decoder, dtype=torch.half)
+
 
 @unittest.skipIf(torch.cuda.device_count() < 4 or torch.cuda.device_count() % 2 != 0, "Requires >= 4 GPUs")
 class NcclPipelineParallelWithCustomSyncContextHandler(NcclDistributedTestBase):
