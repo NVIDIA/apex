@@ -82,7 +82,7 @@ if not torch.cuda.is_available():
         "If you wish to cross-compile for a single specific architecture,\n"
         'export TORCH_CUDA_ARCH_LIST="compute capability" before running setup.py.\n',
     )
-    if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None:
+    if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None and CUDA_HOME is not None:
         _, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
         if bare_metal_version >= Version("11.8"):
             os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5;8.0;8.6;9.0"
