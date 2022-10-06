@@ -330,15 +330,15 @@ class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineP
         self.test_learning_pipelining_without_interleaving(sync_batch_comm=False)
 
     @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
-    def test_inference_pipelining_without_interleaving_async_batch_isend_irecv_infrerence(self):
+    def test_inference_pipelining_without_interleaving_async_batch_isend_irecv(self):
         self.test_inference_pipelining_without_interleaving(sync_batch_comm=False)
 
     @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
-    def test_inference_pipelining_with_interleaving_async_batch_isend_irecv(self):
+    def test_learning_pipelining_with_interleaving_async_batch_isend_irecv(self):
         self.test_learning_pipelining_with_interleaving(sync_batch_comm=True)
 
     @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
-    def test_inference_pipelining_with_interleaving_async_batch_isend_irecv_inference(self):
+    def test_inference_pipelining_with_interleaving_async_batch_isend_irecv(self):
         self.test_inference_pipelining_with_interleaving(sync_batch_comm=True)
 
 
