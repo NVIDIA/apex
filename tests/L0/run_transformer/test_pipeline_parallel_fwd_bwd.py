@@ -42,14 +42,14 @@ logging.getLogger("apex").setLevel(logging.WARNING)
 weight_coeff = 1024
 
 # Guard for https://github.com/pytorch/pytorch/pull/82450
-SUPPORT_ASYNC_BATCH_ISEND_IRECV = False
+CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV = False
 ngc_container_2209, pytorch_113 = Version("22.09"), Version("1.13")
 if parse(os.getenv("NVIDIA_PYTORCH_VERSION", "22.08")) >= ngc_container_2209:
-    SUPPORT_ASYNC_BATCH_ISEND_IRECV = True
+    CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV = True
 elif parse(torch.__version__) >= pytorch_113:
-    SUPPORT_ASYNC_BATCH_ISEND_IRECV = True
+    CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV = True
 else:
-    SUPPORT_ASYNC_BATCH_ISEND_IRECV = False
+    CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV = False
 
 
 def get_init_weights_func(offset: int = 0):
@@ -325,19 +325,19 @@ class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineP
     def test_inference_pipelining_without_interleaving_ucc_for_p2p(self):
         self._test_hybrid_backends(True)
 
-    @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
+    @unittest.skipUnless(CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
     def test_learning_pipelining_without_interleaving_async_batch_isend_irecv(self):
         self.test_learning_pipelining_without_interleaving(sync_batch_comm=False)
 
-    @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
+    @unittest.skipUnless(CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
     def test_inference_pipelining_without_interleaving_async_batch_isend_irecv(self):
         self.test_inference_pipelining_without_interleaving(sync_batch_comm=False)
 
-    @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
+    @unittest.skipUnless(CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
     def test_learning_pipelining_with_interleaving_async_batch_isend_irecv(self):
         self.test_learning_pipelining_with_interleaving(sync_batch_comm=False)
 
-    @unittest.skipUnless(SUPPORT_ASYNC_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
+    @unittest.skipUnless(CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV, "Requires https://github.com/pytorch/pytorch/pull/82450")
     def test_inference_pipelining_with_interleaving_async_batch_isend_irecv(self):
         self.test_inference_pipelining_with_interleaving(sync_batch_comm=False)
 
