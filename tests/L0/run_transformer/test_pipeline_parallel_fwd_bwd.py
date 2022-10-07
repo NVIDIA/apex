@@ -9,7 +9,6 @@ import unittest
 
 import torch
 from torch.testing._internal import common_utils
-from torch.testing._internal import common_cuda
 
 from apex._autocast_utils import _get_autocast_dtypes
 from apex.transformer import parallel_state
