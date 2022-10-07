@@ -157,7 +157,7 @@ If a requirement of a module is not met, then it will not be built.
 |  `apex_C`     |  `--cpp_ext`     | |
 |  `amp_C`      |  `--cuda_ext`    | |
 |  `syncbn`     |  `--cuda_ext`    | |
-|  `fused_layer_norm_cuda`  |  `--cuda_ext`  | |
+|  `fused_layer_norm_cuda`  |  `--cuda_ext`  | [`apex.normalization`](./apex/normalization) |
 |  `mlp_cuda`   |  `--cuda_ext`    | |
 |  `scaled_upper_triang_masked_softmax_cuda`  |  `--cuda_ext`  | |
 |  `generic_scaled_masked_softmax_cuda`  |  `--cuda_ext`  | |
@@ -170,7 +170,7 @@ If a requirement of a module is not met, then it will not be built.
 |  `fused_index_mul_2d`  |  `--index_mul_2d`  |  [`apex.contrib.index_mul_2d`](./apex/contrib/index_mul_2d)  |
 |  `fused_adam_cuda`  |  `--deprecated_fused_adam`  |  [`apex.contrib.optimizers`](./apex/contrib/optimizers)  |
 |  `fused_lamb_cuda`  |  `--deprecated_fused_lamb`  |  [`apex.contrib.optimizers`](./apex/contrib/optimizers)  |
-|  `fast_layer_norm`  |  `--fast_layer_norm`  |  [`apex.contrib.layer_norm`](./apex/contrib/layer_norm) |
+|  `fast_layer_norm`  |  `--fast_layer_norm`  |  [`apex.contrib.layer_norm`](./apex/contrib/layer_norm). different from `fused_layer_norm` |
 |  `fmhalib`    |  `--fmha`        |  [`apex.contrib.fmha`](./apex/contrib/fmha)  |
 |  `fast_multihead_attn`  |  `--fast_multihead_attn`  |  [`apex.contrib.multihead_attn`](./apex/contrib/multihead_attn)  |
 |  `transducer_joint_cuda`  |  `--transducer`  |  [`apex.contrib.transducer`](./apex/contrib/transducer)  |
