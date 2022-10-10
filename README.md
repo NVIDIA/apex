@@ -12,6 +12,8 @@ The intent of Apex is to make up-to-date utilities available to users as quickly
 
 ## 1. Amp:  Automatic Mixed Precision
 
+**Deprecated. Use [PyTorch AMP](https://pytorch.org/docs/stable/amp.html)**
+
 `apex.amp` is a tool to enable mixed precision training by changing only 3 lines of your script.
 Users can easily experiment with different pure and mixed precision training modes by supplying
 different flags to `amp.initialize`.
@@ -29,6 +31,8 @@ different flags to `amp.initialize`.
 
 ## 2. Distributed Training
 
+**`apex.parallel.DistributedDataParallel` is deprecated. Use [`torch.nn.parallel.DistributedDataParallel`](https://pytorch.org/docs/stable/generated/torch.nn.parallel.DistributedDataParallel.html?highlight=distributeddataparallel#torch.nn.parallel.DistributedDataParallel)**
+
 `apex.parallel.DistributedDataParallel` is a module wrapper, similar to
 `torch.nn.parallel.DistributedDataParallel`.  It enables convenient multiprocess distributed training,
 optimized for NVIDIA's NCCL communication library.
@@ -43,6 +47,8 @@ The [Imagenet example](https://github.com/NVIDIA/apex/tree/master/examples/image
 shows use of `apex.parallel.DistributedDataParallel` along with `apex.amp`.
 
 ### Synchronized Batch Normalization
+
+**Deprecated. Use [`torch.nn.SyncBatchNorm`](https://pytorch.org/docs/stable/generated/torch.nn.SyncBatchNorm.html)**
 
 `apex.parallel.SyncBatchNorm` extends `torch.nn.modules.batchnorm._BatchNorm` to
 support synchronized BN.

@@ -1,7 +1,9 @@
+from collections import OrderedDict
+
 import torch
+
 from ._initialize import _initialize
 from ._amp_state import _amp_state, warn_or_err, maybe_print
-from collections import OrderedDict
 
 
 class Properties(object):
@@ -305,6 +307,8 @@ def initialize(
     .. _`let us know`:
         https://github.com/NVIDIA/apex/issues
     """
+    from apex import deprecated_warning
+    deprecated_warning("apex.amp is deprecated and will be removed by the end of February 2023. Use [PyTorch AMP](https://pytorch.org/docs/stable/amp.html)")
     _amp_state.opt_properties = Properties()
     _amp_state.verbosity = verbosity
 
@@ -377,7 +381,7 @@ def load_state_dict(state_dict):
             len(state_dict), len(_amp_state.loss_scalers)))
 
     state_dict = state_dict.copy()
-    
+
     nb_loss_scalers = len(_amp_state.loss_scalers)
     unexpected_keys = []
     # Initialize idx outside, since unexpected_keys will increase it if enumerate is used

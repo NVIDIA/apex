@@ -1,1 +1,3 @@
+**This module will be removed by the end of February 2023**
+
 Under construction...

@@ -1,13 +1,13 @@
+import functools
+import itertools
+
+import torch
+
 from . import compat, rnn_compat, utils, wrap
 from .handle import AmpHandle, NoOpHandle
 from .lists import functional_overrides, torch_overrides, tensor_overrides
 from ._amp_state import _amp_state
 from .frontend import *
-
-import functools
-import itertools
-
-import torch
 
 
 _DECORATOR_HANDLE = None
@@ -28,16 +28,22 @@ def _decorator_helper(orig_fn, cast_fn, wrap_fn):
 
 # Decorator form
 def half_function(fn):
+    from apex import deprecated_warning
+    deprecated_warning("apex.amp is deprecated and will be removed by the end of February 2023. Use [PyTorch AMP](https://pytorch.org/docs/stable/amp.html)")
     wrap_fn = functools.partial(wrap.make_cast_wrapper, try_caching=True)
     return _decorator_helper(fn, utils.maybe_half, wrap_fn)
 
 
 def float_function(fn):
+    from apex import deprecated_warning
+    deprecated_warning("apex.amp is deprecated and will be removed by the end of February 2023. Use [PyTorch AMP](https://pytorch.org/docs/stable/amp.html)")
     wrap_fn = functools.partial(wrap.make_cast_wrapper, try_caching=False)
     return _decorator_helper(fn, utils.maybe_float, wrap_fn)
 
 
 def promote_function(fn):
+    from apex import deprecated_warning
+    deprecated_warning("apex.amp is deprecated and will be removed by the end of February 2023. Use [PyTorch AMP](https://pytorch.org/docs/stable/amp.html)")
     wrap_fn = functools.partial(wrap.make_promote_wrapper)
     return _decorator_helper(fn, utils.maybe_float, wrap_fn)
 
