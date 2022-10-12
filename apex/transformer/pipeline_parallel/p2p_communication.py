@@ -128,6 +128,7 @@ def _communicate(
     fp32_residual_connection: bool = False,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> Tuple[Union[torch.Tensor, FutureTensor, None], Union[torch.Tensor, FutureTensor, None]]:
     """Base function for communication of tensors between stages.
 
@@ -159,6 +160,8 @@ def _communicate(
         sequence_parallel_enabled: Set to :obj:`True` if sequence parallel is enabled.
             This argument is here for consistency with Megatron-LM.
             This argument has an effect on the communication optimization, not on tensor_shape update.
+        sync_batch_comm: If :obj:`False`, disable cuda synchronization after the batched communication.
+            To disable, https://github.com/pytorch/pytorch/pull/82450 would be required.
 
     Returns:
         tuple containing
@@ -267,8 +270,9 @@ def _communicate(
                 torch.cuda.synchronize()
             tensor_recv_next_waitfunc = tensor_recv_next_wait
     else:
-        # To protect against race condition when using batch_isend_irecv().
-        torch.cuda.synchronize()
+        if sync_batch_comm:
+            # To protect against race condition when using batch_isend_irecv().
+            torch.cuda.synchronize()
 
     # If using scatter-gather optimization, gather smaller chunks.
     if scatter_gather_optimization_doable:
@@ -325,6 +329,7 @@ def recv_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
     timers: _Timers = None,
 ) -> Union[torch.Tensor, FutureTensor, None]:
     """Receive tensor from previous rank in pipeline (forward receive)."""
@@ -342,6 +347,7 @@ def recv_forward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        sync_batch_comm=sync_batch_comm,
     )
     # if timers is not None:
     #     timers("forward-recv").stop()
@@ -354,6 +360,7 @@ def recv_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
     timers: _Timers = None,
 ) -> Union[torch.Tensor, FutureTensor, None]:
     """Receive tensor from next rank in pipeline (backward receive)."""
@@ -370,6 +377,7 @@ def recv_backward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        sync_batch_comm=sync_batch_comm,
     )
     # if timers is not None:
     #     timers("backward-recv").stop()
@@ -384,6 +392,7 @@ def send_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
     timers: _Timers = None,
 ) -> None:
     """Send tensor to next rank in pipeline (forward send)."""
@@ -401,6 +410,7 @@ def send_forward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        sync_batch_comm=sync_batch_comm,
     )
     # if timers is not None:
     #     timers("forward-send").stop()
@@ -413,6 +423,7 @@ def send_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
     timers: _Timers = None,
 ) -> None:
     """Send tensor to previous rank in pipeline (backward send)."""
@@ -429,6 +440,7 @@ def send_backward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        sync_batch_comm=sync_batch_comm,
     )
     # if timers is not None:
     #     timers("backward-send").stop()
@@ -441,6 +453,7 @@ def send_forward_recv_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
     timers: _Timers = None,
 ) -> Union[torch.Tensor, FutureTensor, None]:
     """Batched send and recv with next rank in pipeline."""
@@ -457,6 +470,7 @@ def send_forward_recv_backward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        sync_batch_comm=sync_batch_comm,
     )
     # if timers is not None:
     #     timers("forward-send-backward-recv").stop()
@@ -470,6 +484,7 @@ def send_backward_recv_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
     timers: _Timers = None,
 ) -> Union[torch.Tensor, FutureTensor, None]:
     """Batched send and recv with previous rank in pipeline."""
@@ -486,6 +501,7 @@ def send_backward_recv_forward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        sync_batch_comm=sync_batch_comm,
     )
     # if timers is not None:
     #     timers("backward-send-forward-recv").stop()
@@ -500,6 +516,7 @@ def send_forward_recv_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
     timers: _Timers = None,
 ) -> Union[torch.Tensor, FutureTensor]:
     """Batched recv from previous rank and send to next rank in pipeline."""
@@ -514,6 +531,7 @@ def send_forward_recv_forward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        sync_batch_comm=sync_batch_comm,
     )
     # if timers is not None:
     #     timers("forward-send-forward-recv").stop()
@@ -528,6 +546,7 @@ def send_backward_recv_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
     timers: _Timers = None,
 ) -> Union[torch.Tensor, FutureTensor]:
     """Batched recv from next rank and send to previous rank in pipeline."""
@@ -542,6 +561,7 @@ def send_backward_recv_backward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        sync_batch_comm=sync_batch_comm,
     )
     # if timers is not None:
     #     timers("backward-send-backward-recv").stop()
@@ -558,6 +578,7 @@ def send_forward_backward_recv_forward_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
     timers: _Timers = None,
 ) -> Tuple[Union[torch.Tensor, FutureTensor], Union[torch.Tensor, FutureTensor]]:
     """Batched send and recv with previous and next ranks in pipeline."""
@@ -572,6 +593,7 @@ def send_forward_backward_recv_forward_backward(
         dtype_=dtype,
         async_comm=async_comm,
         sequence_parallel_enabled=sequence_parallel_enabled,
+        sync_batch_comm=sync_batch_comm,
     )
     # if timers is not None:
     #     timers("forward-backward-send-forward-backward-recv").stop()

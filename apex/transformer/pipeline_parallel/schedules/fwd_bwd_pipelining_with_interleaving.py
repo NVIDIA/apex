@@ -36,6 +36,7 @@ def _forward_backward_pipelining_with_interleaving(
     deallocate_pipeline_outputs: bool = False,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run interleaved 1F1B schedule with communication between pipeline stages as needed.
@@ -70,6 +71,8 @@ def _forward_backward_pipelining_with_interleaving(
         sequence_parallel_enabled: Set to :obj:`True` for this function to handle sequence length.
             When :obj:`True`, the sequence length on each tensor model parallel rank is updated
             to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
+        sync_batch_comm: If :obj:`False`, disable cuda synchronization after the batched communication.
+            To disable, https://github.com/pytorch/pytorch/pull/82450 would be required.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
@@ -221,6 +224,7 @@ def _forward_backward_pipelining_with_interleaving(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
     )
     _logger.info("Warmup phase")
@@ -269,6 +273,7 @@ def _forward_backward_pipelining_with_interleaving(
                 dtype=dtype,
                 async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
+                sync_batch_comm=sync_batch_comm,
             )
             output_tensor_grads[num_model_chunks - 1].append(output_tensor_grad)
         else:
@@ -280,6 +285,7 @@ def _forward_backward_pipelining_with_interleaving(
                 dtype=dtype,
                 async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
+                sync_batch_comm=sync_batch_comm,
             )
         input_tensors[next_forward_model_chunk_id].append(input_tensor)
         free_output_tensor(output_tensor, deallocate_pipeline_outputs)
@@ -365,6 +371,7 @@ def _forward_backward_pipelining_with_interleaving(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
         free_output_tensor(output_tensor, deallocate_pipeline_outputs)
 
@@ -387,6 +394,7 @@ def _forward_backward_pipelining_with_interleaving(
                     dtype=dtype,
                     async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
+                    sync_batch_comm=sync_batch_comm,
                 )
             )
         for k in range(num_microbatches_remaining, num_microbatches):
@@ -409,6 +417,7 @@ def _forward_backward_pipelining_with_interleaving(
                     dtype=dtype,
                     async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
+                    sync_batch_comm=sync_batch_comm,
                 )
             )
 
