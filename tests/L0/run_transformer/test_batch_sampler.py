@@ -77,6 +77,10 @@ class MegatronPretrainingRandomSampler:
 # Samples 8 tensors in total.
 # First sample 4 tensors twice, then sample 2 tensors fourth.
 class TestBatchSamplerBehavior(common_utils.TestCase):
+    def tearDown(self) -> None:
+        torch.cuda.empty_cache()
+        super().tearDown()
+
     def test_batch_sampler_behavior(self):
         dataset = MyIterableDataset(0, 100)
 
