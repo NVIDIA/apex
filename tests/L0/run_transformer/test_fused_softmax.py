@@ -57,6 +57,10 @@ class TestFusedScaleMaskSoftmax(common_utils.TestCase):
         )
         return fused_fn, torch_fn
 
+    def tearDown(self) -> None:
+        torch.cuda.empty_cache()
+        super().tearDown()
+
     def test_fused_scale_mask_softmax(self):
         """
         attention_scores.shape = [4, 12, 24, 24]
@@ -244,6 +248,10 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
             klen.extend([2048, 3123, 4096, 4128, 7234, 8192])
 
         self.q_k_lens = itertools.product(qlen, klen)
+
+    def tearDown(self) -> None:
+        torch.cuda.empty_cache()
+        super().tearDown()
 
     def test_forward(self, allmasked: bool=False):
         import generic_scaled_masked_softmax_cuda
