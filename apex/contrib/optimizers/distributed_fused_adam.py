@@ -12,12 +12,22 @@ from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
 import distributed_adam_cuda
 
-# Fallback to private function if using older PyTorch version
+# Fallback to private functions if using older PyTorch version
 try:
     from torch.distributed.distributed_c10d import get_global_rank
 except ImportError:
     from torch.distributed.distributed_c10d import _get_global_rank
     get_global_rank = _get_global_rank
+try:
+    from torch.distributed.distributed_c10d import reduce_scatter_tensor
+except ImportError:
+    from torch.distributed.distributed_c10d import _reduce_scatter_base
+    reduce_scatter_tensor = _reduce_scatter_base
+try:
+    from torch.distributed.distributed_c10d import all_gather_into_tensor
+except ImportError:
+    from torch.distributed.distributed_c10d import _all_gather_base
+    all_gather_into_tensor = _all_gather_base
 
 _FOUND_DEPRECATED_FUSED_ADAM = False
 try:
@@ -36,7 +46,11 @@ def _round_to_multiple(number, multiple, round_up=True):
     """Assumes arguments are positive integers"""
     return (number+multiple-1 if round_up else number) // multiple * multiple
 
-def _multi_tensor_copy(buffers_in, buffers_out):
+def _multi_tensor_copy(
+        buffers_in,
+        buffers_out,
+        dummy_overflow_buf=None,
+):
     """Copy between corresponding buffers
 
     Uses fused copy kernel if possible.
@@ -70,7 +84,8 @@ def _multi_tensor_copy(buffers_in, buffers_out):
 
         # Copy buffers
         if use_fused_kernel and _FOUND_DEPRECATED_FUSED_ADAM:
-            dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device='cuda')
+            if dummy_overflow_buf is None:
+                dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device='cuda')
             multi_tensor_applier(
                 fused_adam_cuda.maybe_cast_mt,
                 dummy_overflow_buf,
@@ -438,13 +453,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # gradient scaler.
         self._grad_norm = None
 
+        # Dummy flag for multi-tensor kernels
+        # Note: Apex multi-tensor kernels have a noop_flag argument
+        # that is intended to detect non-finite values. It shouldn't
+        # have any effect with the kernels used in the optimizer, but
+        # we still set it to zero out of an abundance of caution.
+        self._dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device=self.device)
+
         # Check if collectives have no_copy option
-        self._reduce_scatter_no_copy = (
-            'no_copy' in inspect.getfullargspec(torch.distributed.reduce_scatter).args
-        )
-        self._all_gather_no_copy = (
-            'no_copy' in inspect.getfullargspec(torch.distributed.all_gather).args
-        )
         self._gather_no_copy = (
             'no_copy' in inspect.getfullargspec(torch.distributed.gather).args
         )
@@ -681,6 +697,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Reset other state
         self._grad_scale = torch.full([], 1.0, dtype=self.dtype, device=self.device)
         self._grad_norm = None
+        self._dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device=self.device)
 
     def _grad_copy(self, param):
         """Copy parameter gradients to buckets"""
@@ -843,27 +860,18 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             if self.distributed_size == 1:
                 bucket.sync_grads_shard = bucket.grads_bucket
             else:
-                bucket.sync_grads_shard = torch.zeros(
+                bucket.sync_grads_shard = torch.empty(
                     [self.shard_size],
                     dtype=self.grad_sync_dtype,
                     device=self.device,
                 )
-                grads_bucket_shards = [
-                    bucket.grads_bucket[i*self.shard_size:(i+1)*self.shard_size]
-                    for i in range(self.distributed_size)
-                ]
-                if self._reduce_scatter_no_copy:
-                    no_copy_kwarg = { 'no_copy': True }
-                else:
-                    no_copy_kwarg = {}
                 bucket.sync_request = (
-                    torch.distributed.reduce_scatter(
+                    reduce_scatter_tensor(
                         bucket.sync_grads_shard,
-                        grads_bucket_shards,
+                        bucket.grads_bucket,
                         op=reduce_op,
                         group=self.distributed_process_group,
                         async_op=True,
-                        **no_copy_kwarg,
                     )
                 )
 
@@ -962,10 +970,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         if parameters is None or len(parameters) == self._num_grads:
             # Compute norm of all local gradients
-            dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device=self.device)
             grad_norm_sq = multi_tensor_applier(
                 amp_C.multi_tensor_l2norm,
-                dummy_overflow_buf,
+                self._dummy_overflow_buf,
                 [[bucket.grads_shard for bucket in self._grads_buckets.values()]],
                 False,
             )[0] ** 2
@@ -979,10 +986,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         shard_start, shard_end = fragment.shard_range
                         grads.append(bucket.grads_shard[shard_start:shard_end])
             if grads:
-                dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device=self.device)
                 grad_norm_sq = multi_tensor_applier(
                     amp_C.multi_tensor_l2norm,
-                    dummy_overflow_buf,
+                    self._dummy_overflow_buf,
                     [grads],
                     False,
                 )[0] ** 2
@@ -1116,22 +1122,18 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
                 # Buffers for param sync
                 params_bucket = params_bucket_buffers[stream_id]
-                params_bucket_shards = [
-                    params_bucket[i*self.shard_size:(i+1)*self.shard_size]
-                    for i in range(self.distributed_size)
-                ]
+                bucket_start = self.distributed_rank * self.shard_size
+                bucket_end = bucket_start + self.shard_size
+                params_bucket_shard = params_bucket[bucket_start:bucket_end]
 
                 # Apply optimizer step to local shard
                 if self.store_param_remainders:
                     self._local_step_with_param_remainders(
                         bucket_id,
-                        params_bucket_shards[self.distributed_rank],
+                        params_bucket_shard,
                     )
                 else:
-                    self._local_step(
-                        bucket_id,
-                        params_bucket_shards[self.distributed_rank],
-                    )
+                    self._local_step(bucket_id, params_bucket_shard)
 
                 # All-gather updated parameters
                 # Note: All-gather seems to allocate memory
@@ -1139,17 +1141,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 # overheads when called in side streams. Avoid this by
                 # only calling in main stream.
                 if self.distributed_size > 1:
-                    if self._all_gather_no_copy:
-                        no_copy_kwarg = { 'no_copy': True }
-                    else:
-                        no_copy_kwarg = {}
                     main_stream.wait_stream(stream)
                     with torch.cuda.stream(main_stream):
-                        torch.distributed.all_gather(
-                            params_bucket_shards,
-                            params_bucket_shards[self.distributed_rank],
+                        all_gather_into_tensor(
+                            params_bucket,
+                            params_bucket_shard,
                             group=self.distributed_process_group,
-                            **no_copy_kwarg,
                         )
                     stream.wait_stream(main_stream)
 
@@ -1165,7 +1162,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     param_start, param_end = fragment.param_range
                     params_in.append(params_bucket[bucket_start:bucket_end])
                     params_out.append(param.detach().view(-1)[param_start:param_end])
-                _multi_tensor_copy(params_in, params_out)
+                _multi_tensor_copy(
+                    params_in,
+                    params_out,
+                    dummy_overflow_buf=self._dummy_overflow_buf,
+                )
 
         # Synchronize pipeline streams
         for stream in self._pipeline_streams:
@@ -1209,10 +1210,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         for group_id, group_buffers in buffers.items():
             group = self.param_groups[group_id]
             beta1, beta2 = group['betas']
-            dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device=self.device)
             multi_tensor_applier(
                 distributed_adam_cuda.multi_tensor_fused_adam,
-                dummy_overflow_buf,
+                self._dummy_overflow_buf,
                 list(zip(*group_buffers)),
                 self._grad_scale,
                 group['lr'],
@@ -1265,10 +1265,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         for group_id, group_buffers in buffers.items():
             group = self.param_groups[group_id]
             beta1, beta2 = group['betas']
-            dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device=self.device)
             multi_tensor_applier(
                 distributed_adam_cuda.multi_tensor_fused_adam_with_param_remainders,
-                dummy_overflow_buf,
+                self._dummy_overflow_buf,
                 list(zip(*group_buffers)),
                 self._grad_scale,
                 group['lr'],
