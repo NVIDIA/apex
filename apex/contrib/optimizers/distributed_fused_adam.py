@@ -1026,7 +1026,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 group=self.distributed_process_group,
             )
             self._grad_norm = grad_norm_sq.sqrt()
-        return self._grad_norm.detach()
+        grad_norm = self._grad_norm * self._grad_scale
+        return grad_norm.detach()
 
     def clip_grad_norm(self, max_norm, parameters=None, norm_type=2.0):
         """Clips gradient norm of parameters in optimizer
@@ -1050,7 +1051,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         assert max_norm > 0
         total_norm = self.grad_norm(parameters=parameters, norm_type=norm_type)
         clip_coef = max_norm / (total_norm + 1e-6)
-        self._grad_scale = torch.minimum(self._grad_scale, clip_coef)
+        clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
+        self._grad_scale *= clip_coef_clamped
         return total_norm
 
     def step(self, closure=None, *, grad_scaler=None):
@@ -1079,15 +1081,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # have already computed gradient norm e.g. for gradient
         # clipping.
         if grad_scaler is not None:
+            grad_scaler_state = grad_scaler._per_optimizer_states[id(self)]
+            GradScalerOptState = torch.cuda.amp.grad_scaler.OptState
+            if grad_scaler_state['stage'] is GradScalerOptState.READY:
+                assert grad_scaler._scale is not None
+                self._grad_scale /= grad_scaler._scale.view([])
             grad_norm = self.grad_norm()
             found_inf = torch.logical_not(torch.isfinite(grad_norm))
             scaler_state = grad_scaler._per_optimizer_states[id(self)]
             scaler_state['found_inf_per_device'] = {found_inf.device: found_inf.float()}
             if found_inf.item():
                 return
-            else:
-                assert grad_scaler._scale is not None
-                self._grad_scale /= grad_scaler._scale.view([])
         self._grad_scale = self._grad_scale.to(dtype=torch.float32, device=self.device)
 
         # Construct workspace buffers
