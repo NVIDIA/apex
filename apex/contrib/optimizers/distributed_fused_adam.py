@@ -840,10 +840,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         """
 
-        # Call recursively if more buckets than streams
-        while len(buckets) > self.pipeline_size:
-            self._start_bucket_grad_sync(buckets[:self.pipeline_size])
-            buckets = buckets[self.pipeline_size:]
+        # Complete any outstanding grad syncs
         self._finish_bucket_grad_sync()
 
         # Reduction operation
@@ -1136,10 +1133,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     self._local_step(bucket_id, params_bucket_shard)
 
                 # All-gather updated parameters
-                # Note: All-gather seems to allocate memory
-                # internally, which can cause significant memory pool
-                # overheads when called in side streams. Avoid this by
-                # only calling in main stream.
+                # Note: Call all-gather in main stream to ensure they
+                # are executed in the correct order. Reconsider when
+                # tagged collectives are available.
                 if self.distributed_size > 1:
                     main_stream.wait_stream(stream)
                     with torch.cuda.stream(main_stream):
