@@ -36,6 +36,8 @@ def convert_syncbn_model(module, process_group=None, channel_last=False):
         >>> import apex
         >>> sync_bn_model = apex.parallel.convert_syncbn_model(model)
     '''
+    from apex import deprecated_warning
+    deprecated_warning("apex.parallel.convert_syncbn_model is deprecated and will be removed by the end of February 2023. Use `torch.nn.SyncBatchNorm.convert_sync_batchnorm`.")
     mod = module
     if isinstance(module, torch.nn.modules.instancenorm._InstanceNorm):
         return module

@@ -30,6 +30,7 @@ class DistributedTestBase(common_distributed.MultiProcessTestCase):
         self._spawn_processes()
 
     def tearDown(self) -> None:
+        torch.cuda.empty_cache()
         super().tearDown()
 
     @property
