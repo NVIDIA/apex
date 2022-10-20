@@ -292,6 +292,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             self.sync_request = None
 
     _step_supports_amp_scaling = True
+    _custom_amp_unscale_grads = True
 
     def __init__(self,
                  params,
@@ -1057,6 +1058,18 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
         self._grad_scale *= clip_coef_clamped
         return total_norm
+
+    def unscale_grads(self, inv_scale, *args):
+        """Custom unscale function for use by AMP gradient scaler
+
+        Overflow checking is deferred to optimization step.
+
+        Arguments:
+            inv_scale (torch.Tensor): factor to multiply gradients
+
+        """
+        self._grad_scale *= inv_scale.view([])
+        return { self.device: torch.zeros(1, dtype=torch.float32, device=self.device) }
 
     def step(self, closure=None, *, grad_scaler=None):
         """Apply Adam optimizer step
