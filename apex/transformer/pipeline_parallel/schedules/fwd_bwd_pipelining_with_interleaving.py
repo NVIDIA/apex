@@ -1,3 +1,4 @@
+import contextlib
 from typing import List, Union, Optional, Sequence
 import warnings
 
@@ -36,6 +37,7 @@ def _forward_backward_pipelining_with_interleaving(
     deallocate_pipeline_outputs: bool = False,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    custom_sync_context_handler = None,
     sync_batch_comm: bool = True,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
@@ -71,11 +73,20 @@ def _forward_backward_pipelining_with_interleaving(
         sequence_parallel_enabled: Set to :obj:`True` for this function to handle sequence length.
             When :obj:`True`, the sequence length on each tensor model parallel rank is updated
             to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
+        custom_sync_context_handler: Context manager to disable
+            asynchronous gradient reductions. In the first pipeline
+            stage, asynchronous gradient reductions are enabled in the
+            backward pass of the last microbatch. In other pipeline
+            stages, asynchronous gradient reductions are disabled and
+            gradients must be manually synchronized by the caller (in
+            practice the runtime is covered up by the bubble
+            overhead).
         sync_batch_comm: If :obj:`False`, disable cuda synchronization after the batched communication.
             To disable, https://github.com/pytorch/pytorch/pull/82450 would be required.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
+
     """
     if not isinstance(model, list):
         raise RuntimeError("`model` must be a list of `nn.Module`'s'")
@@ -85,6 +96,15 @@ def _forward_backward_pipelining_with_interleaving(
             "`deallocate_pipeline_outputs` is experimental and subject to change. "
             "This option is not recommended."
         )
+
+    # Disable async grad reductions
+    if custom_sync_context_handler is not None:
+        context_handler = custom_sync_context_handler
+    else:
+        context_handler = contextlib.nullcontext
+    context = context_handler()
+    context.__enter__()
+    context_is_active = True
 
     # mypy will blame the following if statement
     if sequence_parallel_enabled:
@@ -409,6 +429,10 @@ def _forward_backward_pipelining_with_interleaving(
                     recv_next = False
             if k == (num_microbatches - 1):
                 recv_next = False
+            if k == (num_microbatches - 1) and pipeline_parallel_rank == 0:
+                # Enable async grad reductions in first pipeline stage
+                context.__exit__(None, None, None)
+                context_is_active = False
             output_tensor_grads[next_backward_model_chunk_id].append(
                 p2p_communication.send_backward_recv_backward(
                     input_tensor_grad,
@@ -420,5 +444,10 @@ def _forward_backward_pipelining_with_interleaving(
                     sync_batch_comm=sync_batch_comm,
                 )
             )
+
+    # Make sure to exit context handler for async grad reductions
+    if context_is_active:
+        context.__exit__(None, None, None)
+        context_is_active = False
 
     return losses_reduced
