@@ -421,6 +421,10 @@ def _forward_backward_pipelining_with_interleaving(
             _logger.debug(
                 f"cooldown iter {k} in range({num_microbatches_remaining}, {num_microbatches})"
             )
+            if k == (num_microbatches - 1) and pipeline_parallel_rank == 0:
+                # Enable async grad reductions in first pipeline stage
+                context.__exit__(None, None, None)
+                context_is_active = False
             input_tensor_grad = backward_step_helper(k)
             next_backward_model_chunk_id = get_model_chunk_id(k + 1, forward=False)
             recv_next = True
@@ -429,10 +433,6 @@ def _forward_backward_pipelining_with_interleaving(
                     recv_next = False
             if k == (num_microbatches - 1):
                 recv_next = False
-            if k == (num_microbatches - 1) and pipeline_parallel_rank == 0:
-                # Enable async grad reductions in first pipeline stage
-                context.__exit__(None, None, None)
-                context_is_active = False
             output_tensor_grads[next_backward_model_chunk_id].append(
                 p2p_communication.send_backward_recv_backward(
                     input_tensor_grad,

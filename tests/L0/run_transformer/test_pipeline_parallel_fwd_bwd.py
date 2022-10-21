@@ -495,7 +495,7 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
 @unittest.skipIf(torch.cuda.device_count() < 4 or torch.cuda.device_count() % 2 != 0, "Requires >= 4 GPUs")
 class NcclPipelineParallelWithCustomSyncContextHandler(NcclDistributedTestBase):
 
-    GLOBAL_BATCH_SIZE = 2
+    GLOBAL_BATCH_SIZE = 32
     MICRO_BATCH_SIZE = 1
     HIDDEN_SIZE = 1
 
@@ -503,19 +503,25 @@ class NcclPipelineParallelWithCustomSyncContextHandler(NcclDistributedTestBase):
     def world_size(self) -> int:
         return min(torch.cuda.device_count(), 8)
 
-    def test_pipelining_without_interleaving_with_custom_sync_context_handler(self) -> None:
+    def _forward_backward_test_impl(
+        self,
+        fwd_bwd_func: FwdStepFunc,
+    ) -> None:
 
         # Parallel configuration
         world_size = torch.cuda.device_count()
         tensor_model_parallel_world_size = 1
         data_parallel_size = 2
         pipeline_model_parallel_world_size = world_size // data_parallel_size
+        virtual_pipeline_model_parallel_size = None
+        if fwd_bwd_func == _forward_backward_pipelining_with_interleaving:
+            virtual_pipeline_model_parallel_size = 2
 
         # Initialize pipeline parallelism
         parallel_state.initialize_model_parallel(
             tensor_model_parallel_size_=tensor_model_parallel_world_size,
             pipeline_model_parallel_size_=pipeline_model_parallel_world_size,
-            virtual_pipeline_model_parallel_size_=None,
+            virtual_pipeline_model_parallel_size_=virtual_pipeline_model_parallel_size,
         )
         pp_utils._reconfigure_microbatch_calculator(
             rank=parallel_state.get_tensor_model_parallel_rank(),
@@ -544,16 +550,21 @@ class NcclPipelineParallelWithCustomSyncContextHandler(NcclDistributedTestBase):
         model = build_model(
             testing_utils.model_provider_func,
             wrap_with_ddp=True,
-            virtual_pipeline_model_parallel_size=None,
+            virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
             hidden_size=hidden_size,
-        )[0]
-        model = model.to(dtype)
-        model.module.apply(get_init_weights_func(0))
+        )
+        if fwd_bwd_func == forward_backward_pipelining_without_interleaving:
+            model = model[0]
+            model = model.to(dtype)
+            model.module.apply(get_init_weights_func(0))
+        elif fwd_bwd_func == _forward_backward_pipelining_with_interleaving:
+            for module in model:
+                module.to(dtype)
+                module.module.apply(get_init_weights_func(0))
 
-        # Construct custom context
+        # Construct custom context that destroys all grads on exit
         has_entered_context = False
         has_exited_context = False
-        no_grad_at_context_exit = False
         @contextlib.contextmanager
         def custom_context():
             try:
@@ -561,15 +572,18 @@ class NcclPipelineParallelWithCustomSyncContextHandler(NcclDistributedTestBase):
                 has_entered_context = True
                 yield
             finally:
-                nonlocal has_exited_context, no_grad_at_context_exit
+                nonlocal has_exited_context
                 has_exited_context = True
-                no_grad_at_context_exit = all(
-                    p.grad is None
-                    for p in model.parameters()
-                )
+                if isinstance(model, list):
+                    for module in model:
+                        for param in module.parameters():
+                            param.grad = None
+                else:
+                    for param in model.parameters():
+                        param.grad = None
 
         # Training step with pipeline parallelism
-        loss = forward_backward_pipelining_without_interleaving(
+        loss = fwd_bwd_func(
             testing_utils.fwd_step_func,
             batch,
             model,
@@ -584,20 +598,39 @@ class NcclPipelineParallelWithCustomSyncContextHandler(NcclDistributedTestBase):
         )
         torch.cuda.synchronize()
 
+        # Check if model has initialized gradients
+        if isinstance(model, list):
+            has_grads = any(
+                any(param.grad is not None for param in module.parameters())
+                for module in model
+            )
+        else:
+            has_grads = any(param.grad is not None for param in model.parameters())
+
         # Check context behavior
         self.assertTrue(has_entered_context, 'Has not entered custom sync context')
         self.assertTrue(has_exited_context, 'Has not exited custom sync context')
         self.assertEqual(
-            no_grad_at_context_exit,
+            has_grads,
             parallel_state.is_pipeline_first_stage(),
             'Expected to exit custom sync context '
-            'before backward pass in first pipeline stage '
-            'and after backward pass in other pipeline stages'
+            'before last backward pass in first pipeline stage '
+            'and after all backward passes in other pipeline stages'
         )
 
         # Clean up
         parallel_state.destroy_model_parallel()
 
+    def test_pipelining_without_interleaving_with_custom_sync_context_handler(self) -> None:
+        self._forward_backward_test_impl(
+            fwd_bwd_func=forward_backward_pipelining_without_interleaving,
+        )
+
+    @unittest.skipIf(torch.cuda.device_count() < 8 or torch.cuda.device_count() % 2 != 0, "Requires >= 8 GPUs")
+    def test_pipelining_with_interleaving_with_custom_sync_context_handler(self) -> None:
+        self._forward_backward_test_impl(
+            fwd_bwd_func=_forward_backward_pipelining_with_interleaving,
+        )
 
 if __name__ == "__main__":
     common_utils.run_tests()
