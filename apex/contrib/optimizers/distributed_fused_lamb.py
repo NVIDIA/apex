@@ -1,5 +1,6 @@
 import os
 import math
+import inspect
 import torch
 import importlib
 import amp_C
@@ -156,11 +157,18 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         # Master weight, moment, gradient buffers
         self._fp32_p, self._fp32_m, self._fp32_v, self._fp16_p, self._fp16_g = None, None, None, None, None
 
-        import inspect
-        self.no_copy_supported = (
-            'no_copy' in inspect.getfullargspec(torch.distributed.reduce_scatter).args and
+        # Check if collectives have no_copy option
+        self._reduce_scatter_no_copy = (
+            'no_copy' in inspect.getfullargspec(torch.distributed.reduce_scatter).args
+        )
+        self._all_gather_no_copy = (
             'no_copy' in inspect.getfullargspec(torch.distributed.all_gather).args
         )
+
+        if torch.distributed.reduce_scatter_tensor is None:
+            torch.distributed.reduce_scatter_tensor = torch.distributed._reduce_scatter_base
+        if torch.distributed.all_gather_into_tensor is None:
+            torch.distributed.all_gather_into_tensor = torch.distributed._all_gather_base
 
         self._num_rs_pg = dwu_num_rs_pg
         self._num_ar_pg = dwu_num_ar_pg
@@ -650,7 +658,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             rs_stream.wait_stream(torch.cuda.current_stream())
             rs_stream.wait_stream(self._l2_grad_norm_st)
             with torch.cuda.stream(rs_stream):
-                if self.no_copy_supported:
+                if self._reduce_scatter_no_copy:
                     works[chunk_id] = torch.distributed.reduce_scatter(
                         output = self._fp16_g_chunks[block_id][chunk_id],
                         input_list = self._flat_grads_shards[block_id][chunk_id],
@@ -660,7 +668,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                         op = _make_nccl_premul_sum((scale,)),
                     )
                 else:
-                    works[chunk_id] = torch.distributed._reduce_scatter_base(
+                    works[chunk_id] = torch.distributed.reduce_scatter_tensor(
                         output = self._fp16_g_chunks[block_id][chunk_id],
                         input = self._flat_grads_blocks[block_id],
                         group = self._rs_pg[glob_chunk_id%self._num_rs_pg],
@@ -688,7 +696,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             rs_stream = self._rs_st[glob_chunk_id%self._num_rs_pg]
             rs_stream.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(rs_stream):
-                if self.no_copy_supported:
+                if self._reduce_scatter_no_copy:
                     works[chunk_id] = torch.distributed.reduce_scatter(
                         output = self._fp16_g_chunks[block_id][chunk_id],
                         input_list = self._flat_grads_shards[block_id][chunk_id],
@@ -697,7 +705,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                         no_copy = True,
                     )
                 else:
-                    works[chunk_id] = torch.distributed._reduce_scatter_base(
+                    works[chunk_id] = torch.distributed.reduce_scatter_tensor(
                         output = self._fp16_g_chunks[block_id][chunk_id],
                         input = self._flat_grads_blocks[block_id],
                         group = self._rs_pg[glob_chunk_id%self._num_rs_pg],
@@ -859,7 +867,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 if not self._clip_after_ar:
                     for block in range(self._num_blocks):
                         for chunk in range(self._num_chunks):
-                            if self.no_copy_supported:
+                            if self._all_gather_no_copy:
                                 torch.distributed.all_gather(
                                     tensor_list = self._new_params2_shards[block][chunk],
                                     tensor = self._fp16_p_chunks[block][chunk],
@@ -867,13 +875,13 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                                     no_copy = True,
                                 )
                             else:
-                                torch.distributed._all_gather_base(
-                                    output_tensor = self._new_params2_chunks[block],
+                                torch.distributed.all_gather_into_tensor(
+                                    output_tensor = self._new_params2_blocks[block],
                                     input_tensor = self._fp16_p_chunks[block][chunk],
                                     group = self._ag_pg[0],
                                 )
                 else:
-                    if self.no_copy_supported:
+                    if self._all_gather_no_copy:
                         torch.distributed.all_gather(
                             tensor_list = self._new_params_mega_shards,
                             tensor = self._fp16_p,
@@ -881,7 +889,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                             no_copy = True,
                         )
                     else:
-                        torch.distributed._all_gather_base(
+                        torch.distributed.all_gather_into_tensor(
                             output_tensor = self._new_params,
                             input_tensor = self._fp16_p,
                             group = self._ag_pg[0],
