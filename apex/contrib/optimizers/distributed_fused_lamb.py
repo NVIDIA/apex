@@ -165,9 +165,9 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             'no_copy' in inspect.getfullargspec(torch.distributed.all_gather).args
         )
 
-        if torch.distributed.reduce_scatter_tensor is None:
+        if not "reduce_scatter_tensor" in dir(torch.distributed):
             torch.distributed.reduce_scatter_tensor = torch.distributed._reduce_scatter_base
-        if torch.distributed.all_gather_into_tensor is None:
+        if not "all_gather_into_tensor" in dir(torch.distributed):
             torch.distributed.all_gather_into_tensor = torch.distributed._all_gather_base
 
         self._num_rs_pg = dwu_num_rs_pg
