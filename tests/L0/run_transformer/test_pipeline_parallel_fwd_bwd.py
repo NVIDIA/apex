@@ -241,11 +241,9 @@ class PipelineParallelForwardBackwardTestBase:
 
             parallel_state.destroy_model_parallel()
 
-    # fails on native ucc: times out
     def test_learning_no_pipelining(self):
         self._forward_backward_test_impl(False, forward_backward_no_pipelining, 1, None)
 
-    # fails on native ucc: times out
     def test_inference_no_pipelining(self):
         self._forward_backward_test_impl(True, forward_backward_no_pipelining, 1, None)
 

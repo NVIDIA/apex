@@ -14,7 +14,6 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 
 
 class BroadcastDataTestBase:
-    # Fails on native ucc: times out
     def test_broadcast_data(self):
         tensor_model_parallel_world_size: int = self.world_size // (
             1 + self.world_size > 1
