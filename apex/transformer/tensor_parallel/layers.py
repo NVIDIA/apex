@@ -336,6 +336,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
         use_bias = ctx.use_bias
 
         #only get sequence parallel inputs if need to calculate weight grad
+        handle = None
         if ctx.compute_weight_gradient:
             if ctx.sequence_parallel_enabled:
                 world_size = get_tensor_model_parallel_world_size()
@@ -357,9 +358,10 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
                 total_input = all_gather_buffer
             else:
                 total_input = input
+
         grad_input = grad_output.matmul(weight)
 
-        if ctx.sequence_parallel_enabled and ctx.compute_weight_gradient:
+        if handle is not None:
             handle.wait()
 
         if ctx.async_grad_allreduce:
@@ -368,8 +370,23 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
                 grad_input, group=get_tensor_model_parallel_group(), async_op=True
             )
 
-        #if no weight gradient, wait for data grad all reduce and immediately return
+        #if no weight gradient, immediately return
         if not ctx.compute_weight_gradient:
+            if ctx.sequence_parallel_enabled:
+                assert not ctx.async_grad_allreduce
+                world_size = get_tensor_model_parallel_world_size()
+                shape = list(grad_input.shape)
+                shape[0] //= world_size
+
+                sub_grad_input = torch.empty(torch.Size(shape), dtype=grad_input.dtype, device=torch.cuda.current_device(), requires_grad=False)
+                handle = torch.distributed._reduce_scatter_base(
+                    sub_grad_input,
+                    grad_input,
+                    group=get_tensor_model_parallel_group(),
+                    async_op=True
+                )
+                handle.wait()
+                return sub_grad_input, None, None, None, None, None, None
             if ctx.async_grad_allreduce:
                 handle.wait()
             return grad_input, None, None, None, None, None, None
