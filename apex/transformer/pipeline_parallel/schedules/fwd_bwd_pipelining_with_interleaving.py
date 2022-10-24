@@ -1,5 +1,5 @@
 import contextlib
-from typing import List, Union, Optional, Sequence
+from typing import Any, List, Optional, Sequence, Union
 import warnings
 
 import torch
@@ -37,7 +37,7 @@ def _forward_backward_pipelining_with_interleaving(
     deallocate_pipeline_outputs: bool = False,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
-    custom_sync_context_handler = None,
+    custom_sync_context_handler: Optional[Any] = None,
     sync_batch_comm: bool = True,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
@@ -73,14 +73,12 @@ def _forward_backward_pipelining_with_interleaving(
         sequence_parallel_enabled: Set to :obj:`True` for this function to handle sequence length.
             When :obj:`True`, the sequence length on each tensor model parallel rank is updated
             to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
-        custom_sync_context_handler: Context manager to disable
-            asynchronous gradient reductions. In the first pipeline
-            stage, asynchronous gradient reductions are enabled in the
-            backward pass of the last microbatch. In other pipeline
-            stages, asynchronous gradient reductions are disabled and
-            gradients must be manually synchronized by the caller (in
-            practice the runtime is covered up by the bubble
-            overhead).
+        custom_sync_context_handler: Does nothing if ``None`` (default
+            value). Otherwise, this is treated as a function to
+            construct a context manager to disable asynchronous
+            gradient reductions. Asynchronous gradient reductions are
+            only enabled in the final backward pass of each model
+            chunk.
         sync_batch_comm: If :obj:`False`, disable cuda synchronization after the batched communication.
             To disable, https://github.com/pytorch/pytorch/pull/82450 would be required.
 
@@ -97,14 +95,25 @@ def _forward_backward_pipelining_with_interleaving(
             "This option is not recommended."
         )
 
-    # Disable async grad reductions
+    # Construct helper functions for async grad reductions
     if custom_sync_context_handler is not None:
-        context_handler = custom_sync_context_handler
+        sync_context_handler = custom_sync_context_handler
     else:
-        context_handler = contextlib.nullcontext
-    context = context_handler()
-    context.__enter__()
-    context_is_active = True
+        sync_context_handler = contextlib.nullcontext
+    sync_context = None
+    def disable_grad_sync():
+        """Disable asynchronous grad reductions"""
+        nonlocal sync_context
+        if sync_context is None:
+            sync_context = sync_context_handler()
+            sync_context.__enter__()
+    def enable_grad_sync():
+        """Enable asynchronous grad reductions"""
+        nonlocal sync_context
+        if sync_context is not None:
+            sync_context.__exit__(None, None, None)
+            sync_context = None
+    disable_grad_sync()
 
     # mypy will blame the following if statement
     if sequence_parallel_enabled:
@@ -165,15 +174,35 @@ def _forward_backward_pipelining_with_interleaving(
     # Helper function definitions.
     ###################################################################################################################
     def get_model_chunk_id(microbatch_id: int, forward: bool) -> int:
-        """Helper function to get the model chunk ID given the iteration number."""
-        pipeline_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
-        microbatch_id_in_group = microbatch_id % (
-            pipeline_parallel_size * num_model_chunks
-        )
+        """Helper function to get the model chunk ID given the iteration number.
+
+        Each model chunk processes pipeline_parallel_size microbatches
+        at a time. We assume that the number of microbatches is a
+        multiple of pipeline_parallel_size*num_model_chunks.
+        """
+        microbatch_group_size = pipeline_parallel_size * num_model_chunks
+        microbatch_id_in_group = microbatch_id % microbatch_group_size
         model_chunk_id = microbatch_id_in_group // pipeline_parallel_size
         if not forward:
             model_chunk_id = num_model_chunks - model_chunk_id - 1
         return model_chunk_id
+
+    def is_last_microbatch_for_model_chunk(microbatch_id: int) -> bool:
+        """Helper function to check if an iteration is the last for a model
+        chunk.
+
+        Each model chunk processes pipeline_parallel_size microbatches
+        at a time. We assume that the number of microbatches is a
+        multiple of pipeline_parallel_size*num_model_chunks.
+        """
+        microbatch_group_size = pipeline_parallel_size * num_model_chunks
+        num_microbatch_groups = num_microbatches // microbatch_group_size
+        microbatch_group_id = microbatch_id // microbatch_group_size
+        microbatch_id_in_group = microbatch_id % microbatch_group_size
+        if microbatch_group_id == num_microbatch_groups - 1:
+            return microbatch_id_in_group % pipeline_parallel_size == pipeline_parallel_size - 1
+        else:
+            return False
 
     def forward_step_helper(microbatch_id: int, curr_iters: List[int]) -> torch.Tensor:
         """Helper method to run forward step with model split into chunks
@@ -217,6 +246,8 @@ def _forward_backward_pipelining_with_interleaving(
         model_type = get_model_type(model[model_chunk_id])
         parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
+        if is_last_microbatch_for_model_chunk(microbatch_id):
+            enable_grad_sync()
         if parallel_state.is_pipeline_last_stage():
             if len(output_tensor_grads[model_chunk_id]) == 0:
                 output_tensor_grads[model_chunk_id].append(None)
@@ -231,6 +262,7 @@ def _forward_backward_pipelining_with_interleaving(
             grad_scaler=grad_scaler,
             deallocate_pipeline_outputs=deallocate_pipeline_outputs,
         )
+        disable_grad_sync()
 
         return input_tensor_grad
 
@@ -421,10 +453,6 @@ def _forward_backward_pipelining_with_interleaving(
             _logger.debug(
                 f"cooldown iter {k} in range({num_microbatches_remaining}, {num_microbatches})"
             )
-            if k == (num_microbatches - 1) and pipeline_parallel_rank == 0:
-                # Enable async grad reductions in first pipeline stage
-                context.__exit__(None, None, None)
-                context_is_active = False
             input_tensor_grad = backward_step_helper(k)
             next_backward_model_chunk_id = get_model_chunk_id(k + 1, forward=False)
             recv_next = True
@@ -446,8 +474,6 @@ def _forward_backward_pipelining_with_interleaving(
             )
 
     # Make sure to exit context handler for async grad reductions
-    if context_is_active:
-        context.__exit__(None, None, None)
-        context_is_active = False
+    enable_grad_sync()
 
     return losses_reduced

@@ -1,5 +1,5 @@
 import contextlib
-from typing import Union, List, Optional, Sequence
+from typing import Any, List, Optional, Sequence, Union
 import warnings
 
 import torch
@@ -252,7 +252,8 @@ def forward_backward_pipelining_without_interleaving(
     deallocate_pipeline_outputs: bool = False,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
-    custom_sync_context_handler = None,
+    custom_sync_context_handler: Optional[Any] = None,
+    custom_grad_sync_func: Optional[Any] = None,
     sync_batch_comm: bool = True,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
@@ -284,14 +285,15 @@ def forward_backward_pipelining_without_interleaving(
         sequence_parallel_enabled: Set to :obj:`True` for this function to handle sequence length.
             When :obj:`True`, the sequence length on each tensor model parallel rank is updated
             to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
-        custom_sync_context_handler: Context manager to disable
-            asynchronous gradient reductions. In the first pipeline
-            stage, asynchronous gradient reductions are enabled in the
-            backward pass of the last microbatch. In other pipeline
-            stages, asynchronous gradient reductions are disabled and
-            gradients must be manually synchronized by the caller (in
-            practice the runtime is covered up by the bubble
-            overhead).
+        custom_sync_context_handler: Does nothing if ``None`` (default
+            value). Otherwise, a function to construct a context
+            manager that disable asynchronous gradient reductions.
+            Asynchronous gradient reductions are only enabled in the
+            first pipeline stage, during the last backward pass.
+        custom_grad_sync_func: Does nothing if ``None`` (default
+            value). Otherwise, a function to perform gradient
+            reductions. This is called in all pipeline stages except
+            the first, during the bubble overhead.
         sync_batch_comm: If :obj:`False`, disable cuda synchronization after the batched communication.
             To disable, https://github.com/pytorch/pytorch/pull/82450 would be required.
 
@@ -315,12 +317,23 @@ def forward_backward_pipelining_without_interleaving(
 
     # Disable async grad reductions
     if custom_sync_context_handler is not None:
-        context_handler = custom_sync_context_handler
+        sync_context_handler = custom_sync_context_handler
     else:
-        context_handler = contextlib.nullcontext
-    context = context_handler()
-    context.__enter__()
-    context_is_active = True
+        sync_context_handler = contextlib.nullcontext
+    sync_context = None
+    def disable_grad_sync():
+        """Disable asynchronous grad reductions"""
+        nonlocal sync_context
+        if sync_context is None:
+            sync_context = sync_context_handler()
+            sync_context.__enter__()
+    def enable_grad_sync():
+        """Enable asynchronous grad reductions"""
+        nonlocal sync_context
+        if sync_context is not None:
+            sync_context.__exit__(None, None, None)
+            sync_context = None
+    disable_grad_sync()
 
     # Compute number of warmup microbatches.
     num_microbatches: int = get_num_microbatches()
@@ -503,10 +516,13 @@ def forward_backward_pipelining_without_interleaving(
     _logger.info("Cooldown phase")
     if not forward_only:
         for i in range(num_warmup_microbatches):
-            if i == num_warmup_microbatches-1 and rank == 0:
-                context.__exit__(None, None, None)
-                context_is_active = False
             _logger.debug(f"cooldown iter: {i} / {num_warmup_microbatches}")
+
+            if i == num_warmup_microbatches-1 and rank == 0:
+                # Async grad reduction in first pipeline stage, during
+                # last backward pass
+                enable_grad_sync()
+
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
 
@@ -538,9 +554,10 @@ def forward_backward_pipelining_without_interleaving(
                 sync_batch_comm=sync_batch_comm,
             )
 
-    # Make sure to exit context handler for async grad reductions
-    if context_is_active:
-        context.__exit__(None, None, None)
-        context_is_active = False
+    # Grad reduction in all pipeline stages except the first, during
+    # the bubble overhead
+    enable_grad_sync()
+    if rank != 0 and custom_grad_sync_func is not None:
+        custom_grad_sync_func()
 
     return losses_reduced
