@@ -301,7 +301,6 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
             ctx.save_for_backward(input, weight)
         else:
             ctx.save_for_backward(weight)
-            ctx.use_bias = False
 
 
         if ctx.sequence_parallel_enabled:
