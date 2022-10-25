@@ -254,6 +254,7 @@ def forward_backward_pipelining_without_interleaving(
     sequence_parallel_enabled: bool = False,
     custom_sync_context_handler = None,
     sync_batch_comm: bool = True,
+    num_micro_batches_with_partial_activation_checkpoints: Optional[int] = None,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
@@ -294,6 +295,10 @@ def forward_backward_pipelining_without_interleaving(
             overhead).
         sync_batch_comm: If :obj:`False`, disable cuda synchronization after the batched communication.
             To disable, https://github.com/pytorch/pytorch/pull/82450 would be required.
+        num_micro_batches_with_partial_activation_checkpoints: If :obj:`int`, set the number of
+            micro-batches checkpointing the activation of partial number of Transformer layers.
+            The rest of the micro-batch within the window of maximum outstanding micro-batch
+            backpropagations would checkpoint all Transformer layers.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
@@ -330,6 +335,18 @@ def forward_backward_pipelining_without_interleaving(
     num_warmup_microbatches: int = min(num_warmup_microbatches, num_microbatches)
     num_microbatches_remaining: int = num_microbatches - num_warmup_microbatches
 
+    # Checkpoint the activations of partial Transformer layers in a number of micro-batches
+    # within the maximum outstanding micro-batch backpropagations.
+    # Micro-batches with the ids less than 'num_micro_batches_with_partial_activation_checkpoints'
+    # checkpoint partial Transformer layers (or skip checkpointing) and
+    # the rest of micro-batches within a window of micro-batches checkpoint
+    # all Transformer layers. The window of micro-batches is set by the maximum
+    # outstanding backpropagations and becomes smaller at later pipeline stages.
+    # Please refer the appendix C in https://arxiv.org/pdf/2205.05198.pdf
+    max_outstanding_backprops = None
+    if num_micro_batches_with_partial_activation_checkpoints is not None:
+        max_outstanding_backprops = num_warmup_microbatches + 1
+
     model_type = get_model_type(model)
     rank: int = parallel_state.get_pipeline_model_parallel_rank()
     recv_tensor_shapes: List[List[int]] = get_tensor_shapes(
@@ -364,6 +381,14 @@ def forward_backward_pipelining_without_interleaving(
     for i in range(num_warmup_microbatches):
         _logger.debug(f"warmup iter: {i} / {num_warmup_microbatches}")
         _logger.debug("receive fwd")
+
+        # Decide to checkpoint all layers' activations of the current micro-batch
+        if max_outstanding_backprops is not None:
+            checkpoint_activations_micro_batch = (
+                i % max_outstanding_backprops >= num_micro_batches_with_partial_activation_checkpoints
+            )
+        else:
+            checkpoint_activations_micro_batch = None
         input_tensor = recv_forward(
             tensor_shapes=recv_tensor_shapes,
             dtype=dtype,
@@ -380,6 +405,7 @@ def forward_backward_pipelining_without_interleaving(
             losses_reduced,
             dtype,
             disable_autocast,
+            checkpoint_activations_micro_batch,
         )
         _logger.debug("send fwd")
         send_forward(
@@ -416,6 +442,13 @@ def forward_backward_pipelining_without_interleaving(
         _logger.debug(f"steady iter: {i} / {num_microbatches_remaining}")
         last_iteration: bool = i == (num_microbatches_remaining - 1)
 
+        # Decide to checkpoint all layers' activations of the current micro-batch
+        if max_outstanding_backprops is not None:
+            checkpoint_activations_micro_batch = (
+                ((i+num_warmup_microbatches) % max_outstanding_backprops) >= num_micro_batches_with_partial_activation_checkpoints
+            )
+        else:
+            checkpoint_activations_micro_batch = None
         cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i + num_warmup_microbatches)
         output_tensor: Union[torch.Tensor, Sequence[torch.Tensor]] = forward_step(
             forward_step_func,
@@ -425,6 +458,7 @@ def forward_backward_pipelining_without_interleaving(
             losses_reduced,
             dtype,
             disable_autocast,
+            checkpoint_activations_micro_batch,
         )
         if forward_only:
             _logger.debug("send fwd")
