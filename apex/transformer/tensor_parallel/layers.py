@@ -290,7 +290,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
         sequence_parallel_enabled: bool,
         use_16bit_in_wgrad_accum_fusion: bool = False,
     ):
-        ctx.use_bias = bias is not None
+        ctx.use_bias = bias is not None and weight.requires_grad
         ctx.gradient_accumulation_fusion = gradient_accumulation_fusion
         ctx.async_grad_allreduce = async_grad_allreduce
         ctx.sequence_parallel_enabled = sequence_parallel_enabled
