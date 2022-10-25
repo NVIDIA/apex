@@ -19,6 +19,14 @@ from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
 from apex.transformer.parallel_state import get_tensor_model_parallel_rank
 from apex.transformer.tensor_parallel.utils import split_tensor_along_last_dim
 
+# `all_gather_into_tensor` and `reduce_scatter_tensor` are new placeholders for
+# `_all_gather_base` and `_reduce_scatter_base`. They require the most recent
+# version of PyTorch. The following 4 lines are for backward comparability with
+# older PyTorch.
+if not "all_gather_into_tensor" in dir(torch.distributed):
+    torch.distributed.all_gather_into_tensor = torch.distributed._all_gather_base
+if not "reduce_scatter_tensor" in dir(torch.distributed):
+    torch.distributed.reduce_scatter_tensor = torch.distributed._reduce_scatter_base
 
 def _reduce(input_: torch.Tensor) -> torch.Tensor:
     """All-reduce the input tensor across model parallel group."""
@@ -103,7 +111,7 @@ def _gather_along_first_dim(input_: torch.Tensor) -> torch.Tensor:
     shape[0] *= world_size
 
     output = torch.empty(shape, dtype=input_.dtype, device=torch.cuda.current_device())
-    torch.distributed._all_gather_base(
+    torch.distributed.all_gather_into_tensor(
         output,
         input_.contiguous(),
         group=get_tensor_model_parallel_group()
@@ -122,7 +130,7 @@ def _reduce_scatter_along_first_dim(input_: torch.Tensor) -> torch.Tensor:
     assert shape[0] % world_size == 0
     shape[0] //= world_size
     output = torch.empty(shape, dtype=input_.dtype, device=torch.cuda.current_device())
-    torch.distributed._reduce_scatter_base(
+    torch.distributed.reduce_scatter_tensor(
         output,
         input_.contiguous(),
         group=get_tensor_model_parallel_group()

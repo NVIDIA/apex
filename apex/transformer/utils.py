@@ -3,6 +3,14 @@ import torch
 
 from apex.transformer import parallel_state
 
+# `all_gather_into_tensor` and `reduce_scatter_tensor` are new placeholders for
+# `_all_gather_base` and `_reduce_scatter_base`. They require the most recent
+# version of PyTorch. The following 4 lines are for backward comparability with
+# older PyTorch.
+if not "reduce_scatter_tensor" in dir(torch.distributed):
+    torch.distributed.reduce_scatter_tensor = torch.distributed._reduce_scatter_base
+if not "all_gather_into_tensor" in dir(torch.distributed):
+    torch.distributed.all_gather_into_tensor = torch.distributed._all_gather_base
 
 def ensure_divisibility(numerator, denominator):
     """Ensure that numerator is divisible by the denominator."""
@@ -40,7 +48,7 @@ def gather_split_1d_tensor(tensor):
         device=torch.cuda.current_device(),
         requires_grad=False,
     )
-    torch.distributed._all_gather_base(
+    torch.distributed.all_gather_into_tensor(
         gathered,
         tensor,
         group=parallel_state.get_tensor_model_parallel_group()
