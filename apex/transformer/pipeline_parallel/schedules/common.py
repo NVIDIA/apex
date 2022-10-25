@@ -258,6 +258,7 @@ def forward_step(
     losses_reduced: List[torch.Tensor],
     dtype: torch.dtype,
     disable_autocast: bool = False,
+    checkpoint_activations_micro_batch: Optional[bool] = None,
 ) -> Union[torch.Tensor, Sequence[torch.Tensor]]:
     """Forward step for passed-in model.
 
@@ -274,6 +275,7 @@ def forward_step(
         losses_reduced:
         dtype:
         disable_autocast:
+        checkpoint_activations_micro_batch:
 
     Returns:
         output_tensor
@@ -296,7 +298,10 @@ def forward_step(
         enabled=not disable_autocast and dtype in (torch.half, torch.bfloat16),
         dtype=dtype,
     ):
-        output_tensor, loss_func = forward_step_func(batch, model)
+        if checkpoint_activations_micro_batch is None:
+            output_tensor, loss_func = forward_step_func(batch, model)
+        else:
+            output_tensor, loss_func = forward_step_func(batch, model, checkpoint_activations_micro_batch)
         if parallel_state.is_pipeline_last_stage():
             output_tensor = loss_func(output_tensor)
             loss, loss_reduced = output_tensor
