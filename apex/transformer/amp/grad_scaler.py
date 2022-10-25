@@ -35,6 +35,12 @@ class GradScaler(torch.cuda.amp.GradScaler):
             enabled=enabled,
         )
 
+    def _unscale_grads_(self, optimizer, *args):
+        if getattr(optimizer, "_custom_amp_unscale_grads", False):
+            return optimizer.unscale_grads(*args)
+        else:
+            return super()._unscale_grads_(optimizer, *args)
+
     def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
         retval = None
         found_inf = torch.cuda.FloatTensor([sum(v.item() for v in optimizer_state["found_inf_per_device"].values())])
