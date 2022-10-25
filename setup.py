@@ -85,7 +85,7 @@ if not torch.cuda.is_available():
     if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None and CUDA_HOME is not None:
         _, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
         if bare_metal_version >= Version("11.8"):
-            os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5;8.0;8.6;9.0"
+            os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5;8.0;8.6;8.9;9.0"
         elif bare_metal_version >= Version("11.1"):
             os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5;8.0;8.6"
         elif bare_metal_version == Version("11.0"):
@@ -334,7 +334,7 @@ if "--cuda_ext" in sys.argv:
             cc_flag.append("arch=compute_86,code=sm_86")
         if bare_metal_version >= Version("11.8"):
             cc_flag.append("-gencode")
-            cc_flag.append("arch=compute_90,code=sm_90")
+            cc_flag.append("arch=compute_89,code=sm_89,compute_90,code=sm_90")
 
         ext_modules.append(
             CUDAExtension(
@@ -617,7 +617,7 @@ if "--fast_multihead_attn" in sys.argv:
         cc_flag.append("arch=compute_86,code=sm_86")
     if bare_metal_version >= Version("11.8"):
         cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_90,code=sm_90")
+        cc_flag.append("arch=compute_89,code=sm_89,compute_90,code=sm_90")
 
     subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
     ext_modules.append(
