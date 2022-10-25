@@ -36,7 +36,7 @@ class NcclDistributedFusedLAMB(NcclDistributedTestBase):
 
     @common_utils.parametrize("no_copy", [False, True])
     def test_distributed_fused_lamb(self, no_copy):
-        if no_copy and 'no_copy'  not in inspect.getfullargspec(torch.distributed.reduce_scatter).args:
+        if no_copy and 'no_copy' not in inspect.getfullargspec(torch.distributed.reduce_scatter).args:
             self.skipTest("does not support no_copy")
         if no_copy and 'no_copy' not in inspect.getfullargspec(torch.distributed.all_gather).args:
             self.skipTest("does not support no_copy")
