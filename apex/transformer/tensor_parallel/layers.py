@@ -48,6 +48,14 @@ from apex.transformer.tensor_parallel.random import get_cuda_rng_tracker
 from apex.transformer.tensor_parallel.utils import VocabUtility
 from apex.transformer.log_util import get_transformer_logger
 
+# `all_gather_into_tensor` and `reduce_scatter_tensor` are new placeholders for
+# `_all_gather_base` and `_reduce_scatter_base`. They require the most recent
+# version of PyTorch. The following 4 lines are for backward comparability with
+# older PyTorch.
+if "reduce_scatter_tensor" not in dir(torch.distributed):
+    torch.distributed.reduce_scatter_tensor = torch.distributed._reduce_scatter_base
+if "all_gather_into_tensor" not in dir(torch.distributed):
+    torch.distributed.all_gather_into_tensor = torch.distributed._all_gather_base
 
 _logger = get_transformer_logger(__name__)
 
@@ -64,7 +72,6 @@ _MODEL_PARALLEL_ATTRIBUTE_DEFAULTS = {
     "partition_dim": -1,
     "partition_stride": 1,
 }
-
 
 def param_is_not_tensor_parallel_duplicate(param: torch.Tensor) -> bool:
     return (
@@ -302,7 +309,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
                 device=torch.cuda.current_device(),
                 requires_grad=False,
             )
-            torch.distributed._all_gather_base(all_gather_buffer, input, group=get_tensor_model_parallel_group())
+            torch.distributed.all_gather_into_tensor(all_gather_buffer, input, group=get_tensor_model_parallel_group())
             total_input = all_gather_buffer
         else:
             total_input = input
@@ -327,7 +334,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
                 device=torch.cuda.current_device(),
                 requires_grad=False,
             )
-            handle = torch.distributed._all_gather_base(
+            handle = torch.distributed.all_gather_into_tensor(
                 all_gather_buffer,
                 input,
                 group=get_tensor_model_parallel_group(),
@@ -355,7 +362,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
         if ctx.sequence_parallel_enabled:
             assert not ctx.async_grad_allreduce
             sub_grad_input = torch.empty(input.shape, dtype=input.dtype, device=torch.cuda.current_device(), requires_grad=False)
-            handle = torch.distributed._reduce_scatter_base(
+            handle = torch.distributed.reduce_scatter_tensor(
                 sub_grad_input,
                 grad_input,
                 group=get_tensor_model_parallel_group(),
