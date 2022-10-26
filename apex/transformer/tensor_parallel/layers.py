@@ -52,9 +52,9 @@ from apex.transformer.log_util import get_transformer_logger
 # `_all_gather_base` and `_reduce_scatter_base`. They require the most recent
 # version of PyTorch. The following 4 lines are for backward comparability with
 # older PyTorch.
-if not "reduce_scatter_tensor" in dir(torch.distributed):
+if "reduce_scatter_tensor" not in dir(torch.distributed):
     torch.distributed.reduce_scatter_tensor = torch.distributed._reduce_scatter_base
-if not "all_gather_into_tensor" in dir(torch.distributed):
+if "all_gather_into_tensor" not in dir(torch.distributed):
     torch.distributed.all_gather_into_tensor = torch.distributed._all_gather_base
 
 _logger = get_transformer_logger(__name__)
