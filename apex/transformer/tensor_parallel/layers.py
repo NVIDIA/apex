@@ -378,7 +378,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
                 shape[0] //= world_size
 
                 sub_grad_input = torch.empty(torch.Size(shape), dtype=grad_input.dtype, device=torch.cuda.current_device(), requires_grad=False)
-                handle = torch.distributed._reduce_scatter_base(
+                handle = torch.distributed.reduce_scatter_tensor(
                     sub_grad_input,
                     grad_input,
                     group=get_tensor_model_parallel_group(),
