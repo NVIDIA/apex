@@ -1,13 +1,7 @@
 import random
 import torch
-try:
-    import torch_ucc
-except ImportError:
-    HAS_TORCH_UCC = False
-else:
-    HAS_TORCH_UCC = True
-    print("Use UCC as backend of Pipeline Parallel ProcessGroups")
 
+from apex.transformer._ucc_util import HAS_UCC
 from apex.transformer.enums import ModelType
 from apex.transformer import tensor_parallel
 from apex.transformer import parallel_state
@@ -187,7 +181,7 @@ if __name__ == "__main__":
     init = True
     try:
         virtual_pipeline_model_parallel_sizes = (None, 2,)
-        if HAS_TORCH_UCC:
+        if HAS_UCC:
             # Deliberately skipping test with interleaved schedule for BERT model.
             # It deadlocks on hybrid UCC/NCCL backend.
             virtual_pipeline_model_parallel_sizes = (None,)
@@ -217,7 +211,7 @@ if __name__ == "__main__":
                 args.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size,
                 default_backend="nccl",
-                p2p_backend="ucc" if HAS_TORCH_UCC else "nccl",
+                p2p_backend="ucc" if HAS_UCC else "nccl",
             )
             pipeline_model_parallel_size = (
                 parallel_state.get_pipeline_model_parallel_world_size()

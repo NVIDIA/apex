@@ -30,10 +30,9 @@ from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_int
 )
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
-from apex.transformer.testing.distributed_test_base import HAS_TORCH_UCC
 from apex.transformer.testing.distributed_test_base import HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER
 from apex.transformer.testing import commons as testing_utils
-
+from apex.transformer._ucc_util import HAS_UCC
 
 logging.getLogger("torch").setLevel(logging.WARNING)
 logging.getLogger("apex").setLevel(logging.WARNING)
@@ -270,6 +269,7 @@ class PipelineParallelForwardBackwardTestBase:
             sync_batch_comm=sync_batch_comm,
         )
 
+    # fails on native ucc: times out
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
     def test_learning_pipelining_with_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
@@ -277,6 +277,7 @@ class PipelineParallelForwardBackwardTestBase:
             sync_batch_comm=sync_batch_comm,
         )
 
+    # fails on native ucc: times out
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
     def test_inference_pipelining_with_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
@@ -284,6 +285,7 @@ class PipelineParallelForwardBackwardTestBase:
             sync_batch_comm=sync_batch_comm,
         )
 
+    # fails on native ucc: times out
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
     def test_learning_async_pipelining_with_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
@@ -291,6 +293,7 @@ class PipelineParallelForwardBackwardTestBase:
             sync_batch_comm=sync_batch_comm,
         )
 
+    # fails on native ucc: times out
     @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
     def test_inference_async_pipelining_with_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
@@ -313,7 +316,7 @@ class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineP
 
     @unittest.skipUnless(HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER, "Needs driver >= 470.42.01")
     def _test_hybrid_backends(self, forward_only: bool) -> None:
-        if HAS_TORCH_UCC:
+        if HAS_UCC:
             self._run_hybrid_distributed_backend(forward_only)
         else:
             with self.assertRaisesRegex(
