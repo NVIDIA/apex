@@ -1,6 +1,6 @@
 from torch import distributed as dist
 
-HAS_UCC = dist.is_ucc_available()
+HAS_UCC = hasattr(dist, "is_ucc_available") and dist.is_ucc_available()
 if not HAS_UCC:
     try:
         import torch_ucc
