@@ -321,7 +321,7 @@ class NcclPipelineParallelForwardBackwardTest(NcclDistributedTestBase, PipelineP
         else:
             with self.assertRaisesRegex(
                 ImportError,
-                re.escape("UCC backend requires [torch_ucc](https://github.com/facebookresearch/torch_ucc) but not found"),
+                re.escape("UCC backend requires pytorch source build with UCC installed and enabled"),
             ):
                 self._run_hybrid_distributed_backend(forward_only)
 
