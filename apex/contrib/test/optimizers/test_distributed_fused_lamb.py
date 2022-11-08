@@ -35,7 +35,14 @@ class NcclDistributedFusedLAMB(NcclDistributedTestBase):
         return torch.cuda.device_count()
 
     @common_utils.parametrize("no_copy", [False, True])
-    def test_distributed_fused_lamb(self, no_copy):
+    @common_utils.parametrize("opt_kwargs", [
+        dict(overlap_reductions=True, dwu_num_blocks=2, dwu_num_chunks=2,
+             fused_norm=False, fuse_scale=False, clip_after_ar=True,
+             full_ar=False),
+        dict(overlap_reductions=False, dwu_num_blocks=1, dwu_num_chunks=1,
+             fused_norm=True, fuse_scale=True, clip_after_ar=False),
+    ])
+    def test_distributed_fused_lamb(self, no_copy, opt_kwargs):
         if no_copy and 'no_copy' not in inspect.getfullargspec(torch.distributed.reduce_scatter).args:
             self.skipTest("does not support no_copy")
         if no_copy and 'no_copy' not in inspect.getfullargspec(torch.distributed.all_gather).args:
@@ -59,7 +66,8 @@ class NcclDistributedFusedLAMB(NcclDistributedTestBase):
             {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
         ]
 
-        full_ar = gpu_count == torch.cuda.device_count()
+        if 'full_ar' not in opt_kwargs:
+            opt_kwargs['full_ar'] = gpu_count == torch.cuda.device_count()
 
         # Aidyn-A: not sure what parameters are the best for testing purposes, 
         # setting up whatever I think appropriate. 
@@ -69,20 +77,14 @@ class NcclDistributedFusedLAMB(NcclDistributedTestBase):
                 betas=(0.9, 0.9),
                 eps=1e-6,
                 max_grad_norm=1.0,
-                overlap_reductions=False,
                 dwu_group_size=gpu_count,
-                dwu_num_blocks=1,
-                dwu_num_chunks=1,
                 dwu_num_rs_pg=1,
                 dwu_num_ar_pg=1,
                 dwu_num_ag_pg=1,
                 use_nvlamb=False,
-                clip_after_ar=False,
-                fused_norm=True,
-                fuse_scale=True,
-                full_ar=full_ar,
                 set_param_views_to_flat_buffer=False,
                 e5m2_allgather=False,
+                **opt_kwargs
         )
         optimizer.set_global_scale(init_scale)
 
