@@ -400,14 +400,17 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             list_of_list_of_chunks = [__chunkify(block) for block in list_of_blocks]
             list_of_list_of_list_of_shards = [[__shardify(chunk) for chunk in chunks] for chunks in list_of_list_of_chunks]
             return list_of_blocks, list_of_list_of_chunks, list_of_list_of_list_of_shards
-        def _flat_split_no_shards(p):
-            def __blockify(p):
-                return [p[block_id*self._block_size:(block_id+1)*self._block_size] for block_id in range(self._num_blocks)]
-            def __chunkify(p):
-                return [p[chunk_id*self._chunk_size:(chunk_id+1)*self._chunk_size] for chunk_id in range(self._num_chunks)]
-            list_of_blocks = __blockify(self._flat_grads)
-            list_of_list_of_chunks = [__chunkify(block) for block in list_of_blocks]
-            return list_of_blocks, list_of_list_of_chunks
+
+        # note(crcrpar): the function below doesn't seem to be used at all.
+        # def _flat_split_no_shards(p):
+        #     def __blockify(p):
+        #         return [p[block_id*self._block_size:(block_id+1)*self._block_size] for block_id in range(self._num_blocks)]
+        #     def __chunkify(p):
+        #         return [p[chunk_id*self._chunk_size:(chunk_id+1)*self._chunk_size] for chunk_id in range(self._num_chunks)]
+        #     list_of_blocks = __blockify(self._flat_grads)
+        #     list_of_list_of_chunks = [__chunkify(block) for block in list_of_blocks]
+        #     return list_of_blocks, list_of_list_of_chunks
+
         def _full_packed_split(p):
             def __shardify(p):
                 return [p[mega_shard*self._mega_shard_size:(mega_shard+1)*self._mega_shard_size] for mega_shard in range(self._group_size)]
@@ -660,20 +663,20 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             with torch.cuda.stream(rs_stream):
                 if self._reduce_scatter_no_copy:
                     works[chunk_id] = torch.distributed.reduce_scatter(
-                        output = self._fp16_g_chunks[block_id][chunk_id],
-                        input_list = self._flat_grads_shards[block_id][chunk_id],
-                        group = self._rs_pg[glob_chunk_id%self._num_rs_pg],
-                        async_op = True,
-                        no_copy = True,
-                        op = _make_nccl_premul_sum((scale,)),
+                        output=self._fp16_g_chunks[block_id][chunk_id],
+                        input_list=self._flat_grads_shards[block_id][chunk_id],
+                        group=self._rs_pg[glob_chunk_id%self._num_rs_pg],
+                        async_op=True,
+                        no_copy=True,
+                        op=_make_nccl_premul_sum((scale,)),
                     )
                 else:
                     works[chunk_id] = torch.distributed.reduce_scatter_tensor(
-                        output = self._fp16_g_chunks[block_id][chunk_id],
-                        input = self._flat_grads_blocks[block_id],
-                        group = self._rs_pg[glob_chunk_id%self._num_rs_pg],
-                        async_op = True,
-                        op = _make_nccl_premul_sum((scale,)),
+                        output=self._fp16_g_chunks[block_id][chunk_id],
+                        input=self._flat_grads_chunks[block_id][chunk_id],
+                        group=self._rs_pg[glob_chunk_id%self._num_rs_pg],
+                        async_op=True,
+                        op=_make_nccl_premul_sum((scale,)),
                     )
 
         # Reduction across nodes for each rank
@@ -698,16 +701,16 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             with torch.cuda.stream(rs_stream):
                 if self._reduce_scatter_no_copy:
                     works[chunk_id] = torch.distributed.reduce_scatter(
-                        output = self._fp16_g_chunks[block_id][chunk_id],
-                        input_list = self._flat_grads_shards[block_id][chunk_id],
-                        group = self._rs_pg[glob_chunk_id%self._num_rs_pg],
-                        async_op = True,
-                        no_copy = True,
+                        output=self._fp16_g_chunks[block_id][chunk_id],
+                        input_list=self._flat_grads_shards[block_id][chunk_id],
+                        group=self._rs_pg[glob_chunk_id%self._num_rs_pg],
+                        async_op=True,
+                        no_copy=True,
                     )
                 else:
                     works[chunk_id] = torch.distributed.reduce_scatter_tensor(
                         output = self._fp16_g_chunks[block_id][chunk_id],
-                        input = self._flat_grads_blocks[block_id],
+                        input = self._flat_grads_chunks[block_id][chunk_id],
                         group = self._rs_pg[glob_chunk_id%self._num_rs_pg],
                         async_op = True,
                     )
