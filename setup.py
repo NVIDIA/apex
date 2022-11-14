@@ -686,21 +686,6 @@ if "--transducer" in sys.argv:
         )
     )
 
-# note (mkozuki): Now `--fast_bottleneck` option (i.e. apex/contrib/bottleneck) depends on `--peer_memory` and `--nccl_p2p`.
-if "--fast_bottleneck" in sys.argv:
-    sys.argv.remove("--fast_bottleneck")
-    raise_if_cuda_home_none("--fast_bottleneck")
-    if check_cudnn_version_and_warn("--fast_bottleneck", 8400):
-        subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
-        ext_modules.append(
-            CUDAExtension(
-                name="fast_bottleneck",
-                sources=["apex/contrib/csrc/bottleneck/bottleneck.cpp"],
-                include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
-                extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
-            )
-        )
-
 if "--cudnn_gbn" in sys.argv:
     sys.argv.remove("--cudnn_gbn")
     raise_if_cuda_home_none("--cudnn_gbn")
@@ -757,6 +742,21 @@ if "--nccl_p2p" in sys.argv:
     else:
         warnings.warn(
             f"Skip `--nccl_p2p` as it requires NCCL 2.10.3 or later, but {_available_nccl_version[0]}.{_available_nccl_version[1]}"
+        )
+
+# note (mkozuki): Now `--fast_bottleneck` option (i.e. apex/contrib/bottleneck) depends on `--peer_memory` and `--nccl_p2p`.
+if "--fast_bottleneck" in sys.argv:
+    sys.argv.remove("--fast_bottleneck")
+    raise_if_cuda_home_none("--fast_bottleneck")
+    if check_cudnn_version_and_warn("--fast_bottleneck", 8400):
+        subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
+        ext_modules.append(
+            CUDAExtension(
+                name="fast_bottleneck",
+                sources=["apex/contrib/csrc/bottleneck/bottleneck.cpp"],
+                include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
+                extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+            )
         )
 
 
