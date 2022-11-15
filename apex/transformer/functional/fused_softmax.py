@@ -93,9 +93,14 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
 
 def scaled_masked_softmax(inputs, mask, scale):
     # input is 4D tensor (b, np, sq, sk)
-    args = _cast_if_autocast_enabled(inputs, mask, scale)
-    with torch.cuda.amp.autocast(enabled=False):
-        return ScaledMaskedSoftmax.apply(*args)
+    if mask is not None:
+        args = _cast_if_autocast_enabled(inputs, mask, scale)
+        with torch.cuda.amp.autocast(enabled=False):
+            return ScaledMaskedSoftmax.apply(*args)
+    else:
+        args = _cast_if_autocast_enabled(inputs, scale)
+        with torch.cuda.amp.autocast(enabled=False):
+            return ScaledSoftmax.apply(*args)
 
 
 class GenericScaledMaskedSoftmax(torch.autograd.Function):
@@ -222,7 +227,7 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
             and self.input_in_float16  # input must be fp16
             and (
                 self.attn_mask_type == AttnMaskType.causal
-                or (self.attn_mask_type == AttnMaskType.padding and mask is not None)
+                or self.attn_mask_type == AttnMaskType.padding
             )
             and 16 < sk <= 4096  # sk must be 16 ~ 4096
             and sq % 4 == 0  # sq must be divisor of 4
