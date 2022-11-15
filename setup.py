@@ -322,6 +322,27 @@ if "--cuda_ext" in sys.argv:
         )
     )
 
+    ext_modules.append(
+        CUDAExtension(
+            name="scaled_softmax_cuda",
+            sources=["csrc/megatron/scaled_softmax.cpp", "csrc/megatron/scaled_softmax_cuda.cu"],
+            include_dirs=[os.path.join(this_dir, "csrc")],
+            extra_compile_args={
+                "cxx": ["-O3"] + version_dependent_macros,
+                "nvcc": append_nvcc_threads(
+                    [
+                        "-O3",
+                        "-U__CUDA_NO_HALF_OPERATORS__",
+                        "-U__CUDA_NO_HALF_CONVERSIONS__",
+                        "--expt-relaxed-constexpr",
+                        "--expt-extended-lambda",
+                    ]
+                    + version_dependent_macros
+                ),
+            },
+        )
+    )
+
     if bare_metal_version >= Version("11.0"):
 
         cc_flag = []
