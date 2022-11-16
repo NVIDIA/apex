@@ -84,11 +84,12 @@ def get_timers():
     return _GLOBAL_TIMERS
 
 
-def set_global_variables(extra_args_provider=None, args_defaults={},
+def set_global_variables(extra_args_provider=None, args_defaults={}, override_args={},
                          ignore_unknown_args=False):
     """Set args, tokenizer, tensorboard-writer, adlr-autoresume, and timers."""
     args = _parse_args(extra_args_provider=extra_args_provider,
                        defaults=args_defaults,
+                       override_args=override_args,
                        ignore_unknown_args=ignore_unknown_args)
     # _build_num_microbatches_calculator(args)
     # if args.vocab_file:
@@ -98,13 +99,14 @@ def set_global_variables(extra_args_provider=None, args_defaults={},
     _set_timers()
 
 
-def _parse_args(extra_args_provider=None, defaults={},
+def _parse_args(extra_args_provider=None, defaults={}, override_args={},
                 ignore_unknown_args=False):
     """Parse entire arguments."""
     global _GLOBAL_ARGS
     _ensure_var_is_not_initialized(_GLOBAL_ARGS, 'args')
     _GLOBAL_ARGS = parse_args(extra_args_provider=extra_args_provider,
                               defaults=defaults,
+                              override_args=override_args,
                               ignore_unknown_args=ignore_unknown_args)
     return _GLOBAL_ARGS
 
