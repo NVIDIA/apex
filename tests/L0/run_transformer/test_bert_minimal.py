@@ -16,6 +16,7 @@ from apex.transformer.log_util import set_logging_level
 from apex.transformer import tensor_parallel
 from apex.transformer.enums import ModelType
 from apex.transformer._ucc_util import HAS_UCC
+from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 from apex.transformer import parallel_state
@@ -249,12 +250,14 @@ class BertTestBase:
                 async_comm,
             )
             torch.distributed.barrier()
+            if self.rank == 0:
+                print(TEST_SUCCESS_MESSAGE)
 
 
 class NcclBertTest(BertTestBase, NcclDistributedTestBase):
     pass
 
-
+@unittest.skipUnless(HAS_UCC, "requires pytorch to be built with native ucc")
 class UccBertTest(BertTestBase, UccDistributedTestBase):
     pass
 
