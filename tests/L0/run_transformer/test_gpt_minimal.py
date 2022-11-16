@@ -26,7 +26,6 @@ from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_int
 from apex.transformer.testing.standalone_gpt import gpt_model_provider
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
-from apex.transformer.testing.commons import initialize_distributed
 
 from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
@@ -161,10 +160,6 @@ class GptTestBase:
     @unittest.skipUnless(torch.cuda.device_count() > 2, "requires at least 3 gpus")
     def test_gpt(self):
         init = True
-
-        # /usr/bin/python -m torch.distributed.run --nproc_per_node=4 tests/L0/run_transformer/run_gpt_minimal_test.py
-        # --micro-batch-size 2 --num-layers 16 --hidden-size 256 --num-attention-heads 8 --max-position-embeddings 512
-        # --seq-length 512 --global-batch-size 128 --pipeline-model-parallel-size 2 --tensor-model-parallel-size 2
 
         override_args = {
             "micro_batch_size": 2,

@@ -17,14 +17,12 @@ from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_cal
 from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
-from apex.transformer.testing.commons import initialize_distributed
 from apex.transformer.testing.commons import print_separator
 from apex.transformer.testing.commons import fwd_step_func
 from apex.transformer.log_util import get_transformer_logger, set_logging_level
 from apex.transformer.testing.commons import model_provider_func
 from apex.transformer._data import MegatronPretrainingRandomSampler
 from apex.transformer._data import MegatronPretrainingSampler
-from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 
 from torch.testing._internal import common_utils
@@ -36,10 +34,8 @@ _logger = get_transformer_logger("pipeline_parallel_test")
 # _logger.setLevel("INFO")
 
 
-RAMPUP_BATCH_SIZE = []
 NUM_ITERATIONS = 20
 NUM_SAMPLES = 16384 // 2
-batch_size, micro_batch_size = None, None
 HIDDEN_SIZE = 16
 
 
@@ -90,7 +86,7 @@ def run_interleaved_with_dynamic_batch_size(
     assert len(model) == virtual_pipeline_model_parallel_size
     optimizer = torch.optim.Adam(_get_params_for_weight_decay_optimization(model))
 
-    initial_local_minibatch_size = get_num_microbatches() * micro_batch_size
+    initial_local_minibatch_size = get_num_microbatches() * args.micro_batch_size
     dataset = Dataset(NUM_SAMPLES)
     data_loader = torch.utils.data.DataLoader(
         dataset,
@@ -110,11 +106,11 @@ def run_interleaved_with_dynamic_batch_size(
         assert isinstance(batch, (list, tuple))
         return [get_num_samples(b) for b in batch]
 
-    tensor_shape = [micro_batch_size, HIDDEN_SIZE, HIDDEN_SIZE]
+    tensor_shape = [args.micro_batch_size, HIDDEN_SIZE, HIDDEN_SIZE]
     consumed_samples = 0
     for i in range(NUM_ITERATIONS):
         update_num_microbatches(consumed_samples, consistency_check=False)
-        local_batch_size = get_num_microbatches() * micro_batch_size
+        local_batch_size = get_num_microbatches() * args.micro_batch_size
         data_iter._index_sampler.local_minibatch_size = local_batch_size
         local_mini_batch = next(data_iter)
 
@@ -134,7 +130,7 @@ def run_interleaved_with_dynamic_batch_size(
         consumed_samples += (
             parallel_state.get_data_parallel_world_size()
             * get_num_microbatches()
-            * micro_batch_size
+            * args.micro_batch_size
         )
 
         if not forward_only:
@@ -153,10 +149,6 @@ def run_interleaved_with_dynamic_batch_size(
 class DynamicBatchsizeTestBase:
     @unittest.skipUnless(torch.cuda.device_count() > 2, "requires at least 3 gpus")
     def test_dynamic_batchsize(self):
-
-        # /usr/bin/python -m torch.distributed.run --nproc_per_node=4 tests/L0/run_transformer/run_dynamic_batchsize_test.py 
-        # --micro-batch-size 2 --num-layers 16 --hidden-size 256 --num-attention-heads 8 --max-position-embeddings 512 
-        # --seq-length 512 --global-batch-size 128 --use-cpu-initialization
 
         n_tests = 0
         failures = []
@@ -225,9 +217,9 @@ class DynamicBatchsizeTestBase:
 class NcclDynamicBatchsizeTest(DynamicBatchsizeTestBase, NcclDistributedTestBase):
     pass
 
-
+# TODO: (Fuzzkatt) UCC still doesn't work with fwd_bwd_pipelining_with_interleaving 
 
 if __name__ == "__main__":
     torch.backends.cuda.matmul.allow_tf32 = False
-    torch.backends.cudnn.allow_tf32 = False
+    # torch.backends.cudnn.allow_tf32 = False
     common_utils.run_tests()
