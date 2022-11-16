@@ -202,8 +202,6 @@ class BertTestBase:
             # It deadlocks on hybrid UCC/NCCL backend.
             virtual_pipeline_model_parallel_sizes = (None,)
         for virtual_pipeline_model_parallel_size in virtual_pipeline_model_parallel_sizes:
-            if self.rank == 0:
-                print(f'virtual_pipeline_model_parallel_size: {virtual_pipeline_model_parallel_size}')
             async_comm = not args.sequence_parallel and virtual_pipeline_model_parallel_size is None
             data_idx = 0
             ONCE = False
@@ -225,9 +223,7 @@ class BertTestBase:
                 args.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size,
                 default_backend="nccl",
-                # p2p_backend="ucc" if HAS_UCC else "nccl",
                 p2p_backend=self.DISTRIBUTED_BACKEND,
-                # p2p_backend="nccl",
             )
 
             tensor_parallel.random.model_parallel_cuda_manual_seed(0)
@@ -255,8 +251,12 @@ class BertTestBase:
             torch.distributed.barrier()
 
 
-class NcclBertTest(BertTestBase, NcclDistributedTestBase): pass
-# class UccBertTest(BertTestBase, UccDistributedTestBase): pass
+class NcclBertTest(BertTestBase, NcclDistributedTestBase):
+    pass
+
+
+class UccBertTest(BertTestBase, UccDistributedTestBase):
+    pass
 
 
 if __name__ == "__main__":
