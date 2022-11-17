@@ -161,14 +161,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             (default: True)
         bucket_cap_mb (float, optional): bucket size in megabytes
             (default: 100)
-        pipeline_size (int, optional): number of buckets to
-            synchronize simultaneously (default: 2)
+        pipeline_size (int, optional): number of buckets to process
+            simultaneously in optimizer step (default: 2)
         contiguous_grad_buffer (bool, optional): allocate gradient
             buckets out of a large persistent buffer (default: False).
             This allows individual parameter gradients to be accessed
-            externally (see grad_buffer_view function). It also
-            maximizes memory usage and may prevent overlapping
-            communication and compute.
+            externally (see grad_buffer_view function). It enables
+            some performance optimizations, but prevents some memory
+            optimizations.
         store_params (bool, optional): store a distributed copy of the
             parameters as optimizer state (default: True). This may be
             desirable if the optimizer dtype has higher precision than
@@ -443,9 +443,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self.state['buckets'] = []
         self.state['step'] = 0
 
-        # Objects for gradient synchronization
+        # Gradient state
         self._grads_buckets = collections.defaultdict(self.GradientBucket)
-        self._pipeline_streams = [torch.cuda.Stream() for _ in range(self.pipeline_size)]
+
+        # Side streams for optimizer step and communication
+        self._pipeline_streams = [torch.cuda.Stream() for _ in range(self.pipeline_size+1)]
 
         # Scale by factor before optimizer step. Used for grad
         # clipping and gradient scaler.
@@ -718,18 +720,20 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             bucket.status = self.GradientStatus.PARTIALLY_FILLED
 
             # Allocate gradient buffer if needed
+            if bucket.grads_bucket is None and self.contiguous_grad_buffer:
+                grad_buffer_start = bucket_id * self.bucket_size
+                grad_buffer_end = grad_buffer_start + self.bucket_size
+                grad_buffer = self._grad_buffer[grad_buffer_start:grad_buffer_end]
+                if (bucket.grads_shard is None
+                    or bucket.grads_shard.data_ptr() != grad_buffer.data_ptr()):
+                    bucket.grads_bucket = grad_buffer
+                    bucket.grads_bucket.zero_()
             if bucket.grads_bucket is None:
-                if self.contiguous_grad_buffer:
-                    grad_buffer_start = bucket_id * self.bucket_size
-                    grad_buffer_end = grad_buffer_start + self.bucket_size
-                    bucket.grads_bucket = self._grad_buffer[grad_buffer_start:grad_buffer_end]
-                else:
-                    bucket.grads_bucket = torch.empty(
-                        [self.bucket_size],
-                        dtype=self.grad_sync_dtype,
-                        device=self.device,
-                    )
-                bucket.grads_bucket.zero_()
+                bucket.grads_bucket = torch.zeros(
+                    [self.bucket_size],
+                    dtype=self.grad_sync_dtype,
+                    device=self.device,
+                )
 
             # Copy param grad to bucket
             if param.grad is not None:
@@ -766,15 +770,15 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """Ensure that all gradient buckets are synchronized"""
 
         # Synchronize all unsynchronized buckets
-        self._finish_bucket_grad_sync()
+        Status = self.GradientStatus
         buckets = [
             bucket
             for bucket_id, bucket in sorted(self._grads_buckets.items())
-            if bucket.status != self.GradientStatus.READY
+            if bucket.status not in (Status.READY, Status.SYNCING)
         ]
         if buckets:
             self._start_bucket_grad_sync(buckets)
-            self._finish_bucket_grad_sync()
+        self._finish_bucket_grad_sync()
 
         # Fill any unsynchronized gradients with zeros
         for bucket_id in range(len(self.state['buckets'])):
@@ -824,13 +828,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 continue
             if bucket.status == self.GradientStatus.FULLY_FILLED:
                 filled_buckets.append(bucket)
-        pipeline_size = _round_to_multiple(
-            len(filled_buckets),
-            self.pipeline_size,
-            round_up=False,
-        )
-        if pipeline_size > 0:
-            self._start_bucket_grad_sync(filled_buckets[:pipeline_size])
+        if filled_buckets:
+            self._start_bucket_grad_sync(filled_buckets)
 
     def _start_bucket_grad_sync(self, buckets):
         """Synchronize gradient buckets
@@ -842,7 +841,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """
 
         # Complete any outstanding grad syncs
-        self._finish_bucket_grad_sync()
+        # Note: Not needed with contiguous grad buffer since there is
+        # no memory benefit from eagerly freeing grad buffers.
+        if not self.contiguous_grad_buffer:
+            self._finish_bucket_grad_sync()
 
         # Reduction operation
         if self.average_grad_sync:
@@ -850,11 +852,23 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         else:
             reduce_op = torch.distributed.ReduceOp.SUM
 
+        # Side stream for communication
+        main_stream = torch.cuda.current_stream()
+        comm_stream = self._pipeline_streams[-1]
+        comm_stream.wait_stream(main_stream)
+
         # Reduce-scatter over distributed process group
         for i, bucket in enumerate(buckets):
+            if bucket.status == self.GradientStatus.SYNCING:
+                self._finish_bucket_grad_sync()
             bucket.status = self.GradientStatus.SYNCING
             bucket.grads_generated.clear()
-            bucket.sync_wait()
+            if bucket.grads_bucket is None:
+                bucket.grads_bucket = torch.zeros(
+                    [self.bucket_size],
+                    dtype=self.grad_sync_dtype,
+                    device=self.device,
+                )
             if self.distributed_size == 1:
                 bucket.sync_grads_shard = bucket.grads_bucket
             else:
@@ -863,31 +877,36 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     dtype=self.grad_sync_dtype,
                     device=self.device,
                 )
-                bucket.sync_request = (
-                    reduce_scatter_tensor(
-                        bucket.sync_grads_shard,
-                        bucket.grads_bucket,
-                        op=reduce_op,
-                        group=self.distributed_process_group,
-                        async_op=True,
+                with torch.cuda.stream(comm_stream):
+                    bucket.sync_request = (
+                        reduce_scatter_tensor(
+                            bucket.sync_grads_shard,
+                            bucket.grads_bucket,
+                            op=reduce_op,
+                            group=self.distributed_process_group,
+                            async_op=True,
+                        )
                     )
-                )
 
         # All-reduce over redundant process group
         if self.redundant_size > 1:
             for i, bucket in enumerate(buckets):
-                bucket.sync_wait()
-                bucket.sync_request = (
-                    torch.distributed.all_reduce(
-                        bucket.sync_grads_shard,
-                        op=reduce_op,
-                        group=self.redundant_process_group,
-                        async_op=True,
+                with torch.cuda.stream(comm_stream):
+                    bucket.sync_wait()
+                    bucket.sync_request = (
+                        torch.distributed.all_reduce(
+                            bucket.sync_grads_shard,
+                            op=reduce_op,
+                            group=self.redundant_process_group,
+                            async_op=True,
+                        )
                     )
-                )
 
     def _finish_bucket_grad_sync(self):
         """Wait for any gradient synchronizations that are in progress"""
+        main_stream = torch.cuda.current_stream()
+        comm_stream = self._pipeline_streams[-1]
+        main_stream.wait_stream(comm_stream)
         for bucket_id, bucket in sorted(self._grads_buckets.items()):
             if bucket.status == self.GradientStatus.SYNCING:
 
@@ -1123,6 +1142,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Apply optimizer step to each bucket and synchronize params
         self.state['step'] += 1
         main_stream = torch.cuda.current_stream()
+        comm_stream = self._pipeline_streams[-1]
         for stream in self._pipeline_streams:
             stream.wait_stream(main_stream)
         for bucket_id in range(len(self.state['buckets'])):
@@ -1150,14 +1170,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 # are executed in the correct order. Reconsider when
                 # tagged collectives are available.
                 if self.distributed_size > 1:
-                    main_stream.wait_stream(stream)
-                    with torch.cuda.stream(main_stream):
+                    comm_stream.wait_stream(stream)
+                    with torch.cuda.stream(comm_stream):
                         all_gather_into_tensor(
                             params_bucket,
                             params_bucket_shard,
                             group=self.distributed_process_group,
                         )
-                    stream.wait_stream(main_stream)
+                    stream.wait_stream(comm_stream)
 
                 # Copy values to param buffers
                 params_in = []
