@@ -178,7 +178,7 @@ class GptTestBase:
         global_vars.set_global_variables(override_args=override_args)
         args = global_vars.get_args()
 
-        for async_comm in (False,) if global_vars.get_args().sequence_parallel else (False, True):
+        for async_comm in (False,) if args.sequence_parallel else (False, True):
             global fancy_data
             global effective_length
 

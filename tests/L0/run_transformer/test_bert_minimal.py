@@ -31,148 +31,138 @@ logging.getLogger("apex").setLevel(logging.WARNING)
 
 
 set_logging_level("WARNING")
-mode = None
-MANUAL_SEED = 42
-inds = None
-masks = None
-data_idx = 0
-MASK_PROB = 0.1
-EASY_MODE = False
-EASY_MODE_SIZ = 32
-ONCE = False
-
-
-def download_fancy_data():
-    # import requests
-    # response = requests.get('https://internet.com/book.txt')
-    # text = ' '.join(response.text.split())
-    text = """
-  An original sentence not subject to any license restrictions, copyright, or royalty payments. Nothing to see here. Commercial or non-commercial use. Research or non-research purposes. The quick brown fox jumps over the lazy dog. Lorem ipsum.
-  """
-    text = text * 1024
-    encoded = text.encode("ascii", "replace")
-    ints = [int(encoded[i]) for i in range(len(encoded))]
-    return torch.tensor(ints)
-
-
-# build a batch given sequence_len and batch size
-def generate_fancy_data_labels(sequence_len, batch_size):
-    global data_idx
-    global inds
-    global masks
-    global MANUAL_SEED
-    temps = []
-    for i in range(batch_size):
-        if inds is None or data_idx >= len(inds):
-            # hack as use of RNG will fall out of sync due to pipelines being different
-            torch.manual_seed(MANUAL_SEED)
-            inds = torch.randperm(effective_length, device="cuda")
-            masks = (
-                torch.rand(
-                    len(inds) // batch_size + 1, batch_size, sequence_len, device="cuda"
-                )
-                >= MASK_PROB
-            ).long()
-            MANUAL_SEED += 1
-            print("new epoch", len(inds))
-            data_idx = 0
-            print("my start", inds[0:5])
-            print("masks_checksum:", torch.sum(masks))
-        if EASY_MODE:
-            data_idx_ = data_idx % EASY_MODE_SIZ
-        else:
-            data_idx_ = data_idx
-        offset = inds[data_idx_]  # * SEQUENCE_LEN
-        data_idx += 1
-
-        curr = fancy_data[offset: offset + sequence_len].clone().detach()
-        temps.append(curr)
-    temp = torch.stack(temps, dim=0).cuda()
-    mask = masks[data_idx // batch_size]
-    mask_not = torch.logical_not(mask).long()
-    data = mask * temp + mask_not * 124
-    label = temp
-    if parallel_state.get_tensor_model_parallel_rank() == 0:
-        data_dict = {"text": data, "label": label, "mask_not": mask_not}
-    else:
-        data_dict = None
-    keys = ["text", "label", "mask_not"]
-    dtype = torch.int64
-    broadcasted_data = tensor_parallel.broadcast_data(
-        keys, data_dict, torch.long)
-    return (
-        broadcasted_data["text"].long(),
-        broadcasted_data["label"].long(),
-        broadcasted_data["mask_not"],
-    )
-
-
-def fwd_step_func(batch, model):
-    data, label, loss_mask = batch
-    y = model(data, torch.ones_like(data), lm_labels=label)
-
-    def loss_func(output_tensor):
-        global ONCE
-        output_tensor, _ = output_tensor
-        lm_loss_ = output_tensor.float()
-        lm_loss = torch.sum(lm_loss_.view(-1) *
-                            loss_mask.reshape(-1)) / loss_mask.sum()
-        averaged_loss = average_losses_across_data_parallel_group([lm_loss])
-        if data_idx >= 1536:
-            assert averaged_loss < 4.8
-            if not ONCE:
-                print("LOSS OK")
-                ONCE = True
-        return lm_loss, {"avg": averaged_loss}
-
-    return y, loss_func
-
-
-def train(
-    model, optim, virtual_pipeline_model_parallel_size, pipeline_model_parallel_size, async_comm
-):
-    args = global_vars.get_args()
-    sequence_len = args.seq_length
-    micro_batch_size = args.micro_batch_size
-    hidden_size = args.hidden_size
-    global_batch_size = args.global_batch_size
-    forward_backward_func = get_forward_backward_func(
-        virtual_pipeline_model_parallel_size, pipeline_model_parallel_size
-    )
-    tensor_shape = (sequence_len, micro_batch_size, hidden_size)
-    for _ in range(16):
-        batch = generate_fancy_data_labels(sequence_len, global_batch_size)
-        optim.zero_grad()
-        forward_backward_func(
-            fwd_step_func,
-            batch,
-            model,
-            forward_only=False,
-            tensor_shape=tensor_shape,
-            async_comm=async_comm,
-            sequence_parallel_enabled=args.sequence_parallel,
-        )
-        # All-reduce layernorm parameters across model parallel nodes
-        # when sequence parallelism is used
-        if parallel_state.get_tensor_model_parallel_world_size() > 1 and args.sequence_parallel:
-            for model_module in model:
-                unwrapped_model = unwrap_model(model_module)
-                for param in unwrapped_model.parameters():
-                    if getattr(param, 'sequence_parallel_enabled', False):
-                        grad = param.grad
-                        torch.distributed.all_reduce(
-                            grad, group=parallel_state.get_tensor_model_parallel_group())
-
-        optim.step()
 
 
 class BertTestBase:
+
+    def _download_fancy_data(self):
+        text = """
+    An original sentence not subject to any license restrictions, copyright, or royalty payments. Nothing to see here. Commercial or non-commercial use. Research or non-research purposes. The quick brown fox jumps over the lazy dog. Lorem ipsum.
+    """
+        text = text * 1024
+        encoded = text.encode("ascii", "replace")
+        ints = [int(encoded[i]) for i in range(len(encoded))]
+        return torch.tensor(ints)
+
+    # build a batch given sequence_len and batch size
+    def _generate_fancy_data_labels(self, sequence_len, batch_size):
+        temps = []
+        for i in range(batch_size):
+            if self.inds is None or self.data_idx >= len(self.inds):
+                # hack as use of RNG will fall out of sync due to pipelines being different
+                torch.manual_seed(self.MANUAL_SEED)
+                self.inds = torch.randperm(
+                    self.effective_length, device="cuda")
+                self.masks = (
+                    torch.rand(
+                        len(self.inds) // batch_size + 1, batch_size, sequence_len, device="cuda"
+                    )
+                    >= self.MASK_PROB
+                ).long()
+                self.MANUAL_SEED += 1
+                self.data_idx = 0
+                if self.rank == 0:
+                    print("new epoch", len(self.inds))
+                    print("my start", self.inds[0:5])
+                    print("masks_checksum:", torch.sum(self.masks))
+            if self.EASY_MODE:
+                data_idx_ = self.data_idx % self.EASY_MODE_SIZ
+            else:
+                data_idx_ = self.data_idx
+            offset = self.inds[data_idx_]  # * SEQUENCE_LEN
+            self.data_idx += 1
+
+            curr = self.fancy_data[offset: offset +
+                                   sequence_len].clone().detach()
+            temps.append(curr)
+        temp = torch.stack(temps, dim=0).cuda()
+        mask = self.masks[self.data_idx // batch_size]
+        mask_not = torch.logical_not(mask).long()
+        data = mask * temp + mask_not * 124
+        label = temp
+        if parallel_state.get_tensor_model_parallel_rank() == 0:
+            data_dict = {"text": data, "label": label, "mask_not": mask_not}
+        else:
+            data_dict = None
+        keys = ["text", "label", "mask_not"]
+        broadcasted_data = tensor_parallel.broadcast_data(
+            keys, data_dict, torch.long)
+        return (
+            broadcasted_data["text"].long(),
+            broadcasted_data["label"].long(),
+            broadcasted_data["mask_not"],
+        )
+
+    def _fwd_step_func(self, batch, model):
+        data, label, loss_mask = batch
+        y = model(data, torch.ones_like(data), lm_labels=label)
+
+        def loss_func(output_tensor):
+            output_tensor, _ = output_tensor
+            lm_loss_ = output_tensor.float()
+            lm_loss = torch.sum(lm_loss_.view(-1) *
+                                loss_mask.reshape(-1)) / loss_mask.sum()
+            averaged_loss = average_losses_across_data_parallel_group([
+                                                                      lm_loss])
+            if self.data_idx >= 1536:
+                print(f'data_idx: {self.data_idx}, averaged_loss: {averaged_loss}')
+                assert averaged_loss < 4.8
+                if not self.ONCE:
+                    print("LOSS OK")
+                    self.ONCE = True
+            return lm_loss, {"avg": averaged_loss}
+
+        return y, loss_func
+
+    def _train(
+        self, model, optim, virtual_pipeline_model_parallel_size, pipeline_model_parallel_size, async_comm
+    ):
+        args = global_vars.get_args()
+        sequence_len = args.seq_length
+        micro_batch_size = args.micro_batch_size
+        hidden_size = args.hidden_size
+        global_batch_size = args.global_batch_size
+        forward_backward_func = get_forward_backward_func(
+            virtual_pipeline_model_parallel_size, pipeline_model_parallel_size
+        )
+        tensor_shape = (sequence_len, micro_batch_size, hidden_size)
+        for _ in range(16):
+            batch = self._generate_fancy_data_labels(
+                sequence_len, global_batch_size)
+            optim.zero_grad()
+            forward_backward_func(
+                self._fwd_step_func,
+                batch,
+                model,
+                forward_only=False,
+                tensor_shape=tensor_shape,
+                async_comm=async_comm,
+                sequence_parallel_enabled=args.sequence_parallel,
+            )
+            # All-reduce layernorm parameters across model parallel nodes
+            # when sequence parallelism is used
+            if parallel_state.get_tensor_model_parallel_world_size() > 1 and args.sequence_parallel:
+                for model_module in model:
+                    unwrapped_model = unwrap_model(model_module)
+                    for param in unwrapped_model.parameters():
+                        if getattr(param, 'sequence_parallel_enabled', False):
+                            grad = param.grad
+                            torch.distributed.all_reduce(
+                                grad, group=parallel_state.get_tensor_model_parallel_group())
+
+            optim.step()
+
     @unittest.skipUnless(torch.cuda.device_count() > 2, "requires at least 3 gpus")
     def test_bert(self):
-        global fancy_data
-        global effective_length
-        global data_idx
-        global ONCE
+
+        self.MANUAL_SEED = 40 #41, 42 seem to fail
+        self.inds = None
+        self.masks = None
+        self.data_idx = 0
+        self.MASK_PROB = 0.1
+        self.EASY_MODE = False
+        self.EASY_MODE_SIZ = 32
+        self.ONCE = False
 
         override_args = {
             "micro_batch_size": 2,
@@ -192,9 +182,9 @@ class BertTestBase:
         global_vars.set_global_variables(override_args=override_args)
         args = global_vars.get_args()
 
-        fancy_data = download_fancy_data()
-        effective_length = fancy_data.size(0) // args.seq_length
-        effective_length = fancy_data.size(0) - args.seq_length
+        self.fancy_data = self._download_fancy_data()
+        self.effective_length = self.fancy_data.size(0) // args.seq_length
+        self.effective_length = self.fancy_data.size(0) - args.seq_length
 
         init = True
         virtual_pipeline_model_parallel_sizes = (None, 2,)
@@ -203,9 +193,11 @@ class BertTestBase:
             # It deadlocks on hybrid UCC/NCCL backend.
             virtual_pipeline_model_parallel_sizes = (None,)
         for virtual_pipeline_model_parallel_size in virtual_pipeline_model_parallel_sizes:
+            if self.rank == 0:
+                print(f'testing backend: {self.DISTRIBUTED_BACKEND} with virtual_pipeline_model_parallel_size: {virtual_pipeline_model_parallel_size}')
             async_comm = not args.sequence_parallel and virtual_pipeline_model_parallel_size is None
-            data_idx = 0
-            ONCE = False
+            self.data_idx = 0
+            self.ONCE = False
             if init:
                 init = False
                 args.padded_vocab_size = 128  # needed in standalone gpt
@@ -242,7 +234,7 @@ class BertTestBase:
             )
             _param_groups = _get_params_for_weight_decay_optimization(model)
             optim = torch.optim.Adam(_param_groups)
-            train(
+            self._train(
                 model,
                 optim,
                 virtual_pipeline_model_parallel_size,
@@ -256,6 +248,7 @@ class BertTestBase:
 
 class NcclBertTest(BertTestBase, NcclDistributedTestBase):
     pass
+
 
 @unittest.skipUnless(HAS_UCC, "requires pytorch to be built with native ucc")
 class UccBertTest(BertTestBase, UccDistributedTestBase):
