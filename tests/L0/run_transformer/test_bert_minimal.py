@@ -105,7 +105,9 @@ class BertTestBase:
             averaged_loss = average_losses_across_data_parallel_group([
                                                                       lm_loss])
             if self.data_idx >= 1536:
-                print(f'data_idx: {self.data_idx}, averaged_loss: {averaged_loss}')
+                # print(f'data_idx: {self.data_idx}, averaged_loss: {averaged_loss}')
+                # NOTE (patwang): Loss cutoff may need to be adjusted since certain random seeds experience
+                # loss spikes up to 8.0
                 assert averaged_loss < 4.8
                 if not self.ONCE:
                     print("LOSS OK")
@@ -155,7 +157,7 @@ class BertTestBase:
     @unittest.skipUnless(torch.cuda.device_count() > 2, "requires at least 3 gpus")
     def test_bert(self):
 
-        self.MANUAL_SEED = 40 #41, 42 seem to fail
+        self.MANUAL_SEED = 40  # 41, 42 seem to fail
         self.inds = None
         self.masks = None
         self.data_idx = 0
@@ -194,7 +196,8 @@ class BertTestBase:
             virtual_pipeline_model_parallel_sizes = (None,)
         for virtual_pipeline_model_parallel_size in virtual_pipeline_model_parallel_sizes:
             if self.rank == 0:
-                print(f'testing backend: {self.DISTRIBUTED_BACKEND} with virtual_pipeline_model_parallel_size: {virtual_pipeline_model_parallel_size}')
+                print(
+                    f'testing backend: {self.DISTRIBUTED_BACKEND} with virtual_pipeline_model_parallel_size: {virtual_pipeline_model_parallel_size}')
             async_comm = not args.sequence_parallel and virtual_pipeline_model_parallel_size is None
             self.data_idx = 0
             self.ONCE = False

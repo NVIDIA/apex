@@ -32,6 +32,7 @@ from apex.transformer.testing.distributed_test_base import NcclDistributedTestBa
 
 from torch.testing._internal import common_utils
 
+
 class GptTestBase:
     def _download_fancy_data(self):
         text = """
@@ -55,7 +56,8 @@ class GptTestBase:
             data_idx_ = self.data_idx
             offset = self.inds[data_idx_]
             self.data_idx += 1
-            curr = fancy_data[offset: offset + sequence_len + 1].clone().detach()
+            curr = fancy_data[offset: offset +
+                              sequence_len + 1].clone().detach()
             temps.append(curr)
         temp = torch.stack(temps, dim=0).cuda()
         return temp
@@ -90,15 +92,18 @@ class GptTestBase:
     # Ref: https://github.com/NVIDIA/Megatron-LM/blob/b31e1296354e979722627a6c4dedafe19b51fa97/pretrain_gpt.py#L86
     def _fwd_step_func(self, batch, model):
         """Forward step."""
-        tokens, labels, loss_mask, attention_mask, position_ids = self._get_batch(batch)
-        output_tensor = model(tokens, position_ids, attention_mask, labels=labels)
+        tokens, labels, loss_mask, attention_mask, position_ids = self._get_batch(
+            batch)
+        output_tensor = model(tokens, position_ids,
+                              attention_mask, labels=labels)
         return output_tensor, partial(self._loss_func, loss_mask)
 
     def _train(self, model, optim, pipeline_model_parallel_size, async_comm):
         args = global_vars.get_args()
         fwd_bwd_func = forward_backward_pipelining_without_interleaving
 
-        tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
+        tensor_shape = (args.seq_length, args.micro_batch_size,
+                        args.hidden_size)
         runtime = 0
         # training loop
         for i in range(3):
@@ -106,7 +111,8 @@ class GptTestBase:
             if torch.distributed.get_rank() == 0:
                 print("begin iter", i)
             batch = [
-                self._generate_fancy_data_labels(args.seq_length, args.global_batch_size)
+                self._generate_fancy_data_labels(
+                    args.seq_length, args.global_batch_size)
                 for _ in range(pipeline_model_parallel_size)
             ]
             if torch.distributed.get_rank() == 0:

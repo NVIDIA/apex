@@ -84,7 +84,8 @@ def run_interleaved_with_dynamic_batch_size(
     )
     assert isinstance(model, list)
     assert len(model) == virtual_pipeline_model_parallel_size
-    optimizer = torch.optim.Adam(_get_params_for_weight_decay_optimization(model))
+    optimizer = torch.optim.Adam(
+        _get_params_for_weight_decay_optimization(model))
 
     initial_local_minibatch_size = get_num_microbatches() * args.micro_batch_size
     dataset = Dataset(NUM_SAMPLES)
@@ -167,7 +168,8 @@ class DynamicBatchsizeTestBase:
         }
 
         global_vars.set_global_variables(
-            args_defaults={"global_batch_size": 512, "rampup_batch_size": [64, 64, 1000],},
+            args_defaults={"global_batch_size": 512,
+                           "rampup_batch_size": [64, 64, 1000], },
             ignore_unknown_args=True,
             override_args=override_args,
         )
@@ -214,10 +216,12 @@ class DynamicBatchsizeTestBase:
             if torch.distributed.get_rank() == 0:
                 print("### PASS!")
 
+
 class NcclDynamicBatchsizeTest(DynamicBatchsizeTestBase, NcclDistributedTestBase):
     pass
 
-# TODO: (Fuzzkatt) UCC still doesn't work with fwd_bwd_pipelining_with_interleaving 
+# TODO: (Fuzzkatt) UCC still doesn't work with fwd_bwd_pipelining_with_interleaving
+
 
 if __name__ == "__main__":
     torch.backends.cuda.matmul.allow_tf32 = False
