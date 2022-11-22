@@ -139,6 +139,84 @@ class TestFusedScaleMaskSoftmax(common_utils.TestCase):
             expected.backward(g0)
             actual.backward(g1)
 
+    def test_fused_scale_softmax(self):
+        """
+        attention_scores.shape = [4, 12, 24, 24]
+        mask = None
+        """
+        for (dtype, scale, softmax_in_fp32, shape) in itertools.product(
+            (torch.half, torch.bfloat16), (None, 2.0), (False, True), ((4, 12, 24, 24), (32, 12, 4, 214))
+        ):
+            msg = f"{dtype}-{scale}-{softmax_in_fp32}"
+            input_in_fp16 = dtype == torch.half
+            input_in_bf16 = dtype == torch.bfloat16
+            if not (scale is None or softmax_in_fp32):
+                with self.assertRaises(RuntimeError, msg=msg):
+                    self._setup_fused_softmax(
+                        input_in_fp16,
+                        input_in_bf16,
+                        scale,
+                        softmax_in_fp32,
+                        AttnMaskType.padding,
+                    )
+                return
+            fused_fn, torch_fn = self._setup_fused_softmax(
+                input_in_fp16,
+                input_in_bf16,
+                scale,
+                softmax_in_fp32,
+                AttnMaskType.padding,
+            )
+
+            attention_scores_0 = (
+                torch.randn(shape)
+                .to(device="cuda", dtype=dtype)
+                .requires_grad_(True)
+            )
+            with torch.no_grad():
+                attention_scores_1 = attention_scores_0.clone().requires_grad_(True)
+            mask = None
+
+            expected = fused_fn(attention_scores_0, mask)
+            actual = torch_fn(attention_scores_1, mask)
+            self.assertEqual(actual, expected, msg=msg)
+
+            g0 = torch.rand_like(actual)
+            with torch.no_grad():
+                g1 = g0.clone()
+            expected.backward(g0)
+            actual.backward(g1)
+
+    def test_autocast_fused_scale_softmax(self):
+        for dtype in autocast_dtypes:
+            msg = f"dtype: {dtype}"
+            input_in_fp16 = dtype == torch.half
+            input_in_bf16 = dtype == torch.bfloat16
+            fused_fn, torch_fn = self._setup_fused_softmax(
+                input_in_fp16, input_in_bf16, attn_mask_type=AttnMaskType.padding
+            )
+
+            attention_scores_0 = (
+                torch.randn((4, 12, 24, 24)).cuda().requires_grad_(True)
+            )
+            with torch.no_grad():
+                attention_scores_1 = (
+                    attention_scores_0.clone().to(dtype).requires_grad_(True)
+                )
+            mask = None
+
+            expected = torch_fn(attention_scores_1, mask)
+            with torch.cuda.amp.autocast(dtype=dtype):
+                actual = fused_fn(attention_scores_0, mask)
+                self.assertEqual(actual.dtype, dtype, msg=msg)
+            self.assertEqual(actual, expected, msg=msg)
+
+            g0 = torch.rand_like(actual)
+            with torch.no_grad():
+                g1 = g0.clone()
+            expected.backward(g0)
+            actual.backward(g1)
+
     def test_fused_upper_triangle_mask_softmax(self):
         """
         attn_weights.shape: [4, 12, 24, 24]
