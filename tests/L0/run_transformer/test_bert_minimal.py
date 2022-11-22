@@ -155,11 +155,18 @@ class BertTestBase:
             optim.step()
 
     @unittest.skipUnless(torch.cuda.device_count() > 2, "requires at least 3 gpus")
-    @common_utils.parametrize(
-        "virtual_pipeline_model_parallel_size",
-        [None, 2]
-    )
-    def test_bert(self, virtual_pipeline_model_parallel_size):
+    def test_bert_without_interleaving(self):
+        self._test_bert(virtual_pipeline_model_parallel_size=None)
+
+    @unittest.skipUnless(torch.cuda.device_count() > 2, "requires at least 3 gpus")
+    def test_bert_with_interleaving(self):
+        if self.DISTRIBUTED_BACKEND != 'ucc':
+            self._test_bert(virtual_pipeline_model_parallel_size=2)
+        else:
+            if self.rank == 0:
+                print('skipping ucc backend with interleaving')
+
+    def _test_bert(self, virtual_pipeline_model_parallel_size):
 
         self.MANUAL_SEED = 40  # 41, 42 seem to fail
         self.inds = None
@@ -192,65 +199,54 @@ class BertTestBase:
         self.effective_length = self.fancy_data.size(0) // args.seq_length
         self.effective_length = self.fancy_data.size(0) - args.seq_length
 
-        init = True
-        virtual_pipeline_model_parallel_sizes = (None, 2,)
-        if self.DISTRIBUTED_BACKEND == 'ucc':
-            # Deliberately skipping test with interleaved schedule for BERT model.
-            # It deadlocks on hybrid UCC/NCCL backend.
-            virtual_pipeline_model_parallel_sizes = (None,)
-        for virtual_pipeline_model_parallel_size in virtual_pipeline_model_parallel_sizes:
-            if self.rank == 0:
-                print(
-                    f'testing backend: {self.DISTRIBUTED_BACKEND} with virtual_pipeline_model_parallel_size: {virtual_pipeline_model_parallel_size}')
-            async_comm = not args.sequence_parallel and virtual_pipeline_model_parallel_size is None
-            self.data_idx = 0
-            self.ONCE = False
-            if init:
-                init = False
-                args.padded_vocab_size = 128  # needed in standalone gpt
-                args.model_type = ModelType.encoder_or_decoder
-                setup_microbatch_calculator(
-                    args.rank,
-                    args.rampup_batch_size,
-                    args.global_batch_size,
-                    args.micro_batch_size,
-                    args.data_parallel_size,
-                )
-            else:
-                parallel_state.destroy_model_parallel()
-            parallel_state.initialize_model_parallel(
-                args.tensor_model_parallel_size,
-                args.pipeline_model_parallel_size,
-                virtual_pipeline_model_parallel_size,
-                default_backend="nccl",
-                p2p_backend=self.DISTRIBUTED_BACKEND,
-            )
+        if self.rank == 0:
+            print(
+                f'testing backend: {self.DISTRIBUTED_BACKEND} with virtual_pipeline_model_parallel_size: {virtual_pipeline_model_parallel_size}')
+        async_comm = not args.sequence_parallel and virtual_pipeline_model_parallel_size is None
+        self.data_idx = 0
+        self.ONCE = False
+        args.padded_vocab_size = 128  # needed in standalone gpt
+        args.model_type = ModelType.encoder_or_decoder
+        setup_microbatch_calculator(
+            args.rank,
+            args.rampup_batch_size,
+            args.global_batch_size,
+            args.micro_batch_size,
+            args.data_parallel_size,
+        )
+        parallel_state.initialize_model_parallel(
+            args.tensor_model_parallel_size,
+            args.pipeline_model_parallel_size,
+            virtual_pipeline_model_parallel_size,
+            default_backend="nccl",
+            p2p_backend=self.DISTRIBUTED_BACKEND,
+        )
 
-            tensor_parallel.random.model_parallel_cuda_manual_seed(0)
-            model = build_model(
-                bert_model_provider,
-                wrap_with_ddp=parallel_state.get_data_parallel_world_size() > 1,
-                virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
-                cpu_offload=args.cpu_offload,
-            )
-            assert isinstance(model, list)
-            assert len(model) == (
-                1
-                if virtual_pipeline_model_parallel_size is None
-                else virtual_pipeline_model_parallel_size
-            )
-            _param_groups = _get_params_for_weight_decay_optimization(model)
-            optim = torch.optim.Adam(_param_groups)
-            self._train(
-                model,
-                optim,
-                virtual_pipeline_model_parallel_size,
-                args.pipeline_model_parallel_size,
-                async_comm,
-            )
-            torch.distributed.barrier()
-            if self.rank == 0:
-                print(TEST_SUCCESS_MESSAGE)
+        tensor_parallel.random.model_parallel_cuda_manual_seed(0)
+        model = build_model(
+            bert_model_provider,
+            wrap_with_ddp=parallel_state.get_data_parallel_world_size() > 1,
+            virtual_pipeline_model_parallel_size=virtual_pipeline_model_parallel_size,
+            cpu_offload=args.cpu_offload,
+        )
+        assert isinstance(model, list)
+        assert len(model) == (
+            1
+            if virtual_pipeline_model_parallel_size is None
+            else virtual_pipeline_model_parallel_size
+        )
+        _param_groups = _get_params_for_weight_decay_optimization(model)
+        optim = torch.optim.Adam(_param_groups)
+        self._train(
+            model,
+            optim,
+            virtual_pipeline_model_parallel_size,
+            args.pipeline_model_parallel_size,
+            async_comm,
+        )
+        torch.distributed.barrier()
+        if self.rank == 0:
+            print(TEST_SUCCESS_MESSAGE)
 
 
 class NcclBertTest(BertTestBase, NcclDistributedTestBase):
