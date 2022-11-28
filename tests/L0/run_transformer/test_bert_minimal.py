@@ -3,23 +3,17 @@ import unittest
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.standalone_bert import bert_model_provider
 from apex.transformer.pipeline_parallel.schedules.common import (
-    _get_params_for_weight_decay_optimization,
+    _get_params_for_weight_decay_optimization, build_model
 )
-from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules import get_forward_backward_func
 from apex.transformer.pipeline_parallel.utils import (
-    average_losses_across_data_parallel_group,
+    average_losses_across_data_parallel_group, unwrap_model, setup_microbatch_calculator
 )
-from apex.transformer.pipeline_parallel.utils import unwrap_model
-from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
 from apex.transformer.log_util import set_logging_level
-from apex.transformer import tensor_parallel
+from apex.transformer import tensor_parallel, parallel_state
 from apex.transformer.enums import ModelType
 from apex.transformer._ucc_util import HAS_UCC
-from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
-from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
-from apex.transformer import parallel_state
+from apex.transformer.testing.distributed_test_base import UccDistributedTestBase, NcclDistributedTestBase
 import logging
 
 from torch.testing._internal import common_utils
@@ -105,10 +99,9 @@ class BertTestBase:
             averaged_loss = average_losses_across_data_parallel_group([
                                                                       lm_loss])
             if self.data_idx >= 1536:
-                # print(f'data_idx: {self.data_idx}, averaged_loss: {averaged_loss}')
-                # NOTE (patwang): Loss cutoff might be excessively high but roughly one in five 
+                # NOTE (patwang): Loss cutoff might be excessively high but roughly one in five
                 # unlucky random seeds do cause loss to spike to just under 8.0
-                assert averaged_loss < 8.0
+                self.assertLess(averaged_loss, 8.0)
                 if not self.ONCE:
                     print("LOSS OK")
                     self.ONCE = True
@@ -160,15 +153,13 @@ class BertTestBase:
 
     @unittest.skipUnless(torch.cuda.device_count() > 2, "requires at least 3 gpus")
     def test_bert_with_interleaving(self):
-        if self.DISTRIBUTED_BACKEND != 'ucc':
-            self._test_bert(virtual_pipeline_model_parallel_size=2)
-        else:
-            if self.rank == 0:
-                print('skipping ucc backend with interleaving')
+        if self.DISTRIBUTED_BACKEND == 'ucc':
+            self.skipTest('skip interleaving with ucc')
+        self._test_bert(virtual_pipeline_model_parallel_size=2)
 
     def _test_bert(self, virtual_pipeline_model_parallel_size):
 
-        self.MANUAL_SEED = 40  # 41, 42 seem to fail
+        self.MANUAL_SEED = 42
         self.inds = None
         self.masks = None
         self.data_idx = 0
@@ -245,8 +236,6 @@ class BertTestBase:
             async_comm,
         )
         torch.distributed.barrier()
-        if self.rank == 0:
-            print(TEST_SUCCESS_MESSAGE)
 
 
 class NcclBertTest(BertTestBase, NcclDistributedTestBase):

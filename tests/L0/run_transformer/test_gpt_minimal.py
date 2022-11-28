@@ -10,30 +10,27 @@ from apex.transformer._ucc_util import HAS_UCC
 from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
 from apex.transformer.tensor_parallel import model_parallel_cuda_manual_seed
-from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
-from apex.transformer.pipeline_parallel.utils import unwrap_model
 from apex.transformer.pipeline_parallel.utils import (
-    average_losses_across_data_parallel_group,
+    average_losses_across_data_parallel_group, unwrap_model, setup_microbatch_calculator,
+    get_ltor_masks_and_position_ids
 )
-from apex.transformer.pipeline_parallel.utils import get_ltor_masks_and_position_ids
-from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.common import (
-    _get_params_for_weight_decay_optimization,
+    _get_params_for_weight_decay_optimization, build_model
 )
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
     forward_backward_pipelining_without_interleaving,
 )
 from apex.transformer.testing.standalone_gpt import gpt_model_provider
 from apex.transformer.testing import global_vars
-from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 
-from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.transformer.testing.distributed_test_base import UccDistributedTestBase, NcclDistributedTestBase
 
 from torch.testing._internal import common_utils
+from torch.testing._internal.common_device_type import instantiate_device_type_tests
 
 
 class GptTestBase:
+
     def _download_fancy_data(self):
         text = """
     An original sentence not subject to any license restrictions, copyright, or royalty payments. Nothing to see here. Commercial or non-commercial use. Research or non-research purposes. The quick brown fox jumps over the lazy dog. Lorem ipsum.
@@ -216,9 +213,6 @@ class GptTestBase:
 
             parallel_state.destroy_model_parallel()
         torch.distributed.barrier()
-        if self.rank == 0:
-            print(TEST_SUCCESS_MESSAGE)
-            print("Average Iteration Time:", runtime)
 
 
 class NcclGptTest(GptTestBase, NcclDistributedTestBase):

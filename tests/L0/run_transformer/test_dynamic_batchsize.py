@@ -6,23 +6,20 @@ import unittest
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.schedules.common import (
-    _get_params_for_weight_decay_optimization,
+    _get_params_for_weight_decay_optimization, build_model
 )
-from apex.transformer.pipeline_parallel.schedules.common import build_model
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
     _forward_backward_pipelining_with_interleaving,
 )
-from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
-from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+from apex.transformer.pipeline_parallel.utils import (
+    setup_microbatch_calculator, _reconfigure_microbatch_calculator, update_num_microbatches
+)
 from apex.transformer.testing import global_vars
-from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
-from apex.transformer.testing.commons import print_separator
-from apex.transformer.testing.commons import fwd_step_func
-from apex.transformer.log_util import get_transformer_logger, set_logging_level
-from apex.transformer.testing.commons import model_provider_func
-from apex.transformer._data import MegatronPretrainingRandomSampler
-from apex.transformer._data import MegatronPretrainingSampler
+from apex.transformer.testing.commons import (
+    print_separator, fwd_step_func, model_provider_func
+)
+from apex.transformer.log_util import get_transformer_logger
+from apex.transformer._data import MegatronPretrainingRandomSampler, MegatronPretrainingSampler
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 
 from torch.testing._internal import common_utils
@@ -143,8 +140,6 @@ def run_interleaved_with_dynamic_batch_size(
                 optimizer.zero_grad(set_to_none=True)
 
     torch.distributed.barrier()
-    if torch.distributed.get_rank() == 0:
-        print(TEST_SUCCESS_MESSAGE)
 
 
 class DynamicBatchsizeTestBase:
@@ -225,5 +220,4 @@ class NcclDynamicBatchsizeTest(DynamicBatchsizeTestBase, NcclDistributedTestBase
 
 if __name__ == "__main__":
     torch.backends.cuda.matmul.allow_tf32 = False
-    # torch.backends.cudnn.allow_tf32 = False
     common_utils.run_tests()
