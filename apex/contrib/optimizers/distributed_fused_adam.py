@@ -852,13 +852,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         else:
             reduce_op = torch.distributed.ReduceOp.SUM
 
-        # Side stream for communication
-        main_stream = torch.cuda.current_stream()
-        comm_stream = self._pipeline_streams[-1]
-        comm_stream.wait_stream(main_stream)
-
-        # Reduce-scatter over distributed process group
-        for i, bucket in enumerate(buckets):
+        # Initialize grad state and buffers
+        for bucket in buckets:
             if bucket.status == self.GradientStatus.SYNCING:
                 self._finish_bucket_grad_sync()
             bucket.status = self.GradientStatus.SYNCING
@@ -877,30 +872,52 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     dtype=self.grad_sync_dtype,
                     device=self.device,
                 )
-                with torch.cuda.stream(comm_stream):
+
+        # Side stream for communication
+        main_stream = torch.cuda.current_stream()
+        comm_stream = self._pipeline_streams[-1]
+        comm_stream.wait_stream(main_stream)
+
+        # Reduce-scatter over distributed process group
+        if self.distributed_size > 1:
+            with torch.cuda.stream(comm_stream):
+                for bucket in buckets:
+                    bucket.sync_wait()
+                sync_requests = []
+                group = self.distributed_process_group
+                group._start_coalescing()
+                for bucket in buckets:
                     bucket.sync_request = (
                         reduce_scatter_tensor(
                             bucket.sync_grads_shard,
                             bucket.grads_bucket,
                             op=reduce_op,
-                            group=self.distributed_process_group,
+                            group=group,
                             async_op=True,
                         )
                     )
+                    sync_requests.append(bucket.sync_request)
+                group._end_coalescing(sync_requests)
 
         # All-reduce over redundant process group
         if self.redundant_size > 1:
-            for i, bucket in enumerate(buckets):
-                with torch.cuda.stream(comm_stream):
+            with torch.cuda.stream(comm_stream):
+                for bucket in buckets:
                     bucket.sync_wait()
+                sync_requests = []
+                group = self.redundant_process_group
+                group._start_coalescing()
+                for bucket in buckets:
                     bucket.sync_request = (
                         torch.distributed.all_reduce(
                             bucket.sync_grads_shard,
                             op=reduce_op,
-                            group=self.redundant_process_group,
+                            group=group,
                             async_op=True,
                         )
                     )
+                    sync_requests.append(bucket.sync_request)
+                group._end_coalescing(sync_requests)
 
     def _finish_bucket_grad_sync(self):
         """Wait for any gradient synchronizations that are in progress"""
