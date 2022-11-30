@@ -102,9 +102,6 @@ class BertTestBase:
                 # NOTE (patwang): Loss cutoff might be excessively high but roughly one in five
                 # unlucky random seeds do cause loss to spike to just under 8.0
                 self.assertLess(averaged_loss, 8.0)
-                if not self.ONCE:
-                    print("LOSS OK")
-                    self.ONCE = True
             return lm_loss, {"avg": averaged_loss}
 
         return y, loss_func
@@ -166,7 +163,6 @@ class BertTestBase:
         self.MASK_PROB = 0.1
         self.EASY_MODE = False
         self.EASY_MODE_SIZ = 32
-        self.ONCE = False
 
         override_args = {
             "micro_batch_size": 2,
@@ -195,7 +191,6 @@ class BertTestBase:
                 f'testing backend: {self.DISTRIBUTED_BACKEND} with virtual_pipeline_model_parallel_size: {virtual_pipeline_model_parallel_size}')
         async_comm = not args.sequence_parallel and virtual_pipeline_model_parallel_size is None
         self.data_idx = 0
-        self.ONCE = False
         args.padded_vocab_size = 128  # needed in standalone gpt
         args.model_type = ModelType.encoder_or_decoder
         setup_microbatch_calculator(
