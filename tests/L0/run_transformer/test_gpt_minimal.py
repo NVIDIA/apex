@@ -164,7 +164,7 @@ class GptTestBase:
             "rank": self.rank,
         }
 
-        global_vars.set_global_variables(override_args=override_args)
+        global_vars.set_global_variables(override_args=override_args, ignore_unknown_args=True)
         args = global_vars.get_args()
 
         for async_comm in (False,) if args.sequence_parallel else (False, True):

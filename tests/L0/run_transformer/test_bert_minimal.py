@@ -179,7 +179,7 @@ class BertTestBase:
             "rank": self.rank,
         }
 
-        global_vars.set_global_variables(override_args=override_args)
+        global_vars.set_global_variables(override_args=override_args, ignore_unknown_args=True)
         args = global_vars.get_args()
 
         self.fancy_data = self._download_fancy_data()
