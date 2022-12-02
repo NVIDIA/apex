@@ -150,6 +150,10 @@ class GptTestBase:
         self.N_VOCAB = 128
         init = True
 
+        num_devices = torch.cuda.device_count()
+        tensor_model_parallel_size = 2 if num_devices % 2 == 0 and num_devices >= 4 else 1
+        pipeline_model_parallel_size = num_devices // tensor_model_parallel_size
+
         override_args = {
             "micro_batch_size": 2,
             "num_layers": 16,
@@ -158,8 +162,8 @@ class GptTestBase:
             "max_position_embeddings": 512,
             "seq_length": 512,
             "global_batch_size": 128,
-            "pipeline_model_parallel_size": 2,
-            "tensor_model_parallel_size": 2,
+            "pipeline_model_parallel_size": pipeline_model_parallel_size,
+            "tensor_model_parallel_size": tensor_model_parallel_size,
             "world_size": self.world_size,
             "rank": self.rank,
         }

@@ -164,6 +164,10 @@ class BertTestBase:
         self.EASY_MODE = False
         self.EASY_MODE_SIZ = 32
 
+        num_devices = torch.cuda.device_count()
+        tensor_model_parallel_size = 2 if num_devices % 2 == 0 and num_devices > 4 else 1
+        pipeline_model_parallel_size = num_devices // tensor_model_parallel_size
+
         override_args = {
             "micro_batch_size": 2,
             "num_layers": 16,
@@ -172,8 +176,8 @@ class BertTestBase:
             "max_position_embeddings": 512,
             "seq_length": 512,
             "global_batch_size": 128,
-            "pipeline_model_parallel_size": 4,
-            "tensor_model_parallel_size": 1,
+            "pipeline_model_parallel_size": pipeline_model_parallel_size,
+            "tensor_model_parallel_size": tensor_model_parallel_size,
             "bert_binary_head": False,
             "world_size": self.world_size,
             "rank": self.rank,
