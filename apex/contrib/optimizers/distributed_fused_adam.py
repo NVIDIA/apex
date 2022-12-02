@@ -662,42 +662,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     ):
         """Initialize optimizer state for a parameter"""
 
-        # Param position within bucket
-        param_size = param.numel()
-        param_start, param_end = 0, param_size
-        bucket_id = len(self.state['buckets']) - 1
-        if bucket_id >= 0:
-            bucket = self.state['buckets'][bucket_id]
-            bucket_size = bucket.bucket_size
-            shard_size = bucket.shard_size
-            bucket_start = _round_to_multiple(
-                bucket.filled_size,
-                self.alignment,
-                round_up=True,
-            )
-        else:
-            bucket = None
-            bucket_size = 0
-            shard_size = 0
-            bucket_start = 0
-        bucket_end = bucket_start + param_size
-
-        # Create new bucket if param does not fit
-        if bucket is None or bucket_end > bucket_size:
-            shard_size = max(
-                self.default_shard_size,
-                _ceildiv(param_size, self.distributed_size),
-            )
-            shard_size = _round_to_multiple(
-                shard_size,
-                self.alignment,
-                round_up=True,
-            )
+        # Make sure there is at least one bucket
+        if not self.state['buckets']:
+            shard_size = self.default_shard_size
             bucket_size = shard_size * self.distributed_size
-            if bucket is None:
-                buffer_offset = 0
-            else:
-                buffer_offset = bucket.contiguous_buffer_offset + bucket.bucket_size
+            buffer_offset = 0
             self.state['buckets'].append(
                 self.StateBucket(
                     bucket_size,
@@ -709,45 +678,92 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     store_param_remainders=self.store_param_remainders,
                 )
             )
-            return self._init_param_state(param, param_group_id, param_id)
 
-        # Fragment position within local shard
-        shard_id = self.distributed_rank
-        shard_start = bucket_start - shard_size*shard_id
-        shard_end = bucket_end - shard_size*shard_id
-        shard_start = min(max(shard_start, 0), shard_size)
-        shard_end = min(max(shard_end, 0), shard_size)
-        in_local_shard = shard_start < shard_end
-        if in_local_shard:
-            shard_bucket_start = shard_start + shard_size*shard_id
-            shard_bucket_end = shard_bucket_start + shard_end - shard_start
-            shard_param_start = shard_bucket_start - bucket_start + param_start
-            shard_param_end = shard_param_start + shard_end - shard_start
-        else:
-            shard_bucket_start, shard_bucket_end = None, None
-            shard_param_start, shard_param_end = None, None
+        # Split parameter values into fragments
+        # Note: Each fragment resides within a bucket
+        param_start = 0
+        param_size = param.numel()
+        self.state[param]['fragments'] = []
+        while param_start < param_size:
 
-        # Record fragment info
-        fragment = self.ParameterFragment(
-            param_group_id=param_group_id,
-            param_id=param_id,
-            bucket_id=bucket_id,
-            param_range=(param_start,param_end),
-            bucket_range=(bucket_start,bucket_end),
-            in_local_shard=in_local_shard,
-            shard_range=(shard_start,shard_end),
-            shard_bucket_range=(shard_bucket_start,shard_bucket_end),
-            shard_param_range=(shard_param_start,shard_param_end),
-        )
-        self.state[param]['fragments'] = [fragment]
-        bucket.fragments.append(fragment)
-        bucket.filled_size = bucket_end
+            # Get current bucket
+            bucket_id = len(self.state['buckets']) - 1
+            bucket = self.state['buckets'][bucket_id]
+            fragment_id = len(bucket.fragments)
+            bucket_size = bucket.bucket_size
+            shard_size = bucket.shard_size
+
+            # Determine fragment position within bucket
+            bucket_start = _round_to_multiple(
+                bucket.filled_size,
+                self.alignment,
+                round_up=True,
+            )
+            fragment_size = min(param_size-param_start, bucket_size-bucket_start)
+            param_end = param_start + fragment_size
+            bucket_end = bucket_start + fragment_size
+
+            # Create new bucket if current one is full
+            if fragment_size <= 0:
+                shard_size = self.default_shard_size
+                bucket_size = shard_size * self.distributed_size
+                buffer_offset = bucket.contiguous_buffer_offset + bucket.bucket_size
+                self.state['buckets'].append(
+                    self.StateBucket(
+                        bucket_size,
+                        shard_size,
+                        self.dtype,
+                        self.device,
+                        contiguous_buffer_offset=buffer_offset,
+                        store_params=self.store_params,
+                        store_param_remainders=self.store_param_remainders,
+                    )
+                )
+                continue
+
+            # Fragment position within local shard
+            shard_id = self.distributed_rank
+            shard_start = bucket_start - shard_size*shard_id
+            shard_end = bucket_end - shard_size*shard_id
+            shard_start = min(max(shard_start, 0), shard_size)
+            shard_end = min(max(shard_end, 0), shard_size)
+            in_local_shard = shard_start < shard_end
+            if in_local_shard:
+                shard_bucket_start = shard_start + shard_size*shard_id
+                shard_bucket_end = shard_bucket_start + shard_end - shard_start
+                shard_param_start = shard_bucket_start - bucket_start + param_start
+                shard_param_end = shard_param_start + shard_end - shard_start
+            else:
+                shard_bucket_start, shard_bucket_end = None, None
+                shard_param_start, shard_param_end = None, None
+
+            # Record fragment info
+            fragment = self.ParameterFragment(
+                param_group_id=param_group_id,
+                param_id=param_id,
+                bucket_id=bucket_id,
+                param_range=(param_start,param_end),
+                bucket_range=(bucket_start,bucket_end),
+                in_local_shard=in_local_shard,
+                shard_range=(shard_start,shard_end),
+                shard_bucket_range=(shard_bucket_start,shard_bucket_end),
+                shard_param_range=(shard_param_start,shard_param_end),
+            )
+            self.state[param]['fragments'].append(fragment)
+            bucket.fragments.append(fragment)
+            bucket.filled_size = bucket_end
+            param_start = param_end
 
         # Initialize main param buffer
-        if self.store_params and in_local_shard:
-            model_param_fragment = param.detach().view(-1)[shard_param_start:shard_param_end]
-            main_param_fragment = bucket.params_shard[shard_start:shard_end]
-            main_param_fragment.copy_(model_param_fragment)
+        if self.store_params:
+            for fragment in self.state[param]['fragments']:
+                if fragment.in_local_shard:
+                    bucket = self.state['buckets'][fragment.bucket_id]
+                    param_start, param_end = fragment.shard_param_range
+                    shard_start, shard_end = fragment.shard_range
+                    model_param_fragment = param.detach().view(-1)[param_start:param_end]
+                    main_param_fragment = bucket.params_shard[shard_start:shard_end]
+                    main_param_fragment.copy_(model_param_fragment)
 
     def zero_grad(self, set_to_none=True):
         """Clear parameter gradients"""
