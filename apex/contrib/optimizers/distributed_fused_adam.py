@@ -539,6 +539,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
     def _init_grad_buffer(self):
         """Allocate contiguous buffer for grad buckets"""
+        self.contiguous_grad_buffer = True
         self.init_params() # Make sure all params are initialized
         if self.state['buckets']:
             buffer_size = max(
@@ -1260,13 +1261,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             all_gather_bucket_id = local_step_bucket_id - 1
             copy_bucket_id = local_step_bucket_id - 2
 
-            # Synchronize compute and communication streams
-            if self.distributed_size > 1:
-                if 0 <= all_gather_bucket_id < num_buckets:
-                    comm_stream.wait_stream(main_stream)
-                if 0 <= copy_bucket_id < num_buckets:
-                    main_stream.wait_stream(comm_stream)
-
             # Apply optimizer step to local shard
             if 0 <= local_step_bucket_id < num_buckets:
                 bucket_id = local_step_bucket_id
@@ -1293,6 +1287,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         bucket_id,
                         params_bucket_shards[bucket_id],
                     )
+
+            # Synchronize compute and communication streams if needed
+            if self.distributed_size > 1:
+                if 0 <= all_gather_bucket_id < num_buckets:
+                    comm_stream.wait_stream(main_stream)
+                if 0 <= copy_bucket_id < num_buckets:
+                    main_stream.wait_stream(comm_stream)
 
             # All-gather updated parameters
             if 0 <= all_gather_bucket_id < num_buckets:
