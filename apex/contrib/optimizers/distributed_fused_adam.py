@@ -562,6 +562,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def init_params(self, params=None):
         """Initialize optimizer state for parameters
 
+        Ignores parameters that have already been initialized.
+
         Arguments:
             params (iterable, optional): parameters to initialize
                 (default: all parameters)
@@ -574,6 +576,15 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         elif isinstance(params, torch.Tensor):
             params = [params]
 
+        # Ignore parameters that have already been initialized
+        params = [
+            param
+            for param in params
+            if 'fragments' not in self.state[param]
+        ]
+        if not params:
+            return
+
         # Get indices corresponding to parameters
         id_map = dict()
         for param_group_id, group in enumerate(self.param_groups):
@@ -582,9 +593,65 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         # Initialize parameters
         for param in params:
-            if param in id_map and 'fragments' not in self.state[param]:
+            if param in id_map:
                 param_group_id, param_id = id_map[param]
                 self._init_param_state(param, param_group_id, param_id)
+
+    def init_params_bucket(self, params):
+        """Initialize optimizer state for parameters in a single bucket
+
+        Ignores parameters that have already been initialized.
+
+        Arguments:
+            params (iterable): parameters to initialize
+
+        """
+        if isinstance(params, torch.Tensor):
+            params = [params]
+
+        # Ignore parameters that have already been initialized
+        params = [
+            param
+            for param in params
+            if 'fragments' not in self.state[param]
+        ]
+        if not params:
+            return
+
+        # Figure out bucket size
+        bucket_size = sum(
+            _round_to_multiple(param.numel(), self.alignment, round_up=True)
+            for param in params
+        )
+        shard_size = _round_to_multiple(
+            _ceildiv(bucket_size, self.distributed_size),
+            self.alignment,
+            round_up=True,
+        )
+        bucket_size = shard_size * self.distributed_size
+
+        # Create new bucket
+        if self.state['buckets']:
+            last_bucket = self.state['buckets'][-1]
+            buffer_offset = last_bucket.contiguous_buffer_offset + last_bucket.bucket_size
+        else:
+            buffer_offset = 0
+        bucket = self.StateBucket(
+            bucket_size,
+            shard_size,
+            self.dtype,
+            self.device,
+            contiguous_buffer_offset=buffer_offset,
+            store_params=self.store_params,
+            store_param_remainders=self.store_param_remainders,
+        )
+        self.state['buckets'].append(bucket)
+
+        # Initialize optimizer state for parameters
+        self.init_params(params)
+
+        # Mark that bucket is fully filled
+        bucket.filled_size = bucket_size
 
     def _init_param_state(
             self,
@@ -694,9 +761,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             self._grad_buffer.zero_()
             for bucket_id, bucket in enumerate(self.state['buckets']):
                 bucket_size = bucket.bucket_size
-                grad_buffer_start = bucket.contiguous_buffer_offset
-                grad_buffer_end = bucket_start + bucket_size
-                grad_buffer = self._grad_buffer[grad_buffer_start:grad_buffer_end]
+                buffer_start = bucket.contiguous_buffer_offset
+                buffer_end = buffer_start + bucket_size
+                grad_buffer = self._grad_buffer[buffer_start:buffer_end]
                 self._grads_buckets[bucket_id].grads_bucket = grad_buffer
 
         # Reset param grads
@@ -733,9 +800,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             if bucket.grads_bucket is None and self.contiguous_grad_buffer:
                 if self._grad_buffer is None:
                     self._init_grad_buffer()
-                grad_buffer_start = self.state['buckets'][bucket_id].contiguous_buffer_offset
-                grad_buffer_end = bucket_start + bucket_size
-                grad_buffer = self._grad_buffer[grad_buffer_start:grad_buffer_end]
+                buffer_start = self.state['buckets'][bucket_id].contiguous_buffer_offset
+                buffer_end = buffer_start + bucket_size
+                grad_buffer = self._grad_buffer[buffer_start:buffer_end]
                 if (bucket.grads_shard is None
                     or bucket.grads_shard.data_ptr() != grad_buffer.data_ptr()):
                     bucket.grads_bucket = grad_buffer
@@ -773,9 +840,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         fragment = self.state[param]['fragments'][0]
         bucket_id = fragment.bucket_id
         bucket_start, bucket_end = fragment.bucket_range
-        buffer_bucket_start = self.state['buckets'][bucket_id].contiguous_buffer_offset
-        buffer_start = buffer_bucket_start + buffer_start
-        buffer_end = buffer_bucket_start + buffer_end
+        buffer_offset = self.state['buckets'][bucket_id].contiguous_buffer_offset
+        buffer_start = buffer_offset + bucket_start
+        buffer_end = buffer_offset + bucket_end
 
         # Construct view into grad buffer
         flat_buffer = self._grad_buffer[buffer_start:buffer_end]
