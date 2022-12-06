@@ -228,7 +228,7 @@ class TestCheckpointing(unittest.TestCase):
                 continue
 
             model = MyModel().to('cuda')
-            optimizer = optim.Adam(model.parameters(), lr=1e-3)
+            optimizer = optim.Adam(model.parameters(), lr=1e-3, capturable=True)
             model, optimizer = amp.initialize(
                 model, optimizer, opt_level=opt_level, verbosity=0)
 

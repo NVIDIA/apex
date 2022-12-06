@@ -91,25 +91,24 @@ class TestFusedAdam(TestFusedOptimizer):
     def setUp(self):
         super().setUp()
         self.options = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08,
+            'weight_decay': 0, 'amsgrad': False, "capturable": True}
+        self.tst_options = {'lr':5e-4, 'betas':(0.9, 0.999), 'eps':1e-08,
             'weight_decay': 0, 'amsgrad': False}
         self.ref_optim = torch.optim.Adam
         self.fused_optim = apex.optimizers.FusedAdam
 
-    @unittest.skip("Skipped the test since a regression introduced from PyTorch upstream: due to https://github.com/pytorch/pytorch/issues/80809#issuecomment-1175211598. Please also refer to https://github.com/ROCmSoftwarePlatform/apex/issues/82")
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
-    
+
     # NOTE(mkozuki): Current threshold values look too small for BFloat16.
     # TODO(mkozuki): Refactor `TestFusedOptimizer`
     @unittest.skip("NaN issue observed on ROCm as of 12/1/2021. The failing unit test is introduced by a PyTorch commit sometime in between rocm/pytorch:rocm4.3.1_ubuntu18.04_py3.6_pytorch_1.9.0 and 2021/12/01. Please refer to https://github.com/ROCmSoftwarePlatform/apex/issues/63")
     def test_half(self):
         self.gen_single_type_test(param_type=torch.float16, skip_assert=True)
 
-    @unittest.skip("Skipped the test since a regression introduced from PyTorch upstream: due to https://github.com/pytorch/pytorch/issues/80809#issuecomment-1175211598. Please also refer to https://github.com/ROCmSoftwarePlatform/apex/issues/82")
     def test_bfloat16(self):
         self.gen_single_type_test(param_type=torch.bfloat16, skip_assert=True)
 
-    @unittest.skip("Skipped the test since a regression introduced from PyTorch upstream: due to https://github.com/pytorch/pytorch/issues/80809#issuecomment-1175211598. Please also refer to https://github.com/ROCmSoftwarePlatform/apex/issues/82")
     @unittest.skipIf(torch.cuda.device_count()<2, "more than 1 GPU required")
     def test_multi_device(self):
         devices = ("cuda:0", "cuda:1")
@@ -176,15 +175,17 @@ class TestFusedAdam(TestFusedOptimizer):
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
-    @unittest.skip("Skipped the test since a regression introduced from PyTorch upstream: due to https://github.com/pytorch/pytorch/issues/80809#issuecomment-1175211598. Please also refer to https://github.com/ROCmSoftwarePlatform/apex/issues/82")
     def test_adam_option(self):
         nelem = 1
         adam_option = {'lr':0.01, 'betas':(0.6, 0.9), 'eps':3e-06,
+            'weight_decay':0, 'amsgrad':False, 'capturable':True}
+
+        adam_option_tst = {'lr':0.01, 'betas':(0.6, 0.9), 'eps':3e-06,
             'weight_decay':0, 'amsgrad':False}
 
         tensor = torch.rand(nelem, dtype=torch.float, device='cuda')
         ref_param, tst_param, ref_optim, tst_optim = \
-            self.gen_param_optim([tensor], adam_option)
+            self.gen_param_optim([tensor], adam_option, adam_option_tst)
 
         for i in range(self.iters):
             self.gen_grad(ref_param, tst_param)
