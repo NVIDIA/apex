@@ -63,8 +63,9 @@ def _multi_tensor_copy(
     # Group buffers by device and dtype
     buffer_groups = collections.defaultdict(list)
     for buf_in, buf_out in zip(buffers_in, buffers_out):
-        if buf_in.data_ptr() == buf_out.data_ptr():
+        if buf_in.data_ptr() == buf_out.data_ptr() or buf_in.numel() == 0:
             # Nothing to be done if input and output buffers are same
+            # or have no entries
             continue
         if buf_in.dtype == buf_out.dtype:
             # Just copy bytes if dtypes are same
@@ -599,18 +600,20 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self._init_param_state(param, param_group_id, param_id)
 
     def init_params_bucket(self, params):
-        """Initialize optimizer state for parameters in a single bucket
+        """Initialize optimizer state for parameters in one effective bucket
 
-        Ignores parameters that have already been initialized.
+        The buckets corresponding to the provided parameters are
+        configured so they all perform communication together. Ignores
+        parameters that have already been initialized.
 
         Arguments:
             params (iterable): parameters to initialize
 
         """
-        if isinstance(params, torch.Tensor):
-            params = [params]
 
         # Ignore parameters that have already been initialized
+        if isinstance(params, torch.Tensor):
+            params = [params]
         params = [
             param
             for param in params
@@ -619,40 +622,47 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if not params:
             return
 
-        # Figure out bucket size
-        bucket_size = sum(
-            _round_to_multiple(param.numel(), self.alignment, round_up=True)
-            for param in params
-        )
-        shard_size = _round_to_multiple(
-            _ceildiv(bucket_size, self.distributed_size),
-            self.alignment,
-            round_up=True,
-        )
-        bucket_size = shard_size * self.distributed_size
+        # Get indices corresponding to parameters
+        id_map = dict()
+        for param_group_id, group in enumerate(self.param_groups):
+            for param_id, param in enumerate(group['params']):
+                id_map[param] = [param_group_id, param_id]
+        param_ids = [tuple([param] + id_map[param]) for param in params]
 
-        # Create new bucket
-        if self.state['buckets']:
-            last_bucket = self.state['buckets'][-1]
-            buffer_offset = last_bucket.contiguous_buffer_offset + last_bucket.bucket_size
-        else:
-            buffer_offset = 0
-        bucket = self.StateBucket(
-            bucket_size,
-            shard_size,
-            self.dtype,
-            self.device,
-            contiguous_buffer_offset=buffer_offset,
-            store_params=self.store_params,
-            store_param_remainders=self.store_param_remainders,
-        )
-        self.state['buckets'].append(bucket)
+        # Mark existings bucket as fully filled
+        for bucket in self.state['buckets']:
+            bucket.filled_size = bucket.bucket_size
 
         # Initialize optimizer state for parameters
+        start_bucket_id = len(self.state['buckets'])
         self.init_params(params)
+        end_bucket_id = len(self.state['buckets'])
 
-        # Mark that bucket is fully filled
-        bucket.filled_size = bucket_size
+        # Make sure all added buckets depend on provided params
+        for bucket_id in range(start_bucket_id, end_bucket_id):
+            bucket = self.state['buckets'][bucket_id]
+            bucket_size = bucket.bucket_size
+            bucket.filled_size = bucket_size
+            ids_in_bucket = set(
+                (fragment.param_group_id, fragment.param_id)
+                for fragment in bucket.fragments
+            )
+            for param, param_group_id, param_id in param_ids:
+                if (param_group_id, param_id) not in ids_in_bucket:
+                    param_size = param.numel()
+                    fragment = self.ParameterFragment(
+                        param_group_id=param_group_id,
+                        param_id=param_id,
+                        bucket_id=bucket_id,
+                        param_range=(param_size, param_size),
+                        bucket_range=(bucket_size, bucket_size),
+                        in_local_shard=False,
+                        shard_range=(None, None),
+                        shard_bucket_range=(None, None),
+                        shard_param_range=(None, None),
+                    )
+                    self.state[param]['fragments'].append(fragment)
+                    bucket.fragments.append(fragment)
 
     def _init_param_state(
             self,
@@ -734,6 +744,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 shard_param_start = shard_bucket_start - bucket_start + param_start
                 shard_param_end = shard_param_start + shard_end - shard_start
             else:
+                shard_start, shard_end = None, None
                 shard_bucket_start, shard_bucket_end = None, None
                 shard_param_start, shard_param_end = None, None
 
@@ -856,10 +867,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Figure out corresponding position in grad buffer
         fragment = self.state[param]['fragments'][0]
         bucket_id = fragment.bucket_id
-        bucket_start, bucket_end = fragment.bucket_range
+        param_size = param.numel()
+        bucket_start, _ = fragment.bucket_range
         buffer_offset = self.state['buckets'][bucket_id].contiguous_buffer_offset
         buffer_start = buffer_offset + bucket_start
-        buffer_end = buffer_offset + bucket_end
+        buffer_end = buffer_start + param_size
 
         # Construct view into grad buffer
         flat_buffer = self._grad_buffer[buffer_start:buffer_end]
@@ -1128,7 +1140,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     if fragment.in_local_shard:
                         bucket = self._grads_buckets[fragment.bucket_id]
                         shard_start, shard_end = fragment.shard_range
-                        grads.append(bucket.grads_shard[shard_start:shard_end])
+                        if shard_end > shard_start:
+                            grads.append(bucket.grads_shard[shard_start:shard_end])
             if grads:
                 grad_norm_sq = multi_tensor_applier(
                     amp_C.multi_tensor_l2norm,
@@ -1334,8 +1347,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     param = self.param_groups[param_group_id]['params'][param_id]
                     bucket_start, bucket_end = fragment.bucket_range
                     param_start, param_end = fragment.param_range
-                    params_in.append(params_buckets[bucket_id][bucket_start:bucket_end])
-                    params_out.append(param.detach().view(-1)[param_start:param_end])
+                    if param_end > param_start:
+                        params_in.append(params_buckets[bucket_id][bucket_start:bucket_end])
+                        params_out.append(param.detach().view(-1)[param_start:param_end])
                 _multi_tensor_copy(
                     params_in,
                     params_out,
@@ -1370,13 +1384,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     param_start, param_end = fragment.shard_param_range
                     param_fragment = param.detach().view(-1)[param_start:param_end]
                     param_fragment = param_fragment.to(dtype=self.dtype, device=self.device)
-                buffers[param_group_id].append([
-                    param_fragment,
-                    exp_avg[shard_start:shard_end],
-                    exp_avg_sq[shard_start:shard_end],
-                    grads[shard_start:shard_end],
-                    params_out[shard_start:shard_end],
-                ])
+                if shard_end > shard_start:
+                    buffers[param_group_id].append([
+                        param_fragment,
+                        exp_avg[shard_start:shard_end],
+                        exp_avg_sq[shard_start:shard_end],
+                        grads[shard_start:shard_end],
+                        params_out[shard_start:shard_end],
+                    ])
 
         # Apply optimizer step to each param group
         for group_id, group_buffers in buffers.items():
@@ -1424,14 +1439,15 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 param = self.param_groups[param_group_id]['params'][param_id]
                 param_fragment = param.detach().view(-1)[param_start:param_end]
                 param_fragment = param_fragment.to(dtype=torch.bfloat16, device=self.device)
-                buffers[param_group_id].append([
-                    param_fragment,
-                    param_remainders_shard[shard_start:shard_end],
-                    exp_avg[shard_start:shard_end],
-                    exp_avg_sq[shard_start:shard_end],
-                    grads[shard_start:shard_end],
-                    params_out[shard_start:shard_end],
-                ])
+                if shard_end > shard_start:
+                    buffers[param_group_id].append([
+                        param_fragment,
+                        param_remainders_shard[shard_start:shard_end],
+                        exp_avg[shard_start:shard_end],
+                        exp_avg_sq[shard_start:shard_end],
+                        grads[shard_start:shard_end],
+                        params_out[shard_start:shard_end],
+                    ])
 
         # Apply optimizer step to each param group
         for group_id, group_buffers in buffers.items():
