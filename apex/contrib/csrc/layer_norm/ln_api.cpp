@@ -80,7 +80,8 @@ layer_norm::BwdFunction & get_bwd_launcher(torch::Dtype wtype, torch::Dtype ityp
 std::vector<at::Tensor> ln_fwd(const at::Tensor &x,      // BxSxhidden_size
                                const at::Tensor &gamma,   // hidden_size
                                const at::Tensor &beta,   // hidden_size
-                               const float epsilon
+                               const float epsilon,
+                               const float one_plus
 ) {
     auto itype = x.scalar_type();
     auto wtype = gamma.scalar_type();
@@ -137,6 +138,7 @@ std::vector<at::Tensor> ln_fwd(const at::Tensor &x,      // BxSxhidden_size
     params.beta = beta.data_ptr();
     params.z = z.data_ptr();
     params.epsilon = epsilon;
+    params.one_plus = one_plus;
 
     if( launch_params.barrier_size > 0 ) {
         auto options = x.options();
@@ -158,7 +160,8 @@ std::vector<at::Tensor> ln_bwd(const at::Tensor &dz,     // BxSxhidden_size
                                const at::Tensor &x,      // BxSxhidden_size
                                const at::Tensor &mu,     // BxS, FP32!
                                const at::Tensor &rsigma, // BxS, FP32!
-                               const at::Tensor &gamma   // hidden_size
+                               const at::Tensor &gamma,   // hidden_size
+                               const float one_plus
 ) {
 
     auto itype = x.scalar_type();
@@ -223,6 +226,7 @@ std::vector<at::Tensor> ln_bwd(const at::Tensor &dz,     // BxSxhidden_size
     params.dgamma = dgamma.data_ptr();
     params.dbeta_part = dbeta_part.data_ptr();
     params.dgamma_part = dgamma_part.data_ptr();
+    params.one_plus = one_plus;
 
     if( launch_params.barrier_size > 0 ) {
         // TODO Any way to avoid this?

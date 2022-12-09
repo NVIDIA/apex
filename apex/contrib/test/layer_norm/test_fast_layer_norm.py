@@ -49,7 +49,7 @@ fp16 = torch.float16
 bf16 = torch.bfloat16
 
 
-def backward_(dz, x, mu, rs, gamma):
+def backward_(dz, x, mu, rs, gamma, one_plus):
 
     wtype = gamma.dtype
     itype = x.dtype
@@ -62,7 +62,7 @@ def backward_(dz, x, mu, rs, gamma):
     y = rs * (x.to(ctype) - mu)
     dbeta = dz.view(-1, hidden_size).sum(0, dtype=ctype)
     dgamma = (dz * y).view(-1, hidden_size).sum(0, dtype=ctype)
-    dy = dz.view(-1, hidden_size).to(ctype) * gamma.unsqueeze(0).to(ctype)
+    dy = dz.view(-1, hidden_size).to(ctype) * (gamma.unsqueeze(0).to(ctype) + one_plus)
     mdy = dy.mean(1, keepdim=True, dtype=ctype)
 
     mdyy = (dy * y).mean(1, keepdim=True, dtype=ctype)
@@ -71,9 +71,12 @@ def backward_(dz, x, mu, rs, gamma):
     return dx.to(itype), dgamma.to(wtype), dbeta.to(wtype)
 
 
-def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
+def benchmark_(S, B, hidden_size, itype, wtype, is_1p, runs=100):
     epsilon = 1e-5
-
+    if is_1p:
+        one_plus = 1.0
+    else:
+        one_plus = 0.0
     x = torch.randn((S * B, hidden_size), dtype=itype, device=device)
     beta = torch.randn(hidden_size, dtype=wtype, device=device)
     gamma = torch.randn(hidden_size, dtype=wtype, device=device)
@@ -86,11 +89,11 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
 
         # warmup
         for r in range(runs):
-            z, mu, rsigma = fln.ln_fwd(x, gamma, beta, epsilon)
+            z, mu, rsigma = fln.ln_fwd(x, gamma, beta, epsilon, one_plus)
 
         timer.start()
         for r in range(runs):
-            z, mu, rsigma = fln.ln_fwd(x, gamma, beta, epsilon)
+            z, mu, rsigma = fln.ln_fwd(x, gamma, beta, epsilon, one_plus)
         timer.stop()
         timer.sync()
 
@@ -106,7 +109,7 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
 
         timer.start()
         for r in range(runs):
-            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(dz, x, mu, rsigma, gamma)
+            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(dz, x, mu, rsigma, gamma, one_plus)
         timer.stop()
         timer.sync()
 
@@ -126,7 +129,7 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
         )
 
 
-def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
+def _test_impl(S, B, hidden_size, itype, wtype, is_1p, ctype=fp32):
 
     seed = 1243
     torch.manual_seed(seed)
@@ -134,13 +137,17 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
 
     otype = wtype
     print("========================================================")
-    print(f"S={S} B={B} Hidden={hidden_size} {itype} {wtype}")
+    print(f"S={S} B={B} Hidden={hidden_size} 1p={is_1p} {itype} {wtype}")
     print("--------------------------------------------------------")
 
     x = torch.randn(S * B, hidden_size, dtype=itype, device=device)
     gamma = torch.randn(hidden_size, dtype=wtype, device=device) * 0.2
     beta = torch.randn(hidden_size, dtype=wtype, device=device) * 0.2
     epsilon = 1e-5
+    if is_1p:
+        one_plus = 1.0
+    else:
+        one_plus = 0.0
 
     x.requires_grad = True
     gamma.requires_grad = True
@@ -150,7 +157,7 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
     v = torch.square(x - mu_ref).mean(1, dtype=ctype, keepdim=True)
     rs_ref = torch.rsqrt(v + epsilon)
     y_ref = rs_ref * (x.to(ctype) - mu_ref)
-    z_ref = (gamma.unsqueeze(0) * (y_ref).to(otype) + beta.unsqueeze(0)).to(otype)
+    z_ref = ((gamma.unsqueeze(0) + one_plus) * (y_ref).to(otype) + beta.unsqueeze(0)).to(otype)
 
     mu_ref = mu_ref.flatten()
     rs_ref = rs_ref.flatten()
@@ -162,10 +169,10 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
     # dgamma_ref = gamma.grad
     # dbeta_ref = beta.grad
 
-    dx_ref, dg_ref, db_ref = backward_(dz, x, mu_ref, rs_ref, gamma)
+    dx_ref, dg_ref, db_ref = backward_(dz, x, mu_ref, rs_ref, gamma, one_plus)
 
-    z, mu, rs = fln.ln_fwd(x, gamma, beta, epsilon)
-    dx, dg, db, dg_part, db_part = fln.ln_bwd(dz, x, mu, rs, gamma)
+    z, mu, rs = fln.ln_fwd(x, gamma, beta, epsilon, one_plus)
+    dx, dg, db, dg_part, db_part = fln.ln_bwd(dz, x, mu, rs, gamma, one_plus)
 
     re_z, mse_z = metrics(z_ref, z)
     re_mu, mse_mu = metrics(mu_ref, mu)
@@ -232,29 +239,38 @@ class TestFastLayerNorm(unittest.TestCase):
             49152,
             65536,
         ]
-
-        for h in hidden_sizes:
-            with self.subTest(f"hidden_size={h}"):
-                self.assertAll(_test_impl(256, 2, h, fp32, fp32))
-                self.assertAll(_test_impl(256, 2, h, fp16, fp16))
-                self.assertAll(_test_impl(256, 2, h, fp32, fp16))
-                self.assertAll(_test_impl(256, 2, h, bf16, bf16))
-                self.assertAll(_test_impl(256, 2, h, fp32, bf16))
+        use_1p = [
+            False,
+            True
+        ]
+        for is_1p in use_1p:
+            for h in hidden_sizes:
+                with self.subTest(f"hidden_size={h}, use_1p={is_1p}"):
+                    self.assertAll(_test_impl(256, 2, h, fp32, fp32, is_1p))
+                    self.assertAll(_test_impl(256, 2, h, fp16, fp16, is_1p))
+                    self.assertAll(_test_impl(256, 2, h, fp32, fp16, is_1p))
+                    self.assertAll(_test_impl(256, 2, h, bf16, bf16, is_1p))
+                    self.assertAll(_test_impl(256, 2, h, fp32, bf16, is_1p))
 
     def test_run_benchmark(self):
-        for (S, B, hidden_size, runs) in (
-            (512, 32, 768, 1000),
-            (512, 32, 1024, 1000),
-            (512, 8, 4096, 1000),
-            (512, 8, 5120, 1000),
-            (512, 8, 6144, 1000),
-            (256, 2, 20480, 500),
-            (256, 2, 25600, 500),
-            (256, 2, 40960, 250),
-            (256, 2, 65536, 250),
-        ):
-            with self.subTest(f"(S, B, hidden_size)=({S}, {B}, {hidden_size})"):
-                benchmark_(S, B, hidden_size, fp16, fp16, runs)
+        use_1p = [
+            False,
+            True
+        ]
+        for is_1p in use_1p:
+            for (S, B, hidden_size, runs) in (
+                (512, 32, 768, 1000),
+                (512, 32, 1024, 1000),
+                (512, 8, 4096, 1000),
+                (512, 8, 5120, 1000),
+                (512, 8, 6144, 1000),
+                (256, 2, 20480, 500),
+                (256, 2, 25600, 500),
+                (256, 2, 40960, 250),
+                (256, 2, 65536, 250),
+            ):
+                with self.subTest(f"(S, B, hidden_size, 1p)=({S}, {B}, {hidden_size}, {is_1p})"):
+                    benchmark_(S, B, hidden_size, fp16, fp16, is_1p, runs)
 
     def test_compat_with_autocast(self):
         autocast_dtypes = (

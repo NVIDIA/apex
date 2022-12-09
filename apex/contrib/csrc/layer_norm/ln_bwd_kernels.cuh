@@ -91,7 +91,7 @@ void ln_bwd_kernel(layer_norm::BwdParams params) {
             for( int jt = 0; jt < NUM_ELTS; jt++ ) {
                 compute_t x_tmp = x[it].data.elt[jt];
                 compute_t y_tmp = rs_r * (x_tmp - mu_r);
-                compute_t dy_tmp = compute_t(gamma[it].data.elt[jt]);
+                compute_t dy_tmp = compute_t(gamma[it].data.elt[jt]) + params.one_plus;
                 dy_tmp *= compute_t(dz[it].data.elt[jt]);
                 compute_t dz_tmp = dz[it].data.elt[jt];
 
