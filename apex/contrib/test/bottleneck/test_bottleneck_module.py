@@ -250,7 +250,7 @@ def main():
     spatial_group_size = world_size
     spatial_communicator = None
 
-    peer_pool = PeerMemoryPool(64 * 1024 * 1024, 2 * 1024 * 1024, ranks)
+    peer_pool = PeerMemoryPool(0, 64 * 1024 * 1024, ranks)
 
     # class HaloExchangerNoComm(HaloExchanger):
     #    def __init__(self, ranks, rank_in_group):
@@ -264,7 +264,7 @@ def main():
     # halex = HaloExchangerAllGather(ranks, rank_in_group)
     # halex = HaloExchangerSendRecv(ranks, rank_in_group)
 
-    halex = HaloExchangerPeer(ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=1)
+    halex = HaloExchangerPeer(ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=0)
     # print("halex.signals = %s" % (str(halex.signals)))
     # Make sure peer memory halo exchanger has finished initializing flags on all ranks before proceeding
     # torch.cuda.synchronize()
@@ -312,8 +312,8 @@ class TestBottleneck(NcclDistributedTestBase):
         rank_in_group = self.rank % self.world_size
 
         spatial_group_size, spatial_communicator = self.world_size, None
-        peer_pool = PeerMemoryPool(64 * 1024 * 1024, 2 * 1024 * 1024, ranks)
-        halo_exchanger_peer = HaloExchangerPeer(ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=1)
+        peer_pool = PeerMemoryPool(0, 64 * 1024 * 1024, ranks)
+        halo_exchanger_peer = HaloExchangerPeer(ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=0)
         bt2 = n_way_spatial(
             halo_exchanger_peer, gt_bottleneck, gt, explicit_nhwc, self.world_size, self.rank, fp32_reduce=True
         )

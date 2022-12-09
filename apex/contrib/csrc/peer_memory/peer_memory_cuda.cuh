@@ -17,7 +17,7 @@
 #pragma once
 #include <torch/extension.h>
 #ifndef _peer_memory_h_
-#define _peer_memory_h_ 
+#define _peer_memory_h_
 
 namespace apex { namespace contrib { namespace peer_memory {
     int64_t allocate_raw(int64_t size);
@@ -32,19 +32,17 @@ namespace apex { namespace contrib { namespace peer_memory {
         bool diagnostics,
         bool explicit_nhwc,
         int numSM,                      // number of SMs to use
-	bool top_zero,			// true if top halo should be zeroed
-        at::Tensor top_out_halo,        // top output halo in sender device memory
-        at::Tensor top_out_tx,          // top output transfer buffer in sender peer pool memory
-	at::Tensor top_inp_tx,		// top input transfer buffer in top neighbor peer pool memory
-        at::Tensor top_inp_halo,        // top input halo in receiver device memory
-	bool btm_zero,			// true if btm halo should be zeroed
-        at::Tensor btm_out_halo,        // btm output halo in sender device memory
-        at::Tensor btm_out_tx,          // btm output transfer buffer in sender peer pool memory
-	at::Tensor btm_inp_tx,		// btm input transfer buffer in btm neighbor peer pool memory
-        at::Tensor btm_inp_halo,        // btm input halo in receiver device memory
-        at::Tensor top_signal,          // top input signal in receiver device memory
-        at::Tensor btm_signal,          // btm input signal in receiver device memory
-        at::Tensor waits                // top and btm signals for this rank
+        int peer_rank,                  // rank in spatial parallel group
+	bool top_zero,			// if top halo should be zeroed
+        at::Tensor top_out_halo,        // top output halo buffer (in local device memory, received from top neighbor)
+	at::Tensor top_inp_transfer,    // top input transfer buffer (in local peer memory)
+        at::Tensor top_out_transfer,    // top output transfer buffer (in top neighbor peer memory)
+        at::Tensor top_inp_halo,        // top input halo buffer (in local device memory, sent to top neighbor)
+	bool btm_zero,			// if btm halo should be zeroed
+        at::Tensor btm_out_halo,        // btm output halo buffer (in local device memory, received from btm neighbor)
+	at::Tensor btm_inp_transfer,	// btm input transfer buffer (in local peer memory)
+        at::Tensor btm_out_transfer,    // btm output transfer buffer (in btm neighbor peer memory)
+        at::Tensor btm_inp_halo         // btm input halo buffer (in local device memory, sent to btm neighbor)
         );
 } } }
 #endif
