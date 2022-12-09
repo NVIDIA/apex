@@ -628,13 +628,13 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 ar_stream = self._ar_st[glob_chunk_id%self._num_ar_pg]
                 ar_stream.wait_stream(torch.cuda.current_stream())
                 with torch.cuda.stream(ar_stream):
-                    works[chunk_id] = torch.distributed.all_reduce(self._flat_grads_chunks[block_id][chunk_id],group=self._ar_pg[glob_chunk_id%self._num_ar_pg],async_op=True,op=_make_nccl_premul_sum((scale,)))
+                    works[chunk_id] = torch.distributed.all_reduce(self._flat_grads_chunks[block_id][chunk_id],group=self._ar_pg[glob_chunk_id%self._num_ar_pg],async_op=True,op=_make_nccl_premul_sum(scale))
         else:
             glob_chunk_id = block_id
             ar_stream = self._ar_st[glob_chunk_id%self._num_ar_pg]
             ar_stream.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(ar_stream):
-                    works0 = torch.distributed.all_reduce(self._flat_grads_blocks[block_id],group=self._ar_pg[glob_chunk_id%self._num_ar_pg],async_op=True,op=_make_nccl_premul_sum((scale,)))
+                    works0 = torch.distributed.all_reduce(self._flat_grads_blocks[block_id],group=self._ar_pg[glob_chunk_id%self._num_ar_pg],async_op=True,op=_make_nccl_premul_sum(scale))
             for i in range(self._num_chunks):
                 works[i]=works0
         self._reductions_works[block_id] = works
@@ -668,7 +668,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                         group=self._rs_pg[glob_chunk_id%self._num_rs_pg],
                         async_op=True,
                         no_copy=True,
-                        op=_make_nccl_premul_sum((scale,)),
+                        op=_make_nccl_premul_sum(scale),
                     )
                 else:
                     works[chunk_id] = torch.distributed.reduce_scatter_tensor(
@@ -676,7 +676,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                         input=self._flat_grads_chunks[block_id][chunk_id],
                         group=self._rs_pg[glob_chunk_id%self._num_rs_pg],
                         async_op=True,
-                        op=_make_nccl_premul_sum((scale,)),
+                        op=_make_nccl_premul_sum(scale),
                     )
 
         # Reduction across nodes for each rank
