@@ -107,7 +107,7 @@ struct BwdParams : public ParamsBase {
     void *dbeta;
     void *dgamma;
 
-    fload one_plus;
+    float one_plus;
 
 };
 
