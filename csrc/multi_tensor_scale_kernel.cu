@@ -66,7 +66,7 @@ struct ScaleFunctor
         for(int ii = 0; ii < ILP; ii++)
         {
           r_out[ii] = static_cast<float>(r_in[ii]) * scale;
-          finite = finite && isfinite(r_in[ii]);
+          finite = finite && isfinite(static_cast<float>(r_in[ii]));
         }
         // store
         load_store(out, r_out, i_start, 0);
@@ -94,7 +94,7 @@ struct ScaleFunctor
         for(int ii = 0; ii < ILP; ii++)
         {
           r_out[ii] = static_cast<float>(r_in[ii]) * scale;
-          finite = finite && isfinite(r_in[ii]);
+          finite = finite && isfinite(static_cast<float>(r_in[ii]));
         }
 #pragma unroll
         for(int ii = 0; ii < ILP; ii++)
