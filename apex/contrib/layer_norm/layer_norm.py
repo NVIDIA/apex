@@ -13,10 +13,7 @@ class FastLayerNormFN(torch.autograd.Function):
         beta = beta.contiguous()
         hidden_size = gamma.numel()
         xmat = x.view((-1, hidden_size))
-        if use_1p:
-            one_plus = 1.0
-        else:
-            one_plus = 0.0
+        one_plus = float(use_1p)
         ymat, mu, rsigma = fast_layer_norm.ln_fwd(xmat, gamma, beta, epsilon, one_plus)
         ctx.save_for_backward(x, gamma, mu, rsigma)
         ctx.one_plus = one_plus
