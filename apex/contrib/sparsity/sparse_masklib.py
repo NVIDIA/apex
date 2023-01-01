@@ -13,7 +13,7 @@ def fill(x):
 def reshape_1d(matrix, m):
     # If not a nice multiple of m, fill with zeroes.
     if matrix.shape[1] % m > 0:
-        mat = torch.cuda.FloatTensor(matrix.shape[0], matrix.shape[1] + (m-matrix.shape[1]%m)).fill_(0)
+        mat = torch.zeros(matrix.shape[0], matrix.shape[1] + (m-matrix.shape[1]%m), device=matrix.device, dtype=matrix.dtype)
         mat[:, :matrix.shape[1]] = matrix
         shape = mat.shape
         return mat.view(-1,m),shape
@@ -30,16 +30,16 @@ def compute_valid_1d_patterns(m,n):
     patterns = torch.zeros(m)
     patterns[:n] = 1
     valid_patterns = torch.Tensor(list(set(permutations(patterns.tolist()))))
-    if m == 4  and n == 2: valid_m4n2_1d_patterns  = valid_patterns       
+    if m == 4  and n == 2: valid_m4n2_1d_patterns  = valid_patterns
     return valid_patterns
 
 """ m:n 1d structured best """
 def mn_1d_best(matrix, m, n):
     # Find all possible patterns.
-    patterns = compute_valid_1d_patterns(m,n).cuda()
+    patterns = compute_valid_1d_patterns(m,n).to(matrix.device)
 
     # Find the best m:n pattern (sum of non-masked weights).
-    mask = torch.cuda.IntTensor(matrix.shape).fill_(1).view(-1,m)
+    mask = torch.ones_like(matrix, dtype=torch.int32).view(-1,m)
     mat,shape = reshape_1d(matrix,m)
     pmax = torch.argmax(torch.matmul(mat.abs(),patterns.t()), dim=1)
     mask[:] = patterns[pmax[:]]
@@ -53,13 +53,13 @@ def m4n2_1d(mat, density):
   Below 2d-masking related code is targeted more for training (from scratch).
   2d-pruning of a weight tensor is done to accelerate DGRAD step during backprop
   phase of training algorithm. Acceleration comes from using SpMMA instructions in
-  Tensor Cores of NVIDIA Ampere GPU Architecture 
+  Tensor Cores of NVIDIA Ampere GPU Architecture
   (note: this code does not do the acceleration, GPU kernels are required for this).
   1d pruning of weight tensor helps speed up FPROP step by pruning in 2:4 pattern
   along the horizontal (logical) direction.
   During DGRAD step, weight tensor is transposed. 2d pruning functions below, mask
   weight tensor such that their transposed versions are also 2:4 sparse along the
-  horizontal (logical) direction. Thus, with 2d pruning, weight tensors are 
+  horizontal (logical) direction. Thus, with 2d pruning, weight tensors are
   2:4 sparse along row and column directions.
  """
 
@@ -121,10 +121,10 @@ def compute_valid_2d_patterns(m,n):
 """ m:n 2d structured pruning: exhaustive method to select best mask """
 def mn_2d_best(matrix, m, n):
     # Find all possible patterns.
-    patterns = compute_valid_2d_patterns(m,n).cuda()
+    patterns = compute_valid_2d_patterns(m,n).to(matrix.device)
 
     # Find the best m:n pattern (sum of non-masked weights).
-    mask = torch.cuda.IntTensor(matrix.shape).fill_(1)
+    mask = torch.ones_like(matrix, dtype=torch.int32)
     mat = reshape_2d(matrix,m,m).abs()
     pmax = torch.argmax(torch.matmul(mat,patterns.view(patterns.shape[0],m*m).t()), dim=2)
 
@@ -182,6 +182,6 @@ def create_mask(tensor, pattern="m4n2_1d", density=0.5):
         t = t.permute(2,3,0,1).contiguous().view(shape[2]*shape[3]*shape[0], shape[1])
         func = getattr(sys.modules[__name__], pattern, None)
         mask = func(t, density)
-        mask = mask.view(shape[2], shape[3], shape[0], shape[1]).permute(2,3,0,1).contiguous()      
+        mask = mask.view(shape[2], shape[3], shape[0], shape[1]).permute(2,3,0,1).contiguous()
         return mask.view(shape).type(ttype)
 
