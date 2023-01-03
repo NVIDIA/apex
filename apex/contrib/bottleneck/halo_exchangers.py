@@ -88,7 +88,7 @@ class HaloExchangerSendRecv(HaloExchanger):
             inc.left_right_halo_exchange_inplace(self.handle, self.left_rank, self.right_rank, left_output_halo, right_output_halo, left_input_halo, right_input_halo)
 
 class HaloExchangerPeer(HaloExchanger):
-    def __init__(self, ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=0):
+    def __init__(self, ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=1):
         super(HaloExchangerPeer, self).__init__(ranks, rank_in_group)
         self.diagnostics = False
         self.explicit_nhwc = explicit_nhwc

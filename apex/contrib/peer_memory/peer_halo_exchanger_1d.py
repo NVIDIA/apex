@@ -27,7 +27,7 @@ class PeerHaloExchanger1d:
         shape = [1, 1, 1, size // halo.element_size()]
         return self.peer_pool.allocate_peer_tensors(shape, halo.dtype, False, True)
 
-    def __call__(self, y, H_split=True, explicit_nhwc=False, numSM=0, diagnostics=False):
+    def __call__(self, y, H_split=True, explicit_nhwc=False, numSM=1, diagnostics=False):
         channels_last = y.is_contiguous(memory_format=torch.channels_last) and not explicit_nhwc
         if H_split:
             if explicit_nhwc:
