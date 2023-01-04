@@ -400,7 +400,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                     torch.cuda.current_stream().wait_stream(stream2)
                 if spatial_group_rank > 0:
                     torch.cuda.current_stream().wait_stream(stream1)
-            
+
         fast_bottleneck.forward_rest(explicit_nhwc, stride_1x1, args, outputs)
         # save halos for backward pass
         if spatial_group_size > 1:
@@ -609,7 +609,7 @@ class SpatialBottleneck(torch.nn.Module):
     # here we put it at 1x1
 
     def __init__(self, in_channels, bottleneck_channels, out_channels, stride=1, groups=1,
-                 dilation=1, norm_func=None, use_cudnn=False, explicit_nhwc=False, 
+                 dilation=1, norm_func=None, use_cudnn=False, explicit_nhwc=False,
                  spatial_parallel_args=None):
         super(SpatialBottleneck, self).__init__()
         if groups != 1:
@@ -704,7 +704,7 @@ class SpatialBottleneck(torch.nn.Module):
                     N,C,H,W = list(x.shape)
                 self.thresholdTop = torch.tensor([1 if spatial_group_rank > 0 else 0], dtype=torch.int32, device='cuda')
                 self.thresholdBottom = torch.tensor([H-2 if spatial_group_rank < spatial_group_size - 1 else H-1], dtype=torch.int32, device='cuda')
-            
+
             if self.w_scale is None:
                 # calculate scale/bias from registered buffers
                 # TODO: make this better
@@ -746,4 +746,3 @@ class SpatialBottleneck(torch.nn.Module):
         out = self.relu(out)
 
         return out
-

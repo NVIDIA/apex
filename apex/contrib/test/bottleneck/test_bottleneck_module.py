@@ -17,6 +17,10 @@ def ground_truth_bottleneck(C, dtype, explicit_nhwc):
     bottleneck = Bottleneck(C, C, C, use_cudnn=True, explicit_nhwc=explicit_nhwc)
     bottleneck.to(dtype=dtype, device="cuda")
     for p in bottleneck.parameters():
+        with torch.no_grad():
+            # Make sure parameter values are positive to improve
+            # numerical accuracy
+            p.copy_(torch.rand_like(p))
         torch.distributed.broadcast(p, 0)
     for b in bottleneck.buffers():
         torch.distributed.broadcast(b, 0)
@@ -74,7 +78,7 @@ def clone_inputs(bottleneck, x, dy=None):
         x.requires_grad = True
         if dy is None:
             y = bottleneck(x)
-            dy = torch.randn_like(y) / 1e2
+            dy = torch.rand_like(y) / 1e2
             torch.distributed.broadcast(dy, 0)
     return x, dy
 
@@ -94,7 +98,7 @@ def ground_truth(N, C, H, W, dtype, memory_format, bottleneck):
         # 1 -> explicit nhwc
         explicit_nhwc = True
         with torch.no_grad():
-            x = torch.randn([N, H, W, C], dtype=dtype, device="cuda")
+            x = torch.rand([N, H, W, C], dtype=dtype, device="cuda")
             torch.distributed.broadcast(x, 0)
             x, dy = clone_inputs(bottleneck, x)
         return fprop_and_bprop(bottleneck, x, dy)
@@ -313,13 +317,11 @@ class TestBottleneck(NcclDistributedTestBase):
 
         spatial_group_size, spatial_communicator = self.world_size, None
         peer_pool = PeerMemoryPool(0, 64 * 1024 * 1024, ranks)
-        halo_exchanger_peer = HaloExchangerPeer(ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=0)
+        halo_exchanger_peer = HaloExchangerPeer(ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=1)
         bt2 = n_way_spatial(
             halo_exchanger_peer, gt_bottleneck, gt, explicit_nhwc, self.world_size, self.rank, fp32_reduce=True
         )
-        # TODO(crcrpar): Investigate the implementation to mitigate the numerical errors.
-        # NOTE(crcrpar): This assert often fails due to numerical errors.
-        # self.assertEqual(gt, bt2, **self.fp16_tolerance)
+        self.assertEqual(gt, bt2, **self.fp16_tolerance)
 
 
 if __name__ == "__main__":
