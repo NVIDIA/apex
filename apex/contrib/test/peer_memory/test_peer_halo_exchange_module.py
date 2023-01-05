@@ -264,7 +264,7 @@ def main():
     world_size = torch.distributed.get_world_size()
     torch.cuda.set_device(rank)
     peer_ranks = [i for i in range(world_size)]
-    pool = PeerMemoryPool(64 * 1024, 2 * 1024 * 1024, peer_ranks)
+    pool = PeerMemoryPool(0, 2 * 1024 * 1024, peer_ranks)
 
     num_steps = 100
 

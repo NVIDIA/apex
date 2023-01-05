@@ -93,9 +93,14 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
 
 def scaled_masked_softmax(inputs, mask, scale):
     # input is 4D tensor (b, np, sq, sk)
-    args = _cast_if_autocast_enabled(inputs, mask, scale)
-    with torch.cuda.amp.autocast(enabled=False):
-        return ScaledMaskedSoftmax.apply(*args)
+    if mask is not None:
+        args = _cast_if_autocast_enabled(inputs, mask, scale)
+        with torch.cuda.amp.autocast(enabled=False):
+            return ScaledMaskedSoftmax.apply(*args)
+    else:
+        args = _cast_if_autocast_enabled(inputs, scale)
+        with torch.cuda.amp.autocast(enabled=False):
+            return ScaledSoftmax.apply(*args)
 
 
 class GenericScaledMaskedSoftmax(torch.autograd.Function):
@@ -123,6 +128,37 @@ def generic_scaled_masked_softmax(inputs, mask, scale):
     args = _cast_if_autocast_enabled(inputs, mask, scale)
     with torch.cuda.amp.autocast(enabled=False):
         return GenericScaledMaskedSoftmax.apply(*args)
+
+
+class ScaledSoftmax(torch.autograd.Function):
+    """
+    Fused operation which performs following two operations in sequence
+    1. Scale the tensor.
+    2. Perform softmax.
+    """
+
+    @staticmethod
+    def forward(ctx, inputs, scale):
+        import scaled_softmax_cuda
+
+        scale_t = torch.tensor([scale])
+
+        softmax_results = scaled_softmax_cuda.forward(
+            inputs, scale_t[0]
+        )
+        ctx.save_for_backward(softmax_results, scale_t)
+        return softmax_results
+
+    @staticmethod
+    def backward(ctx, output_grads):
+        import scaled_softmax_cuda
+
+        softmax_results, scale_t = ctx.saved_tensors
+
+        input_grads = scaled_softmax_cuda.backward(
+            output_grads, softmax_results, scale_t[0]
+        )
+        return input_grads, None, None
 
 
 class FusedScaleMaskSoftmax(torch.nn.Module):
@@ -191,14 +227,14 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
             and self.input_in_float16  # input must be fp16
             and (
                 self.attn_mask_type == AttnMaskType.causal
-                or (self.attn_mask_type == AttnMaskType.padding and mask is not None)
+                or self.attn_mask_type == AttnMaskType.padding
             )
-            and 16 < sk <= 2048  # sk must be 16 ~ 2048
+            and 16 < sk <= 4096  # sk must be 16 ~ 4096
             and sq % 4 == 0  # sq must be divisor of 4
             and sk % 4 == 0  # sk must be divisor of 4
             and attn_batches % 4 == 0  # np * b must be divisor of 4
         ):
-            if 0 <= sk <= 2048:
+            if 0 <= sk <= 4096:
                 batch_per_block = self.get_batch_per_block(sq, sk, b, np)
 
                 if self.attn_mask_type == AttnMaskType.causal:
