@@ -129,6 +129,8 @@ class _InstanceNormNVFuser(_NormBase):
     def forward(self, input: Tensor) -> Tensor:
         assert input.is_cuda, "NVFuser InstanceNorm is CUDA only"
         self._check_input_dim(input)
+        if self.dummy.device != input.device:
+            self.dummy = torch.empty([], device=input.device)
         if self.running_mean is not None:
             out = InstanceNormNVFuserFunction.apply(
                     input, self.weight if self.weight is not None else self.dummy,
