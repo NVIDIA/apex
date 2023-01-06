@@ -173,7 +173,7 @@ def spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, spatial_
     return spatial_bottleneck
 
 
-def n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp32_reduce=False):
+def n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, spatial_method=1, fp32_reduce=False):
     assert explicit_nhwc, "Only tested for explicit nhwc"
 
     x, _, dy, _, _ = gt
@@ -184,7 +184,6 @@ def n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp3
     spatial_group_rank = rank
     spatial_communicator = None
     spatial_halo_exchanger = halex
-    spatial_method = 1  # 1 -> overlap halo and main conv, 2 -> wait for halo, conv on padded x
     use_delay_kernel = False
     spatial_parallel_args = (
         spatial_group_size,
@@ -300,7 +299,7 @@ class TestBottleneck(NcclDistributedTestBase):
         bt = apply_to_different_bottleneck(gt, spatial_bottleneck)
         self.assertEqual(gt, bt, **self.fp16_tolerance)
 
-    def test_bottleneck_with_peer_memory(self) -> None:
+    def test_bottleneck_with_peer_memory(self, spatial_method=1) -> None:
 
         explicit_nhwc: bool = True
         dtype: torch.dtype = torch.float16
@@ -319,9 +318,22 @@ class TestBottleneck(NcclDistributedTestBase):
         peer_pool = PeerMemoryPool(0, 64 * 1024 * 1024, ranks)
         halo_exchanger_peer = HaloExchangerPeer(ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=1)
         bt2 = n_way_spatial(
-            halo_exchanger_peer, gt_bottleneck, gt, explicit_nhwc, self.world_size, self.rank, fp32_reduce=True
+            halo_exchanger_peer,
+            gt_bottleneck,
+            gt,
+            explicit_nhwc,
+            self.world_size,
+            self.rank,
+            spatial_method=spatial_method,
+            fp32_reduce=True,
         )
         self.assertEqual(gt, bt2, **self.fp16_tolerance)
+
+    def test_bottleneck_with_peer_memory_blocking_halo_exchange(self) -> None:
+        self.test_bottleneck_with_peer_memory(spatial_method=2)
+
+    def test_bottleneck_with_peer_memory_halo_correction(self) -> None:
+        self.test_bottleneck_with_peer_memory(spatial_method=3)
 
 
 if __name__ == "__main__":
