@@ -316,15 +316,40 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                 )
                 out1 = out1_pad[:,:,1:-1,:]
             outputs[0] = out1
-        fast_bottleneck.forward_out1(explicit_nhwc, stride_1x1, args, outputs)
+        fast_bottleneck.forward_conv_scale_bias_relu(
+            [1,1], # strides
+            [0,0], # pre-pads
+            [0,0], # post-pads
+            [1,1], # dilations
+            explicit_nhwc,
+            args[0], # input
+            args[1], # filter
+            args[4], # scale
+            args[7], # bias
+            out1,
+        )
 
         # 3x3 convolution (conv2) with spatial parallelism
+        w = args[2]
+        z = args[5]
+        b = args[8]
+        out2 = outputs[1]
         if spatial_group_size <= 1:
-            fast_bottleneck.forward_out2(explicit_nhwc, stride_1x1, args, outputs)
+            fast_bottleneck.forward_conv_scale_bias_relu(
+                [1,1], # strides
+                [1,1], # pre-pads
+                [1,1], # post-pads
+                [1,1], # dilations
+                explicit_nhwc,
+                out1,
+                w,
+                z,
+                b,
+                out2,
+            )
         else:
 
-            # input and output tensors
-            out2 = outputs[1]
+            # halo regions in input and output tensors
             if explicit_nhwc:
                 top_out1_send = out1_pad[:,1:2,:,:]
                 btm_out1_send = out1_pad[:,-2:-1,:,:]
@@ -358,20 +383,32 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                 if spatial_group_rank > 0:
                     with torch.cuda.stream(side_streams[0]):
                         top_out1_fat = out1_pad[:,:3,:,:] if explicit_nhwc else out1_pad[:,:,:3,:]
-                        fast_bottleneck.forward_out2_halo(
+                        fast_bottleneck.forward_conv_scale_bias_relu(
+                            [1,1], # strides
+                            [0,1], # pre-pads
+                            [0,1], # post-pads,
+                            [1,1], # dilations
                             explicit_nhwc,
                             top_out1_fat,
+                            w,
+                            z,
+                            b,
                             top_out2,
-                            args,
                         )
                 if spatial_group_rank < spatial_group_size-1:
                     with torch.cuda.stream(side_streams[1]):
                         btm_out1_fat = out1_pad[:,-3:,:,:] if explicit_nhwc else out1_pad[:,:,-3:,:]
-                        fast_bottleneck.forward_out2_halo(
+                        fast_bottleneck.forward_conv_scale_bias_relu(
+                            [1,1], # strides
+                            [0,1], # pre-pads
+                            [0,1], # post-pads,
+                            [1,1], # dilations
                             explicit_nhwc,
                             btm_out1_fat,
+                            w,
+                            z,
+                            b,
                             btm_out2,
-                            args,
                         )
 
                 # manual delay to improve kernel overlapping
@@ -379,7 +416,27 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                     inc.add_delay(10)
 
                 # middle convolution
-                fast_bottleneck.forward_out2(explicit_nhwc, stride_1x1, args, outputs)
+                pre_pads = [1, 1]
+                post_pads = [1, 1]
+                middle_out2 = out2
+                if spatial_group_rank > 0:
+                    pre_pads[0] = 0
+                    middle_out2 = middle_out2[:,1:,:,:] if explicit_nhwc else middle_out2[:,:,1:,:]
+                if spatial_group_rank < spatial_group_size-1:
+                    post_pads[0] = 0
+                    middle_out2 = middle_out2[:,:-1,:,:] if explicit_nhwc else middle_out2[:,:,:-1,:]
+                fast_bottleneck.forward_conv_scale_bias_relu(
+                    [1,1], # strides
+                    pre_pads,
+                    post_pads,
+                    [1,1], # dilations
+                    explicit_nhwc,
+                    out1,
+                    w,
+                    z,
+                    b,
+                    middle_out2,
+                )
 
                 # synchronize streams
                 main_stream.wait_stream(side_streams[0])
@@ -388,7 +445,18 @@ class SpatialBottleneckFunction(torch.autograd.Function):
             # blocking halo exchange
             if spatial_method == 2:
                 main_stream.wait_stream(side_streams[0])
-                fast_bottleneck.forward_out2_pad(explicit_nhwc, stride_1x1, args, outputs, out1_pad)
+                fast_bottleneck.forward_conv_scale_bias_relu(
+                    [1,1], # strides
+                    [0,1], # pre-pads
+                    [0,1], # post-pads
+                    [1,1], # dilations
+                    explicit_nhwc,
+                    out1_pad,
+                    w,
+                    z,
+                    b,
+                    out2,
+                )
 
             # partial conv with halo correction
             if spatial_method == 3:
@@ -399,7 +467,6 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                 # halo correction
                 side_streams[0].wait_stream(main_stream)
                 side_streams[1].wait_stream(side_streams[0])
-                w = args[2]
                 if spatial_group_rank > 0:
                     with torch.cuda.stream(side_streams[0]):
                         top_out2_corr = fast_bottleneck.forward_out2_halo_corr(

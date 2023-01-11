@@ -6,17 +6,31 @@
 #include <cudnn_frontend.h>
 
 #include <iostream>
+#include <sstream>
 
 #ifdef DEBUG
-#define DEBUG_MSG(str) do { std::cout << str << std::endl; } while( false )
+#define DEBUG_MSG(msg)                                  \
+  do {                                                  \
+    std::stringstream DEBUG_MSG_ss;                     \
+    DEBUG_MSG_ss << __FILE__ << ":" << __LINE__ << ": " \
+                 << msg << std::endl;                   \
+    std::cout << DEBUG_MSG_ss.str() << std::flush;      \
+  } while (false)
 #else
-#define DEBUG_MSG(str) do { } while ( false )
+#define DEBUG_MSG(msg) do {} while (false)
 #endif
 
 #ifdef DEBUG_CUDNN
-#define DEBUG_CUDNN_MSG(buf, str) do { buf << str << std::endl; } while( false )
+#define DEBUG_CUDNN_MSG(buf, msg)                               \
+  do {                                                          \
+    std::stringstream DEBUG_CUDNN_MSG_ss;                       \
+    DEBUG_CUDNN_MSG_ss << __FILE__ << ":" << __LINE__ << ": "   \
+                       << msg << std::endl;                     \
+    buf << DEBUG_CUDNN_MSG_ss.str() << std::flush;              \
+  }                                                             \
+  while (false)
 #else
-#define DEBUG_CUDNN_MSG(buf, str) do { } while ( false )
+#define DEBUG_CUDNN_MSG(buf, msg) do {} while (false)
 #endif
 
 #define checkCudnnErr(...)                                                        \
@@ -51,6 +65,92 @@ void checkError(cudaError_t code, char const * func, const char *file, const int
     }
   }
 }
+
+namespace {
+
+void concat_strings_helper(std::ostringstream& oss) {}
+
+template <typename HeadT, typename... TailTs>
+void concat_strings_helper(std::ostringstream& oss,
+                           const HeadT& head,
+                           const TailTs&... tail) {
+  oss << head;
+  concat_strings_helper(oss, tail...);
+}
+
+template <typename... Ts>
+std::string concat_strings(const Ts&... args) {
+  std::ostringstream oss;
+  concat_strings_helper(oss, args...);
+  return oss.str();
+}
+
+void get_tensor_dims_and_strides(const at::Tensor& tensor,
+                                 std::vector<int64_t>& dims,
+                                 std::vector<int64_t>& strides,
+                                 bool explicit_nhwc=false) {
+  // Get tensor dimensions and strides
+  dims.clear();
+  strides.clear();
+  for (int64_t i = 0; i < tensor.dim(); ++i) {
+    dims.push_back(tensor.size(i));
+    strides.push_back(tensor.stride(i));
+  }
+
+  // Convert to NCHW format if needed
+  if (explicit_nhwc) {
+    auto channel_dim = dims.back();
+    auto channel_stride = strides.back();
+    dims.pop_back();
+    strides.pop_back();
+    dims.insert(dims.begin()+1, channel_dim);
+    strides.insert(strides.begin()+1, channel_stride);
+  }
+}
+
+cudnnDataType_t get_cudnn_data_type(const at::Tensor& tensor) {
+  switch (tensor.scalar_type()) {
+  case at::kFloat:  return CUDNN_DATA_FLOAT;
+  case at::kDouble: return CUDNN_DATA_DOUBLE;
+  case at::kHalf:   return CUDNN_DATA_HALF;
+  default:
+    throw "unsupported tensor type";
+    return CUDNN_DATA_FLOAT;
+  }
+}
+
+
+cudnn_frontend::Tensor make_cudnn_tensor_desc(const std::vector<int64_t>& dims,
+                                              const std::vector<int64_t>& strides,
+                                              cudnnDataType_t data_type,
+                                              int64_t id,
+                                              bool is_virtual = false,
+                                              int64_t alignment=16) {
+  return cudnn_frontend::TensorBuilder()
+    .setDim(dims.size(), dims.data())
+    .setStrides(strides.size(), strides.data())
+    .setDataType(data_type)
+    .setId(id)
+    .setVirtual(is_virtual)
+    .setAlignment(alignment)
+    .build();
+}
+
+cudnn_frontend::Tensor make_cudnn_tensor_desc(const at::Tensor& tensor,
+                                              int64_t id,
+                                              bool explicit_nhwc=false,
+                                              int64_t alignment=16) {
+  std::vector<int64_t> dims, strides;
+  get_tensor_dims_and_strides(tensor, dims, strides, explicit_nhwc);
+  return make_cudnn_tensor_desc(dims,
+                                strides,
+                                get_cudnn_data_type(tensor),
+                                id,
+                                false,
+                                alignment);
+}
+
+} // namespace <anon>
 
 void generateStrides(const int64_t* dimA, int64_t* strideA, int nbDims, cudnnTensorFormat_t filterFormat) {
     // For INT8x4 and INT8x32 we still compute standard strides here to input
@@ -3108,6 +3208,188 @@ void bottleneck_forward_out1(bool explicit_nhwc, int stride_1X1, std::vector<at:
   DEBUG_MSG("[DEBUG] new relu1 : " << out1.to(at::kFloat).sum().item<float>());
 }
 
+void forward_conv_scale_bias_relu(std::vector<int64_t> conv_strides,
+                                  std::vector<int64_t> conv_pre_pads,
+                                  std::vector<int64_t> conv_post_pads,
+                                  std::vector<int64_t> conv_dilations,
+                                  bool explicit_nhwc,
+                                  at::Tensor input,
+                                  at::Tensor filter,
+                                  at::Tensor scale,
+                                  at::Tensor bias,
+                                  at::Tensor output) {
+  cudnnHandle_t handle = torch::native::getCudnnHandle();
+
+  // Intermediate tensors dims
+  std::vector<int64_t> intermediate_dims, intermediate_strides;
+  get_tensor_dims_and_strides(output,
+                              intermediate_dims,
+                              intermediate_strides,
+                              explicit_nhwc);
+
+  // Scale and bias tensor dims
+  std::vector<int64_t> scale_dims, scale_strides;
+  for (size_t i = 0; i < intermediate_dims.size(); ++i) {
+    scale_dims.push_back(i == 1 ? intermediate_dims[1] : 1);
+    scale_strides.push_back(i == 1 ? 1 : intermediate_dims[1]);
+  }
+
+  // Create tensor descriptors
+  auto x_desc = make_cudnn_tensor_desc(input, 'x', explicit_nhwc);
+  auto y_desc = make_cudnn_tensor_desc(output, 'y', explicit_nhwc);
+  auto w_desc = make_cudnn_tensor_desc(filter, 'w', explicit_nhwc);
+  auto z_desc = make_cudnn_tensor_desc(scale_dims,
+                                       scale_strides,
+                                       get_cudnn_data_type(scale),
+                                       'z');
+  auto b_desc = make_cudnn_tensor_desc(scale_dims,
+                                       scale_strides,
+                                       get_cudnn_data_type(bias),
+                                       'b');
+  DEBUG_MSG(concat_strings("x_desc = ",x_desc.describe()));
+  DEBUG_MSG(concat_strings("y_desc = ",y_desc.describe()));
+  DEBUG_MSG(concat_strings("w_desc = ",w_desc.describe()));
+  DEBUG_MSG(concat_strings("z_desc = ",z_desc.describe()));
+  DEBUG_MSG(concat_strings("b_desc = ",b_desc.describe()));
+
+  // Create convolution node
+  auto conv_desc = cudnn_frontend::ConvDescBuilder()
+    .setDataType(CUDNN_DATA_FLOAT)
+    .setMathMode(CUDNN_CROSS_CORRELATION)
+    .setNDims(conv_strides.size())
+    .setStrides(conv_strides.size(), conv_strides.data())
+    .setPrePadding(conv_pre_pads.size(), conv_pre_pads.data())
+    .setPostPadding(conv_post_pads.size(), conv_post_pads.data())
+    .setDilation(conv_dilations.size(), conv_dilations.data())
+    .build();
+  DEBUG_MSG(concat_strings("conv_desc = ",conv_desc.describe()));
+  auto conv_out_desc = make_cudnn_tensor_desc(intermediate_dims,
+                                              intermediate_strides,
+                                              CUDNN_DATA_FLOAT,
+                                              'A',
+                                              true);
+  DEBUG_MSG(concat_strings("conv_out_desc = ",conv_out_desc.describe()));
+  auto conv_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR)
+    .setxDesc(x_desc)
+    .setwDesc(w_desc)
+    .setyDesc(conv_out_desc)
+    .setcDesc(conv_desc)
+    .setAlpha(1.)
+    .setBeta(0.)
+    .build();
+  DEBUG_MSG(concat_strings("conv_op = ",conv_op.describe()));
+
+  // Create scale node
+  auto scale_desc = cudnn_frontend::PointWiseDescBuilder()
+    .setMode(CUDNN_POINTWISE_MUL)
+    .setMathPrecision(CUDNN_DATA_FLOAT)
+    .build();
+  DEBUG_MSG(concat_strings("scale_desc = ",scale_desc.describe()));
+  auto scale_out_desc = make_cudnn_tensor_desc(intermediate_dims,
+                                               intermediate_strides,
+                                               CUDNN_DATA_FLOAT,
+                                               'B',
+                                               true);
+  DEBUG_MSG(concat_strings("scale_out_desc = ",scale_out_desc.describe()));
+  auto scale_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+    .setxDesc(conv_op.getOutputTensor())
+    .setbDesc(z_desc)
+    .setyDesc(scale_out_desc)
+    .setpwDesc(scale_desc)
+    .build();
+  DEBUG_MSG(concat_strings("scale_op = ",scale_op.describe()));
+
+  // Create bias node
+  auto bias_desc = cudnn_frontend::PointWiseDescBuilder()
+    .setMode(CUDNN_POINTWISE_ADD)
+    .setMathPrecision(CUDNN_DATA_FLOAT)
+    .build();
+  DEBUG_MSG(concat_strings("bias_desc = ",bias_desc.describe()));
+  auto bias_out_desc = make_cudnn_tensor_desc(intermediate_dims,
+                                              intermediate_strides,
+                                              CUDNN_DATA_FLOAT,
+                                              'C',
+                                              true);
+  DEBUG_MSG(concat_strings("bias_out_desc = ",bias_out_desc.describe()));
+  auto bias_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+    .setxDesc(scale_op.getOutputTensor())
+    .setbDesc(b_desc)
+    .setyDesc(bias_out_desc)
+    .setpwDesc(bias_desc)
+    .build();
+  DEBUG_MSG(concat_strings("bias_op = ",bias_op.describe()));
+
+  // Create relu node
+  auto relu_desc = cudnn_frontend::PointWiseDescBuilder()
+    .setMode(CUDNN_POINTWISE_RELU_FWD)
+    .setMathPrecision(CUDNN_DATA_FLOAT)
+    .build();
+  DEBUG_MSG(concat_strings("relu_desc = ",relu_desc.describe()));
+  auto relu_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+    .setxDesc(bias_op.getOutputTensor())
+    .setyDesc(y_desc)
+    .setpwDesc(relu_desc)
+    .build();
+  DEBUG_MSG(concat_strings("relu_op = ",relu_op.describe()));
+
+  // Create operation graph
+  std::vector<cudnn_frontend::Operation const*> ops = {&conv_op,
+                                                       &scale_op,
+                                                       &bias_op,
+                                                       &relu_op};
+  auto op_graph = cudnn_frontend::OperationGraphBuilder()
+    .setHandle(handle)
+    .setOperationGraph(ops.size(), ops.data())
+    .build();
+
+  // Create string encoding for plan caching
+  std::vector<int64_t> input_dims, input_strides, filter_dims, filter_strides;
+  get_tensor_dims_and_strides(input, input_dims, input_strides, explicit_nhwc);
+  get_tensor_dims_and_strides(filter, filter_dims, filter_strides, explicit_nhwc);
+  auto cache_string = getConvFusionString(input_dims.data(),
+                                          conv_pre_pads.data(),
+                                          conv_strides.data(),
+                                          conv_dilations.data(),
+                                          filter_dims.data(),
+                                          get_cudnn_data_type(input),
+                                          op_graph.getTag());
+  DEBUG_MSG(concat_strings("convstring = ",cache_string));
+  std::stringstream log_buf;
+  auto& plan = getOrCreatePlan(handle, log_buf, op_graph, cache_string);
+  DEBUG_MSG(concat_strings("getOrCreatePlan log\n",log_buf.str()));
+  DEBUG_MSG(concat_strings("Plan tag = ", plan.getTag()));
+
+  // Allocate workspace
+  auto workspace_size = plan.getWorkspaceSize();
+  auto workspace_tensor = at::empty({workspace_size},
+                                    at::TensorOptions(at::kCUDA).dtype(at::kByte));
+  void* workspace_ptr = nullptr;
+  if (workspace_size > 0) {
+    workspace_ptr = workspace_tensor.data_ptr<uint8_t>();
+  }
+
+  // Create variant pack
+  std::vector<void*> data_ptrs = {input.data_ptr<at::Half>(),
+                                  output.data_ptr<at::Half>(),
+                                  filter.data_ptr<at::Half>(),
+                                  scale.data_ptr<at::Half>(),
+                                  bias.data_ptr<at::Half>()};
+  std::vector<int64_t> uids = {'x', 'y', 'w', 'z', 'b'};
+  auto variant_pack = cudnn_frontend::VariantPackBuilder()
+    .setWorkspacePointer(workspace_ptr)
+    .setDataPointers(data_ptrs.size(), data_ptrs.data())
+    .setUids(uids.size(), uids.data())
+    .build();
+  DEBUG_MSG(concat_strings("variant_pack = ", variant_pack.describe()));
+
+  // Launch computation
+  cudnnStatus_t status = cudnnBackendExecute(handle,
+                                             plan.get_raw_desc(),
+                                             variant_pack.get_raw_desc());
+  checkCudnnErr(status);
+  cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
+}
+
 // computes halo (top or bottom) from fat halo input.
 // fat halo input is 3 pixels wide in H.
 void bottleneck_forward_out2_halo(bool explicit_nhwc, at::Tensor fat_halo_y1, at::Tensor halo_y2, std::vector<at::Tensor> inputs) {
@@ -3153,7 +3435,7 @@ at::Tensor bottleneck_forward_out2_halo_corr(bool explicit_nhwc, at::Tensor slim
 
   at::Half* prev_out2 = out2_part_halo.data_ptr<at::Half>();
 
-  auto halo_y2 = at::empty(forward_state.outdim4, inputs[0].type(), output_format);
+  auto halo_y2 = at::empty(forward_state.outdim4, inputs[0].scalar_type(), output_format);
   at::Half* y2 = halo_y2.data_ptr<at::Half>();
 
   run_conv_add_scale_bias_activation(forward_state.outdimA4,
@@ -4030,7 +4312,6 @@ void bottleneck_backward_rest(bool explicit_nhwc, int stride_1X1, std::vector<at
   }
 
   DEBUG_MSG("[DEBUG] new dx : " << grad_x.to(at::kFloat).sum().item<float>());
-  DEBUG_MSG("[DEBUG] new wgrad1 : " << wgrad1.to(at::kFloat).sum().item<float>());
 
   if (stride_1X1 != 1 || backward_state.filterdimA3[0] != backward_state.dimA[1]) {
     DEBUG_MSG("[DEBUG] new wgrad4 : " << wgrad4.to(at::kFloat).sum().item<float>());
@@ -4048,6 +4329,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward_out2_halo_corr", &bottleneck_forward_out2_halo_corr, "Bottleneck block forward");
   m.def("forward_out2_pad", &bottleneck_forward_out2_pad, "Bottleneck block forward");
   m.def("forward_rest", &bottleneck_forward_rest, "Bottleneck block forward");
+  m.def("forward_conv_scale_bias_relu", &forward_conv_scale_bias_relu, "Convolution, scale, bias, ReLU");
   m.def("backward_init", &bottleneck_backward_init, "Bottleneck block backward init");
   m.def("backward_grad_out2", &bottleneck_backward_grad_out2, "Bottleneck block backward");
   m.def("backward_grad_out1", &bottleneck_backward_grad_out1, "Bottleneck block backward");
