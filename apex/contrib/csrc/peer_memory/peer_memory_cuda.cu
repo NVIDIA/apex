@@ -132,7 +132,7 @@ void tensor_strides(at::Tensor t, bool explicit_nhwc, int& stride_N, int& stride
             stride_W = t.stride(3);
         }
     } else {
-        printf("%s;%d - t.dim() must be either 3 or 4 (was %d)\n",__FILE__,__LINE__,t.dim());
+        printf("%s;%d - t.dim() must be either 3 or 4 (was %d)\n",__FILE__,__LINE__,int(t.dim()));
         assert(t.dim() == 3 || t.dim() == 4);
     }
 }

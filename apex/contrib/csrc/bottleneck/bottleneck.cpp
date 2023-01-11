@@ -2100,7 +2100,7 @@ run_conv_add_scale_bias_activation(int64_t* x_dim_padded,
 				   at::Half* devPtrY,
 				   at::Half* devPtrZ,
 				   at::Half* devPtrB,
-				   at::Half* devPtrI) {
+                                   at::Half* devPtrI) {
     cudnnHandle_t handle_ = torch::native::getCudnnHandle();
     std::stringstream log_buf;
     try {
@@ -3110,7 +3110,7 @@ void bottleneck_forward_out1(bool explicit_nhwc, int stride_1X1, std::vector<at:
 
 // computes halo (top or bottom) from fat halo input.
 // fat halo input is 3 pixels wide in H.
-at::Tensor bottleneck_forward_out2_halo(bool explicit_nhwc, at::Tensor fat_halo_y1, std::vector<at::Tensor> inputs) {
+void bottleneck_forward_out2_halo(bool explicit_nhwc, at::Tensor fat_halo_y1, at::Tensor halo_y2, std::vector<at::Tensor> inputs) {
 
   auto output_format = explicit_nhwc ? at::MemoryFormat::Contiguous : at::MemoryFormat::ChannelsLast;
 
@@ -3118,10 +3118,8 @@ at::Tensor bottleneck_forward_out2_halo(bool explicit_nhwc, at::Tensor fat_halo_
   at::Half* w = inputs[2].data_ptr<at::Half>();
   at::Half* z = inputs[5].data_ptr<at::Half>();
   at::Half* b = inputs[8].data_ptr<at::Half>();
-  
-  at::Half* y1 = fat_halo_y1.data_ptr<at::Half>();
 
-  auto halo_y2 = at::empty(forward_state.outdim4, inputs[0].type(), output_format);
+  at::Half* y1 = fat_halo_y1.data_ptr<at::Half>();
   at::Half* y2 = halo_y2.data_ptr<at::Half>();
 
   run_conv_scale_bias_add_activation(forward_state.outdimA0,
@@ -3138,7 +3136,6 @@ at::Tensor bottleneck_forward_out2_halo(bool explicit_nhwc, at::Tensor fat_halo_
                                      b,
                                      nullptr);
 
-  return halo_y2;
 }
 
 // compute halo correction term (top or bottom) from slim halo input (N,C,1,W).
@@ -3171,8 +3168,7 @@ at::Tensor bottleneck_forward_out2_halo_corr(bool explicit_nhwc, at::Tensor slim
                                      y2,
                                      z,
                                      b,
-				     prev_out2);
-
+                                     prev_out2);
   return halo_y2;
 }
 
@@ -3578,7 +3574,7 @@ void bottleneck_backward_wgrad3(bool explicit_nhwc, int stride_1X1, std::vector<
 
 }
 
-at::Tensor bottleneck_backward_grad_out2(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs) {
+void bottleneck_backward_grad_out2(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2) {
 
   bool requires_grad = inputs[0].requires_grad();
 
@@ -3592,7 +3588,6 @@ at::Tensor bottleneck_backward_grad_out2(bool explicit_nhwc, int stride_1X1, std
   DEBUG_MSG("[DEBUG] new dconv3 : " << inputs[10].to(at::kFloat).sum().item<float>());
 
   // dgrad
-  auto grad_out2 = at::empty(backward_state.outdim2, inputs[0].type(), output_format);
   at::Half* dy2 = grad_out2.data_ptr<at::Half>();
   at::Half* w = inputs[3].data_ptr<at::Half>();
   at::Half* z = inputs[5].data_ptr<at::Half>();
@@ -3615,11 +3610,9 @@ at::Tensor bottleneck_backward_grad_out2(bool explicit_nhwc, int stride_1X1, std
   // do halo exchange of dy2 here
 
   DEBUG_MSG("[DEBUG] new dconv2 : " << grad_out2.to(at::kFloat).sum().item<float>());
-
-  return grad_out2;
 }
 
-at::Tensor bottleneck_backward_grad_out1(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2) {
+void bottleneck_backward_grad_out1(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2, at::Tensor grad_out1) {
 
   bool requires_grad = inputs[0].requires_grad();
 
@@ -3630,7 +3623,6 @@ at::Tensor bottleneck_backward_grad_out1(bool explicit_nhwc, int stride_1X1, std
   at::Half* dy2 = grad_out2.data_ptr<at::Half>();
 
   // dgrad
-  auto grad_out1 = at::empty(backward_state.outdim1, inputs[0].type(), output_format);
   at::Half* dy1 = grad_out1.data_ptr<at::Half>();
   at::Half* w = inputs[2].data_ptr<at::Half>();
   at::Half* z = inputs[4].data_ptr<at::Half>();
@@ -3652,8 +3644,6 @@ at::Tensor bottleneck_backward_grad_out1(bool explicit_nhwc, int stride_1X1, std
                          dy2,
                          z,
                          relu1);
-
-  return grad_out1;
 }
 
 at::Tensor bottleneck_backward_grad_out1_mask(bool explicit_nhwc, int stride_1X1, std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs, at::Tensor grad_out2, at::Tensor thresholdTop, at::Tensor thresholdBottom) {
@@ -3824,7 +3814,7 @@ void bottleneck_backward_wgrad2(bool explicit_nhwc, int stride_1X1, std::vector<
   // wgrad
   auto wgrad2 = outputs[2];
   at::Half* dw2 = wgrad2.data_ptr<at::Half>();
-  
+
   //printf("outdimA1 = (%d,%d,%d,%d)\n",backward_state.outdimA1[0],backward_state.outdimA1[1],backward_state.outdimA1[2],backward_state.outdimA1[3]);
   run_dconv(backward_state.outdimA1,
             backward_state.padA1,

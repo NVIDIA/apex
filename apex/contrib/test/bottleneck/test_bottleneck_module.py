@@ -232,7 +232,7 @@ def main():
     explicit_nhwc = True
 
     dtype = torch.float16
-    N, C, H, W = 1, 64, 200, 336
+    N, C, H, W = 1, 16, 64, 16
     Hs = ((H + 8 * world_size - 1) // (8 * world_size)) * 8
     H = Hs * world_size
     gt_bottleneck = ground_truth_bottleneck(C, dtype, explicit_nhwc)
@@ -288,7 +288,7 @@ class TestBottleneck(NcclDistributedTestBase):
     def test_bottleneck_without_peer_memory(self) -> None:
         explicit_nhwc: bool = True
         dtype: torch.dtype = torch.float16
-        N, C, H, W = 1, 64, 200, 336
+        N, C, H, W = 1, 16, 64, 16
         Hs = ((H + 8 * self.world_size - 1) // (8 * self.world_size)) * 8
         H = Hs * self.world_size
 
@@ -300,10 +300,9 @@ class TestBottleneck(NcclDistributedTestBase):
         self.assertEqual(gt, bt, **self.fp16_tolerance)
 
     def test_bottleneck_with_peer_memory(self, spatial_method=1) -> None:
-
         explicit_nhwc: bool = True
         dtype: torch.dtype = torch.float16
-        N, C, H, W = 1, 64, 200, 336
+        N, C, H, W = 1, 16, 64, 16
         Hs = ((H + 8 * self.world_size - 1) // (8 * self.world_size)) * 8
         H = Hs * self.world_size
 
