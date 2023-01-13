@@ -201,36 +201,145 @@ def norm_fusion_forward(
     return x_normed, mean, invstd
 
 
-def batch_norm_fusion_forward(*args, **kwargs):
+def norm_fusion_backward(
+    fd: FusionDefinition,
+    x: Tensor,
+    grad_output: Tensor,
+    mean: Optional[torch.Tensor],
+    invstd: torch.Tensor,
+    inputs: List[torch.Tensor],
+    weight: Optional[Tensor],
+    bias: Optional[Tensor],
+    running_mean: Optional[Tensor],
+    running_var: Optional[Tensor],
+    use_input_stats: bool,
+    channels_last: bool,
+    x_datatype: DataType,
+    extent: torch.Size,
+    *,
+    stat_axes: List[NamedAxis],
+) -> Tuple[Tensor, Tensor, Tensor]:
     """
-    Batch normalization layer definition in given `FusionDefinition`.
+    Modify FusionDefinition to add a generic normalization layer (backward).
 
-    See :fun:'norm_fusion_forward'.
+    Args:
+        fd: An initialized FusionDefinition.
+        x: An input NVFuser tensor.
+        weight: If given, multiply normed output by this `Tensor`. It should be
+            one-dimensional if `NamedAxis.CHANNEL` is in `stat_axes`, and
+            zero-dimensional otherwise. It will be broadcast along all other
+            dimensions.
+        bias: If given, add this `Tensor` to normed output. It should be
+            one-dimensional if `NamedAxis.CHANNEL` is in `stat_axes`, and
+            zero-dimensional otherwise. It will be broadcast along all other
+            dimensions.
+        running_mean: If given, a running mean estimate that will be modified
+            in place.
+        running_var: If given, a running variance estimate that will be
+            modified in place.
+        invstd: The reciprocal of standard deviation used in the forward normalization.
+        channels_last: Whether channels are in position -1 (`True`) or 1
+            (`False`).
+        x_datatype: :class:'DataType' of input :class:'Tensor' `x`
+        extent: Size of the input.
+        stat_axes: A list of `NamedAxis` objects indicating a combination of
+            axes with which to index the computed statistics. This can be used
+            to implement multiple types of normalization layers, since most of
+            those differ only in which axes are reduced over.
+    Returns:
+        The normalized output, as well as mean and 1/std. Note that
+        `fd.add_output` is _not_ called by this function.
     """
-    return norm_fusion_forward(*args, stat_axes=[NamedAxis.CHANNEL], **kwargs)
+    assert not (
+        (running_var is None) ^ (running_mean is None)
+    ), "Iff running mean or var is given, the other should be"
 
+    batch_dim = 0
+    num_dims = len(extent)
+    channel_dim = num_dims - 1 if channels_last else 1
 
-def layer_norm_fusion_forward(*args, **kwargs):
-    """
-    Layer normalization layer definition in given `FusionDefinition`.
+    stat_dims = []
+    # Running stats will be kept possibly for channel but never by instance, so
+    # we will reduce along batch_dim before updating running stats.
+    stat_dims_nobatch = []
+    num_stats = 1
+    if NamedAxis.BATCH in stat_axes:
+        stat_dims.append(batch_dim)
+        num_stats *= extent[batch_dim]
+    if NamedAxis.CHANNEL in stat_axes:
+        stat_dims.append(channel_dim)
+        stat_dims_nobatch.append(channel_dim)
+        num_stats *= extent[channel_dim]
+    x_reduction_axes = [ax for ax in range(num_dims) if ax not in stat_dims]
+    num_features = extent.numel() // num_stats
 
-    See :fun:'norm_fusion_forward'.
-    """
-    return norm_fusion_forward(*args, stat_axes=[NamedAxis.BATCH], **kwargs)
+    batch_size = fd.define_constant(extent[batch_dim])
 
+    mean = fd.ops.broadcast_in_dim(mean, extent, [batch_dim, channel_dim])
 
-def instance_norm_fusion_forward(*args, **kwargs):
-    """
-    Instance normalization layer definition in given `FusionDefinition`.
-
-    See :fun:'norm_fusion_forward'.
-    """
-    return norm_fusion_forward(
-        *args, stat_axes=[NamedAxis.BATCH, NamedAxis.CHANNEL], **kwargs
+    norm = fd.define_constant(1.0 / num_features)
+    grad_output_sum = fd.ops.sum(grad_output, x_reduction_axes)
+    dot_p = fd.ops.sum(
+        fd.ops.mul(
+            grad_output,
+            fd.ops.sub(x, mean),
+        ),
+        x_reduction_axes,
+    )
+    grad_mean = fd.ops.broadcast_in_dim(
+        fd.ops.mul(grad_output_sum, norm),
+        extent,
+        [batch_dim, channel_dim],
+    )
+    proj_scale = fd.ops.broadcast_in_dim(
+        fd.ops.mul(
+            fd.ops.mul(dot_p, norm),
+            fd.ops.mul(invstd, invstd),
+        ),
+        extent,
+        [batch_dim, channel_dim],
     )
 
+    invstd_bcast = fd.ops.broadcast_in_dim(
+        invstd,
+        extent,
+        [batch_dim, channel_dim],
+    )
+    grad_scale = (
+        invstd_bcast
+        if weight is None
+        else fd.ops.mul(
+            invstd_bcast,
+            fd.ops.broadcast_in_dim(weight, extent, [0]),
+        )
+    )
+    if use_input_stats:
+        proj = fd.ops.mul(fd.ops.sub(x, mean), proj_scale)
+        grad_input = fd.ops.mul(
+            fd.ops.sub(
+                fd.ops.sub(grad_output, proj),
+                grad_mean,
+            ),
+            grad_scale,
+        )
+    else:
+        grad_input = fd.ops.mul(grad_output, grad_scale)
 
-class InstanceNormNVFuserFunction(torch.autograd.Function):
+    if weight is not None:
+        grad_weight = fd.ops.mul(dot_p, invstd)
+        grad_weight_reduced = fd.ops.sum(grad_weight, [0])
+    else:
+        grad_weight_reduced = None
+    if bias is not None:
+        grad_bias = grad_output_sum
+        grad_bias_reduced = fd.ops.sum(grad_bias, [0])
+    else:
+        grad_bias_reduced = None
+
+    return grad_input, grad_weight_reduced, grad_bias_reduced
+
+
+class NormNVFuserFunction(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx: Any,  # contexts are actually objects of the type we are currently defining
@@ -242,7 +351,8 @@ class InstanceNormNVFuserFunction(torch.autograd.Function):
         use_input_stats: bool,
         momentum: float,
         eps: float,
-        unbiased: bool = False,
+        unbiased: bool,
+        stat_axes: List[NamedAxis],
     ) -> torch.Tensor:
         channels_last = x.is_contiguous(
             memory_format=torch.channels_last
@@ -298,7 +408,7 @@ class InstanceNormNVFuserFunction(torch.autograd.Function):
             if bias is not None and bias.dtype in [torch.half, torch.bfloat16]:
                 tv_bias = fd.ops.cast(tv_bias, DataType.Float)
 
-            out, mean, invstd = instance_norm_fusion_forward(
+            out, mean, invstd = norm_fusion_forward(
                 fd,
                 tv_x,
                 tv_weight,
@@ -312,6 +422,7 @@ class InstanceNormNVFuserFunction(torch.autograd.Function):
                 x_datatype=x_datatype,
                 extent=x.shape,
                 unbiased=unbiased,
+                stat_axes=stat_axes,
             )
 
             if x_datatype in [DataType.Half, DataType.BFloat16]:
@@ -325,8 +436,8 @@ class InstanceNormNVFuserFunction(torch.autograd.Function):
 
         out, mean, invstd = fs.execute(inputs)
 
+        ctx.stat_axes = stat_axes
         ctx.use_input_stats = use_input_stats
-        ctx.eps = eps
         ctx.channels_last = channels_last
         # saving for backward in "explicit channels-last format"
         ctx.save_for_backward(x, weight, bias, running_mean, running_var, mean, invstd)
@@ -346,7 +457,9 @@ class InstanceNormNVFuserFunction(torch.autograd.Function):
     @staticmethod
     def backward(
         ctx: Any, grad_output: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, None, None, None, None, None,]:
+    ) -> Tuple[
+        torch.Tensor, torch.Tensor, torch.Tensor, None, None, None, None, None, None
+    ]:
         """
         Instance norm backward using NVFuser
         """
@@ -358,120 +471,77 @@ class InstanceNormNVFuserFunction(torch.autograd.Function):
         grad_output = grad_output.contiguous()
         x, weight, bias, running_mean, running_var, mean, invstd = ctx.saved_tensors
 
-        kBatchDim = 0
-        kNumberOfDims = x.ndim
-        kChannelsDim = kNumberOfDims - 1 if ctx.channels_last else 1
-        kTraining = ctx.use_input_stats
-        reduction_axes = [
-            axis
-            for axis in range(kNumberOfDims)
-            if axis not in [kBatchDim, kChannelsDim]
-        ]
-
         fs = Fusion()
         with FusionDefinition(fs) as fd:
             tv_x = fd.define_tensor(x.ndim, torch2datatype(x.dtype))
             inputs = [x]
             if weight is not None:
                 tv_weight = fd.define_tensor(weight.ndim, torch2datatype(weight.dtype))
-                inputs.extend([weight])
+                inputs.append(weight)
             else:
                 tv_weight = None
+            if bias is not None:
+                tv_bias = fd.define_tensor(bias.ndim, torch2datatype(bias.dtype))
+                inputs.append(bias)
+            else:
+                tv_bias = None
+            if running_mean is not None:
+                tv_running_mean = fd.define_tensor(
+                    running_mean.ndim, torch2datatype(running_mean.dtype)
+                )
+                inputs.append(running_mean)
+            else:
+                tv_running_mean = None
+            if running_var is not None:
+                tv_running_var = fd.define_tensor(
+                    running_var.ndim, torch2datatype(running_var.dtype)
+                )
+                inputs.append(running_var)
+            else:
+                tv_running_var = None
+
+            tv_mean = fd.define_tensor(mean.ndim, torch2datatype(mean.dtype))
+            inputs.append(mean)
+            tv_invstd = fd.define_tensor(invstd.ndim, torch2datatype(invstd.dtype))
+            inputs.append(invstd)
 
             tv_grad_output = fd.define_tensor(grad_output.ndim)
             inputs.append(grad_output)
 
-            if kTraining:
-                assert mean is not None and invstd is not None
-                tv_mean = fd.define_tensor(mean.ndim)
-                inputs.append(mean)
-                tv_invstd = fd.define_tensor(invstd.ndim)
-                inputs.append(invstd)
-            else:
-                tv_running_mean = fd.define_tensor(running_mean.ndim)
-                inputs.append(running_mean)
-                tv_running_var = fd.define_tensor(running_var.ndim)
-                inputs.append(running_var)
-                c_eps = fd.define_constant(DataType.Double, ctx.eps)
-
-                tv_mean = tv_running_mean
-                tv_invstd = fd.ops.rsqrt(fd.ops.add(tv_running_var, c_eps))
-
-            tv_mean = fd.ops.broadcast_in_dim(
-                tv_mean, x.shape, [kBatchDim, kChannelsDim]
-            )
-
-            num_features = x.numel() // (x.shape[kBatchDim] * x.shape[kChannelsDim])
-
-            norm = fd.define_constant(1.0 / num_features)
-            grad_output_sum = fd.ops.sum(tv_grad_output, reduction_axes)
-            dot_p = fd.ops.sum(
-                fd.ops.mul(
-                    tv_grad_output,
-                    fd.ops.sub(tv_x, tv_mean),
-                ),
-                reduction_axes,
-            )
-            grad_mean = fd.ops.broadcast_in_dim(
-                fd.ops.mul(grad_output_sum, norm),
-                x.shape,
-                [kBatchDim, kChannelsDim],
-            )
-            proj_scale = fd.ops.broadcast_in_dim(
-                fd.ops.mul(
-                    fd.ops.mul(dot_p, norm),
-                    fd.ops.mul(tv_invstd, tv_invstd),
-                ),
-                x.shape,
-                [kBatchDim, kChannelsDim],
-            )
-
-            invstd_bcast = fd.ops.broadcast_in_dim(
-                tv_invstd,
-                x.shape,
-                [kBatchDim, kChannelsDim],
-            )
-            grad_scale = (
-                invstd_bcast
-                if weight is None
-                else fd.ops.mul(
-                    invstd_bcast,
-                    fd.ops.broadcast_in_dim(tv_weight, x.shape, [0]),
-                )
-            )
-            if kTraining:
-                proj = fd.ops.mul(fd.ops.sub(tv_x, tv_mean), proj_scale)
-                grad_input = fd.ops.mul(
-                    fd.ops.sub(
-                        fd.ops.sub(tv_grad_output, proj),
-                        grad_mean,
-                    ),
-                    grad_scale,
-                )
-            else:
-                grad_input = fd.ops.mul(tv_grad_output, grad_scale)
-
             x_datatype = torch2datatype(x.dtype)
+
+            grad_input, grad_weight, grad_bias = norm_fusion_backward(
+                fd,
+                tv_x,
+                tv_grad_output,
+                tv_mean,
+                tv_invstd,
+                inputs,
+                tv_weight,
+                tv_bias,
+                tv_running_mean,
+                tv_running_var,
+                ctx.use_input_stats,
+                ctx.channels_last,
+                x_datatype=x_datatype,
+                extent=x.shape,
+                stat_axes=ctx.stat_axes,
+            )
+
             if x_datatype in [DataType.Half, DataType.BFloat16]:
-                fd.add_output(fd.ops.cast(grad_input, x_datatype))
-            else:
-                fd.add_output(grad_input)
+                grad_input = fd.ops.cast(grad_input, x_datatype)
+            fd.add_output(grad_input)
 
             if weight is not None:
-                grad_weight = fd.ops.mul(dot_p, tv_invstd)
-                grad_weight_reduced = fd.ops.sum(grad_weight, [0])
                 if x_datatype in [DataType.Half, DataType.BFloat16]:
-                    fd.add_output(fd.ops.cast(grad_weight_reduced, x_datatype))
-                else:
-                    fd.add_output(grad_weight_reduced)
+                    grad_weight = fd.ops.cast(grad_weight, x_datatype)
+                fd.add_output(grad_weight)
 
             if bias is not None:
-                grad_bias = grad_output_sum
-                grad_bias_reduced = fd.ops.sum(grad_bias, [0])
                 if x_datatype in [DataType.Half, DataType.BFloat16]:
-                    fd.add_output(fd.ops.cast(grad_bias_reduced, x_datatype))
+                    grad_bias = fd.ops.cast(grad_bias, x_datatype)
                 else:
-                    fd.add_output(grad_bias_reduced)
+                    fd.add_output(grad_bias)
 
         res = fs.execute(inputs)
         grad_input = res[0]
@@ -498,10 +568,23 @@ class InstanceNormNVFuserFunction(torch.autograd.Function):
                 assert grad_input.is_contiguous(memory_format=torch.channels_last_3d)
             else:
                 assert False, "unhandled channels_last format variation in backward"
-        return grad_input, grad_weight, grad_bias, None, None, None, None, None, None
+        return (
+            grad_input,
+            grad_weight,
+            grad_bias,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
 
 
-class _InstanceNormNVFuser(_NormBase):
+class _NormNVFuserBase(_NormBase):
+    stat_axes = None
+
     def __init__(
         self,
         num_features: int,
@@ -513,7 +596,7 @@ class _InstanceNormNVFuser(_NormBase):
         dtype=None,
     ) -> None:
         factory_kwargs = {"device": device, "dtype": dtype}
-        super(_InstanceNormNVFuser, self).__init__(
+        super().__init__(
             num_features, eps, momentum, affine, track_running_stats, **factory_kwargs
         )
 
@@ -558,7 +641,7 @@ class _InstanceNormNVFuser(_NormBase):
                 for key in running_stats_keys:
                     state_dict.pop(key)
 
-        super(_InstanceNormNVFuser, self)._load_from_state_dict(
+        super()._load_from_state_dict(
             state_dict,
             prefix,
             local_metadata,
@@ -571,7 +654,7 @@ class _InstanceNormNVFuser(_NormBase):
     def forward(self, input: Tensor) -> Tensor:
         assert input.is_cuda, "NVFuser InstanceNorm is CUDA only"
         self._check_input_dim(input)
-        out = InstanceNormNVFuserFunction.apply(
+        out = NormNVFuserFunction.apply(
             input,
             self.weight,
             self.bias,
@@ -580,8 +663,34 @@ class _InstanceNormNVFuser(_NormBase):
             self.training or not self.track_running_stats,
             self.momentum,
             self.eps,
+            False,
+            self.stat_axes,
         )
         return out
+
+
+class _InstanceNormNVFuser(_NormNVFuserBase):
+    stat_axes = [NamedAxis.BATCH, NamedAxis.CHANNEL]
+
+
+class _BatchNormNVFuser(_NormNVFuserBase):
+    stat_axes = [NamedAxis.CHANNEL]
+
+
+class _LayerNormNVFuser(_NormNVFuserBase):
+    stat_axes = [NamedAxis.BATCH]
+
+
+class InstanceNorm1dNVFuser(_InstanceNormNVFuser):
+    def _check_input_dim(self, input):
+        if input.dim() != 3:
+            raise ValueError("expected 3D input (got {}D input)".format(input.dim()))
+
+
+class InstanceNorm2dNVFuser(_InstanceNormNVFuser):
+    def _check_input_dim(self, input):
+        if input.dim() != 4:
+            raise ValueError("expected 4D input (got {}D input)".format(input.dim()))
 
 
 class InstanceNorm3dNVFuser(_InstanceNormNVFuser):
