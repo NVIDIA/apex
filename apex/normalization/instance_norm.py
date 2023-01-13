@@ -7,9 +7,6 @@ from torch.nn.modules.batchnorm import _NormBase
 from nvfuser._C import DataType, Fusion, FusionDefinition, Scalar, Tensor
 
 
-__all__ = ["InstanceNormNVFuserFunction", "InstanceNorm3dNVFuser"]
-
-
 NamedAxis = Enum("NamedAxis", ["BATCH", "CHANNEL"])
 
 
@@ -225,6 +222,12 @@ def norm_fusion_backward(
     Args:
         fd: An initialized FusionDefinition.
         x: An input NVFuser tensor.
+        grad_output: NVFuser tensor representing gradient of loss with respect
+            to downstream activation (typical input to backward()).
+        mean: The mean used in the forward normalization.
+        invstd: The reciprocal of standard deviation used in the forward normalization.
+        inputs: A list of :class:'torch.Tensor' inputs to the
+            `FusionDefinition` `fd`.
         weight: If given, multiply normed output by this `Tensor`. It should be
             one-dimensional if `NamedAxis.CHANNEL` is in `stat_axes`, and
             zero-dimensional otherwise. It will be broadcast along all other
@@ -237,7 +240,8 @@ def norm_fusion_backward(
             in place.
         running_var: If given, a running variance estimate that will be
             modified in place.
-        invstd: The reciprocal of standard deviation used in the forward normalization.
+        use_input_stats: Whether to compute the stats of this batch or to
+            _only_ use the provided running_mean and running_var.
         channels_last: Whether channels are in position -1 (`True`) or 1
             (`False`).
         x_datatype: :class:'DataType' of input :class:'Tensor' `x`
