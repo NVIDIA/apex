@@ -12,7 +12,7 @@ from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
 import distributed_adam_cuda
 
-# Fallback to private functions if using older PyTorch version
+# Fallback to private functions if using PyTorch <1.13.0
 try:
     from torch.distributed.distributed_c10d import get_global_rank
 except ImportError:
@@ -29,6 +29,16 @@ except ImportError:
     from torch.distributed.distributed_c10d import _all_gather_base
     all_gather_into_tensor = _all_gather_base
 
+# Add args to coalescing manager if using PyTorch <=1.13.1
+from torch.distributed.distributed_c10d import _coalescing_manager
+if 'device' not in inspect.signature(_coalescing_manager).parameters.keys():
+    _coalescing_manager_nodevice = _coalescing_manager
+    @contextlib.contextmanager
+    def _coalescing_manager(group, device, reqs):
+        with _coalescing_manager_nodevice(group, reqs):
+            yield
+
+# Import optional CUDA kernels
 _FOUND_DEPRECATED_FUSED_ADAM = False
 try:
     import fused_adam_cuda
@@ -1007,19 +1017,18 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     bucket.sync_wait()
                 sync_requests = []
                 group = self.distributed_process_group
-                group._start_coalescing()
-                for bucket in buckets:
-                    bucket.sync_request = (
-                        reduce_scatter_tensor(
-                            bucket.sync_grads_shard,
-                            bucket.grads_bucket,
-                            op=reduce_op,
-                            group=group,
-                            async_op=True,
+                with _coalescing_manager(group, self.device, sync_requests):
+                    for bucket in buckets:
+                        bucket.sync_request = (
+                            reduce_scatter_tensor(
+                                bucket.sync_grads_shard,
+                                bucket.grads_bucket,
+                                op=reduce_op,
+                                group=group,
+                                async_op=True,
+                            )
                         )
-                    )
-                    sync_requests.append(bucket.sync_request)
-                group._end_coalescing(sync_requests)
+                        sync_requests.append(bucket.sync_request)
 
         # All-reduce over redundant process group
         if self.redundant_size > 1:
@@ -1028,18 +1037,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     bucket.sync_wait()
                 sync_requests = []
                 group = self.redundant_process_group
-                group._start_coalescing()
-                for bucket in buckets:
-                    bucket.sync_request = (
-                        torch.distributed.all_reduce(
-                            bucket.sync_grads_shard,
-                            op=reduce_op,
-                            group=group,
-                            async_op=True,
+                with _coalescing_manager(group, self.device, sync_requests):
+                    for bucket in buckets:
+                        bucket.sync_request = (
+                            torch.distributed.all_reduce(
+                                bucket.sync_grads_shard,
+                                op=reduce_op,
+                                group=group,
+                                async_op=True,
+                            )
                         )
-                    )
-                    sync_requests.append(bucket.sync_request)
-                group._end_coalescing(sync_requests)
+                        sync_requests.append(bucket.sync_request)
 
     def _finish_bucket_grad_sync(self):
         """Wait for any gradient synchronizations that are in progress"""
