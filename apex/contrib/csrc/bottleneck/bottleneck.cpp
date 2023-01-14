@@ -8,10 +8,6 @@
 #include <iostream>
 #include <sstream>
 
-/// TODO Remove
-#define DEBUG 1
-#define DEBUG_CUDNN 1
-
 #ifdef DEBUG
 #define DEBUG_MSG(msg)                                  \
   do {                                                  \

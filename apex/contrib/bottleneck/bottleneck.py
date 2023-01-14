@@ -473,7 +473,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                             explicit_nhwc,
                             top_out1_recv,
                             args,
-                            w[:,:1,:,:].clone(),
+                            w2[:,:1,:,:].clone(),
                             top_out2,
                         )
                         top_out2.copy_(top_out2_corr)
@@ -483,7 +483,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                             explicit_nhwc,
                             btm_out1_recv,
                             args,
-                            w[:,-1:,:,:].clone(),
+                            w2[:,-1:,:,:].clone(),
                             btm_out2,
                         )
                         btm_out2.copy_(btm_out2_corr)
@@ -648,8 +648,8 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                             top_out1 = out1[:,:,:1,:]
                         fast_bottleneck.dconv_drelu_dscale(
                             [1,1], # strides
-                            [1,1], # pre-pads
-                            [1,1], # post-pads,
+                            [2,1], # pre-pads
+                            [2,1], # post-pads,
                             [1,1], # dilations
                             explicit_nhwc,
                             top_grad_out2_fat,
@@ -668,8 +668,8 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                             btm_out1 = out1[:,:,-1:,:]
                         fast_bottleneck.dconv_drelu_dscale(
                             [1,1], # strides
-                            [1,1], # pre-pads
-                            [1,1], # post-pads,
+                            [2,1], # pre-pads
+                            [2,1], # post-pads,
                             [1,1], # dilations
                             explicit_nhwc,
                             btm_grad_out2_fat,
@@ -688,21 +688,21 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                 middle_out1 = out1
                 middle_grad_out1 = grad_out1
                 if spatial_group_rank > 0:
-                    pre_pads[0] = 0
+                    pre_pads[0] = 2
                     if explicit_nhwc:
-                        middle_out1 = middle_out2[:,1:,:,:]
-                        middle_grad_out1 = middle_grad_out2[:,1:,:,:]
+                        middle_out1 = middle_out1[:,1:,:,:]
+                        middle_grad_out1 = middle_grad_out1[:,1:,:,:]
                     else:
-                        middle_out1 = middle_out2[:,:,1:,:]
-                        middle_grad_out1 = middle_grad_out2[:,:,1:,:]
+                        middle_out1 = middle_out1[:,:,1:,:]
+                        middle_grad_out1 = middle_grad_out1[:,:,1:,:]
                 if spatial_group_rank < spatial_group_size-1:
-                    post_pads[0] = 0
+                    post_pads[0] = 2
                     if explicit_nhwc:
-                        middle_out1 = middle_out2[:,:-1,:,:]
-                        middle_grad_out1 = middle_grad_out2[:,:-1,:,:]
+                        middle_out1 = middle_out1[:,:-1,:,:]
+                        middle_grad_out1 = middle_grad_out1[:,:-1,:,:]
                     else:
-                        middle_out1 = middle_out2[:,:,:-1,:]
-                        middle_grad_out1 = middle_grad_out2[:,:,:-1,:]
+                        middle_out1 = middle_out1[:,:,:-1,:]
+                        middle_grad_out1 = middle_grad_out1[:,:,:-1,:]
                 fast_bottleneck.dconv_drelu_dscale(
                     [1,1], # strides
                     pre_pads,
@@ -725,8 +725,8 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                 main_stream.wait_stream(halo_streams[0])
                 fast_bottleneck.dconv_drelu_dscale(
                     [1,1], # strides
-                    [0,1], # pre-pads
-                    [0,1], # post-pads,
+                    [2,1], # pre-pads
+                    [2,1], # post-pads,
                     [1,1], # dilations
                     explicit_nhwc,
                     grad_out2_pad,
