@@ -379,7 +379,7 @@ _backward_fusion_cache: Dict[
 ] = {}
 
 
-class NormNVFuserFunction(torch.autograd.Function):
+class NormNVFuserFunction(torch.autograd.Function):  # type: ignore
     @staticmethod
     def forward(
         ctx: Any,  # contexts are actually objects of the type we are currently defining
@@ -529,7 +529,16 @@ class NormNVFuserFunction(torch.autograd.Function):
     def backward(
         ctx: Any, grad_output: torch.Tensor
     ) -> Tuple[
-        torch.Tensor, torch.Tensor, torch.Tensor, None, None, None, None, None, None
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     ]:
         """
         Instance norm backward using NVFuser
@@ -682,8 +691,8 @@ class NormNVFuserFunction(torch.autograd.Function):
         )
 
 
-class _NormNVFuserBase(_NormBase):
-    stat_axes = None
+class _NormNVFuserBase(_NormBase):  # type: ignore
+    stat_axes: Optional[List[NamedAxis]] = None
 
     def __init__(
         self,
@@ -692,27 +701,27 @@ class _NormNVFuserBase(_NormBase):
         momentum: float = 0.1,
         affine: bool = False,
         track_running_stats: bool = False,
-        device=None,
-        dtype=None,
+        device: torch.device = None,
+        dtype: torch.dtype = None,
     ) -> None:
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__(
             num_features, eps, momentum, affine, track_running_stats, **factory_kwargs
         )
 
-    def _check_input_dim(self, input):
+    def _check_input_dim(self, input: torch.Tensor) -> None:
         raise NotImplementedError
 
     def _load_from_state_dict(
         self,
-        state_dict,
-        prefix,
-        local_metadata,
-        strict,
-        missing_keys,
-        unexpected_keys,
-        error_msgs,
-    ):
+        state_dict: Dict[str, Any],
+        prefix: str,
+        local_metadata: Any,
+        strict: bool,
+        missing_keys: List[str],
+        unexpected_keys: List[str],
+        error_msgs: List[str],
+    ) -> None:
         version = local_metadata.get("version", None)
         # at version 1: removed running_mean and running_var when
         # track_running_stats=False (default)
@@ -782,18 +791,18 @@ class _LayerNormNVFuser(_NormNVFuserBase):
 
 
 class InstanceNorm1dNVFuser(_InstanceNormNVFuser):
-    def _check_input_dim(self, input):
+    def _check_input_dim(self, input: torch.Tensor) -> None:
         if input.dim() != 3:
             raise ValueError("expected 3D input (got {}D input)".format(input.dim()))
 
 
 class InstanceNorm2dNVFuser(_InstanceNormNVFuser):
-    def _check_input_dim(self, input):
+    def _check_input_dim(self, input: torch.Tensor) -> None:
         if input.dim() != 4:
             raise ValueError("expected 4D input (got {}D input)".format(input.dim()))
 
 
 class InstanceNorm3dNVFuser(_InstanceNormNVFuser):
-    def _check_input_dim(self, input):
+    def _check_input_dim(self, input: torch.Tensor) -> None:
         if input.dim() != 5:
             raise ValueError("expected 5D input (got {}D input)".format(input.dim()))
