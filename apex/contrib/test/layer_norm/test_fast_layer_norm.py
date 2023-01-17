@@ -4,7 +4,7 @@ import torch
 
 SKIP_TEST = None
 try:
-    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+    from apex.contrib.layer_norm.layer_norm import FastLayerNorm, FastLayerNorm1p
     import fast_layer_norm as fln
 except ImportError as e:
     SKIP_TEST = e
@@ -277,18 +277,18 @@ class TestFastLayerNorm(unittest.TestCase):
             (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
         )
         input_shape = (512, 32, 768)
-        layer_norm = FastLayerNorm(input_shape[-1]).cuda()
         input = torch.randn(input_shape).cuda()
 
-        for dtype in autocast_dtypes:
-            layer_norm.zero_grad(set_to_none=True)
-            with self.subTest(f"autocast_dtype={dtype}"):
-                with torch.cuda.amp.autocast(enabled=True, dtype=dtype):
-                    out = layer_norm(input)
-                    self.assertEqual(dtype, out.dtype)
-                grad = torch.randn_like(out)
-                out.backward(grad)
-                self.assertEqual(torch.float32, layer_norm.weight.grad.dtype)
+        for layer_norm in [FastLayerNorm(input_shape[-1]).cuda(), FastLayerNorm1p(input_shape[-1]).cuda()]:
+            for dtype in autocast_dtypes:
+                layer_norm.zero_grad(set_to_none=True)
+                with self.subTest(f"autocast_dtype={dtype}"):
+                    with torch.cuda.amp.autocast(enabled=True, dtype=dtype):
+                        out = layer_norm(input)
+                        self.assertEqual(dtype, out.dtype)
+                    grad = torch.randn_like(out)
+                    out.backward(grad)
+                    self.assertEqual(torch.float32, layer_norm.weight.grad.dtype)
 
 
 if __name__ == "__main__":
