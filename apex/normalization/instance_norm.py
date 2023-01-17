@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 from torch.nn.modules.batchnorm import _NormBase
@@ -343,6 +343,42 @@ def norm_fusion_backward(
     return grad_input, grad_weight_reduced, grad_bias_reduced
 
 
+# The fusion caches for forward and backward evaluation map "keys" in the form
+# of tuples of parameters, to Fusion objects. These Fusion objects hold
+# FusionExecutorCache objects under the hood, which are able to repeatedly
+# execute a Fusion without redefining or rescheduling them.
+_forward_fusion_cache: Dict[
+    Tuple[
+        Tuple[NamedAxis, ...],
+        DataType,
+        DataType,
+        DataType,
+        DataType,
+        int,
+        bool,
+        bool,
+        bool,
+        bool,
+    ],
+    Fusion,
+] = {}
+_backward_fusion_cache: Dict[
+    Tuple[
+        Tuple[NamedAxis, ...],
+        DataType,
+        DataType,
+        DataType,
+        DataType,
+        int,
+        bool,
+        bool,
+        bool,
+        bool,
+    ],
+    Fusion,
+] = {}
+
+
 class NormNVFuserFunction(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -369,74 +405,105 @@ class NormNVFuserFunction(torch.autograd.Function):
 
         x_datatype = torch2datatype(x.dtype)
 
-        # execute fusion using Python API. Will be cached automatically
-        fs = Fusion()
-        with FusionDefinition(fs) as fd:
-            tv_x = fd.define_tensor(x.ndim, torch2datatype(x.dtype))
+        # The cache key for this Fusion definition. Misses will trigger redefinition and rescheduling.
+        key = (
+            tuple(stat_axes),  # convert to tuple to make hashable
+            x_datatype,
+            None if weight is None else torch2datatype(weight.dtype),
+            None if bias is None else torch2datatype(bias.dtype),
+            None if running_mean is None else torch2datatype(running_mean.dtype),
+            x.ndim,
+            channels_last,
+            running_mean is not None,
+            weight is not None,
+            bias is not None,
+        )
+        fs = _forward_fusion_cache.get(key)
+        if fs is None:  # cache miss
+            fs = Fusion()
+            with FusionDefinition(fs) as fd:
+                tv_x = fd.define_tensor(x.ndim, torch2datatype(x.dtype))
+                inputs = [x]
+                if weight is not None:
+                    tv_weight = fd.define_tensor(
+                        weight.ndim, torch2datatype(weight.dtype)
+                    )
+                    inputs.append(weight)
+                else:
+                    tv_weight = None
+
+                if bias is not None:
+                    tv_bias = fd.define_tensor(bias.ndim, torch2datatype(bias.dtype))
+                    inputs.append(bias)
+                else:
+                    tv_bias = None
+
+                if running_mean is None:
+                    tv_running_mean = None
+                    tv_running_var = None
+                else:
+                    assert running_var is not None
+                    tv_running_mean = fd.define_tensor(
+                        running_mean.ndim, torch2datatype(running_mean.dtype)
+                    )
+                    tv_running_var = fd.define_tensor(
+                        running_var.ndim, torch2datatype(running_var.dtype)
+                    )
+                    inputs.extend([running_mean, running_var])
+                    if running_mean.dtype in [torch.half, torch.bfloat16]:
+                        tv_running_mean = fd.ops.cast(tv_running_mean, DataType.Float)
+                    if running_var.dtype in [torch.half, torch.bfloat16]:
+                        tv_running_var = fd.ops.cast(tv_running_var, DataType.Float)
+
+                s_momentum = fd.define_scalar(DataType.Double)
+                s_eps = fd.define_scalar(DataType.Double)
+                inputs.extend([momentum, eps])
+
+                # cast inputs if necessary
+                if x_datatype in [DataType.Half, DataType.BFloat16]:
+                    tv_x = fd.ops.cast(tv_x, DataType.Float)
+                if weight is not None and weight.dtype in [torch.half, torch.bfloat16]:
+                    tv_weight = fd.ops.cast(tv_weight, DataType.Float)
+                if bias is not None and bias.dtype in [torch.half, torch.bfloat16]:
+                    tv_bias = fd.ops.cast(tv_bias, DataType.Float)
+
+                out, mean, invstd = norm_fusion_forward(
+                    fd,
+                    tv_x,
+                    tv_weight,
+                    tv_bias,
+                    tv_running_mean,
+                    tv_running_var,
+                    s_eps,
+                    use_input_stats,
+                    s_momentum,
+                    channels_last,
+                    x_datatype=x_datatype,
+                    extent=x.shape,
+                    unbiased=unbiased,
+                    stat_axes=stat_axes,
+                )
+
+                if x_datatype in [DataType.Half, DataType.BFloat16]:
+                    out = fd.ops.cast(out, x_datatype)
+                    mean = fd.ops.cast(mean, x_datatype)
+                    invstd = fd.ops.cast(invstd, x_datatype)
+
+                fd.add_output(out)
+                fd.add_output(mean)
+                fd.add_output(invstd)
+
+            _forward_fusion_cache[key] = fs
+        else:  # cache hit. define inputs to match above
             inputs = [x]
             if weight is not None:
-                assert bias is not None
-                tv_weight = fd.define_tensor(weight.ndim, torch2datatype(weight.dtype))
-                tv_bias = fd.define_tensor(bias.ndim, torch2datatype(bias.dtype))
-                inputs.extend([weight, bias])
-            else:
-                tv_weight = None
-                tv_bias = None
-
-            if running_mean is None:
-                tv_running_mean = None
-                tv_running_var = None
-            else:
+                inputs.append(weight)
+            if bias is not None:
+                inputs.append(bias)
+            if running_mean is not None:
                 assert running_var is not None
-                tv_running_mean = fd.define_tensor(
-                    running_mean.ndim, torch2datatype(running_mean.dtype)
-                )
-                tv_running_var = fd.define_tensor(
-                    running_var.ndim, torch2datatype(running_var.dtype)
-                )
                 inputs.extend([running_mean, running_var])
-                if running_mean.dtype in [torch.half, torch.bfloat16]:
-                    tv_running_mean = fd.ops.cast(tv_running_mean, DataType.Float)
-                if running_var.dtype in [torch.half, torch.bfloat16]:
-                    tv_running_var = fd.ops.cast(tv_running_var, DataType.Float)
-
-            s_momentum = fd.define_scalar(DataType.Double)
-            s_eps = fd.define_scalar(DataType.Double)
             inputs.extend([momentum, eps])
-
-            # cast inputs if necessary
-            if x_datatype in [DataType.Half, DataType.BFloat16]:
-                tv_x = fd.ops.cast(tv_x, DataType.Float)
-            if weight is not None and weight.dtype in [torch.half, torch.bfloat16]:
-                tv_weight = fd.ops.cast(tv_weight, DataType.Float)
-            if bias is not None and bias.dtype in [torch.half, torch.bfloat16]:
-                tv_bias = fd.ops.cast(tv_bias, DataType.Float)
-
-            out, mean, invstd = norm_fusion_forward(
-                fd,
-                tv_x,
-                tv_weight,
-                tv_bias,
-                tv_running_mean,
-                tv_running_var,
-                s_eps,
-                use_input_stats,
-                s_momentum,
-                channels_last,
-                x_datatype=x_datatype,
-                extent=x.shape,
-                unbiased=unbiased,
-                stat_axes=stat_axes,
-            )
-
-            if x_datatype in [DataType.Half, DataType.BFloat16]:
-                out = fd.ops.cast(out, x_datatype)
-                mean = fd.ops.cast(mean, x_datatype)
-                invstd = fd.ops.cast(invstd, x_datatype)
-
-            fd.add_output(out)
-            fd.add_output(mean)
-            fd.add_output(invstd)
 
         out, mean, invstd = fs.execute(inputs)
 
@@ -475,77 +542,106 @@ class NormNVFuserFunction(torch.autograd.Function):
         grad_output = grad_output.contiguous()
         x, weight, bias, running_mean, running_var, mean, invstd = ctx.saved_tensors
 
-        fs = Fusion()
-        with FusionDefinition(fs) as fd:
-            tv_x = fd.define_tensor(x.ndim, torch2datatype(x.dtype))
+        # The cache key for this Fusion definition. Misses will trigger redefinition and rescheduling.
+        key = (
+            tuple(ctx.stat_axes),  # convert to tuple to make hashable
+            torch2datatype(x.dtype),
+            None if weight is None else torch2datatype(weight.dtype),
+            None if bias is None else torch2datatype(bias.dtype),
+            None if running_mean is None else torch2datatype(running_mean.dtype),
+            x.ndim,
+            ctx.channels_last,
+            running_mean is not None,
+            weight is not None,
+            bias is not None,
+        )
+        fs = _backward_fusion_cache.get(key)
+        if fs is None:  # cache miss
+            fs = Fusion()
+            with FusionDefinition(fs) as fd:
+                tv_x = fd.define_tensor(x.ndim, torch2datatype(x.dtype))
+                inputs = [x]
+                if weight is not None:
+                    tv_weight = fd.define_tensor(
+                        weight.ndim, torch2datatype(weight.dtype)
+                    )
+                    inputs.append(weight)
+                else:
+                    tv_weight = None
+                if bias is not None:
+                    tv_bias = fd.define_tensor(bias.ndim, torch2datatype(bias.dtype))
+                    inputs.append(bias)
+                else:
+                    tv_bias = None
+                if running_mean is not None:
+                    tv_running_mean = fd.define_tensor(
+                        running_mean.ndim, torch2datatype(running_mean.dtype)
+                    )
+                    inputs.append(running_mean)
+                else:
+                    tv_running_mean = None
+                if running_var is not None:
+                    tv_running_var = fd.define_tensor(
+                        running_var.ndim, torch2datatype(running_var.dtype)
+                    )
+                    inputs.append(running_var)
+                else:
+                    tv_running_var = None
+
+                tv_mean = fd.define_tensor(mean.ndim, torch2datatype(mean.dtype))
+                inputs.append(mean)
+                tv_invstd = fd.define_tensor(invstd.ndim, torch2datatype(invstd.dtype))
+                inputs.append(invstd)
+
+                tv_grad_output = fd.define_tensor(grad_output.ndim)
+                inputs.append(grad_output)
+
+                x_datatype = torch2datatype(x.dtype)
+
+                grad_input, grad_weight, grad_bias = norm_fusion_backward(
+                    fd,
+                    tv_x,
+                    tv_grad_output,
+                    tv_mean,
+                    tv_invstd,
+                    inputs,
+                    tv_weight,
+                    tv_bias,
+                    tv_running_mean,
+                    tv_running_var,
+                    ctx.use_input_stats,
+                    ctx.channels_last,
+                    x_datatype=x_datatype,
+                    extent=x.shape,
+                    stat_axes=ctx.stat_axes,
+                )
+
+                if x_datatype in [DataType.Half, DataType.BFloat16]:
+                    grad_input = fd.ops.cast(grad_input, x_datatype)
+                fd.add_output(grad_input)
+
+                if weight is not None:
+                    if x_datatype in [DataType.Half, DataType.BFloat16]:
+                        grad_weight = fd.ops.cast(grad_weight, x_datatype)
+                    fd.add_output(grad_weight)
+
+                if bias is not None:
+                    if x_datatype in [DataType.Half, DataType.BFloat16]:
+                        grad_bias = fd.ops.cast(grad_bias, x_datatype)
+                    else:
+                        fd.add_output(grad_bias)
+
+            _backward_fusion_cache[key] = fs
+        else:  # cache hit. define inputs to match above
             inputs = [x]
             if weight is not None:
-                tv_weight = fd.define_tensor(weight.ndim, torch2datatype(weight.dtype))
                 inputs.append(weight)
-            else:
-                tv_weight = None
             if bias is not None:
-                tv_bias = fd.define_tensor(bias.ndim, torch2datatype(bias.dtype))
                 inputs.append(bias)
-            else:
-                tv_bias = None
             if running_mean is not None:
-                tv_running_mean = fd.define_tensor(
-                    running_mean.ndim, torch2datatype(running_mean.dtype)
-                )
-                inputs.append(running_mean)
-            else:
-                tv_running_mean = None
-            if running_var is not None:
-                tv_running_var = fd.define_tensor(
-                    running_var.ndim, torch2datatype(running_var.dtype)
-                )
-                inputs.append(running_var)
-            else:
-                tv_running_var = None
-
-            tv_mean = fd.define_tensor(mean.ndim, torch2datatype(mean.dtype))
-            inputs.append(mean)
-            tv_invstd = fd.define_tensor(invstd.ndim, torch2datatype(invstd.dtype))
-            inputs.append(invstd)
-
-            tv_grad_output = fd.define_tensor(grad_output.ndim)
-            inputs.append(grad_output)
-
-            x_datatype = torch2datatype(x.dtype)
-
-            grad_input, grad_weight, grad_bias = norm_fusion_backward(
-                fd,
-                tv_x,
-                tv_grad_output,
-                tv_mean,
-                tv_invstd,
-                inputs,
-                tv_weight,
-                tv_bias,
-                tv_running_mean,
-                tv_running_var,
-                ctx.use_input_stats,
-                ctx.channels_last,
-                x_datatype=x_datatype,
-                extent=x.shape,
-                stat_axes=ctx.stat_axes,
-            )
-
-            if x_datatype in [DataType.Half, DataType.BFloat16]:
-                grad_input = fd.ops.cast(grad_input, x_datatype)
-            fd.add_output(grad_input)
-
-            if weight is not None:
-                if x_datatype in [DataType.Half, DataType.BFloat16]:
-                    grad_weight = fd.ops.cast(grad_weight, x_datatype)
-                fd.add_output(grad_weight)
-
-            if bias is not None:
-                if x_datatype in [DataType.Half, DataType.BFloat16]:
-                    grad_bias = fd.ops.cast(grad_bias, x_datatype)
-                else:
-                    fd.add_output(grad_bias)
+                assert running_var is not None
+                inputs.extend([running_mean, running_var])
+            inputs.extend([mean, invstd, grad_output])
 
         res = fs.execute(inputs)
         grad_input = res[0]
