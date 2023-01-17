@@ -9,8 +9,6 @@ import subprocess
 import torch
 from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension, CUDA_HOME, load
 
-PYTORCH_HOME = os.path.abspath(os.environ['PYTORCH_HOME']) if 'PYTORCH_HOME' in os.environ else None
-
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -385,16 +383,6 @@ if "--cuda_ext" in sys.argv:
                 },
             )
         )
-
-if PYTORCH_HOME is not None and os.path.exists(PYTORCH_HOME):
-    print(PYTORCH_HOME)
-    ext_modules.append(
-       CUDAExtension('instance_norm_nvfuser_cuda',
-                     ['csrc/instance_norm_nvfuser.cpp', 'csrc/instance_norm_nvfuser_kernel.cu'],
-                     extra_compile_args={"cxx": ["-O3"] + version_dependent_macros,
-                                         "nvcc": append_nvcc_threads(["-O3"] + version_dependent_macros + [f"-I {PYTORCH_HOME}"])},
-                    )
-    )
 
 if "--permutation_search" in sys.argv:
     sys.argv.remove("--permutation_search")
