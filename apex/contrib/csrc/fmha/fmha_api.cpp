@@ -144,7 +144,6 @@ mha_fwd(const at::Tensor &qkv,         // total x num_heads x 3 x head_size, tot
 
     if( zero_tensors ) {
         ctx.zero_();
-        s.zero_();
     }
 
     auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
