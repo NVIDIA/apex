@@ -317,7 +317,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                 out1 = out1_pad[:,:,1:-1,:]
             outputs[0] = out1
         fast_bottleneck.conv_scale_bias_relu(
-            [1,1], # strides
+            [stride_1x1,stride_1x1],
             [0,0], # pre-pads
             [0,0], # post-pads
             [1,1], # dilations
