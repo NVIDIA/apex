@@ -671,7 +671,10 @@ if "--fast_multihead_attn" in sys.argv:
                     + cc_flag
                 ),
             },
-            include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass")],
+            include_dirs=[
+                os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass/include/"),
+                os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass/tools/util/include")
+            ],
         )
     )
 

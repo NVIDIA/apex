@@ -1125,7 +1125,7 @@ masked_softmax_warp_forward(input_t *dst, const output_t *src,
                                                    src + itr_idx);
         apply_mask<input_t, ELEMENTS_PER_LDG_STG>(
             &elements_input[i][it],
-            (__half)-std::numeric_limits<float>::infinity(),
+            __float2half(-std::numeric_limits<float>::infinity()),
             curr_mask + itr_jmp);
       }
     }
@@ -1375,7 +1375,7 @@ __global__ void time_masked_softmax_warp_forward(
                                                    src + itr_idx);
         apply_mask<input_t, ELEMENTS_PER_LDG_STG>(
             &elements_input[i][it],
-            (__half)-std::numeric_limits<float>::infinity(),
+            __float2half(-std::numeric_limits<float>::infinity()),
             curr_mask + itr_jmp);
       }
     }
