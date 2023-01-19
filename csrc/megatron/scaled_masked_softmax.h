@@ -454,7 +454,7 @@ void dispatch_scaled_softmax_forward(
     int batches,
     int attn_heads)
 {
-    TORCH_INTERNAL_ASSERT(key_seq_len >= 0 && key_seq_len <= 4096 );
+    TORCH_INTERNAL_ASSERT(key_seq_len >= 0 && key_seq_len <= 16384 );
     if (key_seq_len == 0) {
         return;
     } else {
@@ -528,6 +528,14 @@ void dispatch_scaled_softmax_forward(
                 break;
             case 12: // 4096
                 scaled_softmax_warp_forward<input_t, output_t, acc_t, 12>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 13: // 8192
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 13>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 14: // 16384
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 14>
                     <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
                 break;
             default:
