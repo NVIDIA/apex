@@ -465,7 +465,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                     [1,1], # post-pads
                     [1,1], # dilations
                     explicit_nhwc,
-                    1, # mask axis
+                    2, # mask axis
                     out1,
                     w2,
                     z2,
@@ -780,7 +780,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                     [1,1], # post-pads,
                     [1,1], # dilations
                     explicit_nhwc,
-                    1, # mask axis
+                    2, # mask axis
                     grad_out2,
                     out1,
                     w2,
@@ -797,11 +797,11 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                 # make contiguous copy of conv kernel section
                 with torch.cuda.stream(halo_streams[1]):
                     if spatial_group_rank > 0:
-                        top_w2 = w2[:,:1,:,:] if explicit_nhwc else w2[:,:,:1,:]
-                        top_w2 = top_w2.clone()
-                    if spatial_group_rank < spatial_group_size-1:
                         btm_w2 = w2[:,-1:,:,:] if explicit_nhwc else w2[:,:,-1:,:]
                         btm_w2 = btm_w2.clone()
+                    if spatial_group_rank < spatial_group_size-1:
+                        top_w2 = w2[:,:1,:,:] if explicit_nhwc else w2[:,:,:1,:]
+                        top_w2 = top_w2.clone()
 
                 # halo correction
                 halo_streams[0].wait_stream(main_stream)
@@ -817,7 +817,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                             explicit_nhwc,
                             top_grad_out2_recv,
                             top_out1,
-                            top_w2,
+                            btm_w2,
                             top_grad_out1_partial,
                             z1,
                             top_grad_out1,
@@ -832,7 +832,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                             explicit_nhwc,
                             btm_grad_out2_recv,
                             btm_out1,
-                            btm_w2,
+                            top_w2,
                             btm_grad_out1_partial,
                             z1,
                             btm_grad_out1,
