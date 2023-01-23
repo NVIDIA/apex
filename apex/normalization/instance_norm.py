@@ -31,6 +31,7 @@ def torch2datatype(dt: torch.dtype) -> Optional[DataType]:
 
 def norm_fusion_forward(
     fd: FusionDefinition,
+    inputs: List[torch.Tensor],
     x: Tensor,
     weight: Optional[Tensor],
     bias: Optional[Tensor],
@@ -41,7 +42,6 @@ def norm_fusion_forward(
     momentum: Scalar,
     channels_last: bool,
     x_datatype: DataType,
-    extent: torch.Size,
     unbiased: bool = False,
     *,
     stat_axes: List[NamedAxis],
@@ -58,6 +58,8 @@ def norm_fusion_forward(
 
     Args:
         fd: An initialized FusionDefinition.
+        inputs: A list of :class:'torch.Tensor' inputs to the
+            `FusionDefinition` `fd`.
         x: An input NVFuser tensor.
         weight: If given, multiply normed output by this `Tensor`. It should be
             one-dimensional if `NamedAxis.CHANNEL` is in `stat_axes`, and
@@ -80,7 +82,6 @@ def norm_fusion_forward(
         channels_last: Whether channels are in position -1 (`True`) or 1
             (`False`).
         x_datatype: :class:'DataType' of input :class:'Tensor' `x`
-        extent: Size of the input.
         unbiased: Whether to use unbiased variance for computing current batch
             statistics. Note that unbiased estimates are always used for
             running variance updates, regardless of this argument's value.
@@ -96,26 +97,33 @@ def norm_fusion_forward(
         (running_var is None) ^ (running_mean is None)
     ), "Iff running mean or var is given, the other should be"
 
+    # dyn_shape holds Scalars describing the size of the input x
+    dyn_shape = fd.ops.tensor_sizes(x)
+
+    num_dims = len(dyn_shape)
+
     batch_dim = 0
-    num_dims = len(extent)
+    batch_size = dyn_shape[batch_dim]
+
     channel_dim = num_dims - 1 if channels_last else 1
+    num_channels = dyn_shape[channel_dim]
 
     stat_dims = []
     # Running stats will be kept possibly for channel but never by instance, so
     # we will reduce along batch_dim before updating running stats.
     stat_dims_nobatch = []
-    num_stats = 1
+    num_stats = fd.define_constant(1)
     if NamedAxis.BATCH in stat_axes:
         stat_dims.append(batch_dim)
-        num_stats *= extent[batch_dim]
+        num_stats = fd.ops.mul(num_stats, batch_size)
     if NamedAxis.CHANNEL in stat_axes:
         stat_dims.append(channel_dim)
         stat_dims_nobatch.append(channel_dim)
-        num_stats *= extent[channel_dim]
+        num_stats = fd.ops.mul(num_stats, num_channels)
     x_reduction_axes = [ax for ax in range(num_dims) if ax not in stat_dims]
-    num_features = extent.numel() // num_stats
-
-    batch_size = fd.define_constant(extent[batch_dim])
+    num_features = fd.define_constant(1)
+    for ax in x_reduction_axes:
+        num_features = fd.ops.mul(num_features, dyn_shape[ax])
 
     if use_input_stats or running_mean is None:
         # In NVFuser Python we pass correction=1 to request unbiased variance calculation
@@ -147,7 +155,9 @@ def norm_fusion_forward(
             x_var_unbiased = x_var
             if not unbiased:
                 # multiply by correction to go from biased to unbiased estimate
-                b2ub = fd.define_constant(num_features / (num_features - 1))
+                b2ub = fd.ops.div(
+                    num_features, fd.ops.sub(num_features, fd.define_constant(1))
+                )
                 x_var_unbiased = fd.ops.mul(x_var, b2ub)
 
             current_var_hat = fd.ops.mul(x_var_unbiased, momentum)
@@ -167,32 +177,34 @@ def norm_fusion_forward(
             fd.add_output(new_var_channels_only, alias_input=running_var)
 
         mean = x_mean
-        mean_bcast = fd.ops.broadcast_in_dim(mean, extent, stat_dims)
+        mean_bcast = fd.ops.broadcast_in_dim(mean, dyn_shape, stat_dims)
         x_sub_mean = fd.ops.sub(x, mean_bcast)
 
         var_eps = fd.ops.add(x_var, eps)
         invstd = fd.ops.rsqrt(var_eps)
-        invstd_bcast = fd.ops.broadcast_in_dim(invstd, extent, stat_dims)
+        invstd_bcast = fd.ops.broadcast_in_dim(invstd, dyn_shape, stat_dims)
 
         x_normed = fd.ops.mul(x_sub_mean, invstd_bcast)
 
     else:  # This is inference mode with running stats
         assert running_mean is not None
-        r_mean_bcast = fd.ops.broadcast_in_dim(running_mean, extent, stat_dims_nobatch)
+        r_mean_bcast = fd.ops.broadcast_in_dim(
+            running_mean, dyn_shape, stat_dims_nobatch
+        )
         x_sub_mean = fd.ops.sub(x, r_mean_bcast)
 
         var_eps = fd.ops.add(running_var, eps)
         invstd = fd.ops.rsqrt(var_eps)
-        invstd_bcast = fd.ops.broadcast_in_dim(invstd, extent, stat_dims_nobatch)
+        invstd_bcast = fd.ops.broadcast_in_dim(invstd, dyn_shape, stat_dims_nobatch)
 
         mean = running_mean
         x_normed = fd.ops.mul(x_sub_mean, invstd_bcast)
 
     if weight is not None:
-        weight_bcast = fd.ops.broadcast_in_dim(weight, extent, stat_dims_nobatch)
+        weight_bcast = fd.ops.broadcast_in_dim(weight, dyn_shape, stat_dims_nobatch)
         x_normed = fd.ops.mul(x_normed, weight_bcast)
     if bias is not None:
-        bias_bcast = fd.ops.broadcast_in_dim(bias, extent, stat_dims_nobatch)
+        bias_bcast = fd.ops.broadcast_in_dim(bias, dyn_shape, stat_dims_nobatch)
         x_normed = fd.ops.add(x_normed, bias_bcast)
 
     return x_normed, mean, invstd
@@ -200,11 +212,11 @@ def norm_fusion_forward(
 
 def norm_fusion_backward(
     fd: FusionDefinition,
+    inputs: List[torch.Tensor],
     x: Tensor,
     grad_output: Tensor,
     mean: Optional[torch.Tensor],
     invstd: torch.Tensor,
-    inputs: List[torch.Tensor],
     weight: Optional[Tensor],
     bias: Optional[Tensor],
     running_mean: Optional[Tensor],
@@ -212,7 +224,6 @@ def norm_fusion_backward(
     use_input_stats: bool,
     channels_last: bool,
     x_datatype: DataType,
-    extent: torch.Size,
     *,
     stat_axes: List[NamedAxis],
 ) -> Tuple[Tensor, Tensor, Tensor]:
@@ -221,13 +232,13 @@ def norm_fusion_backward(
 
     Args:
         fd: An initialized FusionDefinition.
-        x: An input NVFuser tensor.
+        inputs: A list of :class:'torch.Tensor' inputs to the
+            `FusionDefinition` `fd`.
+        x: The input NVFuser tensor.
         grad_output: NVFuser tensor representing gradient of loss with respect
             to downstream activation (typical input to backward()).
         mean: The mean used in the forward normalization.
         invstd: The reciprocal of standard deviation used in the forward normalization.
-        inputs: A list of :class:'torch.Tensor' inputs to the
-            `FusionDefinition` `fd`.
         weight: If given, multiply normed output by this `Tensor`. It should be
             one-dimensional if `NamedAxis.CHANNEL` is in `stat_axes`, and
             zero-dimensional otherwise. It will be broadcast along all other
@@ -245,7 +256,6 @@ def norm_fusion_backward(
         channels_last: Whether channels are in position -1 (`True`) or 1
             (`False`).
         x_datatype: :class:'DataType' of input :class:'Tensor' `x`
-        extent: Size of the input.
         stat_axes: A list of `NamedAxis` objects indicating a combination of
             axes with which to index the computed statistics. This can be used
             to implement multiple types of normalization layers, since most of
@@ -258,30 +268,37 @@ def norm_fusion_backward(
         (running_var is None) ^ (running_mean is None)
     ), "Iff running mean or var is given, the other should be"
 
+    # dyn_shape holds Scalars describing the size of the input x
+    dyn_shape = fd.ops.tensor_sizes(x)
+
+    num_dims = len(dyn_shape)
+
     batch_dim = 0
-    num_dims = len(extent)
+    batch_size = dyn_shape[batch_dim]
+
     channel_dim = num_dims - 1 if channels_last else 1
+    num_channels = dyn_shape[channel_dim]
 
     stat_dims = []
     # Running stats will be kept possibly for channel but never by instance, so
     # we will reduce along batch_dim before updating running stats.
     stat_dims_nobatch = []
-    num_stats = 1
+    num_stats = fd.define_constant(1)
     if NamedAxis.BATCH in stat_axes:
         stat_dims.append(batch_dim)
-        num_stats *= extent[batch_dim]
+        num_stats = fd.ops.mul(num_stats, batch_size)
     if NamedAxis.CHANNEL in stat_axes:
         stat_dims.append(channel_dim)
         stat_dims_nobatch.append(channel_dim)
-        num_stats *= extent[channel_dim]
+        num_stats = fd.ops.mul(num_stats, num_channels)
     x_reduction_axes = [ax for ax in range(num_dims) if ax not in stat_dims]
-    num_features = extent.numel() // num_stats
+    num_features = fd.define_constant(1)
+    for ax in x_reduction_axes:
+        num_features = fd.ops.mul(num_features, dyn_shape[ax])
 
-    batch_size = fd.define_constant(extent[batch_dim])
+    mean = fd.ops.broadcast_in_dim(mean, dyn_shape, [batch_dim, channel_dim])
 
-    mean = fd.ops.broadcast_in_dim(mean, extent, [batch_dim, channel_dim])
-
-    norm = fd.define_constant(1.0 / num_features)
+    norm = fd.ops.reciprocal(num_features)
     grad_output_sum = fd.ops.sum(grad_output, x_reduction_axes)
     dot_p = fd.ops.sum(
         fd.ops.mul(
@@ -292,7 +309,7 @@ def norm_fusion_backward(
     )
     grad_mean = fd.ops.broadcast_in_dim(
         fd.ops.mul(grad_output_sum, norm),
-        extent,
+        dyn_shape,
         [batch_dim, channel_dim],
     )
     proj_scale = fd.ops.broadcast_in_dim(
@@ -300,13 +317,13 @@ def norm_fusion_backward(
             fd.ops.mul(dot_p, norm),
             fd.ops.mul(invstd, invstd),
         ),
-        extent,
+        dyn_shape,
         [batch_dim, channel_dim],
     )
 
     invstd_bcast = fd.ops.broadcast_in_dim(
         invstd,
-        extent,
+        dyn_shape,
         [batch_dim, channel_dim],
     )
     grad_scale = (
@@ -314,7 +331,7 @@ def norm_fusion_backward(
         if weight is None
         else fd.ops.mul(
             invstd_bcast,
-            fd.ops.broadcast_in_dim(weight, extent, [0]),
+            fd.ops.broadcast_in_dim(weight, dyn_shape, [0]),
         )
     )
     if use_input_stats:
@@ -415,6 +432,7 @@ class NormNVFuserFunction(torch.autograd.Function):  # type: ignore
 
             out, mean, invstd = norm_fusion_forward(
                 fd,
+                inputs,
                 tv_x,
                 tv_weight,
                 tv_bias,
@@ -425,7 +443,6 @@ class NormNVFuserFunction(torch.autograd.Function):  # type: ignore
                 s_momentum,
                 channels_last,
                 x_datatype=x_datatype,
-                extent=x.shape,
                 unbiased=unbiased,
                 stat_axes=stat_axes,
             )
@@ -525,11 +542,11 @@ class NormNVFuserFunction(torch.autograd.Function):  # type: ignore
 
             grad_input, grad_weight, grad_bias = norm_fusion_backward(
                 fd,
+                inputs,
                 tv_x,
                 tv_grad_output,
                 tv_mean,
                 tv_invstd,
-                inputs,
                 tv_weight,
                 tv_bias,
                 tv_running_mean,
@@ -537,7 +554,6 @@ class NormNVFuserFunction(torch.autograd.Function):  # type: ignore
                 ctx.use_input_stats,
                 ctx.channels_last,
                 x_datatype=x_datatype,
-                extent=x.shape,
                 stat_axes=ctx.stat_axes,
             )
 
@@ -676,7 +692,7 @@ class _NormNVFuserBase(_NormBase):  # type: ignore
             self.training or not self.track_running_stats,
             self.momentum,
             self.eps,
-            False,
+            False,  # unbiased=False to match PyTorch functionality
             self.stat_axes,
         )
         return out
