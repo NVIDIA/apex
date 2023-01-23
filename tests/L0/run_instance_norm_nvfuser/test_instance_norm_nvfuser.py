@@ -182,3 +182,7 @@ class TestInstanceNormNVFuser(unittest.TestCase):
         pred = model(x)
         loss = nn.functional.mse_loss(pred, y.float())
         loss.backward()
+
+
+if __name__ == "__main__":
+    unittest.main()
