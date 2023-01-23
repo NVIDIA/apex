@@ -16,7 +16,6 @@ def torch2datatype(dt: torch.dtype) -> Optional[DataType]:
     Returns `None` if the type cannot be translated.
     """
     return {
-        bool: DataType.Bool,
         torch.float16: DataType.Half,
         torch.bfloat16: DataType.BFloat16,
         torch.float32: DataType.Float,
