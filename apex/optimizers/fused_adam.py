@@ -185,85 +185,87 @@ class FusedAdam(torch.optim.Optimizer):
                     scale = torch.ones((1,), device=device)
                     inv_scale = torch.ones((1,), device=device)
 
-                if(len(g_16) > 0):
+                if len(g_16) > 0:
                     multi_tensor_applier(self.multi_tensor_adam_capturable,
-					 self._dummy_overflow_buf,
-					 [g_16, p_16, m_16, v_16],
-					 group['lr'],
-					 beta1,
-					 beta2,
-					 group['eps'],
-					 group['step'],
-					 self.adam_w_mode,
-					 bias_correction,
-					 group['weight_decay'],
-					 inv_scale)
-                if g_bf:
-                    multi_tensor_applier(
-			self.multi_tensor_adam_capturable,
-			self._dummy_overflow_buf,
-			[g_bf, p_bf, m_bf, v_bf],
-			group['lr'],
-			beta1,
-			beta2,
-			group['eps'],
-			group['step'],
-			self.adam_w_mode,
-			bias_correction,
-			group['weight_decay'],
-			inv_scale)
+                            self._dummy_overflow_buf,
+                            [g_16, p_16, m_16, v_16],
+                            group['lr'],
+                            beta1,
+                            beta2,
+                            group['eps'],
+                            group['step'],
+                            self.adam_w_mode,
+                            bias_correction,
+                            group['weight_decay'],
+                            inv_scale)
 
-                if(len(g_32) > 0):
-                    multi_tensor_applier(self.multi_tensor_adam_capturable,
-					 self._dummy_overflow_buf,
-					 [g_32, p_32, m_32, v_32],
-					 group['lr'],
-					 beta1,
-					 beta2,
-					 group['eps'],
-					 group['step'],
-					 self.adam_w_mode,
-					 bias_correction,
-					 group['weight_decay'],
-					 inv_scale)
-            else:
-                if(len(g_16) > 0):
-                    multi_tensor_applier(self.multi_tensor_adam,
-                                         self._dummy_overflow_buf,
-                                         [g_16, p_16, m_16, v_16],
-                                         group['lr'],
-                                         beta1,
-                                         beta2,
-                                         group['eps'],
-                                         group['step'],
-                                         self.adam_w_mode,
-                                         bias_correction,
-                                         group['weight_decay'])
-                if g_bf:
+                if len(g_bf) > 0:
                     multi_tensor_applier(
-                        self.multi_tensor_adam,
-                        self._dummy_overflow_buf,
-                        [g_bf, p_bf, m_bf, v_bf],
-                        group['lr'],
-                        beta1,
-                        beta2,
-                        group['eps'],
-                        group['step'],
-                        self.adam_w_mode,
-                        bias_correction,
-                        group['weight_decay'],
-                    )
-                if(len(g_32) > 0):
+                            self.multi_tensor_adam_capturable,
+                            self._dummy_overflow_buf,
+                            [g_bf, p_bf, m_bf, v_bf],
+                            group['lr'],
+                            beta1,
+                            beta2,
+                            group['eps'],
+                            group['step'],
+                            self.adam_w_mode,
+                            bias_correction,
+                            group['weight_decay'],
+                            inv_scale)
+
+                if len(g_32) > 0:
+                    multi_tensor_applier(self.multi_tensor_adam_capturable,
+                            self._dummy_overflow_buf,
+                            [g_32, p_32, m_32, v_32],
+                            group['lr'],
+                            beta1,
+                            beta2,
+                            group['eps'],
+                            group['step'],
+                            self.adam_w_mode,
+                            bias_correction,
+                            group['weight_decay'],
+                            inv_scale)
+            else:
+                if len(g_16) > 0:
                     multi_tensor_applier(self.multi_tensor_adam,
-                                         self._dummy_overflow_buf,
-                                         [g_32, p_32, m_32, v_32],
-                                         group['lr'],
-                                         beta1,
-                                         beta2,
-                                         group['eps'],
-                                         group['step'],
-                                         self.adam_w_mode,
-                                         bias_correction,
-                                         group['weight_decay'])
+                            self._dummy_overflow_buf,
+                            [g_16, p_16, m_16, v_16],
+                            group['lr'],
+                            beta1,
+                            beta2,
+                            group['eps'],
+                            group['step'],
+                            self.adam_w_mode,
+                            bias_correction,
+                            group['weight_decay'])
+
+                if len(g_bf) > 0:
+                    multi_tensor_applier(
+                            self.multi_tensor_adam,
+                            self._dummy_overflow_buf,
+                            [g_bf, p_bf, m_bf, v_bf],
+                            group['lr'],
+                            beta1,
+                            beta2,
+                            group['eps'],
+                            group['step'],
+                            self.adam_w_mode,
+                            bias_correction,
+                            group['weight_decay'])
+
+                if len(g_32) > 0:
+                    multi_tensor_applier(self.multi_tensor_adam,
+                            self._dummy_overflow_buf,
+                            [g_32, p_32, m_32, v_32],
+                            group['lr'],
+                            beta1,
+                            beta2,
+                            group['eps'],
+                            group['step'],
+                            self.adam_w_mode,
+                            bias_correction,
+                            group['weight_decay'])
 
         return loss
