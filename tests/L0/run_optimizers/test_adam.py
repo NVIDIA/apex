@@ -64,7 +64,7 @@ class AdamTest(unittest.TestCase):
 
     def testGradScaler(self):
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
-        self.optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=False)
+        optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=False)
         scaler = torch.cuda.amp.GradScaler(enabled=True)
         scaler_ = torch.cuda.amp.GradScaler(enabled=True)
 
@@ -89,24 +89,24 @@ class AdamTest(unittest.TestCase):
                 loss_ = ((gt_ - y) ** 2).mean()
 
             scaler_.scale(loss_).backward()
-            scaler_.step(self.optimizer_)
+            scaler_.step(optimizer_)
             scaler_.update()
 
             for module in zip(self.model.modules(), self.model_.modules()):
                 m = module[0]
                 m_ = module[1]
                 if isinstance(m, nn.Conv2d) or isinstance(m_, nn.Linear):
-                    self.assertTrue(torch.allclose(m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True))
+                    torch.testing.assert_close(m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True)
 
             # Init for next iteration
             self.optimizer.zero_grad()
-            self.optimizer_.zero_grad()
+            optimizer_.zero_grad()
 
             self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
     
     def testGradScalerCapturable(self):
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
-        self.optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=True)
+        optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=True)
         scaler = torch.cuda.amp.GradScaler(enabled=True)
         scaler_ = torch.cuda.amp.GradScaler(enabled=True)
 
@@ -131,24 +131,24 @@ class AdamTest(unittest.TestCase):
                 loss_ = ((gt_ - y) ** 2).mean()
 
             scaler_.scale(loss_).backward()
-            scaler_.step(self.optimizer_)
+            scaler_.step(optimizer_)
             scaler_.update()
 
             for module in zip(self.model.modules(), self.model_.modules()):
                 m = module[0]
                 m_ = module[1]
                 if isinstance(m, nn.Conv2d) or isinstance(m_, nn.Linear):
-                    self.assertTrue(torch.allclose(m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True))
+                    torch.testing.assert_close(m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True)
 
             # Init for next iteration
             self.optimizer.zero_grad()
-            self.optimizer_.zero_grad()
+            optimizer_.zero_grad()
 
             self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
     
     def testNative(self):
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
-        self.optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=False)
+        optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=False)
 
         for i in range(100):
             x = torch.rand([32, 1, 28, 28]).cuda().to(memory_format=torch.channels_last)
@@ -168,17 +168,17 @@ class AdamTest(unittest.TestCase):
             loss_ = ((gt_ - y) ** 2).mean()
 
             loss_.backward()
-            self.optimizer_.step()
+            optimizer_.step()
 
             for module in zip(self.model.modules(), self.model_.modules()):
                 m = module[0]
                 m_ = module[1]
                 if isinstance(m, nn.Conv2d) or isinstance(m_, nn.Linear):
-                    self.assertTrue(torch.allclose(m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True))
+                    torch.testing.assert_close(m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True)
 
             # Init for next iteration
             self.optimizer.zero_grad()
-            self.optimizer_.zero_grad()
+            optimizer_.zero_grad()
             
             self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
 
