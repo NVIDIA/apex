@@ -174,7 +174,7 @@ class TestInstanceNormNVFuser(unittest.TestCase):
                 x = torch.sum(x, dim=(1, 2, 3, 4))
                 return x
 
-        device = torch.device(f"cuda:1")
+        device = torch.device("cuda:1")
         model = Model().to(device)
 
         x = torch.randn(2, 4, 128, 128, 128, device=device, requires_grad=True)
