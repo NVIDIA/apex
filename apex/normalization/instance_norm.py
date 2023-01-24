@@ -509,34 +509,50 @@ class NormNVFuserFunction(torch.autograd.Function):  # type: ignore
 
         with FusionDefinition() as fd:
             tv_x = partially_contig_tensor(fd, x)
+            if x.dtype in [torch.half, torch.bfloat16]:
+                tv_x = fd.ops.cast(tv_x, DataType.Float)
             inputs = [x]
             if weight is not None:
                 tv_weight = partially_contig_tensor(fd, weight)
+                if weight.dtype in [torch.half, torch.bfloat16]:
+                    tv_weight = fd.ops.cast(tv_weight, DataType.Float)
                 inputs.append(weight)
             else:
                 tv_weight = None
             if bias is not None:
                 tv_bias = partially_contig_tensor(fd, bias)
+                if bias.dtype in [torch.half, torch.bfloat16]:
+                    tv_bias = fd.ops.cast(tv_bias, DataType.Float)
                 inputs.append(bias)
             else:
                 tv_bias = None
             if running_mean is not None:
                 tv_running_mean = partially_contig_tensor(fd, running_mean)
+                if running_mean.dtype in [torch.half, torch.bfloat16]:
+                    tv_running_mean = fd.ops.cast(tv_running_mean, DataType.Float)
                 inputs.append(running_mean)
             else:
                 tv_running_mean = None
             if running_var is not None:
                 tv_running_var = partially_contig_tensor(fd, running_var)
+                if running_var.dtype in [torch.half, torch.bfloat16]:
+                    tv_running_var = fd.ops.cast(tv_running_var, DataType.Float)
                 inputs.append(running_var)
             else:
                 tv_running_var = None
 
             tv_mean = partially_contig_tensor(fd, mean)
+            if mean.dtype in [torch.half, torch.bfloat16]:
+                tv_mean = fd.ops.cast(tv_mean, DataType.Float)
             inputs.append(mean)
             tv_invstd = partially_contig_tensor(fd, invstd)
+            if invstd.dtype in [torch.half, torch.bfloat16]:
+                tv_invstd = fd.ops.cast(tv_invstd, DataType.Float)
             inputs.append(invstd)
 
             tv_grad_output = partially_contig_tensor(fd, grad_output)
+            if grad_output.dtype in [torch.half, torch.bfloat16]:
+                tv_grad_output = fd.ops.cast(tv_grad_output, DataType.Float)
             inputs.append(grad_output)
 
             x_datatype = torch2datatype(x.dtype)
