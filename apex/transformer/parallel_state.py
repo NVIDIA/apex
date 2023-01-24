@@ -17,11 +17,10 @@
 """Model and data parallel groups."""
 from typing import Tuple, Optional
 import warnings
-
+import os
 import torch
 
 from apex.transformer.log_util import get_transformer_logger
-from apex.transformer._ucc_util import HAS_UCC
 
 
 _logger = get_transformer_logger(__name__)
@@ -78,6 +77,22 @@ def is_unitialized():
     """Useful for code segments that may be accessed with or without mpu initialization"""
     return _DATA_PARALLEL_GROUP is None
 
+def set_nccl_socket_envs():
+    os.environ["NCCL_NET"] = "Socket"
+    os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
+    os.environ["NCCL_SOCKET_NTHREADS"] = "4"
+    os.environ["NCCL_NSOCKS_PERTHREAD"] = "4"
+
+def unset_nccl_socket_envs():
+    os.environ["NCCL_NET"] = "IB"
+    os.unsetenv("NCCL_SOCKET_IFNAME")
+    os.unsetenv("NCCL_SOCKET_NTHREADS")
+    os.unsetenv("NCCL_NSOCKS_PERTHREAD")
+
+def establish_nccl_net(group, device="cuda"):
+    temp = torch.ones(1, device=device)
+    torch.distributed.all_reduce(temp, group=group)
+    torch.cuda.synchronize()
 
 def initialize_model_parallel(
     tensor_model_parallel_size_: int = 1,
@@ -85,8 +100,8 @@ def initialize_model_parallel(
     virtual_pipeline_model_parallel_size_: Optional[int] = None,
     pipeline_model_parallel_split_rank_: Optional[int] = None,
     *,
-    default_backend: Optional[str] = None,
-    p2p_backend: Optional[str] = None,
+    default_backend: Optional[str] = "nccl",
+    p2p_backend: Optional[str] = "nccl",
 ) -> None:
     """
     Initialize model data parallel groups.
@@ -123,12 +138,11 @@ def initialize_model_parallel(
     ranks 8 to 15 belong to the second box.
     """
     # Get world size and rank. Ensure some consistencies.
+    p2p_backend = "nccl"
     assert torch.distributed.is_initialized()
     assert default_backend is None or default_backend in ("nccl", "ucc")
     assert p2p_backend is None or p2p_backend in ("nccl", "ucc")
     if "ucc" in (default_backend, p2p_backend):
-        if not HAS_UCC:
-            raise ImportError("UCC backend requires pytorch source build with UCC installed and enabled")
         warnings.warn("`ucc` backend support is experimental", ExperimentalWarning)
     if default_backend == "ucc":
         warnings.warn("The UCC's functionality as `default_backend` is not well verified", ExperimentalWarning)
@@ -244,9 +258,13 @@ def initialize_model_parallel(
     assert _ENCODER_RELATIVE_POSITION_EMBEDDING_GROUP is None or \
            _DECODER_RELATIVE_POSITION_EMBEDDING_GROUP is None, \
         'relative position embedding group is already initialized'
+    print("Sharan: Initializing PP and embedding groups with backend "+p2p_backend)
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size, num_pipeline_model_parallel_groups)
+        set_nccl_socket_envs()
         group = torch.distributed.new_group(ranks, backend=p2p_backend)
+        establish_nccl_net(group=group)
+        unset_nccl_socket_envs()
         if rank in ranks:
             _PIPELINE_MODEL_PARALLEL_GROUP = group
             _PIPELINE_GLOBAL_RANKS = ranks
@@ -284,20 +302,29 @@ def initialize_model_parallel(
             encoder_relative_position_embedding_ranks = ranks
             decoder_relative_position_embedding_ranks = ranks
 
-        group = torch.distributed.new_group(embedding_ranks, backend=default_backend)
+        set_nccl_socket_envs()
+        group = torch.distributed.new_group(embedding_ranks, backend=p2p_backend)
+        establish_nccl_net(group=group)
+        unset_nccl_socket_envs()
         if rank in embedding_ranks:
             _EMBEDDING_GROUP = group
         if rank in ranks:
             _EMBEDDING_GLOBAL_RANKS = embedding_ranks
 
-        group = torch.distributed.new_group(position_embedding_ranks, backend=default_backend)
+        set_nccl_socket_envs()
+        group = torch.distributed.new_group(position_embedding_ranks, backend=p2p_backend)
+        establish_nccl_net(group=group)
+        unset_nccl_socket_envs()
         if rank in position_embedding_ranks:
             _POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
             _POSITION_EMBEDDING_GLOBAL_RANKS = position_embedding_ranks
 
         if encoder_relative_position_embedding_ranks:
-            group = torch.distributed.new_group(encoder_relative_position_embedding_ranks)
+            set_nccl_socket_envs()
+            group = torch.distributed.new_group(encoder_relative_position_embedding_ranks, backend=p2p_backend)
+            establish_nccl_net(group=group)
+            unset_nccl_socket_envs()
         if rank in encoder_relative_position_embedding_ranks:
             _ENCODER_RELATIVE_POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
@@ -305,7 +332,10 @@ def initialize_model_parallel(
                 encoder_relative_position_embedding_ranks
 
         if decoder_relative_position_embedding_ranks:
-            group = torch.distributed.new_group(decoder_relative_position_embedding_ranks)
+            set_nccl_socket_envs()
+            group = torch.distributed.new_group(decoder_relative_position_embedding_ranks, backend=p2p_backend)
+            establish_nccl_net(group=group)
+            unset_nccl_socket_envs()
         if rank in decoder_relative_position_embedding_ranks:
             _DECODER_RELATIVE_POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
