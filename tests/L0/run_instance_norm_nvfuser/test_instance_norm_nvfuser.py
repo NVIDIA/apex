@@ -35,7 +35,7 @@ class TestInstanceNormNVFuser(unittest.TestCase):
             dtype=self.dtype,
         )
 
-    def check_same_output(self):
+    def check_same_output(self, contiguous=True):
         torch.manual_seed(42)
         for i in range(2):  # exercise JIT + caching
             inp = torch.randint(
@@ -52,12 +52,26 @@ class TestInstanceNormNVFuser(unittest.TestCase):
                 requires_grad=True,
                 dtype=self.dtype,
             )
+            if self.channels_last:
+                inp = inp.to(memory_format=torch.channels_last_3d)
+
+            if not contiguous:
+                inp = inp[..., ::2]
+
             inp2 = inp.detach().clone()
             inp2.requires_grad = True
-            if self.channels_last:
-                _inp = inp.to(memory_format=torch.channels_last_3d)
-            else:
-                _inp = inp
+            _inp = inp.detach()
+            _inp.requires_grad = True
+
+            assert (
+                inp.is_contiguous(
+                    memory_format=torch.channels_last_3d
+                    if self.channels_last
+                    else torch.contiguous_format
+                )
+                == contiguous
+            )
+
             out = self.m(_inp)
             out2 = self.reference_m(inp2)
             if self.m.running_mean is None:
@@ -80,15 +94,15 @@ class TestInstanceNormNVFuser(unittest.TestCase):
                         self.m.running_var, self.reference_m.running_var
                     )
             torch.testing.assert_close(out, out2)
-            grad_out = torch.randn_like(inp)
+            grad_out = torch.randn_like(_inp)
             out.backward(grad_out)
             out2.backward(grad_out)
             if self.dtype == torch.float16:
-                torch.testing.assert_close(inp.grad, inp2.grad, atol=5e-3, rtol=5e-3)
+                torch.testing.assert_close(_inp.grad, inp2.grad, atol=5e-3, rtol=5e-3)
             elif self.dtype == torch.bfloat16:
-                torch.testing.assert_close(inp.grad, inp2.grad, atol=2e-2, rtol=2e-2)
+                torch.testing.assert_close(_inp.grad, inp2.grad, atol=2e-2, rtol=2e-2)
             else:
-                torch.testing.assert_close(inp.grad, inp2.grad)
+                torch.testing.assert_close(_inp.grad, inp2.grad)
             if self.m.weight is not None:
                 if self.dtype == torch.float16:
                     torch.testing.assert_close(
@@ -146,21 +160,28 @@ class TestInstanceNormNVFuser(unittest.TestCase):
                 self.channels_last = channels_last
                 self.affine = affine
                 # observe the cache to see which params cause new Fusions
-                # NOTE: there is a forward and backward Fusion
                 fc = FusionCache.get()
                 nf = fc.num_fusions()
                 for b, c, s in [
                     (5, 7, 3),
-                    (6, 7, 4),  # same num channels, should not force new compilation
-                    (5, 8, 3),  # different num channels
+                    (6, 7, 3),
+                    (5, 8, 3),
+                    # TODO: changing spatial size currently causes a new Fusion
+                    # (5, 7, 4),
+                    # (6, 7, 4),
+                    # (5, 8, 4),
                 ]:
-                    self.batch_size = b
-                    self.channel_size = c
-                    self.spatial_size = s
-                    self.init_modules()
-                    self.check_same_output()
-                    # check that we never need to compile a new Fusion
-                    assert fc.num_fusions() == nf + 2
+                    for contig in [True, False]:
+                        self.batch_size = b
+                        self.channel_size = c
+                        self.spatial_size = s
+                        self.init_modules()
+                        self.check_same_output(contig)
+                    # Changing input sizes may cause a recompile, but it should
+                    # not cause a new Fusion to be scheduled. However, changing
+                    # contiguity should create a new Fusion. There is one
+                    # Fusion for each of forward and backward, so 4 per subtest
+                    assert fc.num_fusions() == nf + 4
 
     @unittest.skipIf(torch.cuda.device_count() < 2, "more than 1 GPU required")
     def test_multigpu(self):

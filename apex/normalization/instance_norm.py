@@ -28,6 +28,17 @@ def torch2datatype(dt: torch.dtype) -> Optional[DataType]:
     }.get(dt)
 
 
+def partially_contig_tensor(fd: FusionDefinition, x: torch.Tensor) -> Tensor:
+    """Create an NVFuser Tensor with dynamic size but same contiguity as input"""
+    stride = x.stride()
+    contig = [sp == s * n for sp, s, n in zip(stride, stride[1:], x.shape[1:])] + [
+        stride[-1] == 1
+    ]
+    return fd.define_tensor(
+        symbolic_sizes=[-1] * x.ndim, contiguous=contig, dtype=torch2datatype(x.dtype)
+    )
+
+
 def norm_fusion_forward(
     fd: FusionDefinition,
     inputs: List[torch.Tensor],
@@ -381,21 +392,20 @@ class NormNVFuserFunction(torch.autograd.Function):  # type: ignore
         if channels_last:
             order = [0] + [i for i in range(2, len(x.shape))] + [1]
             x = x.permute(order)
-        assert x.is_contiguous()
 
         x_datatype = torch2datatype(x.dtype)
 
         with FusionDefinition() as fd:
-            tv_x = fd.define_tensor(x.ndim, torch2datatype(x.dtype))
+            tv_x = partially_contig_tensor(fd, x)
             inputs = [x]
             if weight is not None:
-                tv_weight = fd.define_tensor(weight.ndim, torch2datatype(weight.dtype))
+                tv_weight = partially_contig_tensor(fd, weight)
                 inputs.append(weight)
             else:
                 tv_weight = None
 
             if bias is not None:
-                tv_bias = fd.define_tensor(bias.ndim, torch2datatype(bias.dtype))
+                tv_bias = partially_contig_tensor(fd, bias)
                 inputs.append(bias)
             else:
                 tv_bias = None
@@ -405,12 +415,8 @@ class NormNVFuserFunction(torch.autograd.Function):  # type: ignore
                 tv_running_var = None
             else:
                 assert running_var is not None
-                tv_running_mean = fd.define_tensor(
-                    running_mean.ndim, torch2datatype(running_mean.dtype)
-                )
-                tv_running_var = fd.define_tensor(
-                    running_var.ndim, torch2datatype(running_var.dtype)
-                )
+                tv_running_mean = partially_contig_tensor(fd, running_mean)
+                tv_running_var = partially_contig_tensor(fd, running_var)
                 inputs.extend([running_mean, running_var])
                 if running_mean.dtype in [torch.half, torch.bfloat16]:
                     tv_running_mean = fd.ops.cast(tv_running_mean, DataType.Float)
@@ -497,44 +503,40 @@ class NormNVFuserFunction(torch.autograd.Function):  # type: ignore
             order = [0] + [i for i in range(2, len(grad_output.shape))] + [1]
             grad_output = grad_output.permute(order)
         # input was saved in "explicit channels-last format"
-        assert ctx.saved_tensors[0].is_contiguous()
-        grad_output = grad_output.contiguous()
+        # assert ctx.saved_tensors[0].is_contiguous()
+        # grad_output = grad_output.contiguous()
         x, weight, bias, running_mean, running_var, mean, invstd = ctx.saved_tensors
 
         with FusionDefinition() as fd:
-            tv_x = fd.define_tensor(x.ndim, torch2datatype(x.dtype))
+            tv_x = partially_contig_tensor(fd, x)
             inputs = [x]
             if weight is not None:
-                tv_weight = fd.define_tensor(weight.ndim, torch2datatype(weight.dtype))
+                tv_weight = partially_contig_tensor(fd, weight)
                 inputs.append(weight)
             else:
                 tv_weight = None
             if bias is not None:
-                tv_bias = fd.define_tensor(bias.ndim, torch2datatype(bias.dtype))
+                tv_bias = partially_contig_tensor(fd, bias)
                 inputs.append(bias)
             else:
                 tv_bias = None
             if running_mean is not None:
-                tv_running_mean = fd.define_tensor(
-                    running_mean.ndim, torch2datatype(running_mean.dtype)
-                )
+                tv_running_mean = partially_contig_tensor(fd, running_mean)
                 inputs.append(running_mean)
             else:
                 tv_running_mean = None
             if running_var is not None:
-                tv_running_var = fd.define_tensor(
-                    running_var.ndim, torch2datatype(running_var.dtype)
-                )
+                tv_running_var = partially_contig_tensor(fd, running_var)
                 inputs.append(running_var)
             else:
                 tv_running_var = None
 
-            tv_mean = fd.define_tensor(mean.ndim, torch2datatype(mean.dtype))
+            tv_mean = partially_contig_tensor(fd, mean)
             inputs.append(mean)
-            tv_invstd = fd.define_tensor(invstd.ndim, torch2datatype(invstd.dtype))
+            tv_invstd = partially_contig_tensor(fd, invstd)
             inputs.append(invstd)
 
-            tv_grad_output = fd.define_tensor(grad_output.ndim)
+            tv_grad_output = partially_contig_tensor(fd, grad_output)
             inputs.append(grad_output)
 
             x_datatype = torch2datatype(x.dtype)
