@@ -586,8 +586,7 @@ class NormNVFuserFunction(torch.autograd.Function):  # type: ignore
             if bias is not None:
                 if x_datatype in [DataType.Half, DataType.BFloat16]:
                     grad_bias = fd.ops.cast(grad_bias, x_datatype)
-                else:
-                    fd.add_output(grad_bias)
+                fd.add_output(grad_bias)
 
         res = fd.execute(inputs)
         grad_input = res[0]
