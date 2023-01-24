@@ -138,7 +138,6 @@ def initialize_model_parallel(
     ranks 8 to 15 belong to the second box.
     """
     # Get world size and rank. Ensure some consistencies.
-    p2p_backend = "nccl"
     assert torch.distributed.is_initialized()
     assert default_backend is None or default_backend in ("nccl", "ucc")
     assert p2p_backend is None or p2p_backend in ("nccl", "ucc")
@@ -258,7 +257,6 @@ def initialize_model_parallel(
     assert _ENCODER_RELATIVE_POSITION_EMBEDDING_GROUP is None or \
            _DECODER_RELATIVE_POSITION_EMBEDDING_GROUP is None, \
         'relative position embedding group is already initialized'
-    print("Sharan: Initializing PP and embedding groups with backend "+p2p_backend)
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size, num_pipeline_model_parallel_groups)
         set_nccl_socket_envs()
