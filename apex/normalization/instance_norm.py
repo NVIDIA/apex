@@ -30,12 +30,8 @@ def torch2datatype(dt: torch.dtype) -> Optional[DataType]:
 
 def partially_contig_tensor(fd: FusionDefinition, x: torch.Tensor) -> Tensor:
     """Create an NVFuser Tensor with dynamic size but same contiguity as input"""
-    stride = x.stride()
-    contig = [sp == s * n for sp, s, n in zip(stride, stride[1:], x.shape[1:])] + [
-        stride[-1] == 1
-    ]
     return fd.define_tensor(
-        symbolic_sizes=[-1] * x.ndim, contiguous=contig, dtype=torch2datatype(x.dtype)
+        sizes=x.shape, strides=x.stride(), dtype=torch2datatype(x.dtype)
     )
 
 
@@ -454,8 +450,6 @@ class NormNVFuserFunction(torch.autograd.Function):  # type: ignore
 
             if x_datatype in [DataType.Half, DataType.BFloat16]:
                 out = fd.ops.cast(out, x_datatype)
-                mean = fd.ops.cast(mean, x_datatype)
-                invstd = fd.ops.cast(invstd, x_datatype)
 
             fd.add_output(out)
             fd.add_output(mean)
