@@ -25,8 +25,8 @@ def assert_close(a: torch.Tensor, b: torch.Tensor):
         a = a.type(b.dtype)
 
     if a.dtype in [torch.float16, torch.bfloat16]:
-        # assert_close with high tolerance just checks device, dtype, layout, and stride
-        torch.testing.assert_close(a, b, rtol=2e-2, atol=2e-2)
+        # torch.nn.InstanceNorm3d fails rtol=6, atols=4e-2 for half precision
+        torch.testing.assert_close(a, b, rtol=10, atol=5e-2)
     else:  # use default tolerance
         torch.testing.assert_close(a, b)
 
@@ -41,9 +41,7 @@ class TestInstanceNormNVFuser(unittest.TestCase):
     spatial_size = 3
 
     def init_modules(self):
-        # Uncomment below to verify that torch.nn.InstanceNorm3d passes our tests
         self.m = InstanceNorm3dNVFuser(
-            # self.m = torch.nn.InstanceNorm3d(
             self.channel_size,
             affine=self.affine,
             track_running_stats=self.track_running_stats,
