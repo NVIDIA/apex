@@ -10,7 +10,7 @@
 #include "type_shim.h"
 #include "multi_tensor_apply.cuh"
 
-#define BLOCK_SIZE 512
+#define BLOCK_SIZE 1024
 #define ILP 4
 
 // Step 1 computes the 'update' value of regular Adam optimizer.

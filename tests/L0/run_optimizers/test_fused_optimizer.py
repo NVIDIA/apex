@@ -6,6 +6,8 @@ import torch
 
 import apex
 
+from apex.testing.common_utils import skipIfRocm
+
 
 class TestFusedOptimizer(unittest.TestCase):
     def setUp(self, max_abs_diff=1e-3, max_rel_diff=1, iters=7):
@@ -106,6 +108,7 @@ class TestFusedAdam(TestFusedOptimizer):
     def test_half(self):
         self.gen_single_type_test(param_type=torch.float16, skip_assert=True)
 
+    @skipIfRocm
     def test_bfloat16(self):
         self.gen_single_type_test(param_type=torch.bfloat16, skip_assert=True)
 

@@ -8,7 +8,7 @@
 #include <assert.h>
 #include <cuda_runtime.h>
 
-#define BLOCK_SIZE 512
+#define BLOCK_SIZE 1024
 #define ILP 4
 
 /**
