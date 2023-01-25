@@ -308,10 +308,10 @@ void multi_tensor_adam_capturable_cuda(
       AdamCapturableFunctor<scalar_t_0>(),
       beta1,
       beta2,
-      step.DATA_PTR<int>(),
+      step.data_ptr<int>(),
       bias_correction,
       epsilon,
-      lr.DATA_PTR<float>(),
+      lr.data_ptr<float>(),
       (adamMode_t) mode,
       weight_decay,
       inv_scale.data_ptr<float>()); )
