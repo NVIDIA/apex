@@ -103,7 +103,7 @@ def new_nccl_ib_group(ranks, backend):
     return group
 
 def new_nccl_group(ranks, backend):
-    block_size = os.getenv("OCI_BLOCK_SIZE", 16)
+    block_size = int(os.getenv("OCI_BLOCK_SIZE", 16))
     across_blocks = ((max(ranks) - min(ranks))>=block_size)
     if across_blocks:
         return new_nccl_socket_group(ranks, backend)
