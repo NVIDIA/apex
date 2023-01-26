@@ -80,14 +80,10 @@ def is_unitialized():
 def set_nccl_socket_envs():
     os.environ["NCCL_NET"] = "Socket"
     os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
-    os.environ["NCCL_SOCKET_NTHREADS"] = "4"
-    os.environ["NCCL_NSOCKS_PERTHREAD"] = "4"
 
 def set_nccl_ib_envs():
     os.environ["NCCL_NET"] = "IB"
     os.unsetenv("NCCL_SOCKET_IFNAME")
-    os.unsetenv("NCCL_SOCKET_NTHREADS")
-    os.unsetenv("NCCL_NSOCKS_PERTHREAD")
 
 def establish_nccl_net(group, device="cuda"):
     temp = torch.ones(1, device=device)
@@ -105,6 +101,14 @@ def new_nccl_ib_group(ranks, backend):
     group = torch.distributed.new_group(ranks, backend=backend)
     establish_nccl_net(group=group)
     return group
+
+def new_nccl_group(ranks, backend):
+    block_size = 16
+    within_block = (max(ranks) - min(ranks))<block_size
+    if within_block:
+        return new_nccl_ib_group(ranks, backend)
+    else:
+        return new_nccl_socket_group(ranks, backend)
 
 def initialize_model_parallel(
     tensor_model_parallel_size_: int = 1,
@@ -220,7 +224,7 @@ def initialize_model_parallel(
         for j in range(tensor_model_parallel_size):
             ranks = range(start_rank + j, end_rank, tensor_model_parallel_size)
             all_data_parallel_group_ranks.append(list(ranks))
-            group = new_nccl_ib_group(ranks, backend=default_backend)
+            group = new_nccl_group(ranks, backend=default_backend)
             if rank in ranks:
                 _DATA_PARALLEL_GROUP = group
 
@@ -232,7 +236,7 @@ def initialize_model_parallel(
             data_parallel_group_ranks[i]
             for data_parallel_group_ranks in all_data_parallel_group_ranks
         ]
-        group = new_nccl_socket_group(ranks, backend=default_backend)
+        group = new_nccl_group(ranks, backend=default_backend)
         if rank in ranks:
             _MODEL_PARALLEL_GROUP = group
 
@@ -245,7 +249,7 @@ def initialize_model_parallel(
         ranks = list(
             range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size)
         )
-        group = new_nccl_ib_group(ranks, backend=default_backend)
+        group = new_nccl_group(ranks, backend=default_backend)
         if rank in ranks:
             _TENSOR_MODEL_PARALLEL_GROUP = group
 
@@ -273,7 +277,7 @@ def initialize_model_parallel(
         'relative position embedding group is already initialized'
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size, num_pipeline_model_parallel_groups)
-        group = new_nccl_socket_group(ranks, backend=p2p_backend)
+        group = new_nccl_group(ranks, backend=p2p_backend)
         if rank in ranks:
             _PIPELINE_MODEL_PARALLEL_GROUP = group
             _PIPELINE_GLOBAL_RANKS = ranks
@@ -311,20 +315,20 @@ def initialize_model_parallel(
             encoder_relative_position_embedding_ranks = ranks
             decoder_relative_position_embedding_ranks = ranks
 
-        group = new_nccl_socket_group(embedding_ranks, backend=p2p_backend)
+        group = new_nccl_group(embedding_ranks, backend=p2p_backend)
         if rank in embedding_ranks:
             _EMBEDDING_GROUP = group
         if rank in ranks:
             _EMBEDDING_GLOBAL_RANKS = embedding_ranks
 
-        group = new_nccl_socket_group(position_embedding_ranks, backend=p2p_backend)
+        group = new_nccl_group(position_embedding_ranks, backend=p2p_backend)
         if rank in position_embedding_ranks:
             _POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
             _POSITION_EMBEDDING_GLOBAL_RANKS = position_embedding_ranks
 
         if encoder_relative_position_embedding_ranks:
-            group = new_nccl_socket_group(encoder_relative_position_embedding_ranks, backend=p2p_backend)
+            group = new_nccl_group(encoder_relative_position_embedding_ranks, backend=p2p_backend)
         if rank in encoder_relative_position_embedding_ranks:
             _ENCODER_RELATIVE_POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
@@ -332,7 +336,7 @@ def initialize_model_parallel(
                 encoder_relative_position_embedding_ranks
 
         if decoder_relative_position_embedding_ranks:
-            group = new_nccl_socket_group(decoder_relative_position_embedding_ranks, backend=p2p_backend)
+            group = new_nccl_group(decoder_relative_position_embedding_ranks, backend=p2p_backend)
         if rank in decoder_relative_position_embedding_ranks:
             _DECODER_RELATIVE_POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
@@ -344,11 +348,10 @@ def initialize_model_parallel(
     elif default_nccl_net == "IB":
         set_nccl_ib_envs()
     elif default_nccl_net is None:
-        set_nccl_ib_envs()
         os.unsetenv("NCCL_NET")
+        os.unsetenv("NCCL_SOCKET_IFNAME")
     else:
         assert False, "unknown NCCL_NET"
-
 
 
 def get_rank_info() -> Tuple[int, int, int]:
