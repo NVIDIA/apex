@@ -234,7 +234,7 @@ class BertTestBase:
             args.pipeline_model_parallel_size,
             async_comm,
         )
-        torch.distributed.barrier()
+        torch.cuda.synchronize()
 
 
 class NcclBertTest(BertTestBase, NcclDistributedTestBase):
