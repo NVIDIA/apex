@@ -104,7 +104,7 @@ def new_nccl_ib_group(ranks, backend):
 
 def new_nccl_group(ranks, backend):
     block_size = 16
-    within_block = (max(ranks) - min(ranks))<block_size
+    within_block = (max(ranks) - min(ranks))<=block_size
     if within_block:
         return new_nccl_ib_group(ranks, backend)
     else:
