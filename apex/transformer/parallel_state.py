@@ -104,11 +104,11 @@ def new_nccl_ib_group(ranks, backend):
 
 def new_nccl_group(ranks, backend):
     block_size = 16
-    within_block = (max(ranks) - min(ranks))<block_size
-    if within_block:
-        return new_nccl_ib_group(ranks, backend)
-    else:
+    across_blocks = ((max(ranks) - min(ranks))>=block_size)
+    if across_blocks:
         return new_nccl_socket_group(ranks, backend)
+    else:
+        return new_nccl_ib_group(ranks, backend)
 
 def initialize_model_parallel(
     tensor_model_parallel_size_: int = 1,
