@@ -28,10 +28,21 @@ def torch2datatype(dt: torch.dtype) -> Optional[DataType]:
     }.get(dt)
 
 
+def contiguity(x: torch.Tensor) -> List[bool]:
+    """Given a torch tensor, compute contiguity for each axis."""
+    stride = x.stride()
+    return [sp == s * n for sp, s, n in zip(stride, stride[1:], x.shape[1:])] + [
+        stride[-1] == 1
+    ]
+
+
 def partially_contig_tensor(fd: FusionDefinition, x: torch.Tensor) -> Tensor:
     """Create an NVFuser Tensor with dynamic size but same contiguity as input"""
+    sh = [-1 if xi == 1 else xi for xi in x.shape]
     return fd.define_tensor(
-        sizes=x.shape, strides=x.stride(), dtype=torch2datatype(x.dtype)
+        symbolic_sizes=[-1] * x.ndim,
+        contiguous=contiguity(x),
+        dtype=torch2datatype(x.dtype),
     )
 
 
@@ -381,9 +392,13 @@ class NormNVFuserFunction(torch.autograd.Function):  # type: ignore
         unbiased: bool,
         stat_axes: List[NamedAxis],
     ) -> torch.Tensor:
-        channels_last = x.is_contiguous(
-            memory_format=torch.channels_last
-        ) or x.is_contiguous(memory_format=torch.channels_last_3d)
+        # When x.shape[1] == 1, is_contiguous will tell us the tensor is
+        # channels_last, even when it is ordinary contiguous. This causes some
+        # issues so we only detect channels_last when channels > 1
+        channels_last = x.shape[1] > 1 and (
+            x.is_contiguous(memory_format=torch.channels_last)
+            or x.is_contiguous(memory_format=torch.channels_last_3d)
+        )
         xorig = x
         if channels_last:
             order = [0] + [i for i in range(2, len(x.shape))] + [1]
