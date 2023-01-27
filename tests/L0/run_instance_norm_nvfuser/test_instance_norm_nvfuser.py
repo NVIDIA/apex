@@ -54,7 +54,7 @@ class TestInstanceNormNVFuser(unittest.TestCase):
             dtype=torch.float64,
         )
 
-    def check_same_output(self, contiguous=True):
+    def check_same_output(self, contiguous=True, training=False, compare=True):
         torch.manual_seed(42)
         for i in range(2):  # exercise JIT + caching
             inp = torch.rand(
@@ -90,34 +90,53 @@ class TestInstanceNormNVFuser(unittest.TestCase):
                 == contiguous
             )
 
+            if training:
+                self.m.train()
+                self.reference_m.train()
+            else:
+                self.m.eval()
+                self.reference_m.eval()
+
             out = self.m(inp)
             out2 = self.reference_m(inp2)
-            assert_close(out, out2)
+            if compare:
+                assert_close(out, out2)
 
             if self.m.running_mean is None:
                 assert self.reference_m.running_mean is None
                 assert self.m.running_var is None
                 assert self.reference_m.running_var is None
             else:
-                assert_close(self.m.running_mean, self.reference_m.running_mean)
+                if compare:
+                    assert_close(self.m.running_mean, self.reference_m.running_mean)
+
+            if not training:
+                return
 
             grad_out = torch.randn_like(inp)
             out.backward(grad_out)
             out2.backward(grad_out)
-            assert_close(inp.grad, inp2.grad)
+            if compare:
+                assert_close(inp.grad, inp2.grad)
 
-            # compare weight gradients
-            if self.m.weight is not None:
-                assert_close(self.m.weight.grad, self.reference_m.weight.grad)
-            if self.m.bias is not None:
-                assert_close(self.m.bias.grad, self.reference_m.bias.grad)
+                # compare weight gradients
+                if self.m.weight is not None:
+                    assert_close(self.m.weight.grad, self.reference_m.weight.grad)
+                if self.m.bias is not None:
+                    assert_close(self.m.bias.grad, self.reference_m.bias.grad)
 
     def test_sweep(self):
         dtypes = [torch.float, torch.half, torch.double]
         if torch.cuda.get_device_capability() >= (8, 0):
             dtypes.append(torch.bfloat16)
-        for dtype, track_running_stats, channels_last, affine in itertools.product(
-            dtypes, (False, True), (False, True), (False, True)
+        for (
+            training,
+            dtype,
+            track_running_stats,
+            channels_last,
+            affine,
+        ) in itertools.product(
+            [False, True], dtypes, (False, True), (False, True), (False, True)
         ):
             with self.subTest(
                 dtype=dtype,
@@ -129,17 +148,19 @@ class TestInstanceNormNVFuser(unittest.TestCase):
                 self.track_running_stats = track_running_stats
                 self.channels_last = channels_last
                 self.affine = affine
-                # observe the cache to see which params cause new Fusions
-                fc = FusionCache.get()
-                nf = fc.num_fusions()
-                for b, c, s in [
-                    (5, 7, 3),
-                    (6, 7, 3),
-                    (5, 8, 3),
-                    # TODO: changing spatial size currently causes a new Fusion
-                    # (5, 7, 4),
-                    # (6, 7, 4),
-                    # (5, 8, 4),
+                for b, c, s, compare in [
+                    (5, 7, 3, True),
+                    # check size=1 dimensions
+                    (1, 7, 3, True),
+                    (5, 1, 3, True),
+                    # (5, 7, 1, True), # eager instance norm needs more than one spatial element
+                    (1, 1, 3, True),
+                    # Don't check output for larger inputs, but check that they run
+                    (16, 1, 64, False),
+                    (16, 2, 64, False),
+                    (1, 16, 64, False),
+                    (2, 16, 64, False),
+                    (16, 16, 64, False),
                 ]:
                     for contig in [True, False]:
                         self.batch_size = b
@@ -147,7 +168,9 @@ class TestInstanceNormNVFuser(unittest.TestCase):
                         self.spatial_size = s
 
                         self.init_modules()
-                        self.check_same_output(contig)
+                        self.check_same_output(
+                            contiguous=contig, training=training, compare=compare
+                        )
 
     @unittest.skipIf(torch.cuda.device_count() < 2, "more than 1 GPU required")
     def test_multigpu(self):
