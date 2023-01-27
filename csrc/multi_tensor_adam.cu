@@ -189,7 +189,8 @@ struct AdamCapturableFunctor
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
         {
-          r_g[ii] = g[i] * (*inv_scale);
+	  g[i] = g[i] * (*inv_scale);
+          r_g[ii] = g[i];
           r_p[ii] = p[i];
           r_m[ii] = m[i];
           r_v[ii] = v[i];
