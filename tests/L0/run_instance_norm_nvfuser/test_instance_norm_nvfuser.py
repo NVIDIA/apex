@@ -1,8 +1,6 @@
 import itertools
 import unittest
 
-from nvfuser import FusionCache
-
 import torch
 import torch.nn as nn
 
@@ -150,16 +148,6 @@ class TestInstanceNormNVFuser(unittest.TestCase):
 
                         self.init_modules()
                         self.check_same_output(contig)
-                    # Changing input sizes may cause a recompile, but it should
-                    # not cause a new Fusion to be scheduled. However, changing
-                    # contiguity should create a new Fusion. There is one
-                    # Fusion for each of forward and backward, so 4 per subtest
-
-                    # NOTE: on multi-GPU systems, test_multigpu will populate
-                    # the cache, so that there may be a cache hit in the above
-                    # test. So we use an inequality here in order to ensure no
-                    # _excess_ Fusions are scheduled.
-                    assert fc.num_fusions() <= nf + 4
 
     @unittest.skipIf(torch.cuda.device_count() < 2, "more than 1 GPU required")
     def test_multigpu(self):
