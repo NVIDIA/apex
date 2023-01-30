@@ -49,7 +49,7 @@ fp16 = torch.float16
 bf16 = torch.bfloat16
 
 
-def backward_(dz, x, mu, rs, gamma, one_plus):
+def backward_(dz, x, mu, rs, gamma, gamma_shift):
 
     wtype = gamma.dtype
     itype = x.dtype
@@ -62,7 +62,7 @@ def backward_(dz, x, mu, rs, gamma, one_plus):
     y = rs * (x.to(ctype) - mu)
     dbeta = dz.view(-1, hidden_size).sum(0, dtype=ctype)
     dgamma = (dz * y).view(-1, hidden_size).sum(0, dtype=ctype)
-    dy = dz.view(-1, hidden_size).to(ctype) * (gamma.unsqueeze(0).to(ctype) + one_plus)
+    dy = dz.view(-1, hidden_size).to(ctype) * (gamma.unsqueeze(0).to(ctype) + gamma_shift)
     mdy = dy.mean(1, keepdim=True, dtype=ctype)
 
     mdyy = (dy * y).mean(1, keepdim=True, dtype=ctype)
@@ -74,9 +74,9 @@ def backward_(dz, x, mu, rs, gamma, one_plus):
 def benchmark_(S, B, hidden_size, itype, wtype, is_1p, runs=100):
     epsilon = 1e-5
     if is_1p:
-        one_plus = 1.0
+        gamma_shift = 1.0
     else:
-        one_plus = 0.0
+        gamma_shift = 0.0
     x = torch.randn((S * B, hidden_size), dtype=itype, device=device)
     beta = torch.randn(hidden_size, dtype=wtype, device=device)
     gamma = torch.randn(hidden_size, dtype=wtype, device=device)
@@ -89,11 +89,11 @@ def benchmark_(S, B, hidden_size, itype, wtype, is_1p, runs=100):
 
         # warmup
         for r in range(runs):
-            z, mu, rsigma = fln.ln_fwd(x, gamma, beta, epsilon, one_plus)
+            z, mu, rsigma = fln.ln_fwd(x, gamma, beta, epsilon, gamma_shift)
 
         timer.start()
         for r in range(runs):
-            z, mu, rsigma = fln.ln_fwd(x, gamma, beta, epsilon, one_plus)
+            z, mu, rsigma = fln.ln_fwd(x, gamma, beta, epsilon, gamma_shift)
         timer.stop()
         timer.sync()
 
@@ -109,7 +109,7 @@ def benchmark_(S, B, hidden_size, itype, wtype, is_1p, runs=100):
 
         timer.start()
         for r in range(runs):
-            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(dz, x, mu, rsigma, gamma, one_plus)
+            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(dz, x, mu, rsigma, gamma, gamma_shift)
         timer.stop()
         timer.sync()
 
@@ -145,9 +145,9 @@ def _test_impl(S, B, hidden_size, itype, wtype, is_1p, ctype=fp32):
     beta = torch.randn(hidden_size, dtype=wtype, device=device) * 0.2
     epsilon = 1e-5
     if is_1p:
-        one_plus = 1.0
+        gamma_shift = 1.0
     else:
-        one_plus = 0.0
+        gamma_shift = 0.0
 
     x.requires_grad = True
     gamma.requires_grad = True
@@ -157,7 +157,7 @@ def _test_impl(S, B, hidden_size, itype, wtype, is_1p, ctype=fp32):
     v = torch.square(x - mu_ref).mean(1, dtype=ctype, keepdim=True)
     rs_ref = torch.rsqrt(v + epsilon)
     y_ref = rs_ref * (x.to(ctype) - mu_ref)
-    z_ref = ((gamma.unsqueeze(0) + one_plus) * (y_ref).to(otype) + beta.unsqueeze(0)).to(otype)
+    z_ref = ((gamma.unsqueeze(0) + gamma_shift) * (y_ref).to(otype) + beta.unsqueeze(0)).to(otype)
 
     mu_ref = mu_ref.flatten()
     rs_ref = rs_ref.flatten()
@@ -169,10 +169,10 @@ def _test_impl(S, B, hidden_size, itype, wtype, is_1p, ctype=fp32):
     # dgamma_ref = gamma.grad
     # dbeta_ref = beta.grad
 
-    dx_ref, dg_ref, db_ref = backward_(dz, x, mu_ref, rs_ref, gamma, one_plus)
+    dx_ref, dg_ref, db_ref = backward_(dz, x, mu_ref, rs_ref, gamma, gamma_shift)
 
-    z, mu, rs = fln.ln_fwd(x, gamma, beta, epsilon, one_plus)
-    dx, dg, db, dg_part, db_part = fln.ln_bwd(dz, x, mu, rs, gamma, one_plus)
+    z, mu, rs = fln.ln_fwd(x, gamma, beta, epsilon, gamma_shift)
+    dx, dg, db, dg_part, db_part = fln.ln_bwd(dz, x, mu, rs, gamma, gamma_shift)
 
     re_z, mse_z = metrics(z_ref, z)
     re_mu, mse_mu = metrics(mu_ref, mu)
