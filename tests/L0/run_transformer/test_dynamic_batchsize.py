@@ -139,7 +139,7 @@ def run_interleaved_with_dynamic_batch_size(
             else:
                 optimizer.zero_grad(set_to_none=True)
 
-    torch.distributed.barrier()
+    torch.cuda.synchronize()
 
 
 class DynamicBatchsizeTestBase:
@@ -199,17 +199,14 @@ class DynamicBatchsizeTestBase:
                     raise RuntimeError(msg)
                 finally:
                     parallel_state.destroy_model_parallel()
-        print_separator("TEST RESULT")
         if failures:
-            torch.distributed.barrier()
-            if torch.distributed.get_rank() == 0:
-                print("\n".join(failures))
+            print_separator("TEST FAILED:")
+            print("\n".join(failures))
             msg = f"{len(failures)} / {n_tests} cases failed"
             raise RuntimeError(msg)
         else:
-            torch.distributed.barrier()
             if torch.distributed.get_rank() == 0:
-                print("### PASS!")
+                print_separator("TEST RESULT: ### PASS!")
 
 
 class NcclDynamicBatchsizeTest(DynamicBatchsizeTestBase, NcclDistributedTestBase):

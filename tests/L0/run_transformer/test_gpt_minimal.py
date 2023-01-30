@@ -216,7 +216,7 @@ class GptTestBase:
                 model, optim, args.pipeline_model_parallel_size, async_comm)
 
             parallel_state.destroy_model_parallel()
-        torch.distributed.barrier()
+        torch.cuda.synchronize()
 
 
 class NcclGptTest(GptTestBase, NcclDistributedTestBase):
