@@ -67,7 +67,7 @@ struct FwdParams : public ParamsBase {
         , z(nullptr)
         , beta(nullptr)
         , epsilon(0.f)
-        , one_plus(0.f)
+        , gamma_shift(0.f)
     {
     }
 
@@ -75,7 +75,7 @@ struct FwdParams : public ParamsBase {
     void *z;
     void *beta;
     float epsilon;
-    float one_plus;
+    float gamma_shift;
 
 };
 
@@ -90,7 +90,7 @@ struct BwdParams : public ParamsBase {
         , dx(nullptr)
         , dbeta(nullptr)
         , dgamma(nullptr)
-        , one_plus(0.f)
+        , gamma_shift(0.f)
     {
     }
 
@@ -107,7 +107,7 @@ struct BwdParams : public ParamsBase {
     void *dbeta;
     void *dgamma;
 
-    float one_plus;
+    float gamma_shift;
 
 };
 
