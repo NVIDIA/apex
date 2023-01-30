@@ -348,7 +348,7 @@ def norm_fusion_backward(
         if weight is None
         else fd.ops.mul(
             invstd_bcast,
-            fd.ops.broadcast_in_dim(weight, dyn_shape, [0]),
+            fd.ops.broadcast_in_dim(weight, dyn_shape, stat_dims_nobatch),
         )
     )
     if use_input_stats:
