@@ -597,18 +597,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """Broadcast parameter values from root rank"""
         sync_requests = []
         process_group = self.process_group
-        process_group._start_coalescing()
-        for param_group in self.param_groups:
-            for param in param_group['params']:
-                sync_requests.append(
-                    torch.distributed.broadcast(
-                        param,
-                        src=self._process_group_ranks[0],
-                        group=process_group,
-                        async_op=True,
+        with _coalescing_manager(process_group, self.device, sync_requests):
+            for param_group in self.param_groups:
+                for param in param_group['params']:
+                    sync_requests.append(
+                        torch.distributed.broadcast(
+                            param,
+                            src=self._process_group_ranks[0],
+                            group=process_group,
+                            async_op=True,
+                        )
                     )
-                )
-        process_group._end_coalescing(sync_requests)
         for req in sync_requests:
             req.wait()
 
@@ -1499,18 +1498,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     bucket.sync_wait()
                 sync_requests = []
                 group = self.distributed_process_group
-                group._start_coalescing()
-                for bucket in buckets:
-                    bucket.sync_request = (
-                        all_gather_into_tensor(
-                            bucket.params_bucket,
-                            bucket.params_shard,
-                            group=group,
-                            async_op=True,
+                with _coalescing_manager(group, self.device, sync_requests):
+                    for bucket in buckets:
+                        bucket.sync_request = (
+                            all_gather_into_tensor(
+                                bucket.params_bucket,
+                                bucket.params_shard,
+                                group=group,
+                                async_op=True,
+                            )
                         )
-                    )
-                    sync_requests.append(bucket.sync_request)
-                group._end_coalescing(sync_requests)
+                        sync_requests.append(bucket.sync_request)
 
     def _finish_bucket_param_sync(self):
         """Wait for any param synchronizations that are in progress"""
