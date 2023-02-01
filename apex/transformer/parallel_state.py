@@ -104,11 +104,12 @@ def new_nccl_ib_group(ranks, backend):
 
 def new_nccl_group(ranks, backend):
     block_size = int(os.getenv("OCI_BLOCK_SIZE", 16))
-    across_blocks = ((max(ranks) - min(ranks))>=block_size)
-    if across_blocks:
-        return new_nccl_socket_group(ranks, backend)
-    else:
+    blocks = [rank // block_size for rank in ranks]
+    use_ib = all(block==blocks[0] for block in blocks)
+    if use_ib:
         return new_nccl_ib_group(ranks, backend)
+    else:
+        return new_nccl_socket_group(ranks, backend)
 
 def initialize_model_parallel(
     tensor_model_parallel_size_: int = 1,
