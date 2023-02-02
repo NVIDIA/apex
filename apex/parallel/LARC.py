@@ -5,10 +5,10 @@ from torch.nn.parameter import Parameter
 class LARC(object):
     """
     :class:`LARC` is a pytorch implementation of both the scaling and clipping variants of LARC,
-    in which the ratio between gradient and parameter magnitudes is used to calculate an adaptive 
+    in which the ratio between gradient and parameter magnitudes is used to calculate an adaptive
     local learning rate for each individual parameter. The algorithm is designed to improve
     convergence of large batch training.
-     
+
     See https://arxiv.org/abs/1708.03888 for calculation of the local learning rate.
 
     In practice it modifies the gradients of parameters as a proxy for modifying the learning rate
@@ -62,7 +62,7 @@ class LARC(object):
     @param_groups.setter
     def param_groups(self, value):
         self.optim.param_groups = value
-    
+
     def state_dict(self):
         return self.optim.state_dict()
 
