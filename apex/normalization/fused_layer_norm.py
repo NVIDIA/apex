@@ -369,7 +369,7 @@ class FusedRMSNorm(torch.nn.Module):
         self.eps = eps
         self.elementwise_affine = elementwise_affine
         if self.elementwise_affine:
-            self.weight = Parameter(torch.tensor(*normalized_shape))
+            self.weight = Parameter(torch.empty(*normalized_shape))
         else:
             self.register_parameter("weight", None)
         self.reset_parameters()
