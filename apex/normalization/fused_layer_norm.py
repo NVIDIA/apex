@@ -274,7 +274,7 @@ class FusedLayerNorm(torch.nn.Module):
         self.elementwise_affine = elementwise_affine
         if self.elementwise_affine:
             self.weight = Parameter(torch.empty(*normalized_shape))
-            self.bias = Parameter(torch.tensor(*normalized_shape))
+            self.bias = Parameter(torch.empty(*normalized_shape))
         else:
             self.register_parameter("weight", None)
             self.register_parameter("bias", None)
