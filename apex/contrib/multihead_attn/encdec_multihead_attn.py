@@ -36,14 +36,14 @@ class EncdecMultiheadAttn(nn.Module):
         self.impl = impl
         self.scaling = self.head_dim ** -0.5
 
-        self.in_proj_weight_q = Parameter(torch.Tensor(embed_dim, embed_dim))
-        self.in_proj_weight_kv = Parameter(torch.Tensor(2 * embed_dim, embed_dim))
-        self.out_proj_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
+        self.in_proj_weight_q = Parameter(torch.empty(embed_dim, embed_dim))
+        self.in_proj_weight_kv = Parameter(torch.empty(2 * embed_dim, embed_dim))
+        self.out_proj_weight = Parameter(torch.empty(embed_dim, embed_dim))
         if self.bias:
             assert impl != "fast", "ERROR! The Fast implementation does not support biases!"
-            self.in_proj_bias_q = Parameter(torch.Tensor(embed_dim))
-            self.in_proj_bias_kv = Parameter(torch.Tensor(2 * embed_dim))
-            self.out_proj_bias = Parameter(torch.Tensor(embed_dim))
+            self.in_proj_bias_q = Parameter(torch.empty(embed_dim))
+            self.in_proj_bias_kv = Parameter(torch.empty(2 * embed_dim))
+            self.out_proj_bias = Parameter(torch.empty(embed_dim))
         else:
             self.register_parameter("in_proj_bias_q", None)
             self.register_parameter("in_proj_bias_kv", None)
@@ -52,8 +52,8 @@ class EncdecMultiheadAttn(nn.Module):
             self.out_proj_bias = None
         if self.include_norm_add:
             if impl == "fast":
-                self.lyr_nrm_gamma_weights = Parameter(torch.Tensor(embed_dim))
-                self.lyr_nrm_beta_weights = Parameter(torch.Tensor(embed_dim))
+                self.lyr_nrm_gamma_weights = Parameter(torch.empty(embed_dim))
+                self.lyr_nrm_beta_weights = Parameter(torch.empty(embed_dim))
                 self.lyr_nrm = None
             else:
                 self.register_parameter("lyr_norm_gamma_weights", None)
