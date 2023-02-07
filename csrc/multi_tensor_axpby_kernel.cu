@@ -72,11 +72,11 @@ struct AxpbyFunctor
         {
           r_out[ii] = a*static_cast<float>(r_x[ii]) + b*static_cast<float>(r_y[ii]);
           if(arg_to_check == -1)
-            finite = finite && (isfinite(r_x[ii]) && isfinite(r_y[ii]));
+            finite = finite && (isfinite(static_cast<float>(r_x[ii])) && isfinite(static_cast<float>(r_y[ii])));
           if(arg_to_check == 0)
-            finite = finite && isfinite(r_x[ii]);
+            finite = finite && isfinite(static_cast<float>(r_x[ii]));
           if(arg_to_check == 1)
-            finite = finite && isfinite(r_y[ii]);
+            finite = finite && isfinite(static_cast<float>(r_y[ii]));
         }
         // store
         load_store(out, r_out, i_start , 0);
@@ -104,11 +104,11 @@ struct AxpbyFunctor
         {
           r_out[ii] = a*static_cast<float>(r_x[ii]) + b*static_cast<float>(r_y[ii]);
           if(arg_to_check == -1)
-            finite = finite && (isfinite(r_x[ii]) && isfinite(r_y[ii]));
+            finite = finite && (isfinite(static_cast<float>(r_x[ii])) && isfinite(static_cast<float>(r_y[ii])));
           if(arg_to_check == 0)
-            finite = finite && isfinite(r_x[ii]);
+            finite = finite && isfinite(static_cast<float>(r_x[ii]));
           if(arg_to_check == 1)
-            finite = finite && isfinite(r_y[ii]);
+            finite = finite && isfinite(static_cast<float>(r_y[ii]));
         }
         // see note in multi_tensor_scale_kernel.cu
 #pragma unroll
