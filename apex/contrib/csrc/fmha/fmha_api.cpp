@@ -30,6 +30,7 @@
 
 #include "fmha.h"
 
+extern at::Tensor & mha_fill(at::Tensor &self, const at::Tensor &start_index);
 void set_params(Fused_multihead_attention_fprop_params &params,
                 // sizes
                 const size_t b,
@@ -93,6 +94,7 @@ mha_fwd(const at::Tensor &qkv,         // total x num_heads x 3 x head_size, tot
         const bool zero_tensors,
         c10::optional<at::Generator> gen_) {
 
+    using namespace torch::indexing;
     auto dprops = at::cuda::getCurrentDeviceProperties();
     TORCH_CHECK((dprops->major == 8 && dprops->minor == 0) ||
                 (dprops->major == 9 && dprops->minor == 0));
@@ -143,7 +145,7 @@ mha_fwd(const at::Tensor &qkv,         // total x num_heads x 3 x head_size, tot
     auto s = torch::empty({ batch_size, num_heads, seq_len, seq_len }, opts);
 
     if( zero_tensors ) {
-        ctx.zero_();
+        mha_fill(ctx, cu_seqlens.index({Slice(-1,None)}));
     }
 
     auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
@@ -188,6 +190,7 @@ mha_bwd(const at::Tensor &dout,  // total x num_heads, x head_size
         const int max_seq_len,          // max sequence length to choose the kernel
         const bool zero_tensors
 ) {
+    using namespace torch::indexing;
     auto dprops = at::cuda::getCurrentDeviceProperties();
     TORCH_CHECK((dprops->major == 8 && dprops->minor == 0) ||
                 (dprops->major == 9 && dprops->minor == 0));
@@ -238,7 +241,7 @@ mha_bwd(const at::Tensor &dout,  // total x num_heads, x head_size
     auto dqkv = torch::empty_like(qkv);
 
     if( zero_tensors ) {
-        dqkv.zero_();
+        mha_fill(dqkv, cu_seqlens.index({Slice(-1,None)}));
     }
 
     Fused_multihead_attention_fprop_params params;
