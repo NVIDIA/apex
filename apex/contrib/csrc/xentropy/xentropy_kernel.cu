@@ -574,8 +574,8 @@ std::vector<Tensor> host_softmax_xentropy(
         const Tensor & labels_,
         const float smoothing,
         const bool half_to_float){
-  if (half_to_float) TORCH_CHECK(input_.type().scalarType() == ScalarType::Half,"conversion is supported for Half type only");
-  TORCH_CHECK(labels_.type().scalarType() == ScalarType::Long,"Label type should be CUDA Long");
+  if (half_to_float) TORCH_CHECK(input_.scalar_type() == ScalarType::Half,"conversion is supported for Half type only");
+  TORCH_CHECK(labels_.scalar_type() == ScalarType::Long,"Label type should be CUDA Long");
 
   auto input = input_.contiguous();
   Tensor max_log_sum_exp = at::empty_like(labels_, half_to_float ? input.options().dtype(ScalarType::Float) : input.options());
@@ -710,9 +710,9 @@ at::Tensor softmax_xentropy_backward_cuda(
     const at::Tensor &max_log_sum_exp,
     const at::Tensor &labels,
     const float smoothing) {
-  bool half_to_float = grad_loss.type().scalarType() != logits.type().scalarType();
+  bool half_to_float = grad_loss.scalar_type() != logits.scalar_type();
   if (half_to_float) {
-     TORCH_CHECK((grad_loss.type().scalarType() == ScalarType::Float && logits.type().scalarType() == ScalarType::Half), "expected input and grad types to match, or input to be at::Half and grad to be at::Float");
+     TORCH_CHECK((grad_loss.scalar_type() == ScalarType::Float && logits.scalar_type() == ScalarType::Half), "expected input and grad types to match, or input to be at::Half and grad to be at::Float");
   }
   return host_softmax_xentropy_backward<LogSoftMaxBackwardEpilogue>(grad_loss, logits, max_log_sum_exp, labels, smoothing, half_to_float);
 }
