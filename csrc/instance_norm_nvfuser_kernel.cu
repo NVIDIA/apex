@@ -5,10 +5,16 @@
 
 #include <torch/extension.h>
 
+// The following header file is found in `PYTORCH_HOME`
+#include <aten/src/ATen/native/utils/ParamsHash.h>
+
+#if NVFUSER_THIRDPARTY
+#include <kernel_cache.h>
+#include <ops/all_ops.h>
+#else
 #include <torch/csrc/jit/codegen/cuda/kernel_cache.h>
 #include <torch/csrc/jit/codegen/cuda/ops/all_ops.h>
-
-#include <aten/src/ATen/native/utils/ParamsHash.h>
+#endif
 
 using namespace torch::jit::fuser::cuda;
 using namespace at::indexing;
@@ -85,7 +91,7 @@ std::vector<at::Tensor> instance_norm_nvfuser_forward(
     }
     InstanceNormKey forward_key;
     setKey(input, weight, run_mean, channels_last, forward_key);
-    if (forward_fusion_cache.find(forward_key) == forward_fusion_cache.end()) {  
+    if (forward_fusion_cache.find(forward_key) == forward_fusion_cache.end()) {
       auto fusion = std::make_unique<Fusion>();
       FusionGuard fg(fusion.get());
 
@@ -130,7 +136,7 @@ std::vector<at::Tensor> instance_norm_nvfuser_forward(
       if (!run_mean.sizes().size()) {
         _running_mean = nullptr;
         _running_var = nullptr;
-      } 
+      }
       if (!weight.sizes().size()) {
         _weight = nullptr;
         _bias = nullptr;
@@ -235,7 +241,7 @@ std::vector<at::Tensor> instance_norm_nvfuser_backward(
       if (!run_mean.sizes().size()) {
         _running_mean = nullptr;
         _running_var = nullptr;
-      } 
+      }
       if (!weight.sizes().size()) {
         _weight = nullptr;
       }

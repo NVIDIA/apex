@@ -361,13 +361,27 @@ if "--cuda_ext" in sys.argv:
         )
 
 if PYTORCH_HOME is not None and os.path.exists(PYTORCH_HOME):
+    nvfuser_is_refactored = "nvfuser" in (
+        os.path.join(d) for d in os.listdir(os.path.join(PYTORCH_HOME, "third_party"))
+        if os.path.isdir(os.path.join(os.path.join(PYTORCH_HOME, "third_party"), d))
+    )
     print(PYTORCH_HOME)
+    include_dirs = [PYTORCH_HOME]
+    if nvfuser_is_refactored:
+        include_dirs.append(os.path.join(PYTORCH_HOME, "third_party/nvfuser/csrc"))
     ext_modules.append(
-       CUDAExtension('instance_norm_nvfuser_cuda',
-                     ['csrc/instance_norm_nvfuser.cpp', 'csrc/instance_norm_nvfuser_kernel.cu'],
-                     extra_compile_args={"cxx": ["-O3"] + version_dependent_macros,
-                                         "nvcc": append_nvcc_threads(["-O3"] + version_dependent_macros + [f"-I {PYTORCH_HOME}"])},
-                    )
+        CUDAExtension(
+            name='instance_norm_nvfuser_cuda',
+            sources=[
+                'csrc/instance_norm_nvfuser.cpp',
+                'csrc/instance_norm_nvfuser_kernel.cu',
+            ],
+            include_dirs=include_dirs,
+            extra_compile_args={
+                "cxx": ["-O3"] + version_dependent_macros,
+                "nvcc": ["-O3"] + version_dependent_macros + [f"-DNVFUSER_THIRDPARTY={int(nvfuser_is_refactored)}"],
+            },
+        )
     )
 
 if "--permutation_search" in sys.argv:
