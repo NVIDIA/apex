@@ -444,11 +444,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 f'grad_sync_dtype={grad_sync_dtype}, '
                 f'param_sync_dtype={param_sync_dtype}))'
             )
-        if grad_sync_dtype != dtype:
-            raise RuntimeError(
-                'DistributedFusedAdam requires dtype to match grad dtype '
-                f'(dtype={dtype}, grad_sync_dtype={grad_sync_dtype})'
-            )
         self.dtype = dtype
         self.grad_sync_dtype = grad_sync_dtype
         self.param_sync_dtype = param_sync_dtype
@@ -488,13 +483,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 f'distributed process group size = {self.distributed_size}, '
                 f'redundant process group size = {self.redundant_size})'
             )
-        try:
-            self._process_group_ranks = [
-                get_global_rank(self.process_group, local_rank)
-                for local_rank in range(self.distributed_size)
-            ]
-        except:
-            self._process_group_ranks = list(range(self.distributed_size))
+        self.process_group_root = get_global_rank(self.process_group, 0)
 
         # Use average reduction for grad sync
         self.average_grad_sync = average_grad_sync
@@ -515,14 +504,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     'with store_params=True and store_param_remainders=True'
                 )
             if (self.dtype != torch.float32
-                or self.grad_sync_dtype != torch.float32
                 or self.param_sync_dtype != torch.bfloat16):
                 raise RuntimeError(
                     'DistributedFusedAdam requires '
                     'BF16 params and FP32 optimizer state '
                     'when storing parameter remainders '
                     f'(dtype={self.dtype}, '
-                    f'grad_sync_dtype={self.grad_sync_dtype}, '
                     f'param_sync_dtype={self.param_sync_dtype}))'
                 )
         self.store_params = store_params
@@ -565,7 +552,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         # Scale by factor before optimizer step. Used for grad
         # clipping and gradient scaler.
-        self._grad_scale = torch.full([], 1.0, dtype=self.dtype, device=self.device)
+        self._grad_scale = torch.full([], 1.0, dtype=torch.float32, device=self.device)
         # Norm of parameter gradients. Used for gradient clipping and
         # gradient scaler.
         self._grad_norm = None
@@ -603,7 +590,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     sync_requests.append(
                         torch.distributed.broadcast(
                             param,
-                            src=self._process_group_ranks[0],
+                            src=self.process_group_root,
                             group=process_group,
                             async_op=True,
                         )
@@ -829,7 +816,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             buffer_size = 0
         self._grad_buffer = torch.zeros(
             [buffer_size],
-            dtype=self.dtype,
+            dtype=self.grad_sync_dtype,
             device=self.device,
         )
 
@@ -1089,7 +1076,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     param.grad.zero_()
 
         # Reset other state
-        self._grad_scale = torch.full([], 1.0, dtype=self.dtype, device=self.device)
+        self._grad_scale = torch.full([], 1.0, dtype=torch.float32, device=self.device)
         self._grad_norm = None
         self._dummy_overflow_buf = torch.zeros([1], dtype=torch.int32, device=self.device)
 
@@ -1934,7 +1921,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 ranks on the root rank (default: True)
 
         """
-        ### TODO Fix
         state_dict = super().state_dict()
         if not gather_on_root:
             return state_dict
@@ -2036,14 +2022,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         torch.distributed.gather(
                             gathered_chunks[0],
                             gathered_chunks,
-                            dst=self._process_group_ranks[0],
+                            dst=self.process_group_root,
                             group=self.process_group,
                             **no_copy_kwarg,
                         )
                     else:
                         torch.distributed.gather(
                             chunk,
-                            dst=self._process_group_ranks[0],
+                            dst=self.process_group_root,
                             group=self.process_group,
                         )
                 stream.wait_stream(main_stream)
