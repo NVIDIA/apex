@@ -5,9 +5,9 @@
 
 
 #define CHECK_CUDA(x)                                                          \
-  AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")
+  TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x)                                                    \
-  AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
+  TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x)                                                         \
   CHECK_CUDA(x);                                                               \
   CHECK_CONTIGUOUS(x)
@@ -28,12 +28,12 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool is_training, int heads,
                                torch::Tensor const &input,
                                torch::Tensor const &pad_mask,
                                float dropout_prob) {
-  AT_ASSERTM(input.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
   if (use_mask) {
-    AT_ASSERTM(pad_mask.dim() == 2, "expected 2D tensor");
-    AT_ASSERTM(pad_mask.type().scalarType() == at::ScalarType::Half,
+    TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
+    TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Half,
                "Only BYTE is supported");
   }
 
@@ -46,14 +46,14 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool is_training, int heads,
 torch::Tensor bwd(bool use_mask, int heads, torch::Tensor const &output_grads,
                   torch::Tensor const &softmax_results,
                   torch::Tensor const &dropout_mask, float dropout_prob) {
-  AT_ASSERTM(output_grads.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(softmax_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(dropout_mask.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(output_grads.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(softmax_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(softmax_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  //  AT_ASSERTM(dropout_mask.type().scalarType()      == at::ScalarType::Byte,
+  //  TORCH_CHECK(dropout_mask.scalar_type()      == at::ScalarType::Byte,
   //  "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, softmax_results, dropout_mask,
@@ -77,13 +77,13 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool is_training, int heads,
                                torch::Tensor const &input,
                                torch::Tensor const &pad_mask,
                                float dropout_prob) {
-  AT_ASSERTM(input.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
 
   if (use_mask) {
-    AT_ASSERTM(pad_mask.dim() == 2, "expected 2D tensor");
-    AT_ASSERTM(pad_mask.type().scalarType() == at::ScalarType::Byte,
+    TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
+    TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Byte,
                "Only BYTE is supported");
   }
 
@@ -97,15 +97,15 @@ torch::Tensor bwd(bool use_mask, int heads, torch::Tensor const &output_grads,
                   torch::Tensor const &softmax_results,
                   torch::Tensor const &dropout_mask,
                   torch::Tensor const &padding_mask, float dropout_prob) {
-  AT_ASSERTM(output_grads.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(softmax_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(dropout_mask.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(softmax_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
 
-  AT_ASSERTM(output_grads.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(softmax_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  //  AT_ASSERTM(dropout_mask.type().scalarType()      == at::ScalarType::Byte,
+  //  TORCH_CHECK(dropout_mask.scalar_type()      == at::ScalarType::Byte,
   //  "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, softmax_results, dropout_mask,
@@ -145,26 +145,26 @@ fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
     torch::Tensor const &input_weights_q, torch::Tensor const &input_weights_kv,
     torch::Tensor const &output_weights, torch::Tensor const &pad_mask,
     float dropout_prob) {
-  AT_ASSERTM(inputs_q.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(inputs_kv.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_weights_q.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(input_weights_kv.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(inputs_q.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(inputs_kv.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_weights_q.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(input_weights_kv.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
 
-  AT_ASSERTM(inputs_q.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs_q.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(inputs_kv.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs_kv.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights_q.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights_q.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights_kv.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights_kv.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
 
   if (use_mask) {
-    AT_ASSERTM(pad_mask.dim() == 2, "expected 2D tensor");
-    AT_ASSERTM(pad_mask.type().scalarType() == at::ScalarType::Byte,
+    TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
+    TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Byte,
                "Only BYTE is supported");
   }
 
@@ -184,42 +184,42 @@ bwd(int heads, torch::Tensor const &output_grads,
     torch::Tensor const &inputs_kv, torch::Tensor const &input_weights_q,
     torch::Tensor const &input_weights_kv, torch::Tensor const &output_weights,
     torch::Tensor const &dropout_mask, float dropout_prob) {
-  AT_ASSERTM(output_grads.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(matmul2_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(dropout_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(softmax_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_lin_q_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_lin_kv_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(inputs_q.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(inputs_kv.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_weights_q.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(input_weights_kv.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(dropout_mask.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(matmul2_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(dropout_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(softmax_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_lin_q_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_lin_kv_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(inputs_q.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(inputs_kv.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_weights_q.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(input_weights_kv.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
 
-  AT_ASSERTM(output_grads.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(matmul2_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(matmul2_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(dropout_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(dropout_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(softmax_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_lin_q_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_lin_q_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_lin_kv_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_lin_kv_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(inputs_q.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs_q.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(inputs_kv.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs_kv.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights_q.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights_q.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights_kv.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights_kv.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(dropout_mask.type().scalarType() == at::ScalarType::Byte,
+  TORCH_CHECK(dropout_mask.scalar_type() == at::ScalarType::Byte,
              "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, matmul2_results, dropout_results,
@@ -267,32 +267,32 @@ fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
     torch::Tensor const &input_weights_q, torch::Tensor const &input_weights_kv,
     torch::Tensor const &output_weights, torch::Tensor const &pad_mask,
     float dropout_prob) {
-  AT_ASSERTM(inputs_q.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(inputs_kv.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(lyr_nrm_gamma_weights.dim() == 1, "expected 1D tensor");
-  AT_ASSERTM(lyr_nrm_beta_weights.dim() == 1, "expected 1D tensor");
-  AT_ASSERTM(input_weights_q.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(input_weights_kv.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(inputs_q.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(inputs_kv.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(lyr_nrm_gamma_weights.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(lyr_nrm_beta_weights.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(input_weights_q.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(input_weights_kv.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
 
-  AT_ASSERTM(inputs_q.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs_q.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(inputs_kv.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs_kv.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(lyr_nrm_gamma_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(lyr_nrm_gamma_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(lyr_nrm_beta_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(lyr_nrm_beta_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights_q.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights_q.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights_kv.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights_kv.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
 
   if (use_mask) {
-    AT_ASSERTM(pad_mask.dim() == 2, "expected 2D tensor");
-    AT_ASSERTM(pad_mask.type().scalarType() == at::ScalarType::Byte,
+    TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
+    TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Byte,
                "Only BYTE is supported");
   }
 
@@ -317,60 +317,60 @@ bwd(int heads, torch::Tensor const &output_grads,
     torch::Tensor const &input_weights_q, torch::Tensor const &input_weights_kv,
     torch::Tensor const &output_weights, torch::Tensor const &dropout_mask,
     torch::Tensor const &dropout_add_mask, float dropout_prob) {
-  AT_ASSERTM(output_grads.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(matmul2_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(dropout_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(softmax_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_lin_q_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_lin_kv_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(lyr_nrm_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(lyr_nrm_mean.dim() == 1, "expected 1D tensor");
-  AT_ASSERTM(lyr_nrm_invvar.dim() == 1, "expected 1D tensor");
-  AT_ASSERTM(inputs_q.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(inputs_kv.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(lyr_nrm_gamma_weights.dim() == 1, "expected 1D tensor");
-  AT_ASSERTM(lyr_nrm_beta_weights.dim() == 1, "expected 1D tensor");
-  AT_ASSERTM(input_weights_q.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(input_weights_kv.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(dropout_mask.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(dropout_add_mask.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(matmul2_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(dropout_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(softmax_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_lin_q_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_lin_kv_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(lyr_nrm_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(lyr_nrm_mean.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(lyr_nrm_invvar.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(inputs_q.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(inputs_kv.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(lyr_nrm_gamma_weights.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(lyr_nrm_beta_weights.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(input_weights_q.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(input_weights_kv.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(dropout_add_mask.dim() == 3, "expected 3D tensor");
 
-  AT_ASSERTM(output_grads.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(matmul2_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(matmul2_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(dropout_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(dropout_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(softmax_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_lin_q_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_lin_q_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_lin_kv_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_lin_kv_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(lyr_nrm_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(lyr_nrm_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(lyr_nrm_mean.type().scalarType() == at::ScalarType::Float,
+  TORCH_CHECK(lyr_nrm_mean.scalar_type() == at::ScalarType::Float,
              "Only FLOAT is supported");
-  AT_ASSERTM(lyr_nrm_invvar.type().scalarType() == at::ScalarType::Float,
+  TORCH_CHECK(lyr_nrm_invvar.scalar_type() == at::ScalarType::Float,
              "Only FLOAT is supported");
-  AT_ASSERTM(inputs_q.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs_q.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(inputs_kv.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs_kv.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(lyr_nrm_gamma_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(lyr_nrm_gamma_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(lyr_nrm_beta_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(lyr_nrm_beta_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights_q.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights_q.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights_kv.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights_kv.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(dropout_mask.type().scalarType() == at::ScalarType::Byte,
+  TORCH_CHECK(dropout_mask.scalar_type() == at::ScalarType::Byte,
              "Only BYTE is supported");
-  AT_ASSERTM(dropout_add_mask.type().scalarType() == at::ScalarType::Byte,
+  TORCH_CHECK(dropout_add_mask.scalar_type() == at::ScalarType::Byte,
              "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, matmul2_results, dropout_results,
@@ -407,20 +407,20 @@ fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
     torch::Tensor const &inputs, torch::Tensor const &input_weights,
     torch::Tensor const &output_weights, torch::Tensor const &pad_mask,
     float dropout_prob) {
-  AT_ASSERTM(inputs.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(inputs.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
 
-  AT_ASSERTM(inputs.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
 
   if (use_mask) {
-    AT_ASSERTM(pad_mask.dim() == 2, "expected 2D tensor");
-    AT_ASSERTM(pad_mask.type().scalarType() == at::ScalarType::Byte,
+    TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
+    TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Byte,
                "Only BYTE is supported");
   }
 
@@ -437,33 +437,33 @@ bwd(int heads, torch::Tensor const &output_grads,
     torch::Tensor const &input_lin_results, torch::Tensor const &inputs,
     torch::Tensor const &input_weights, torch::Tensor const &output_weights,
     torch::Tensor const &dropout_mask, float dropout_prob) {
-  AT_ASSERTM(output_grads.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(matmul2_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(dropout_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(softmax_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_lin_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(inputs.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(dropout_mask.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(matmul2_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(dropout_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(softmax_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_lin_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(inputs.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
 
-  AT_ASSERTM(output_grads.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(matmul2_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(matmul2_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(dropout_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(dropout_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(softmax_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_lin_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_lin_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(inputs.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(dropout_mask.type().scalarType() == at::ScalarType::Byte,
+  TORCH_CHECK(dropout_mask.scalar_type() == at::ScalarType::Byte,
              "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, matmul2_results, dropout_results,
@@ -499,20 +499,20 @@ fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
     torch::Tensor const &output_weights, torch::Tensor const &input_biases,
     torch::Tensor const &output_biases, torch::Tensor const &pad_mask,
     float dropout_prob) {
-  AT_ASSERTM(inputs.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(inputs.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
 
-  AT_ASSERTM(inputs.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
 
   if (use_mask) {
-    AT_ASSERTM(pad_mask.dim() == 2, "expected 2D tensor");
-    AT_ASSERTM(pad_mask.type().scalarType() == at::ScalarType::Byte,
+    TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
+    TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Byte,
                "Only BYTE is supported");
   }
 
@@ -530,33 +530,33 @@ bwd(int heads, torch::Tensor const &output_grads,
     torch::Tensor const &input_lin_results, torch::Tensor const &inputs,
     torch::Tensor const &input_weights, torch::Tensor const &output_weights,
     torch::Tensor const &dropout_mask, float dropout_prob) {
-  AT_ASSERTM(output_grads.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(matmul2_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(dropout_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(softmax_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_lin_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(inputs.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(dropout_mask.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(matmul2_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(dropout_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(softmax_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_lin_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(inputs.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
 
-  AT_ASSERTM(output_grads.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(matmul2_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(matmul2_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(dropout_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(dropout_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(softmax_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_lin_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_lin_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(inputs.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(dropout_mask.type().scalarType() == at::ScalarType::Byte,
+  TORCH_CHECK(dropout_mask.scalar_type() == at::ScalarType::Byte,
              "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, matmul2_results, dropout_results,
@@ -594,21 +594,21 @@ fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
     torch::Tensor const &output_weights, torch::Tensor const &input_biases,
     torch::Tensor const &output_biases, torch::Tensor const &pad_mask,
     float dropout_prob) {
-  AT_ASSERTM(inputs.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(inputs.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
 
-  AT_ASSERTM(inputs.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(use_mask, "no mask is not supported");
+  TORCH_CHECK(use_mask, "no mask is not supported");
 
   if (use_mask) {
-    AT_ASSERTM(pad_mask.dim() == 2, "expected 2D tensor");
-    AT_ASSERTM(pad_mask.type().scalarType() == at::ScalarType::Half,
+    TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
+    TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Half,
                "Only Half is supported");
   }
 
@@ -626,30 +626,30 @@ bwd(int heads, torch::Tensor const &output_grads,
     torch::Tensor const &input_lin_results, torch::Tensor const &inputs,
     torch::Tensor const &input_weights, torch::Tensor const &output_weights,
     torch::Tensor const &dropout_mask, float dropout_prob) {
-  AT_ASSERTM(output_grads.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(matmul2_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(dropout_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_lin_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(inputs.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(dropout_mask.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(matmul2_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(dropout_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_lin_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(inputs.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
 
-  AT_ASSERTM(output_grads.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(matmul2_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(matmul2_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(dropout_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(dropout_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_lin_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_lin_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(inputs.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(dropout_mask.type().scalarType() == at::ScalarType::Byte,
+  TORCH_CHECK(dropout_mask.scalar_type() == at::ScalarType::Byte,
              "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, matmul2_results, dropout_results,
@@ -691,26 +691,26 @@ fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
     torch::Tensor const &lyr_nrm_beta_weights,
     torch::Tensor const &input_weights, torch::Tensor const &output_weights,
     torch::Tensor const &pad_mask, float dropout_prob) {
-  AT_ASSERTM(inputs.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(lyr_nrm_gamma_weights.dim() == 1, "expected 1D tensor");
-  AT_ASSERTM(lyr_nrm_beta_weights.dim() == 1, "expected 1D tensor");
-  AT_ASSERTM(input_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(inputs.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(lyr_nrm_gamma_weights.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(lyr_nrm_beta_weights.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(input_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
 
-  AT_ASSERTM(inputs.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(lyr_nrm_gamma_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(lyr_nrm_gamma_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(lyr_nrm_beta_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(lyr_nrm_beta_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
 
   if (use_mask) {
-    AT_ASSERTM(pad_mask.dim() == 2, "expected 2D tensor");
-    AT_ASSERTM(pad_mask.type().scalarType() == at::ScalarType::Byte,
+    TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
+    TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Byte,
                "Only BYTE is supported");
   }
 
@@ -733,51 +733,51 @@ bwd(int heads, torch::Tensor const &output_grads,
     torch::Tensor const &input_weights, torch::Tensor const &output_weights,
     torch::Tensor const &dropout_mask, torch::Tensor const &dropout_add_mask,
     float dropout_prob) {
-  AT_ASSERTM(output_grads.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(matmul2_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(dropout_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(softmax_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(input_lin_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(lyr_nrm_results.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(lyr_nrm_mean.dim() == 1, "expected 1D tensor");
-  AT_ASSERTM(lyr_nrm_invvar.dim() == 1, "expected 1D tensor");
-  AT_ASSERTM(inputs.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(lyr_nrm_gamma_weights.dim() == 1, "expected 1D tensor");
-  AT_ASSERTM(lyr_nrm_beta_weights.dim() == 1, "expected 1D tensor");
-  AT_ASSERTM(input_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
-  AT_ASSERTM(dropout_mask.dim() == 3, "expected 3D tensor");
-  AT_ASSERTM(dropout_add_mask.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(matmul2_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(dropout_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(softmax_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(input_lin_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(lyr_nrm_results.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(lyr_nrm_mean.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(lyr_nrm_invvar.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(inputs.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(lyr_nrm_gamma_weights.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(lyr_nrm_beta_weights.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(input_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
+  TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(dropout_add_mask.dim() == 3, "expected 3D tensor");
 
-  AT_ASSERTM(output_grads.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(matmul2_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(matmul2_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(dropout_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(dropout_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(softmax_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_lin_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_lin_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(lyr_nrm_results.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(lyr_nrm_results.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(lyr_nrm_mean.type().scalarType() == at::ScalarType::Float,
+  TORCH_CHECK(lyr_nrm_mean.scalar_type() == at::ScalarType::Float,
              "Only FLOAT is supported");
-  AT_ASSERTM(lyr_nrm_invvar.type().scalarType() == at::ScalarType::Float,
+  TORCH_CHECK(lyr_nrm_invvar.scalar_type() == at::ScalarType::Float,
              "Only FLOAT is supported");
-  AT_ASSERTM(inputs.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(lyr_nrm_gamma_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(lyr_nrm_gamma_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(lyr_nrm_beta_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(lyr_nrm_beta_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(input_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half,
+  TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
              "Only HALF is supported");
-  AT_ASSERTM(dropout_mask.type().scalarType() == at::ScalarType::Byte,
+  TORCH_CHECK(dropout_mask.scalar_type() == at::ScalarType::Byte,
              "Only BYTE is supported");
-  AT_ASSERTM(dropout_add_mask.type().scalarType() == at::ScalarType::Byte,
+  TORCH_CHECK(dropout_add_mask.scalar_type() == at::ScalarType::Byte,
              "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, matmul2_results, dropout_results,

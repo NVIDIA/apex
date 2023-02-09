@@ -222,7 +222,7 @@ void fused_adam_cuda(
         //Determine #threads and #blocks
         const int threadsPerBlock = 512;
         const dim3 blocks((tsize+threadsPerBlock-1)/threadsPerBlock);
-        AT_ASSERTM(at::cuda::detail::canUse32BitIndexMath(p), "parameter tensor is too large to be indexed with int32");
+        TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p), "parameter tensor is too large to be indexed with int32");
         //Constants
         float step_size = 0;
         if (bias_correction == 1) {
@@ -237,7 +237,7 @@ void fused_adam_cuda(
 
         if (g.scalar_type() == at::ScalarType::Half) {
 //all other values should be fp32 for half gradients
-            AT_ASSERTM(p.scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
+            TORCH_CHECK(p.scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
 //dispatch is done on the gradient type
             using namespace at; // prevents "toString is undefined" errors
             DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
@@ -307,11 +307,11 @@ void fused_adam_cuda_mt(
     cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
     size_t tl_sz = tensor_lists.size();
-    AT_ASSERTM(tl_sz == 4 || tl_sz == 5, "expected tensor lists of size 4 or 5");
+    TORCH_CHECK(tl_sz == 4 || tl_sz == 5, "expected tensor lists of size 4 or 5");
 
     if (tensor_lists[3][0].scalar_type() == at::ScalarType::Half) {
 //alher values should be fp32 for half gradients
-        AT_ASSERTM(tensor_lists[0][0].scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
+        TORCH_CHECK(tensor_lists[0][0].scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
 //dich is done on the gradient type
         if (tl_sz == 5) {
             DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 0, "adam_cuda_mt_kernel",
@@ -796,7 +796,7 @@ void fused_strided_check_finite(
 	const int threadsPerBlock = 512;
 	//In order to avoid race condition, blocks must be 1 when clear_overflow_first flag is set.
 	const dim3 blocks(clear_overflow_first ? 1 : (niter+threadsPerBlock-1)/threadsPerBlock);
-	AT_ASSERTM(at::cuda::detail::canUse32BitIndexMath(p_copy), "parameter tensor is too large to be indexed with int32");
+	TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p_copy), "parameter tensor is too large to be indexed with int32");
 
 	cudaStream_t stream = at::cuda::getCurrentCUDAStream();
         using namespace at; // prevents "toString is undefined" errors
@@ -834,7 +834,7 @@ void fused_reversible_adam_cuda(
       //Determine #threads and #blocks
       const int threadsPerBlock = 512;
       const dim3 blocks((tsize+threadsPerBlock-1)/threadsPerBlock);
-      AT_ASSERTM(at::cuda::detail::canUse32BitIndexMath(p), "parameter tensor is too large to be indexed with int32");
+      TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p), "parameter tensor is too large to be indexed with int32");
       //Constants
       float step_size = 0;
       if (bias_correction == 1) {
@@ -849,7 +849,7 @@ void fused_reversible_adam_cuda(
 
       if (g.scalar_type() == at::ScalarType::Half) {
           //all other values should be fp32 for half gradients
-          AT_ASSERTM(p.scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
+          TORCH_CHECK(p.scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
           //dispatch is done on the gradient type
           using namespace at; // prevents "toString is undefined" errors
           if (p_copy.numel() == 0 || p_copy.scalar_type() == g.scalar_type()) {
@@ -871,7 +871,7 @@ void fused_reversible_adam_cuda(
                           decay);
                       );
           } else {
-              AT_ASSERTM(p_copy.scalar_type() == at::ScalarType::Byte, "expected parameter to be of byte type");
+              TORCH_CHECK(p_copy.scalar_type() == at::ScalarType::Byte, "expected parameter to be of byte type");
               DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
                       using accscalar_t = at::acc_type<scalar_t_0, true>;
                       reversible_adam_cuda_kernel<accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
@@ -919,11 +919,11 @@ void maybe_cast_cuda(
 {
       //Get tensor size
       int tsize = p_in.numel();
-      AT_ASSERTM(tsize == p_out.numel(), "p_in.numel() must equal p_out.numel()");
+      TORCH_CHECK(tsize == p_out.numel(), "p_in.numel() must equal p_out.numel()");
       //Determine #threads and #blocks
       const int threadsPerBlock = 512;
       const dim3 blocks((tsize+threadsPerBlock-1)/threadsPerBlock);
-      AT_ASSERTM(at::cuda::detail::canUse32BitIndexMath(p_in), "parameter tensor is too large to be indexed with int32");
+      TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p_in), "parameter tensor is too large to be indexed with int32");
       //Constants
       cudaStream_t stream = at::cuda::getCurrentCUDAStream();
       DISPATCH_FLOAT_HALF_AND_BYTE(p_in.scalar_type(), 0, "maybe_cast_cuda"
@@ -945,7 +945,7 @@ void maybe_cast_cuda_mt(
     cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
     size_t tl_sz = tensor_lists.size();
-    AT_ASSERTM(tl_sz == 2, "expected tensor lists of size 2");
+    TORCH_CHECK(tl_sz == 2, "expected tensor lists of size 2");
 
     DISPATCH_FLOAT_HALF_AND_BYTE(tensor_lists[0][0].scalar_type(), 0, "maybe_cast_cuda_mt_kernel",
             DISPATCH_FLOAT_HALF_AND_BYTE(tensor_lists[1][0].scalar_type(), 1, "maybe_cast_cuda_mt_kernel",
@@ -979,7 +979,7 @@ void fused_maybe_adam_undo_cuda(
     //Determine #threads and #blocks
     const int threadsPerBlock = 512;
     const dim3 blocks((tsize+threadsPerBlock-1)/threadsPerBlock);
-    AT_ASSERTM(at::cuda::detail::canUse32BitIndexMath(p), "parameter tensor is too large to be indexed with int32");
+    TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p), "parameter tensor is too large to be indexed with int32");
     //Constants
     float step_size = 0;
     if (bias_correction == 1) {
@@ -994,7 +994,7 @@ void fused_maybe_adam_undo_cuda(
 
     if (g.scalar_type() == at::ScalarType::Half) {
         //all other values should be fp32 for half gradients
-        AT_ASSERTM(p.scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
+        TORCH_CHECK(p.scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
         //dispatch is done on the gradient type
         using namespace at; // prevents "toString is undefined" errors
         DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",

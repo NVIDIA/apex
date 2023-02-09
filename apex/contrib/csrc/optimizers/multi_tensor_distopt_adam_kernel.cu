@@ -348,13 +348,13 @@ void multi_tensor_fused_adam_cuda(
 
   // Expect p_in, m, v, g, p_out
   size_t tl_sz = tensor_lists.size();
-  AT_ASSERTM(tl_sz == 5, "expected tensor lists of size 5");
+  TORCH_CHECK(tl_sz == 5, "expected tensor lists of size 5");
 
   // Assume p_in and g have same type
   auto p_in_type = tensor_lists[0][0].scalar_type();
   auto g_type = tensor_lists[3][0].scalar_type();
   auto p_out_type = tensor_lists[4][0].scalar_type();
-  AT_ASSERTM(p_in_type == g_type, "expected main params and grads to have same type");
+  TORCH_CHECK(p_in_type == g_type, "expected main params and grads to have same type");
 
   float beta1_correction = 1.0f, beta2_correction = 1.0f;
   if (bias_correction == 1) {
@@ -401,7 +401,7 @@ void multi_tensor_fused_adam_with_param_remainders_cuda(
 
   // Expect p_in, p_rem, m, v, g, p_out
   size_t tl_sz = tensor_lists.size();
-  AT_ASSERTM(tl_sz == 6, "expected tensor lists of size 6");
+  TORCH_CHECK(tl_sz == 6, "expected tensor lists of size 6");
 
   float beta1_correction = 1.0f, beta2_correction = 1.0f;
   if (bias_correction == 1) {

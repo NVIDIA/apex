@@ -52,7 +52,7 @@ std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads,
   void *softmax_results_ptr = static_cast<void *>(softmax_results.data_ptr());
 
   // Padded Softmax
-  bool softmax_success = false;
+  [[maybe_unused]] bool softmax_success = false;
   if (pad_mask == nullptr) {
     softmax_success = dispatch_softmax<half, half, float>(
         reinterpret_cast<half *>(softmax_results_ptr),

@@ -72,12 +72,12 @@ void CutlassGemm_FP32Accum(
   >;
   Gemm gemm_op;
   cutlass::Status status = gemm_op({
-      {m, n, k},
+      {static_cast<int>(m), static_cast<int>(n), static_cast<int>(k)},
       {a, lda}, batch_stride_A,
       {b, ldb}, batch_stride_B,
       {c, ldc}, batch_stride_C,
       {c, ldc}, batch_stride_C,
-      {alpha, beta}, batch_count
+      {alpha, beta}, static_cast<int>(batch_count)
   }, nullptr, stream);
   C10_CUDA_CHECK(status != cutlass::Status::kSuccess ? cudaErrorUnknown : cudaSuccess);
 }
@@ -510,7 +510,7 @@ void gemm_switch_fp32accum(char transa, char transb, long m,
                                batchCount);
     }
   } else {
-    AT_ASSERTM(false, "TransA and TransB are invalid");
+    TORCH_CHECK(false, "TransA and TransB are invalid");
   }
 }
 
