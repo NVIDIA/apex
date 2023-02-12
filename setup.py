@@ -373,7 +373,7 @@ if PYTORCH_HOME is not None and os.path.exists(PYTORCH_HOME):
     if nvfuser_is_refactored:
         include_dirs.append(os.path.join(PYTORCH_HOME, "third_party/nvfuser/csrc"))
         library_dirs = nvfuser.__path__
-        extra_link_args.append("-lnvfuser")
+        extra_link_args.append("-lnvfuser_codegen")
     ext_modules.append(
         CUDAExtension(
             name='instance_norm_nvfuser_cuda',
