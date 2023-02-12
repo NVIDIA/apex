@@ -365,10 +365,15 @@ if PYTORCH_HOME is not None and os.path.exists(PYTORCH_HOME):
         os.path.join(d) for d in os.listdir(os.path.join(PYTORCH_HOME, "third_party"))
         if os.path.isdir(os.path.join(os.path.join(PYTORCH_HOME, "third_party"), d))
     )
+    import nvfuser  # NOQA
     print(PYTORCH_HOME)
     include_dirs = [PYTORCH_HOME]
+    library_dirs = []
+    extra_link_args = []
     if nvfuser_is_refactored:
         include_dirs.append(os.path.join(PYTORCH_HOME, "third_party/nvfuser/csrc"))
+        library_dirs = nvfuser.__path__
+        extra_link_args.append("-lnvfuser")
     ext_modules.append(
         CUDAExtension(
             name='instance_norm_nvfuser_cuda',
@@ -377,6 +382,8 @@ if PYTORCH_HOME is not None and os.path.exists(PYTORCH_HOME):
                 'csrc/instance_norm_nvfuser_kernel.cu',
             ],
             include_dirs=include_dirs,
+            library_dirs=library_dirs,
+            extra_link_args=extra_link_args,
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
                 "nvcc": ["-O3"] + version_dependent_macros + [f"-DNVFUSER_THIRDPARTY={int(nvfuser_is_refactored)}"],

@@ -9,6 +9,7 @@
 #include <aten/src/ATen/native/utils/ParamsHash.h>
 
 #if NVFUSER_THIRDPARTY
+#include <fusion.h>
 #include <kernel_cache.h>
 #include <ops/all_ops.h>
 #else
