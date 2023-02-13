@@ -53,20 +53,20 @@ class SelfMultiheadAttn(nn.Module):
                 impl == "fast" and bias
             ), "additive mask not supported for fast mode without bias"
         if separate_qkv_params:
-            self.q_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
-            self.k_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
-            self.v_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
+            self.q_weight = Parameter(torch.empty(embed_dim, embed_dim))
+            self.k_weight = Parameter(torch.empty(embed_dim, embed_dim))
+            self.v_weight = Parameter(torch.empty(embed_dim, embed_dim))
         else:
-            self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
-        self.out_proj_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
+            self.in_proj_weight = Parameter(torch.empty(3 * embed_dim, embed_dim))
+        self.out_proj_weight = Parameter(torch.empty(embed_dim, embed_dim))
         if self.bias:
             if separate_qkv_params:
-                self.q_bias = Parameter(torch.Tensor(embed_dim))
-                self.k_bias = Parameter(torch.Tensor(embed_dim))
-                self.v_bias = Parameter(torch.Tensor(embed_dim))
+                self.q_bias = Parameter(torch.empty(embed_dim))
+                self.k_bias = Parameter(torch.empty(embed_dim))
+                self.v_bias = Parameter(torch.empty(embed_dim))
             else:
-                self.in_proj_bias = Parameter(torch.Tensor(3 * embed_dim))
-            self.out_proj_bias = Parameter(torch.Tensor(embed_dim))
+                self.in_proj_bias = Parameter(torch.empty(3 * embed_dim))
+            self.out_proj_bias = Parameter(torch.empty(embed_dim))
         else:
             if separate_qkv_params:
                 self.register_parameter("q_bias", None)
@@ -82,8 +82,8 @@ class SelfMultiheadAttn(nn.Module):
             self.out_proj_bias = None
         if self.include_norm_add:
             if impl == "fast":
-                self.lyr_nrm_gamma_weights = Parameter(torch.Tensor(embed_dim))
-                self.lyr_nrm_beta_weights = Parameter(torch.Tensor(embed_dim))
+                self.lyr_nrm_gamma_weights = Parameter(torch.empty(embed_dim))
+                self.lyr_nrm_beta_weights = Parameter(torch.empty(embed_dim))
                 self.lyr_nrm = None
             else:
                 self.register_parameter("lyr_norm_gamma_weights", None)

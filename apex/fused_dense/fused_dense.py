@@ -66,9 +66,9 @@ class FusedDense(nn.Module):
         super(FusedDense, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.weight = nn.Parameter(torch.Tensor(out_features, in_features))
+        self.weight = nn.Parameter(torch.empty(out_features, in_features))
         if bias:
-            self.bias = nn.Parameter(torch.Tensor(out_features))
+            self.bias = nn.Parameter(torch.empty(out_features))
         else:
             #assert False, "no-bias option not added yet"
             self.register_parameter('bias', None)
@@ -86,10 +86,10 @@ class FusedDenseGeluDense(nn.Module):
         self.in_features = in_features
         self.intermediate_features = intermediate_features
         self.out_features = out_features
-        self.weight1 = nn.Parameter(torch.Tensor(intermediate_features, in_features))
-        self.bias1 = nn.Parameter(torch.Tensor(intermediate_features))
-        self.weight2 = nn.Parameter(torch.Tensor(out_features, intermediate_features))
-        self.bias2 = nn.Parameter(torch.Tensor(out_features))
+        self.weight1 = nn.Parameter(torch.empty(intermediate_features, in_features))
+        self.bias1 = nn.Parameter(torch.empty(intermediate_features))
+        self.weight2 = nn.Parameter(torch.empty(out_features, intermediate_features))
+        self.bias2 = nn.Parameter(torch.empty(out_features))
 
     def forward(self, input):
         return _fused_dense_gelu_dense(input, self.weight1, self.bias1, self.weight2, self.bias2)
