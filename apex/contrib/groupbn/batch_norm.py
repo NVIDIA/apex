@@ -82,7 +82,7 @@ class bn_addrelu_NHWC_impl(torch.autograd.Function):
                     nhw = x.shape[0] * x.shape[2] * x.shape[3]
                 else:
                     nhw = x.shape[0] * x.shape[1] * x.shape[2]
-                shape = int(((nhw + 3) & ~3) * grid_dim_y)
+                shape = int(((nhw + 3) & ~3) * 2 * grid_dim_y)
                 bitmask = torch.cuda.LongTensor(shape)
             else:
                 bitmask = torch.cuda.IntTensor(((x.numel()+31)//32) * 2 * grid_dim_y)
