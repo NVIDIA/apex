@@ -29,7 +29,7 @@ def compute_valid_1d_patterns(m,n):
     if m==4  and n==2 and valid_m4n2_1d_patterns  is not None: return valid_m4n2_1d_patterns
     patterns = torch.zeros(m)
     patterns[:n] = 1
-    valid_patterns = torch.Tensor(list(set(permutations(patterns.tolist()))))
+    valid_patterns = torch.empty(list(set(permutations(patterns.tolist()))))
     if m == 4  and n == 2: valid_m4n2_1d_patterns  = valid_patterns       
     return valid_patterns
 
@@ -109,10 +109,10 @@ def compute_valid_2d_patterns(m,n):
     patterns[:n] = 1
     patterns = list(set(permutations(patterns.tolist())))
     patterns = patterns + patterns
-    patterns = torch.Tensor(list(set(permutations(patterns,m))))
+    patterns = torch.empty(list(set(permutations(patterns,m))))
 
     valid = ((patterns.sum(dim=1) <= n).sum(dim=1) == m).nonzero().view(-1)
-    valid_patterns = torch.Tensor(valid.shape[0],m,m)
+    valid_patterns = torch.empty(valid.shape[0],m,m)
     valid_patterns[:] = patterns[valid[:]]
 
     if m == 4  and n == 2: valid_m4n2_2d_patterns  = valid_patterns
