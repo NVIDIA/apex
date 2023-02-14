@@ -115,7 +115,7 @@ class GenericScaledMaskedSoftmax(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, output_grads):
-        import generic_scaled_masked_softmax_cuda_new
+        import generic_scaled_masked_softmax_cuda
 
         softmax_results, scale_t = ctx.saved_tensors
 
@@ -293,7 +293,7 @@ class GenericFusedScaleMaskSoftmax(FusedScaleMaskSoftmax):
         self, input_in_fp16, input_in_bf16, scaled_masked_softmax_fusion, mask_func, softmax_in_fp32, scale,
     ):
         super().__init__(input_in_fp16, input_in_bf16, AttnMaskType.padding, scaled_masked_softmax_fusion, mask_func, softmax_in_fp32, scale)
-        self.scaled_masked_softmax_fusion = generic_scaled_masked_softmax
+        self.fused_softmax_func = generic_scaled_masked_softmax
 
     def is_kernel_available(self, mask, b, np, sq, sk):
         if self.scaled_masked_softmax_fusion and 0 < sk:  # user want to fuse  # sk must be 1 ~
