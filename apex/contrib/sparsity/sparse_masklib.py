@@ -30,6 +30,7 @@ def compute_valid_1d_patterns(m,n):
     patterns = torch.zeros(m)
     patterns[:n] = 1
     valid_patterns = torch.tensor(list(set(permutations(patterns.tolist()))))
+    if m == 4 and n == 2: valid_m4n2_1d_patterns = valid_patterns
     return valid_patterns
 
 """ m:n 1d structured best """
