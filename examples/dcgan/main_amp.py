@@ -1,7 +1,7 @@
-from __future__ import print_function
 import argparse
 import os
 import random
+
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -11,11 +11,6 @@ import torch.utils.data
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
-
-try:    
-    from apex import amp
-except ImportError:
-    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
 
 
 parser = argparse.ArgumentParser()
@@ -36,7 +31,6 @@ parser.add_argument('--netD', default='', help="path to netD (to continue traini
 parser.add_argument('--outf', default='.', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--classes', default='bedroom', help='comma separated list of classes for the lsun data set')
-parser.add_argument('--opt_level', default='O1', help='amp opt_level, default="O1"')
 
 opt = parser.parse_args()
 print(opt)
@@ -58,56 +52,69 @@ cudnn.benchmark = True
 
 if opt.dataset in ['imagenet', 'folder', 'lfw']:
     # folder dataset
-    dataset = dset.ImageFolder(root=opt.dataroot,
-                               transform=transforms.Compose([
-                                   transforms.Resize(opt.imageSize),
-                                   transforms.CenterCrop(opt.imageSize),
-                                   transforms.ToTensor(),
-                                   transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                               ]))
-    nc=3
+    dataset = dset.ImageFolder(
+        root=opt.dataroot,
+        transform=transforms.Compose([
+            transforms.Resize(opt.imageSize),
+            transforms.CenterCrop(opt.imageSize),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ]),
+    )
+    nc = 3
 elif opt.dataset == 'lsun':
-    classes = [ c + '_train' for c in opt.classes.split(',')]
-    dataset = dset.LSUN(root=opt.dataroot, classes=classes,
-                        transform=transforms.Compose([
-                            transforms.Resize(opt.imageSize),
-                            transforms.CenterCrop(opt.imageSize),
-                            transforms.ToTensor(),
-                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                        ]))
-    nc=3
+    classes = [c + '_train' for c in opt.classes.split(',')]
+    dataset = dset.LSUN(
+        root=opt.dataroot,
+        classes=classes,
+        transform=transforms.Compose([
+            transforms.Resize(opt.imageSize),
+            transforms.CenterCrop(opt.imageSize),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ]),
+    )
+    nc = 3
 elif opt.dataset == 'cifar10':
-    dataset = dset.CIFAR10(root=opt.dataroot, download=True,
-                           transform=transforms.Compose([
-                               transforms.Resize(opt.imageSize),
-                               transforms.ToTensor(),
-                               transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                           ]))
-    nc=3
+    dataset = dset.CIFAR10(
+        root=opt.dataroot,
+        download=True,
+        transform=transforms.Compose([
+            transforms.Resize(opt.imageSize),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ]),
+    )
+    nc = 3
 
 elif opt.dataset == 'mnist':
-        dataset = dset.MNIST(root=opt.dataroot, download=True,
-                           transform=transforms.Compose([
-                               transforms.Resize(opt.imageSize),
-                               transforms.ToTensor(),
-                               transforms.Normalize((0.5,), (0.5,)),
-                           ]))
-        nc=1
+    dataset = dset.MNIST(
+        root=opt.dataroot,
+        download=True,
+        transform=transforms.Compose([
+            transforms.Resize(opt.imageSize),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5,), (0.5,)),
+        ]),
+    )
+    nc = 1
 
 elif opt.dataset == 'fake':
-    dataset = dset.FakeData(image_size=(3, opt.imageSize, opt.imageSize),
-                            transform=transforms.ToTensor())
-    nc=3
+    dataset = dset.FakeData(
+        image_size=(3, opt.imageSize, opt.imageSize),
+        transform=transforms.ToTensor(),
+    )
+    nc = 3
 
 assert dataset
-dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
-                                         shuffle=True, num_workers=int(opt.workers))
+dataloader = torch.utils.data.DataLoader(
+    dataset, batch_size=opt.batchSize, shuffle=True, num_workers=opt.workers)
 
 device = torch.device("cuda:0")
-ngpu = int(opt.ngpu)
-nz = int(opt.nz)
-ngf = int(opt.ngf)
-ndf = int(opt.ndf)
+ngpu = opt.ngpu
+nz = opt.nz
+ngf = opt.ngf
+ndf = opt.ndf
 
 
 # custom weights initialization called on netG and netD
@@ -122,7 +129,7 @@ def weights_init(m):
 
 class Generator(nn.Module):
     def __init__(self, ngpu):
-        super(Generator, self).__init__()
+        super().__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
             # input is Z, going into a convolution
@@ -164,7 +171,7 @@ print(netG)
 
 class Discriminator(nn.Module):
     def __init__(self, ngpu):
-        super(Discriminator, self).__init__()
+        super().__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
             # input is (nc) x 64 x 64
@@ -211,9 +218,6 @@ fake_label = 0
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
-[netD, netG], [optimizerD, optimizerG] = amp.initialize(
-    [netD, netG], [optimizerD, optimizerG], opt_level=opt.opt_level, num_losses=3)
-
 for epoch in range(opt.niter):
     for i, data in enumerate(dataloader, 0):
         ############################
@@ -227,8 +231,7 @@ for epoch in range(opt.niter):
 
         output = netD(real_cpu)
         errD_real = criterion(output, label)
-        with amp.scale_loss(errD_real, optimizerD, loss_id=0) as errD_real_scaled:
-            errD_real_scaled.backward()
+        errD_real.backward()
         D_x = output.mean().item()
 
         # train with fake
@@ -237,8 +240,7 @@ for epoch in range(opt.niter):
         label.fill_(fake_label)
         output = netD(fake.detach())
         errD_fake = criterion(output, label)
-        with amp.scale_loss(errD_fake, optimizerD, loss_id=1) as errD_fake_scaled:
-            errD_fake_scaled.backward()
+        errD_fake.backward()
         D_G_z1 = output.mean().item()
         errD = errD_real + errD_fake
         optimizerD.step()
@@ -250,25 +252,27 @@ for epoch in range(opt.niter):
         label.fill_(real_label)  # fake labels are real for generator cost
         output = netD(fake)
         errG = criterion(output, label)
-        with amp.scale_loss(errG, optimizerG, loss_id=2) as errG_scaled:
-            errG_scaled.backward()
+        errG.backward()
         D_G_z2 = output.mean().item()
         optimizerG.step()
 
-        print('[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f / %.4f'
-              % (epoch, opt.niter, i, len(dataloader),
-                 errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
+        print(
+            '[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f / %.4f'
+            % (epoch, opt.niter, i, len(dataloader), errD.item(), errG.item(), D_x, D_G_z1, D_G_z2)
+        )
         if i % 100 == 0:
-            vutils.save_image(real_cpu,
-                    '%s/real_samples.png' % opt.outf,
-                    normalize=True)
+            vutils.save_image(
+                real_cpu,
+                '%s/real_samples.png' % opt.outf,
+                normalize=True,
+            )
             fake = netG(fixed_noise)
-            vutils.save_image(fake.detach(),
-                    '%s/amp_fake_samples_epoch_%03d.png' % (opt.outf, epoch),
-                    normalize=True)
+            vutils.save_image(
+                fake.detach(),
+                '%s/amp_fake_samples_epoch_%03d.png' % (opt.outf, epoch),
+                normalize=True,
+            )
 
     # do checkpointing
     torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf, epoch))
     torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
-
-
