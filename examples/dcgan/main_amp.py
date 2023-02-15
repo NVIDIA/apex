@@ -31,6 +31,7 @@ parser.add_argument('--netD', default='', help="path to netD (to continue traini
 parser.add_argument('--outf', default='.', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--classes', default='bedroom', help='comma separated list of classes for the lsun data set')
+parser.add_argument('--dtype', type=str, default='float32', choices=('float32', 'float16', 'bfloat16'))
 
 opt = parser.parse_args()
 print(opt)
@@ -115,6 +116,13 @@ ngpu = opt.ngpu
 nz = opt.nz
 ngf = opt.ngf
 ndf = opt.ndf
+
+dtype = getattr(torch, opt.dtype)
+enable_autocast, grad_scaler = False, None
+if dtype != torch.float32:
+    enable_autocast = True
+    if dtype == torch.float16:
+        grad_scaler = torch.cuda.amp.GradScaler()
 
 
 # custom weights initialization called on netG and netD
@@ -227,34 +235,55 @@ for epoch in range(opt.niter):
         netD.zero_grad()
         real_cpu = data[0].to(device)
         batch_size = real_cpu.size(0)
-        label = torch.full((batch_size,), real_label, device=device)
+        label = torch.full((batch_size,), real_label, device=device, dtype=torch.float32)
 
-        output = netD(real_cpu)
-        errD_real = criterion(output, label)
-        errD_real.backward()
+        with torch.autocast(device_type='cuda', dtype=dtype, enabled=enable_autocast):
+            output = netD(real_cpu)
+            errD_real = criterion(output, label)
+        if grad_scaler is None:
+            errD_real.backward()
+        else:
+            grad_scaler.scale(errD_real).backward()
         D_x = output.mean().item()
 
         # train with fake
         noise = torch.randn(batch_size, nz, 1, 1, device=device)
-        fake = netG(noise)
-        label.fill_(fake_label)
-        output = netD(fake.detach())
-        errD_fake = criterion(output, label)
-        errD_fake.backward()
+        with torch.autocast(device_type='cuda', dtype=dtype, enabled=enable_autocast):
+            fake = netG(noise)
+            label.fill_(fake_label)
+            output = netD(fake.detach())
+            errD_fake = criterion(output, label)
+        if grad_scaler is None:
+            errD_fake.backward()
+        else:
+            grad_scaler.scale(errD_fake).backward()
         D_G_z1 = output.mean().item()
         errD = errD_real + errD_fake
-        optimizerD.step()
+
+        if grad_scaler is None:
+            optimizerD.step()
+        else:
+            grad_scaler.step(optimizerD)
+            grad_scaler.update()
 
         ############################
         # (2) Update G network: maximize log(D(G(z)))
         ###########################
         netG.zero_grad()
         label.fill_(real_label)  # fake labels are real for generator cost
-        output = netD(fake)
-        errG = criterion(output, label)
-        errG.backward()
+        with torch.autocast(device_type='cuda', dtype=dtype, enabled=enable_autocast):
+            output = netD(fake)
+            errG = criterion(output, label)
+        if grad_scaler is None:
+            errG.backward()
+        else:
+            grad_scaler.scale(errG).backward()
         D_G_z2 = output.mean().item()
-        optimizerG.step()
+        if grad_scaler is None:
+            optimizerG.step()
+        else:
+            grad_scaler.step(optimizerG)
+            grad_scaler.update()
 
         print(
             '[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f / %.4f'
