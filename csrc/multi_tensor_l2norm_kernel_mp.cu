@@ -9,7 +9,7 @@
 #include <assert.h>
 
 #include "type_shim.h"
-#include "multi_tensor_apply.cuh"
+#include "multi_tensor_apply_base.cuh"
 
 #define BLOCK_SIZE 512
 #define ILP 4

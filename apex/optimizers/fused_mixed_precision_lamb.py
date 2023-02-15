@@ -3,7 +3,7 @@ from copy import deepcopy
 from itertools import chain
 from collections import defaultdict, abc as container_abcs
 
-from apex.multi_tensor_apply import multi_tensor_applier
+from apex.multi_tensor_apply import multi_tensor_applier, multi_tensor_applier_l2norm
 
 class FusedMixedPrecisionLamb(torch.optim.Optimizer):
 
@@ -32,7 +32,7 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
             for item in tensor_state:
                 self.param_groups[idx][item] = group[item].to(device=device)
 
-        if multi_tensor_applier.available:
+        if multi_tensor_applier.available and multi_tensor_applier_l2norm.available:
             import amp_C
             self.multi_tensor_l2norm=amp_C.multi_tensor_l2norm_mp
             # Skip buffer
@@ -180,7 +180,7 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
         # grad_norm is of scaled gradients.
         # So, multiply `max_grad_norm` by scale.
         max_grad_norm = self.defaults['max_grad_norm'] * scale
-        grad_norm = multi_tensor_applier(
+        grad_norm = multi_tensor_applier_l2norm(
             self.multi_tensor_l2norm,
             self._dummy_overflow_buf,
             [grad_list],

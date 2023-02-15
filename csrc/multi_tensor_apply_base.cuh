@@ -14,7 +14,7 @@
 
 // TODO:  Kernel arg size limit may be <4KB for some other cards (ie Jetson)
 constexpr int depth_to_max_tensors[5] = {110, 64, 48, 36, 30};
-constexpr int depth_to_max_blocks[5] = {2560, 2560, 2560, 2560, 2560};
+constexpr int depth_to_max_blocks[5] = {320, 320, 320, 320, 320};
 
 template<int n> struct TensorListMetadata
 {
