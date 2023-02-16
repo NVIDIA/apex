@@ -1,10 +1,13 @@
-import torch
-import functools
-import numpy as np
-import sys
+import collections.abc as container_abcs
 from types import MethodType
+import functools
+import sys
 import warnings
-from ._amp_state import _amp_state, warn_or_err, container_abcs
+
+import numpy as np
+import torch
+
+from ._amp_state import _amp_state, warn_or_err
 from .handle import disable_casts
 from .scaler import LossScaler
 from ._process_optimizer import _process_optimizer
