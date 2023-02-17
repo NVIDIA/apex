@@ -94,7 +94,7 @@ class FusedAdam(torch.optim.Optimizer):
         else:
             raise RuntimeError('apex.optimizers.FusedAdam requires cuda extensions')
 
-    def zero_grad(self, set_to_none=None):
+    def zero_grad(self, set_to_none=True):
         if self.set_grad_none or set_to_none:
             for group in self.param_groups:
                 for p in group['params']:
