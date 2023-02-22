@@ -220,17 +220,21 @@ class ASP:
                 # A. try to import with the distributed mode of the original model
                 # B. if meet the error, import with the none-distributed mode of the original model
                 start_time_build_offline_permutation_graph = time.perf_counter()
+                success_in_build_offline_permutation_graph = False
                 try:
                     offline_permutation_fx_graph, success_in_build_offline_permutation_graph = Permutation.build_offline_permutation_graph(cls.__model.module, dump_fx_graph=cls.__save_permutation_graph, save_dumped_fx_graph=os.path.join(cls.__permutation_output_dir, 'model_offline_permutation_graph.json'))
-                    print("\n[compute_sparse_masks] build offline permutation graph on distributed model.")
+                    if success_in_build_offline_permutation_graph:
+                        print("\n[compute_sparse_masks] build offline permutation graph on distributed model.")
                 except AttributeError:
                     offline_permutation_fx_graph, success_in_build_offline_permutation_graph = Permutation.build_offline_permutation_graph(cls.__model, dump_fx_graph=cls.__save_permutation_graph, save_dumped_fx_graph=os.path.join(cls.__permutation_output_dir, 'model_offline_permutation_graph.json'))
-                    print("\n[compute_sparse_masks] build offline permutation graph on none-distributed model.")
-                duration_build_offline_permutation_graph = time.perf_counter() - start_time_build_offline_permutation_graph
-                print("[compute_sparse_masks] Take {:.4f} seconds to finish build_offline_permutation_graph function.".format(duration_build_offline_permutation_graph))
+                    if success_in_build_offline_permutation_graph:
+                        print("\n[compute_sparse_masks] build offline permutation graph on none-distributed model.")
 
-                # Step 3: off-line permutation to avoid the runtime overhead in deployment
                 if success_in_build_offline_permutation_graph:
+                    duration_build_offline_permutation_graph = time.perf_counter() - start_time_build_offline_permutation_graph
+                    print("[compute_sparse_masks] Take {:.4f} seconds to finish build_offline_permutation_graph function.".format(duration_build_offline_permutation_graph))
+
+                    # Step 3: off-line permutation to avoid the runtime overhead in deployment
                     start_time_apply_offline_permutation = time.perf_counter()
                     try:
                         Permutation.apply_offline_permutation(cls.__model.module, fx_graph=offline_permutation_fx_graph)
