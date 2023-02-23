@@ -6,25 +6,7 @@ The intent of Apex is to make up-to-date utilities available to users as quickly
 
 ## Full API Documentation: [https://nvidia.github.io/apex](https://nvidia.github.io/apex)
 
-## [GTC 2019](https://github.com/mcarilli/mixed_precision_references/tree/master/GTC_2019) and [PyTorch DevCon 2019](https://github.com/mcarilli/mixed_precision_references/tree/master/PyTorch_Devcon_2019) Slides
-
-# Contents
-
-## 1. Amp:  Automatic Mixed Precision
-
-**Removed. Use [PyTorch AMP](https://pytorch.org/docs/stable/amp.html)**
-
-## 2. Distributed Training
-
-**`apex.parallel.DistributedDataParallel` is removed. Use [`torch.nn.parallel.DistributedDataParallel`](https://pytorch.org/docs/stable/generated/torch.nn.parallel.DistributedDataParallel.html?highlight=distributeddataparallel#torch.nn.parallel.DistributedDataParallel)**
-
-`apex.parallel.DistributedDataParallel` is a module wrapper, similar to
-`torch.nn.parallel.DistributedDataParallel`.  It enables convenient multiprocess distributed training,
-optimized for NVIDIA's NCCL communication library.
-
-### Synchronized Batch Normalization
-
-**Removed. Use [`torch.nn.SyncBatchNorm`](https://pytorch.org/docs/stable/generated/torch.nn.SyncBatchNorm.html)**
+We are going to update the documentation.
 
 # Installation
 Each [`apex.contrib`](./apex/contrib) module requires one or more install options other than `--cpp_ext` and `--cuda_ext`.
@@ -41,7 +23,7 @@ See [the NGC documentation](https://docs.nvidia.com/deeplearning/frameworks/pyto
 
 ## From Source
 
-To install Apex from source, we recommend using the nightly PyTorch obtainable from https://github.com/pytorch/pytorch.
+To install apex from source, we recommend using the nightly PyTorch obtainable from https://github.com/pytorch/pytorch.
 
 The latest stable release obtainable from https://pytorch.org should also work.
 
