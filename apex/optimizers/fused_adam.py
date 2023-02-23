@@ -78,8 +78,8 @@ class FusedAdam(torch.optim.Optimizer):
         self.capturable = capturable
 
         if capturable:
-            device = self.param_groups[0]['params'][0].device
             for idx, group in enumerate(self.param_groups):
+                device = 'cuda' if len(group['params']) == 0 else group['params'][0].device
                 for item in ['lr']:
                     self.param_groups[idx][item] = group[item].to(device=device)
 
@@ -118,7 +118,7 @@ class FusedAdam(torch.optim.Optimizer):
             loss = closure()
 
         for group in self.param_groups:
-            device = group['params'][0].device
+            device = 'cuda' if len(group['params']) == 0 else group['params'][0].device
             bias_correction = 1 if group['bias_correction'] else 0
             beta1, beta2 = group['betas']
 
