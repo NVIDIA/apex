@@ -81,6 +81,7 @@ class FusedAdam(torch.optim.Optimizer):
             for idx, group in enumerate(self.param_groups):
                 if len(group['params']) == 0:
                     continue
+                device = group['params'][0].device
                 for item in ['lr']:
                     self.param_groups[idx][item] = group[item].to(device=device)
 
@@ -121,6 +122,7 @@ class FusedAdam(torch.optim.Optimizer):
         for group in self.param_groups:
             if len(group['params']) == 0:
                 continue
+            device = group['params'][0].device
             bias_correction = 1 if group['bias_correction'] else 0
             beta1, beta2 = group['betas']
 
