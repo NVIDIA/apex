@@ -47,9 +47,9 @@ void index_mul_2d_half_backward_backward_cuda(at::Tensor &grad_grad_out,
                                            const at::Tensor &in2,
                                            const at::Tensor &idx1);
 
-#define CHECK_CUDA(x) AT_ASSERTM(x.is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x)                                                    \
-  AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
+  TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x)                                                         \
   CHECK_CUDA(x);                                                               \
   CHECK_CONTIGUOUS(x)
@@ -58,7 +58,7 @@ void index_mul_2d_float_forward(
     at::Tensor &out,
     const at::Tensor &in1,
     const at::Tensor &in2,
-    const at::Tensor &idx1) 
+    const at::Tensor &idx1)
 {
   return index_mul_2d_float_foward_cuda(out, in1, in2, idx1);
 }
@@ -69,7 +69,7 @@ void index_mul_2d_float_backward(
     const at::Tensor &grad_out,
     const at::Tensor &in1,
     const at::Tensor &in2,
-    const at::Tensor &idx1) 
+    const at::Tensor &idx1)
 {
   return index_mul_2d_float_backward_cuda(grad_in1, grad_in2, grad_out, in1, in2, idx1);
 }
@@ -92,7 +92,7 @@ void index_mul_2d_half_forward(
     at::Tensor &out,
     const at::Tensor &in1,
     const at::Tensor &in2,
-    const at::Tensor &idx1) 
+    const at::Tensor &idx1)
 {
   return index_mul_2d_half_foward_cuda(out, in1, in2, idx1);
 }
@@ -103,7 +103,7 @@ void index_mul_2d_half_backward(
     const at::Tensor &grad_out,
     const at::Tensor &in1,
     const at::Tensor &in2,
-    const at::Tensor &idx1) 
+    const at::Tensor &idx1)
 {
   return index_mul_2d_half_backward_cuda(grad_in1, grad_in2, grad_out, in1, in2, idx1);
 }

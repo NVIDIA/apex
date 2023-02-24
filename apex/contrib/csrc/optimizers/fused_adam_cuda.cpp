@@ -12,8 +12,8 @@ void fused_adam_cuda_mt(int chunk_size, at::Tensor overflow_flag, std::vector<st
 void maybe_cast_cuda(at::Tensor & overflow_flag, at::Tensor & p_in, at::Tensor & p_out);
 void maybe_cast_cuda_mt(int chunk_size, at::Tensor overflow_flag, std::vector<std::vector<at::Tensor>> tensor_lists);
 
-#define CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")
-#define CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
+#define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 // C++ interface
@@ -33,10 +33,10 @@ void adam(at::Tensor & p, at::Tensor & p_copy, at::Tensor & m, at::Tensor & v, a
         CHECK_INPUT(v);
         CHECK_INPUT(g);
         int64_t num_elem = p.numel();
-        AT_ASSERTM(m.numel() == num_elem, "number of elements in m and p tensors should be equal");
-        AT_ASSERTM(v.numel() == num_elem, "number of elements in v and p tensors should be equal");
-        AT_ASSERTM(g.numel() == num_elem, "number of elements in g and p tensors should be equal");
-        AT_ASSERTM(p_copy.numel() == num_elem || p_copy.numel() == 0, "number of elements in p_copy and p tensors should be equal, or p_copy should be empty");
+        TORCH_CHECK(m.numel() == num_elem, "number of elements in m and p tensors should be equal");
+        TORCH_CHECK(v.numel() == num_elem, "number of elements in v and p tensors should be equal");
+        TORCH_CHECK(g.numel() == num_elem, "number of elements in g and p tensors should be equal");
+        TORCH_CHECK(p_copy.numel() == num_elem || p_copy.numel() == 0, "number of elements in p_copy and p tensors should be equal, or p_copy should be empty");
 
         fused_adam_cuda(p, p_copy, m, v, g, lr, beta1, beta2, eps, grad_scale, step, mode, bias_correction, decay);
 }
@@ -47,10 +47,10 @@ void reversible_adam(at::Tensor & p, at::Tensor & p_copy, at::Tensor & m, at::Te
         CHECK_INPUT(v);
         CHECK_INPUT(g);
         int64_t num_elem = p.numel();
-        AT_ASSERTM(m.numel() == num_elem, "number of elements in m and p tensors should be equal");
-        AT_ASSERTM(v.numel() == num_elem, "number of elements in v and p tensors should be equal");
-        AT_ASSERTM(g.numel() == num_elem, "number of elements in g and p tensors should be equal");
-        AT_ASSERTM(p_copy.numel() == num_elem || p_copy.numel() == 0, "number of elements in p_copy and p tensors should be equal, or p_copy should be empty");
+        TORCH_CHECK(m.numel() == num_elem, "number of elements in m and p tensors should be equal");
+        TORCH_CHECK(v.numel() == num_elem, "number of elements in v and p tensors should be equal");
+        TORCH_CHECK(g.numel() == num_elem, "number of elements in g and p tensors should be equal");
+        TORCH_CHECK(p_copy.numel() == num_elem || p_copy.numel() == 0, "number of elements in p_copy and p tensors should be equal, or p_copy should be empty");
 
         fused_reversible_adam_cuda(p, p_copy, m, v, g, lr, beta1, beta2, eps, grad_scale, step, mode, bias_correction, decay);
 }
@@ -60,9 +60,9 @@ void maybe_adam_undo(at::Tensor & overflow_flag, at::Tensor & p, at::Tensor & m,
         CHECK_INPUT(v);
         CHECK_INPUT(g);
         int64_t num_elem = p.numel();
-        AT_ASSERTM(m.numel() == num_elem, "number of elements in m and p tensors should be equal");
-        AT_ASSERTM(v.numel() == num_elem, "number of elements in v and p tensors should be equal");
-        AT_ASSERTM(g.numel() == num_elem, "number of elements in g and p tensors should be equal");
+        TORCH_CHECK(m.numel() == num_elem, "number of elements in m and p tensors should be equal");
+        TORCH_CHECK(v.numel() == num_elem, "number of elements in v and p tensors should be equal");
+        TORCH_CHECK(g.numel() == num_elem, "number of elements in g and p tensors should be equal");
 
         fused_maybe_adam_undo_cuda(overflow_flag, p, m, v, g, lr, beta1, beta2, eps, grad_scale, step, mode, bias_correction, decay);
 }
@@ -70,7 +70,7 @@ void maybe_cast(at::Tensor & overflow_flag, at::Tensor & p_in, at::Tensor & p_ou
 	CHECK_INPUT(p_in);
 	CHECK_INPUT(p_out);
 	int64_t num_elem = p_in.numel();
-	AT_ASSERTM(p_out.numel() == num_elem, "number of elements in p_in and p_out should be equal");
+	TORCH_CHECK(p_out.numel() == num_elem, "number of elements in p_in and p_out should be equal");
 
 	maybe_cast_cuda(overflow_flag, p_in, p_out);
 }
