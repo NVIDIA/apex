@@ -1,23 +1,14 @@
-.. role:: hidden
-    :class: hidden-section
+.. module:: apex.optimizers
 
 apex.optimizers
-===================================
+===============
 
-.. automodule:: apex.optimizers
-.. currentmodule:: apex.optimizers
+.. autosummary::
+   :toctree:
+   :nosignatures:
 
-.. FusedAdam
-   ----------
-
-.. autoclass:: FusedAdam
-    :members:
-
-.. autoclass:: FusedLAMB
-    :members:
-
-.. autoclass:: FusedNovoGrad
-    :members:
-
-.. autoclass:: FusedSGD
-    :members:
+   apex.optimizers.FusedSGD
+   apex.optimizers.FusedAdam
+   apex.optimizers.FusedLAMB
+   apex.optimizers.FusedMixedPrecisionLamb
+   apex.optimizers.FusedNovoGrad
