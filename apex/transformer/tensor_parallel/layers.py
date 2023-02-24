@@ -288,13 +288,19 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
         gradient_accumulation_fusion: bool,
         async_grad_allreduce: bool,
         sequence_parallel_enabled: bool,
-        use_16bit_in_wgrad_accum_fusion: bool = False, # Deprecated
+        use_16bit_in_wgrad_accum_fusion: Optional[bool] = None,
     ):
         ctx.use_bias = bias is not None and weight.requires_grad
         ctx.gradient_accumulation_fusion = gradient_accumulation_fusion
         ctx.async_grad_allreduce = async_grad_allreduce
         ctx.sequence_parallel_enabled = sequence_parallel_enabled
         ctx.compute_weight_gradient = weight.requires_grad
+
+        if use_16bit_in_wgrad_accum_fusion is not None:
+            warnings.warn(
+                "Deprecated option `use_16bit_in_wgrad_accum_fusion` "
+                f"is set to {use_16bit_in_wgrad_accum_fusion}"
+            )
 
         if ctx.compute_weight_gradient:
             ctx.save_for_backward(input, weight)
@@ -482,8 +488,8 @@ class ColumnParallelLinear(torch.nn.Module):
         params_dtype:
         use_cpu_initialization:
         gradient_accumulation_fusion:
-        accumulation_in_fp16: Deprecated and unused
         sequence_parallel_enabled:
+        accumulation_in_fp16: Deprecated
     """
 
     def __init__(
@@ -501,8 +507,8 @@ class ColumnParallelLinear(torch.nn.Module):
         params_dtype=torch.float32,
         use_cpu_initialization=False,
         gradient_accumulation_fusion=False,
-        accumulation_in_fp16: bool = False, # Deprecated
         sequence_parallel_enabled: bool = False,
+        accumulation_in_fp16: Optional[bool] = None,
     ):
         super().__init__()
 
@@ -514,6 +520,11 @@ class ColumnParallelLinear(torch.nn.Module):
         world_size = get_tensor_model_parallel_world_size()
         self.output_size_per_partition = divide(output_size, world_size)
         self.skip_bias_add = skip_bias_add
+
+        if accumulation_in_fp16 is not None:
+            warnings.warn(
+                f"Deprecated option `accumulation_in_fp16` is set to {accumulation_in_fp16}"
+            )
 
         # Parameters.
         # Note: torch.nn.functional.linear performs XA^T + b and as a result
@@ -667,8 +678,8 @@ class RowParallelLinear(torch.nn.Module):
         params_dtype:
         use_cpu_initialization:
         gradient_accumulation_fusion:
-        accumulation_in_fp16: Deprecated and unused
         sequence_parallel_enabled:
+        accumulation_in_fp16: Deprecated
     """
 
     def __init__(
@@ -685,8 +696,8 @@ class RowParallelLinear(torch.nn.Module):
         params_dtype=torch.float32,
         use_cpu_initialization=False,
         gradient_accumulation_fusion=False,
-        accumulation_in_fp16: bool = False, # Deprecated
         sequence_parallel_enabled: bool = False,
+        accumulation_in_fp16: Optional[bool] = None,
     ):
         super().__init__()
 
@@ -702,6 +713,11 @@ class RowParallelLinear(torch.nn.Module):
         self.sequence_parallel_enabled = sequence_parallel_enabled
         if self.sequence_parallel_enabled and not self.input_is_parallel:
             raise RuntimeError("To enable `sequence_parallel_enabled`, `input_is_parallel` must be `True`")
+
+        if accumulation_in_fp16 is not None:
+            warnings.warn(
+                f"Deprecated option `accumulation_in_fp16` is set to {accumulation_in_fp16}"
+            )
 
         # as an argument to this function?
         # Parameters.
