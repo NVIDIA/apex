@@ -49,7 +49,7 @@ _DECODER_RELATIVE_POSITION_EMBEDDING_GROUP = None
 # Data parallel group that the current rank belongs to.
 _DATA_PARALLEL_GROUP = None
 # Data parallel AMAX reduction group that the current rank belongs to.
-_DATA_PARALLEL_GROUP_FOR_AMAX_REDUCTION = None
+_AMAX_REDUCTION_GROUP = None
 
 _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = None
 _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = None
@@ -190,9 +190,6 @@ def initialize_model_parallel(
     # Build the data-parallel groups.
     global _DATA_PARALLEL_GROUP
     assert _DATA_PARALLEL_GROUP is None, "data parallel group is already initialized"
-    if use_fp8_:
-        global _DATA_PARALLEL_GROUP_FOR_AMAX_REDUCTION
-        assert _DATA_PARALLEL_GROUP_FOR_AMAX_REDUCTION is None, "amax reduction group is already initialized"
     all_data_parallel_group_ranks = []
     for i in range(pipeline_model_parallel_size):
         start_rank = i * num_pipeline_model_parallel_groups
@@ -203,10 +200,20 @@ def initialize_model_parallel(
             group = torch.distributed.new_group(ranks, backend=default_backend)
             if rank in ranks:
                 _DATA_PARALLEL_GROUP = group
-            if use_fp8_:
-                group = torch.distributed.new_group(ranks, backend=default_backend)
-                if rank in ranks:
-                    _DATA_PARALLEL_GROUP_FOR_AMAX_REDUCTION = group
+
+    # Build the amax-reduction groups for fp8 precision conversion.
+    if use_fp8_:
+        global _AMAX_REDUCTION_GROUP
+        assert _AMAX_REDUCTION_GROUP is None, "amax reduction group is already initialized"
+        amax_group_size: int = tensor_model_parallel_size * data_parallel_size
+        num_amax_groups: int = world_size // amax_group_size
+        for i in range(num_amax_groups):
+            start_rank = i * amax_group_size
+            end_rank = (i + 1) * amax_group_size
+            ranks = range(start_rank, end_rank)
+            group = torch.distributed.new_group(ranks, backend=default_backend)
+            if rank in ranks:
+                _AMAX_REDUCTION_GROUP = group
 
     # Build the model-parallel groups.
     global _MODEL_PARALLEL_GROUP
@@ -374,11 +381,11 @@ def get_data_parallel_group():
     return _DATA_PARALLEL_GROUP
 
 
-def get_data_parallel_amax_reduction_group():
+def get_amax_reduction_group():
     """Get the amax reduction group the caller rank belongs to."""
-    assert _DATA_PARALLEL_GROUP_FOR_AMAX_REDUCTION is not None, \
+    assert _AMAX_REDUCTION_GROUP is not None, \
         "AMAX reduction group is not initialized"
-    return _DATA_PARALLEL_GROUP_FOR_AMAX_REDUCTION
+    return _AMAX_REDUCTION_GROUP
 
 
 def get_embedding_group():
@@ -673,8 +680,8 @@ def destroy_model_parallel():
     _PIPELINE_MODEL_PARALLEL_GROUP = None
     global _DATA_PARALLEL_GROUP
     _DATA_PARALLEL_GROUP = None
-    global _DATA_PARALLEL_GROUP_FOR_AMAX_REDUCTION
-    _DATA_PARALLEL_GROUP_FOR_AMAX_REDUCTION = None
+    global _AMAX_REDUCTION_GROUP
+    _AMAX_REDUCTION_GROUP = None
     global _EMBEDDING_GROUP
     _EMBEDDING_GROUP = None
     global _POSITION_EMBEDDING_GROUP
