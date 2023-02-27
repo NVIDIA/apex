@@ -396,6 +396,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
             return grad_input, None, None, None, None, None, None
 
         # Convert the tensor shapes to 2D for execution compatibility
+        grad_output = grad_output.contiguous()
         grad_output = grad_output.view(
             grad_output.shape[0] * grad_output.shape[1], grad_output.shape[2]
         )
