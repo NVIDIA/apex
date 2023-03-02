@@ -75,7 +75,30 @@ class ConvBias_(torch.autograd.Function):
         return grads[0], grads[1], grads[2], None, None
 
 
+class ConvFrozenScaleBiasReLU_(torch.autograd.Function):
+    @staticmethod
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
+    def forward(ctx, x, weight, scale, bias, padding, stride):
+        outputs = fused_conv_bias_relu.forward_cscale_cbias_relu([x, weight, scale, bias], padding, stride)
+        ctx.save_for_backward(x, weight, scale, outputs[0])
+        ctx.padding = padding
+        ctx.stride = stride
+
+        return outputs[0]
+
+    @staticmethod
+    @torch.cuda.amp.custom_bwd
+    def backward(ctx, grad_output):
+        bwd_args = [*ctx.saved_tensors, grad_output]
+        padding = ctx.padding
+        stride = ctx.stride
+        grads = fused_conv_bias_relu.backward_cscale_cbias_relu(bwd_args, padding, stride)
+
+        return grads[0], grads[1], None, None, None, None
+
+
 ConvBiasReLU = ConvBiasReLU_.apply
 ConvBiasMaskReLU = ConvBiasMaskReLU_.apply
 ConvBias = ConvBias_.apply
+ConvFrozenScaleBiasReLU = ConvFrozenScaleBiasReLU_.apply
 

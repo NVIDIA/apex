@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 HAS_CONV_BIAS_RELU = None
 try:
-    from apex.contrib.conv_bias_relu import ConvBiasReLU, ConvBias, ConvBiasMaskReLU
+    from apex.contrib.conv_bias_relu import ConvBiasReLU, ConvBias, ConvBiasMaskReLU, ConvFrozenScaleBiasReLU
 except ImportError as e:
     HAS_CONV_BIAS_RELU = False
 else:
@@ -44,6 +44,9 @@ class FusedDenseTest(unittest.TestCase):
         self.mask = (self.mask > 0).to(torch.int8)
         self.mask_ = self.mask.clone()
 
+        self.scale = torch.randn([1, self.out_channels, 1, 1]).half().cuda()
+        self.bias = torch.randn([1, self.out_channels, 1, 1]).half().cuda()
+
         self.conv1 = torch.nn.Conv2d(self.in_channels, self.out_channels, self.conv_kernel_size,
                                      stride=self.conv_stride, padding=self.conv_pad).cuda().to(memory_format=torch.channels_last)
         self.conv1_ = copy.deepcopy(self.conv1)
@@ -64,7 +67,7 @@ class FusedDenseTest(unittest.TestCase):
             loss_ = (out_**2).sum() / out_.numel()
         loss_.backward()
 
-        self.assertTrue(torch.allclose(self.x_, self.x, atol=1e-3, rtol=1e-3, equal_nan=True))
+        self.assertTrue(torch.allclose(out_, out, atol=1e-3, rtol=1e-3, equal_nan=True))
         self.assertTrue(torch.allclose(self.conv1_.bias.grad, self.conv1.bias.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
         self.assertTrue(torch.allclose(self.conv1_.weight.grad, self.conv1.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
         self.assertTrue(torch.allclose(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
@@ -80,7 +83,7 @@ class FusedDenseTest(unittest.TestCase):
             loss_ = (out_**2).sum() / out_.numel()
         loss_.backward()
 
-        self.assertTrue(torch.allclose(self.x_, self.x, atol=1e-3, rtol=1e-3, equal_nan=True))
+        self.assertTrue(torch.allclose(out, out_, atol=1e-3, rtol=1e-3, equal_nan=True))
         self.assertTrue(torch.allclose(self.conv1_.bias.grad, self.conv1.bias.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
         self.assertTrue(torch.allclose(self.conv1_.weight.grad, self.conv1.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
         self.assertTrue(torch.allclose(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
@@ -95,8 +98,22 @@ class FusedDenseTest(unittest.TestCase):
             loss_ = (out_**2).sum() / out_.numel()
         loss_.backward()
 
-        self.assertTrue(torch.allclose(self.x_, self.x, atol=1e-3, rtol=1e-3, equal_nan=True))
+        self.assertTrue(torch.allclose(out, out_, atol=1e-3, rtol=1e-3, equal_nan=True))
         self.assertTrue(torch.allclose(self.conv1_.bias.grad, self.conv1.bias.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
+        self.assertTrue(torch.allclose(self.conv1_.weight.grad, self.conv1.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
+        self.assertTrue(torch.allclose(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
+
+    def test_conv_frozen_scale_bias_relu(self):
+        with torch.cuda.amp.autocast(dtype=torch.half):
+            out = ConvFrozenScaleBiasReLU(self.x, self.conv1.weight, self.scale, self.bias, self.conv_pad, self.conv_stride)
+            loss = (out.float()**2).sum() / out.numel()
+        loss.backward()
+        with torch.cuda.amp.autocast(dtype=torch.half):
+            out_ = F.relu(self.conv1_(self.x_) * self.scale + self.bias)
+            loss_ = (out_**2).sum() / out_.numel()
+        loss_.backward()
+
+        self.assertTrue(torch.allclose(out, out_, atol=1e-3, rtol=1e-3, equal_nan=True))
         self.assertTrue(torch.allclose(self.conv1_.weight.grad, self.conv1.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
         self.assertTrue(torch.allclose(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
 

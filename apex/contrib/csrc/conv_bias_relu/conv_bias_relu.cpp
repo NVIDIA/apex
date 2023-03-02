@@ -566,6 +566,258 @@ run_conv_bias_mask_relu(int64_t* x_dim,
 
 
 void
+run_conv_cscale_cbias_relu(int64_t* x_dim,
+                           int64_t* w_dim,
+                           int64_t* y_dim,
+                           int64_t* conv_pad,
+                           int64_t* conv_stride,
+                           int64_t* conv_dilation,
+                           cudnnDataType_t dataType,
+                           at::Half* devPtrX,
+                           at::Half* devPtrW,
+                           at::Half* devPtrS,
+                           at::Half* devPtrB,
+                           at::Half* devPtrY) {
+
+    cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+    std::stringstream log_buf;
+
+    try {
+        int conv_dim = 2;
+        float alpha  = 1.0f;
+        float beta   = 0.0f;
+        int64_t s_dim[] = {1, y_dim[1], 1, 1};
+        int64_t b_dim[] = {1, y_dim[1], 1, 1};
+
+        // Creates the necessary tensor descriptors
+        int64_t stride[4];
+        generateStrides(x_dim, stride, 4, CUDNN_TENSOR_NHWC);
+        auto xTensor = cudnn_frontend::TensorBuilder()
+                    .setDim(4, x_dim)
+                    .setStrides(4, stride)
+                    .setId('x')
+                    .setAlignment(16)
+                    .setDataType(dataType)
+                    .build();
+        DEBUG_CUDNN_MSG(log_buf, xTensor.describe());
+
+        generateStrides(w_dim, stride, 4, CUDNN_TENSOR_NHWC);
+        auto wTensor = cudnn_frontend::TensorBuilder()
+                    .setDim(4, w_dim)
+                    .setStrides(4, stride)
+                    .setId('w')
+                    .setAlignment(16)
+                    .setDataType(dataType)
+                    .build();
+        DEBUG_CUDNN_MSG(log_buf, wTensor.describe());
+
+        generateStrides(y_dim, stride, 4, CUDNN_TENSOR_NHWC);
+        auto afterConvTensor = cudnn_frontend::TensorBuilder()
+                    .setDim(4, y_dim)
+                    .setStrides(4, stride)
+                    .setId('c')
+                    .setAlignment(16)
+                    .setDataType(CUDNN_DATA_FLOAT)
+                    .setVirtual()
+                    .build();
+        DEBUG_CUDNN_MSG(log_buf, afterConvTensor.describe());
+
+        generateStrides(s_dim, stride, 4, CUDNN_TENSOR_NHWC);
+        auto sTensor = cudnn_frontend::TensorBuilder()
+                    .setDim(4, s_dim)
+                    .setStrides(4, stride)
+                    .setId('s')
+                    .setAlignment(16)
+                    .setDataType(dataType)
+                    .build();
+        DEBUG_CUDNN_MSG(log_buf, sTensor.describe());
+
+        generateStrides(y_dim, stride, 4, CUDNN_TENSOR_NHWC);
+        auto afterScaleTensor = cudnn_frontend::TensorBuilder()
+                    .setDim(4, y_dim)
+                    .setStrides(4, stride)
+                    .setId('S')
+                    .setAlignment(16)
+                    .setDataType(CUDNN_DATA_FLOAT)
+                    .setVirtual()
+                    .build();
+        DEBUG_CUDNN_MSG(log_buf, afterScaleTensor.describe());
+
+        generateStrides(b_dim, stride, 4, CUDNN_TENSOR_NHWC);
+        auto bTensor = cudnn_frontend::TensorBuilder()
+                    .setDim(4, b_dim)
+                    .setStrides(4, stride)
+                    .setId('b')
+                    .setAlignment(16)
+                    .setDataType(dataType)
+                    .build();
+        DEBUG_CUDNN_MSG(log_buf, bTensor.describe());
+
+        generateStrides(y_dim, stride, 4, CUDNN_TENSOR_NHWC);
+        auto afterBiasTensor = cudnn_frontend::TensorBuilder()
+                    .setDim(4, y_dim)
+                    .setStrides(4, stride)
+                    .setId('B')
+                    .setAlignment(16)
+                    .setDataType(CUDNN_DATA_FLOAT)
+                    .setVirtual()
+                    .build();
+        DEBUG_CUDNN_MSG(log_buf, afterBiasTensor.describe());
+
+        generateStrides(y_dim, stride, 4, CUDNN_TENSOR_NHWC);
+        auto afterReLUTensor = cudnn_frontend::TensorBuilder()
+                    .setDim(4, y_dim)
+                    .setStrides(4, stride)
+                    .setId('y')
+                    .setAlignment(16)
+                    .setDataType(dataType)
+                    .build();
+        DEBUG_CUDNN_MSG(log_buf, afterReLUTensor.describe());
+
+        // Define the convolution problem
+        auto convDesc = cudnn_frontend::ConvDescBuilder()
+                            .setDataType(CUDNN_DATA_FLOAT)
+                            .setMathMode(CUDNN_CROSS_CORRELATION)
+                            .setNDims(conv_dim)
+                            .setStrides(conv_dim, conv_stride)
+                            .setPrePadding(conv_dim, conv_pad)
+                            .setPostPadding(conv_dim, conv_pad)
+                            .setDilation(conv_dim, conv_dilation)
+                            .build();
+        DEBUG_CUDNN_MSG(log_buf, convDesc.describe());
+
+        // Define the scale operation
+        auto scaleDesc = cudnn_frontend::PointWiseDescBuilder()
+                            .setMode(CUDNN_POINTWISE_MUL)
+                            .setMathPrecision(CUDNN_DATA_FLOAT)
+                            .build();
+        DEBUG_CUDNN_MSG(log_buf, scaleDesc.describe());
+
+        // Define the bias operation
+        auto biasDesc = cudnn_frontend::PointWiseDescBuilder()
+                            .setMode(CUDNN_POINTWISE_ADD)
+                            .setMathPrecision(CUDNN_DATA_FLOAT)
+                            .build();
+        DEBUG_CUDNN_MSG(log_buf, biasDesc.describe());
+
+        // Define the activation operation
+        auto actDesc = cudnn_frontend::PointWiseDescBuilder()
+                           .setMode(CUDNN_POINTWISE_RELU_FWD)
+                           .setMathPrecision(CUDNN_DATA_FLOAT)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, actDesc.describe());
+
+        // Create a convolution Node
+        auto conv_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR)
+                           .setxDesc(xTensor)
+                           .setwDesc(wTensor)
+                           .setyDesc(afterConvTensor)
+                           .setcDesc(convDesc)
+                           .setAlpha(alpha)
+                           .setBeta(beta)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, conv_op.describe());
+
+        // Create a scale Node.
+        auto scale_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                           .setxDesc(conv_op.getOutputTensor())
+                           .setbDesc(sTensor)
+                           .setyDesc(afterScaleTensor)
+                           .setpwDesc(scaleDesc)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, scale_op.describe());
+
+        // Create a Bias Node.
+        auto bias_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                           .setxDesc(scale_op.getOutputTensor())
+                           .setbDesc(bTensor)
+                           .setyDesc(afterBiasTensor)
+                           .setpwDesc(biasDesc)
+                           .build();
+        DEBUG_CUDNN_MSG(log_buf, bias_op.describe());
+
+        // Create an Activation Node.
+        auto act_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                          .setxDesc(bias_op.getOutputTensor())
+                          .setyDesc(afterReLUTensor)
+                          .setpwDesc(actDesc)
+                          .build();
+        DEBUG_CUDNN_MSG(log_buf, act_op.describe());
+
+        // Create an Operation Graph. In this case it is convolution bias activation
+        std::array<cudnn_frontend::Operation const*, 4> ops = {&conv_op, &scale_op, &bias_op, &act_op};
+
+        auto opGraph = cudnn_frontend::OperationGraphBuilder()
+          .setHandle(handle_)
+          .setOperationGraph(3, ops.data())
+          .build();
+
+        // Create string encoding for plan caching
+	int64_t dilation_dummy[] = {30, 30};
+        auto cache_string = getConvFusionString(x_dim, conv_pad, conv_stride, dilation_dummy, w_dim, dataType, opGraph.getTag());
+        DEBUG_CUDNN_MSG(log_buf, "[convstring] " << cache_string);
+
+        auto it = plan_cache.find(cache_string);
+        if (it == plan_cache.end()) {
+            // How many engines support this operation graph ?
+            auto total_engines = opGraph.getEngineCount();
+            DEBUG_CUDNN_MSG(log_buf, opGraph.describe() << " has " << total_engines << " engines.");
+            // We have to randomly pick one engine from [0, total_engines)
+            // Selecting "0" by default
+            auto engine = cudnn_frontend::EngineBuilder().setGlobalEngineIdx(0).setOperationGraph(opGraph).build();
+            DEBUG_CUDNN_MSG(log_buf, engine.describe());
+            auto& knobs = engine.getSupportedKnobs();
+            for (auto it = std::begin(knobs); it != std::end(knobs); ++it) {
+                DEBUG_CUDNN_MSG(log_buf, it->describe());
+            }
+            if (knobs.begin() != knobs.end()) {
+                DEBUG_CUDNN_MSG(log_buf, "Updated knob choice");
+                knobs[0].setChoice(1);
+                int knob_choice = 2;
+                if (x_dim[1] == 64) knob_choice = 10;
+                else if (x_dim[1] == 256) {
+                    if (w_dim[0] == 128) knob_choice = 6;
+                    else if (w_dim[0] == 256) knob_choice = 3;
+                }
+                knobs[1].setChoice(knob_choice);
+                DEBUG_CUDNN_MSG(log_buf, knobs.begin()->describe());
+            }
+
+            // Create and emplace the requisite engine config
+            auto engine_config = cudnn_frontend::EngineConfigBuilder().setEngine(engine).build();
+            DEBUG_CUDNN_MSG(log_buf, engine_config.describe());
+            plan_cache.emplace(cache_string, std::move(cudnn_frontend::ExecutionPlanBuilder().setHandle(handle_).setEngineConfig(engine_config).build()));
+        }
+
+        auto& plan = plan_cache.find(cache_string)->second; // getOrCreatePlan(handle_, log_buf, opGraph, cache_string);
+        DEBUG_CUDNN_MSG(log_buf, "Plan tag: " << plan.getTag());
+
+        auto workspace_size = plan.getWorkspaceSize();
+        DEBUG_CUDNN_MSG(log_buf, plan.describe() << " requires workspace " << workspace_size);
+
+        void* workspace_ptr = nullptr;
+        auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
+        if (workspace_size > 0) {
+          workspace_ptr = workspace_tensor.data_ptr<float>();
+        }
+        void* data_ptrs[] = {devPtrX, devPtrW, devPtrS, devPtrB, devPtrY};
+        int64_t uids[]    = {'x', 'w', 's', 'b', 'y'};
+        auto variantPack  = cudnn_frontend::VariantPackBuilder()
+          .setWorkspacePointer(workspace_ptr)
+          .setDataPointers(5, data_ptrs)
+          .setUids(5, uids)
+                   .build();
+        DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
+        cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
+        checkCudnnErr(status);
+        cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
+    } catch (cudnn_frontend::cudnnException e) {
+      std::cout << log_buf.str() << "[ERROR] Exception " << e.what() << std::endl;
+    }
+}
+
+
+void
 run_conv_bias_relu(int64_t* x_dim,
                    int64_t* w_dim,
                    int64_t* y_dim,
@@ -741,6 +993,195 @@ run_conv_bias_relu(int64_t* x_dim,
         cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
     } catch (cudnn_frontend::cudnnException e) {
       std::cout << log_buf.str() << "[ERROR] Exception " << e.what() << std::endl;
+    }
+}
+
+
+void
+run_drelu_dscale(int64_t* dy_dim,
+                 cudnnDataType_t dataType,
+                 at::Half* devPtrDY,
+                 at::Half* devPtrR,
+                 at::Half* devPtrS,
+                 at::Half* devPtrDX) {
+
+    cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+    std::stringstream log_buf;
+
+    try {
+        int convDim = 2;
+        float alpha = 1.0f;
+        float beta = 0.0f;
+        int64_t s_dim[] = {1, dy_dim[1], 1, 1};
+
+        // Creates the necessary tensor descriptors
+        int64_t stride[4];
+        generateStrides(dy_dim, stride, 4, CUDNN_TENSOR_NHWC);
+        auto dyTensor = cudnn_frontend::TensorBuilder()
+                         .setDim(4, dy_dim)
+                         .setStrides(4, stride)
+                         .setId('y')
+                         .setAlignment(16)
+                         .setDataType(dataType)
+                         .build();
+        DEBUG_CUDNN_MSG(log_buf, dyTensor.describe());
+
+        generateStrides(dy_dim, stride, 4, CUDNN_TENSOR_NHWC);
+        auto rTensor = cudnn_frontend::TensorBuilder()
+                         .setDim(4, dy_dim)
+                         .setStrides(4, stride)
+                         .setId('r')
+                         .setAlignment(16)
+                         .setDataType(dataType)
+                         .build();
+        DEBUG_CUDNN_MSG(log_buf, rTensor.describe());
+
+        generateStrides(dy_dim, stride, 4, CUDNN_TENSOR_NHWC);
+        auto inActGradTensor = cudnn_frontend::TensorBuilder()
+                         .setDim(4, dy_dim)
+                         .setStrides(4, stride)
+                         .setId('R')
+                         .setAlignment(16)
+                         .setDataType(CUDNN_DATA_FLOAT)
+             .setVirtual()
+                         .build();
+        DEBUG_CUDNN_MSG(log_buf, inActGradTensor.describe());
+
+    generateStrides(s_dim, stride, 4, CUDNN_TENSOR_NHWC);
+    auto scaleTensor = cudnn_frontend::TensorBuilder()
+                     .setDim(4, s_dim)
+                     .setStrides(4, stride)
+                     .setId('s')
+                     .setAlignment(16)
+                     .setDataType(dataType)
+                     .build();
+    DEBUG_CUDNN_MSG(log_buf, scaleTensor.describe());
+
+    generateStrides(dy_dim, stride, 4, CUDNN_TENSOR_NHWC);
+    auto dxTensor = cudnn_frontend::TensorBuilder()
+                     .setDim(4, dy_dim)
+                     .setStrides(4, stride)
+                     .setId('x')
+                     .setAlignment(16)
+                     .setDataType(dataType)
+                     .build();
+    DEBUG_CUDNN_MSG(log_buf, dxTensor.describe());
+
+        // Define the activation backward operation
+        auto actDesc = cudnn_frontend::PointWiseDescBuilder()
+          .setMode(CUDNN_POINTWISE_RELU_BWD)
+          .setMathPrecision(CUDNN_DATA_FLOAT)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, actDesc.describe());
+
+        // Define the bias backward operation
+        auto scaleDesc = cudnn_frontend::PointWiseDescBuilder()
+          .setMode(CUDNN_POINTWISE_MUL)
+          .setMathPrecision(CUDNN_DATA_FLOAT)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, scaleDesc.describe());
+
+        // Create an relu backward Node
+        auto act_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+          .setdyDesc(dyTensor)
+          .setxDesc(rTensor)
+          .setdxDesc(inActGradTensor)
+          .setpwDesc(actDesc)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, act_op.describe());
+
+        // Create bias node
+        auto scale_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+          .setxDesc(inActGradTensor)
+          .setbDesc(scaleTensor)
+          .setyDesc(dxTensor)
+          .setpwDesc(scaleDesc)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, scale_op.describe());
+
+        // Create an Operation Graph. In this case it is bias only
+        std::array<cudnn_frontend::Operation const*, 2> ops = {&act_op, &scale_op};
+
+        auto opGraph = cudnn_frontend::OperationGraphBuilder()
+          .setHandle(handle_)
+          .setOperationGraph(ops.size(), ops.data())
+          .build();
+
+        // Create string encoding for plan caching
+        // creating unique dummy values
+        int64_t pad_dummy[] = {40, 40};
+        int64_t stride_dummy[] = {40, 40};
+        int64_t dilation_dummy[] = {40, 40};
+        auto cache_string = getConvFusionString(dy_dim, pad_dummy, stride_dummy, dilation_dummy, s_dim, dataType, opGraph.getTag());
+        DEBUG_CUDNN_MSG(log_buf, "[convstring] " << cache_string);
+
+        auto it = plan_cache.find(cache_string);
+        if (it == plan_cache.end()) {
+            // How many engines support this operation graph ?
+            auto total_engines = opGraph.getEngineCount();
+            DEBUG_CUDNN_MSG(log_buf, opGraph.describe() << " has " << total_engines << " engines.");
+            // We have to randomly pick one engine from [0, total_engines)
+            // Selecting "0" by default
+            auto engine = cudnn_frontend::EngineBuilder().setGlobalEngineIdx(0).setOperationGraph(opGraph).build();
+            DEBUG_CUDNN_MSG(log_buf, engine.describe());
+            auto& knobs = engine.getSupportedKnobs();
+            for (auto it = std::begin(knobs); it != std::end(knobs); ++it) {
+                DEBUG_CUDNN_MSG(log_buf, it->describe());
+            }
+            if (knobs.begin() != knobs.end()) {
+                DEBUG_CUDNN_MSG(log_buf, "Updated knob choice");
+                knobs[0].setChoice(1);
+                int knob_choice = 31;
+                if (dy_dim[1] == 128) {
+                  if (dy_dim[2] == 400) knob_choice = 26;
+                  else if (dy_dim[2] == 200) knob_choice = 10;
+                }
+                else if (dy_dim[1] == 256) {
+                  if (dy_dim[2] == 200) knob_choice = 1;
+                  else if (dy_dim[2] == 100) knob_choice = 21;
+                }
+                else if (dy_dim[1] == 512) {
+                  if (dy_dim[2] == 100) knob_choice = 23;
+                  else if (dy_dim[2] == 50) knob_choice = 15;
+                }
+                else if (dy_dim[1] == 1024) {
+                  if (dy_dim[2] == 50) knob_choice = 23;
+                  else if (dy_dim[2] == 25) knob_choice = 9;
+                }
+                knobs[1].setChoice(knob_choice);
+                DEBUG_CUDNN_MSG(log_buf, knobs.begin()->describe());
+            }
+
+            // Create and emplace the requisite engine config
+            auto engine_config = cudnn_frontend::EngineConfigBuilder().setEngine(engine).build();
+            DEBUG_CUDNN_MSG(log_buf, engine_config.describe());
+            plan_cache.emplace(cache_string, std::move(cudnn_frontend::ExecutionPlanBuilder().setHandle(handle_).setEngineConfig(engine_config).build()));
+        }
+
+        auto& plan = plan_cache.find(cache_string)->second; // getOrCreatePlan(handle_, log_buf, opGraph, cache_string);
+        DEBUG_CUDNN_MSG(log_buf, "Plan tag: " << plan.getTag());
+
+        auto workspace_size = plan.getWorkspaceSize();
+        DEBUG_CUDNN_MSG(log_buf, plan.describe() << " requires workspace " << workspace_size);
+
+        void* workspace_ptr = nullptr;
+        auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
+        if (workspace_size > 0) {
+            workspace_ptr = workspace_tensor.data_ptr<float>();
+        }
+        void* data_ptrs[] = {devPtrDY, devPtrR, devPtrS, devPtrDX};
+        int64_t uids[]    = {'y', 'r', 's', 'x'};
+        auto variantPack  = cudnn_frontend::VariantPackBuilder()
+          .setWorkspacePointer(workspace_ptr)
+          .setDataPointers(4, data_ptrs)
+          .setUids(4, uids)
+          .build();
+        DEBUG_CUDNN_MSG(log_buf, "variantPack " << variantPack.describe());
+        cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
+        checkCudnnErr(status);
+        cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
+    } catch (cudnn_frontend::cudnnException e) {
+        std::cout << log_buf.str() << "[ERROR] Exception " << e.what() << std::endl;
     }
 }
 
@@ -1339,6 +1780,93 @@ std::vector<at::Tensor> conv_bias_mask_relu_forward(std::vector<at::Tensor> inpu
 }
 
 
+std::vector<at::Tensor> conv_cscale_cbias_relu_backward(std::vector<at::Tensor> inputs, int64_t padding, int64_t stride) {
+  bool requires_grad = inputs[0].requires_grad();
+
+  for (int i = 0; i <= 4; i++) {
+    CHECK_INPUT(inputs[i]);
+  }
+
+  std::cout << std::fixed;
+
+  // create output vector
+  std::vector<at::Tensor> outputs;
+  auto output_format = at::MemoryFormat::ChannelsLast;
+
+  // setup dimensions
+  int64_t x_dim[]    = {0, 0, 0, 0};
+  int64_t w_dim[]	 = {0, 0, 0, 0};
+  int64_t y_dim[]	 = {0, 0, 0, 0};
+
+  // All dim calculation after this order of n,c,h,w
+  int axis[] = {0, 1, 2, 3};
+  for (int dim = 0; dim < 4; dim++) {
+    x_dim[dim] = inputs[0].size(axis[dim]);
+    w_dim[dim] = inputs[1].size(axis[dim]);
+    y_dim[dim] = inputs[3].size(axis[dim]);
+  }
+
+  int64_t b_dim[]       = {1, y_dim[1], 1, 1};
+
+  int64_t conv_pad[]        = {padding, padding};
+  int64_t conv_stride[]     = {stride, stride};
+  int64_t conv_dilation[]   = {1, 1};
+
+  // run
+  // drelu-dbias
+  at::Half* dy = inputs[4].data_ptr<at::Half>();
+  at::Half* r = inputs[3].data_ptr<at::Half>();
+  auto s = inputs[2].data_ptr<at::Half>();
+  auto dscale = at::empty_like(inputs[4]);
+  at::Half* ds = dscale.data_ptr<at::Half>();
+
+  auto options = at::TensorOptions().dtype(at::kFloat).layout(inputs[0].layout()).device(inputs[0].device()).requires_grad(false);
+  run_drelu_dscale(y_dim,
+		   CUDNN_DATA_HALF,
+		   dy,
+		   r,
+		   s,
+		   ds);
+
+  // conv wgrad
+  at::Half* x = inputs[0].data_ptr<at::Half>();
+  auto wgrad = at::empty_like(inputs[1]);
+  at::Half* dw = wgrad.data_ptr<at::Half>();
+  run_dconv(x_dim,
+	    w_dim,
+	    y_dim,
+	    conv_pad,
+	    conv_stride,
+	    conv_dilation,
+	    CUDNN_DATA_HALF,
+	    x,
+	    dw,
+	    ds,
+	    CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR);
+
+  // conv dgrad
+  at::Half* w = inputs[1].data_ptr<at::Half>();
+  auto dgrad = at::empty_like(inputs[0]);
+  at::Half* dx = dgrad.data_ptr<at::Half>();
+  run_dconv(x_dim,
+	    w_dim,
+	    y_dim,
+	    conv_pad,
+	    conv_stride,
+	    conv_dilation,
+	    CUDNN_DATA_HALF,
+	    dx,
+	    w,
+	    ds,
+	    CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR);
+
+  outputs.push_back(dgrad);
+  outputs.push_back(wgrad);
+
+  return outputs;
+}
+
+
 std::vector<at::Tensor> conv_bias_relu_forward(std::vector<at::Tensor> inputs, int64_t padding, int64_t stride) {
   std::cout << std::fixed;
 
@@ -1635,5 +2163,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward_no_relu", &conv_bias_forward, "Fused Conv-Bias forward");
   m.def("backward_no_relu", &conv_bias_backward, "Fused Conv-Bias backward");
   m.def("forward_mask", &conv_bias_mask_relu_forward, "Fused Conv-Bias-Mask-ReLU forward");
+  m.def("forward_cscale_cbias_relu", &conv_cscale_cbias_relu_forward, "Fused Conv-(const)Scale-(const)Bias-ReLU");
+  m.def("backward_cscale_cbias_relu", &conv_cscale_cbias_relu_backward, "Fused Conv-(const)Scale-(const)Bias-ReLU backward");
 }
 
