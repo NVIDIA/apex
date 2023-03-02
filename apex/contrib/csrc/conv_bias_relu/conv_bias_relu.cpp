@@ -1780,6 +1780,66 @@ std::vector<at::Tensor> conv_bias_mask_relu_forward(std::vector<at::Tensor> inpu
 }
 
 
+std::vector<at::Tensor> conv_cscale_cbias_relu_forward(std::vector<at::Tensor> inputs, int64_t padding, int64_t stride) {
+  std::cout << std::fixed;
+
+  // create output vector
+  std::vector<at::Tensor> outputs;
+  auto output_format = at::MemoryFormat::ChannelsLast;
+
+  // setup dimensions
+  int64_t x_dim[]        = {0, 0, 0, 0};
+  int64_t w_dim[]        = {0, 0, 0, 0};
+
+  // All dim calculation after this order of n,c,h,w
+  int axis[] = {0, 1, 2, 3};
+  for (int dim = 0; dim < 4; dim++) {
+    x_dim[dim] = inputs[0].size(axis[dim]);
+    w_dim[dim] = inputs[1].size(axis[dim]);
+  }
+
+  // output dim in n,c,h,w used by backend
+  int64_t y_dim[]     = {0, 0, 0, 0};
+
+  // use these fixed values
+  int64_t conv_pad[]        = {padding, padding};
+  int64_t conv_stride[]     = {stride, stride};
+  int64_t conv_dilation[]   = {1, 1};
+
+  // compute output from pad/stride/dilation
+  y_dim[0] = x_dim[0];
+  y_dim[1] = w_dim[0];
+  for (int dim = 0; dim < 2; dim++) {
+    y_dim[dim + 2] = getFwdConvOutputDim(x_dim[dim + 2], conv_pad[dim], w_dim[dim + 2], conv_stride[dim], conv_dilation[dim]);
+  }
+
+  // run
+  at::Half* x = inputs[0].data_ptr<at::Half>();
+  at::Half* w = inputs[1].data_ptr<at::Half>();
+  at::Half* s = inputs[2].data_ptr<at::Half>();
+  at::Half* b = inputs[3].data_ptr<at::Half>();
+  auto out = at::empty(y_dim, inputs[0].type(), output_format);
+  at::Half* y = out.data_ptr<at::Half>();
+
+  run_conv_cscale_cbias_relu(x_dim,
+                             w_dim,
+                             y_dim,
+                             conv_pad,
+                             conv_stride,
+                             conv_dilation,
+                             CUDNN_DATA_HALF,
+                             x,
+                             w,
+                             s,
+                             b,
+                             y);
+
+  outputs.push_back(out);
+
+  return outputs;
+}
+
+
 std::vector<at::Tensor> conv_cscale_cbias_relu_backward(std::vector<at::Tensor> inputs, int64_t padding, int64_t stride) {
   bool requires_grad = inputs[0].requires_grad();
 
