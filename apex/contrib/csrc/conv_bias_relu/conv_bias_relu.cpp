@@ -749,7 +749,7 @@ run_conv_cscale_cbias_relu(int64_t* x_dim,
 
         auto opGraph = cudnn_frontend::OperationGraphBuilder()
           .setHandle(handle_)
-          .setOperationGraph(3, ops.data())
+          .setOperationGraph(ops.size(), ops.data())
           .build();
 
         // Create string encoding for plan caching
