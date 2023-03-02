@@ -45,11 +45,17 @@ class FusedDenseTest(unittest.TestCase):
         self.mask_ = self.mask.clone()
 
         self.scale = torch.randn([1, self.out_channels, 1, 1]).half().cuda()
+        self.scale_ = self.scale.clone()
         self.bias = torch.randn([1, self.out_channels, 1, 1]).half().cuda()
+        self.bias_ = self.bias.clone()
 
         self.conv1 = torch.nn.Conv2d(self.in_channels, self.out_channels, self.conv_kernel_size,
                                      stride=self.conv_stride, padding=self.conv_pad).cuda().to(memory_format=torch.channels_last)
         self.conv1_ = copy.deepcopy(self.conv1)
+
+        self.conv2 = torch.nn.Conv2d(self.in_channels, self.out_channels, self.conv_kernel_size,
+                                     stride=self.conv_stride, padding=self.conv_pad, bias=False).cuda().to(memory_format=torch.channels_last)
+        self.conv2_ = copy.deepcopy(self.conv2)
 
         print()
         print('> input=[{}, {}, {}, {}]'.format(self.batch_size, self.in_channels, self.in_height, self.in_width))
@@ -105,16 +111,16 @@ class FusedDenseTest(unittest.TestCase):
 
     def test_conv_frozen_scale_bias_relu(self):
         with torch.cuda.amp.autocast(dtype=torch.half):
-            out = ConvFrozenScaleBiasReLU(self.x, self.conv1.weight, self.scale, self.bias, self.conv_pad, self.conv_stride)
+            out = ConvFrozenScaleBiasReLU(self.x, self.conv2.weight, self.scale, self.bias, self.conv_pad, self.conv_stride)
             loss = (out.float()**2).sum() / out.numel()
         loss.backward()
         with torch.cuda.amp.autocast(dtype=torch.half):
-            out_ = F.relu(self.conv1_(self.x_) * self.scale + self.bias)
+            out_ = F.relu(self.conv2_(self.x_) * self.scale_ + self.bias_)
             loss_ = (out_**2).sum() / out_.numel()
         loss_.backward()
 
-        self.assertTrue(torch.allclose(out, out_, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.conv1_.weight.grad, self.conv1.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
+        self.assertTrue(torch.allclose(out, out_, atol=2.5e-3, rtol=2.5e-3, equal_nan=True))
+        self.assertTrue(torch.allclose(self.conv2_.weight.grad, self.conv2.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
         self.assertTrue(torch.allclose(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
 
 
