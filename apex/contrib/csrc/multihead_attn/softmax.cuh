@@ -292,7 +292,7 @@ bool dispatch_softmax(output_t *dst, const input_t *src, int softmax_elements,
       return false;
     }
 
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
 
     // compute warps per block.
@@ -758,7 +758,7 @@ bool dispatch_additive_masked_softmax_dropout(
       return false;
     }
 
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
     // compute warps per block.
     int warps_per_block = (threads_per_block / warp_size);
@@ -1019,7 +1019,7 @@ bool dispatch_additive_masked_softmax(output_t *dst, const input_t *src,
       return false;
     }
 
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
 
     // compute warps per block.
@@ -1058,7 +1058,7 @@ bool dispatch_additive_masked_softmax_stream(
             log2_elements, warp_size, batches_per_warp, kernel)) {
       return false;
     }
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
     // compute warps per block.
     int warps_per_block = (threads_per_block / warp_size);
@@ -1306,7 +1306,7 @@ bool dispatch_masked_softmax(output_t *dst, const input_t *src,
       return false;
     }
 
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
 
     // compute warps per block.
@@ -1558,7 +1558,7 @@ bool dispatch_time_masked_softmax(output_t *dst, const input_t *src,
       return false;
     }
 
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
 
     // compute warps per block.
@@ -1740,7 +1740,7 @@ void dispatch_masked_scale_softmax_backward_masked_out(
     // softmax_warp_backward.
     int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
 
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
 
     int warps_per_block = (threads_per_block / warp_size);
@@ -1852,7 +1852,7 @@ void dispatch_masked_scale_softmax_backward_masked_out_stream(
     // This value must match the WARP_BATCH constexpr value computed inside
     // softmax_warp_backward.
     int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
     int warps_per_block = (threads_per_block / warp_size);
     int batches_per_block = warps_per_block * batches_per_warp;
@@ -2351,7 +2351,7 @@ bool dispatch_masked_scale_softmax_backward_recompute(
       return false;
     }
 
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
     // compute warps per block.
     int warps_per_block = (threads_per_block / warp_size);
@@ -2389,7 +2389,7 @@ void dispatch_masked_scale_softmax_backward_stream(
     // This value must match the WARP_BATCH constexpr value computed inside
     // softmax_warp_backward.
     int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
     int warps_per_block = (threads_per_block / warp_size);
     int batches_per_block = warps_per_block * batches_per_warp;
@@ -2592,7 +2592,7 @@ void dispatch_softmax_backward_fused_native(
     // softmax_warp_backward.
     int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
 
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
 
     int warps_per_block = (threads_per_block / warp_size);
@@ -2863,7 +2863,7 @@ bool dispatch_softmax_backward(output_t *grad_input, const input_t *grad,
       return false;
     }
 
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
 
     // compute warps per block.
@@ -2903,7 +2903,7 @@ bool dispatch_softmax_backward_stream(output_t *grad_input, const input_t *grad,
             log2_elements, warp_size, batches_per_warp, kernel)) {
       return false;
     }
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
     // compute warps per block.
     int warps_per_block = (threads_per_block / warp_size);
@@ -3120,7 +3120,7 @@ bool dispatch_masked_softmax_backward(output_t *grad_input, const input_t *grad,
       return false;
     }
 
-    // use 128 threads per block to maximimize gpu utilization
+    // use 128 threads per block to maximize gpu utilization
     constexpr int threads_per_block = 128;
 
     // compute warps per block.
