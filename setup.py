@@ -554,6 +554,7 @@ if "--fmha" in sys.argv:
             name="fmhalib",
             sources=[
                 "apex/contrib/csrc/fmha/fmha_api.cpp",
+                "apex/contrib/csrc/fmha/src/fmha_fill.cu",
                 "apex/contrib/csrc/fmha/src/fmha_noloop_reduce.cu",
                 "apex/contrib/csrc/fmha/src/fmha_fprop_fp16_128_64_kernel.sm80.cu",
                 "apex/contrib/csrc/fmha/src/fmha_fprop_fp16_256_64_kernel.sm80.cu",
