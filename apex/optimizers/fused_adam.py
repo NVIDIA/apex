@@ -172,7 +172,8 @@ class FusedAdam(torch.optim.Optimizer):
             # Backward compatibility: we used to assume that `step` was the same across group
             if 'step' in group:
                 del group['step']
-            steps = torch.cat(steps)
+            if self.capturable:
+                steps = torch.cat(steps)
 
             # If the optimizer is capturable, then if there's a grad scaler it works
             # on the GPU + a different multi_tensor_applier should be called
