@@ -77,8 +77,6 @@ struct AdamFunctor
       for(int ii = 0; ii < ILP; ii++)
       {
         int i = i_start + threadIdx.x + ii*blockDim.x;
-        float beta1_correction = *(beta1_corrections + i);
-        float beta2_correction = *(beta2_corrections + i);
         if(i < n && i < chunk_size)
         {
           r_g[ii] = g[i];
@@ -95,6 +93,9 @@ struct AdamFunctor
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
+        int i = i_start + threadIdx.x + ii*blockDim.x;
+        float beta1_correction = *(beta1_corrections + i);
+        float beta2_correction = *(beta2_corrections + i);
         if(mode == ADAM_MODE_0) { // L2
           r_g[ii] = r_g[ii] + (decay * r_p[ii]);
           r_m[ii] = beta1 * r_m[ii] + (1-beta1) * r_g[ii];
@@ -139,7 +140,7 @@ struct AdamCapturableFunctor
     TensorListMetadata<4>& tl,
     const float beta1,
     const float beta2,
-    const int* steps,
+    int* steps,
     const int bias_correction,
     const float epsilon,
     const float* lr,
@@ -188,10 +189,6 @@ struct AdamCapturableFunctor
       for(int ii = 0; ii < ILP; ii++)
       {
         int i = i_start + threadIdx.x + ii*blockDim.x;
-        if (bias_correction == 1) {
-            float beta1_correction = 1 - pow(beta1, *(steps + i));
-            float beta2_correction = 1 - pow(beta2, *(steps + i));
-        }
         if(i < n && i < chunk_size)
         {
 	  g[i] = g[i] * (*inv_scale);
@@ -209,6 +206,11 @@ struct AdamCapturableFunctor
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
+        int i = i_start + threadIdx.x + ii*blockDim.x;
+        if (bias_correction == 1) {
+            beta1_correction = 1 - pow(beta1, *(steps + i));
+            beta2_correction = 1 - pow(beta2, *(steps + i));
+        }
         if(mode == ADAM_MODE_0) { // L2
           r_g[ii] = r_g[ii] + (decay * r_p[ii]);
           r_m[ii] = beta1 * r_m[ii] + (1-beta1) * r_g[ii];
@@ -266,7 +268,7 @@ void multi_tensor_adam_cuda(
   if (bias_correction == 1) {
     for (int i =0; i<steps.size(); i++) {
         bias_correction1[i] = 1 - std::pow(beta1, steps[i]);
-        bias_correction2[i] = 1 - std::pow(beta2, steps[i])
+        bias_correction2[i] = 1 - std::pow(beta2, steps[i]);
     }
   }
 
