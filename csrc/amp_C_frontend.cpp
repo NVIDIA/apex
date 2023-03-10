@@ -89,7 +89,7 @@ void multi_tensor_adam_capturable_cuda(
   const float beta1,
   const float beta2,
   const float epsilon,
-  std::vector<at::Tensor> steps,
+  at::Tensor steps,
   const int mode,
   const int bias_correction,
   const float weight_decay,
