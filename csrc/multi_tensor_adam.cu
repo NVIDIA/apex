@@ -44,8 +44,8 @@ struct AdamFunctor
 
     // potentially use to pass in list of scalar
     // int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    float* beta1_correction_ptr = beta1_corrections + tl.start_tensor_this_launch + tensor_loc;
-    float* beta2_correction_ptr = beta2_corrections + tl.start_tensor_this_launch + tensor_loc;
+    beta1_corrections += tl.start_tensor_this_launch + tensor_loc;
+    beta2_corrections += tl.start_tensor_this_launch + tensor_loc;
 
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
@@ -94,8 +94,8 @@ struct AdamFunctor
       for(int ii = 0; ii < ILP; ii++)
       {
         int i = i_start + threadIdx.x + ii*blockDim.x;
-        float beta1_correction = *(beta1_correction_ptr + i);
-        float beta2_correction = *(beta2_correction_ptr + i);
+        float beta1_correction = *(beta1_corrections + i);
+        float beta2_correction = *(beta2_corrections + i);
         if(mode == ADAM_MODE_0) { // L2
           r_g[ii] = r_g[ii] + (decay * r_p[ii]);
           r_m[ii] = beta1 * r_m[ii] + (1-beta1) * r_g[ii];
@@ -140,7 +140,7 @@ struct AdamCapturableFunctor
     TensorListMetadata<4>& tl,
     const float beta1,
     const float beta2,
-    const int* steps,
+    int* steps,
     const int bias_correction,
     const float epsilon,
     const float* lr,
@@ -157,7 +157,7 @@ struct AdamCapturableFunctor
 
     // potentially use to pass in list of scalar
     // int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    int* step = steps + tl.start_tensor_this_launch + tensor_loc;
+    steps += tl.start_tensor_this_launch + tensor_loc;
 
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
@@ -208,8 +208,8 @@ struct AdamCapturableFunctor
       {
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if (bias_correction == 1) {
-            beta1_correction = 1 - pow(beta1, *(step + i));
-            beta2_correction = 1 - pow(beta2, *(step + i));
+            beta1_correction = 1 - pow(beta1, *(steps + i));
+            beta2_correction = 1 - pow(beta2, *(steps + i));
         }
         if(mode == ADAM_MODE_0) { // L2
           r_g[ii] = r_g[ii] + (decay * r_p[ii]);
