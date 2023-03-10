@@ -1704,12 +1704,8 @@ std::vector<at::Tensor> conv_bias_mask_relu_forward(std::vector<at::Tensor> inpu
 }
 
 
-std::vector<at::Tensor> conv_cscale_cbias_relu_forward(std::vector<at::Tensor> inputs, int64_t padding, int64_t stride) {
+at::Tensor conv_cscale_cbias_relu_forward(std::vector<at::Tensor> inputs, int64_t padding, int64_t stride) {
   std::cout << std::fixed;
-
-  // create output vector
-  std::vector<at::Tensor> outputs;
-  auto output_format = at::MemoryFormat::ChannelsLast;
 
   // setup dimensions
   int64_t x_dim[]        = {0, 0, 0, 0};
@@ -1742,7 +1738,7 @@ std::vector<at::Tensor> conv_cscale_cbias_relu_forward(std::vector<at::Tensor> i
   at::Half* w = inputs[1].data_ptr<at::Half>();
   at::Half* s = inputs[2].data_ptr<at::Half>();
   at::Half* b = inputs[3].data_ptr<at::Half>();
-  auto out = at::empty(y_dim, inputs[0].type(), output_format);
+  auto out = at::empty(y_dim, inputs[0].type(), at::MemoryFormat::ChannelsLast);
   at::Half* y = out.data_ptr<at::Half>();
 
   run_conv_cscale_cbias_relu(x_dim,
@@ -1758,9 +1754,9 @@ std::vector<at::Tensor> conv_cscale_cbias_relu_forward(std::vector<at::Tensor> i
                              b,
                              y);
 
-  outputs.push_back(out);
+  DEBUG_MSG("[DEBUG] conv-cscale-cbias-relu : " << y.to(at::kFloat).sum().item<float>());
 
-  return outputs;
+  return out;
 }
 
 
