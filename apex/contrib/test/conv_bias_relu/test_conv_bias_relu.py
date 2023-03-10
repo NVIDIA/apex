@@ -73,10 +73,10 @@ class FusedDenseTest(unittest.TestCase):
             loss_ = (out_**2).sum() / out_.numel()
         loss_.backward()
 
-        self.assertTrue(torch.allclose(out_, out, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.conv1_.bias.grad, self.conv1.bias.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.conv1_.weight.grad, self.conv1.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
+        torch.testing.assert_close(out_, out, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.conv1_.bias.grad, self.conv1.bias.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.conv1_.weight.grad, self.conv1.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
     def test_conv_bias(self):
         with torch.cuda.amp.autocast(dtype=torch.half):
@@ -89,10 +89,10 @@ class FusedDenseTest(unittest.TestCase):
             loss_ = (out_**2).sum() / out_.numel()
         loss_.backward()
 
-        self.assertTrue(torch.allclose(out, out_, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.conv1_.bias.grad, self.conv1.bias.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.conv1_.weight.grad, self.conv1.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
+        torch.testing.assert_close(out, out_, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.conv1_.bias.grad, self.conv1.bias.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.conv1_.weight.grad, self.conv1.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
     def test_conv_bias_mask_relu(self):
         with torch.cuda.amp.autocast(dtype=torch.half):
@@ -104,10 +104,10 @@ class FusedDenseTest(unittest.TestCase):
             loss_ = (out_**2).sum() / out_.numel()
         loss_.backward()
 
-        self.assertTrue(torch.allclose(out, out_, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.conv1_.bias.grad, self.conv1.bias.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.conv1_.weight.grad, self.conv1.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
+        torch.testing.assert_close(out, out_, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.conv1_.bias.grad, self.conv1.bias.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.conv1_.weight.grad, self.conv1.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
     def test_conv_frozen_scale_bias_relu(self):
         with torch.cuda.amp.autocast(dtype=torch.half):
@@ -119,9 +119,9 @@ class FusedDenseTest(unittest.TestCase):
             loss_ = (out_**2).sum() / out_.numel()
         loss_.backward()
 
-        self.assertTrue(torch.allclose(out, out_, atol=2.5e-3, rtol=2.5e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.conv2_.weight.grad, self.conv2.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
+        torch.testing.assert_close(out, out_, atol=2.5e-3, rtol=2.5e-3, equal_nan=True)
+        torch.testing.assert_close(self.conv2_.weight.grad, self.conv2.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
 
 if __name__ == '__main__':
