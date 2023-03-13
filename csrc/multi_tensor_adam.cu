@@ -260,8 +260,8 @@ void multi_tensor_adam_cuda(
   using namespace at;
 
   // Handle bias correction mode
-  std::vector<float> bias_corrections1(1.0f, steps.size());
-  std::vector<float> bias_corrections2(1.0f, steps.size());
+  std::vector<float> bias_corrections1(steps.size(), 1.0f);
+  std::vector<float> bias_corrections2(steps.size(), 1.0f);
   if (bias_correction == 1) {
     for (int i =0; i<steps.size(); i++) {
         bias_corrections1[i] = 1 - std::pow(beta1, steps[i]);
