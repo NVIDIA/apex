@@ -44,8 +44,10 @@ struct AdamFunctor
 
     // potentially use to pass in list of scalar
     // int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    beta1_corrections += tl.start_tensor_this_launch + tensor_loc;
-    beta2_corrections += tl.start_tensor_this_launch + tensor_loc;
+    beta1_corrections += tensor_loc;
+    beta2_corrections += tensor_loc;
+    float beta1_correction = *beta1_corrections;
+    float beta2_correction = *beta2_corrections;
 
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
@@ -93,9 +95,6 @@ struct AdamFunctor
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
-        int i = i_start + threadIdx.x + ii*blockDim.x;
-        float beta1_correction = *(beta1_corrections + i);
-        float beta2_correction = *(beta2_corrections + i);
         if(mode == ADAM_MODE_0) { // L2
           r_g[ii] = r_g[ii] + (decay * r_p[ii]);
           r_m[ii] = beta1 * r_m[ii] + (1-beta1) * r_g[ii];
@@ -157,7 +156,11 @@ struct AdamCapturableFunctor
 
     // potentially use to pass in list of scalar
     // int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    steps += tl.start_tensor_this_launch + tensor_loc;
+    steps += tensor_loc;
+    if (bias_correction == 1) {
+        beta1_correction = 1 - pow(beta1, *steps);
+        beta2_correction = 1 - pow(beta2, *steps);
+    }
 
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
@@ -206,11 +209,6 @@ struct AdamCapturableFunctor
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
-        int i = i_start + threadIdx.x + ii*blockDim.x;
-        if (bias_correction == 1) {
-            beta1_correction = 1 - pow(beta1, *(steps + i));
-            beta2_correction = 1 - pow(beta2, *(steps + i));
-        }
         if(mode == ADAM_MODE_0) { // L2
           r_g[ii] = r_g[ii] + (decay * r_p[ii]);
           r_m[ii] = beta1 * r_m[ii] + (1-beta1) * r_g[ii];
@@ -262,8 +260,8 @@ void multi_tensor_adam_cuda(
   using namespace at;
 
   // Handle bias correction mode
-  std::vector<float> bias_corrections1 (1.0f, steps.size());
-  std::vector<float> bias_corrections2 (1.0f, steps.size());
+  std::vector<float> bias_corrections1(1.0f, steps.size());
+  std::vector<float> bias_corrections2(1.0f, steps.size());
   if (bias_correction == 1) {
     for (int i =0; i<steps.size(); i++) {
         bias_corrections1[i] = 1 - std::pow(beta1, steps[i]);
