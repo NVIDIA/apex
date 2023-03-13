@@ -1,5 +1,5 @@
 import contextlib
-from typing import Any, List, Optional, Sequence, Union
+from typing import Any, Callable, List, Optional, Sequence, Union
 import warnings
 
 import torch
@@ -37,7 +37,9 @@ def _forward_backward_pipelining_with_interleaving(
     deallocate_pipeline_outputs: bool = False,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
-    custom_sync_context_handler: Optional[Any] = None,
+    custom_sync_context_handler: Optional[Callable] = None,
+    custom_grad_sync_func: Optional[Callable] = None,
+    custom_param_sync_func: Optional[Callable] = None,
     sync_batch_comm: bool = True,
     num_micro_batches_with_partial_activation_checkpoints: Optional[int] = None,
     **kwargs,
@@ -74,12 +76,25 @@ def _forward_backward_pipelining_with_interleaving(
         sequence_parallel_enabled: Set to :obj:`True` for this function to handle sequence length.
             When :obj:`True`, the sequence length on each tensor model parallel rank is updated
             to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
-        custom_sync_context_handler: Does nothing if ``None`` (default
-            value). Otherwise, this is treated as a function to
-            construct a context manager to disable asynchronous
-            gradient reductions. Asynchronous gradient reductions are
-            only enabled in the final backward pass of each model
-            chunk.
+        custom_sync_context_handler: If provided, this is treated as a
+            function to construct a context manager to disable
+            asynchronous gradient reductions. Asynchronous gradient
+            reductions are only enabled in the final backward pass of
+            each model chunk.
+        custom_grad_sync_func: If provided, this is treated as a
+            function to launch asynchronous gradient reductions (e.g.
+            reduce-scatters with distributed optimizer). The function
+            should take one positional argument: a list of parameters
+            whose gradients should be synchronized. Asynchronous
+            gradient reductions are launched after the final backward
+            pass of each model chunk.
+        custom_param_sync_func: If provided, this is treated as a
+            function to launch asynchronous parameter synchronizations
+            (e.g. all-gathers with distributed optimizer). The
+            function should take one positional argument: a list of
+            parameters whose values should be synchronized.
+            Asynchronous parameter synchronizations are launched
+            before the first forward pass of each model chunk.
         sync_batch_comm: If :obj:`False`, disable cuda synchronization after the batched communication.
             To disable, https://github.com/pytorch/pytorch/pull/82450 would be required.
         num_micro_batches_with_partial_activation_checkpoints: If :obj:`int`, set the number of
@@ -187,6 +202,11 @@ def _forward_backward_pipelining_with_interleaving(
         f"num_microbatches_remaining: {num_microbatches_remaining}"
     )
 
+    # Synchronize params for first two model chunks
+    if custom_param_sync_func is not None:
+        custom_param_sync_func(model[0].parameters())
+        custom_param_sync_func(model[1].parameters())
+
     ###################################################################################################################
     # Helper function definitions.
     ###################################################################################################################
@@ -204,13 +224,22 @@ def _forward_backward_pipelining_with_interleaving(
             model_chunk_id = num_model_chunks - model_chunk_id - 1
         return model_chunk_id
 
+    def is_first_microbatch_for_model_chunk(microbatch_id: int) -> bool:
+        """Helper function to check if an iteration is the first for a model
+        chunk.
+        """
+        microbatch_group_size = pipeline_parallel_size * num_model_chunks
+        num_microbatch_groups = num_microbatches // microbatch_group_size
+        microbatch_group_id = microbatch_id // microbatch_group_size
+        microbatch_id_in_group = microbatch_id % microbatch_group_size
+        if microbatch_group_id == 0:
+            return microbatch_id_in_group % pipeline_parallel_size == 0
+        else:
+            return False
+
     def is_last_microbatch_for_model_chunk(microbatch_id: int) -> bool:
         """Helper function to check if an iteration is the last for a model
         chunk.
-
-        Each model chunk processes pipeline_parallel_size microbatches
-        at a time. We assume that the number of microbatches is a
-        multiple of pipeline_parallel_size*num_model_chunks.
         """
         microbatch_group_size = pipeline_parallel_size * num_model_chunks
         num_microbatch_groups = num_microbatches // microbatch_group_size
@@ -232,6 +261,19 @@ def _forward_backward_pipelining_with_interleaving(
         """
         model_chunk_id = get_model_chunk_id(microbatch_id, forward=True)
         parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
+
+        # launch param synchronization for next model chunk
+        # Note: To achieve maximum performance, pipeline parallelism
+        # assumes all ranks have the same compute time. However,
+        # asynchronous communication tends to slow down compute. Thus,
+        # we launch asynchronous communication at the same time across
+        # the pipeline-parallel group.
+        if custom_param_sync_func is not None:
+            param_sync_microbatch_id = microbatch_id + pipeline_parallel_rank
+            if param_sync_microbatch_id < num_microbatches and is_first_microbatch_for_model_chunk(param_sync_microbatch_id):
+                param_sync_chunk_id = get_model_chunk_id(param_sync_microbatch_id, forward=True) + 1
+                if 1 < param_sync_chunk_id < num_model_chunks:
+                    custom_param_sync_func(model[param_sync_chunk_id].parameters())
 
         # forward step
         if parallel_state.is_pipeline_first_stage() and len(
@@ -268,8 +310,12 @@ def _forward_backward_pipelining_with_interleaving(
         model_type = get_model_type(model[model_chunk_id])
         parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
-        if is_last_microbatch_for_model_chunk(microbatch_id):
-            enable_grad_sync()
+        # launch grad synchronization (default)
+        if custom_grad_sync_func is None:
+            if is_last_microbatch_for_model_chunk(microbatch_id):
+                enable_grad_sync()
+
+        # backward step
         if parallel_state.is_pipeline_last_stage():
             if len(output_tensor_grads[model_chunk_id]) == 0:
                 output_tensor_grads[model_chunk_id].append(None)
@@ -284,6 +330,19 @@ def _forward_backward_pipelining_with_interleaving(
             grad_scaler=grad_scaler,
             deallocate_pipeline_outputs=deallocate_pipeline_outputs,
         )
+
+        # launch grad synchronization (custom grad sync)
+        # Note: To achieve maximum performance, pipeline parallelism
+        # assumes all ranks have the same compute time. However,
+        # asynchronous communication tends to slow down compute. Thus,
+        # we launch asynchronous communication at the same time across
+        # the pipeline-parallel group.
+        if custom_grad_sync_func is not None:
+            grad_sync_microbatch_id = microbatch_id - pipeline_parallel_rank
+            if grad_sync_microbatch_id >= 0 and is_last_microbatch_for_model_chunk(grad_sync_microbatch_id):
+                grad_sync_chunk_id = get_model_chunk_id(grad_sync_microbatch_id, forward=False)
+                enable_grad_sync()
+                custom_grad_sync_func(model[grad_sync_chunk_id].parameters())
         disable_grad_sync()
 
         return input_tensor_grad
