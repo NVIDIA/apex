@@ -315,6 +315,7 @@ inline __device__ void device_1xN_(const Params &params, const int bidb, const i
 
     // Load the fragments for K. 
     gemm_q_k.load_k();
+    uint32_t p_scaled = (uint32_t) 256.0 * params.p_dropout;
 
     // Create the object to do the softmax.
     Softmax softmax(params, &smem_[Gemm1::SMEM_OFFSET_O + Smem_tile_o::BYTES_PER_TILE], bidb, tidx);
@@ -374,17 +375,14 @@ inline __device__ void device_1xN_(const Params &params, const int bidb, const i
                 #pragma unroll
                 for( int ii = 0; ii < 2; ii++ ) {
                     #pragma unroll
-                    for( int ni = 0; ni < Mma_tile_p::MMAS_N; ni++ ) {
-                        float4 tmp = uniform4(ph());
+                    for( int ni = 0; ni < Mma_tile_p::MMAS_N/4; ni++ ) {
+                        uint8_t * rand_arr = (uint8_t*) &ph();
                         // We encode the dropout pattern in the sign bit of the non-negative softmax to distinguish from pre-existing zeros
-                        softmax.elt_[2 * mi + ii][4 * ni + 0] =
-                            encode_dropout(tmp.x <= params.p_dropout, softmax.elt_[2 * mi + ii][4 * ni + 0]);
-                        softmax.elt_[2 * mi + ii][4 * ni + 1] =
-                            encode_dropout(tmp.y <= params.p_dropout, softmax.elt_[2 * mi + ii][4 * ni + 1]);
-                        softmax.elt_[2 * mi + ii][4 * ni + 2] =
-                            encode_dropout(tmp.z <= params.p_dropout, softmax.elt_[2 * mi + ii][4 * ni + 2]);
-                        softmax.elt_[2 * mi + ii][4 * ni + 3] =
-                            encode_dropout(tmp.w <= params.p_dropout, softmax.elt_[2 * mi + ii][4 * ni + 3]);
+                        for (int ind=0; ind<16; ind++)
+                        {
+                            softmax.elt_[2 * mi + ii][16 * ni + ind] =
+                                encode_dropout(rand_arr[ind] <= p_scaled, softmax.elt_[2 * mi + ii][16 * ni + ind]);
+                        }
                     }
                 }
             }
