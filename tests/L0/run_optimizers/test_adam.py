@@ -237,9 +237,8 @@ def assert_is_dict_equal(first: Dict, second: Dict, sub_paths: Optional[List[str
             assert isinstance(second_elt, dict), f"Object types don't match in {'.'.join(sub_paths + [str(key)])}.\nCur: {first_elt}\nRef: {second_elt}"
             assert_is_dict_equal(first_elt, second_elt, sub_paths=sub_paths + [str(key)])
         elif isinstance(first_elt, torch.Tensor):
-            assert isinstance(second_elt, torch.Tensor), f"Object types don't match in {'.'.join(sub_paths + [str(key)])}.\nCur: {first_elt}\nRef: {second_elt}"
             # We accept that devices can be different
-            second_elt = second_elt.to(first_elt.device)
+            second_elt = torch.as_tensor(second_elt, device=first_elt.device)
             torch.testing.assert_close(
                 first_elt,
                 second_elt,

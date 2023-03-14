@@ -261,7 +261,7 @@ void multi_tensor_adam_cuda(
 
   float* cuda_steps;
   cudaMalloc((void**)&cuda_steps, steps.size()*sizeof(float));
-  cudaMemcpy(cuda_steps, steps, steps.size()*sizeof(float), cudaMemcpyHostToDevice);
+  cudaMemcpy(cuda_steps, steps.data(), steps.size()*sizeof(float), cudaMemcpyHostToDevice);
 
   // Assume single type across p,g,m1,m2 now
   DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT(
