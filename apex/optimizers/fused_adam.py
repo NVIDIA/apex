@@ -142,13 +142,13 @@ class FusedAdam(torch.optim.Optimizer):
                     state['exp_avg_sq'] = torch.zeros_like(p.data)
                     # Backward compatibility, we
                     assert 'step' not in group
-                    state['step'] = torch.tensor(1.) if not self.capturable else torch.tensor([1], dtype=torch.float, device=device)
+                    state['step'] = torch.tensor(1.) if not self.capturable else torch.tensor(1, dtype=torch.float, device=device)
                 else:
                     # Backward compatibility: we used to assume that `step` was the same across group
                     if 'step' in group:
                         assert 'step' not in state
                         state['step'] = group['step']
-                    state['step'] += 1.0 if not self.capturable else (self._dummy_overflow_buf != 1).to(torch.float)
+                    state['step'] += 1.0 if not self.capturable else (self._dummy_overflow_buf != 1).to(torch.float).squeeze(0)
 
                 if p.dtype == torch.float16:
                     g_16.append(p.grad.data)
@@ -173,7 +173,7 @@ class FusedAdam(torch.optim.Optimizer):
             if 'step' in group:
                 del group['step']
             if self.capturable:
-                steps = torch.cat(steps)
+                steps = torch.stack(steps)
 
             # If the optimizer is capturable, then if there's a grad scaler it works
             # on the GPU + a different multi_tensor_applier should be called
