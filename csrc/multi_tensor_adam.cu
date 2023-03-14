@@ -48,7 +48,7 @@ struct AdamFunctor
     const float beta2_correction = beta2_corrections[tensor_num];
 
     const int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    const int n = tl.sizes[tensor_loc];
+    int n = tl.sizes[tensor_loc];
 
     T* g = (T*)tl.addresses[0][tensor_loc];
     g += chunk_idx*chunk_size;
@@ -160,7 +160,7 @@ struct AdamCapturableFunctor
     }
 
     const int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    const int n = tl.sizes[tensor_loc];
+    int n = tl.sizes[tensor_loc];
 
     T* g = (T*)tl.addresses[0][tensor_loc];
     g += chunk_idx*chunk_size;
