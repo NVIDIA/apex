@@ -249,7 +249,7 @@ void multi_tensor_adam_cuda(
   const float beta1,
   const float beta2,
   const float epsilon,
-  std::vector<int> steps,
+  std::vector<float> steps,
   const int mode,
   const int bias_correction,
   const float weight_decay)
