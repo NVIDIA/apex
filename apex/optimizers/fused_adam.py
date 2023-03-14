@@ -142,7 +142,7 @@ class FusedAdam(torch.optim.Optimizer):
                     state['exp_avg_sq'] = torch.zeros_like(p.data)
                     # Backward compatibility, we
                     assert 'step' not in group
-                    state['step'] = torch.tensor(1.) if not self.capturable else torch.tensor(1, dtype=torch.float, device=device)
+                    state['step'] = torch.tensor(1, dtype=torch.float, device=device)
                 else:
                     # Backward compatibility: we used to assume that `step` was the same across group
                     if 'step' in group:

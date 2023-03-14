@@ -29,8 +29,7 @@ struct AdamFunctor
     TensorListMetadata<4>& tl,
     const float beta1,
     const float beta2,
-    const float* beta1_corrections,
-    const float* beta2_corrections,
+    const float* steps,
     const float epsilon,
     const float lr,
     adamMode_t mode,
@@ -39,13 +38,16 @@ struct AdamFunctor
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
     //   return;
+    float beta1_correction = 1.0f, beta2_correction = 1.0f;
 
     const int tensor_loc = tl.block_to_tensor[blockIdx.x];
 
     // potentially use to pass in list of scalar
     const int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    const float beta1_correction = beta1_corrections[tensor_num];
-    const float beta2_correction = beta2_corrections[tensor_num];
+    if (bias_correction == 1) {
+        beta1_correction = 1 - pow(beta1, steps[tensor_num]);
+        beta2_correction = 1 - pow(beta2, steps[tensor_num]);
+    }
 
     const int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
@@ -258,17 +260,7 @@ void multi_tensor_adam_cuda(
 
   // Assume single type across p,g,m1,m2 now
   DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT(
-    tensor_lists[0][0].scalar_type(), 0, "adam",  [&] {
-
-    // Handle bias correction mode
-    std::vector<float> bias_corrections1(steps.size(), 1.0f);
-    std::vector<float> bias_corrections2(steps.size(), 1.0f);
-    if (bias_correction == 1) {
-        for (int i =0; i<steps.size(); i++) {
-            bias_corrections1[i] = 1 - std::pow(beta1, steps[i]);
-            bias_corrections2[i] = 1 - std::pow(beta2, steps[i]);
-        }
-    }
+    tensor_lists[0][0].scalar_type(), 0, "adam",
 
     multi_tensor_apply<4>(
       BLOCK_SIZE,
@@ -278,14 +270,13 @@ void multi_tensor_adam_cuda(
       AdamFunctor<scalar_t_0>(),
       beta1,
       beta2,
-      bias_corrections1.data(),
-      bias_corrections2.data(),
+      steps.data(),
       epsilon,
       lr,
       (adamMode_t) mode,
       weight_decay
     );
-  })
+  )
 
   AT_CUDA_CHECK(cudaGetLastError());
 
