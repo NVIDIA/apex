@@ -275,7 +275,7 @@ void multi_tensor_adam_cuda(
       AdamFunctor<scalar_t_0>(),
       beta1,
       beta2,
-      cuda_steps.data(),
+      cuda_steps,
       bias_correction,
       epsilon,
       lr,
@@ -284,6 +284,7 @@ void multi_tensor_adam_cuda(
     );
   )
 
+  cudaFree(cuda_steps);
   AT_CUDA_CHECK(cudaGetLastError());
 
 }
