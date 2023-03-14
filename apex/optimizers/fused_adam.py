@@ -147,7 +147,7 @@ class FusedAdam(torch.optim.Optimizer):
                     # Backward compatibility: we used to assume that `step` was the same across group
                     if 'step' in group:
                         assert 'step' not in state
-                        state['step'] = group['step']
+                        state['step'] = group['step'].squeeze(0)
                     state['step'] += 1.0 if not self.capturable else (self._dummy_overflow_buf != 1).to(torch.float).squeeze(0)
 
                 if p.dtype == torch.float16:
