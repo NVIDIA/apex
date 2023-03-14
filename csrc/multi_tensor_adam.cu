@@ -29,8 +29,8 @@ struct AdamFunctor
     TensorListMetadata<4>& tl,
     const float beta1,
     const float beta2,
-    float* beta1_corrections,
-    float* beta2_corrections,
+    const float* beta1_corrections,
+    const float* beta2_corrections,
     const float epsilon,
     const float lr,
     adamMode_t mode,
@@ -40,17 +40,15 @@ struct AdamFunctor
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    const int tensor_loc = tl.block_to_tensor[blockIdx.x];
 
     // potentially use to pass in list of scalar
-    // int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    beta1_corrections += tensor_loc;
-    beta2_corrections += tensor_loc;
-    float beta1_correction = *beta1_corrections;
-    float beta2_correction = *beta2_corrections;
+    const int tensor_num = tl.start_tensor_this_launch + tensor_loc;
+    const float beta1_correction = beta1_corrections[tensor_num];
+    const float beta2_correction = beta2_corrections[tensor_num];
 
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    const int chunk_idx = tl.block_to_chunk[blockIdx.x];
+    const int n = tl.sizes[tensor_loc];
 
     T* g = (T*)tl.addresses[0][tensor_loc];
     g += chunk_idx*chunk_size;
@@ -139,7 +137,7 @@ struct AdamCapturableFunctor
     TensorListMetadata<4>& tl,
     const float beta1,
     const float beta2,
-    int* steps,
+    const int* steps,
     const int bias_correction,
     const float epsilon,
     const float* lr,
@@ -152,18 +150,17 @@ struct AdamCapturableFunctor
 
     float beta1_correction = 1.0f, beta2_correction = 1.0f;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    const int tensor_loc = tl.block_to_tensor[blockIdx.x];
 
     // potentially use to pass in list of scalar
-    // int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    steps += tensor_loc;
+    const int tensor_num = tl.start_tensor_this_launch + tensor_loc;
     if (bias_correction == 1) {
-        beta1_correction = 1 - pow(beta1, *steps);
-        beta2_correction = 1 - pow(beta2, *steps);
+        beta1_correction = 1 - pow(beta1, steps[tensor_num]);
+        beta2_correction = 1 - pow(beta2, steps[tensor_num]);
     }
 
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    const int chunk_idx = tl.block_to_chunk[blockIdx.x];
+    const int n = tl.sizes[tensor_loc];
 
     T* g = (T*)tl.addresses[0][tensor_loc];
     g += chunk_idx*chunk_size;
@@ -259,19 +256,20 @@ void multi_tensor_adam_cuda(
 {
   using namespace at;
 
-  // Handle bias correction mode
-  std::vector<float> bias_corrections1(steps.size(), 1.0f);
-  std::vector<float> bias_corrections2(steps.size(), 1.0f);
-  if (bias_correction == 1) {
-    for (int i =0; i<steps.size(); i++) {
-        bias_corrections1[i] = 1 - std::pow(beta1, steps[i]);
-        bias_corrections2[i] = 1 - std::pow(beta2, steps[i]);
-    }
-  }
-
   // Assume single type across p,g,m1,m2 now
   DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT(
-    tensor_lists[0][0].scalar_type(), 0, "adam",
+    tensor_lists[0][0].scalar_type(), 0, "adam",  [&] {
+
+    // Handle bias correction mode
+    std::vector<float> bias_corrections1(steps.size(), 1.0f);
+    std::vector<float> bias_corrections2(steps.size(), 1.0f);
+    if (bias_correction == 1) {
+        for (int i =0; i<steps.size(); i++) {
+            bias_corrections1[i] = 1 - std::pow(beta1, steps[i]);
+            bias_corrections2[i] = 1 - std::pow(beta2, steps[i]);
+        }
+    }
+
     multi_tensor_apply<4>(
       BLOCK_SIZE,
       chunk_size,
@@ -285,7 +283,9 @@ void multi_tensor_adam_cuda(
       epsilon,
       lr,
       (adamMode_t) mode,
-      weight_decay); )
+      weight_decay
+    );
+  })
 
   AT_CUDA_CHECK(cudaGetLastError());
 
