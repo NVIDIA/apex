@@ -323,7 +323,7 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
     ret_per_tensor = at::empty({0}, float_options);
   }
 
-  DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_l2norm_cuda",
+  DISPATCH_FLOAT_HALF_AND_BFLOAT(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_l2norm_cuda",
     multi_tensor_apply<1>(
       BLOCK_SIZE,
       chunk_size,
@@ -428,9 +428,9 @@ void multi_tensor_norm_out_cuda(
   // logic, but keeping it simple for now
   auto ret = at::empty({1}, output.options());
 
-  // Adding the following device guard since it happens sometimes that the 
-  // tensors are on one device and the cuda stream is on another device which  
-  // results in ILLEGAL MEM ACCESS error. 
+  // Adding the following device guard since it happens sometimes that the
+  // tensors are on one device and the cuda stream is on another device which
+  // results in ILLEGAL MEM ACCESS error.
   const at::cuda::OptionalCUDAGuard device_guard(device_of(output));
   auto stream = at::cuda::getCurrentCUDAStream();
   cleanup_v2<<<ntensors, 512, 0, stream>>>(

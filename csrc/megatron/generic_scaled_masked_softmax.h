@@ -170,7 +170,7 @@ void dispatch_scaled_masked_softmax_backward_new(
     else
     {
         int batch_count = batches * attn_heads * query_seq_len;
-        // use 128 threads per block to maximimize gpu utilization
+        // use 128 threads per block to maximize gpu utilization
         constexpr int threads_per_block = 128;
         int num_warps = (key_seq_len - 1) / C10_WARP_SIZE + 1;
         dim3 blocks(batch_count, 1, 1);
@@ -370,7 +370,7 @@ void dispatch_scaled_masked_softmax_forward_new(
     } else {
         int batch_count = batches * attn_heads * query_seq_len;
 
-        // use 128 threads per block to maximimize gpu utilization
+        // use 128 threads per block to maximize gpu utilization
         constexpr int threads_per_block = 128;
 
         // calculate the needed shared memory

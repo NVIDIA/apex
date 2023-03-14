@@ -48,6 +48,8 @@ _ENCODER_RELATIVE_POSITION_EMBEDDING_GROUP = None
 _DECODER_RELATIVE_POSITION_EMBEDDING_GROUP = None
 # Data parallel group that the current rank belongs to.
 _DATA_PARALLEL_GROUP = None
+# Data parallel AMAX reduction group that the current rank belongs to.
+_AMAX_REDUCTION_GROUP = None
 
 _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = None
 _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = None
@@ -84,6 +86,7 @@ def initialize_model_parallel(
     pipeline_model_parallel_size_: int = 1,
     virtual_pipeline_model_parallel_size_: Optional[int] = None,
     pipeline_model_parallel_split_rank_: Optional[int] = None,
+    use_fp8_: bool = False,
     *,
     default_backend: Optional[str] = None,
     p2p_backend: Optional[str] = None,
@@ -96,6 +99,7 @@ def initialize_model_parallel(
         pipeline_model_parallel_size: number of GPUs used to parallelize model pipeline.
         virtual_pipeline_model_parallel_size: number of virtual stages (interleaved pipeline).
         pipeline_model_parallel_split_rank: for models with both encoder and decoder, rank in pipeline with split point.
+        use_fp8_: FP8 training that needs AMAX reduction across data-parallel ranks.
     Keyword Arguments:
         default_backend: Backend of process groups except for pipeline parallel ones.
             If :obj:`None`, the backend specified in `torch.distributed.init_process_group` will be used.
@@ -196,6 +200,20 @@ def initialize_model_parallel(
             group = torch.distributed.new_group(ranks, backend=default_backend)
             if rank in ranks:
                 _DATA_PARALLEL_GROUP = group
+
+    # Build the amax-reduction groups for fp8 precision conversion.
+    if use_fp8_:
+        global _AMAX_REDUCTION_GROUP
+        assert _AMAX_REDUCTION_GROUP is None, "amax reduction group is already initialized"
+        amax_group_size: int = tensor_model_parallel_size * data_parallel_size
+        num_amax_groups: int = world_size // amax_group_size
+        for i in range(num_amax_groups):
+            start_rank = i * amax_group_size
+            end_rank = (i + 1) * amax_group_size
+            ranks = range(start_rank, end_rank)
+            group = torch.distributed.new_group(ranks, backend=default_backend)
+            if rank in ranks:
+                _AMAX_REDUCTION_GROUP = group
 
     # Build the model-parallel groups.
     global _MODEL_PARALLEL_GROUP
@@ -361,6 +379,13 @@ def get_data_parallel_group():
     """Get the data parallel group the caller rank belongs to."""
     assert _DATA_PARALLEL_GROUP is not None, "data parallel group is not initialized"
     return _DATA_PARALLEL_GROUP
+
+
+def get_amax_reduction_group():
+    """Get the amax reduction group the caller rank belongs to."""
+    assert _AMAX_REDUCTION_GROUP is not None, \
+        "AMAX reduction group is not initialized"
+    return _AMAX_REDUCTION_GROUP
 
 
 def get_embedding_group():
@@ -655,6 +680,8 @@ def destroy_model_parallel():
     _PIPELINE_MODEL_PARALLEL_GROUP = None
     global _DATA_PARALLEL_GROUP
     _DATA_PARALLEL_GROUP = None
+    global _AMAX_REDUCTION_GROUP
+    _AMAX_REDUCTION_GROUP = None
     global _EMBEDDING_GROUP
     _EMBEDDING_GROUP = None
     global _POSITION_EMBEDDING_GROUP

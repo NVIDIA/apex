@@ -356,7 +356,7 @@ void dispatch_scaled_upper_triang_masked_softmax_forward(
         // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_forward.
         int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
 
-        // use 128 threads per block to maximimize gpu utilization
+        // use 128 threads per block to maximize gpu utilization
         constexpr int threads_per_block = 128;
 
         int warps_per_block = (threads_per_block / warp_size);
@@ -459,7 +459,7 @@ void dispatch_scaled_upper_triang_masked_softmax_backward(
         // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_backward.
         int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
 
-        // use 128 threads per block to maximimize gpu utilization
+        // use 128 threads per block to maximize gpu utilization
         constexpr int threads_per_block = 128;
 
         int warps_per_block = (threads_per_block / warp_size);

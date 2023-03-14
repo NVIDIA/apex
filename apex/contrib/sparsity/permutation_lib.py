@@ -834,6 +834,8 @@ class Permutation:
                 continue
 
         graph_module = cls.print_raw_fx_graph(model, print_tabular=True)
+        if graph_module is None:
+            return {}, False
 
         # keep track of children and parents for each layer (could be call_module or call_function)
         print("\n[build_fx_graph] Print the children and parents relationship for each layer")
@@ -891,14 +893,16 @@ class Permutation:
     def print_raw_fx_graph(cls, model, print_tabular=False, generate_python_code=False):
         """This function is used to print the intermediate representation (IR) - Graph representation with Torch.FX features."""
         from torch.fx import symbolic_trace
+        import traceback
         # Symbolic tracing frontend - captures the semantics of the module
         try:
             symbolic_traced : torch.fx.GraphModule = symbolic_trace(model)
-        except:
+        except Exception as ex:
             if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+                print(ex)
+                print(''.join(traceback.format_exception(etype=type(ex), value=ex, tb=ex.__traceback__)))
                 print("\n[print_raw_fx_graph] Meet the fatal fault when trying to symbolic trace the model with Torch.FX")
-                raise
-            exit(0)
+            return None
 
         # High-level intermediate representation (IR) - Graph representation
         print("\n[print_raw_fx_graph] Print the intermediate representation (IR) with Torch.FX")

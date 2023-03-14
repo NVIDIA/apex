@@ -33,6 +33,7 @@ def make_models(
         adam_w_mode=True,
         model_dtype=torch.float32,
         optim_dtype=None,
+        grad_sync_dtype=None,
         param_sync_dtype=None,
         device='cuda',
         overlap_communication=True,
@@ -79,6 +80,7 @@ def make_models(
         overlap_param_sync=overlap_communication,
         bucket_cap_mb=71/(4*1024*1024),
         dtype=optim_dtype,
+        grad_sync_dtype=grad_sync_dtype,
         param_sync_dtype=param_sync_dtype,
         contiguous_param_buffer=contiguous_buffers,
         contiguous_grad_buffer=contiguous_buffers,
@@ -117,6 +119,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             use_nosync=True,
             model_dtype=torch.float32,
             optim_dtype=None,
+            grad_sync_dtype=None,
             param_sync_dtype=None,
             device='cuda',
             contiguous_buffers=False,
@@ -133,6 +136,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             adam_w_mode=adam_w_mode,
             model_dtype=model_dtype,
             optim_dtype=optim_dtype,
+            grad_sync_dtype=grad_sync_dtype,
             param_sync_dtype=param_sync_dtype,
             device=device,
             overlap_communication=overlap_communication,
@@ -237,6 +241,16 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             optim_dtype=torch.float32,
             param_sync_dtype=torch.float16,
             store_params=True,
+        )
+
+    def test_matches_pytorch_bf16_grads(self):
+        self.test_matches_pytorch(
+            rtol=5e-2,
+            atol=1e-5,
+            micro_batch_steps=1,
+            model_dtype=torch.float32,
+            optim_dtype=torch.float32,
+            grad_sync_dtype=torch.bfloat16,
         )
 
     def test_matches_pytorch_bf16_param_remainders(self):

@@ -6,12 +6,12 @@ def variable_is_tensor():
     return isinstance(v, torch.Tensor)
 
 def tensor_is_variable():
-    x = torch.empty()
+    x = torch.Tensor()
     return type(x) == torch.autograd.Variable
 
 # False for post-0.4
 def tensor_is_float_tensor():
-    x = torch.empty()
+    x = torch.Tensor()
     return type(x) == torch.FloatTensor
 
 # Akin to `torch.is_tensor`, but returns True for Variable
