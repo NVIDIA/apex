@@ -221,7 +221,6 @@ class AdamTest(unittest.TestCase):
             self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
 
 def assert_is_dict_equal(first: Dict, second: Dict, sub_paths: Optional[List[str]] = None, **tensor_testing_assert_close_kwargs):
-    """Returns True or False if the dictionaries match, and an additional message when it's False"""
     if sub_paths is None:
         sub_paths = []
 
