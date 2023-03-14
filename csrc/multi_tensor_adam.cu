@@ -259,6 +259,10 @@ void multi_tensor_adam_cuda(
 {
   using namespace at;
 
+  float* cuda_steps;
+  cudaMalloc((void**)&cuda_steps, steps.size()*sizeof(float));
+  cudaMemcpy(cuda_steps, steps, steps.size()*sizeof(float), cudaMemcpyHostToDevice);
+
   // Assume single type across p,g,m1,m2 now
   DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT(
     tensor_lists[0][0].scalar_type(), 0, "adam",
@@ -271,7 +275,7 @@ void multi_tensor_adam_cuda(
       AdamFunctor<scalar_t_0>(),
       beta1,
       beta2,
-      steps.data(),
+      cuda_steps.data(),
       bias_correction,
       epsilon,
       lr,
