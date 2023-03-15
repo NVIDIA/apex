@@ -63,7 +63,7 @@ class FusedAdam(torch.optim.Optimizer):
     def __init__(self, params, lr=1e-3, bias_correction=True,
                  betas=(0.9, 0.999), eps=1e-8, adam_w_mode=True,
                  weight_decay=0., amsgrad=False, set_grad_none=True,
-                 capturable=False):
+                 capturable=False, use_master=False):
 
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
@@ -71,6 +71,11 @@ class FusedAdam(torch.optim.Optimizer):
         lr = torch.tensor(lr, dtype=torch.float32) if capturable else lr
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay)
+        self.use_master = use_master
+        if self.use_master:
+            # Separately store model parameters and create FP32 master weights
+            self.model_params = params
+            params = [torch.nn.Parameter(p.data.clone().detach().float()) for p in self.model_params]
         super(FusedAdam, self).__init__(params, defaults)
         self.adam_w_mode = 1 if adam_w_mode else 0
         self.set_grad_none = set_grad_none
@@ -101,6 +106,10 @@ class FusedAdam(torch.optim.Optimizer):
                     p.grad = None
         else:
             super(FusedAdam, self).zero_grad()
+        if self.use_master:
+            # Zero grads of model parameters as well
+            for p in self.model_params:
+                p.grad = None
 
     def step(self, closure=None, grads=None, output_params=None, scale=None, grad_norms=None, grad_scaler=None):
         """Performs a single optimization step.
