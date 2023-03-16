@@ -96,6 +96,7 @@ class FusedAdam(torch.optim.Optimizer):
             self._dummy_overflow_buf = torch.cuda.IntTensor([0])
             self.multi_tensor_adam = amp_C.multi_tensor_adam
             self.multi_tensor_adam_capturable = amp_C.multi_tensor_adam_capturable
+            self.multi_tensor_adam_capturable_2 = amp_C.multi_tensor_adam_capturable_2
         else:
             raise RuntimeError('apex.optimizers.FusedAdam requires cuda extensions')
 
