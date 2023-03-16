@@ -143,7 +143,7 @@ class FusedAdam(torch.optim.Optimizer):
             g_bf, p_bf, m_bf, v_bf = [], [], [], []
             g_32, p_32, m_32, v_32 = [], [], [], []
 
-            for p in group['params']:
+            for pi, p in enumerate(group['params']):
                 if p.grad is None:
                     continue
                 if p.grad.data.is_sparse:
@@ -172,6 +172,11 @@ class FusedAdam(torch.optim.Optimizer):
                     p_32.append(p.data)
                     m_32.append(state['exp_avg'])
                     v_32.append(state['exp_avg_sq'])
+                    if self.use_master:
+                        model_p = self.model_params[pi]
+                        assert(p.data.size() == model_p.data.size())
+                        g_16.append(model_p.grad.data)
+                        p_16.append(model_p.data)
                 else:
                     raise RuntimeError('FusedAdam only support fp16 and fp32.')
 
@@ -224,18 +229,32 @@ class FusedAdam(torch.optim.Optimizer):
                             inv_scale)
 
                 if len(g_32) > 0:
-                    multi_tensor_applier(self.multi_tensor_adam_capturable,
-                            self._dummy_overflow_buf,
-                            [g_32, p_32, m_32, v_32],
-                            group['lr'],
-                            beta1,
-                            beta2,
-                            group['eps'],
-                            group['step'],
-                            self.adam_w_mode,
-                            bias_correction,
-                            group['weight_decay'],
-                            inv_scale)
+                    if self.use_master:
+                        multi_tensor_applier(self.multi_tensor_adam_capturable,
+                                self._dummy_overflow_buf,
+                                [g_32, p_32, m_32, v_32, g_16, p_16],
+                                group['lr'],
+                                beta1,
+                                beta2,
+                                group['eps'],
+                                group['step'],
+                                self.adam_w_mode,
+                                bias_correction,
+                                group['weight_decay'],
+                                inv_scale)
+                    else:
+                        multi_tensor_applier(self.multi_tensor_adam_capturable,
+                                self._dummy_overflow_buf,
+                                [g_32, p_32, m_32, v_32],
+                                group['lr'],
+                                beta1,
+                                beta2,
+                                group['eps'],
+                                group['step'],
+                                self.adam_w_mode,
+                                bias_correction,
+                                group['weight_decay'],
+                                inv_scale)
             else:
                 if len(g_16) > 0:
                     multi_tensor_applier(self.multi_tensor_adam,
