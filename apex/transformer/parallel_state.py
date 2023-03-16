@@ -79,11 +79,9 @@ def is_unitialized():
 
 def set_nccl_socket_envs():
     os.environ["NCCL_NET"] = "Socket"
-    os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
 
 def set_nccl_ib_envs():
     os.environ["NCCL_NET"] = "IB"
-    os.unsetenv("NCCL_SOCKET_IFNAME")
 
 def init_nccl_net(group, device="cuda"):
     temp = torch.ones(1, device=device)
