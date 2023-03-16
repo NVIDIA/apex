@@ -81,8 +81,7 @@ def is_unitialized():
 
 def set_nccl_socket_envs():
     os.environ["NCCL_NET"] = "Socket"
-    if os.getenv("NCCL_SOCKET_IFNAME") is None:
-        os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
+    assert os.getenv("NCCL_SOCKET_IFNAME") is not None, "NCCL_SOCKET_IFNAME was not set"
 
 def set_nccl_ib_envs():
     os.environ["NCCL_NET"] = "IB"
@@ -112,14 +111,12 @@ def new_process_group(ranks, backend):
     If all ranks are in the same blocks the process group will use NCCL_NET=IB 
     communication otherwise it will use NCCL_NET=Socket. 
     
-    If NCCL_NET=Socket is to be used, user must device NCCL_SOCKET_IFNAME otherwise 
-    NCCL_SOCKET_IFNAME=eth0 will be used as default. In addition to that, it is recommended
-    to set NCCL_SOCKET_NTHREADS and NCCL_NSOCKS_PERTHREAD before running the job.
+    If NCCL_NET=Socket is to be used, the user must set NCCL_SOCKET_IFNAME.
+    Additionally, it is recommended to set NCCL_SOCKET_NTHREADS
+    and NCCL_NSOCKS_PERTHREAD before running the job.
     """
-    if backend == "nccl":
-        compute_block_size = os.getenv("NUM_GPUS_PER_BLOCK")
-        if compute_block_size is None:
-            torch.distributed.new_group(ranks, backend=backend)
+    compute_block_size = os.getenv("NUM_GPUS_PER_BLOCK")
+    if backend == "nccl" and compute_block_size is not None:
         compute_block_size = int(compute_block_size)
         blocks = [rank // compute_block_size for rank in ranks]
         use_ib = all(block==blocks[0] for block in blocks)
@@ -128,7 +125,9 @@ def new_process_group(ranks, backend):
         else:
             return new_nccl_socket_group(ranks, backend)
     else:
-        return torch.distributed.new_group(ranks, backend=backend)
+        group = torch.distributed.new_group(ranks, backend=backend)
+        init_nccl_net(group=group)
+        return group
 
 def initialize_model_parallel(
     tensor_model_parallel_size_: int = 1,
