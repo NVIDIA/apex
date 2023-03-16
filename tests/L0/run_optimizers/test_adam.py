@@ -150,7 +150,7 @@ class AdamTest(unittest.TestCase):
     
     def testNative(self):
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
-        optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=False)
+        optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=False, use_master=True)
 
         for i in range(100):
             x = torch.rand([32, 1, 28, 28]).cuda().to(memory_format=torch.channels_last)

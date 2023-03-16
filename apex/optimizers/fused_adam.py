@@ -142,9 +142,10 @@ class FusedAdam(torch.optim.Optimizer):
             g_16, p_16, m_16, v_16 = [], [], [], []
             g_bf, p_bf, m_bf, v_bf = [], [], [], []
             g_32, p_32, m_32, v_32 = [], [], [], []
+            p_16_model = []
 
             for pi, p in enumerate(group['params']):
-                if p.grad is None:
+                if p.grad is None and not self.use_master:
                     continue
                 if p.grad.data.is_sparse:
                     raise RuntimeError('FusedAdam does not support sparse gradients, please consider SparseAdam instead')
@@ -168,15 +169,16 @@ class FusedAdam(torch.optim.Optimizer):
                     m_bf.append(state['exp_avg'])
                     v_bf.append(state['exp_avg_sq'])
                 elif p.dtype == torch.float32:
-                    g_32.append(p.grad.data)
-                    p_32.append(p.data)
-                    m_32.append(state['exp_avg'])
-                    v_32.append(state['exp_avg_sq'])
                     if self.use_master:
                         model_p = self.model_params[pi]
                         assert(p.data.size() == model_p.data.size())
-                        g_16.append(model_p.grad.data)
-                        p_16.append(model_p.data)
+                        g_32.append(model_p.grad.data)
+                        p_16_model.append(model_p.data)
+                    else:
+                        g_32.append(p.grad.data)
+                    p_32.append(p.data)
+                    m_32.append(state['exp_avg'])
+                    v_32.append(state['exp_avg_sq'])
                 else:
                     raise RuntimeError('FusedAdam only support fp16 and fp32.')
 
@@ -232,7 +234,7 @@ class FusedAdam(torch.optim.Optimizer):
                     if self.use_master:
                         multi_tensor_applier(self.multi_tensor_adam_capturable,
                                 self._dummy_overflow_buf,
-                                [g_32, p_32, m_32, v_32, g_16, p_16],
+                                [g_32, p_32, m_32, v_32, p_16_model],
                                 group['lr'],
                                 beta1,
                                 beta2,
