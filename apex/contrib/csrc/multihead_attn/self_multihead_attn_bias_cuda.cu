@@ -35,7 +35,7 @@ fwd_cuda(bool use_time_mask, bool is_training, int heads,
   const int attn_batches = heads * sequences;
   const int lead_dim = attn_batches * 3 * head_dim;
   const int batch_stride = 3 * head_dim;
-  const int dropout_elems = attn_batches * q_seq_len * k_seq_len;
+  [[maybe_unused]] const int dropout_elems = attn_batches * q_seq_len * k_seq_len;
   const float alpha = 1.0;
   const float beta_zero = 0.0;
   const float beta_one = 1.0;
@@ -97,7 +97,7 @@ fwd_cuda(bool use_time_mask, bool is_training, int heads,
       beta_zero, static_cast<half *>(softmax_results_ptr), k_seq_len,
       k_seq_len * q_seq_len, attn_batches);
   // Padded Softmax
-  bool softmax_success = false;
+  [[maybe_unused]] bool softmax_success = false;
   if (pad_mask == nullptr) {
     softmax_success = dispatch_softmax<half, half, float>(
         reinterpret_cast<half *>(softmax_results_ptr),
@@ -174,7 +174,7 @@ std::vector<torch::Tensor> bwd_cuda(
   const int attn_batches = heads * sequences;
   const int lead_dim = attn_batches * 3 * head_dim;
   const int batch_stride = 3 * head_dim;
-  const int dropout_elems = attn_batches * q_seq_len * k_seq_len;
+  [[maybe_unused]] const int dropout_elems = attn_batches * q_seq_len * k_seq_len;
   const float alpha = 1.0;
   const float beta = 0.0;
   const float scale = 1.0 / sqrt(static_cast<float>(head_dim));

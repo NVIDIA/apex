@@ -1,16 +1,17 @@
-import torch
-from torch._six import inf
 from typing import Union, Iterable
+
+import torch
 
 _kernel_import_succeeded = False
 try:
     import amp_C
     from apex.multi_tensor_apply import multi_tensor_applier
     _kernel_import_succeeded = True
-except:
+except ImportError:
     _kernel_import_succeeded = False
 
 _tensor_or_tensors = Union[torch.Tensor, Iterable[torch.Tensor]]
+
 
 def clip_grad_norm_(
         parameters: _tensor_or_tensors, max_norm: float, norm_type: float = 2.0,

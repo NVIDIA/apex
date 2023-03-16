@@ -200,6 +200,7 @@ struct DistAdamFunctor
  * to store FP32 main params. Instead, store 16-bit param remainder
  * and combine with BF16 param to reconstruct the FP32 main param.
  */
+template <typename GRAD_T>
 struct DistAdamWithParamRemaindersFunctor
 {
   __device__ __forceinline__ void operator()(
@@ -230,7 +231,7 @@ struct DistAdamWithParamRemaindersFunctor
     m += chunk_idx*chunk_size;
     float* v = (float *)tl.addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
-    float* g = (float *)tl.addresses[4][tensor_loc];
+    const GRAD_T* g = (GRAD_T *)tl.addresses[4][tensor_loc];
     g += chunk_idx*chunk_size;
     int16_t* p_out = (int16_t *)tl.addresses[5][tensor_loc];
     p_out += chunk_idx*chunk_size;
@@ -256,7 +257,7 @@ struct DistAdamWithParamRemaindersFunctor
       int16_t local_p_rem[ILP];
       float local_m[ILP];
       float local_v[ILP];
-      float local_g[ILP];
+      GRAD_T local_g[ILP];
 
       // Load
       if (aligned) {
@@ -294,7 +295,7 @@ struct DistAdamWithParamRemaindersFunctor
       }
 
       // Local compute
-      using LocalFunctor = DistAdamFunctor<float, float, void>;
+      using LocalFunctor = DistAdamFunctor<float, GRAD_T, void>;
       LocalFunctor::local_step(
         reinterpret_cast<float *>(local_p), local_m, local_v, local_g, grad_scale,
         beta1, beta2, beta1_correction, beta2_correction,
@@ -348,13 +349,10 @@ void multi_tensor_fused_adam_cuda(
 
   // Expect p_in, m, v, g, p_out
   size_t tl_sz = tensor_lists.size();
-  AT_ASSERTM(tl_sz == 5, "expected tensor lists of size 5");
-
-  // Assume p_in and g have same type
-  auto p_in_type = tensor_lists[0][0].scalar_type();
-  auto g_type = tensor_lists[3][0].scalar_type();
-  auto p_out_type = tensor_lists[4][0].scalar_type();
-  AT_ASSERTM(p_in_type == g_type, "expected main params and grads to have same type");
+  TORCH_CHECK(tl_sz == 5, "expected tensor lists of size 5");
+  const auto p_in_type = tensor_lists[0][0].scalar_type();
+  const auto g_type = tensor_lists[3][0].scalar_type();
+  const auto p_out_type = tensor_lists[4][0].scalar_type();
 
   float beta1_correction = 1.0f, beta2_correction = 1.0f;
   if (bias_correction == 1) {
@@ -363,23 +361,24 @@ void multi_tensor_fused_adam_cuda(
   }
 
   DISPATCH_FLOAT_HALF_AND_BFLOAT(p_in_type, 0, "dist_adam_cuda_kernel",
-    DISPATCH_FLOAT_HALF_AND_BFLOAT(p_out_type, 1, "dist_adam_cuda_kernel",
-      multi_tensor_apply<5>(
-        BLOCK_SIZE,
-        chunk_size,
-        noop_flag,
-        tensor_lists,
-        DistAdamFunctor<scalar_t_0, scalar_t_0, scalar_t_1>(),
-        grad_scale.DATA_PTR<float>(),
-        beta1,
-        beta2,
-        beta1_correction,
-        beta2_correction,
-        eps,
-        lr,
-        (adamMode_t) mode,
-        weight_decay);
-  ));
+    DISPATCH_FLOAT_HALF_AND_BFLOAT(g_type, 1, "dist_adam_cuda_kernel",
+      DISPATCH_FLOAT_HALF_AND_BFLOAT(p_out_type, 2, "dist_adam_cuda_kernel",
+        multi_tensor_apply<5>(
+          BLOCK_SIZE,
+          chunk_size,
+          noop_flag,
+          tensor_lists,
+          DistAdamFunctor<scalar_t_0, scalar_t_1, scalar_t_2>(),
+          grad_scale.data_ptr<float>(),
+          beta1,
+          beta2,
+          beta1_correction,
+          beta2_correction,
+          eps,
+          lr,
+          (adamMode_t) mode,
+          weight_decay);
+  )));
   C10_CUDA_CHECK(cudaGetLastError());
 }
 
@@ -401,7 +400,8 @@ void multi_tensor_fused_adam_with_param_remainders_cuda(
 
   // Expect p_in, p_rem, m, v, g, p_out
   size_t tl_sz = tensor_lists.size();
-  AT_ASSERTM(tl_sz == 6, "expected tensor lists of size 6");
+  TORCH_CHECK(tl_sz == 6, "expected tensor lists of size 6");
+  const auto g_type = tensor_lists[4][0].scalar_type();
 
   float beta1_correction = 1.0f, beta2_correction = 1.0f;
   if (bias_correction == 1) {
@@ -409,20 +409,22 @@ void multi_tensor_fused_adam_with_param_remainders_cuda(
     beta2_correction = 1 - std::pow(beta2, step);
   }
 
-  multi_tensor_apply<6>(
-    BLOCK_SIZE,
-    chunk_size,
-    noop_flag,
-    tensor_lists,
-    DistAdamWithParamRemaindersFunctor(),
-    grad_scale.DATA_PTR<float>(),
-    beta1,
-    beta2,
-    beta1_correction,
-    beta2_correction,
-    eps,
-    lr,
-    (adamMode_t) mode,
-    weight_decay);
+  DISPATCH_FLOAT_HALF_AND_BFLOAT(g_type, 0, "dist_adam_with_param_remainders_cuda_kernel",
+    multi_tensor_apply<6>(
+      BLOCK_SIZE,
+      chunk_size,
+      noop_flag,
+      tensor_lists,
+      DistAdamWithParamRemaindersFunctor<scalar_t_0>(),
+      grad_scale.data_ptr<float>(),
+      beta1,
+      beta2,
+      beta1_correction,
+      beta2_correction,
+      eps,
+      lr,
+      (adamMode_t) mode,
+      weight_decay);
+  );
   C10_CUDA_CHECK(cudaGetLastError());
 }

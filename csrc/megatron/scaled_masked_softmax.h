@@ -113,7 +113,7 @@ __global__ void scaled_softmax_warp_forward(
 
     // blockDim/threadIdx = (WARP_SIZE, WARPS_PER_BLOCK, )
     // gridDim/blockIdx = (seq_len, attn_heads, batches)
-    int first_batch = (blockDim.y * (blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z))+ threadIdx.y) * WARP_BATCH;
+    long int first_batch = (blockDim.y * (blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z))+ threadIdx.y) * WARP_BATCH;
 
     // micro_batch_size might not be a multiple of WARP_BATCH. Check how
     // many batches have to computed within this WARP.
@@ -124,8 +124,9 @@ __global__ void scaled_softmax_warp_forward(
     // there might be multiple batches per warp. compute the index within the batch
     int local_idx = threadIdx.x;
 
-    src += first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
-    dst += first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
+    long int thread_offset = first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
+    src += thread_offset;
+    dst += thread_offset;
 
     // load data from global memory
     acc_t elements[WARP_BATCH][WARP_ITERATIONS];
@@ -226,8 +227,8 @@ __global__ void scaled_masked_softmax_warp_forward(
 
     // blockDim/threadIdx = (WARP_SIZE, WARPS_PER_BLOCK, )
     // gridDim/blockIdx = (seq_len, attn_heads, batches) 
-    int first_batch = (blockDim.y * (blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z))+ threadIdx.y) * WARP_BATCH;
-    int pad_first_batch = 0;
+    long int first_batch = (blockDim.y * (blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z))+ threadIdx.y) * WARP_BATCH;
+    long int pad_first_batch = 0;
     if (pad_batches != 1) { // bert style
         pad_first_batch = (blockDim.y * (blockIdx.x + gridDim.x * blockIdx.z) + threadIdx.y) * WARP_BATCH;
     } else { // gpt2 style
@@ -243,9 +244,11 @@ __global__ void scaled_masked_softmax_warp_forward(
     // there might be multiple batches per warp. compute the index within the batch
     int local_idx = threadIdx.x;
 
-    src += first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
-    dst += first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
-    mask += pad_first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
+    long int thread_offset_src_dst = first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
+    long int thread_offset_mask = pad_first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
+    src += thread_offset_src_dst;
+    dst += thread_offset_src_dst;
+    mask += thread_offset_mask;
 
     // load data from global memory
     acc_t elements[WARP_BATCH][WARP_ITERATIONS];
@@ -352,7 +355,7 @@ __global__ void scaled_masked_softmax_warp_backward(
 
     // blockDim/threadIdx = (WARP_SIZE, WARPS_PER_BLOCK, )
     // gridDim/blockIdx = (seq_len, attn_heads, batches) 
-    int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
+    long int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
     
     // micro_batch_size might not be a multiple of WARP_BATCH. Check how
     // many batches have to computed within this WARP.
@@ -364,7 +367,7 @@ __global__ void scaled_masked_softmax_warp_backward(
     int local_idx = threadIdx.x;
 
     // the first element to process by the current thread
-    int thread_offset = first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
+    long int thread_offset = first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
     grad += thread_offset;
     output += thread_offset;
     gradInput += thread_offset;
@@ -468,7 +471,7 @@ void dispatch_scaled_softmax_forward(
         // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_forward.
         int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
 
-        // use 128 threads per block to maximimize gpu utilization
+        // use 128 threads per block to maximize gpu utilization
         constexpr int threads_per_block = 128;
 
         int warps_per_block = (threads_per_block / warp_size);
@@ -570,7 +573,7 @@ void dispatch_scaled_masked_softmax_forward(
         // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_forward.
         int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
 
-        // use 128 threads per block to maximimize gpu utilization
+        // use 128 threads per block to maximize gpu utilization
         constexpr int threads_per_block = 128;
 
         int warps_per_block = (threads_per_block / warp_size);
@@ -663,7 +666,7 @@ void dispatch_scaled_masked_softmax_backward(
         // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_backward.
         int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
 
-        // use 128 threads per block to maximimize gpu utilization
+        // use 128 threads per block to maximize gpu utilization
         constexpr int threads_per_block = 128;
 
         int warps_per_block = (threads_per_block / warp_size);
