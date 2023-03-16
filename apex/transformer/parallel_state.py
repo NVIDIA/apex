@@ -80,8 +80,8 @@ def is_unitialized():
     return _DATA_PARALLEL_GROUP is None
 
 def set_nccl_socket_envs():
-    os.environ["NCCL_NET"] = "Socket"
     assert os.getenv("NCCL_SOCKET_IFNAME") is not None, "NCCL_SOCKET_IFNAME was not set"
+    os.environ["NCCL_NET"] = "Socket"
 
 def set_nccl_ib_envs():
     os.environ["NCCL_NET"] = "IB"
