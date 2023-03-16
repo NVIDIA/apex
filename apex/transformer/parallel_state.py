@@ -79,6 +79,8 @@ def is_unitialized():
 
 def set_nccl_socket_envs():
     os.environ["NCCL_NET"] = "Socket"
+    if os.getenv("NCCL_SOCKET_IFNAME") is None:
+        os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
 
 def set_nccl_ib_envs():
     os.environ["NCCL_NET"] = "IB"
@@ -106,7 +108,11 @@ def new_process_group(ranks, backend):
     environment variable NUM_GPUS_PER_BLOCK is defined it looks up the ranks
     and determines whether they all belong to the same computational block or not.
     If all ranks are in the same blocks the process group will use NCCL_NET=IB 
-    communication otherwise it will use  NCCL_NET=Socket. 
+    communication otherwise it will use NCCL_NET=Socket. 
+    
+    If NCCL_NET=Socket is to be used, user must device NCCL_SOCKET_IFNAME otherwise 
+    NCCL_SOCKET_IFNAME=eth0 will be used as default. In addition to that, it is recommended
+    to set NCCL_SOCKET_NTHREADS and NCCL_NSOCKS_PERTHREAD before running the job.
     """
     if backend == "nccl":
         compute_block_size = os.getenv("NUM_GPUS_PER_BLOCK")
