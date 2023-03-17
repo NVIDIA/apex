@@ -115,6 +115,9 @@ def new_process_group(ranks, backend):
     Additionally, it is recommended to set NCCL_SOCKET_NTHREADS
     and NCCL_NSOCKS_PERTHREAD before running the job.
     """
+    if backend us None:
+        backend = "nccl"
+
     compute_block_size = os.getenv("NUM_GPUS_PER_BLOCK")
     if backend == "nccl" and compute_block_size is not None:
         compute_block_size = int(compute_block_size)
