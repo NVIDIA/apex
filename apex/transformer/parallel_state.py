@@ -125,9 +125,7 @@ def new_process_group(ranks, backend):
         else:
             return new_nccl_socket_group(ranks, backend)
     else:
-        group = torch.distributed.new_group(ranks, backend=backend)
-        init_nccl_net(group=group)
-        return group
+        return torch.distributed.new_group(ranks, backend=backend)
 
 def initialize_model_parallel(
     tensor_model_parallel_size_: int = 1,
