@@ -1813,18 +1813,18 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
             # Local step and launch param sync for first buckets
             self._local_step(first_bucket_ids)
-            self._start_bucket_param_sync([
+            self._start_bucket_param_sync(
                 self._params_buckets[bucket_id]
                 for bucket_id in first_bucket_ids
-            ])
+            )
 
             # Local step for remaining buckets
             first_bucket_ids = set(first_bucket_ids)
-            self._local_step([
+            self._local_step(
                 bucket_id
                 for bucket_id in range(len(self.state['buckets']))
                 if bucket_id not in first_bucket_ids
-            ])
+            )
 
             # Enable pre-forward hook
             for param in self.parameters():
@@ -1838,7 +1838,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         return loss
 
     def _local_step(self, bucket_ids):
-        """Apply optimizer step to local shard of parameter buckets"""
+        """Apply optimizer step to local shard of parameter buckets
+
+        Arguments:
+            bucket_ids (iterable): bucket indices
+
+        """
 
         # Optimized implementation with BF16 params and 16-bit param
         # remainders
@@ -1906,6 +1911,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         store_params=False and store_param_remainders=True. The
         optimizer dtype must be FP32 and the params must all be BF16
         and GPU.
+
+        Arguments:
+            bucket_ids (iterable): bucket indices
+
         """
 
         # Find param fragments for each bucket
