@@ -311,8 +311,7 @@ def _forward_backward_pipelining_with_interleaving(
         parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
         # launch grad synchronization (default)
-        if custom_grad_sync_func is None:
-            if is_last_microbatch_for_model_chunk(microbatch_id):
+        if custom_grad_sync_func is None and is_last_microbatch_for_model_chunk(microbatch_id):
                 enable_grad_sync()
 
         # backward step
