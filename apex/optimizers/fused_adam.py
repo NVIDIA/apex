@@ -146,10 +146,11 @@ class FusedAdam(torch.optim.Optimizer):
             p_16_model = []
 
             for pi, p in enumerate(group['params']):
-                if p.grad is None and not self.use_master:
-                    continue
-                if p.grad.data.is_sparse:
-                    raise RuntimeError('FusedAdam does not support sparse gradients, please consider SparseAdam instead')
+                if not self.use_master:
+                    if p.grad is None:
+                        continue
+                    if p.grad.data.is_sparse:
+                        raise RuntimeError('FusedAdam does not support sparse gradients, please consider SparseAdam instead')
 
                 state = self.state[p]
                 # State initialization
