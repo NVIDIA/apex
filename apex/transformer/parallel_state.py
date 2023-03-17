@@ -384,7 +384,8 @@ def initialize_model_parallel(
         set_nccl_ib_envs()
     elif default_nccl_net is None:
         os.unsetenv("NCCL_NET")
-        os.unsetenv("NCCL_SOCKET_IFNAME")
+    else:
+        os.environ["NCCL_NET"] = default_nccl_net
 
 
 def get_rank_info() -> Tuple[int, int, int]:
