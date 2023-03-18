@@ -105,24 +105,41 @@ def new_nccl_ib_group(ranks, backend):
 
 def new_process_group(ranks, backend):
     """
-    This function creates process groups. If the backend is NCCL and an
-    environment variable NUM_GPUS_PER_BLOCK is defined it looks up the ranks
-    and determines whether they all belong to the same computational block or not.
-    If all ranks are in the same blocks the process group will use NCCL_NET=IB 
+    This function creates process groups.
+
+    In addition to simply creating the process groups, it initializes NCCL
+    for hybrid IB/Socket network like in the following diagram:
+
+      _______________________________
+      |          |       |          |
+     TCP        TCP     TCP        TCP
+      |          |       |          |
+    GPU:0--IB--GPU:1 | GPU:2--IB--GPU:3
+
+
+    If an environment variable NUM_GPUS_PER_IB_BLOCK is defined it looks up the ranks
+    and determines whether the set of ranks belong to the same computational block where
+    GPUs are interconnected via IB type of connection or not.
+    If all ranks are in the same block, the process group will use NCCL_NET=IB for
     communication otherwise it will use NCCL_NET=Socket. 
     
-    If NCCL_NET=Socket is to be used, the user must set NCCL_SOCKET_IFNAME.
-    Additionally, it is recommended to set NCCL_SOCKET_NTHREADS
-    and NCCL_NSOCKS_PERTHREAD before running the job.
+    If NCCL_NET=Socket is ever to be used, the user must set NCCL_SOCKET_IFNAME.
+    Additionally, it is recommended to set NCCL_SOCKET_NTHREADS and
+    NCCL_NSOCKS_PERTHREAD before running the job.
+    See: https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
+    for more info
+
+    The core assumption for this functionality is that the ranks are evenly divided
+    into IB blocks and all these IB blocks are of the same size.
     """
-    if backend us None:
+    if backend is None:
         backend = "nccl"
 
-    compute_block_size = os.getenv("NUM_GPUS_PER_BLOCK")
+    compute_block_size = os.getenv("NUM_GPUS_PER_IB_BLOCK")
     if backend == "nccl" and compute_block_size is not None:
         compute_block_size = int(compute_block_size)
         blocks = [rank // compute_block_size for rank in ranks]
-        use_ib = all(block==blocks[0] for block in blocks)
+        use_ib = all(block == blocks[0] for block in blocks)
         if use_ib:
             return new_nccl_ib_group(ranks, backend)
         else:
