@@ -146,7 +146,14 @@ class FusedAdam(torch.optim.Optimizer):
             p_16_model = []
 
             for pi, p in enumerate(group['params']):
-                if not self.use_master:
+                if self.use_master:
+                    model_p = self.model_params[pi]
+                    assert(p.data.size() == model_p.data.size())
+                    if model_p.grad is None:
+                        continue
+                    if model_p.grad.data.is_sparse:
+                        raise RuntimeError('FusedAdam does not support sparse gradients, please consider SparseAdam instead')
+                else:
                     if p.grad is None:
                         continue
                     if p.grad.data.is_sparse:
@@ -172,8 +179,6 @@ class FusedAdam(torch.optim.Optimizer):
                     v_bf.append(state['exp_avg_sq'])
                 elif p.dtype == torch.float32:
                     if self.use_master:
-                        model_p = self.model_params[pi]
-                        assert(p.data.size() == model_p.data.size())
                         g_32.append(model_p.grad.data)
                         p_16_model.append(model_p.data)
                     else:
@@ -234,7 +239,7 @@ class FusedAdam(torch.optim.Optimizer):
 
                 if len(g_32) > 0:
                     if self.use_master:
-                        multi_tensor_applier(self.multi_tensor_adam_capturable,
+                        multi_tensor_applier(self.multi_tensor_adam_capturable_2,
                                 self._dummy_overflow_buf,
                                 [g_32, p_32, m_32, v_32, p_16_model],
                                 group['lr'],
