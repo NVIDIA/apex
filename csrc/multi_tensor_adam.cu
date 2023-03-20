@@ -273,7 +273,7 @@ struct AdamCapturableFunctor2
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
-    T2* g = (T2*)tl.addresses[0][tensor_loc];
+    T* g = (T*)tl.addresses[0][tensor_loc];
     g += chunk_idx*chunk_size;
 
     T* p = (T*)tl.addresses[1][tensor_loc];
@@ -285,8 +285,8 @@ struct AdamCapturableFunctor2
     T* v = (T*)tl.addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
 
-    T2* p_model = (T2*)tl.addresses[4][tensor_loc];
-    p_model += chunk_idx*chunk_size;
+    T2* p_master = (T2*)tl.addresses[4][tensor_loc];
+    p_master += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
 
@@ -307,7 +307,7 @@ struct AdamCapturableFunctor2
         {
 	  g[i] = g[i] * (*inv_scale);
           r_g[ii] = g[i];
-          r_p[ii] = p[i];
+          r_p[ii] = p_master[i];
           r_m[ii] = m[i];
           r_v[ii] = v[i];
         } else {
@@ -347,7 +347,7 @@ struct AdamCapturableFunctor2
         if(i < n && i < chunk_size)
         {
           p[i] = r_p[ii];
-          p_model[i] = r_p[ii];
+          p_master[i] = r_p[ii];
           m[i] = r_m[ii];
           v[i] = r_v[ii];
         }
