@@ -199,6 +199,7 @@ def initialize_model_parallel(
     if "ucc" in (default_backend, p2p_backend):
         if not HAS_UCC:
             raise ImportError("UCC backend requires pytorch source build with UCC installed and enabled")
+        warnings.warn("`ucc` backend support is experimental", ExperimentalWarning)
     if default_backend == "ucc":
         warnings.warn("The UCC's functionality as `default_backend` is not well verified", ExperimentalWarning)
 
