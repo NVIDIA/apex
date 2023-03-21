@@ -192,8 +192,6 @@ def initialize_model_parallel(
     with a total of 16 GPUs, rank 0 to 7 belong to the first box and
     ranks 8 to 15 belong to the second box.
     """
-    default_nccl_net = os.getenv("NCCL_NET")
-
     # Get world size and rank. Ensure some consistencies.
     assert torch.distributed.is_initialized()
     assert default_backend is None or default_backend in ("nccl", "ucc")
@@ -203,6 +201,9 @@ def initialize_model_parallel(
             raise ImportError("UCC backend requires pytorch source build with UCC installed and enabled")
     if default_backend == "ucc":
         warnings.warn("The UCC's functionality as `default_backend` is not well verified", ExperimentalWarning)
+
+    # Saving the NCCL_NET type for reusing it at the epilogue 
+    default_nccl_net = os.getenv("NCCL_NET")
 
     world_size: int = torch.distributed.get_world_size()
     tensor_model_parallel_size: int = min(tensor_model_parallel_size_, world_size)
