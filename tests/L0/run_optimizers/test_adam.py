@@ -58,9 +58,6 @@ class AdamTest(unittest.TestCase):
         self.model_ = Model().cuda()
         self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
 
-        for m in self.model.modules():
-            if m.__class__ in [torch.nn.Conv2d]:
-                m.half()
         for m in self.model_.modules():
             if m.__class__ in [torch.nn.Conv2d]:
                 m.half()
@@ -71,7 +68,7 @@ class AdamTest(unittest.TestCase):
 
     def testGradScaler(self):
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
-        optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=False)
+        optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=False, use_master=True)
         scaler = torch.cuda.amp.GradScaler(enabled=True)
         scaler_ = torch.cuda.amp.GradScaler(enabled=True)
 
@@ -146,14 +143,14 @@ class AdamTest(unittest.TestCase):
                 m = module[0]
                 m_ = module[1]
                 if isinstance(m, nn.Conv2d) or isinstance(m_, nn.Linear):
-                    torch.testing.assert_close(m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True)
-                    torch.testing.assert_close(m.weight.grad, m_.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+                    torch.testing.assert_close(m.weight, m_.weight.float(), atol=1e-3, rtol=1e-3, equal_nan=True)
+                    torch.testing.assert_close(m.weight.grad, m_.weight.grad.float(), atol=1e-3, rtol=1e-3, equal_nan=True)
 
             # Init for next iteration
             self.optimizer.zero_grad()
             optimizer_.zero_grad()
 
-            self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
+            #self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
     
     def testNative(self):
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
