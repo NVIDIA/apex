@@ -63,19 +63,14 @@ class FusedAdam(torch.optim.Optimizer):
     def __init__(self, params, lr=1e-3, bias_correction=True,
                  betas=(0.9, 0.999), eps=1e-8, adam_w_mode=True,
                  weight_decay=0., amsgrad=False, set_grad_none=True,
-                 capturable=False, use_master=False):
+                 capturable=False):
 
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
-        if use_master and not capturable:
-            raise RuntimeError('FusedAdam should be capturable to utilize master weights')
         # If the optimizer is capturable then LR should be a tensor (on GPU)
         lr = torch.tensor(lr, dtype=torch.float32) if capturable else lr
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay)
-        self.use_master = use_master
-        if self.use_master:
-            self.master_params = [p.data.clone().detach().float() for p in params]
         super(FusedAdam, self).__init__(params, defaults)
         self.adam_w_mode = 1 if adam_w_mode else 0
         self.set_grad_none = set_grad_none
@@ -96,7 +91,6 @@ class FusedAdam(torch.optim.Optimizer):
             self._dummy_overflow_buf = torch.cuda.IntTensor([0])
             self.multi_tensor_adam = amp_C.multi_tensor_adam
             self.multi_tensor_adam_capturable = amp_C.multi_tensor_adam_capturable
-            self.multi_tensor_adam_capturable_master = amp_C.multi_tensor_adam_capturable_master
         else:
             raise RuntimeError('apex.optimizers.FusedAdam requires cuda extensions')
 
@@ -139,9 +133,8 @@ class FusedAdam(torch.optim.Optimizer):
             g_16, p_16, m_16, v_16 = [], [], [], []
             g_bf, p_bf, m_bf, v_bf = [], [], [], []
             g_32, p_32, m_32, v_32 = [], [], [], []
-            p_16_master = []
 
-            for pi, p in enumerate(group['params']):
+            for p in group['params']:
                 if p.grad is None:
                     continue
                 if p.grad.data.is_sparse:
@@ -151,13 +144,11 @@ class FusedAdam(torch.optim.Optimizer):
                 # State initialization
                 if len(state) == 0:
                     # Exponential moving average of gradient values
-                    state['exp_avg'] = torch.zeros_like(p.data).float()
+                    state['exp_avg'] = torch.zeros_like(p.data)
                     # Exponential moving average of squared gradient values
-                    state['exp_avg_sq'] = torch.zeros_like(p.data).float()
+                    state['exp_avg_sq'] = torch.zeros_like(p.data)
 
                 if p.dtype == torch.float16:
-                    if self.use_master:
-                        p_16_master.append(self.master_params[pi])
                     g_16.append(p.grad.data)
                     p_16.append(p.data)
                     m_16.append(state['exp_avg'])
@@ -195,11 +186,9 @@ class FusedAdam(torch.optim.Optimizer):
                     inv_scale = torch.ones((1,), device=device)
 
                 if len(g_16) > 0:
-                    multi_tensor_applier(self.multi_tensor_adam_capturable_master if self.use_master
-                            else self.multi_tensor_adam_capturable,
+                    multi_tensor_applier(self.multi_tensor_adam_capturable,
                             self._dummy_overflow_buf,
-                            [g_16, p_16, m_16, v_16, p_16_master] if self.use_master
-                            else [g_16, p_16, m_16, v_16],
+                            [g_16, p_16, m_16, v_16],
                             group['lr'],
                             beta1,
                             beta2,
