@@ -196,6 +196,15 @@ class FusedAdam(torch.optim.Optimizer):
 
                 if len(g_16) > 0:
                     if self.use_master:
+                        for pppi, ppp in enumerate(p_16):
+                            if ppp.size() == torch.Size([16, 6, 5, 5]):
+                                print("BEFORE MTA")
+                                print("p_16:", p_16[pppi][0][5][2][1])
+                                print("g_16:", g_16[pppi][0][5][2][1])
+                                print("m_16:", m_16[pppi][0][5][2][1])
+                                print("v_16:", v_16[pppi][0][5][2][1])
+                                print("p_32_master:", p_32_master[pppi][0][5][2][1])
+
                         multi_tensor_applier(self.multi_tensor_adam_capturable_2,
                                 self._dummy_overflow_buf,
                                 [g_16, p_16, m_16, v_16, p_32_master],
@@ -208,6 +217,15 @@ class FusedAdam(torch.optim.Optimizer):
                                 bias_correction,
                                 group['weight_decay'],
                                 inv_scale)
+
+                        for pppi, ppp in enumerate(p_16):
+                            if ppp.size() == torch.Size([16, 6, 5, 5]):
+                                print("AFTER MTA")
+                                print("p_16:", p_16[pppi][0][5][2][1])
+                                print("g_16:", g_16[pppi][0][5][2][1])
+                                print("m_16:", m_16[pppi][0][5][2][1])
+                                print("v_16:", v_16[pppi][0][5][2][1])
+                                print("p_32_master:", p_32_master[pppi][0][5][2][1])
                     else:
                         multi_tensor_applier(self.multi_tensor_adam_capturable,
                                 self._dummy_overflow_buf,
@@ -238,6 +256,14 @@ class FusedAdam(torch.optim.Optimizer):
                             inv_scale)
 
                 if len(g_32) > 0:
+                    for pppi, ppp in enumerate(p_32):
+                        if ppp.size() == torch.Size([16, 6, 5, 5]):
+                            print("BEFORE MTA")
+                            print("p_32:", p_32[pppi][0][5][2][1])
+                            print("g_32:", g_32[pppi][0][5][2][1])
+                            print("m_32:", m_32[pppi][0][5][2][1])
+                            print("v_32:", v_32[pppi][0][5][2][1])
+
                     multi_tensor_applier(self.multi_tensor_adam_capturable,
                             self._dummy_overflow_buf,
                             [g_32, p_32, m_32, v_32],
@@ -250,6 +276,14 @@ class FusedAdam(torch.optim.Optimizer):
                             bias_correction,
                             group['weight_decay'],
                             inv_scale)
+
+                        if ppp.size() == torch.Size([16, 6, 5, 5]):
+                            print("AFTER MTA")
+                            print("p_32:", p_32[pppi][0][5][2][1])
+                            print("g_32:", g_32[pppi][0][5][2][1])
+                            print("m_32:", m_32[pppi][0][5][2][1])
+                            print("v_32:", v_32[pppi][0][5][2][1])
+
             else:
                 if len(g_16) > 0:
                     multi_tensor_applier(self.multi_tensor_adam,
