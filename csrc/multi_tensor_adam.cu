@@ -190,10 +190,9 @@ struct AdamCapturableFunctor
         if(i < n && i < chunk_size)
         {
           r_g[ii] = static_cast<MATH_T>(g[i]) * (*inv_scale);
-          g[i] = r_g[ii];
-          r_p[ii] = p[i];
-          r_m[ii] = m[i];
-          r_v[ii] = v[i];
+          r_p[ii] = static_cast<MATH_T>(p[i]);
+          r_m[ii] = static_cast<MATH_T>(m[i]);
+          r_v[ii] = static_cast<MATH_T>(v[i]);
         } else {
           r_g[ii] = MATH_T(0);
           r_p[ii] = MATH_T(0);
@@ -230,9 +229,10 @@ struct AdamCapturableFunctor
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
         {
-          p[i] = r_p[ii];
-          m[i] = r_m[ii];
-          v[i] = r_v[ii];
+          g[i] = static_cast<T>(r_g[ii]);
+          p[i] = static_cast<T>(r_p[ii]);
+          m[i] = static_cast<T>(r_m[ii]);
+          v[i] = static_cast<T>(r_v[ii]);
         }
       }
     }
@@ -306,10 +306,9 @@ struct AdamCapturableFunctor2
         if(i < n && i < chunk_size)
         {
           r_g[ii] = static_cast<MATH_T>(g[i]) * (*inv_scale);
-          g[i] = r_g[ii];
-          r_p[ii] = p_master[i];
-          r_m[ii] = m[i];
-          r_v[ii] = v[i];
+          r_p[ii] = static_cast<MATH_T>(p_master[i]);
+          r_m[ii] = static_cast<MATH_T>(m[i]);
+          r_v[ii] = static_cast<MATH_T>(v[i]);
         } else {
           r_g[ii] = MATH_T(0);
           r_p[ii] = MATH_T(0);
@@ -346,10 +345,11 @@ struct AdamCapturableFunctor2
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
         {
-          p[i] = r_p[ii];
-          p_master[i] = r_p[ii];
-          m[i] = r_m[ii];
-          v[i] = r_v[ii];
+          g[i] = static_cast<T>(r_g[ii]);
+          p[i] = static_cast<T>(r_p[ii]);
+          p_master[i] = static_cast<T2>(r_p[ii]);
+          m[i] = static_cast<T>(r_m[ii]);
+          v[i] = static_cast<T>(r_v[ii]);
         }
       }
     }
