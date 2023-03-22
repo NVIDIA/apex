@@ -144,39 +144,13 @@ class AdamTest(unittest.TestCase):
                 loss_ = ((gt_ - y) ** 2).mean()
 
             scaler_.scale(loss_).backward()
-
-            for module in zip(self.model.modules(), self.model_.modules()):
-                m = module[0]
-                m_ = module[1]
-                if isinstance(m, nn.Conv2d):
-                    print(m)
-                    if m.weight.size() == torch.Size([16, 6, 5, 5]):
-                        print("BEFORE")
-                        print(m.weight[0][5][2][1])
-                        print(m_.weight[0][5][2][1])
-                        print(m.weight.grad[0][5][2][1])
-                        print(m_.weight.grad[0][5][2][1])
-
             scaler_.step(optimizer_)
             scaler_.update()
 
             for module in zip(self.model.modules(), self.model_.modules()):
                 m = module[0]
                 m_ = module[1]
-                if isinstance(m, nn.Conv2d):
-                    print(m)
-                    if m.weight.size() == torch.Size([16, 6, 5, 5]):
-                        print("AFTER")
-                        print(m.weight[0][5][2][1])
-                        print(m_.weight[0][5][2][1])
-                        print(m.weight.grad[0][5][2][1])
-                        print(m_.weight.grad[0][5][2][1])
-
-
-                    torch.testing.assert_close(m.weight, m_.weight.float(), atol=1e-3, rtol=1e-3, equal_nan=True)
-                    torch.testing.assert_close(m.weight.grad, m_.weight.grad.float(), atol=1e-3, rtol=1e-3, equal_nan=True)
-                if isinstance(m_, nn.Linear):
-                    print(m_)
+                if isinstance(m, nn.Conv2d) or isinstance(m_, nn.Linear):
                     torch.testing.assert_close(m.weight, m_.weight.float(), atol=1e-3, rtol=1e-3, equal_nan=True)
                     torch.testing.assert_close(m.weight.grad, m_.weight.grad.float(), atol=1e-3, rtol=1e-3, equal_nan=True)
 
