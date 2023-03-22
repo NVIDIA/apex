@@ -116,7 +116,6 @@ class AdamTest(unittest.TestCase):
         scaler_ = torch.cuda.amp.GradScaler(enabled=True)
 
         for i in range(100):
-            print("Iteration", i)
             x = torch.rand([32, 1, 28, 28]).cuda().to(memory_format=torch.channels_last)
             x_ = x.clone()
             gt = torch.rand([32, 10]).cuda()
