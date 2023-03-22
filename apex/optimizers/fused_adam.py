@@ -155,9 +155,7 @@ class FusedAdam(torch.optim.Optimizer):
 
                 if p.dtype == torch.float16:
                     if self.use_master:
-                        master_p = self.master_params[pi]
-                        assert(p.data.size() == master_p.data.size())
-                        p_32_master.append(master_p)
+                        p_32_master.append(self.master_params[pi])
                     g_16.append(p.grad.data)
                     p_16.append(p.data)
                     m_16.append(state['exp_avg'].float())
