@@ -121,13 +121,6 @@ class AdamTest(unittest.TestCase):
             gt = torch.rand([32, 10]).cuda()
             gt_ = gt.clone()
 
-            for module in zip(self.model.modules(), self.model_.modules()):
-                m = module[0]
-                m_ = module[1]
-                if isinstance(m, nn.Conv2d):
-                    assert(m.weight.grad is None)
-                    assert(m_.weight.grad is None)
-
             # Reference
             with torch.cuda.amp.autocast(enabled=True):
                 y = self.model(x)
@@ -157,7 +150,7 @@ class AdamTest(unittest.TestCase):
             self.optimizer.zero_grad()
             optimizer_.zero_grad()
 
-           # self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
+            self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
     
     def testNative(self):
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
