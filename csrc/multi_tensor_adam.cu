@@ -341,7 +341,7 @@ struct AdamCapturableFunctor2
           r_p[ii] = r_p[ii] - (*lr * update);
         }
         */
-        r_p[ii] = r_p[ii] + r_g[ii]
+        r_p[ii] = r_p[ii] + r_g[ii];
       }
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
