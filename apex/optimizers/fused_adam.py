@@ -277,6 +277,7 @@ class FusedAdam(torch.optim.Optimizer):
                             group['weight_decay'],
                             inv_scale)
 
+                    for pppi, ppp in enumerate(p_32):
                         if ppp.size() == torch.Size([16, 6, 5, 5]):
                             print("AFTER MTA")
                             print("p_32:", p_32[pppi][0][5][2][1])
