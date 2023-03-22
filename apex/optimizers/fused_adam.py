@@ -160,8 +160,8 @@ class FusedAdam(torch.optim.Optimizer):
                         p_32_master.append(master_p)
                     g_16.append(p.grad.data)
                     p_16.append(p.data)
-                    m_16.append(state['exp_avg'])
-                    v_16.append(state['exp_avg_sq'])
+                    m_16.append(state['exp_avg'].float())
+                    v_16.append(state['exp_avg_sq'].float())
                 elif p.dtype == torch.bfloat16:
                     g_bf.append(p.grad)
                     p_bf.append(p)
