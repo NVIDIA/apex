@@ -116,10 +116,18 @@ class AdamTest(unittest.TestCase):
         scaler_ = torch.cuda.amp.GradScaler(enabled=True)
 
         for i in range(100):
+            print("Iteration", i)
             x = torch.rand([32, 1, 28, 28]).cuda().to(memory_format=torch.channels_last)
             x_ = x.clone()
             gt = torch.rand([32, 10]).cuda()
             gt_ = gt.clone()
+
+            for module in zip(self.model.modules(), self.model_.modules()):
+                m = module[0]
+                m_ = module[1]
+                if isinstance(m, nn.Conv2d):
+                    assert(m.weight.grad is None)
+                    assert(m_.weight.grad is None)
 
             # Reference
             with torch.cuda.amp.autocast(enabled=True):
@@ -136,13 +144,39 @@ class AdamTest(unittest.TestCase):
                 loss_ = ((gt_ - y) ** 2).mean()
 
             scaler_.scale(loss_).backward()
+
+            for module in zip(self.model.modules(), self.model_.modules()):
+                m = module[0]
+                m_ = module[1]
+                if isinstance(m, nn.Conv2d):
+                    print(m)
+                    if m.weight.size() == torch.Size([16, 6, 5, 5]):
+                        print("BEFORE")
+                        print(m.weight[0][5][2][1])
+                        print(m_.weight[0][5][2][1])
+                        print(m.weight.grad[0][5][2][1])
+                        print(m_.weight.grad[0][5][2][1])
+
             scaler_.step(optimizer_)
             scaler_.update()
 
             for module in zip(self.model.modules(), self.model_.modules()):
                 m = module[0]
                 m_ = module[1]
-                if isinstance(m, nn.Conv2d) or isinstance(m_, nn.Linear):
+                if isinstance(m, nn.Conv2d):
+                    print(m)
+                    if m.weight.size() == torch.Size([16, 6, 5, 5]):
+                        print("AFTER")
+                        print(m.weight[0][5][2][1])
+                        print(m_.weight[0][5][2][1])
+                        print(m.weight.grad[0][5][2][1])
+                        print(m_.weight.grad[0][5][2][1])
+
+
+                    torch.testing.assert_close(m.weight, m_.weight.float(), atol=1e-3, rtol=1e-3, equal_nan=True)
+                    torch.testing.assert_close(m.weight.grad, m_.weight.grad.float(), atol=1e-3, rtol=1e-3, equal_nan=True)
+                if isinstance(m_, nn.Linear):
+                    print(m_)
                     torch.testing.assert_close(m.weight, m_.weight.float(), atol=1e-3, rtol=1e-3, equal_nan=True)
                     torch.testing.assert_close(m.weight.grad, m_.weight.grad.float(), atol=1e-3, rtol=1e-3, equal_nan=True)
 
@@ -150,7 +184,7 @@ class AdamTest(unittest.TestCase):
             self.optimizer.zero_grad()
             optimizer_.zero_grad()
 
-            #self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
+           # self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
     
     def testNative(self):
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
