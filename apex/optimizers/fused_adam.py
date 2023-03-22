@@ -67,6 +67,8 @@ class FusedAdam(torch.optim.Optimizer):
 
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
+        if use_master and not capturable:
+            raise RuntimeError('FusedAdam should be capturable to utilize master weights')
         # If the optimizer is capturable then LR should be a tensor (on GPU)
         lr = torch.tensor(lr, dtype=torch.float32) if capturable else lr
         defaults = dict(lr=lr, bias_correction=bias_correction,
@@ -94,7 +96,7 @@ class FusedAdam(torch.optim.Optimizer):
             self._dummy_overflow_buf = torch.cuda.IntTensor([0])
             self.multi_tensor_adam = amp_C.multi_tensor_adam
             self.multi_tensor_adam_capturable = amp_C.multi_tensor_adam_capturable
-            self.multi_tensor_adam_capturable_2 = amp_C.multi_tensor_adam_capturable_2
+            self.multi_tensor_adam_capturable_master = amp_C.multi_tensor_adam_capturable_master
         else:
             raise RuntimeError('apex.optimizers.FusedAdam requires cuda extensions')
 
@@ -137,7 +139,7 @@ class FusedAdam(torch.optim.Optimizer):
             g_16, p_16, m_16, v_16 = [], [], [], []
             g_bf, p_bf, m_bf, v_bf = [], [], [], []
             g_32, p_32, m_32, v_32 = [], [], [], []
-            p_32_master = []
+            p_16_master = []
 
             for pi, p in enumerate(group['params']):
                 if p.grad is None:
@@ -155,7 +157,7 @@ class FusedAdam(torch.optim.Optimizer):
 
                 if p.dtype == torch.float16:
                     if self.use_master:
-                        p_32_master.append(self.master_params[pi])
+                        p_16_master.append(self.master_params[pi])
                     g_16.append(p.grad.data)
                     p_16.append(p.data)
                     m_16.append(state['exp_avg'].float())
@@ -193,32 +195,20 @@ class FusedAdam(torch.optim.Optimizer):
                     inv_scale = torch.ones((1,), device=device)
 
                 if len(g_16) > 0:
-                    if self.use_master:
-                        multi_tensor_applier(self.multi_tensor_adam_capturable_2,
-                                self._dummy_overflow_buf,
-                                [g_16, p_16, m_16, v_16, p_32_master],
-                                group['lr'],
-                                beta1,
-                                beta2,
-                                group['eps'],
-                                group['step'],
-                                self.adam_w_mode,
-                                bias_correction,
-                                group['weight_decay'],
-                                inv_scale)
-                    else:
-                        multi_tensor_applier(self.multi_tensor_adam_capturable,
-                                self._dummy_overflow_buf,
-                                [g_16, p_16, m_16, v_16],
-                                group['lr'],
-                                beta1,
-                                beta2,
-                                group['eps'],
-                                group['step'],
-                                self.adam_w_mode,
-                                bias_correction,
-                                group['weight_decay'],
-                                inv_scale)
+                    multi_tensor_applier(self.multi_tensor_adam_capturable_master if self.use_master
+                            else self.multi_tensor_adam_capturable,
+                            self._dummy_overflow_buf,
+                            [g_16, p_16, m_16, v_16, p_16_master] if self.use_master
+                            else [g_16, p_16, m_16, v_16],
+                            group['lr'],
+                            beta1,
+                            beta2,
+                            group['eps'],
+                            group['step'],
+                            self.adam_w_mode,
+                            bias_correction,
+                            group['weight_decay'],
+                            inv_scale)
 
                 if len(g_bf) > 0:
                     multi_tensor_applier(

@@ -95,7 +95,7 @@ void multi_tensor_adam_capturable_cuda(
   const float weight_decay,
   at::Tensor inv_scale);
 
-void multi_tensor_adam_capturable_cuda_2(
+void multi_tensor_adam_capturable_master_cuda(
   int chunk_size,
   at::Tensor noop_flag,
   std::vector<std::vector<at::Tensor>> tensor_lists,
@@ -192,8 +192,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         "Compute and apply gradient update to parameters for Adam optimizer");
   m.def("multi_tensor_adam_capturable", &multi_tensor_adam_capturable_cuda,
         "Compute and apply gradient update to parameters for Adam optimizer with CUDA graph support and LR scheduling");
-  m.def("multi_tensor_adam_capturable_2", &multi_tensor_adam_capturable_cuda_2,
-        "Compute and apply gradient update to parameters for Adam optimizer with CUDA graph support and LR scheduling");
+  m.def("multi_tensor_adam_capturable_master", &multi_tensor_adam_capturable_master_cuda,
+        "Compute and apply gradient update to parameters for Adam optimizer with CUDA graph support, LR scheduling and FP32 master weights");
   m.def("multi_tensor_adagrad", &multi_tensor_adagrad_cuda,
         "Compute and apply gradient update to parameters for Adam optimizer");
   m.def("multi_tensor_novograd", &multi_tensor_novograd_cuda,

@@ -20,7 +20,7 @@ typedef enum{
 
 using MATH_T = float;
 
-template<typename T, typename T2>
+template<typename T, typename FULL_T>
 struct AdamFunctor
 {
    __device__ __forceinline__ void operator()(
@@ -54,10 +54,10 @@ struct AdamFunctor
     T* p = (T*)tl.addresses[1][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    T2* m = (T2*)tl.addresses[2][tensor_loc];
+    FULL_T* m = (FULL_T*)tl.addresses[2][tensor_loc];
     m += chunk_idx*chunk_size;
 
-    T2* v = (T2*)tl.addresses[3][tensor_loc];
+    FULL_T* v = (FULL_T*)tl.addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -126,7 +126,7 @@ struct AdamFunctor
   }
 };
 
-template<typename T, typename T2>
+template<typename T, typename FULL_T>
 struct AdamCapturableFunctor
 {
    __device__ __forceinline__ void operator()(
@@ -166,10 +166,10 @@ struct AdamCapturableFunctor
     T* p = (T*)tl.addresses[1][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    T2* m = (T2*)tl.addresses[2][tensor_loc];
+    FULL_T* m = (FULL_T*)tl.addresses[2][tensor_loc];
     m += chunk_idx*chunk_size;
 
-    T2* v = (T2*)tl.addresses[3][tensor_loc];
+    FULL_T* v = (FULL_T*)tl.addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -239,8 +239,8 @@ struct AdamCapturableFunctor
   }
 };
 
-template<typename T, typename T2>
-struct AdamCapturableFunctor2
+template<typename T, typename FULL_T>
+struct AdamCapturableMasterFunctor
 {
    __device__ __forceinline__ void operator()(
     int chunk_size,
@@ -279,13 +279,13 @@ struct AdamCapturableFunctor2
     T* p = (T*)tl.addresses[1][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    T2* m = (T2*)tl.addresses[2][tensor_loc];
+    FULL_T* m = (FULL_T*)tl.addresses[2][tensor_loc];
     m += chunk_idx*chunk_size;
 
-    T2* v = (T2*)tl.addresses[3][tensor_loc];
+    FULL_T* v = (FULL_T*)tl.addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
 
-    T2* p_master = (T2*)tl.addresses[4][tensor_loc];
+    FULL_T* p_master = (FULL_T*)tl.addresses[4][tensor_loc];
     p_master += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -347,9 +347,9 @@ struct AdamCapturableFunctor2
         {
           g[i] = static_cast<T>(r_g[ii]);
           p[i] = static_cast<T>(r_p[ii]);
-          p_master[i] = static_cast<T2>(r_p[ii]);
-          m[i] = static_cast<T2>(r_m[ii]);
-          v[i] = static_cast<T2>(r_v[ii]);
+          p_master[i] = static_cast<FULL_T>(r_p[ii]);
+          m[i] = static_cast<FULL_T>(r_m[ii]);
+          v[i] = static_cast<FULL_T>(r_v[ii]);
         }
       }
     }
@@ -438,7 +438,7 @@ void multi_tensor_adam_capturable_cuda(
 
 }
 
-void multi_tensor_adam_capturable_cuda_2(
+void multi_tensor_adam_capturable_master_cuda(
   int chunk_size,
   at::Tensor noop_flag,
   std::vector<std::vector<at::Tensor>> tensor_lists,
@@ -456,23 +456,21 @@ void multi_tensor_adam_capturable_cuda_2(
 
   DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT(
     tensor_lists[0][0].scalar_type(), 0, "adam",
-    DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT(
-      tensor_lists[4][0].scalar_type(), 1, "adam",
-        multi_tensor_apply<5>(
-          BLOCK_SIZE,
-          chunk_size,
-          noop_flag,
-          tensor_lists,
-          AdamCapturableFunctor2<scalar_t_0, scalar_t_1>(),
-          beta1,
-          beta2,
-          step.data_ptr<int>(),
-          bias_correction,
-          epsilon,
-          lr.data_ptr<float>(),
-          (adamMode_t) mode,
-          weight_decay,
-          inv_scale.data_ptr<float>()); ))
+    multi_tensor_apply<5>(
+      BLOCK_SIZE,
+      chunk_size,
+      noop_flag,
+      tensor_lists,
+      AdamCapturableMasterFunctor<scalar_t_0, float>(),
+      beta1,
+      beta2,
+      step.data_ptr<int>(),
+      bias_correction,
+      epsilon,
+      lr.data_ptr<float>(),
+      (adamMode_t) mode,
+      weight_decay,
+      inv_scale.data_ptr<float>()); )
 
   AT_CUDA_CHECK(cudaGetLastError());
 
