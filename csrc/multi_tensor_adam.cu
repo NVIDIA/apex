@@ -20,7 +20,7 @@ typedef enum{
 
 using MATH_T = float;
 
-template<typename T>
+template<typename T, typename T2>
 struct AdamFunctor
 {
    __device__ __forceinline__ void operator()(
@@ -54,10 +54,10 @@ struct AdamFunctor
     T* p = (T*)tl.addresses[1][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    T* m = (T*)tl.addresses[2][tensor_loc];
+    T2* m = (T2*)tl.addresses[2][tensor_loc];
     m += chunk_idx*chunk_size;
 
-    T* v = (T*)tl.addresses[3][tensor_loc];
+    T2* v = (T2*)tl.addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -126,7 +126,7 @@ struct AdamFunctor
   }
 };
 
-template<typename T>
+template<typename T, typename T2>
 struct AdamCapturableFunctor
 {
    __device__ __forceinline__ void operator()(
@@ -166,10 +166,10 @@ struct AdamCapturableFunctor
     T* p = (T*)tl.addresses[1][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    T* m = (T*)tl.addresses[2][tensor_loc];
+    T2* m = (T2*)tl.addresses[2][tensor_loc];
     m += chunk_idx*chunk_size;
 
-    T* v = (T*)tl.addresses[3][tensor_loc];
+    T2* v = (T2*)tl.addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
 
     n -= chunk_idx*chunk_size;
@@ -279,10 +279,10 @@ struct AdamCapturableFunctor2
     T* p = (T*)tl.addresses[1][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    T2* m = (T*)tl.addresses[2][tensor_loc];
+    T2* m = (T2*)tl.addresses[2][tensor_loc];
     m += chunk_idx*chunk_size;
 
-    T2* v = (T*)tl.addresses[3][tensor_loc];
+    T2* v = (T2*)tl.addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
 
     T2* p_master = (T2*)tl.addresses[4][tensor_loc];
@@ -386,7 +386,7 @@ void multi_tensor_adam_cuda(
       chunk_size,
       noop_flag,
       tensor_lists,
-      AdamFunctor<scalar_t_0>(),
+      AdamFunctor<scalar_t_0, float>(),
       beta1,
       beta2,
       bias_correction1,
@@ -423,7 +423,7 @@ void multi_tensor_adam_capturable_cuda(
       chunk_size,
       noop_flag,
       tensor_lists,
-      AdamCapturableFunctor<scalar_t_0>(),
+      AdamCapturableFunctor<scalar_t_0, float>(),
       beta1,
       beta2,
       step.data_ptr<int>(),
