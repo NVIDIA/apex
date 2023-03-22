@@ -297,30 +297,28 @@ struct AdamCapturableFunctor2
     {
       MATH_T r_g[ILP];
       MATH_T r_p[ILP];
-      //MATH_T r_m[ILP];
-      //MATH_T r_v[ILP];
+      MATH_T r_m[ILP];
+      MATH_T r_v[ILP];
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
         {
-          //r_g[ii] = static_cast<MATH_T>(g[i]) * (*inv_scale);
-          r_g[ii] = static_cast<MATH_T>(1.01);
+          r_g[ii] = static_cast<MATH_T>(g[i]) * (*inv_scale);
           r_p[ii] = static_cast<MATH_T>(p_master[i]);
-          //r_m[ii] = static_cast<MATH_T>(m[i]);
-          //r_v[ii] = static_cast<MATH_T>(v[i]);
+          r_m[ii] = static_cast<MATH_T>(m[i]);
+          r_v[ii] = static_cast<MATH_T>(v[i]);
         } else {
           r_g[ii] = MATH_T(0);
           r_p[ii] = MATH_T(0);
-          //r_m[ii] = MATH_T(0);
-          //r_v[ii] = MATH_T(0);
+          r_m[ii] = MATH_T(0);
+          r_v[ii] = MATH_T(0);
         }
       }
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
       {
-        /*
         if(mode == ADAM_MODE_0) { // L2
           r_g[ii] = r_g[ii] + (decay * r_p[ii]);
           r_m[ii] = beta1 * r_m[ii] + (1-beta1) * r_g[ii];
@@ -340,8 +338,6 @@ struct AdamCapturableFunctor2
           MATH_T update = (next_m_unbiased / denom) + (decay * r_p[ii]);
           r_p[ii] = r_p[ii] - (*lr * update);
         }
-        */
-        r_p[ii] = r_p[ii] + r_g[ii];
       }
 #pragma unroll
       for(int ii = 0; ii < ILP; ii++)
@@ -352,8 +348,8 @@ struct AdamCapturableFunctor2
           g[i] = static_cast<T>(r_g[ii]);
           p[i] = static_cast<T>(r_p[ii]);
           p_master[i] = static_cast<T2>(r_p[ii]);
-          //m[i] = static_cast<T>(r_m[ii]);
-          //v[i] = static_cast<T>(r_v[ii]);
+          m[i] = static_cast<T>(r_m[ii]);
+          v[i] = static_cast<T>(r_v[ii]);
         }
       }
     }
