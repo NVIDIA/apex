@@ -189,8 +189,7 @@ struct AdamCapturableFunctor
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
         {
-	  g[i] = g[i] * (*inv_scale);
-          r_g[ii] = g[i];
+          r_g[ii] = static_cast<MATH_T>(g[i]) * (*inv_scale);
           r_p[ii] = p[i];
           r_m[ii] = m[i];
           r_v[ii] = v[i];
@@ -305,8 +304,7 @@ struct AdamCapturableFunctor2
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
         {
-	  g[i] = g[i] * (*inv_scale);
-          r_g[ii] = g[i];
+          r_g[ii] = static_cast<MATH_T>(g[i]) * (*inv_scale);
           r_p[ii] = p_master[i];
           r_m[ii] = m[i];
           r_v[ii] = v[i];
