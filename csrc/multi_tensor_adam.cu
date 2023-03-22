@@ -279,10 +279,10 @@ struct AdamCapturableFunctor2
     T* p = (T*)tl.addresses[1][tensor_loc];
     p += chunk_idx*chunk_size;
 
-    T* m = (T*)tl.addresses[2][tensor_loc];
+    T2* m = (T*)tl.addresses[2][tensor_loc];
     m += chunk_idx*chunk_size;
 
-    T* v = (T*)tl.addresses[3][tensor_loc];
+    T2* v = (T*)tl.addresses[3][tensor_loc];
     v += chunk_idx*chunk_size;
 
     T2* p_master = (T2*)tl.addresses[4][tensor_loc];
@@ -348,8 +348,8 @@ struct AdamCapturableFunctor2
           g[i] = static_cast<T>(r_g[ii]);
           p[i] = static_cast<T>(r_p[ii]);
           p_master[i] = static_cast<T2>(r_p[ii]);
-          m[i] = static_cast<T>(r_m[ii]);
-          v[i] = static_cast<T>(r_v[ii]);
+          m[i] = static_cast<T2>(r_m[ii]);
+          v[i] = static_cast<T2>(r_v[ii]);
         }
       }
     }
