@@ -229,6 +229,7 @@ if "--cuda_ext" in sys.argv:
                                    'csrc/multi_tensor_adam.cu',
                                    'csrc/multi_tensor_adagrad.cu',
                                    'csrc/multi_tensor_novograd.cu',
+                                   'csrc/multi_tensor_lars.cu',
                                    'csrc/multi_tensor_lamb.cu',
                                    'csrc/multi_tensor_lamb_mp.cu'],
                           include_dirs=[os.path.join(this_dir, 'csrc')],
