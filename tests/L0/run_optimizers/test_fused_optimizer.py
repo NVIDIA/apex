@@ -130,7 +130,7 @@ class TestFusedAdam(TestFusedOptimizer):
             max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
-            
+
     @unittest.skip('No longer support fuse scaling')
     def test_scale(self):
         nelem = 278011
