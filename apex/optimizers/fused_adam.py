@@ -88,6 +88,7 @@ class FusedAdam(torch.optim.Optimizer):
                 for item in ['lr']:
                     self.param_groups[idx][item] = group[item].to(device=device)
 
+        if capturable or use_master:
             self._step_supports_amp_scaling = True
 
         if multi_tensor_applier.available:
@@ -95,6 +96,7 @@ class FusedAdam(torch.optim.Optimizer):
             # Skip buffer
             self._dummy_overflow_buf = torch.cuda.IntTensor([0])
             self.multi_tensor_adam = amp_C.multi_tensor_adam
+            self.multi_tensor_adam_master = amp_C.multi_tensor_adam_master
             self.multi_tensor_adam_capturable = amp_C.multi_tensor_adam_capturable
             self.multi_tensor_adam_capturable_master = amp_C.multi_tensor_adam_capturable_master
         else:
@@ -178,6 +180,22 @@ class FusedAdam(torch.optim.Optimizer):
                 else:
                     raise RuntimeError('FusedAdam only support fp16 and fp32.')
 
+            # Obtain unscaling factor
+            if self.capturable:
+                scale, inv_scale = None, None
+                if grad_scaler:
+                    scale = grad_scaler._get_scale_async()
+                    inv_scale = scale.double().reciprocal().float()
+                else:
+                    scale = torch.ones((1,), device=device)
+                    inv_scale = torch.ones((1,), device=device)
+            elif self.use_master:
+                if grad_scaler:
+                    scale = grad_scaler._get_scale_async()
+                    inv_scale = scale.double().reciprocal().float().item()
+                else:
+                    inv_scale = 1
+
             # If the optimizer is capturable, then if there's a grad scaler it works
             # on the GPU + a different multi_tensor_applier should be called
             if self.capturable:
@@ -187,15 +205,6 @@ class FusedAdam(torch.optim.Optimizer):
                     if grad_scaler is not None else torch.zeros((1,), device=device)
                 )
                 self._dummy_overflow_buf.copy_(found_inf)
-
-                # get unscale scale factor
-                scale, inv_scale = None, None
-                if grad_scaler:
-                    scale = grad_scaler._get_scale_async()
-                    inv_scale = scale.double().reciprocal().float()
-                else:
-                    scale = torch.ones((1,), device=device)
-                    inv_scale = torch.ones((1,), device=device)
 
                 if len(g_16) > 0:
                     multi_tensor_applier(self.multi_tensor_adam_capturable_master if self.use_master
@@ -245,17 +254,31 @@ class FusedAdam(torch.optim.Optimizer):
                             inv_scale)
             else:
                 if len(g_16) > 0:
-                    multi_tensor_applier(self.multi_tensor_adam,
-                            self._dummy_overflow_buf,
-                            [g_16, p_16, m_16, v_16],
-                            group['lr'],
-                            beta1,
-                            beta2,
-                            group['eps'],
-                            group['step'],
-                            self.adam_w_mode,
-                            bias_correction,
-                            group['weight_decay'])
+                    if self.use_master:
+                        multi_tensor_applier(self.multi_tensor_adam_master,
+                                self._dummy_overflow_buf,
+                                [g_16, p_16, m_16, v_16, p_16_master],
+                                group['lr'],
+                                beta1,
+                                beta2,
+                                group['eps'],
+                                group['step'],
+                                self.adam_w_mode,
+                                bias_correction,
+                                group['weight_decay'],
+                                inv_scale)
+                    else:
+                        multi_tensor_applier(self.multi_tensor_adam,
+                                self._dummy_overflow_buf,
+                                [g_16, p_16, m_16, v_16],
+                                group['lr'],
+                                beta1,
+                                beta2,
+                                group['eps'],
+                                group['step'],
+                                self.adam_w_mode,
+                                bias_correction,
+                                group['weight_decay'])
 
                 if len(g_bf) > 0:
                     multi_tensor_applier(
@@ -272,16 +295,30 @@ class FusedAdam(torch.optim.Optimizer):
                             group['weight_decay'])
 
                 if len(g_32) > 0:
-                    multi_tensor_applier(self.multi_tensor_adam,
-                            self._dummy_overflow_buf,
-                            [g_32, p_32, m_32, v_32],
-                            group['lr'],
-                            beta1,
-                            beta2,
-                            group['eps'],
-                            group['step'],
-                            self.adam_w_mode,
-                            bias_correction,
-                            group['weight_decay'])
+                    if self.use_master:
+                        multi_tensor_applier(self.multi_tensor_adam_master,
+                                self._dummy_overflow_buf,
+                                [g_32, p_32, m_32, v_32, p_32_master],
+                                group['lr'],
+                                beta1,
+                                beta2,
+                                group['eps'],
+                                group['step'],
+                                self.adam_w_mode,
+                                bias_correction,
+                                group['weight_decay'],
+                                inv_scale)
+                    else:
+                        multi_tensor_applier(self.multi_tensor_adam,
+                                self._dummy_overflow_buf,
+                                [g_32, p_32, m_32, v_32],
+                                group['lr'],
+                                beta1,
+                                beta2,
+                                group['eps'],
+                                group['step'],
+                                self.adam_w_mode,
+                                bias_correction,
+                                group['weight_decay'])
 
         return loss
