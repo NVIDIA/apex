@@ -230,7 +230,7 @@ class FusedAdam(torch.optim.Optimizer):
 
                 if len(g_32) > 0:
                     multi_tensor_applier(self.multi_tensor_adam_capturable_master if self.use_master
-                            else self.multi_tensor_adam_capturable,,
+                            else self.multi_tensor_adam_capturable,
                             self._dummy_overflow_buf,
                             [g_32, p_32, m_32, v_32, p_32_master] if self.use_master
                             else [g_32, p_32, m_32, v_32],
