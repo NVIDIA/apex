@@ -190,6 +190,7 @@ struct AdamCapturableFunctor
         if(i < n && i < chunk_size)
         {
           r_g[ii] = static_cast<MATH_T>(g[i]) * (*inv_scale);
+          g[i] = static_cast<T>(r_g[ii]); // Do we need this write?
           r_p[ii] = static_cast<MATH_T>(p[i]);
           r_m[ii] = static_cast<MATH_T>(m[i]);
           r_v[ii] = static_cast<MATH_T>(v[i]);
@@ -229,7 +230,6 @@ struct AdamCapturableFunctor
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
         {
-          g[i] = static_cast<T>(r_g[ii]);
           p[i] = static_cast<T>(r_p[ii]);
           m[i] = static_cast<T>(r_m[ii]);
           v[i] = static_cast<T>(r_v[ii]);
@@ -306,6 +306,7 @@ struct AdamCapturableMasterFunctor
         if(i < n && i < chunk_size)
         {
           r_g[ii] = static_cast<MATH_T>(g[i]) * (*inv_scale);
+          g[i] = static_cast<T>(r_g[ii]); // Do we need this write?
           r_p[ii] = static_cast<MATH_T>(p_master[i]);
           r_m[ii] = static_cast<MATH_T>(m[i]);
           r_v[ii] = static_cast<MATH_T>(v[i]);
@@ -345,7 +346,6 @@ struct AdamCapturableMasterFunctor
         int i = i_start + threadIdx.x + ii*blockDim.x;
         if(i < n && i < chunk_size)
         {
-          g[i] = static_cast<T>(r_g[ii]);
           p[i] = static_cast<T>(r_p[ii]);
           p_master[i] = static_cast<FULL_T>(r_p[ii]);
           m[i] = static_cast<FULL_T>(r_m[ii]);
