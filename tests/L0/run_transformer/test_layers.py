@@ -279,6 +279,7 @@ class TensorParallelLayerTestBase:
     def test_row_parallel_linear_gradient_accumulation_fusion_in_fp16(self) -> None:
         self._row_parallel_linear_test_impl(True, True, False)
 
+    # fails on native ucc and torch ucc: ucc does not support reduce scatter
     @unittest.skipIf(torch.cuda.device_count() < 2, "Sequence Parallel requires >=2 GPUs")
     def test_row_parallel_linear_sequence_parallel(self) -> None:
         self._row_parallel_linear_test_impl(False, False, True)

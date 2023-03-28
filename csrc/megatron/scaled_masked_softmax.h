@@ -90,6 +90,118 @@ __device__ __forceinline__ void warp_reduce(acc_t* sum) {
     }
 }
 
+
+/*
+ * Extended softmax (from native aten pytorch) with following additional features
+ * 1) input scaling
+ */
+template <typename input_t, typename output_t, typename acc_t, int log2_elements>
+__global__ void scaled_softmax_warp_forward(
+    output_t *dst,
+    const input_t *src,
+    const acc_t scale,
+    int micro_batch_size,
+    int element_count)
+{
+    // WARP_SIZE and WARP_BATCH must match the return values batches_per_warp and
+    // warp_size of method warp_softmax_forward_kernel.
+    constexpr int next_power_of_two = 1 << log2_elements;
+    constexpr int WARP_SIZE = (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
+    constexpr int WARP_ITERATIONS = next_power_of_two / WARP_SIZE;
+    constexpr int WARP_BATCH = (next_power_of_two <= 128) ? 2 : 1;
+    constexpr int ELEMENTS_PER_LDG_STG = (WARP_ITERATIONS < 4) ? 1 : 4;
+
+    // blockDim/threadIdx = (WARP_SIZE, WARPS_PER_BLOCK, )
+    // gridDim/blockIdx = (seq_len, attn_heads, batches)
+    long int first_batch = (blockDim.y * (blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z))+ threadIdx.y) * WARP_BATCH;
+
+    // micro_batch_size might not be a multiple of WARP_BATCH. Check how
+    // many batches have to computed within this WARP.
+    int local_batches = micro_batch_size - first_batch;
+    if (local_batches > WARP_BATCH)
+        local_batches = WARP_BATCH;
+
+    // there might be multiple batches per warp. compute the index within the batch
+    int local_idx = threadIdx.x;
+
+    long int thread_offset = first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
+    src += thread_offset;
+    dst += thread_offset;
+
+    // load data from global memory
+    acc_t elements[WARP_BATCH][WARP_ITERATIONS];
+    input_t temp_data[ELEMENTS_PER_LDG_STG];
+    #pragma unroll
+    for (int i = 0;  i < WARP_BATCH;  ++i) {
+        int batch_element_count = (i >= local_batches) ? 0 : element_count;
+
+        #pragma unroll
+        for (int it = 0;  it < WARP_ITERATIONS;  it+=ELEMENTS_PER_LDG_STG) {
+            int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
+
+            if (element_index < batch_element_count) {
+                int itr_idx = i*element_count+it*WARP_SIZE;
+                copy_vector<input_t, ELEMENTS_PER_LDG_STG>(temp_data, src + itr_idx);
+
+                #pragma unroll
+                for (int element = 0; element < ELEMENTS_PER_LDG_STG; ++element) {
+                    elements[i][it + element] = (acc_t)temp_data[element] * scale;
+                }
+            } else {
+                #pragma unroll
+                for (int element = 0; element < ELEMENTS_PER_LDG_STG; ++element) {
+                    elements[i][it + element] = -std::numeric_limits<acc_t>::infinity();
+                }
+            }
+        }
+    }
+
+    // compute max_value
+    acc_t max_value[WARP_BATCH];
+    #pragma unroll
+    for (int i = 0;  i < WARP_BATCH;  ++i) {
+        max_value[i] = elements[i][0];
+        #pragma unroll
+        for (int it = 1;  it < WARP_ITERATIONS;  ++it) {
+            max_value[i] = (max_value[i] > elements[i][it]) ? max_value[i] : elements[i][it];
+        }
+    }
+    warp_reduce<acc_t, WARP_BATCH, WARP_SIZE, Max>(max_value);
+
+    acc_t sum[WARP_BATCH] { 0.0f };
+    #pragma unroll
+    for (int i = 0;  i < WARP_BATCH;  ++i) {
+        #pragma unroll
+        for (int it = 0;  it < WARP_ITERATIONS;  ++it) {
+            elements[i][it] = std::exp((elements[i][it] - max_value[i]));
+            sum[i] += elements[i][it];
+        }
+    }
+    warp_reduce<acc_t, WARP_BATCH, WARP_SIZE, Add>(sum);
+
+    // store result
+    output_t out[ELEMENTS_PER_LDG_STG];
+    #pragma unroll
+    for (int i = 0;  i < WARP_BATCH;  ++i) {
+        if (i >= local_batches)
+            break;
+        #pragma unroll
+        for (int it = 0;  it < WARP_ITERATIONS;  it+=ELEMENTS_PER_LDG_STG) {
+            int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
+            if (element_index < element_count) {
+                #pragma unroll
+                for (int element = 0; element < ELEMENTS_PER_LDG_STG; ++element) {
+                    out[element] = elements[i][it + element] / sum[i];
+                }
+                copy_vector<output_t, ELEMENTS_PER_LDG_STG>(dst + i * element_count + it * WARP_SIZE, out);
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+
 /*
  * Extended softmax (from native aten pytorch) with following additional features
  * 1) input scaling
@@ -115,8 +227,8 @@ __global__ void scaled_masked_softmax_warp_forward(
 
     // blockDim/threadIdx = (WARP_SIZE, WARPS_PER_BLOCK, )
     // gridDim/blockIdx = (seq_len, attn_heads, batches) 
-    int first_batch = (blockDim.y * (blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z))+ threadIdx.y) * WARP_BATCH;
-    int pad_first_batch = 0;
+    long int first_batch = (blockDim.y * (blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z))+ threadIdx.y) * WARP_BATCH;
+    long int pad_first_batch = 0;
     if (pad_batches != 1) { // bert style
         pad_first_batch = (blockDim.y * (blockIdx.x + gridDim.x * blockIdx.z) + threadIdx.y) * WARP_BATCH;
     } else { // gpt2 style
@@ -132,9 +244,11 @@ __global__ void scaled_masked_softmax_warp_forward(
     // there might be multiple batches per warp. compute the index within the batch
     int local_idx = threadIdx.x;
 
-    src += first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
-    dst += first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
-    mask += pad_first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
+    long int thread_offset_src_dst = first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
+    long int thread_offset_mask = pad_first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
+    src += thread_offset_src_dst;
+    dst += thread_offset_src_dst;
+    mask += thread_offset_mask;
 
     // load data from global memory
     acc_t elements[WARP_BATCH][WARP_ITERATIONS];
@@ -241,7 +355,7 @@ __global__ void scaled_masked_softmax_warp_backward(
 
     // blockDim/threadIdx = (WARP_SIZE, WARPS_PER_BLOCK, )
     // gridDim/blockIdx = (seq_len, attn_heads, batches) 
-    int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
+    long int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
     
     // micro_batch_size might not be a multiple of WARP_BATCH. Check how
     // many batches have to computed within this WARP.
@@ -253,7 +367,7 @@ __global__ void scaled_masked_softmax_warp_backward(
     int local_idx = threadIdx.x;
 
     // the first element to process by the current thread
-    int thread_offset = first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
+    long int thread_offset = first_batch * element_count + ELEMENTS_PER_LDG_STG * local_idx;
     grad += thread_offset;
     output += thread_offset;
     gradInput += thread_offset;
@@ -334,18 +448,16 @@ int get_batch_per_block(int query_seq_len, int key_seq_len, int batches, int att
 }
 
 template<typename input_t, typename output_t, typename acc_t>
-void dispatch_scaled_masked_softmax_forward(
-    output_t *dst, 
-    const input_t *src, 
-    const uint8_t *mask,
-    const input_t scale, 
-    int query_seq_len, 
-    int key_seq_len, 
+void dispatch_scaled_softmax_forward(
+    output_t *dst,
+    const input_t *src,
+    const input_t scale,
+    int query_seq_len,
+    int key_seq_len,
     int batches,
-    int attn_heads,
-    int pad_batches)
+    int attn_heads)
 {
-    TORCH_INTERNAL_ASSERT(key_seq_len >= 0 && key_seq_len <= 2048 );
+    TORCH_INTERNAL_ASSERT(key_seq_len >= 0 && key_seq_len <= 16384 );
     if (key_seq_len == 0) {
         return;
     } else {
@@ -359,7 +471,109 @@ void dispatch_scaled_masked_softmax_forward(
         // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_forward.
         int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
 
-        // use 128 threads per block to maximimize gpu utilization
+        // use 128 threads per block to maximize gpu utilization
+        constexpr int threads_per_block = 128;
+
+        int warps_per_block = (threads_per_block / warp_size);
+        int batches_per_block = warps_per_block * batches_per_warp;
+        TORCH_INTERNAL_ASSERT(query_seq_len%batches_per_block == 0);
+        dim3 blocks(query_seq_len/batches_per_block, attn_heads, batches);
+        dim3 threads(warp_size, warps_per_block, 1);
+        // Launch code would be more elegant if C++ supported FOR CONSTEXPR
+        switch (log2_elements) {
+            case 0: // 1
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 0>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 1: // 2
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 1>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 2: // 4
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 2>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 3: // 8
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 3>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 4: // 16
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 4>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 5: // 32
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 5>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 6: // 64
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 6>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 7: // 128
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 7>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 8: // 256
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 8>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 9: // 512
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 9>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 10: // 1024
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 10>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 11: // 2048
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 11>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 12: // 4096
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 12>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 13: // 8192
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 13>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            case 14: // 16384
+                scaled_softmax_warp_forward<input_t, output_t, acc_t, 14>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, key_seq_len);
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+template<typename input_t, typename output_t, typename acc_t>
+void dispatch_scaled_masked_softmax_forward(
+    output_t *dst, 
+    const input_t *src, 
+    const uint8_t *mask,
+    const input_t scale, 
+    int query_seq_len, 
+    int key_seq_len, 
+    int batches,
+    int attn_heads,
+    int pad_batches)
+{
+    TORCH_INTERNAL_ASSERT(key_seq_len >= 0 && key_seq_len <= 4096 );
+    if (key_seq_len == 0) {
+        return;
+    } else {
+        int log2_elements = log2_ceil(key_seq_len);
+        const int next_power_of_two = 1 << log2_elements;
+        int batch_count = batches * attn_heads * query_seq_len;
+
+        // This value must match the WARP_SIZE constexpr value computed inside softmax_warp_forward.
+        int warp_size = (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
+
+        // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_forward.
+        int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
+
+        // use 128 threads per block to maximize gpu utilization
         constexpr int threads_per_block = 128;
 
         int warps_per_block = (threads_per_block / warp_size);
@@ -417,6 +631,10 @@ void dispatch_scaled_masked_softmax_forward(
                 scaled_masked_softmax_warp_forward<input_t, output_t, acc_t, 11>
                     <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, mask, scale, batch_count, key_seq_len, pad_batches);
                 break;
+            case 12: // 4096
+                scaled_masked_softmax_warp_forward<input_t, output_t, acc_t, 12>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, mask, scale, batch_count, key_seq_len, pad_batches);
+                break;
             default:
                 break;
         }
@@ -434,7 +652,7 @@ void dispatch_scaled_masked_softmax_backward(
     int batches,
     int attn_heads)
 {
-    TORCH_INTERNAL_ASSERT( key_seq_len >= 0 && key_seq_len <= 2048 );
+    TORCH_INTERNAL_ASSERT( key_seq_len >= 0 && key_seq_len <= 4096 );
     if (key_seq_len == 0) {
        return;
     } else {
@@ -448,7 +666,7 @@ void dispatch_scaled_masked_softmax_backward(
         // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_backward.
         int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
 
-        // use 128 threads per block to maximimize gpu utilization
+        // use 128 threads per block to maximize gpu utilization
         constexpr int threads_per_block = 128;
 
         int warps_per_block = (threads_per_block / warp_size);
@@ -505,6 +723,11 @@ void dispatch_scaled_masked_softmax_backward(
                 scaled_masked_softmax_warp_backward<input_t, output_t, acc_t, 11>
                     <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(grad_input, grad, output, scale, batch_count, key_seq_len);
                 break;
+			case 12: // 4096
+                scaled_masked_softmax_warp_backward<input_t, output_t, acc_t, 12>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(grad_input, grad, output, scale, batch_count, key_seq_len);
+                break;
+
             default:
                 break;
         }

@@ -1,6 +1,5 @@
 import torch
-import numpy as np
-import pdb
+
 
 def transducer_loss_reference(x, label, f_len, y_len, blank_idx, loss_grad):
     def log_sum_exp(a, b):
@@ -23,7 +22,7 @@ def transducer_loss_reference(x, label, f_len, y_len, blank_idx, loss_grad):
                 for u in range(1, y_len[b]+1):
                     curr_ = alpha[b, t-1, u] + x[b, t-1, u, blank_idx]
                     next_ = alpha[b, t, u-1] + x[b, t, u-1, label[b, u-1]]
-                    alpha[b, t, u] = log_sum_exp(curr_, next_) 
+                    alpha[b, t, u] = log_sum_exp(curr_, next_)
         return alpha
 
     def forward_beta(x, label, f_len, y_len, blank_idx):
@@ -33,14 +32,14 @@ def transducer_loss_reference(x, label, f_len, y_len, blank_idx, loss_grad):
         for b in range(B):
             beta[b, f_len[b]-1, y_len[b]] = x[b, f_len[b]-1, y_len[b], blank_idx]
             for t in range(f_len[b]-2, -1, -1):
-                beta[b, t, y_len[b]] = beta[b, t+1, y_len[b]] + x[b, t, y_len[b], blank_idx] 
+                beta[b, t, y_len[b]] = beta[b, t+1, y_len[b]] + x[b, t, y_len[b], blank_idx]
             for u in range(y_len[b]-1, -1, -1):
                 beta[b, f_len[b]-1, u] = beta[b, f_len[b]-1, u+1] + x[b, f_len[b]-1, u, label[b, u]]
             for t in range(f_len[b]-2, -1, -1):
                 for u in range(y_len[b]-1, -1, -1):
-                    curr_ = beta[b, t+1, u] + x[b, t, u, blank_idx] 
+                    curr_ = beta[b, t+1, u] + x[b, t, u, blank_idx]
                     next_ = beta[b, t, u+1] + x[b, t, u, label[b, u]]
-                    beta[b, t, u] = log_sum_exp(curr_, next_) 
+                    beta[b, t, u] = log_sum_exp(curr_, next_)
         return beta
 
     def backward(x, label, f_len, y_len, alpha, beta, loss_grad, blank_idx):
@@ -50,25 +49,25 @@ def transducer_loss_reference(x, label, f_len, y_len, blank_idx, loss_grad):
             common_factor = torch.log(loss_grad[b]) + alpha - beta[b, 0, 0]
             # next
             for u in range(y_len[b]):
-                grad[b, :f_len[b], u, label[b, u]] = -torch.exp(common_factor[b, :f_len[b], u] 
-                                                        + beta[b, :f_len[b], u+1] 
+                grad[b, :f_len[b], u, label[b, u]] = -torch.exp(common_factor[b, :f_len[b], u]
+                                                        + beta[b, :f_len[b], u+1]
                                                         + x[b, :f_len[b], u, label[b, u]])
 
             # current
             grad[b, :f_len[b]-1, :y_len[b]+1, blank_idx] \
-                = -torch.exp(common_factor[b, :f_len[b]-1, :y_len[b]+1] 
-                    + beta[b, 1:f_len[b], :y_len[b]+1] 
+                = -torch.exp(common_factor[b, :f_len[b]-1, :y_len[b]+1]
+                    + beta[b, 1:f_len[b], :y_len[b]+1]
                     + x[b, :f_len[b]-1, :y_len[b]+1, blank_idx])
 
             grad[b, f_len[b]-1, y_len[b], blank_idx] = -torch.exp(common_factor[b, f_len[b]-1, y_len[b]]
                                                          + x[b, f_len[b]-1, y_len[b], blank_idx])
-     
+
         return grad
 
     x_log = torch.nn.functional.log_softmax(x, dim=-1)
     alpha = forward_alpha(x_log, label, f_len, y_len, blank_idx)
     beta = forward_beta(x_log, label, f_len, y_len, blank_idx)
-    grad = backward(x_log, label, f_len, y_len, alpha, beta, 
+    grad = backward(x_log, label, f_len, y_len, alpha, beta,
                         loss_grad, blank_idx)
     x_log.backward(grad)
     loss = -beta[:, 0, 0]
@@ -76,7 +75,7 @@ def transducer_loss_reference(x, label, f_len, y_len, blank_idx, loss_grad):
     return alpha, beta, x.grad, loss
 
 
-def transducer_joint_reference(f, g, h_grad, f_len, g_len, pack_output, relu, dropout, 
+def transducer_joint_reference(f, g, h_grad, f_len, g_len, pack_output, relu, dropout,
                                 dropout_prob=0, mask=None):
     if dropout and mask == None:
         raise NotImplementedError("mask needs to supplied to test dropout.")
@@ -100,7 +99,7 @@ def transducer_joint_reference(f, g, h_grad, f_len, g_len, pack_output, relu, dr
             h[b, f_len[b]:] = -1
             h[b, :, g_len[b]:] = -1
 
-        return h, f.grad, g.grad 
+        return h, f.grad, g.grad
 
     # packing
     list_to_pack = []
@@ -108,5 +107,3 @@ def transducer_joint_reference(f, g, h_grad, f_len, g_len, pack_output, relu, dr
         list_to_pack.append(h[b, :f_len[b], :g_len[b], :].reshape(-1, H))
     h_packed = torch.cat(list_to_pack)
     return h_packed, f.grad, g.grad
-
-

@@ -2,7 +2,13 @@ import random
 import unittest
 
 import torch
-from apex.contrib.clip_grad import clip_grad_norm_
+
+SKIP_TEST = None
+try:
+    from apex.contrib.clip_grad import clip_grad_norm_
+except ImportError as e:
+    SKIP_TEST = e
+
 
 def make_params(
         num_params,
@@ -35,9 +41,12 @@ def make_params(
     else:
         return params
 
+
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class ClipGradNormTest(unittest.TestCase):
 
     def setUp(self, seed=1234):
+        super().setUp()
         random.seed(seed)
         torch.manual_seed(seed)
 
@@ -157,6 +166,7 @@ class ClipGradNormTest(unittest.TestCase):
         params[2].grad[-1] = float('inf')
         self.assertRaises(
             RuntimeError, clip_grad_norm_, params, 1.0, error_if_nonfinite=True)
+
 
 if __name__ == "__main__":
     unittest.main()

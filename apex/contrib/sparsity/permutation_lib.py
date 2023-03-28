@@ -474,7 +474,7 @@ class Permutation:
                 node_weight = node_weight.view(shape[0], shape[1])
             # 3d-tensor (K, C, R)
             elif len(shape) == 3:
-                node_weight = node_weight.permute(2,0,1).contiguous().view(shape[2]*shape[0], shape[1])
+                node_weight = node_weight.permute(0,2,1).contiguous().view(shape[0]*shape[2], shape[1])
             # 4d-tensor (K, C, R, S)
             elif len(shape) == 4:
                 # convs

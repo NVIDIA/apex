@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """Utilities for pipeline model parallel."""
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Tuple
 
 import torch
 from torch.nn.parallel import DistributedDataParallel
@@ -125,7 +125,7 @@ def get_kth_microbatch(batch: Optional[List[torch.Tensor]], k: int) -> List[torc
     This function creates a list of `k`th microbatches from a list of local minibatches.
     `a local minibatch` consists of `global_batch_size / data_parallel_size` samples.
     """
-    if batch is None:
+    if batch is None or not isinstance(batch, (List, Tuple)):
         return batch
     micro_batch_size = get_micro_batch_size()
     start = k * micro_batch_size

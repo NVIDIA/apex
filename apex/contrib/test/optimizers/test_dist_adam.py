@@ -1,11 +1,17 @@
 from contextlib import contextmanager
 import io
-import os
+import unittest
 
 import torch
 from torch.testing._internal import common_utils
-from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+
+SKIP_TEST = None
+try:
+    from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+except ImportError as e:
+    SKIP_TEST = e
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+
 
 class SimpleModel(torch.nn.Module):
     def __init__(self, num_layers, size):
@@ -20,15 +26,18 @@ class SimpleModel(torch.nn.Module):
             y += (i+1) * param * x
         return y
 
+
 def make_models(
         num_layers,
         size,
         adam_w_mode=True,
         model_dtype=torch.float32,
         optim_dtype=None,
+        grad_sync_dtype=None,
         param_sync_dtype=None,
         device='cuda',
         overlap_communication=True,
+        contiguous_buffers=False,
         store_params=False,
         store_param_remainders=False,
 ):
@@ -68,15 +77,20 @@ def make_models(
         ],
         adam_w_mode=adam_w_mode,
         overlap_grad_sync=overlap_communication,
+        overlap_param_sync=overlap_communication,
         bucket_cap_mb=71/(4*1024*1024),
         dtype=optim_dtype,
+        grad_sync_dtype=grad_sync_dtype,
         param_sync_dtype=param_sync_dtype,
+        contiguous_param_buffer=contiguous_buffers,
+        contiguous_grad_buffer=contiguous_buffers,
         store_params=store_params,
         store_param_remainders=store_param_remainders,
         **optim_args,
     )
 
     return ref_model, ref_optim, dist_model, dist_optim
+
 
 @contextmanager
 def dummy_context():
@@ -85,6 +99,8 @@ def dummy_context():
     finally:
         pass
 
+
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     seed = 1234
@@ -103,8 +119,10 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             use_nosync=True,
             model_dtype=torch.float32,
             optim_dtype=None,
+            grad_sync_dtype=None,
             param_sync_dtype=None,
             device='cuda',
+            contiguous_buffers=False,
             store_params=False,
             store_param_remainders=False,
     ):
@@ -118,9 +136,11 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             adam_w_mode=adam_w_mode,
             model_dtype=model_dtype,
             optim_dtype=optim_dtype,
+            grad_sync_dtype=grad_sync_dtype,
             param_sync_dtype=param_sync_dtype,
             device=device,
             overlap_communication=overlap_communication,
+            contiguous_buffers=contiguous_buffers,
             store_params=store_params,
             store_param_remainders=store_param_remainders,
         )
@@ -172,9 +192,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                     dist_param, ref_param, rtol=rtol, atol=atol)
 
     def test_matches_pytorch_l2_reg(self):
-        self.test_matches_pytorch(
-            adam_w_mode=False,
-        )
+        self.test_matches_pytorch(adam_w_mode=False)
 
     def test_matches_pytorch_no_overlap(self):
         self.test_matches_pytorch(
@@ -184,6 +202,9 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     def test_matches_pytorch_sync_every_step(self):
         self.test_matches_pytorch(use_nosync=False)
+
+    def test_matches_pytorch_contiguous_buffers(self):
+        self.test_matches_pytorch(contiguous_buffers=True)
 
     def test_matches_pytorch_fp64(self):
         self.test_matches_pytorch(
@@ -220,6 +241,16 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             optim_dtype=torch.float32,
             param_sync_dtype=torch.float16,
             store_params=True,
+        )
+
+    def test_matches_pytorch_bf16_grads(self):
+        self.test_matches_pytorch(
+            rtol=5e-2,
+            atol=1e-5,
+            micro_batch_steps=1,
+            model_dtype=torch.float32,
+            optim_dtype=torch.float32,
+            grad_sync_dtype=torch.bfloat16,
         )
 
     def test_matches_pytorch_bf16_param_remainders(self):

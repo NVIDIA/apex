@@ -1,4 +1,5 @@
-from typing import Union, List, Optional, Sequence
+import contextlib
+from typing import Any, List, Optional, Sequence, Union
 import warnings
 
 import torch
@@ -89,6 +90,7 @@ def recv_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     input_tensors = []
     for tensor_shape in tensor_shapes:
@@ -101,6 +103,7 @@ def recv_forward(
                     dtype=dtype,
                     async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
+                    sync_batch_comm=sync_batch_comm,
                 )
             )
     return input_tensors
@@ -112,6 +115,7 @@ def recv_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     output_tensor_grads = []
     for tensor_shape in tensor_shapes:
@@ -124,6 +128,7 @@ def recv_backward(
                     dtype=dtype,
                     async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
+                    sync_batch_comm=sync_batch_comm,
                 )
             )
     return output_tensor_grads
@@ -136,6 +141,7 @@ def send_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> None:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
@@ -148,6 +154,7 @@ def send_forward(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
 
 
@@ -158,6 +165,7 @@ def send_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> None:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
@@ -170,6 +178,7 @@ def send_backward(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
 
 
@@ -180,6 +189,7 @@ def send_forward_recv_backward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
@@ -194,6 +204,7 @@ def send_forward_recv_backward(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
         output_tensor_grads.append(output_tensor_grad)
     return output_tensor_grads
@@ -206,6 +217,7 @@ def send_backward_recv_forward(
     dtype: Optional[torch.dtype] = None,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    sync_batch_comm: bool = True,
 ) -> List[Union[None, torch.Tensor, FutureTensor]]:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
@@ -220,6 +232,7 @@ def send_backward_recv_forward(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
         input_tensors.append(input_tensor)
     return input_tensors
@@ -239,6 +252,10 @@ def forward_backward_pipelining_without_interleaving(
     deallocate_pipeline_outputs: bool = False,
     async_comm: bool = False,
     sequence_parallel_enabled: bool = False,
+    custom_sync_context_handler: Optional[Any] = None,
+    custom_grad_sync_func: Optional[Any] = None,
+    sync_batch_comm: bool = True,
+    num_micro_batches_with_partial_activation_checkpoints: Optional[int] = None,
     **kwargs,
 ) -> List[Union[torch.Tensor, Sequence[torch.Tensor]]]:
     """Run non-interleaved 1F1B schedule, with communication between pipeline stages.
@@ -269,9 +286,25 @@ def forward_backward_pipelining_without_interleaving(
         sequence_parallel_enabled: Set to :obj:`True` for this function to handle sequence length.
             When :obj:`True`, the sequence length on each tensor model parallel rank is updated
             to :math:`original\_sequence\_length / tensor\_model\_parallel\_world\_size`.
+        custom_sync_context_handler: Does nothing if ``None`` (default
+            value). Otherwise, a function to construct a context
+            manager that disable asynchronous gradient reductions.
+            Asynchronous gradient reductions are only enabled in the
+            first pipeline stage, during the last backward pass.
+        custom_grad_sync_func: Does nothing if ``None`` (default
+            value). Otherwise, a function to perform gradient
+            reductions. This is called in all pipeline stages except
+            the first, during the bubble overhead.
+        sync_batch_comm: If :obj:`False`, disable cuda synchronization after the batched communication.
+            To disable, https://github.com/pytorch/pytorch/pull/82450 would be required.
+        num_micro_batches_with_partial_activation_checkpoints: If :obj:`int`, set the number of
+            micro-batches checkpointing the activation of partial number of Transformer layers.
+            The rest of the micro-batch within the window of maximum outstanding micro-batch
+            backpropagations would checkpoint all Transformer layers.
 
     Returns:
         a list of loss `torch.Tensor`s if the last stage, empty list otherwise.
+
     """
     # timers = get_timers()
 
@@ -287,6 +320,26 @@ def forward_backward_pipelining_without_interleaving(
         raise RuntimeError(msg)
     model: torch.nn.Module = model[0]
 
+    # Disable async grad reductions
+    if custom_sync_context_handler is not None:
+        sync_context_handler = custom_sync_context_handler
+    else:
+        sync_context_handler = contextlib.nullcontext
+    sync_context = None
+    def disable_grad_sync():
+        """Disable asynchronous grad reductions"""
+        nonlocal sync_context
+        if sync_context is None:
+            sync_context = sync_context_handler()
+            sync_context.__enter__()
+    def enable_grad_sync():
+        """Enable asynchronous grad reductions"""
+        nonlocal sync_context
+        if sync_context is not None:
+            sync_context.__exit__(None, None, None)
+            sync_context = None
+    disable_grad_sync()
+
     # Compute number of warmup microbatches.
     num_microbatches: int = get_num_microbatches()
     num_warmup_microbatches: int = (
@@ -294,6 +347,18 @@ def forward_backward_pipelining_without_interleaving(
     )
     num_warmup_microbatches: int = min(num_warmup_microbatches, num_microbatches)
     num_microbatches_remaining: int = num_microbatches - num_warmup_microbatches
+
+    # Checkpoint the activations of partial Transformer layers in a number of micro-batches
+    # within the maximum outstanding micro-batch backpropagations.
+    # Micro-batches with the ids less than 'num_micro_batches_with_partial_activation_checkpoints'
+    # checkpoint partial Transformer layers (or skip checkpointing) and
+    # the rest of micro-batches within a window of micro-batches checkpoint
+    # all Transformer layers. The window of micro-batches is set by the maximum
+    # outstanding backpropagations and becomes smaller at later pipeline stages.
+    # Please refer the appendix C in https://arxiv.org/pdf/2205.05198.pdf
+    max_outstanding_backprops = None
+    if num_micro_batches_with_partial_activation_checkpoints is not None:
+        max_outstanding_backprops = num_warmup_microbatches + 1
 
     model_type = get_model_type(model)
     rank: int = parallel_state.get_pipeline_model_parallel_rank()
@@ -329,11 +394,20 @@ def forward_backward_pipelining_without_interleaving(
     for i in range(num_warmup_microbatches):
         _logger.debug(f"warmup iter: {i} / {num_warmup_microbatches}")
         _logger.debug("receive fwd")
+
+        # Decide to checkpoint all layers' activations of the current micro-batch
+        if max_outstanding_backprops is not None:
+            checkpoint_activations_micro_batch = (
+                i % max_outstanding_backprops >= num_micro_batches_with_partial_activation_checkpoints
+            )
+        else:
+            checkpoint_activations_micro_batch = None
         input_tensor = recv_forward(
             tensor_shapes=recv_tensor_shapes,
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
         cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i)
         output_tensor = forward_step(
@@ -344,6 +418,7 @@ def forward_backward_pipelining_without_interleaving(
             losses_reduced,
             dtype,
             disable_autocast,
+            checkpoint_activations_micro_batch,
         )
         _logger.debug("send fwd")
         send_forward(
@@ -352,6 +427,7 @@ def forward_backward_pipelining_without_interleaving(
             dtype=dtype,
             async_comm=async_comm,
             sequence_parallel_enabled=sequence_parallel_enabled,
+            sync_batch_comm=sync_batch_comm,
         )
 
         if not forward_only:
@@ -364,7 +440,12 @@ def forward_backward_pipelining_without_interleaving(
     # receive this tensor here.
     if num_microbatches_remaining > 0:
         _logger.debug("recv_forward before steady state start")
-        input_tensor: List[Union[None, torch.Tensor, FutureTensor]] = recv_forward(tensor_shapes=recv_tensor_shapes, dtype=dtype, async_comm=async_comm)
+        input_tensor: List[Union[None, torch.Tensor, FutureTensor]] = recv_forward(
+            tensor_shapes=recv_tensor_shapes,
+            dtype=dtype,
+            async_comm=async_comm,
+            sync_batch_comm=sync_batch_comm,
+        )
 
     ###################################################################################################################
     # Run 1F1B in steady state.
@@ -374,6 +455,13 @@ def forward_backward_pipelining_without_interleaving(
         _logger.debug(f"steady iter: {i} / {num_microbatches_remaining}")
         last_iteration: bool = i == (num_microbatches_remaining - 1)
 
+        # Decide to checkpoint all layers' activations of the current micro-batch
+        if max_outstanding_backprops is not None:
+            checkpoint_activations_micro_batch = (
+                ((i+num_warmup_microbatches) % max_outstanding_backprops) >= num_micro_batches_with_partial_activation_checkpoints
+            )
+        else:
+            checkpoint_activations_micro_batch = None
         cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i + num_warmup_microbatches)
         output_tensor: Union[torch.Tensor, Sequence[torch.Tensor]] = forward_step(
             forward_step_func,
@@ -383,6 +471,7 @@ def forward_backward_pipelining_without_interleaving(
             losses_reduced,
             dtype,
             disable_autocast,
+            checkpoint_activations_micro_batch,
         )
         if forward_only:
             _logger.debug("send fwd")
@@ -392,6 +481,7 @@ def forward_backward_pipelining_without_interleaving(
                 dtype=dtype,
                 async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
+                sync_batch_comm=sync_batch_comm,
             )
 
             if not last_iteration:
@@ -401,6 +491,7 @@ def forward_backward_pipelining_without_interleaving(
                     dtype=dtype,
                     async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
+                    sync_batch_comm=sync_batch_comm,
                 )
 
         else:
@@ -411,6 +502,7 @@ def forward_backward_pipelining_without_interleaving(
                 dtype=dtype,
                 async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
+                sync_batch_comm=sync_batch_comm,
             )
 
             # Add input_tensor and output_tensor to end of list.
@@ -440,6 +532,7 @@ def forward_backward_pipelining_without_interleaving(
                     dtype=dtype,
                     async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
+                    sync_batch_comm=sync_batch_comm,
                 )
             else:
                 _logger.debug("send bwd and receive fwd")
@@ -449,6 +542,7 @@ def forward_backward_pipelining_without_interleaving(
                     dtype=dtype,
                     async_comm=async_comm,
                     sequence_parallel_enabled=sequence_parallel_enabled,
+                    sync_batch_comm=sync_batch_comm,
                 )
     ###################################################################################################################
     # Run cooldown backward passes.
@@ -457,6 +551,12 @@ def forward_backward_pipelining_without_interleaving(
     if not forward_only:
         for i in range(num_warmup_microbatches):
             _logger.debug(f"cooldown iter: {i} / {num_warmup_microbatches}")
+
+            if i == num_warmup_microbatches-1 and rank == 0:
+                # Async grad reduction in first pipeline stage, during
+                # last backward pass
+                enable_grad_sync()
+
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
 
@@ -466,6 +566,7 @@ def forward_backward_pipelining_without_interleaving(
                 dtype=dtype,
                 async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
+                sync_batch_comm=sync_batch_comm,
             )
 
             input_tensor_grad = backward_step(
@@ -484,6 +585,13 @@ def forward_backward_pipelining_without_interleaving(
                 dtype=dtype,
                 async_comm=async_comm,
                 sequence_parallel_enabled=sequence_parallel_enabled,
+                sync_batch_comm=sync_batch_comm,
             )
+
+    # Grad reduction in all pipeline stages except the first, during
+    # the bubble overhead
+    enable_grad_sync()
+    if rank != 0 and custom_grad_sync_func is not None:
+        custom_grad_sync_func()
 
     return losses_reduced

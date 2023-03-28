@@ -5,8 +5,12 @@ import warnings
 import torch
 
 
+__all__ = ["amp", "fp16_utils", "optimizers", "normalization", "transformer"]
+
+
 if torch.distributed.is_available():
     from . import parallel
+    __all__.append("parallel")
 
 from . import amp
 from . import fp16_utils
@@ -49,3 +53,16 @@ def check_cudnn_version_and_warn(global_option: str, required_cudnn_version: int
         )
         return False
     return True
+
+
+class DeprecatedFeatureWarning(FutureWarning):
+    pass
+
+
+def deprecated_warning(msg: str) -> None:
+    if (
+        not torch.distributed.is_available
+        or not torch.distributed.is_initialized()
+        or (torch.distributed.is_initialized() and torch.distributed.get_rank() == 0)
+    ):
+        warnings.warn(msg, DeprecatedFeatureWarning)

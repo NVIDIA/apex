@@ -218,7 +218,6 @@ class ASP:
             if cls.__allow_permutation:
                 # Step 1: use the Torch.FX library to build the graph
                 # Step 2: permutation search with the customized kernel
-                # Notice: need to use the single GPU to build the Torch.FX graph
                 # The simplest without user intervention:
                 # A. try to import with the distributed mode of the original model
                 # B. if meet the error, import with the none-distributed mode of the original model

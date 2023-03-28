@@ -24,7 +24,7 @@ def manual_rms_norm(input, normalized_shape, weight, eps):
 
     # convert into half-precision if necessary
     if weight.dtype in [torch.float16, torch.bfloat16]:
-        input = input.to(self.weight.dtype)
+        input = input.to(weight.dtype)
 
     return weight * input
 
@@ -273,8 +273,8 @@ class FusedLayerNorm(torch.nn.Module):
         self.eps = eps
         self.elementwise_affine = elementwise_affine
         if self.elementwise_affine:
-            self.weight = Parameter(torch.Tensor(*normalized_shape))
-            self.bias = Parameter(torch.Tensor(*normalized_shape))
+            self.weight = Parameter(torch.empty(*normalized_shape))
+            self.bias = Parameter(torch.empty(*normalized_shape))
         else:
             self.register_parameter("weight", None)
             self.register_parameter("bias", None)
@@ -369,7 +369,7 @@ class FusedRMSNorm(torch.nn.Module):
         self.eps = eps
         self.elementwise_affine = elementwise_affine
         if self.elementwise_affine:
-            self.weight = Parameter(torch.Tensor(*normalized_shape))
+            self.weight = Parameter(torch.empty(*normalized_shape))
         else:
             self.register_parameter("weight", None)
         self.reset_parameters()

@@ -12,6 +12,8 @@ The intent of Apex is to make up-to-date utilities available to users as quickly
 
 ## 1. Amp:  Automatic Mixed Precision
 
+**Deprecated. Use [PyTorch AMP](https://pytorch.org/docs/stable/amp.html)**
+
 `apex.amp` is a tool to enable mixed precision training by changing only 3 lines of your script.
 Users can easily experiment with different pure and mixed precision training modes by supplying
 different flags to `amp.initialize`.
@@ -29,6 +31,8 @@ different flags to `amp.initialize`.
 
 ## 2. Distributed Training
 
+**`apex.parallel.DistributedDataParallel` is deprecated. Use [`torch.nn.parallel.DistributedDataParallel`](https://pytorch.org/docs/stable/generated/torch.nn.parallel.DistributedDataParallel.html?highlight=distributeddataparallel#torch.nn.parallel.DistributedDataParallel)**
+
 `apex.parallel.DistributedDataParallel` is a module wrapper, similar to
 `torch.nn.parallel.DistributedDataParallel`.  It enables convenient multiprocess distributed training,
 optimized for NVIDIA's NCCL communication library.
@@ -43,6 +47,8 @@ The [Imagenet example](https://github.com/NVIDIA/apex/tree/master/examples/image
 shows use of `apex.parallel.DistributedDataParallel` along with `apex.amp`.
 
 ### Synchronized Batch Normalization
+
+**Deprecated. Use [`torch.nn.SyncBatchNorm`](https://pytorch.org/docs/stable/generated/torch.nn.SyncBatchNorm.html)**
 
 `apex.parallel.SyncBatchNorm` extends `torch.nn.modules.batchnorm._BatchNorm` to
 support synchronized BN.
@@ -97,6 +103,8 @@ amp.load_state_dict(checkpoint['amp'])
 Note that we recommend restoring the model using the same `opt_level`. Also note that we recommend calling the `load_state_dict` methods after `amp.initialize`.
 
 # Installation
+Each [`apex.contrib`](./apex/contrib) module requires one or more install options other than `--cpp_ext` and `--cuda_ext`.
+Note that contrib modules do not necessarily support stable PyTorch releases.
 
 ## Containers
 NVIDIA PyTorch Containers are available on NGC: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch.
@@ -122,7 +130,7 @@ cd apex
 pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 ```
 
-Apex also supports a Python-only build via
+APEX also supports a Python-only build via
 ```bash
 pip install -v --disable-pip-version-check --no-cache-dir ./
 ```
@@ -138,3 +146,37 @@ A Python-only build omits:
 `pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .` may work if you were able to build Pytorch from source
 on your system. A Python-only build via `pip install -v --no-cache-dir .` is more likely to work.  
 If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
+
+
+## Custom C++/CUDA Extensions and Install Options
+
+If a requirement of a module is not met, then it will not be built.
+
+|  Module Name  |  Install Option  |  Misc  |
+|---------------|------------------|--------|
+|  `apex_C`     |  `--cpp_ext`     | |
+|  `amp_C`      |  `--cuda_ext`    | |
+|  `syncbn`     |  `--cuda_ext`    | |
+|  `fused_layer_norm_cuda`  |  `--cuda_ext`  | [`apex.normalization`](./apex/normalization) |
+|  `mlp_cuda`   |  `--cuda_ext`    | |
+|  `scaled_upper_triang_masked_softmax_cuda`  |  `--cuda_ext`  | |
+|  `generic_scaled_masked_softmax_cuda`  |  `--cuda_ext`  | |
+|  `scaled_masked_softmax_cuda`  |  `--cuda_ext`  | |
+|  `fused_weight_gradient_mlp_cuda`  |  `--cuda_ext`  | Requires CUDA>=11 |
+|  `permutation_search_cuda`  |  `--permutation_search`  | [`apex.contrib.sparsity`](./apex/contrib/sparsity)  |
+|  `bnp`        |  `--bnp`         |  [`apex.contrib.groupbn`](./apex/contrib/groupbn) |
+|  `xentropy`   |  `--xentropy`    |  [`apex.contrib.xentropy`](./apex/contrib/xentropy)  |
+|  `focal_loss_cuda`  |  `--focal_loss`  |  [`apex.contrib.focal_loss`](./apex/contrib/focal_loss)  |
+|  `fused_index_mul_2d`  |  `--index_mul_2d`  |  [`apex.contrib.index_mul_2d`](./apex/contrib/index_mul_2d)  |
+|  `fused_adam_cuda`  |  `--deprecated_fused_adam`  |  [`apex.contrib.optimizers`](./apex/contrib/optimizers)  |
+|  `fused_lamb_cuda`  |  `--deprecated_fused_lamb`  |  [`apex.contrib.optimizers`](./apex/contrib/optimizers)  |
+|  `fast_layer_norm`  |  `--fast_layer_norm`  |  [`apex.contrib.layer_norm`](./apex/contrib/layer_norm). different from `fused_layer_norm` |
+|  `fmhalib`    |  `--fmha`        |  [`apex.contrib.fmha`](./apex/contrib/fmha)  |
+|  `fast_multihead_attn`  |  `--fast_multihead_attn`  |  [`apex.contrib.multihead_attn`](./apex/contrib/multihead_attn)  |
+|  `transducer_joint_cuda`  |  `--transducer`  |  [`apex.contrib.transducer`](./apex/contrib/transducer)  |
+|  `transducer_loss_cuda`   |  `--transducer`  |  [`apex.contrib.transducer`](./apex/contrib/transducer)  |
+|  `cudnn_gbn_lib`  |  `--cudnn_gbn`  | Requires cuDNN>=8.5, [`apex.contrib.cudnn_gbn`](./apex/contrib/cudnn_gbn) |
+|  `peer_memory_cuda`  |  `--peer_memory`  |  [`apex.contrib.peer_memory`](./apex/contrib/peer_memory)  |
+|  `nccl_p2p_cuda`  |  `--nccl_p2p`  | Requires NCCL >= 2.10, [`apex.contrib.nccl_p2p`](./apex/contrib/nccl_p2p)  |
+|  `fast_bottleneck`  |  `--fast_bottleneck`  |  Requires `peer_memory_cuda` and `nccl_p2p_cuda`, [`apex.contrib.bottleneck`](./apex/contrib/bottleneck) |
+|  `fused_conv_bias_relu`  |  `--fused_conv_bias_relu`  | Requires cuDNN>=8.4, [`apex.contrib.conv_bias_relu`](./apex/contrib/conv_bias_relu) |

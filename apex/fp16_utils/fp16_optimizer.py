@@ -11,15 +11,18 @@ from .fp16util import model_grads_to_master_grads, master_params_to_model_params
 
 # TODO:  Update overflow check + downscale to use Carl's fused kernel.
 class FP16_Optimizer(object):
-    def __init__(self, 
-                 init_optimizer, 
-                 static_loss_scale=1.0, 
+    def __init__(self,
+                 init_optimizer,
+                 static_loss_scale=1.0,
                  dynamic_loss_scale=False,
                  dynamic_loss_args=None,
                  verbose=True):
         print("Warning:  FP16_Optimizer is deprecated and dangerous, and will be deleted soon.  "
               "If it still works, you're probably getting lucky.  "
               "For mixed precision, use the documented API https://nvidia.github.io/apex/amp.html, with opt_level=O1.")
+
+        from apex import deprecated_warning
+        deprecated_warning("apex.fp16_utils is deprecated and will be removed by the end of February 2023. Use [PyTorch AMP](https://pytorch.org/docs/stable/amp.html)")
 
         if not torch.cuda.is_available:
             raise SystemError("Cannot use fp16 without CUDA.")
@@ -52,7 +55,7 @@ class FP16_Optimizer(object):
                         # Reset existing state dict key to the new master param.
                         # We still need to recast per-param state tensors, if any, to FP32.
                         if param in self.optimizer.state:
-                           self.optimizer.state[master_param] = self.optimizer.state.pop(param) 
+                           self.optimizer.state[master_param] = self.optimizer.state.pop(param)
                     elif param.type() == 'torch.cuda.FloatTensor':
                         self.maybe_print("FP16_Optimizer received torch.cuda.FloatTensor with {}"
                                          .format(param.size()))
@@ -60,9 +63,9 @@ class FP16_Optimizer(object):
                         param_group['params'][i] = param
                     else:
                         raise TypeError("Wrapped parameters must be either "
-                                        "torch.cuda.FloatTensor or torch.cuda.HalfTensor. "  
+                                        "torch.cuda.FloatTensor or torch.cuda.HalfTensor. "
                                         "Received {}".format(param.type()))
-            
+
             self.fp16_groups.append(fp16_params_this_group)
             self.fp32_from_fp16_groups.append(fp32_from_fp16_params_this_group)
             self.fp32_from_fp32_groups.append(fp32_params_this_group)
@@ -110,7 +113,7 @@ class FP16_Optimizer(object):
     def maybe_print(self, msg):
         if self.verbose:
             print(msg)
-            
+
     def __getstate__(self):
         raise RuntimeError("FP16_Optimizer should be serialized using state_dict().")
 
@@ -229,9 +232,9 @@ class FP16_Optimizer(object):
 
     def load_state_dict(self, state_dict):
         """
-        Loads a state_dict created by an earlier call to state_dict(). 
-        If ``fp16_optimizer_instance`` was constructed from some ``init_optimizer``, 
-        whose parameters in turn came from ``model``, it is expected that the user 
+        Loads a state_dict created by an earlier call to state_dict().
+        If ``fp16_optimizer_instance`` was constructed from some ``init_optimizer``,
+        whose parameters in turn came from ``model``, it is expected that the user
         will call ``model.load_state_dict()`` before
         ``fp16_optimizer_instance.load_state_dict()`` is called.
 
@@ -252,17 +255,17 @@ class FP16_Optimizer(object):
         self.first_closure_call_this_step = state_dict['first_closure_call_this_step']
         self.optimizer.load_state_dict(state_dict['optimizer_state_dict'])
         # At this point, the optimizer's references to the model's fp32 parameters are up to date.
-        # The optimizer's hyperparameters and internal buffers are also up to date.  
+        # The optimizer's hyperparameters and internal buffers are also up to date.
         # However, the fp32 master copies of the model's fp16 params stored by the optimizer are still
-        # out of date.  There are two options.  
-        # 1:  Refresh the master params from the model's fp16 params.  
+        # out of date.  There are two options.
+        # 1:  Refresh the master params from the model's fp16 params.
         # This requires less storage but incurs precision loss.
         # 2:  Save and restore the fp32 master copies separately.
         # We choose option 2.
-        # 
-        # Pytorch Optimizer.load_state_dict casts saved buffers (e.g. momentum) to the type and device 
-        # of their associated parameters, because it's possible those buffers might not exist yet in 
-        # the current optimizer instance.  In our case, as long as the current FP16_Optimizer has been 
+        #
+        # Pytorch Optimizer.load_state_dict casts saved buffers (e.g. momentum) to the type and device
+        # of their associated parameters, because it's possible those buffers might not exist yet in
+        # the current optimizer instance.  In our case, as long as the current FP16_Optimizer has been
         # constructed in the same way as the one whose state_dict we are loading, the same master params
         # are guaranteed to exist, so we can just copy_() from the saved master params.
         for current_group, saved_group in zip(self.fp32_from_fp16_groups, state_dict['fp32_from_fp16']):
@@ -271,14 +274,14 @@ class FP16_Optimizer(object):
 
     def step(self, closure=None): # could add clip option.
         """
-        If no closure is supplied, :attr:`step` should be called after 
+        If no closure is supplied, :attr:`step` should be called after
         ``fp16_optimizer_obj.backward(loss)``.
         :attr:`step` updates the fp32 master copy of parameters using the optimizer supplied to
         :class:`FP16_Optimizer`'s constructor, then copies the updated fp32 params into the fp16 params
         originally referenced by :class:`FP16_Optimizer`'s constructor, so the user may immediately run
         another forward pass using their model.
 
-        If a closure is supplied, :attr:`step` may be called without a prior call to 
+        If a closure is supplied, :attr:`step` may be called without a prior call to
         :attr:`backward(loss)`.
         This control flow is identical to `ordinary Pytorch optimizer use`_ with closures.
         However, the user should take care that any ``loss.backward()`` call within the closure
@@ -289,7 +292,7 @@ class FP16_Optimizer(object):
 
         Example with closure::
 
-            # optimizer is assumed to be an FP16_Optimizer object, previously constructed from an 
+            # optimizer is assumed to be an FP16_Optimizer object, previously constructed from an
             # existing pytorch optimizer.
             for input, target in dataset:
                 def closure():
@@ -319,7 +322,7 @@ class FP16_Optimizer(object):
             maybe_print("Gradient overflow.  Skipping step, reducing " +
                 "loss scale to {}".format(self.loss_scaler.loss_scale()))
             return
-        
+
         if closure is not None:
             retval = self._step_with_closure(closure)
         else:
@@ -343,7 +346,7 @@ class FP16_Optimizer(object):
                 self.first_closure_call_this_step = False
             else:
                 # If self.optimizer.step() internally calls wrapped_closure more than once,
-                # it may update the fp32 params after each call.  However, self.optimizer 
+                # it may update the fp32 params after each call.  However, self.optimizer
                 # doesn't know about the fp16 params at all.  If the fp32 params get updated,
                 # we can't rely on self.optimizer to refresh the fp16 params.  We need
                 # to handle that manually:
@@ -351,11 +354,11 @@ class FP16_Optimizer(object):
             # Our API expects the user to give us ownership of the backward() call by
             # replacing all calls to loss.backward() with optimizer.backward(loss).
             # This requirement holds whether or not the call to backward() is made within a closure.
-            # If the user is properly calling optimizer.backward(loss) within "closure," 
+            # If the user is properly calling optimizer.backward(loss) within "closure,"
             # calling closure() here will give the fp32 master params fresh gradients
-            # for the optimizer to play with, so all wrapped_closure needs to do is call 
+            # for the optimizer to play with, so all wrapped_closure needs to do is call
             # closure() and return the loss.
-            temp_loss = closure() 
+            temp_loss = closure()
             while(self.overflow):
                 scale = self.loss_scaler.loss_scale()
                 # self._update_scale(self.overflow) # now done at the end of backward
@@ -371,7 +374,7 @@ class FP16_Optimizer(object):
         return retval
 
     def backward(self, loss, update_master_grads=True, retain_graph=False):
-        """ 
+        """
         :attr:`backward` performs the following conceptual steps:
 
         1. fp32_loss = loss.float() (see first Note below)
@@ -385,19 +388,19 @@ class FP16_Optimizer(object):
 
         .. note::
             :attr:`backward` internally converts the loss to fp32 before applying the loss scale.
-            This provides some additional safety against overflow if the user has supplied an 
-            fp16 loss value.  
+            This provides some additional safety against overflow if the user has supplied an
+            fp16 loss value.
             However, for maximum overflow safety, the user should
-            compute the loss criterion (MSE, cross entropy, etc) in fp32 before supplying it to 
+            compute the loss criterion (MSE, cross entropy, etc) in fp32 before supplying it to
             :attr:`backward`.
 
         .. warning::
-            The gradients found in a model's leaves after the call to 
-            :attr:`backward` should not be regarded as valid in general, 
-            because it's possible 
-            they have been scaled (and in the case of dynamic loss scaling, 
-            the scale factor may change over time).  
-            If the user wants to inspect gradients after a call to :attr:`backward`,  
+            The gradients found in a model's leaves after the call to
+            :attr:`backward` should not be regarded as valid in general,
+            because it's possible
+            they have been scaled (and in the case of dynamic loss scaling,
+            the scale factor may change over time).
+            If the user wants to inspect gradients after a call to :attr:`backward`,
             only the master gradients should be regarded as valid.  These can be retrieved via
             :attr:`inspect_master_grad_data()`.
 
@@ -412,22 +415,22 @@ class FP16_Optimizer(object):
             optimizer.backward(loss)
 
             # Naive operation with multiple losses (technically valid, but less efficient):
-            # fp32 grads will be correct after the second call,  but 
+            # fp32 grads will be correct after the second call,  but
             # the first call incurs an unnecessary fp16->fp32 grad copy.
             optimizer.backward(loss1)
             optimizer.backward(loss2)
 
             # More efficient way to handle multiple losses:
-            # The fp16->fp32 grad copy is delayed until fp16 grads from all 
+            # The fp16->fp32 grad copy is delayed until fp16 grads from all
             # losses have been accumulated.
             optimizer.backward(loss1, update_master_grads=False)
             optimizer.backward(loss2, update_master_grads=False)
             optimizer.update_master_grads()
-        """ 
-        # To consider:  try multiple backward passes using retain_grad=True to find 
+        """
+        # To consider:  try multiple backward passes using retain_grad=True to find
         # a loss scale that works.  After you find a loss scale that works, do a final dummy
-        # backward pass with retain_graph=False to tear down the graph.  Doing this would avoid 
-        # discarding the iteration,  but probably wouldn't improve overall efficiency.  
+        # backward pass with retain_graph=False to tear down the graph.  Doing this would avoid
+        # discarding the iteration,  but probably wouldn't improve overall efficiency.
         scaled_loss = loss.float()*self.loss_scaler.loss_scale()
         scaled_loss.backward(retain_graph=retain_graph)
         if update_master_grads:
@@ -436,8 +439,8 @@ class FP16_Optimizer(object):
     def update_master_grads(self):
         # torch.cuda.nvtx.range_push("update_master_grads")
         """
-        Copy the ``.grad`` attribute from stored references to fp16 parameters to 
-        the ``.grad`` attribute of the fp32 master parameters that are directly 
+        Copy the ``.grad`` attribute from stored references to fp16 parameters to
+        the ``.grad`` attribute of the fp32 master parameters that are directly
         updated by the optimizer.  :attr:`update_master_grads` only needs to be called if
         ``fp16_optimizer_obj.backward`` was called with ``update_master_grads=False``.
         """
@@ -492,19 +495,19 @@ class FP16_Optimizer(object):
 
     def inspect_master_grad_data(self):
         """
-        When running with :class:`FP16_Optimizer`, 
+        When running with :class:`FP16_Optimizer`,
         ``.grad`` attributes of a model's fp16 leaves should not be
-        regarded as truthful, because they might be scaled.  
+        regarded as truthful, because they might be scaled.
         After a call to :attr:`fp16_optimizer_obj.backward(loss)`, if no overflow was encountered,
         the fp32 master params' ``.grad``
-        attributes will contain valid gradients properly divided by the loss scale.  However, 
-        because :class:`FP16_Optimizer` flattens some parameters, accessing them may be 
+        attributes will contain valid gradients properly divided by the loss scale.  However,
+        because :class:`FP16_Optimizer` flattens some parameters, accessing them may be
         nonintuitive.  :attr:`inspect_master_grad_data`
         allows those gradients to be viewed with shapes corresponding to their associated model leaves.
 
         Returns:
             List of lists (one list for each parameter group).  The list for each parameter group
-            is a list of the ``.grad.data`` attributes of the fp32 master params belonging to that group.                 
+            is a list of the ``.grad.data`` attributes of the fp32 master params belonging to that group.
         """
         if self.overflow:
             print("Warning:  calling FP16_Optimizer.inspect_master_grad_data while in an overflow state.  "
