@@ -51,7 +51,7 @@ class FusedDenseTest(common_utils.TestCase):
         torch.testing.assert_close(
             db_ref, dense.bias.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
-    @common_utils.parametrize("dtype", [torch.half, torch.float])
+    @common_utils.parametrize("dtype", [torch.half, torch.float, torch.bfloat16])
     def test_fused_dense(self, dtype):
         self._test_fused_dense(dtype)
 
