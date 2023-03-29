@@ -178,22 +178,6 @@ class FusedAdam(torch.optim.Optimizer):
                 else:
                     raise RuntimeError('FusedAdam only support fp16 and fp32.')
 
-            # Obtain unscaling factor
-            if self.capturable:
-                scale, inv_scale = None, None
-                if grad_scaler:
-                    scale = grad_scaler._get_scale_async()
-                    inv_scale = scale.double().reciprocal().float()
-                else:
-                    scale = torch.ones((1,), device=device)
-                    inv_scale = torch.ones((1,), device=device)
-            elif self.use_master:
-                if grad_scaler:
-                    scale = grad_scaler._get_scale_async()
-                    inv_scale = scale.double().reciprocal().float().item()
-                else:
-                    inv_scale = 1
-
             # If the optimizer is capturable, then if there's a grad scaler it works
             # on the GPU + a different multi_tensor_applier should be called
             if self.capturable:
@@ -204,6 +188,23 @@ class FusedAdam(torch.optim.Optimizer):
                 )
                 self._dummy_overflow_buf.copy_(found_inf)
 
+                # get unscale scale factor
+                scale, inv_scale = None, None
+                if grad_scaler:
+                    scale = grad_scaler._get_scale_async()
+                    inv_scale = scale.double().reciprocal().float()
+                else:
+                    scale = torch.ones((1,), device=device)
+                    inv_scale = torch.ones((1,), device=device)
+            elif self.use_master:
+                # Obtain unscaling factor
+                if grad_scaler:
+                    scale = grad_scaler._get_scale_async()
+                    inv_scale = scale.double().reciprocal().float().item()
+                else:
+                    inv_scale = 1
+
+            if self.capturable:
                 if len(g_16) > 0:
                     multi_tensor_applier(self.multi_tensor_adam_capturable_master if self.use_master
                             else self.multi_tensor_adam_capturable,
