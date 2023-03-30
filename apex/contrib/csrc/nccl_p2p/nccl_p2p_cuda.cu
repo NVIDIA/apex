@@ -6,7 +6,7 @@
 #include <ctime>
 #include <cassert>
 #ifdef __HIP_PLATFORM_HCC__
-#include "rccl.h"
+#include "rccl/rccl.h"
 #else
 #include "nccl.h"
 #endif

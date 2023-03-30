@@ -8,7 +8,7 @@
 
 #ifdef __HIP_PLATFORM_HCC__
 #include <hip/hip_cooperative_groups.h>
-#include "rccl.h"
+#include "rccl/rccl.h"
 #else
 #include <cooperative_groups.h>
 #include "nccl.h"
