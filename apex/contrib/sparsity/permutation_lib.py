@@ -1470,7 +1470,7 @@ class Permutation:
         if cls.__verbosity > 2:
             print("[build_fx_graph] The torch version is: {}, version major is: {}, version minor is: {}, version minimum is: {}".format(torch_version, torch_version_major, torch_version_minor, torch_version_minimum))
 
-        if torch_version_major >= 1 and torch_version_minor >= 8:
+        if torch_version_major >= 2 or (torch_version_major >= 1 and torch_version_minor >= 8):
             if cls.__verbosity > 1:
                 print("[build_fx_graph] The Torch.FX is supported.")
         else:    # Torch.FX is introduced in torch 1.8.0
@@ -1657,7 +1657,11 @@ class Permutation:
         if print_tabular:
             print("\n[print_raw_fx_graph] Print the intermediate representation (IR) with Torch.FX in a table format")
             try:
+                from tabulate import tabulate
                 symbolic_traced.graph.print_tabular()
+            except ImportError:
+                if cls.__verbosity > 1:
+                    print("[print_raw_fx_graph][Warning] \'print_tabular\' relies on the library `tabulate`; run `pip install tabulate` to install it.")
             except AttributeError:    # to avoid the AttributeError: 'Graph' object has no attribute 'print_tabular'
                 if cls.__verbosity > 1:
                     print("[print_raw_fx_graph][Warning] \'print_tabular\' function is not supported in current Torch version. Skip!")
