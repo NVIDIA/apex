@@ -72,7 +72,7 @@ class FusedAdam(torch.optim.Optimizer):
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay)
         self.use_master = use_master
-        if self.use_master:
+        if use_master:
             self.master_params = [p.data.clone().detach().float() for p in params]
         super(FusedAdam, self).__init__(params, defaults)
         self.adam_w_mode = 1 if adam_w_mode else 0
@@ -80,13 +80,12 @@ class FusedAdam(torch.optim.Optimizer):
 
         self.capturable = capturable
 
-        if capturable:
+        if capturable or use_master:
             device = self.param_groups[0]['params'][0].device
             for idx, group in enumerate(self.param_groups):
                 for item in ['lr']:
                     self.param_groups[idx][item] = group[item].to(device=device)
 
-        if capturable or use_master:
             self._step_supports_amp_scaling = True
 
         if multi_tensor_applier.available:
@@ -94,7 +93,6 @@ class FusedAdam(torch.optim.Optimizer):
             # Skip buffer
             self._dummy_overflow_buf = torch.cuda.IntTensor([0])
             self.multi_tensor_adam = amp_C.multi_tensor_adam
-            self.multi_tensor_adam_master = amp_C.multi_tensor_adam_master
             self.multi_tensor_adam_capturable = amp_C.multi_tensor_adam_capturable
             self.multi_tensor_adam_capturable_master = amp_C.multi_tensor_adam_capturable_master
         else:
@@ -131,9 +129,9 @@ class FusedAdam(torch.optim.Optimizer):
             # assume same step across group now to simplify things
             # per parameter step can be easily support by making it tensor, or pass list into kernel
             if 'step' in group:
-                group['step'] += 1 if not self.capturable else (self._dummy_overflow_buf != 1).to(torch.int)
+                group['step'] += 1 if not (self.capturable or self.use_master) else (self._dummy_overflow_buf != 1).to(torch.int)
             else:
-                group['step'] = 1 if not self.capturable else torch.tensor([1], dtype=torch.int, device=device)
+                group['step'] = 1 if not (self.capturable or self.use_master) else torch.tensor([1], dtype=torch.int, device=device)
 
             # create lists for multi-tensor apply
             g_16, p_16, m_16, v_16 = [], [], [], []
@@ -180,7 +178,7 @@ class FusedAdam(torch.optim.Optimizer):
 
             # If the optimizer is capturable, then if there's a grad scaler it works
             # on the GPU + a different multi_tensor_applier should be called
-            if self.capturable:
+            if self.capturable or self.use_master:
                 # overflow check of gradients
                 found_inf = (
                     grad_scaler._check_inf_per_device(self)[device]
@@ -196,13 +194,6 @@ class FusedAdam(torch.optim.Optimizer):
                 else:
                     scale = torch.ones((1,), device=device)
                     inv_scale = torch.ones((1,), device=device)
-            elif self.use_master:
-                # Obtain unscaling factor
-                if grad_scaler:
-                    scale = grad_scaler._get_scale_async()
-                    inv_scale = scale.double().reciprocal().float().item()
-                else:
-                    inv_scale = 1
 
             if self.capturable:
                 if len(g_16) > 0:
@@ -254,7 +245,7 @@ class FusedAdam(torch.optim.Optimizer):
             else:
                 if len(g_16) > 0:
                     if self.use_master:
-                        multi_tensor_applier(self.multi_tensor_adam_master,
+                        multi_tensor_applier(self.multi_tensor_adam_capturable_master,
                                 self._dummy_overflow_buf,
                                 [g_16, p_16, m_16, v_16, p_16_master],
                                 group['lr'],
@@ -295,7 +286,7 @@ class FusedAdam(torch.optim.Optimizer):
 
                 if len(g_32) > 0:
                     if self.use_master:
-                        multi_tensor_applier(self.multi_tensor_adam_master,
+                        multi_tensor_applier(self.multi_tensor_adam_capturable_master,
                                 self._dummy_overflow_buf,
                                 [g_32, p_32, m_32, v_32, p_32_master],
                                 group['lr'],
