@@ -257,7 +257,7 @@ def use_stripe_map(matrix, group_width, stripe_map, stripe_ids, perm_map, permut
         stripe_group_id = ix[i]
         perm = perm_map[stripe_group_id].copy()
 
-        if stripe_map[stripe_group_id] <= 0.0001:
+        if stripe_map[stripe_group_id] <= np.finfo(np.float16).tiny*5.:
             # perturbations
             if len(used_stripes) == 0 and sm_perturbations < sm_perturbation_limit:
                 sm_perturbations += 1
