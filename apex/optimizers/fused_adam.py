@@ -68,7 +68,7 @@ class FusedAdam(torch.optim.Optimizer):
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
         # If the optimizer is capturable then LR should be a tensor (on GPU)
-        lr = torch.tensor(lr, dtype=torch.float32) if capturable else lr
+        lr = torch.tensor(lr, dtype=torch.float32) if capturable or use_master else lr
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay)
         self.use_master = use_master
