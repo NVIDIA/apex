@@ -67,20 +67,21 @@ class FusedAdam(torch.optim.Optimizer):
 
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
+        if use_master and not capturable:
+            raise RuntimeError('Support for master parameters currently only works with the capturable version.')
         # If the optimizer is capturable then LR should be a tensor (on GPU)
-        lr = torch.tensor(lr, dtype=torch.float32) if capturable or use_master else lr
+        lr = torch.tensor(lr, dtype=torch.float32) if capturable else lr
         defaults = dict(lr=lr, bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay)
-        self.use_master = use_master
-        if use_master:
-            self.master_params = [p.data.clone().detach().float() for p in params]
         super(FusedAdam, self).__init__(params, defaults)
         self.adam_w_mode = 1 if adam_w_mode else 0
         self.set_grad_none = set_grad_none
 
         self.capturable = capturable
+        self.use_master = use_master
+        self.param_groups_master = []
 
-        if capturable or use_master:
+        if capturable:
             device = self.param_groups[0]['params'][0].device
             for idx, group in enumerate(self.param_groups):
                 for item in ['lr']:
@@ -106,6 +107,16 @@ class FusedAdam(torch.optim.Optimizer):
         else:
             super(FusedAdam, self).zero_grad()
 
+    def _setup_master_params(self):
+        for i, pg in enumerate(self.param_groups):
+            param_list = pg['params']
+            self.param_groups_master.append({
+                'params': [
+                    p.clone().detach().float() if self.use_master else None
+                    for p in param_list
+                ],
+            })
+
     def step(self, closure=None, grads=None, output_params=None, scale=None, grad_norms=None, grad_scaler=None):
         """Performs a single optimization step.
 
@@ -121,7 +132,14 @@ class FusedAdam(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
-        for group in self.param_groups:
+        # The full precision params are set up in the first step of the optimizer
+        # instead of in the constructor because the full precision params will get out
+        # out of sync with the model params if DDP syncs the model params across devices
+        # after the optimizer is constructed.
+        if len(self.param_groups_master) == 0:
+            self._setup_master_params()
+
+        for group, group_master in zip(self.param_groups, self.param_groups_master):
             device = group['params'][0].device
             bias_correction = 1 if group['bias_correction'] else 0
             beta1, beta2 = group['betas']
@@ -129,9 +147,9 @@ class FusedAdam(torch.optim.Optimizer):
             # assume same step across group now to simplify things
             # per parameter step can be easily support by making it tensor, or pass list into kernel
             if 'step' in group:
-                group['step'] += 1 if not (self.capturable or self.use_master) else (self._dummy_overflow_buf != 1).to(torch.int)
+                group['step'] += 1 if not self.capturable else (self._dummy_overflow_buf != 1).to(torch.int)
             else:
-                group['step'] = 1 if not (self.capturable or self.use_master) else torch.tensor([1], dtype=torch.int, device=device)
+                group['step'] = 1 if not self.capturable else torch.tensor([1], dtype=torch.int, device=device)
 
             # create lists for multi-tensor apply
             g_16, p_16, m_16, v_16 = [], [], [], []
@@ -140,7 +158,7 @@ class FusedAdam(torch.optim.Optimizer):
             p_16_master = []
             p_32_master = []
 
-            for pi, p in enumerate(group['params']):
+            for p, p_master in zip(group['params'], group_master['params']):
                 if p.grad is None:
                     continue
                 if p.grad.data.is_sparse:
@@ -156,7 +174,7 @@ class FusedAdam(torch.optim.Optimizer):
 
                 if p.dtype == torch.float16:
                     if self.use_master:
-                        p_16_master.append(self.master_params[pi])
+                        p_16_master.append(p_master.data)
                     g_16.append(p.grad.data)
                     p_16.append(p.data)
                     m_16.append(state['exp_avg'])
@@ -168,7 +186,7 @@ class FusedAdam(torch.optim.Optimizer):
                     v_bf.append(state['exp_avg_sq'])
                 elif p.dtype == torch.float32:
                     if self.use_master:
-                        p_32_master.append(self.master_params[pi])
+                        p_32_master.append(p_master.data)
                     g_32.append(p.grad.data)
                     p_32.append(p.data)
                     m_32.append(state['exp_avg'])
@@ -178,7 +196,7 @@ class FusedAdam(torch.optim.Optimizer):
 
             # If the optimizer is capturable, then if there's a grad scaler it works
             # on the GPU + a different multi_tensor_applier should be called
-            if self.capturable or self.use_master:
+            if self.capturable:
                 # overflow check of gradients
                 found_inf = (
                     grad_scaler._check_inf_per_device(self)[device]
@@ -195,7 +213,6 @@ class FusedAdam(torch.optim.Optimizer):
                     scale = torch.ones((1,), device=device)
                     inv_scale = torch.ones((1,), device=device)
 
-            if self.capturable:
                 if len(g_16) > 0:
                     multi_tensor_applier(self.multi_tensor_adam_capturable_master if self.use_master
                             else self.multi_tensor_adam_capturable,
@@ -244,31 +261,17 @@ class FusedAdam(torch.optim.Optimizer):
                             inv_scale)
             else:
                 if len(g_16) > 0:
-                    if self.use_master:
-                        multi_tensor_applier(self.multi_tensor_adam_capturable_master,
-                                self._dummy_overflow_buf,
-                                [g_16, p_16, m_16, v_16, p_16_master],
-                                group['lr'],
-                                beta1,
-                                beta2,
-                                group['eps'],
-                                group['step'],
-                                self.adam_w_mode,
-                                bias_correction,
-                                group['weight_decay'],
-                                inv_scale)
-                    else:
-                        multi_tensor_applier(self.multi_tensor_adam,
-                                self._dummy_overflow_buf,
-                                [g_16, p_16, m_16, v_16],
-                                group['lr'],
-                                beta1,
-                                beta2,
-                                group['eps'],
-                                group['step'],
-                                self.adam_w_mode,
-                                bias_correction,
-                                group['weight_decay'])
+                    multi_tensor_applier(self.multi_tensor_adam,
+                            self._dummy_overflow_buf,
+                            [g_16, p_16, m_16, v_16],
+                            group['lr'],
+                            beta1,
+                            beta2,
+                            group['eps'],
+                            group['step'],
+                            self.adam_w_mode,
+                            bias_correction,
+                            group['weight_decay'])
 
                 if len(g_bf) > 0:
                     multi_tensor_applier(
@@ -285,30 +288,16 @@ class FusedAdam(torch.optim.Optimizer):
                             group['weight_decay'])
 
                 if len(g_32) > 0:
-                    if self.use_master:
-                        multi_tensor_applier(self.multi_tensor_adam_capturable_master,
-                                self._dummy_overflow_buf,
-                                [g_32, p_32, m_32, v_32, p_32_master],
-                                group['lr'],
-                                beta1,
-                                beta2,
-                                group['eps'],
-                                group['step'],
-                                self.adam_w_mode,
-                                bias_correction,
-                                group['weight_decay'],
-                                inv_scale)
-                    else:
-                        multi_tensor_applier(self.multi_tensor_adam,
-                                self._dummy_overflow_buf,
-                                [g_32, p_32, m_32, v_32],
-                                group['lr'],
-                                beta1,
-                                beta2,
-                                group['eps'],
-                                group['step'],
-                                self.adam_w_mode,
-                                bias_correction,
-                                group['weight_decay'])
+                    multi_tensor_applier(self.multi_tensor_adam,
+                            self._dummy_overflow_buf,
+                            [g_32, p_32, m_32, v_32],
+                            group['lr'],
+                            beta1,
+                            beta2,
+                            group['eps'],
+                            group['step'],
+                            self.adam_w_mode,
+                            bias_correction,
+                            group['weight_decay'])
 
         return loss

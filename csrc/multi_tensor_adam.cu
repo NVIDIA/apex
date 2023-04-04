@@ -190,7 +190,7 @@ struct AdamCapturableFunctor
         if(i < n && i < chunk_size)
         {
           r_g[ii] = static_cast<MATH_T>(g[i]) * (*inv_scale);
-          g[i] = static_cast<T>(r_g[ii]); // Do we need this write?
+          g[i] = static_cast<T>(r_g[ii]);
           r_p[ii] = static_cast<MATH_T>(p[i]);
           r_m[ii] = static_cast<MATH_T>(m[i]);
           r_v[ii] = static_cast<MATH_T>(v[i]);
