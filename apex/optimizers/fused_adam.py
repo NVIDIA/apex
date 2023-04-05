@@ -126,18 +126,11 @@ class FusedAdam(torch.optim.Optimizer):
             bias_correction = 1 if group['bias_correction'] else 0
             beta1, beta2 = group['betas']
 
-            # assume same step across group now to simplify things
-            # per parameter step can be easily support by making it tensor, or pass list into kernel
-            if 'step' in group:
-                group['step'] += 1 if not self.capturable else (self._dummy_overflow_buf != 1).to(torch.int)
-            else:
-                group['step'] = 1 if not self.capturable else torch.tensor([1], dtype=torch.int, device=device)
-
             # create lists for multi-tensor apply
             g_16, p_16, m_16, v_16 = [], [], [], []
             g_bf, p_bf, m_bf, v_bf = [], [], [], []
             g_32, p_32, m_32, v_32 = [], [], [], []
-
+            steps = []
             for p in group['params']:
                 if p.grad is None:
                     continue
@@ -151,6 +144,15 @@ class FusedAdam(torch.optim.Optimizer):
                     state['exp_avg'] = torch.zeros_like(p.data)
                     # Exponential moving average of squared gradient values
                     state['exp_avg_sq'] = torch.zeros_like(p.data)
+                    # Backward compatibility, we
+                    assert 'step' not in group
+                    state['step'] = 1.0 if not self.capturable else torch.tensor(1, dtype=torch.float, device=device)
+                else:
+                    # Backward compatibility: we used to assume that `step` was the same across group
+                    if 'step' in group:
+                        assert 'step' not in state
+                        state['step'] = group['step'].squeeze(0)
+                    state['step'] += 1.0 if not self.capturable else (self._dummy_overflow_buf != 1).to(torch.float).squeeze(0)
 
                 if p.dtype == torch.float16:
                     g_16.append(p.grad.data)
@@ -169,6 +171,13 @@ class FusedAdam(torch.optim.Optimizer):
                     v_32.append(state['exp_avg_sq'])
                 else:
                     raise RuntimeError('FusedAdam only support fp16 and fp32.')
+                steps.append(state['step'])
+
+            # Backward compatibility: we used to assume that `step` was the same across group
+            if 'step' in group:
+                del group['step']
+            if self.capturable:
+                steps = torch.stack(steps)
 
             # If the optimizer is capturable, then if there's a grad scaler it works
             # on the GPU + a different multi_tensor_applier should be called
@@ -197,7 +206,7 @@ class FusedAdam(torch.optim.Optimizer):
                             beta1,
                             beta2,
                             group['eps'],
-                            group['step'],
+                            steps,
                             self.adam_w_mode,
                             bias_correction,
                             group['weight_decay'],
@@ -212,7 +221,7 @@ class FusedAdam(torch.optim.Optimizer):
                             beta1,
                             beta2,
                             group['eps'],
-                            group['step'],
+                            steps,
                             self.adam_w_mode,
                             bias_correction,
                             group['weight_decay'],
@@ -226,7 +235,7 @@ class FusedAdam(torch.optim.Optimizer):
                             beta1,
                             beta2,
                             group['eps'],
-                            group['step'],
+                            steps,
                             self.adam_w_mode,
                             bias_correction,
                             group['weight_decay'],
@@ -240,7 +249,7 @@ class FusedAdam(torch.optim.Optimizer):
                             beta1,
                             beta2,
                             group['eps'],
-                            group['step'],
+                            steps,
                             self.adam_w_mode,
                             bias_correction,
                             group['weight_decay'])
@@ -254,7 +263,7 @@ class FusedAdam(torch.optim.Optimizer):
                             beta1,
                             beta2,
                             group['eps'],
-                            group['step'],
+                            steps,
                             self.adam_w_mode,
                             bias_correction,
                             group['weight_decay'])
@@ -267,7 +276,7 @@ class FusedAdam(torch.optim.Optimizer):
                             beta1,
                             beta2,
                             group['eps'],
-                            group['step'],
+                            steps,
                             self.adam_w_mode,
                             bias_correction,
                             group['weight_decay'])

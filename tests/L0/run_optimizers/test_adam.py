@@ -2,6 +2,7 @@ import copy
 import math
 import random
 import unittest
+from typing import Dict, Optional, List
 
 import torch
 import torch.nn.functional as F
@@ -185,6 +186,67 @@ class AdamTest(unittest.TestCase):
             
             self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
 
+    def testStateDict(self):
+        params_ = [p for p in self.model_.parameters() if p.requires_grad]
+        optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=False)
+
+        for i in range(100):
+            x = torch.rand([32, 1, 28, 28]).cuda().to(memory_format=torch.channels_last)
+            x_ = x.clone()
+            gt = torch.rand([32, 10]).cuda()
+            gt_ = gt.clone()
+
+            # Reference
+            y = self.model(x)
+            loss = ((gt - y) ** 2).mean()
+
+            loss.backward()
+            self.optimizer.step()
+
+            # DUT
+            y = self.model_(x)
+            loss_ = ((gt_ - y) ** 2).mean()
+
+            loss_.backward()
+            optimizer_.step()
+
+            opt_state_dict = self.optimizer.state_dict()
+            opt_state_dict_ = optimizer_.state_dict()
+            assert_is_dict_equal(opt_state_dict, opt_state_dict_)
+
+            # Init for next iteration
+            self.optimizer.zero_grad()
+            optimizer_.zero_grad()
+
+            self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
+
+def assert_is_dict_equal(first: Dict, second: Dict, sub_paths: Optional[List[str]] = None, **tensor_testing_assert_close_kwargs):
+    if sub_paths is None:
+        sub_paths = []
+
+    first_keys = set(first.keys())
+    second_keys = set(second.keys())
+    assert first_keys == second_keys, f"Keys don't match in {'.'.join(sub_paths)}.\nCur: {first_keys}\nRef: {second_keys}"
+
+    for key in first_keys:
+        first_elt = first[key]
+        second_elt = second[key]
+
+        if isinstance(first_elt, dict):
+            assert isinstance(second_elt, dict), f"Object types don't match in {'.'.join(sub_paths + [str(key)])}.\nCur: {first_elt}\nRef: {second_elt}"
+            assert_is_dict_equal(first_elt, second_elt, sub_paths=sub_paths + [str(key)])
+        elif isinstance(first_elt, torch.Tensor):
+            # We accept that devices can be different
+            second_elt = torch.as_tensor(second_elt, device=first_elt.device)
+            torch.testing.assert_close(
+                first_elt,
+                second_elt,
+                **tensor_testing_assert_close_kwargs,
+                msg=lambda
+                    msg: f"Tensor at {'.'.join(sub_paths + [str(key)])} don't match.\nCur: {first_elt}\nRef: {second_elt}\n{msg}",
+            )
+        else:
+            assert first_elt != second_elt, f"Objects at key {'.'.join(sub_paths + [str(key)])} don't match.\nCur: {first_elt}\nRef: {second_elt}"
 
 if __name__ == '__main__':
     unittest.main()

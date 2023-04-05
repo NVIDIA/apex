@@ -29,8 +29,8 @@ struct AdamFunctor
     TensorListMetadata<4>& tl,
     const float beta1,
     const float beta2,
-    const float beta1_correction,
-    const float beta2_correction,
+    const float* steps,
+    const int bias_correction,
     const float epsilon,
     const float lr,
     adamMode_t mode,
@@ -39,13 +39,18 @@ struct AdamFunctor
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
     //   return;
+    float beta1_correction = 1.0f, beta2_correction = 1.0f;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    const int tensor_loc = tl.block_to_tensor[blockIdx.x];
 
     // potentially use to pass in list of scalar
-    // int tensor_num = tl.start_tensor_this_launch + tensor_loc;
+    const int tensor_num = tl.start_tensor_this_launch + tensor_loc;
+    if (bias_correction == 1) {
+        beta1_correction = 1 - pow(beta1, steps[tensor_num]);
+        beta2_correction = 1 - pow(beta2, steps[tensor_num]);
+    }
 
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
+    const int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
     T* g = (T*)tl.addresses[0][tensor_loc];
@@ -135,7 +140,7 @@ struct AdamCapturableFunctor
     TensorListMetadata<4>& tl,
     const float beta1,
     const float beta2,
-    const int* step,
+    const float* steps,
     const int bias_correction,
     const float epsilon,
     const float* lr,
@@ -147,17 +152,17 @@ struct AdamCapturableFunctor
       return;
 
     float beta1_correction = 1.0f, beta2_correction = 1.0f;
-    if (bias_correction == 1) {
-      beta1_correction = 1 - pow(beta1, *step);
-      beta2_correction = 1 - pow(beta2, *step);
-    }
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    const int tensor_loc = tl.block_to_tensor[blockIdx.x];
 
     // potentially use to pass in list of scalar
-    // int tensor_num = tl.start_tensor_this_launch + tensor_loc;
+    const int tensor_num = tl.start_tensor_this_launch + tensor_loc;
+    if (bias_correction == 1) {
+        beta1_correction = 1 - pow(beta1, steps[tensor_num]);
+        beta2_correction = 1 - pow(beta2, steps[tensor_num]);
+    }
 
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
+    const int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
 
     T* g = (T*)tl.addresses[0][tensor_loc];
@@ -247,23 +252,21 @@ void multi_tensor_adam_cuda(
   const float beta1,
   const float beta2,
   const float epsilon,
-  const int step,
+  std::vector<float> steps,
   const int mode,
   const int bias_correction,
   const float weight_decay)
 {
   using namespace at;
 
-  // Handle bias correction mode
-  float bias_correction1 = 1.0f, bias_correction2 = 1.0f;
-  if (bias_correction == 1) {
-    bias_correction1 = 1 - std::pow(beta1, step);
-    bias_correction2 = 1 - std::pow(beta2, step);
-  }
+  float* cuda_steps;
+  cudaMalloc((void**)&cuda_steps, steps.size()*sizeof(float));
+  cudaMemcpy(cuda_steps, steps.data(), steps.size()*sizeof(float), cudaMemcpyHostToDevice);
 
   // Assume single type across p,g,m1,m2 now
   DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT(
     tensor_lists[0][0].scalar_type(), 0, "adam",
+
     multi_tensor_apply<4>(
       BLOCK_SIZE,
       chunk_size,
@@ -272,13 +275,16 @@ void multi_tensor_adam_cuda(
       AdamFunctor<scalar_t_0>(),
       beta1,
       beta2,
-      bias_correction1,
-      bias_correction2,
+      cuda_steps,
+      bias_correction,
       epsilon,
       lr,
       (adamMode_t) mode,
-      weight_decay); )
+      weight_decay
+    );
+  )
 
+  cudaFree(cuda_steps);
   AT_CUDA_CHECK(cudaGetLastError());
 
 }
@@ -291,7 +297,7 @@ void multi_tensor_adam_capturable_cuda(
   const float beta1,
   const float beta2,
   const float epsilon,
-  at::Tensor step,
+  at::Tensor steps,
   const int mode,
   const int bias_correction,
   const float weight_decay,
@@ -309,7 +315,7 @@ void multi_tensor_adam_capturable_cuda(
       AdamCapturableFunctor<scalar_t_0>(),
       beta1,
       beta2,
-      step.data_ptr<int>(),
+      steps.data_ptr<float>(),
       bias_correction,
       epsilon,
       lr.data_ptr<float>(),
