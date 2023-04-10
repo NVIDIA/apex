@@ -1,4 +1,5 @@
 import torch
+from copy import deepcopy
 from apex.multi_tensor_apply import multi_tensor_applier
 
 class FusedAdam(torch.optim.Optimizer):
@@ -80,7 +81,7 @@ class FusedAdam(torch.optim.Optimizer):
         self.capturable = capturable
         self.use_master = use_master
 
-        # Set up full precision master weights if needed
+        # Set up full precision master weights
         self.param_groups_master = []
         for i, pg in enumerate(self.param_groups):
             param_list = pg['params']
@@ -90,6 +91,9 @@ class FusedAdam(torch.optim.Optimizer):
                     for p in param_list
                 ],
             })
+        # Create a backup of initial master weights for restoration after CUDA Graphs capture
+        if self.use_master:
+            self.param_groups_master_init = deepcopy(self.param_groups_master)
 
         if capturable:
             device = self.param_groups[0]['params'][0].device
@@ -108,6 +112,14 @@ class FusedAdam(torch.optim.Optimizer):
             self.multi_tensor_adam_capturable_master = amp_C.multi_tensor_adam_capturable_master
         else:
             raise RuntimeError('apex.optimizers.FusedAdam requires cuda extensions')
+
+    def restore_master_params(self):
+        if self.use_master:
+            for gi, pg in enumerate(self.param_groups_master):
+                param_list = pg['params']
+                param_list_init = self.param_groups_master_init[gi]['params']
+                for pi, p in enumerate(param_list):
+                    p.data.copy_(param_list_init[pi].data)
 
     def zero_grad(self):
         if self.set_grad_none:
