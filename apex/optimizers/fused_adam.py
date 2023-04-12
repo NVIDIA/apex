@@ -113,13 +113,95 @@ class FusedAdam(torch.optim.Optimizer):
         else:
             raise RuntimeError('apex.optimizers.FusedAdam requires cuda extensions')
 
-    def restore_master_params(self):
+    def state_dict(self):
+        """Returns master weights in addition to state and param_groups.
+        This allows the optimizer to return to its original state after CUDA graph capture,
+        which may be necessary when graph capture is performed with a synthetic dataset.
+        """
+        super_state_dict = super(FusedAdam, self).state_dict()
         if self.use_master:
-            for gi, pg in enumerate(self.param_groups_master):
-                param_list = pg['params']
-                param_list_init = self.param_groups_master_init[gi]['params']
-                for pi, p in enumerate(param_list):
-                    p.data.copy_(param_list_init[pi].data)
+            super_state_dict['param_groups_master'] = self.param_groups_master
+        return super_state_dict
+
+    def load_state_dict(self, state_dict):
+        r"""Loads the optimizer state.
+	Overridden to enable loading of master weights.
+        Args:
+            state_dict (dict): optimizer state. Should be an object returned
+                from a call to :meth:`state_dict`.
+        """
+        # deepcopy, to be consistent with module API
+        state_dict = deepcopy(state_dict)
+        # Validate the state_dict
+        groups = self.param_groups
+        saved_groups = state_dict['param_groups']
+
+        if len(groups) != len(saved_groups):
+            raise ValueError("loaded state dict has a different number of "
+                             "parameter groups")
+        param_lens = (len(g['params']) for g in groups)
+        saved_lens = (len(g['params']) for g in saved_groups)
+        if any(p_len != s_len for p_len, s_len in zip(param_lens, saved_lens)):
+            raise ValueError("loaded state dict contains a parameter group "
+                             "that doesn't match the size of optimizer's group")
+
+        if self.use_master:
+            groups_master = self.param_groups_master
+            saved_groups_master = state_dict['param_groups_master']
+
+            if len(groups_master) != len(saved_groups_master):
+                raise ValueError("loaded state dict has a different number of "
+                                 "master parameter groups")
+            param_master_lens = (len(g['params']) for g in groups_master)
+            saved_master_lens = (len(g['params']) for g in saved_groups_master)
+            if any(p_len != s_len for p_len, s_len in zip(param_master_lens, saved_master_lens)):
+                raise ValueError("loaded state dict contains a master parameter group "
+                                 "that doesn't match the size of optimizer's group")
+
+        # Update the state
+        id_map = dict(zip(chain.from_iterable((g['params'] for g in saved_groups)),
+                      chain.from_iterable((g['params'] for g in groups))))
+
+        def cast(param, value, key=None):
+            r"""Make a deep copy of value, casting all tensors to device of param."""
+            if isinstance(value, torch.Tensor):
+                # Floating-point types are a bit special here. They are the only ones
+                # that are assumed to always match the type of params.
+                # Make sure state['step'] is not casted https://github.com/pytorch/pytorch/issues/74424
+                if (key != "step"):
+                    if param.is_floating_point():
+                        value = value.to(param.dtype)
+                    value = value.to(param.device)
+                return value
+            elif isinstance(value, dict):
+                return {k: cast(param, v, key=k) for k, v in value.items()}
+            elif isinstance(value, container_abcs.Iterable):
+                return type(value)(cast(param, v) for v in value)
+            else:
+                return value
+
+        # Copy state assigned to params (and cast tensors to appropriate types).
+        # State that is not assigned to params is copied as is (needed for
+        # backward compatibility).
+        state = defaultdict(dict)
+        for k, v in state_dict['state'].items():
+            if k in id_map:
+                param = id_map[k]
+                state[param] = cast(param, v)
+            else:
+                state[k] = v
+
+        # Update parameter groups, setting their 'params' value
+        def update_group(group, new_group):
+            new_group['params'] = group['params']
+            return new_group
+        param_groups = [
+            update_group(g, ng) for g, ng in zip(groups, saved_groups)]
+        self.__setstate__({'state': state, 'param_groups': param_groups})
+
+        # Update master weights
+        if self.use_master:
+            self.param_groups_master = state_dict['param_groups_master']
 
     def zero_grad(self):
         if self.set_grad_none:
