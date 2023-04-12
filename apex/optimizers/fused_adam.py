@@ -93,9 +93,6 @@ class FusedAdam(torch.optim.Optimizer):
                     for p in param_list
                 ],
             })
-        # Create a backup of initial master weights for restoration after CUDA Graphs capture
-        if self.use_master:
-            self.param_groups_master_init = deepcopy(self.param_groups_master)
 
         if capturable:
             device = self.param_groups[0]['params'][0].device
