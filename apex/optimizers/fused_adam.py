@@ -1,5 +1,7 @@
 import torch
 from copy import deepcopy
+from itertools import chain
+from collections import defaultdict, abc as container_abcs
 from apex.multi_tensor_apply import multi_tensor_applier
 
 class FusedAdam(torch.optim.Optimizer):
