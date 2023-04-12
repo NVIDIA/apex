@@ -56,6 +56,11 @@ class FusedAdam(torch.optim.Optimizer):
             True for decoupled weight decay(also known as AdamW) (default: True)
         set_grad_none (bool, optional): whether set grad to None when zero_grad()
             method is called. (default: True)
+        capturable (bool, optional): whether to use the version of the optimizer
+            that can be used with CUDA Graphs. (default: False)
+        use_master (bool, optional): whether to maintain FP32 master weights in
+           the optimizer with FP16 mixed precision training, currently can only
+           be used with capturable set to True. (default: False)
 
     .. _Adam - A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
@@ -71,7 +76,7 @@ class FusedAdam(torch.optim.Optimizer):
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
         if use_master and not capturable:
-            raise RuntimeError('Support for master parameters currently only works with the capturable version.')
+            raise RuntimeError('Master weights is currently only supported with the capturable version.')
         # If the optimizer is capturable then LR should be a tensor (on GPU)
         lr = torch.tensor(lr, dtype=torch.float32) if capturable else lr
         defaults = dict(lr=lr, bias_correction=bias_correction,
