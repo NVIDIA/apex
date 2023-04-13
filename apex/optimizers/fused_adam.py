@@ -85,9 +85,16 @@ class FusedAdam(torch.optim.Optimizer):
         self.capturable = capturable
         self.master_weights = master_weights
 
-        # Placeholder for full precision master weights
-        # Set up in first optimizer step or if it is empty
+        # Create full precision master weights
         self.param_groups_master = []
+        for i, pg in enumerate(self.param_groups):
+            param_list = pg['params']
+            self.param_groups_master.append({
+                'params': [
+                    p.clone().detach().float() if self.master_weights else None
+                    for p in param_list
+                ],
+            })
 
         if capturable:
             device = self.param_groups[0]['params'][0].device
@@ -115,16 +122,6 @@ class FusedAdam(torch.optim.Optimizer):
         else:
             super(FusedAdam, self).zero_grad()
 
-    def _setup_master_params(self):
-        for i, pg in enumerate(self.param_groups):
-            param_list = pg['params']
-            self.param_groups_master.append({
-                'params': [
-                    p.clone().detach().float() if self.master_weights else None
-                    for p in param_list
-                ],
-            })
-
     def step(self, closure=None, grads=None, output_params=None, scale=None, grad_norms=None, grad_scaler=None):
         """Performs a single optimization step.
 
@@ -139,15 +136,6 @@ class FusedAdam(torch.optim.Optimizer):
         loss = None
         if closure is not None:
             loss = closure()
-
-        # The full precision params are set up in the first step of the optimizer
-        # instead of in the constructor because the full precision params will get out
-        # out of sync with the model params if DDP syncs the model params across devices
-        # after the optimizer is constructed.
-        # Also with CUDA Graphs, setting optimizer.param_groups_master = [] tells the
-        # optimizer to reconstruct master weights, which may be needed after graph capture.
-        if len(self.param_groups_master) == 0:
-            self._setup_master_params()
 
         for group, group_master in zip(self.param_groups, self.param_groups_master):
             device = group['params'][0].device
