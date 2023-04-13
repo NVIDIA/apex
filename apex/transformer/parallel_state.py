@@ -153,6 +153,7 @@ def initialize_model_parallel(
     virtual_pipeline_model_parallel_size_: Optional[int] = None,
     pipeline_model_parallel_split_rank_: Optional[int] = None,
     use_fp8_: bool = False,
+    init_mpi_proc_group: bool = False,
     *,
     default_backend: Optional[str] = None,
     p2p_backend: Optional[str] = None,
@@ -166,6 +167,7 @@ def initialize_model_parallel(
         virtual_pipeline_model_parallel_size: number of virtual stages (interleaved pipeline).
         pipeline_model_parallel_split_rank: for models with both encoder and decoder, rank in pipeline with split point.
         use_fp8_: FP8 training that needs AMAX reduction across data-parallel ranks.
+        init_mpi_proc_group: Create a MPI process group, which is used for UCX-based communication APIs.
     Keyword Arguments:
         default_backend: Backend of process groups except for pipeline parallel ones.
             If :obj:`None`, the backend specified in `torch.distributed.init_process_group` will be used.
@@ -399,6 +401,11 @@ def initialize_model_parallel(
             _DECODER_RELATIVE_POSITION_EMBEDDING_GLOBAL_RANKS = \
                 decoder_relative_position_embedding_ranks
 
+
+    if init_mpi_proc_group:
+        torch.distributed.new_group(backend='mpi')
+
+
     if default_nccl_net == "Socket":
         set_nccl_socket_envs()
     elif default_nccl_net == "IB":
@@ -407,7 +414,6 @@ def initialize_model_parallel(
         os.unsetenv("NCCL_NET")
     else:
         os.environ["NCCL_NET"] = default_nccl_net
-
 
 def get_rank_info() -> Tuple[int, int, int]:
     """Returns a tuple of (data, tensor, pipeline, virtual pipeline)-parallel-rank for logger."""

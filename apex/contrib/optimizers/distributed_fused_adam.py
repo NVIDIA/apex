@@ -1407,37 +1407,60 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 # Cached gradient norm has been invalidated
                 self._grad_norm = None
 
-    def _try_start_bucket_param_sync(self):
+    def _try_start_bucket_param_sync(
+            self,
+            params=None,
+    ):
         """Attempt to launch parameter synchronization
 
-        Launches parameter synchronization if there is at least one
-        unsynchronized bucket and there are no other synchronizations
-        in progress. Parameter synchronization is asynchronous.
+        Launches parameter synchronization for buckets corresponding
+        to provided parameters, if needed. If parameters are not
+        provided and no other synchronizations are in progress,
+        attempts to find a parameter that still requires
+        synchronization. Parameter synchronization is asynchronous.
+
+        Arguments:
+            params (iterable, optional): parameters to synchronize
 
         """
 
-        # Only launch param sync if there is an unsynchronized bucket
-        # and no other syncs are in progress
-        if not any(bucket.status == self.ParameterStatus.SHARDED
+        # Default behavior: only launch param sync if no other syncs
+        # are in progress
+        if params is None:
+            params = []
+            if any(bucket.status == self.ParameterStatus.SYNCING
                    for bucket in self._params_buckets.values()):
-            return
-        if any(bucket.status == self.ParameterStatus.SYNCING
-               for bucket in self._params_buckets.values()):
-            return
-
-        # Launch param sync for all buckets containing a given param
-        for bucket_id, bucket in self._params_buckets.items():
-            if bucket.status == self.ParameterStatus.SHARDED:
-                fragment = self.state['buckets'][bucket_id].fragments[-1]
-                param_group_id = fragment.param_group_id
-                param_id = fragment.param_id
-                param = self.param_groups[param_group_id]['params'][param_id]
-                self._start_bucket_param_sync([
-                    self._params_buckets[fragment.bucket_id]
-                    for fragment in self.state[param]['fragments']
-                    if fragment.bucket_id in self._params_buckets
-                ])
                 return
+            for bucket_id, bucket in self._params_buckets.items():
+                if bucket.status == self.ParameterStatus.SHARDED:
+                    fragment = self.state['buckets'][bucket_id].fragments[-1]
+                    param_group_id = fragment.param_group_id
+                    param_id = fragment.param_id
+                    param = self.param_groups[param_group_id]['params'][param_id]
+                    params.append(param)
+                    break
+
+        # Find buckets corresponding to params
+        bucket_ids = set()
+        for param in params:
+            bucket_ids.update(
+                fragment.bucket_id
+                for fragment in self.state[param]['fragments']
+            )
+        buckets = [
+            self._params_buckets[bucket_id]
+            for bucket_id in sorted(bucket_ids)
+            if bucket_id in self._params_buckets
+        ]
+        buckets = [
+            bucket
+            for bucket in buckets
+            if bucket.status == self.ParameterStatus.SHARDED
+        ]
+
+        # Launch param sync if needed
+        if buckets:
+            self._start_bucket_param_sync(buckets)
 
     def _start_bucket_param_sync(self, buckets):
         """Synchronize parameter buckets
@@ -1449,10 +1472,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """
 
         # Complete any outstanding param syncs
-        # Note: Not needed with contiguous param buffer since there is
-        # no memory benefit from eagerly freeing param buffers.
-        if not self.contiguous_param_buffer:
-            self._finish_bucket_param_sync()
+        self._finish_bucket_param_sync()
 
         # Initialize param state and buffers
         buckets = [
@@ -1774,29 +1794,66 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     device=self.device,
                 )
 
-        # Apply optimizer step
+        # Apply optimizer step and synchronize params
         self.state['step'] += 1
-        if self.store_param_remainders:
-            self._local_step_with_param_remainders()
-        else:
-            self._local_step()
+        if self.distributed_size > 1 and self.overlap_param_sync and self.state['buckets']:
+            # Local step and non-blocking param sync
+            # Note: Overlap param sync of first buckets with optimizer
+            # step of remaining buckets.
 
-        # Make sure all parameters are synchronized if needed
-        if self.distributed_size > 1 and self.overlap_param_sync:
-            self._try_start_bucket_param_sync()
+            # Get buckets containing "first" parameter
+            fragment = self.state['buckets'][-1].fragments[-1]
+            param_group_id = fragment.param_group_id
+            param_id = fragment.param_id
+            param = self.param_groups[param_group_id]['params'][param_id]
+            first_bucket_ids = sorted(
+                fragment.bucket_id
+                for fragment in self.state[param]['fragments']
+            )
+
+            # Local step and launch param sync for first buckets
+            self._local_step(first_bucket_ids)
+            self._start_bucket_param_sync(
+                self._params_buckets[bucket_id]
+                for bucket_id in first_bucket_ids
+            )
+
+            # Local step for remaining buckets
+            first_bucket_ids = set(first_bucket_ids)
+            self._local_step(
+                bucket_id
+                for bucket_id in range(len(self.state['buckets']))
+                if bucket_id not in first_bucket_ids
+            )
+
+            # Enable pre-forward hook
             for param in self.parameters():
                 param._pre_forward_hook_is_enabled = True
+
         else:
+            # Local step and blocking param sync
+            self._local_step(list(range(len(self.state['buckets']))))
             self.param_sync()
 
         return loss
 
-    def _local_step(self):
-        """Apply optimizer step to local shard of parameter buckets"""
+    def _local_step(self, bucket_ids):
+        """Apply optimizer step to local shard of parameter buckets
+
+        Arguments:
+            bucket_ids (iterable): bucket indices
+
+        """
+
+        # Optimized implementation with BF16 params and 16-bit param
+        # remainders
+        if self.store_param_remainders:
+            self._local_step_with_param_remainders(bucket_ids)
+            return
 
         # Find param fragments for each bucket
         buffers = collections.defaultdict(list) # p_in, m, v, g, p_out
-        for bucket_id in range(len(self.state['buckets'])):
+        for bucket_id in bucket_ids:
 
             # Optimizer state buffers for local shard
             fragments = self.state['buckets'][bucket_id].fragments
@@ -1847,18 +1904,22 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 group['weight_decay'],
             )
 
-    def _local_step_with_param_remainders(self):
+    def _local_step_with_param_remainders(self, bucket_ids):
         """Apply optimizer step to local shard of parameter bucket
 
         This is an experimental implementation that expects
         store_params=False and store_param_remainders=True. The
         optimizer dtype must be FP32 and the params must all be BF16
         and GPU.
+
+        Arguments:
+            bucket_ids (iterable): bucket indices
+
         """
 
         # Find param fragments for each bucket
         buffers = collections.defaultdict(list) # p_in, p_rem, m, v, g, p_out
-        for bucket_id in range(len(self.state['buckets'])):
+        for bucket_id in bucket_ids:
 
             # State buffers for local shard
             fragments = self.state['buckets'][bucket_id].fragments
