@@ -1,7 +1,4 @@
 import torch
-from copy import deepcopy
-from itertools import chain
-from collections import defaultdict, abc as container_abcs
 from apex.multi_tensor_apply import multi_tensor_applier
 
 class FusedAdam(torch.optim.Optimizer):
@@ -88,16 +85,9 @@ class FusedAdam(torch.optim.Optimizer):
         self.capturable = capturable
         self.use_master = use_master
 
-        # Set up full precision master weights
+        # Placeholder for full precision master weights
+        # Set up in first optimizer step or if it is empty
         self.param_groups_master = []
-        for i, pg in enumerate(self.param_groups):
-            param_list = pg['params']
-            self.param_groups_master.append({
-                'params': [
-                    p.clone().detach().float() if self.use_master else None
-                    for p in param_list
-                ],
-            })
 
         if capturable:
             device = self.param_groups[0]['params'][0].device
@@ -117,96 +107,6 @@ class FusedAdam(torch.optim.Optimizer):
         else:
             raise RuntimeError('apex.optimizers.FusedAdam requires cuda extensions')
 
-    def state_dict(self):
-        """Returns master weights in addition to state and param_groups.
-        This allows the optimizer to return to its original state after CUDA graph capture,
-        which may be necessary when graph capture is performed with a synthetic dataset.
-        """
-        super_state_dict = super(FusedAdam, self).state_dict()
-        if self.use_master:
-            super_state_dict['param_groups_master'] = self.param_groups_master
-        return super_state_dict
-
-    def load_state_dict(self, state_dict):
-        r"""Loads the optimizer state.
-	Overridden to enable loading of master weights.
-        Args:
-            state_dict (dict): optimizer state. Should be an object returned
-                from a call to :meth:`state_dict`.
-        """
-        # deepcopy, to be consistent with module API
-        state_dict = deepcopy(state_dict)
-        # Validate the state_dict
-        groups = self.param_groups
-        saved_groups = state_dict['param_groups']
-
-        if len(groups) != len(saved_groups):
-            raise ValueError("loaded state dict has a different number of "
-                             "parameter groups")
-        param_lens = (len(g['params']) for g in groups)
-        saved_lens = (len(g['params']) for g in saved_groups)
-        if any(p_len != s_len for p_len, s_len in zip(param_lens, saved_lens)):
-            raise ValueError("loaded state dict contains a parameter group "
-                             "that doesn't match the size of optimizer's group")
-
-        if self.use_master:
-            groups_master = self.param_groups_master
-            saved_groups_master = state_dict['param_groups_master']
-
-            if len(groups_master) != len(saved_groups_master):
-                raise ValueError("loaded state dict has a different number of "
-                                 "master parameter groups")
-            param_master_lens = (len(g['params']) for g in groups_master)
-            saved_master_lens = (len(g['params']) for g in saved_groups_master)
-            if any(p_len != s_len for p_len, s_len in zip(param_master_lens, saved_master_lens)):
-                raise ValueError("loaded state dict contains a master parameter group "
-                                 "that doesn't match the size of optimizer's group")
-
-        # Update the state
-        id_map = dict(zip(chain.from_iterable((g['params'] for g in saved_groups)),
-                      chain.from_iterable((g['params'] for g in groups))))
-
-        def cast(param, value, key=None):
-            r"""Make a deep copy of value, casting all tensors to device of param."""
-            if isinstance(value, torch.Tensor):
-                # Floating-point types are a bit special here. They are the only ones
-                # that are assumed to always match the type of params.
-                # Make sure state['step'] is not casted https://github.com/pytorch/pytorch/issues/74424
-                if (key != "step"):
-                    if param.is_floating_point():
-                        value = value.to(param.dtype)
-                    value = value.to(param.device)
-                return value
-            elif isinstance(value, dict):
-                return {k: cast(param, v, key=k) for k, v in value.items()}
-            elif isinstance(value, container_abcs.Iterable):
-                return type(value)(cast(param, v) for v in value)
-            else:
-                return value
-
-        # Copy state assigned to params (and cast tensors to appropriate types).
-        # State that is not assigned to params is copied as is (needed for
-        # backward compatibility).
-        state = defaultdict(dict)
-        for k, v in state_dict['state'].items():
-            if k in id_map:
-                param = id_map[k]
-                state[param] = cast(param, v)
-            else:
-                state[k] = v
-
-        # Update parameter groups, setting their 'params' value
-        def update_group(group, new_group):
-            new_group['params'] = group['params']
-            return new_group
-        param_groups = [
-            update_group(g, ng) for g, ng in zip(groups, saved_groups)]
-        self.__setstate__({'state': state, 'param_groups': param_groups})
-
-        # Update master weights
-        if self.use_master:
-            self.param_groups_master = state_dict['param_groups_master']
-
     def zero_grad(self):
         if self.set_grad_none:
             for group in self.param_groups:
@@ -214,6 +114,16 @@ class FusedAdam(torch.optim.Optimizer):
                     p.grad = None
         else:
             super(FusedAdam, self).zero_grad()
+
+    def _setup_master_params(self):
+        for i, pg in enumerate(self.param_groups):
+            param_list = pg['params']
+            self.param_groups_master.append({
+                'params': [
+                    p.clone().detach().float() if self.use_master else None
+                    for p in param_list
+                ],
+            })
 
     def step(self, closure=None, grads=None, output_params=None, scale=None, grad_norms=None, grad_scaler=None):
         """Performs a single optimization step.
@@ -229,6 +139,15 @@ class FusedAdam(torch.optim.Optimizer):
         loss = None
         if closure is not None:
             loss = closure()
+
+        # The full precision params are set up in the first step of the optimizer
+        # instead of in the constructor because the full precision params will get out
+        # out of sync with the model params if DDP syncs the model params across devices
+        # after the optimizer is constructed.
+        # Also with CUDA Graphs, setting optimizer.param_groups_master = [] tells the
+        # optimizer to reconstruct master weights, which may be needed after graph capture.
+        if len(self.param_groups_master) == 0:
+            self._setup_master_params()
 
         for group, group_master in zip(self.param_groups, self.param_groups_master):
             device = group['params'][0].device
