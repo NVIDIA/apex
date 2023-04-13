@@ -401,10 +401,8 @@ def initialize_model_parallel(
             _DECODER_RELATIVE_POSITION_EMBEDDING_GLOBAL_RANKS = \
                 decoder_relative_position_embedding_ranks
 
-
     if init_mpi_proc_group:
         torch.distributed.new_group(backend='mpi')
-
 
     if default_nccl_net == "Socket":
         set_nccl_socket_envs()
