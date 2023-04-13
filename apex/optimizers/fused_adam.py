@@ -55,9 +55,9 @@ class FusedAdam(torch.optim.Optimizer):
             method is called. (default: True)
         capturable (bool, optional): whether to use the version of the optimizer
             that can be used with CUDA Graphs. (default: False)
-        use_master (bool, optional): whether to maintain FP32 master weights in
-           the optimizer with FP16 mixed precision training, currently can only
-           be used with capturable set to True. (default: False)
+        master_weights (bool, optional): whether to maintain FP32 master weights
+           in the optimizer with FP16 mixed precision training, currently can
+           only be used with capturable set to True. (default: False)
 
     .. _Adam - A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
@@ -68,11 +68,11 @@ class FusedAdam(torch.optim.Optimizer):
     def __init__(self, params, lr=1e-3, bias_correction=True,
                  betas=(0.9, 0.999), eps=1e-8, adam_w_mode=True,
                  weight_decay=0., amsgrad=False, set_grad_none=True,
-                 capturable=False, use_master=False):
+                 capturable=False, master_weights=False):
 
         if amsgrad:
             raise RuntimeError('FusedAdam does not support the AMSGrad variant.')
-        if use_master and not capturable:
+        if master_weights and not capturable:
             raise RuntimeError('Master weights is currently only supported with the capturable version.')
         # If the optimizer is capturable then LR should be a tensor (on GPU)
         lr = torch.tensor(lr, dtype=torch.float32) if capturable else lr
@@ -83,7 +83,7 @@ class FusedAdam(torch.optim.Optimizer):
         self.set_grad_none = set_grad_none
 
         self.capturable = capturable
-        self.use_master = use_master
+        self.master_weights = master_weights
 
         # Placeholder for full precision master weights
         # Set up in first optimizer step or if it is empty
@@ -120,7 +120,7 @@ class FusedAdam(torch.optim.Optimizer):
             param_list = pg['params']
             self.param_groups_master.append({
                 'params': [
-                    p.clone().detach().float() if self.use_master else None
+                    p.clone().detach().float() if self.master_weights else None
                     for p in param_list
                 ],
             })
@@ -183,7 +183,7 @@ class FusedAdam(torch.optim.Optimizer):
                     state['exp_avg_sq'] = torch.zeros_like(p.data).float()
 
                 if p.dtype == torch.float16:
-                    if self.use_master:
+                    if self.master_weights:
                         p_16_master.append(p_master.data)
                     g_16.append(p.grad.data)
                     p_16.append(p.data)
@@ -195,7 +195,7 @@ class FusedAdam(torch.optim.Optimizer):
                     m_bf.append(state['exp_avg'])
                     v_bf.append(state['exp_avg_sq'])
                 elif p.dtype == torch.float32:
-                    if self.use_master:
+                    if self.master_weights:
                         p_32_master.append(p_master.data)
                     g_32.append(p.grad.data)
                     p_32.append(p.data)
@@ -224,10 +224,10 @@ class FusedAdam(torch.optim.Optimizer):
                     inv_scale = torch.ones((1,), device=device)
 
                 if len(g_16) > 0:
-                    multi_tensor_applier(self.multi_tensor_adam_capturable_master if self.use_master
+                    multi_tensor_applier(self.multi_tensor_adam_capturable_master if self.master_weights
                             else self.multi_tensor_adam_capturable,
                             self._dummy_overflow_buf,
-                            [g_16, p_16, m_16, v_16, p_16_master] if self.use_master
+                            [g_16, p_16, m_16, v_16, p_16_master] if self.master_weights
                             else [g_16, p_16, m_16, v_16],
                             group['lr'],
                             beta1,
@@ -255,10 +255,10 @@ class FusedAdam(torch.optim.Optimizer):
                             inv_scale)
 
                 if len(g_32) > 0:
-                    multi_tensor_applier(self.multi_tensor_adam_capturable_master if self.use_master
+                    multi_tensor_applier(self.multi_tensor_adam_capturable_master if self.master_weights
                             else self.multi_tensor_adam_capturable,
                             self._dummy_overflow_buf,
-                            [g_32, p_32, m_32, v_32, p_32_master] if self.use_master
+                            [g_32, p_32, m_32, v_32, p_32_master] if self.master_weights
                             else [g_32, p_32, m_32, v_32],
                             group['lr'],
                             beta1,
