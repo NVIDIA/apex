@@ -154,7 +154,7 @@ class AdamTest(unittest.TestCase):
             if m.__class__ in [torch.nn.Conv2d]:
                 m.half()
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
-        optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=True, use_master=True)
+        optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=True, master_weights=True)
         scaler = torch.cuda.amp.GradScaler(enabled=True)
         scaler_ = torch.cuda.amp.GradScaler(enabled=True)
 
