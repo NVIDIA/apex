@@ -86,20 +86,20 @@ def set_nccl_socket_envs():
 def set_nccl_ib_envs():
     os.environ["NCCL_NET"] = "IB"
 
-def init_nccl_net(group, device="cuda"):
-    temp = torch.ones(1, device=device)
+def init_nccl_net(group):
+    temp = torch.ones(1, device="cuda")
     torch.distributed.all_reduce(temp, group=group)
     torch.cuda.synchronize()
 
-def new_nccl_socket_group(ranks, backend):
+def new_nccl_socket_group(ranks):
     set_nccl_socket_envs()
-    group = torch.distributed.new_group(ranks, backend=backend)
+    group = torch.distributed.new_group(ranks, backend="nccl")
     init_nccl_net(group=group)
     return group
 
-def new_nccl_ib_group(ranks, backend):
+def new_nccl_ib_group(ranks):
     set_nccl_ib_envs()
-    group = torch.distributed.new_group(ranks, backend=backend)
+    group = torch.distributed.new_group(ranks, backend="nccl")
     init_nccl_net(group=group)
     return group
 
@@ -110,19 +110,22 @@ def new_process_group(ranks, backend):
     In addition to simply creating the process groups, it initializes NCCL
     for hybrid IB/Socket network like in the following diagram:
 
-      _______________________________
-      |          |       |          |
-     TCP        TCP     TCP        TCP
-      |          |       |          |
-    GPU:0--IB--GPU:1 | GPU:2--IB--GPU:3
+                            ____________
+      [GPU Node 0]---TCP---|            |---TCP---[GPU Node 2]
+         |                 |            |            |
+         |                 |            |            |
+        IB                 | IP Network |           IB
+         |                 |            |            |
+         |                 |            |            |
+      [GPU Node 1]---TCP---|____________|---TCP---[GPU Node 3]
 
 
     If an environment variable NUM_GPUS_PER_IB_BLOCK is defined it looks up the ranks
-    and determines whether the set of ranks belong to the same computational block where
-    GPUs are interconnected via IB type of connection or not.
+    and determines whether the list of ranks belong to the same computational block where
+    GPUs nodes are interconnected via IB type of connection or not.
     If all ranks are in the same block, the process group will use NCCL_NET=IB for
-    communication otherwise it will use NCCL_NET=Socket. 
-    
+    communication, otherwise it will use NCCL_NET=Socket.
+
     If NCCL_NET=Socket is ever to be used, the user must set NCCL_SOCKET_IFNAME.
     Additionally, it is recommended to set NCCL_SOCKET_NTHREADS and
     NCCL_NSOCKS_PERTHREAD before running the job.
@@ -141,9 +144,9 @@ def new_process_group(ranks, backend):
         blocks = [rank // compute_block_size for rank in ranks]
         use_ib = all(block == blocks[0] for block in blocks)
         if use_ib:
-            return new_nccl_ib_group(ranks, backend)
+            return new_nccl_ib_group(ranks)
         else:
-            return new_nccl_socket_group(ranks, backend)
+            return new_nccl_socket_group(ranks)
     else:
         return torch.distributed.new_group(ranks, backend=backend)
 
