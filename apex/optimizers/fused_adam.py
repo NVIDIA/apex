@@ -139,11 +139,9 @@ class FusedAdam(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
-
         for group, group_master in zip(self.param_groups, self.param_groups_master):
             if len(group['params']) == 0:
                 continue
-
             device = group['params'][0].device
             bias_correction = 1 if group['bias_correction'] else 0
             beta1, beta2 = group['betas']
