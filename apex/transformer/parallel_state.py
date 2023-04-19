@@ -17,7 +17,7 @@
 """Model and data parallel groups."""
 from typing import Tuple, Optional
 import warnings
-
+import os
 import torch
 
 from apex.transformer.log_util import get_transformer_logger
@@ -80,6 +80,77 @@ def is_unitialized():
     """Useful for code segments that may be accessed with or without mpu initialization"""
     return _DATA_PARALLEL_GROUP is None
 
+def set_nccl_socket_envs():
+    if os.getenv("NCCL_SOCKET_IFNAME") is None:
+        raise RuntimeError("NCCL_SOCKET_IFNAME was not set")
+    os.environ["NCCL_NET"] = "Socket"
+
+def set_nccl_ib_envs():
+    os.environ["NCCL_NET"] = "IB"
+
+def init_nccl_net(group):
+    temp = torch.ones(1, device="cuda")
+    torch.distributed.all_reduce(temp, group=group)
+    torch.cuda.synchronize()
+
+def new_nccl_socket_group(ranks):
+    set_nccl_socket_envs()
+    group = torch.distributed.new_group(ranks, backend="nccl")
+    init_nccl_net(group=group)
+    return group
+
+def new_nccl_ib_group(ranks):
+    set_nccl_ib_envs()
+    group = torch.distributed.new_group(ranks, backend="nccl")
+    init_nccl_net(group=group)
+    return group
+
+def new_process_group(ranks, backend):
+    """
+    This function creates process groups.
+
+    In addition to simply creating the process groups, it initializes NCCL
+    for hybrid IB/Socket network like in the following diagram:
+
+                            ____________
+      [GPU Node 0]---TCP---|            |---TCP---[GPU Node 2]
+         |                 |            |            |
+         |                 |            |            |
+        IB                 | IP Network |           IB
+         |                 |            |            |
+         |                 |            |            |
+      [GPU Node 1]---TCP---|____________|---TCP---[GPU Node 3]
+
+
+    If an environment variable NUM_GPUS_PER_IB_BLOCK is defined it looks up the ranks
+    and determines whether the list of ranks belong to the same computational block where
+    GPUs nodes are interconnected via IB type of connection or not.
+    If all ranks are in the same block, the process group will use NCCL_NET=IB for
+    communication, otherwise it will use NCCL_NET=Socket.
+
+    If NCCL_NET=Socket is ever to be used, the user must set NCCL_SOCKET_IFNAME.
+    Additionally, it is recommended to set NCCL_SOCKET_NTHREADS and
+    NCCL_NSOCKS_PERTHREAD before running the job.
+    See: https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
+    for more info
+
+    The core assumption for this functionality is that the ranks are evenly divided
+    into IB blocks and all these IB blocks are of the same size.
+    """
+    if backend is None:
+        backend = "nccl"
+
+    compute_block_size = os.getenv("NUM_GPUS_PER_IB_BLOCK")
+    if backend == "nccl" and compute_block_size is not None:
+        compute_block_size = int(compute_block_size)
+        blocks = [rank // compute_block_size for rank in ranks]
+        use_ib = all(block == blocks[0] for block in blocks)
+        if use_ib:
+            return new_nccl_ib_group(ranks)
+        else:
+            return new_nccl_socket_group(ranks)
+    else:
+        return torch.distributed.new_group(ranks, backend=backend)
 
 def initialize_model_parallel(
     tensor_model_parallel_size_: int = 1,
@@ -138,6 +209,9 @@ def initialize_model_parallel(
         warnings.warn("`ucc` backend support is experimental", ExperimentalWarning)
     if default_backend == "ucc":
         warnings.warn("The UCC's functionality as `default_backend` is not well verified", ExperimentalWarning)
+
+    # Saving the NCCL_NET type for reusing it at the epilogue 
+    default_nccl_net = os.getenv("NCCL_NET")
 
     world_size: int = torch.distributed.get_world_size()
     tensor_model_parallel_size: int = min(tensor_model_parallel_size_, world_size)
@@ -199,7 +273,7 @@ def initialize_model_parallel(
         for j in range(tensor_model_parallel_size):
             ranks = range(start_rank + j, end_rank, tensor_model_parallel_size)
             all_data_parallel_group_ranks.append(list(ranks))
-            group = torch.distributed.new_group(ranks, backend=default_backend)
+            group = new_process_group(ranks, backend=default_backend)
             if rank in ranks:
                 _DATA_PARALLEL_GROUP = group
 
@@ -225,7 +299,7 @@ def initialize_model_parallel(
             data_parallel_group_ranks[i]
             for data_parallel_group_ranks in all_data_parallel_group_ranks
         ]
-        group = torch.distributed.new_group(ranks, backend=default_backend)
+        group = new_process_group(ranks, backend=default_backend)
         if rank in ranks:
             _MODEL_PARALLEL_GROUP = group
 
@@ -238,7 +312,7 @@ def initialize_model_parallel(
         ranks = list(
             range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size)
         )
-        group = torch.distributed.new_group(ranks, backend=default_backend)
+        group = new_process_group(ranks, backend=default_backend)
         if rank in ranks:
             _TENSOR_MODEL_PARALLEL_GROUP = group
 
@@ -266,7 +340,7 @@ def initialize_model_parallel(
         'relative position embedding group is already initialized'
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size, num_pipeline_model_parallel_groups)
-        group = torch.distributed.new_group(ranks, backend=p2p_backend)
+        group = new_process_group(ranks, backend=p2p_backend)
         if rank in ranks:
             _PIPELINE_MODEL_PARALLEL_GROUP = group
             _PIPELINE_GLOBAL_RANKS = ranks
@@ -304,20 +378,20 @@ def initialize_model_parallel(
             encoder_relative_position_embedding_ranks = ranks
             decoder_relative_position_embedding_ranks = ranks
 
-        group = torch.distributed.new_group(embedding_ranks, backend=default_backend)
+        group = new_process_group(embedding_ranks, backend=p2p_backend)
         if rank in embedding_ranks:
             _EMBEDDING_GROUP = group
         if rank in ranks:
             _EMBEDDING_GLOBAL_RANKS = embedding_ranks
 
-        group = torch.distributed.new_group(position_embedding_ranks, backend=default_backend)
+        group = new_process_group(position_embedding_ranks, backend=p2p_backend)
         if rank in position_embedding_ranks:
             _POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
             _POSITION_EMBEDDING_GLOBAL_RANKS = position_embedding_ranks
 
         if encoder_relative_position_embedding_ranks:
-            group = torch.distributed.new_group(encoder_relative_position_embedding_ranks)
+            group = new_process_group(encoder_relative_position_embedding_ranks, backend=p2p_backend)
         if rank in encoder_relative_position_embedding_ranks:
             _ENCODER_RELATIVE_POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
@@ -325,7 +399,7 @@ def initialize_model_parallel(
                 encoder_relative_position_embedding_ranks
 
         if decoder_relative_position_embedding_ranks:
-            group = torch.distributed.new_group(decoder_relative_position_embedding_ranks)
+            group = new_process_group(decoder_relative_position_embedding_ranks, backend=p2p_backend)
         if rank in decoder_relative_position_embedding_ranks:
             _DECODER_RELATIVE_POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
@@ -335,6 +409,14 @@ def initialize_model_parallel(
     if init_mpi_proc_group:
         torch.distributed.new_group(backend='mpi')
 
+    if default_nccl_net == "Socket":
+        set_nccl_socket_envs()
+    elif default_nccl_net == "IB":
+        set_nccl_ib_envs()
+    elif default_nccl_net is None:
+        os.unsetenv("NCCL_NET")
+    else:
+        os.environ["NCCL_NET"] = default_nccl_net
 
 def get_rank_info() -> Tuple[int, int, int]:
     """Returns a tuple of (data, tensor, pipeline, virtual pipeline)-parallel-rank for logger."""
