@@ -121,6 +121,8 @@ To install Apex from source, we recommend using the nightly Pytorch obtainable f
 
 The latest stable release obtainable from https://pytorch.org should also work.
 
+We recommend installing [`Ninja`](https://ninja-build.org/) to make compilation faster.
+
 ### Linux
 For performance and full functionality, we recommend installing Apex with
 CUDA and C++ extensions via
