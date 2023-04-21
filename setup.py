@@ -1,16 +1,35 @@
+from setuptools import setup, find_packages
+import os
+import subprocess
 import sys
 import warnings
-import os
+
 from packaging.version import parse, Version
-
-from setuptools import setup, find_packages
-import subprocess
-
-import torch
 from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension, CUDA_HOME, load
+import torch
+
 
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(this_dir, "version.txt")) as f:
+    version = str(f.readline().strip())
+UNK = "Unknown"
+sha = UNK
+try:
+    sha = subprocess.check_output("git rev-parse HEAD".split(), cwd=this_dir).decode("ascii").strip()
+except Exception:
+    pass
+
+if "BUILD_VERSION" in os.environ:
+    version = os.getenv("BUILD_VERSION")
+elif sha != UNK:
+    version += "+" + sha[:7]
+
+
+def write_version_file():
+    with open(os.path.join(this_dir, "apex", "version.py"), "w") as f:
+        f.write(f'__version__ = "{version}"\n')
+        f.write(f'git_version = "{repr(sha)}"\n')
 
 
 def get_cuda_bare_metal_version(cuda_dir):
@@ -29,14 +48,15 @@ def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
     print("\nCompiling cuda extensions with")
     print(raw_output + "from " + cuda_dir + "/bin\n")
 
-    if (bare_metal_version != torch_binary_version):
+    if bare_metal_version != torch_binary_version and not os.getenv("IGNORE_CUDA_MISMATCH", 0):
         raise RuntimeError(
-            "Cuda extensions are being compiled with a version of Cuda that does "
-            "not match the version used to compile Pytorch binaries.  "
-            "Pytorch binaries were compiled with Cuda {}.\n".format(torch.version.cuda)
-            + "In some cases, a minor-version mismatch will not cause later errors:  "
+            "CUDA extensions are being compiled with a version of CUDA that does "
+            "not match the version used to compile PyTorch binaries.  "
+            f"PyTorch binaries were compiled with CUDA {torch.version.cuda}.\n"
+            "In some cases, a minor-version mismatch will not cause later errors:  "
             "https://github.com/NVIDIA/apex/pull/323#discussion_r287021798.  "
-            "You can try commenting out this check (at your own risk)."
+            "You can try commenting out this check or run your command with `IGNORE_CUDA_MISMATCH=1`"
+            "(at your own risk)."
         )
 
 
@@ -66,12 +86,13 @@ if not torch.cuda.is_available():
     # https://github.com/NVIDIA/apex/issues/486
     # Extension builds after https://github.com/pytorch/pytorch/pull/23408 attempt to query torch.cuda.get_device_capability(),
     # which will fail if you are compiling in an environment without visible GPUs (e.g. during an nvidia-docker build command).
-    print(
-        "\nWarning: Torch did not find available GPUs on this system.\n",
+    warnings.warn(
+        "`torch` did not find available GPUs on this system.\n",
         "If your intention is to cross-compile, this is not an error.\n"
-        "By default, Apex will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2),\n"
+        "By default, APEX will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2),\n"
         "Volta (compute capability 7.0), Turing (compute capability 7.5),\n"
-        "and, if the CUDA version is >= 11.0, Ampere (compute capability 8.0).\n"
+        "and, if the CUDA version is >= 11.0, Ampere (compute capability 8.0, and 8.6 >= 11.1).\n"
+        "If the CUDA version is >= 11.8, Hopper (compute capability 9.0).\n"
         "If you wish to cross-compile for a single specific architecture,\n"
         'export TORCH_CUDA_ARCH_LIST="compute capability" before running setup.py.\n',
     )
@@ -87,23 +108,26 @@ if not torch.cuda.is_available():
             os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5"
 
 print("\n\ntorch.__version__  = {}\n\n".format(torch.__version__))
-TORCH_MAJOR = int(torch.__version__.split(".")[0])
-TORCH_MINOR = int(torch.__version__.split(".")[1])
-
-if TORCH_MAJOR == 0 and TORCH_MINOR < 4:
+pytorch_version = parse(torch.__version__)
+expected_pytorch_version = Version("1.13")
+if pytorch_version < expected_pytorch_version:
+    warnings.warn(
+        f"APEX supports PyTorch>={expected_pytorch_version}, but the available PyTorch of "
+        f"{pytorch_version} might not be fully compatible."
+    )
+if pytorch_version < Version("0.4"):
     raise RuntimeError(
-        "Apex requires Pytorch 0.4 or newer.\nThe latest stable release can be obtained from https://pytorch.org/"
+        f"APEX doesn't work with the available PyTorch of {pytorch_version}\n"
+        "The latest stable release can be obtained from https://pytorch.org/"
     )
 
 cmdclass = {}
 ext_modules = []
 
-extras = {}
-
 if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
-    if TORCH_MAJOR == 0:
+    if pytorch_version <= Version("1.0"):
         raise RuntimeError(
-            "--cpp_ext requires Pytorch 1.0 or later, " "found torch.__version__ = {}".format(torch.__version__)
+            f"--cpp_ext requires PyTorch 1.0 or later, found torch.__version__ = {pytorch_version}"
         )
 
 if "--cpp_ext" in sys.argv:
@@ -111,19 +135,20 @@ if "--cpp_ext" in sys.argv:
     ext_modules.append(CppExtension("apex_C", ["csrc/flatten_unflatten.cpp"]))
 
 
+# TODO(crcrpar): Clean up the version guard macros defined below as PyTorch 1.5 is quite archaic.
 # Set up macros for forward/backward compatibility hack around
 # https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
 # and
 # https://github.com/NVIDIA/apex/issues/456
 # https://github.com/pytorch/pytorch/commit/eb7b39e02f7d75c26d8a795ea8c7fd911334da7e#diff-4632522f237f1e4e728cb824300403ac
 version_ge_1_1 = []
-if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 0):
+if pytorch_version >= Version("1.1"):
     version_ge_1_1 = ["-DVERSION_GE_1_1"]
 version_ge_1_3 = []
-if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 2):
+if pytorch_version >= Version("1.3"):
     version_ge_1_3 = ["-DVERSION_GE_1_3"]
 version_ge_1_5 = []
-if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 4):
+if pytorch_version >= Version("1.5"):
     version_ge_1_5 = ["-DVERSION_GE_1_5"]
 version_dependent_macros = version_ge_1_1 + version_ge_1_3 + version_ge_1_5
 
@@ -196,7 +221,8 @@ if "--cuda_ext" in sys.argv:
                     "-O3",
                     # '--resource-usage',
                     "--use_fast_math",
-                ] + version_dependent_macros,
+                ]
+                + version_dependent_macros,
             },
         )
     )
@@ -259,7 +285,8 @@ if "--cuda_ext" in sys.argv:
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
-                ] + version_dependent_macros,
+                ]
+                + version_dependent_macros,
             },
         )
     )
@@ -280,7 +307,8 @@ if "--cuda_ext" in sys.argv:
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
-                ] + version_dependent_macros,
+                ]
+                + version_dependent_macros,
             },
         )
     )
@@ -298,7 +326,8 @@ if "--cuda_ext" in sys.argv:
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
-                ] + version_dependent_macros,
+                ]
+                + version_dependent_macros,
             },
         )
     )
@@ -316,13 +345,13 @@ if "--cuda_ext" in sys.argv:
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
-                ] + version_dependent_macros,
+                ]
+                + version_dependent_macros,
             },
         )
     )
 
     if bare_metal_version >= Version("11.0"):
-
         cc_flag = []
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_70,code=sm_70")
@@ -353,7 +382,9 @@ if "--cuda_ext" in sys.argv:
                         "--expt-relaxed-constexpr",
                         "--expt-extended-lambda",
                         "--use_fast_math",
-                    ] + version_dependent_macros + cc_flag,
+                    ]
+                    + version_dependent_macros
+                    + cc_flag,
                 },
             )
         )
@@ -361,16 +392,21 @@ if "--cuda_ext" in sys.argv:
 if "--permutation_search" in sys.argv:
     sys.argv.remove("--permutation_search")
 
-    if CUDA_HOME is None:
-        raise RuntimeError("--permutation_search was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
-    else:
-        cc_flag = ['-Xcompiler', '-fPIC', '-shared']
-        ext_modules.append(
-            CUDAExtension(name='permutation_search_cuda',
-                          sources=['apex/contrib/sparsity/permutation_search_kernels/CUDA_kernels/permutation_search_kernels.cu'],
-                          include_dirs=[os.path.join(this_dir, 'apex', 'contrib', 'sparsity', 'permutation_search_kernels', 'CUDA_kernels')],
-                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
-                                              'nvcc':['-O3'] + version_dependent_macros + cc_flag}))
+    raise_if_cuda_home_none("--permutation_search")
+    cc_flag = ["-Xcompiler", "-fPIC", "-shared"]
+    ext_modules.append(
+        CUDAExtension(
+            name="permutation_search_cuda",
+            sources=["apex/contrib/sparsity/permutation_search_kernels/CUDA_kernels/permutation_search_kernels.cu"],
+            include_dirs=[
+                os.path.join(this_dir, "apex", "contrib", "sparsity", "permutation_search_kernels", "CUDA_kernels")
+            ],
+            extra_compile_args={
+                "cxx": ["-O3"] + version_dependent_macros,
+                "nvcc": ["-O3"] + version_dependent_macros + cc_flag,
+            },
+        )
+    )
 
 if "--bnp" in sys.argv:
     sys.argv.remove("--bnp")
@@ -392,7 +428,8 @@ if "--bnp" in sys.argv:
                     "-D__CUDA_NO_HALF_OPERATORS__",
                     "-D__CUDA_NO_HALF_CONVERSIONS__",
                     "-D__CUDA_NO_HALF2_OPERATORS__",
-                ] + version_dependent_macros,
+                ]
+                + version_dependent_macros,
             },
         )
     )
@@ -417,15 +454,15 @@ if "--focal_loss" in sys.argv:
     raise_if_cuda_home_none("--focal_loss")
     ext_modules.append(
         CUDAExtension(
-            name='focal_loss_cuda',
+            name="focal_loss_cuda",
             sources=[
-                'apex/contrib/csrc/focal_loss/focal_loss_cuda.cpp',
-                'apex/contrib/csrc/focal_loss/focal_loss_cuda_kernel.cu',
+                "apex/contrib/csrc/focal_loss/focal_loss_cuda.cpp",
+                "apex/contrib/csrc/focal_loss/focal_loss_cuda_kernel.cu",
             ],
-            include_dirs=[os.path.join(this_dir, 'csrc')],
+            include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                'cxx': ['-O3'] + version_dependent_macros,
-                'nvcc':['-O3', '--use_fast_math', '--ftz=false'] + version_dependent_macros,
+                "cxx": ["-O3"] + version_dependent_macros,
+                "nvcc": ["-O3", "--use_fast_math", "--ftz=false"] + version_dependent_macros,
             },
         )
     )
@@ -435,15 +472,15 @@ if "--index_mul_2d" in sys.argv:
     raise_if_cuda_home_none("--index_mul_2d")
     ext_modules.append(
         CUDAExtension(
-            name='fused_index_mul_2d',
+            name="fused_index_mul_2d",
             sources=[
-                'apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda.cpp',
-                'apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda_kernel.cu',
+                "apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda.cpp",
+                "apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda_kernel.cu",
             ],
-            include_dirs=[os.path.join(this_dir, 'csrc')],
+            include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                'cxx': ['-O3'] + version_dependent_macros,
-                'nvcc':['-O3', '--use_fast_math', '--ftz=false'] + version_dependent_macros,
+                "cxx": ["-O3"] + version_dependent_macros,
+                "nvcc": ["-O3", "--use_fast_math", "--ftz=false"] + version_dependent_macros,
             },
         )
     )
@@ -529,7 +566,10 @@ if "--fast_layer_norm" in sys.argv:
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
                     "--use_fast_math",
-                ] + version_dependent_macros + generator_flag + cc_flag,
+                ]
+                + version_dependent_macros
+                + generator_flag
+                + cc_flag,
             },
             include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/layer_norm")],
         )
@@ -539,6 +579,7 @@ if "--fmha" in sys.argv:
     sys.argv.remove("--fmha")
     raise_if_cuda_home_none("--fmha")
 
+    # TODO(crcrpar): Remove this check as the current PyTorch does not support CUDA10
     if bare_metal_version < Version("11.0"):
         raise RuntimeError("--fmha only supported on sm_80 and sm_90 GPUs")
 
@@ -574,7 +615,10 @@ if "--fmha" in sys.argv:
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
                     "--use_fast_math",
-                ] + version_dependent_macros + generator_flag + cc_flag,
+                ]
+                + version_dependent_macros
+                + generator_flag
+                + cc_flag,
             },
             include_dirs=[
                 os.path.join(this_dir, "apex/contrib/csrc"),
@@ -633,7 +677,7 @@ if "--fast_multihead_attn" in sys.argv:
             },
             include_dirs=[
                 os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass/include/"),
-                os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass/tools/util/include")
+                os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass/tools/util/include"),
             ],
         )
     )
@@ -709,7 +753,6 @@ if "--nccl_p2p" in sys.argv:
     _nccl_version_getter = load(
         name="_nccl_version_getter",
         sources=["apex/contrib/csrc/nccl_p2p/nccl_version.cpp", "apex/contrib/csrc/nccl_p2p/nccl_version_check.cu"],
-
     )
     _available_nccl_version = _nccl_version_getter.get_nccl_version()
     if _available_nccl_version >= (2, 10):
@@ -759,15 +802,37 @@ if "--fused_conv_bias_relu" in sys.argv:
         )
 
 
-setup(
-    name="apex",
-    version="0.1",
-    packages=find_packages(
-        exclude=("build", "csrc", "include", "tests", "dist", "docs", "tests", "examples", "apex.egg-info",)
-    ),
-    install_requires=["packaging>20.6",],
-    description="PyTorch Extensions written by NVIDIA",
-    ext_modules=ext_modules,
-    cmdclass={"build_ext": BuildExtension} if ext_modules else {},
-    extras_require=extras,
-)
+if __name__ == "__main__":
+    write_version_file()
+
+    with open(os.path.join(this_dir, "README.md")) as f:
+        readme = f.read()
+
+    with open(os.path.join(this_dir, "requirements.txt")) as f:
+        install_requires = f.read()
+
+    setup(
+        name="apex",
+        version=version,
+        packages=find_packages(
+            exclude=(
+                "build",
+                "csrc",
+                "include",
+                "tests",
+                "dist",
+                "docs",
+                "tests",
+                "examples",
+                "apex.egg-info",
+            ),
+        ),
+        install_requires=install_requires,
+        description="PyTorch Extensions written by NVIDIA",
+        long_description=readme,
+        ext_modules=ext_modules,
+        cmdclass={"build_ext": BuildExtension} if ext_modules else {},
+        extras_require={
+            "test": ["pytest", "expecttest", "hypothesis"],
+        },
+    )

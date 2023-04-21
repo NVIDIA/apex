@@ -5,6 +5,12 @@ import warnings
 import torch
 
 
+try:
+    from .version import __version__  # noqa: F401
+except ImportError:
+    pass
+
+
 __all__ = ["amp", "fp16_utils", "optimizers", "normalization", "transformer"]
 
 
