@@ -1,5 +1,5 @@
 import torch
-
+from torch.onnx.verification import verify
 from apex.normalization import FusedLayerNorm
 from apex.normalization import FusedRMSNorm
 from apex.normalization import MixedFusedLayerNorm
@@ -233,7 +233,9 @@ class TestFusedLayerNorm(common_utils.TestCase):
 
         tols = {'rtol': None, 'atol': None} if dtype == torch.half else bf16_bwd_thresholds
         torch.testing.assert_close(native_x.grad, fused_x.grad, **tols, check_dtype=False)
-
+        # check that export() is working
+        verify(fused, fused_x)
+        
     @common_utils.parametrize(
         "dtype, elementwise_affine",
         list(product(autocast_dtypes, (True, False)))
@@ -265,7 +267,8 @@ class TestFusedLayerNorm(common_utils.TestCase):
 
         tols = {'rtol': 1e-3, 'atol': 1e-3} if dtype == torch.half else bf16_bwd_thresholds
         torch.testing.assert_close(native_x.grad.cuda(), fused_x.grad, **tols, check_dtype=False)
-
+        # check that export() is working
+        self.verify_norm(fused, fused_x, dtype)
 
 instantiate_device_type_tests(TestFusedLayerNorm, globals(), only_for=("cuda",))
 
