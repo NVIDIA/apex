@@ -164,9 +164,8 @@ class BertTestBase:
         self.EASY_MODE = False
         self.EASY_MODE_SIZ = 32
 
-        num_devices = torch.cuda.device_count()
-        tensor_model_parallel_size = 2 if num_devices % 2 == 0 and num_devices > 4 else 1
-        pipeline_model_parallel_size = num_devices // tensor_model_parallel_size
+        tensor_model_parallel_size = 2 if self.world_size % 2 == 0 and self.world_size > 4 else 1
+        pipeline_model_parallel_size = self.world_size // tensor_model_parallel_size
 
         override_args = {
             "micro_batch_size": 2,
@@ -238,12 +237,16 @@ class BertTestBase:
 
 
 class NcclBertTest(BertTestBase, NcclDistributedTestBase):
-    pass
+    @property
+    def world_size(self) -> int:
+        return min(torch.cuda.device_count(), 8)
 
 
 @unittest.skipUnless(HAS_UCC, "requires pytorch to be built with native ucc")
 class UccBertTest(BertTestBase, UccDistributedTestBase):
-    pass
+    @property
+    def world_size(self) -> int:
+        return min(torch.cuda.device_count(), 8)
 
 
 if __name__ == "__main__":
