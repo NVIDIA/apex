@@ -232,7 +232,6 @@ class TestFusedLayerNorm(common_utils.TestCase):
 
         tols = {'rtol': None, 'atol': None} if dtype == torch.half else bf16_bwd_thresholds
         torch.testing.assert_close(native_x.grad, fused_x.grad, **tols, check_dtype=False)
-        
     @common_utils.parametrize(
         "dtype, elementwise_affine",
         list(product(autocast_dtypes, (True, False)))
@@ -300,6 +299,5 @@ class TestFusedLayerNorm(common_utils.TestCase):
         self._verify_export(fused_m, fused_x)
         
 instantiate_device_type_tests(TestFusedLayerNorm, globals(), only_for=("cuda",))
-    
 if __name__ == "__main__":
     common_utils.run_tests()
