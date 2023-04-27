@@ -1,5 +1,4 @@
 import torch
-
 from apex.normalization import FusedLayerNorm
 from apex.normalization import FusedRMSNorm
 from apex.normalization import MixedFusedLayerNorm
@@ -233,7 +232,6 @@ class TestFusedLayerNorm(common_utils.TestCase):
 
         tols = {'rtol': None, 'atol': None} if dtype == torch.half else bf16_bwd_thresholds
         torch.testing.assert_close(native_x.grad, fused_x.grad, **tols, check_dtype=False)
-
     @common_utils.parametrize(
         "dtype, elementwise_affine",
         list(product(autocast_dtypes, (True, False)))
@@ -266,8 +264,40 @@ class TestFusedLayerNorm(common_utils.TestCase):
         tols = {'rtol': 1e-3, 'atol': 1e-3} if dtype == torch.half else bf16_bwd_thresholds
         torch.testing.assert_close(native_x.grad.cuda(), fused_x.grad, **tols, check_dtype=False)
 
+    def _verify_export(self, fused, fused_x):
+        # check that export() is working
+        onnx_str = torch.onnx.export_to_pretty_string(fused, (fused_x,),
+                                                      input_names=['x_in'],
+        )
+        assert 'x_in' in onnx_str
+        assert 'ReduceMean' in onnx_str
 
+    def test_rms_export(self):
+        batch_size = 16
+        normalized_shape = [32, 16]
+        fused = FusedRMSNorm(
+            normalized_shape=normalized_shape, elementwise_affine=True
+        ).cuda()
+        fused_m = MixedFusedRMSNorm(
+            normalized_shape=normalized_shape, elementwise_affine=True
+        ).cuda()
+        native_x, fused_x = _prep_inputs(batch_size, normalized_shape, torch.float32)
+        self._verify_export(fused, fused_x)
+        self._verify_export(fused_m, fused_x)
+        
+    def test_layer_norm_export(self):
+        batch_size = 16
+        normalized_shape = [32, 16]
+        fused = FusedLayerNorm(
+            normalized_shape=normalized_shape, elementwise_affine=True
+        ).cuda()
+        fused_m = MixedFusedLayerNorm(
+            normalized_shape=normalized_shape, elementwise_affine=True
+        ).cuda()
+        native_x, fused_x = _prep_inputs(batch_size, normalized_shape, torch.float32)
+        self._verify_export(fused, fused_x)
+        self._verify_export(fused_m, fused_x)
+        
 instantiate_device_type_tests(TestFusedLayerNorm, globals(), only_for=("cuda",))
-
 if __name__ == "__main__":
     common_utils.run_tests()

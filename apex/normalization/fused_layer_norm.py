@@ -286,7 +286,7 @@ class FusedLayerNorm(torch.nn.Module):
             init.zeros_(self.bias)
 
     def forward(self, input):
-        if not input.is_cuda:
+        if torch.jit.is_tracing() or torch.jit.is_scripting() or not input.is_cuda:
             return F.layer_norm(input, self.normalized_shape, self.weight, self.bias, self.eps)
         if self.elementwise_affine:
             return fused_layer_norm_affine(input, self.weight, self.bias, self.normalized_shape, self.eps)
@@ -379,7 +379,7 @@ class FusedRMSNorm(torch.nn.Module):
             init.ones_(self.weight)
 
     def forward(self, input):
-        if not input.is_cuda:
+        if torch.jit.is_tracing() or torch.jit.is_scripting() or not input.is_cuda:
             return manual_rms_norm(input, self.normalized_shape, self.weight, self.eps)
 
         if self.elementwise_affine:
@@ -409,7 +409,7 @@ class MixedFusedLayerNorm(FusedLayerNorm):
 
     def forward(self, input: torch.Tensor):
         # NOTE (mkozuki): CPU path is here mainly for unittest sake.
-        if not input.is_cuda:
+        if torch.jit.is_tracing() or torch.jit.is_scripting() or not input.is_cuda:
             return F.layer_norm(input, self.normalized_shape, self.weight, self.bias, self.eps)
         return mixed_dtype_fused_layer_norm_affine(input, self.weight, self.bias, self.normalized_shape, self.eps)
 
@@ -432,6 +432,6 @@ class MixedFusedRMSNorm(FusedRMSNorm):
     def forward(self, input: torch.Tensor):
         # NOTE (mkozuki): CPU path is here mainly for unittest sake.
         # TODO Manual RMS Norm Implementation Here
-        if not input.is_cuda:
+        if torch.jit.is_tracing() or torch.jit.is_scripting() or not input.is_cuda:
             return manual_rms_norm(input, self.normalized_shape, self.weight, self.eps)
         return mixed_dtype_fused_rms_norm_affine(input, self.weight, self.normalized_shape, self.eps)
