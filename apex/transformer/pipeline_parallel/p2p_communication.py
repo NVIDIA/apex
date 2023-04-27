@@ -140,12 +140,18 @@ def _run_p2pops(
             return (None, None, None, None, reqs)
 
         if async_comm:
-            if batch_p2p_comm:
-                assert len(reqs) == len(ops)
-            tensor_send_prev_req = None if tensor_send_prev is None else reqs.pop(0)
-            tensor_recv_prev_req = None if tensor_recv_prev is None else reqs.pop(0)
-            tensor_send_next_req = None if tensor_send_next is None else reqs.pop(0)
-            tensor_recv_next_req = None if tensor_recv_next is None else reqs.pop(0)
+            if len(reqs) == len(ops):
+                tensor_send_prev_req = None if tensor_send_prev is None else reqs.pop(0)
+                tensor_recv_prev_req = None if tensor_recv_prev is None else reqs.pop(0)
+                tensor_send_next_req = None if tensor_send_next is None else reqs.pop(0)
+                tensor_recv_next_req = None if tensor_recv_next is None else reqs.pop(0)
+            elif len(reqs) == 1:
+                tensor_send_prev_req = None if tensor_send_prev is None else reqs[0]
+                tensor_recv_prev_req = None if tensor_recv_prev is None else reqs[0]
+                tensor_send_next_req = None if tensor_send_next is None else reqs[0]
+                tensor_recv_next_req = None if tensor_recv_next is None else reqs[0]
+            else:
+                assert False, "failed to manage p2p requests and handles"
             return (tensor_send_prev_req, tensor_recv_prev_req, tensor_send_next_req, tensor_recv_next_req, None)
         else:
             for req in reqs:
