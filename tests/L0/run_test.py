@@ -48,8 +48,15 @@ def parse_args():
     )
     parser.add_argument(
         "--xml-report",
+        default=None,
         action="store_true",
-        help="pass this argument to get a junit xml report. (requires `xmlrunner`)",
+        help="[deprecated] pass this argument to get a junit xml report. Use `--xml-dir`. (requires `xmlrunner`)",
+    )
+    parser.add_argument(
+        "--xml-dir",
+        default=None,
+        type=str,
+        help="Directory to save junit test reports. (requires `xmlrunner`)",
     )
     args, _ = parser.parse_known_args()
     return args
@@ -58,19 +65,32 @@ def parse_args():
 def main(args: argparse.Namespace) -> None:
     test_runner_kwargs = {"verbosity": 2}
     Runner = unittest.TextTestRunner
-    if args.xml_report:
+
+    xml_dir = None
+    if (args.xml_report is not None) or (args.xml_dir is not None):
+        if args.xml_report is not None:
+            import warnings
+            warnings.warn("The option of `--xml-report` is deprecated", FutureWarning)
+
         import xmlrunner
         from datetime import date  # NOQA
         Runner = xmlrunner.XMLTestRunner
+        if args.xml_report:
+            xml_dir = os.path.abspath(os.path.dirname(__file__))
+        else:
+            xml_dir = os.path.abspath(args.xml_dir)
+        if not os.path.exists(xml_dir):
+            os.makedirs(xml_dir)
 
     errcode = 0
     for test_dir in args.include:
-        if args.xml_report:
-            this_dir = os.path.abspath(os.path.dirname(__file__))
+        if xml_dir is not None:
             xml_output = os.path.join(
-                this_dir,
+                xml_dir,
                 f"""TEST_{test_dir}_{date.today().strftime("%y%m%d")}""",
             )
+            if not os.path.exists(xml_output):
+                os.makedirs(xml_output)
             test_runner_kwargs["output"] = xml_output
 
         runner = Runner(**test_runner_kwargs)
