@@ -582,21 +582,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
     def _broadcast_params(self):
         """Broadcast parameter values from root rank"""
-        sync_requests = []
         process_group = self.process_group
-        with _coalescing_manager(process_group, self.device, sync_requests):
+        with _coalescing_manager(process_group, self.device, async_ops=True) as cm:
             for param_group in self.param_groups:
                 for param in param_group['params']:
-                    sync_requests.append(
-                        torch.distributed.broadcast(
-                            param,
-                            src=self.process_group_root,
-                            group=process_group,
-                            async_op=True,
-                        )
+                    torch.distributed.broadcast(
+                        param,
+                        src=self.process_group_root,
+                        group=process_group,
+                        async_op=True,
                     )
-        for req in sync_requests:
-            req.wait()
+        cm.wait()
 
     def _make_post_backward_hook(self, param, param_group_id, param_id):
         """Create callback function to call after param generates grad
@@ -1348,39 +1344,33 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             with torch.cuda.stream(comm_stream):
                 for bucket in buckets:
                     bucket.sync_wait()
-                sync_requests = []
                 group = self.distributed_process_group
-                with _coalescing_manager(group, self.device, sync_requests):
+                with _coalescing_manager(group, self.device, async_ops=True) as cm:
                     for bucket in buckets:
-                        bucket.sync_request = (
-                            reduce_scatter_tensor(
-                                bucket.sync_grads_shard,
-                                bucket.grads_bucket,
-                                op=reduce_op,
-                                group=group,
-                                async_op=True,
-                            )
+                        reduce_scatter_tensor(
+                            bucket.sync_grads_shard,
+                            bucket.grads_bucket,
+                            op=reduce_op,
+                            group=group,
+                            async_op=True,
                         )
-                        sync_requests.append(bucket.sync_request)
+                cm.wait()
 
         # All-reduce over redundant process group
         if self.redundant_size > 1:
             with torch.cuda.stream(comm_stream):
                 for bucket in buckets:
                     bucket.sync_wait()
-                sync_requests = []
                 group = self.redundant_process_group
-                with _coalescing_manager(group, self.device, sync_requests):
+                with _coalescing_manager(group, self.device, async_ops=True) as cm:
                     for bucket in buckets:
-                        bucket.sync_request = (
-                            torch.distributed.all_reduce(
-                                bucket.sync_grads_shard,
-                                op=reduce_op,
-                                group=group,
-                                async_op=True,
-                            )
+                        torch.distributed.all_reduce(
+                            bucket.sync_grads_shard,
+                            op=reduce_op,
+                            group=group,
+                            async_op=True,
                         )
-                        sync_requests.append(bucket.sync_request)
+                cm.wait()
 
     def _finish_bucket_grad_sync(self):
         """Wait for any gradient synchronizations that are in progress"""
@@ -1503,19 +1493,16 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             with torch.cuda.stream(comm_stream):
                 for bucket in buckets:
                     bucket.sync_wait()
-                sync_requests = []
                 group = self.distributed_process_group
-                with _coalescing_manager(group, self.device, sync_requests):
+                with _coalescing_manager(group, self.device, async_ops=True) as cm:
                     for bucket in buckets:
-                        bucket.sync_request = (
-                            all_gather_into_tensor(
-                                bucket.params_bucket,
-                                bucket.params_shard,
-                                group=group,
-                                async_op=True,
-                            )
+                        all_gather_into_tensor(
+                            bucket.params_bucket,
+                            bucket.params_shard,
+                            group=group,
+                            async_op=True,
                         )
-                        sync_requests.append(bucket.sync_request)
+                cm.wait()
 
     def _finish_bucket_param_sync(self):
         """Wait for any param synchronizations that are in progress"""
