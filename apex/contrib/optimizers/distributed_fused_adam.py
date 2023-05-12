@@ -30,14 +30,34 @@ except ImportError:
     from torch.distributed.distributed_c10d import _all_gather_base
     all_gather_into_tensor = _all_gather_base
 
-# Add args to coalescing manager if using PyTorch <=1.13.1
+# Import context to coalesce NCCL calls
 from torch.distributed.distributed_c10d import _coalescing_manager
-if 'device' not in inspect.signature(_coalescing_manager).parameters.keys():
+if 'device' not in inspect.signature(_coalescing_manager).parameters:
+    # PyTorch 2.0.0 added device arg
     _coalescing_manager_nodevice = _coalescing_manager
     @contextlib.contextmanager
     def _coalescing_manager(group, device, reqs):
         with _coalescing_manager_nodevice(group, reqs):
             yield
+if 'async_ops' not in inspect.signature(_coalescing_manager).parameters:
+    # PyTorch 2.1.0 added returned object with wait function
+    _coalescing_manager_nowaitfunc = _coalescing_manager
+    class _CoalescingManager:
+        def __init__(self):
+            self.works = []
+        def append(self, work):
+            if work:
+                self.works.append(work)
+        def wait(self):
+            for work in self.works:
+                work.wait()
+    @contextlib.contextmanager
+    def _coalescing_manager(group, device, async_ops=False):
+        cm = _CoalescingManager()
+        with _coalescing_manager_nowaitfunc(group, device, cm.works):
+            yield cm
+        if not async_ops:
+            cm.wait()
 
 # Import optional CUDA kernels
 _FOUND_DEPRECATED_FUSED_ADAM = False
@@ -586,11 +606,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         with _coalescing_manager(process_group, self.device, async_ops=True) as cm:
             for param_group in self.param_groups:
                 for param in param_group['params']:
-                    torch.distributed.broadcast(
-                        param,
-                        src=self.process_group_root,
-                        group=process_group,
-                        async_op=True,
+                    cm.append(
+                        torch.distributed.broadcast(
+                            param,
+                            src=self.process_group_root,
+                            group=process_group,
+                            async_op=True,
+                        )
                     )
         cm.wait()
 
@@ -1347,12 +1369,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 group = self.distributed_process_group
                 with _coalescing_manager(group, self.device, async_ops=True) as cm:
                     for bucket in buckets:
-                        reduce_scatter_tensor(
-                            bucket.sync_grads_shard,
-                            bucket.grads_bucket,
-                            op=reduce_op,
-                            group=group,
-                            async_op=True,
+                        cm.append(
+                            reduce_scatter_tensor(
+                                bucket.sync_grads_shard,
+                                bucket.grads_bucket,
+                                op=reduce_op,
+                                group=group,
+                                async_op=True,
+                            )
                         )
                 cm.wait()
 
@@ -1364,11 +1388,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 group = self.redundant_process_group
                 with _coalescing_manager(group, self.device, async_ops=True) as cm:
                     for bucket in buckets:
-                        torch.distributed.all_reduce(
-                            bucket.sync_grads_shard,
-                            op=reduce_op,
-                            group=group,
-                            async_op=True,
+                        cm.append(
+                            torch.distributed.all_reduce(
+                                bucket.sync_grads_shard,
+                                op=reduce_op,
+                                group=group,
+                                async_op=True,
+                            )
                         )
                 cm.wait()
 
@@ -1496,11 +1522,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 group = self.distributed_process_group
                 with _coalescing_manager(group, self.device, async_ops=True) as cm:
                     for bucket in buckets:
-                        all_gather_into_tensor(
-                            bucket.params_bucket,
-                            bucket.params_shard,
-                            group=group,
-                            async_op=True,
+                        cm.append(
+                            all_gather_into_tensor(
+                                bucket.params_bucket,
+                                bucket.params_shard,
+                                group=group,
+                                async_op=True,
+                            )
                         )
                 cm.wait()
 
