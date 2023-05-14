@@ -1,11 +1,46 @@
-import os
+from collections import OrderedDict
 import inspect
+
 import torch
+import torch.distributed as dist
 from torch.cuda.amp import GradScaler
 from torch.testing._internal import common_utils
-from apex.parallel.distributed import flat_dist_call
+
 from apex.contrib.optimizers.distributed_fused_lamb import DistributedFusedLAMB
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+
+
+# apply_dist_call requires that tensors in 'bucket' are all the same type.
+def apply_flat_dist_call(bucket, call, extra_args=None):
+    coalesced = torch._utils._flatten_dense_tensors(bucket)
+    if extra_args is not None:
+        call(coalesced, *extra_args)
+    else:
+        call(coalesced)
+
+    if call is dist.all_reduce:
+        coalesced /= dist.get_world_size()
+
+    for buf, synced in zip(bucket, torch._utils._unflatten_dense_tensors(coalesced, bucket)):
+        buf.copy_(synced)
+
+
+def split_by_type(tensors):
+    buckets = OrderedDict()
+    for tensor in tensors:
+        tp = tensor.type()
+        if tp not in buckets:
+            buckets[tp] = []
+        buckets[tp].append(tensor)
+    return buckets
+
+
+def flat_dist_call(tensors, call, extra_args=None):
+    buckets = split_by_type(tensors)
+    for tp in buckets:
+        bucket = buckets[tp]
+        apply_flat_dist_call(bucket, call, extra_args)
+
 
 def get_init_weights_func():
     @torch.no_grad()
@@ -14,10 +49,11 @@ def get_init_weights_func():
             m.weight.fill_(1.0)
     return init_weights
 
+
 class ModelFoo(torch.nn.Module):
     def __init__(self):
         super(ModelFoo, self).__init__()
-        self.linear = torch.nn.Linear(128, 128, bias = False)
+        self.linear = torch.nn.Linear(128, 128, bias=False)
         self.loss = torch.nn.MSELoss()
 
     def forward(self, input_tensor, gt):
@@ -25,8 +61,10 @@ class ModelFoo(torch.nn.Module):
         loss = self.loss(y, gt)
         return loss
 
+
 # A test for distributed fused Lamb optimizer: run several iterations and see if loss decreases
-# There are two instances of the same test because based on `world_size` the optimizer decides what collectives operation to use. 
+# There are two instances of the same test because based on `world_size` the optimizer decides
+# what collectives operation to use.
 # If torch.distributed.get_world_size() == torch.cuda.device_count() it uses only `all_gather`.
 # If torch.distributed.get_world_size() < torch.cuda.device_count() it uses both `all_gather` and `reduce_scatter`.
 class NcclDistributedFusedLAMB(NcclDistributedTestBase):
@@ -62,17 +100,23 @@ class NcclDistributedFusedLAMB(NcclDistributedTestBase):
         param_optimizer = list(model.named_parameters())
         no_decay = ['bias', 'gamma', 'beta', 'LayerNorm']
         optimizer_grouped_parameters = [
-            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+            {
+                'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+                'weight_decay': 0.01,
+            },
+            {
+                'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
+                'weight_decay': 0.0,
+            },
         ]
 
         if 'full_ar' not in opt_kwargs:
             opt_kwargs['full_ar'] = gpu_count == torch.cuda.device_count()
 
-        # Aidyn-A: not sure what parameters are the best for testing purposes, 
-        # setting up whatever I think appropriate. 
+        # Aidyn-A: not sure what parameters are the best for testing purposes,
+        # setting up whatever I think appropriate.
         optimizer = DistributedFusedLAMB(
-                optimizer_grouped_parameters, 
+                optimizer_grouped_parameters,
                 lr=0.1,
                 betas=(0.9, 0.9),
                 eps=1e-6,
@@ -91,7 +135,9 @@ class NcclDistributedFusedLAMB(NcclDistributedTestBase):
         optimizer._reduce_scatter_no_copy = no_copy
         optimizer._all_gather_no_copy = no_copy
 
-        flat_dist_call([param.data for param in model.parameters()], torch.distributed.broadcast, (0,) )
+        with torch.no_grad():
+            flat_dist_call(
+                [param for param in model.parameters()], torch.distributed.broadcast, (0,))
 
         x = torch.randn(4096, 128, dtype=torch.float16).cuda()
         y = torch.randn(4096, 128, dtype=torch.float16).cuda()
@@ -113,13 +159,15 @@ class NcclDistributedFusedLAMB(NcclDistributedTestBase):
 
         self.assertTrue(losses == sorted(losses, reverse=True))
 
+
 common_utils.instantiate_parametrized_tests(NcclDistributedFusedLAMB)
+
 
 class NcclDistributedFusedLAMB_partial_ar(NcclDistributedFusedLAMB):
     @property
     def world_size(self) -> int:
         return max(torch.cuda.device_count()-1, 1)
 
+
 if __name__ == "__main__":
     common_utils.run_tests()
-
