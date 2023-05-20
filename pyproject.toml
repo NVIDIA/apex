@@ -2,22 +2,4 @@
 requires = [
     "setuptools",
     "wheel",
-    "packaging",
-    "astunparse",
-    "expecttest",
-    "hypothesis",
-    "numpy",
-    "psutil",
-    "pyyaml",
-    "requests",
-    "types-dataclasses",
-    "typing-extensions",
-    "sympy",
-    "filelock",
-    "networkx",
-    "jinja2",
-    "fsspec",
-    "ninja",
 ]
-build-backend = "backend"
-backend-path = ["_custom_build"]
