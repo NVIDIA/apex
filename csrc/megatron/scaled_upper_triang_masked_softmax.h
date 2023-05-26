@@ -127,7 +127,7 @@ __global__ void scaled_upper_triang_masked_softmax_warp_forward(
     constexpr int WARP_BATCH = (next_power_of_two <= 128) ? 2 : 1;
     constexpr int ELEMENTS_PER_LDG_STG = (WARP_ITERATIONS < 4) ? 1 : 4;
 
-    int first_batch = (blockDim.y * blockIdx.y + threadIdx.y) * gridDim.x * WARP_BATCH + blockIdx.x;
+    long int first_batch = (blockDim.y * blockIdx.y + threadIdx.y) * gridDim.x * WARP_BATCH + blockIdx.x;
     int local_seq = blockIdx.x + 1; 
     int warp_iteration_limit = (local_seq + ELEMENTS_PER_LDG_STG * WARP_SIZE - 1)/ WARP_SIZE;
 
@@ -140,8 +140,9 @@ __global__ void scaled_upper_triang_masked_softmax_warp_forward(
     // there might be multiple batches per warp. compute the index within the batch
     int local_idx = threadIdx.x;
 
-    src += first_batch * stride + ELEMENTS_PER_LDG_STG * local_idx;
-    dst += first_batch * stride + ELEMENTS_PER_LDG_STG * local_idx;
+    long int thread_offset = first_batch * stride + ELEMENTS_PER_LDG_STG * local_idx;
+    src += thread_offset;
+    dst += thread_offset;
 
     // load data from global memory
     acc_t elements[WARP_BATCH][WARP_ITERATIONS];
@@ -247,7 +248,7 @@ __global__ void scaled_upper_triang_masked_softmax_warp_backward(
     constexpr int WARP_BATCH = (next_power_of_two <= 128) ? 2 : 1;
     constexpr int ELEMENTS_PER_LDG_STG = (WARP_ITERATIONS < 4) ? 1 : 4;
 
-    int first_batch = (blockDim.y * blockIdx.y + threadIdx.y) * gridDim.x * WARP_BATCH + blockIdx.x;
+    long int first_batch = (blockDim.y * blockIdx.y + threadIdx.y) * gridDim.x * WARP_BATCH + blockIdx.x;
     int local_seq = blockIdx.x + 1; 
     
     // micro_batch_size might not be a multiple of WARP_BATCH. Check how
@@ -260,7 +261,7 @@ __global__ void scaled_upper_triang_masked_softmax_warp_backward(
     int local_idx = threadIdx.x;
 
     // the first element to process by the current thread
-    int thread_offset = first_batch * stride + ELEMENTS_PER_LDG_STG * local_idx;
+    long int thread_offset = first_batch * stride + ELEMENTS_PER_LDG_STG * local_idx;
     grad += thread_offset;
     output += thread_offset;
     gradInput += thread_offset;
@@ -340,7 +341,7 @@ void dispatch_scaled_upper_triang_masked_softmax_forward(
     int softmax_elements_stride, 
     int attn_batches)
 {
-    TORCH_INTERNAL_ASSERT(softmax_elements >= 0 && softmax_elements <= 2048 );
+    TORCH_INTERNAL_ASSERT(softmax_elements >= 0 && softmax_elements <= 16384 );
     if (softmax_elements == 0) {
         return;
     } else {
@@ -355,7 +356,7 @@ void dispatch_scaled_upper_triang_masked_softmax_forward(
         // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_forward.
         int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
 
-        // use 128 threads per block to maximimize gpu utilization
+        // use 128 threads per block to maximize gpu utilization
         constexpr int threads_per_block = 128;
 
         int warps_per_block = (threads_per_block / warp_size);
@@ -415,6 +416,18 @@ void dispatch_scaled_upper_triang_masked_softmax_forward(
                 scaled_upper_triang_masked_softmax_warp_forward<input_t, output_t, acc_t, 11>
                     <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, softmax_elements_stride, softmax_elements);
                 break;
+	    case 12: // 4096
+                scaled_upper_triang_masked_softmax_warp_forward<input_t, output_t, acc_t, 12>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, softmax_elements_stride, softmax_elements);
+                break;
+	    case 13: // 8192
+                scaled_upper_triang_masked_softmax_warp_forward<input_t, output_t, acc_t, 13>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, softmax_elements_stride, softmax_elements);
+                break;
+	    case 14: // 16384
+                scaled_upper_triang_masked_softmax_warp_forward<input_t, output_t, acc_t, 14>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, src, scale, batch_count, softmax_elements_stride, softmax_elements);
+                break;
             default:
                 break;
         }
@@ -431,7 +444,7 @@ void dispatch_scaled_upper_triang_masked_softmax_backward(
     int softmax_elements_stride, 
     int attn_batches)
 {
-    TORCH_INTERNAL_ASSERT( softmax_elements >= 0 && softmax_elements <= 2048 );
+    TORCH_INTERNAL_ASSERT( softmax_elements >= 0 && softmax_elements <= 16384 );
     if (softmax_elements == 0) {
        return;
     } else {
@@ -446,7 +459,7 @@ void dispatch_scaled_upper_triang_masked_softmax_backward(
         // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_backward.
         int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
 
-        // use 128 threads per block to maximimize gpu utilization
+        // use 128 threads per block to maximize gpu utilization
         constexpr int threads_per_block = 128;
 
         int warps_per_block = (threads_per_block / warp_size);
@@ -504,6 +517,18 @@ void dispatch_scaled_upper_triang_masked_softmax_backward(
                 break;
             case 11: // 2048
                 scaled_upper_triang_masked_softmax_warp_backward<input_t, output_t, acc_t, 11>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(grad_input, grad, output, scale, batch_count, softmax_elements_stride, softmax_elements);
+                break;
+            case 12: // 4096
+                scaled_upper_triang_masked_softmax_warp_backward<input_t, output_t, acc_t, 12>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(grad_input, grad, output, scale, batch_count, softmax_elements_stride, softmax_elements);
+                break;
+            case 13: // 8192
+                scaled_upper_triang_masked_softmax_warp_backward<input_t, output_t, acc_t, 13>
+                    <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(grad_input, grad, output, scale, batch_count, softmax_elements_stride, softmax_elements);
+                break;
+            case 14: // 16384
+                scaled_upper_triang_masked_softmax_warp_backward<input_t, output_t, acc_t, 14>
                     <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(grad_input, grad, output, scale, batch_count, softmax_elements_stride, softmax_elements);
                 break;
             default:

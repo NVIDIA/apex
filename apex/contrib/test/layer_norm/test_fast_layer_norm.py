@@ -1,12 +1,13 @@
 import unittest
-import sys
-import os
 
-import numpy as np
 import torch
 
-import fast_layer_norm as fln
-from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+SKIP_TEST = None
+try:
+    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+    import fast_layer_norm as fln
+except ImportError as e:
+    SKIP_TEST = e
 
 
 class GPUTimer:
@@ -125,7 +126,7 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
         )
 
 
-def test_(S, B, hidden_size, itype, wtype, ctype=fp32):
+def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
 
     seed = 1243
     torch.manual_seed(seed)
@@ -192,7 +193,9 @@ def test_(S, B, hidden_size, itype, wtype, ctype=fp32):
     ]
 
 
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class TestFastLayerNorm(unittest.TestCase):
+    # TODO(crcrpar): Try `torch.testing.assert_close` instead and migrate to it if it's working.
     def assertAll(self, l):
         if not all(l):
             print(l)
@@ -216,6 +219,7 @@ class TestFastLayerNorm(unittest.TestCase):
             10240,
             12288,
             12800,
+            14336,
             15360,
             16384,
             18432,
@@ -231,11 +235,11 @@ class TestFastLayerNorm(unittest.TestCase):
 
         for h in hidden_sizes:
             with self.subTest(f"hidden_size={h}"):
-                self.assertAll(test_(256, 2, h, fp32, fp32))
-                self.assertAll(test_(256, 2, h, fp16, fp16))
-                self.assertAll(test_(256, 2, h, fp32, fp16))
-                self.assertAll(test_(256, 2, h, bf16, bf16))
-                self.assertAll(test_(256, 2, h, fp32, bf16))
+                self.assertAll(_test_impl(256, 2, h, fp32, fp32))
+                self.assertAll(_test_impl(256, 2, h, fp16, fp16))
+                self.assertAll(_test_impl(256, 2, h, fp32, fp16))
+                self.assertAll(_test_impl(256, 2, h, bf16, bf16))
+                self.assertAll(_test_impl(256, 2, h, fp32, bf16))
 
     def test_run_benchmark(self):
         for (S, B, hidden_size, runs) in (

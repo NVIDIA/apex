@@ -7,12 +7,13 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 
 from apex.transformer import parallel_state
 from apex.transformer.tensor_parallel import data as data_utils
-from apex.transformer.testing.distributed_test_base import DistributedTestBase
+from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.transformer.testing.distributed_test_base import UccDistributedTestBase
 
 logging.getLogger("torch").setLevel(logging.WARNING)
 
 
-class BroadcastDataTest(DistributedTestBase):
+class BroadcastDataTestBase:
     def test_broadcast_data(self):
         tensor_model_parallel_world_size: int = self.world_size // (
             1 + self.world_size > 1
@@ -50,9 +51,13 @@ class BroadcastDataTest(DistributedTestBase):
 
         broadcasted_data = data_utils.broadcast_data(keys, data, torch.int64)
         for key in keys:
-            torch.testing.assert_close(broadcasted_data[key], data_t[key].cuda())
+            self.assertEqual(broadcasted_data[key], data_t[key].cuda())
 
         parallel_state.destroy_model_parallel()
+
+
+class NcclBroadcastDataTest(BroadcastDataTestBase, NcclDistributedTestBase): pass
+class UccBroadcastDataTest(BroadcastDataTestBase, UccDistributedTestBase): pass
 
 
 if __name__ == "__main__":

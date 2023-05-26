@@ -41,8 +41,8 @@ class FastLayerNorm(torch.nn.Module):
     def __init__(self, hidden_size, eps=1e-5):
         super().__init__()
         self.epsilon = eps
-        self.weight = torch.nn.Parameter(torch.Tensor(hidden_size))
-        self.bias = torch.nn.Parameter(torch.Tensor(hidden_size))
+        self.weight = torch.nn.Parameter(torch.empty(hidden_size))
+        self.bias = torch.nn.Parameter(torch.empty(hidden_size))
         self.reset_parameters()
 
     def reset_parameters(self):

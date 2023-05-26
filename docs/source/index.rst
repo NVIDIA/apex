@@ -44,7 +44,6 @@ Some other useful material, including GTC 2019 and Pytorch DevCon 2019 Slides, c
      :caption: Deprecated mixed precision API
      fp16_util
 
-..   reparameterization
 ..   RNN
    
 Indices and tables

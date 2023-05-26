@@ -574,8 +574,8 @@ std::vector<Tensor> host_softmax_xentropy(
         const Tensor & labels_,
         const float smoothing,
         const bool half_to_float){
-  if (half_to_float) AT_ASSERTM(input_.type().scalarType() == ScalarType::Half,"conversion is supported for Half type only");
-  AT_ASSERTM(labels_.type().scalarType() == ScalarType::Long,"Label type should be CUDA Long");
+  if (half_to_float) TORCH_CHECK(input_.scalar_type() == ScalarType::Half,"conversion is supported for Half type only");
+  TORCH_CHECK(labels_.scalar_type() == ScalarType::Long,"Label type should be CUDA Long");
 
   auto input = input_.contiguous();
   Tensor max_log_sum_exp = at::empty_like(labels_, half_to_float ? input.options().dtype(ScalarType::Float) : input.options());
@@ -584,10 +584,10 @@ std::vector<Tensor> host_softmax_xentropy(
   static_assert(std::is_same<acc_type<at::Half, true>, float>::value ||
     std::is_same<acc_type<at::Half, true>, double>::value,
     "accscalar_t for half should be float or double");
-  AT_ASSERTM(input.dim() == 2, "Currently only 2 dim input supported");
-  AT_ASSERTM(labels_.dim() == 1, "Labels should be 1 dimensional");
-  AT_ASSERTM(input.size(0) == labels_.size(0), "Input and label should have same number of examples");
-  AT_ASSERTM(input.numel() > 0, "Number of classes in input should not be 0");
+  TORCH_CHECK(input.dim() == 2, "Currently only 2 dim input supported");
+  TORCH_CHECK(labels_.dim() == 1, "Labels should be 1 dimensional");
+  TORCH_CHECK(input.size(0) == labels_.size(0), "Input and label should have same number of examples");
+  TORCH_CHECK(input.numel() > 0, "Number of classes in input should not be 0");
 
   const int64_t dim = 1;
   int64_t outer_size = 1;
@@ -654,11 +654,11 @@ Tensor host_softmax_xentropy_backward(
     "accscalar_t for half should be float or double");
   if (grad.dim() == 0) grad = grad.view(1);
 
-  AT_ASSERTM(logits_.dim() == 2, "Currently only 2 dim input supported");
-  AT_ASSERTM(labels.dim() == 1, "Labels should be 1 dimensional");
-  AT_ASSERTM(logits_.numel() > 0, "Number of classes in input should not be 0");
-  AT_ASSERTM(logits_.size(0) == labels.size(0), "Input and label should have same number of examples");
-  AT_ASSERTM(labels.size(0) == grad.size(0), "Label and loss should have same number of examples");
+  TORCH_CHECK(logits_.dim() == 2, "Currently only 2 dim input supported");
+  TORCH_CHECK(labels.dim() == 1, "Labels should be 1 dimensional");
+  TORCH_CHECK(logits_.numel() > 0, "Number of classes in input should not be 0");
+  TORCH_CHECK(logits_.size(0) == labels.size(0), "Input and label should have same number of examples");
+  TORCH_CHECK(labels.size(0) == grad.size(0), "Label and loss should have same number of examples");
 
   int64_t outer_size = 1;
   int64_t dim_size = logits.size(dim);
@@ -710,9 +710,9 @@ at::Tensor softmax_xentropy_backward_cuda(
     const at::Tensor &max_log_sum_exp,
     const at::Tensor &labels,
     const float smoothing) {
-  bool half_to_float = grad_loss.type().scalarType() != logits.type().scalarType();
+  bool half_to_float = grad_loss.scalar_type() != logits.scalar_type();
   if (half_to_float) {
-     AT_ASSERTM((grad_loss.type().scalarType() == ScalarType::Float && logits.type().scalarType() == ScalarType::Half), "expected input and grad types to match, or input to be at::Half and grad to be at::Float");
+     TORCH_CHECK((grad_loss.scalar_type() == ScalarType::Float && logits.scalar_type() == ScalarType::Half), "expected input and grad types to match, or input to be at::Half and grad to be at::Float");
   }
   return host_softmax_xentropy_backward<LogSoftMaxBackwardEpilogue>(grad_loss, logits, max_log_sum_exp, labels, smoothing, half_to_float);
 }

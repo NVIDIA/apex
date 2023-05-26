@@ -93,9 +93,72 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
 
 def scaled_masked_softmax(inputs, mask, scale):
     # input is 4D tensor (b, np, sq, sk)
+    if mask is not None:
+        args = _cast_if_autocast_enabled(inputs, mask, scale)
+        with torch.cuda.amp.autocast(enabled=False):
+            return ScaledMaskedSoftmax.apply(*args)
+    else:
+        args = _cast_if_autocast_enabled(inputs, scale)
+        with torch.cuda.amp.autocast(enabled=False):
+            return ScaledSoftmax.apply(*args)
+
+
+class GenericScaledMaskedSoftmax(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, inputs, mask, scale):
+        import generic_scaled_masked_softmax_cuda
+
+        scale_t = torch.tensor([scale])
+        softmax_results = generic_scaled_masked_softmax_cuda.forward(inputs, mask, scale_t[0])
+        ctx.save_for_backward(softmax_results, scale_t)
+        return softmax_results
+
+    @staticmethod
+    def backward(ctx, output_grads):
+        import generic_scaled_masked_softmax_cuda_new
+
+        softmax_results, scale_t = ctx.saved_tensors
+
+        input_grads = generic_scaled_masked_softmax_cuda.backward(output_grads, softmax_results, scale_t[0])
+        return input_grads, None, None
+
+
+def generic_scaled_masked_softmax(inputs, mask, scale):
+    # input is 4D tensor (b, np, sq, sk)
     args = _cast_if_autocast_enabled(inputs, mask, scale)
     with torch.cuda.amp.autocast(enabled=False):
-        return ScaledMaskedSoftmax.apply(*args)
+        return GenericScaledMaskedSoftmax.apply(*args)
+
+
+class ScaledSoftmax(torch.autograd.Function):
+    """
+    Fused operation which performs following two operations in sequence
+    1. Scale the tensor.
+    2. Perform softmax.
+    """
+
+    @staticmethod
+    def forward(ctx, inputs, scale):
+        import scaled_softmax_cuda
+
+        scale_t = torch.tensor([scale])
+
+        softmax_results = scaled_softmax_cuda.forward(
+            inputs, scale_t[0]
+        )
+        ctx.save_for_backward(softmax_results, scale_t)
+        return softmax_results
+
+    @staticmethod
+    def backward(ctx, output_grads):
+        import scaled_softmax_cuda
+
+        softmax_results, scale_t = ctx.saved_tensors
+
+        input_grads = scaled_softmax_cuda.backward(
+            output_grads, softmax_results, scale_t[0]
+        )
+        return input_grads, None, None
 
 
 class FusedScaleMaskSoftmax(torch.nn.Module):
@@ -162,12 +225,16 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
         if (
             self.scaled_masked_softmax_fusion  # user want to fuse
             and self.input_in_float16  # input must be fp16
-            and mask is not None  # mask tensor must not be None
-            and 16 < sk <= 2048  # sk must be 16 ~ 2048
+            and (
+                self.attn_mask_type == AttnMaskType.causal
+                or self.attn_mask_type == AttnMaskType.padding
+            )
+            and 16 < sk <= 16384  # sk must be 16 ~ 16384
             and sq % 4 == 0  # sq must be divisor of 4
+            and sk % 4 == 0  # sk must be divisor of 4
             and attn_batches % 4 == 0  # np * b must be divisor of 4
         ):
-            if 0 <= sk <= 2048:
+            if 0 <= sk <= 16384:
                 batch_per_block = self.get_batch_per_block(sq, sk, b, np)
 
                 if self.attn_mask_type == AttnMaskType.causal:
@@ -205,3 +272,30 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
         import scaled_masked_softmax_cuda
 
         return scaled_masked_softmax_cuda.get_batch_per_block(sq, sk, b, np)
+
+class GenericFusedScaleMaskSoftmax(FusedScaleMaskSoftmax):
+    """
+    Generic version of FusedSacleMaskSoftmax.
+    It removes the seq-len limitations and has slight performance degragation compared with FusedScaleMaskSoftmax
+
+    fused operation: scaling + mask + softmax
+
+    Arguments:
+        input_in_fp16: flag to indicate if input in fp16 data format.
+        input_in_bf16: flag to indicate if input in bf16 data format.
+        scaled_masked_softmax_fusion: flag to indicate user want to use softmax fusion
+        mask_func: mask function to be applied.
+        softmax_in_fp32: if true, softmax in performed at fp32 precision.
+        scale: scaling factor used in input tensor scaling.
+    """
+
+    def __init__(
+        self, input_in_fp16, input_in_bf16, scaled_masked_softmax_fusion, mask_func, softmax_in_fp32, scale,
+    ):
+        super().__init__(input_in_fp16, input_in_bf16, AttnMaskType.padding, scaled_masked_softmax_fusion, mask_func, softmax_in_fp32, scale)
+        self.scaled_masked_softmax_fusion = generic_scaled_masked_softmax
+
+    def is_kernel_available(self, mask, b, np, sq, sk):
+        if self.scaled_masked_softmax_fusion and 0 < sk:  # user want to fuse  # sk must be 1 ~
+            return True
+        return False

@@ -10,12 +10,6 @@ from .fast_self_multihead_attn_func import fast_self_attn_func
 from .fast_self_multihead_attn_norm_add_func import fast_self_attn_norm_add_func
 from apex.normalization.fused_layer_norm import FusedLayerNorm
 
-if hasattr(torch._C, "_jit_set_profiling_executor"):
-    torch._C._jit_set_profiling_executor(False)
-if hasattr(torch._C, "_jit_set_profiling_mode"):
-    torch._C._jit_set_profiling_mode(False)
-
-
 @torch.jit.script
 def jit_dropout_add(x, residual, prob, is_training):
     # type: (Tensor, Tensor, float, bool) -> Tensor
@@ -59,20 +53,20 @@ class SelfMultiheadAttn(nn.Module):
                 impl == "fast" and bias
             ), "additive mask not supported for fast mode without bias"
         if separate_qkv_params:
-            self.q_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
-            self.k_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
-            self.v_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
+            self.q_weight = Parameter(torch.empty(embed_dim, embed_dim))
+            self.k_weight = Parameter(torch.empty(embed_dim, embed_dim))
+            self.v_weight = Parameter(torch.empty(embed_dim, embed_dim))
         else:
-            self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
-        self.out_proj_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
+            self.in_proj_weight = Parameter(torch.empty(3 * embed_dim, embed_dim))
+        self.out_proj_weight = Parameter(torch.empty(embed_dim, embed_dim))
         if self.bias:
             if separate_qkv_params:
-                self.q_bias = Parameter(torch.Tensor(embed_dim))
-                self.k_bias = Parameter(torch.Tensor(embed_dim))
-                self.v_bias = Parameter(torch.Tensor(embed_dim))
+                self.q_bias = Parameter(torch.empty(embed_dim))
+                self.k_bias = Parameter(torch.empty(embed_dim))
+                self.v_bias = Parameter(torch.empty(embed_dim))
             else:
-                self.in_proj_bias = Parameter(torch.Tensor(3 * embed_dim))
-            self.out_proj_bias = Parameter(torch.Tensor(embed_dim))
+                self.in_proj_bias = Parameter(torch.empty(3 * embed_dim))
+            self.out_proj_bias = Parameter(torch.empty(embed_dim))
         else:
             if separate_qkv_params:
                 self.register_parameter("q_bias", None)
@@ -88,8 +82,8 @@ class SelfMultiheadAttn(nn.Module):
             self.out_proj_bias = None
         if self.include_norm_add:
             if impl == "fast":
-                self.lyr_nrm_gamma_weights = Parameter(torch.Tensor(embed_dim))
-                self.lyr_nrm_beta_weights = Parameter(torch.Tensor(embed_dim))
+                self.lyr_nrm_gamma_weights = Parameter(torch.empty(embed_dim))
+                self.lyr_nrm_beta_weights = Parameter(torch.empty(embed_dim))
                 self.lyr_nrm = None
             else:
                 self.register_parameter("lyr_norm_gamma_weights", None)

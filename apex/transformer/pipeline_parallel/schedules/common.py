@@ -6,6 +6,7 @@ from torch.autograd.variable import Variable
 from apex.normalization.fused_layer_norm import FusedLayerNorm
 from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
+from apex.transformer.pipeline_parallel.p2p_communication import FutureTensor
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.utils import listify_model
 from apex.transformer.pipeline_parallel.utils import unwrap_model
@@ -19,7 +20,7 @@ from apex.transformer.log_util import get_transformer_logger
 _logger = get_transformer_logger(__name__)
 
 
-Batch = Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor, ...]]
+Batch = Union[torch.Tensor, FutureTensor, List[Union[torch.Tensor, FutureTensor]], Tuple[Union[torch.Tensor, FutureTensor], ...]]
 LossFunc = Callable[[torch.Tensor], torch.Tensor]
 FwdStepFunc = Callable[
     [Optional[Batch], torch.nn.Module], Tuple[torch.Tensor, LossFunc]
@@ -257,6 +258,7 @@ def forward_step(
     losses_reduced: List[torch.Tensor],
     dtype: torch.dtype,
     disable_autocast: bool = False,
+    checkpoint_activations_micro_batch: Optional[bool] = None,
 ) -> Union[torch.Tensor, Sequence[torch.Tensor]]:
     """Forward step for passed-in model.
 
@@ -273,6 +275,7 @@ def forward_step(
         losses_reduced:
         dtype:
         disable_autocast:
+        checkpoint_activations_micro_batch:
 
     Returns:
         output_tensor
@@ -288,12 +291,17 @@ def forward_step(
     if unwrap_output_tensor:
         input_tensor = [input_tensor]
 
+    input_tensor = [inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor]
+
     unwrapped_model.set_input_tensor(input_tensor)
     with torch.cuda.amp.autocast(
         enabled=not disable_autocast and dtype in (torch.half, torch.bfloat16),
         dtype=dtype,
     ):
-        output_tensor, loss_func = forward_step_func(batch, model)
+        if checkpoint_activations_micro_batch is None:
+            output_tensor, loss_func = forward_step_func(batch, model)
+        else:
+            output_tensor, loss_func = forward_step_func(batch, model, checkpoint_activations_micro_batch)
         if parallel_state.is_pipeline_last_stage():
             output_tensor = loss_func(output_tensor)
             loss, loss_reduced = output_tensor
@@ -335,6 +343,9 @@ def backward_step(
         input_tensor:
         output_tensor:
         output_tensor_grad:
+    Keyword Arguments:
+        grad_scaler:
+        deallocate_pipeline_outputs: Experimental.
     Returns:
         input_tensor_grad
     """
@@ -346,14 +357,22 @@ def backward_step(
     unwrap_input_tensor_grad = not isinstance(input_tensor, list)
     if unwrap_input_tensor_grad:
         input_tensor = [input_tensor]
+
+    input_tensor = [inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor]
+
     for x in input_tensor:
         if x is not None:
             x.retain_grad()
 
     if not isinstance(output_tensor, list):
         output_tensor = [output_tensor]
+
+    output_tensor = [out.get() if isinstance(out, FutureTensor) else out for out in output_tensor]
+
     if not isinstance(output_tensor_grad, list):
         output_tensor_grad = [output_tensor_grad]
+
+    output_tensor_grad = [ogr.get() if isinstance(ogr, FutureTensor) else ogr for ogr in output_tensor_grad]
 
     # Backward pass.
     if grad_scaler is not None and output_tensor_grad[0] is None:

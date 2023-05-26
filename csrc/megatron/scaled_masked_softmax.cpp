@@ -23,12 +23,12 @@ namespace fused_softmax {
 namespace scaled_masked_softmax {
 
 torch::Tensor fwd_cuda(
-    torch::Tensor const& input, 
+    torch::Tensor const& input,
     torch::Tensor const& mask,
     float scale_factor);
 
 torch::Tensor bwd_cuda(
-    torch::Tensor const& output_grads, 
+    torch::Tensor const& output_grads,
     torch::Tensor const& softmax_results,
     float scale_factor);
 
@@ -39,32 +39,40 @@ int get_batch_per_block_cuda(
     int attn_heads);
 
 torch::Tensor fwd(
-    torch::Tensor const& input,
-    torch::Tensor const& mask,
+    torch::Tensor & input,
+    torch::Tensor & mask,
     float scale_factor) {
-  AT_ASSERTM(input.dim() == 4, "expected 4D tensor");
-  AT_ASSERTM((input.scalar_type() == at::ScalarType::Half) ||
-	     (input.scalar_type() == at::ScalarType::BFloat16), 
+  TORCH_CHECK(input.dim() == 4, "expected 4D tensor");
+  TORCH_CHECK((input.scalar_type() == at::ScalarType::Half) ||
+	     (input.scalar_type() == at::ScalarType::BFloat16),
       "Only fp16 and bf16 are supported");
-  AT_ASSERTM(mask.dim() == 4, "expected 4D tensor");
+  TORCH_CHECK(mask.dim() == 4, "expected 4D tensor");
+  if (!input.is_contiguous())
+	  input = input.contiguous();
+  if (!mask.is_contiguous())
+	  mask = mask.contiguous();
 
   return fwd_cuda(input, mask, scale_factor);
 }
 
 torch::Tensor bwd(
-    torch::Tensor const& output_grads, 
-    torch::Tensor const& softmax_results,
+    torch::Tensor & output_grads,
+    torch::Tensor & softmax_results,
     float scale_factor) {
 
-  AT_ASSERTM(output_grads.dim() == 4, "expected 3D tensor");
-  AT_ASSERTM(softmax_results.dim() == 4, "expected 3D tensor");
+  TORCH_CHECK(output_grads.dim() == 4, "expected 3D tensor");
+  TORCH_CHECK(softmax_results.dim() == 4, "expected 3D tensor");
 
-  AT_ASSERTM((output_grads.scalar_type() == at::ScalarType::Half) ||
-	     (output_grads.scalar_type() == at::ScalarType::BFloat16), 
+  TORCH_CHECK((output_grads.scalar_type() == at::ScalarType::Half) ||
+	     (output_grads.scalar_type() == at::ScalarType::BFloat16),
       "Only fp16 and bf16 are supported");
-  AT_ASSERTM((softmax_results.scalar_type() == at::ScalarType::Half) ||
-	     (softmax_results.scalar_type() == at::ScalarType::BFloat16), 
+  TORCH_CHECK((softmax_results.scalar_type() == at::ScalarType::Half) ||
+	     (softmax_results.scalar_type() == at::ScalarType::BFloat16),
       "Only fp16 and bf16 are supported");
+  if (!output_grads.is_contiguous())
+	  output_grads = output_grads.contiguous();
+  if (!softmax_results.is_contiguous())
+	  softmax_results = softmax_results.contiguous();
 
   return bwd_cuda(output_grads, softmax_results, scale_factor);
 }
@@ -82,8 +90,8 @@ int get_batch_per_block(
 } // end namespace multihead_attn
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", 
-        &multihead_attn::fused_softmax::scaled_masked_softmax::fwd, 
+  m.def("forward",
+        &multihead_attn::fused_softmax::scaled_masked_softmax::fwd,
 	"Self Multihead Attention scaled, time masked softmax -- Forward.");
 
   m.def("backward",

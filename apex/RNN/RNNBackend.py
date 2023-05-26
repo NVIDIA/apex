@@ -254,17 +254,17 @@ class RNNCell(nn.Module):
         self.gate_size = gate_multiplier * self.hidden_size
         self.n_hidden_states = n_hidden_states
 
-        self.w_ih = nn.Parameter(torch.Tensor(self.gate_size, self.input_size))
-        self.w_hh = nn.Parameter(torch.Tensor(self.gate_size, self.output_size))
+        self.w_ih = nn.Parameter(torch.empty(self.gate_size, self.input_size))
+        self.w_hh = nn.Parameter(torch.empty(self.gate_size, self.output_size))
 
         #Check if there's recurrent projection
         if(self.output_size != self.hidden_size):
-            self.w_ho = nn.Parameter(torch.Tensor(self.output_size, self.hidden_size))
+            self.w_ho = nn.Parameter(torch.empty(self.output_size, self.hidden_size))
 
         self.b_ih = self.b_hh = None
         if self.bias:
-            self.b_ih = nn.Parameter(torch.Tensor(self.gate_size))
-            self.b_hh = nn.Parameter(torch.Tensor(self.gate_size))
+            self.b_ih = nn.Parameter(torch.empty(self.gate_size))
+            self.b_hh = nn.Parameter(torch.empty(self.gate_size))
             
         #hidden states for forward
         self.hidden = [ None for states in range(self.n_hidden_states)]

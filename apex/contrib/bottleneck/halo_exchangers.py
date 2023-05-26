@@ -9,17 +9,23 @@ import peer_memory_cuda as pm
 # NB! This is only useful for performance testing.
 # NB! Do not use for actual production runs
 class HaloExchanger(object):
-    def __init__(self, spatial_group_size, rank):
+    def __init__(self, ranks, rank_in_group):
         self.stream1 = torch.cuda.Stream()
         self.stream2 = torch.cuda.Stream()
         self.stream3 = torch.cuda.Stream()
-        spatial_rank = rank % spatial_group_size
-        self.left_zero = True if spatial_rank == 0 else False
-        self.right_zero = True if spatial_rank == spatial_group_size - 1 else False
+        self.group_size = len(ranks)
+        self.ranks = ranks
+        self.rank_in_group = rank_in_group
+        self.wrap_around_left_rank_in_group = (rank_in_group + self.group_size - 1) % self.group_size
+        self.wrap_around_right_rank_in_group = (rank_in_group + 1) % self.group_size
+        self.left_rank = ranks[rank_in_group-1] if rank_in_group > 0 else -1
+        self.left_zero = True if rank_in_group == 0 else False
+        self.right_rank = ranks[rank_in_group+1] if rank_in_group < self.group_size - 1 else -1
+        self.right_zero = True if rank_in_group == self.group_size - 1 else False
 
 class HaloExchangerNoComm(HaloExchanger):
-    def __init__(self, world_size, spatial_group_size, rank, comm):
-        super(HaloExchangerNoComm, self).__init__(spatial_group_size, rank)
+    def __init__(self, ranks, rank_in_group):
+        super(HaloExchangerNoComm, self).__init__(ranks, rank_in_group)
 
     def left_right_halo_exchange(self, left_output_halo, right_output_halo, left_input_halo=None, right_input_halo=None):
         if left_input_halo is None:
@@ -29,10 +35,9 @@ class HaloExchangerNoComm(HaloExchanger):
             right_input_halo.copy_(left_output_halo)
 
 class HaloExchangerAllGather(HaloExchanger):
-    def __init__(self, world_size, spatial_group_size, rank, comm):
-        super(HaloExchangerAllGather, self).__init__(spatial_group_size, rank)
-        self.spatial_group_size = spatial_group_size
-        self.local_rank = rank % spatial_group_size
+    def __init__(self, ranks, rank_in_group, comm):
+        super(HaloExchangerAllGather, self).__init__(ranks, rank_in_group)
+        # self.comm must be NCCL process_group created with torch.distributed.new_group(ranks=ranks)
         self.comm = comm
 
     def left_right_halo_exchange(self, left_output_halo, right_output_halo, left_input_halo=None, right_input_halo=None):
@@ -40,11 +45,11 @@ class HaloExchangerAllGather(HaloExchanger):
         send_halos = torch.empty((N,2*Hh,W,C),dtype=left_output_halo.dtype,device=left_output_halo.device)
         send_halos[:,:Hh,:,:].copy_(left_output_halo)
         send_halos[:,Hh:,:,:].copy_(right_output_halo)
-        all_halos = torch.empty((N,2*Hh*self.spatial_group_size,W,C),dtype=left_output_halo.dtype,device=left_output_halo.device)
-        all_halos = [all_halos[:,i*2*Hh:(i+1)*2*Hh,:,:] for i in range(self.spatial_group_size)]
+        all_halos = torch.empty((N,2*Hh*self.group_size,W,C),dtype=left_output_halo.dtype,device=left_output_halo.device)
+        all_halos = [all_halos[:,i*2*Hh:(i+1)*2*Hh,:,:] for i in range(self.group_size)]
         torch.distributed.all_gather(all_halos,send_halos,group=self.comm,no_copy=True)
-        ag_left_input_halo = all_halos[(self.spatial_group_size+self.local_rank-1)%self.spatial_group_size][:,Hh:,:,:]
-        ag_right_input_halo = all_halos[(self.local_rank+1)%self.spatial_group_size][:,:Hh,:,:]
+        ag_left_input_halo = all_halos[self.wrap_around_left_rank_in_group][:,Hh:,:,:]
+        ag_right_input_halo = all_halos[self.wrap_around_right_rank_in_group][:,:Hh,:,:]
         if left_input_halo is None:
             if self.left_zero:
                 ag_left_input_halo.zero_()
@@ -62,35 +67,45 @@ class HaloExchangerAllGather(HaloExchanger):
                 right_input_halo.copy_(ag_right_input_halo)
 
 class HaloExchangerSendRecv(HaloExchanger):
-    def __init__(self, world_size, spatial_group_size, rank, comm):
-        super(HaloExchangerSendRecv, self).__init__(spatial_group_size, rank)
-        self.world_size = world_size
-        self.spatial_group_size = spatial_group_size
+    def __init__(self, ranks, rank_in_group):
+        super(HaloExchangerSendRecv, self).__init__(ranks, rank_in_group)
         nccl_id = inc.get_unique_nccl_id(1).cuda()
         torch.distributed.broadcast(nccl_id, 0)
         nccl_id = nccl_id.cpu()
-        self.handle = inc.init_nccl_comm(nccl_id, rank, world_size)
+        print("%d :: nccl_id = %s" % (torch.distributed.get_rank(), str(nccl_id)))
+        # Create another global nccl communicator in addition to the one created by torch.distributed.init_process_group("nccl")
+        # This is unavoidable because the underlying NCCL communicator torch.distributed creates is a protected variable, hence
+        # it cannot be accessed from another class.
+        # TODO: Figure out a way to avoid creating a second global communicator
+        assert(torch.distributed.get_rank() == self.ranks[self.rank_in_group]), "ranks[%d](%d) != torch.distributed.get_rank()(%d)" % (self.rank_in_group, self.ranks[self.rank_in_group], torch.distributed.get_rank())
+        self.handle = inc.init_nccl_comm(nccl_id, torch.distributed.get_rank(), torch.distributed.get_world_size())
 
     def left_right_halo_exchange(self, left_output_halo, right_output_halo, left_input_halo=None, right_input_halo=None):
         if left_input_halo is None:
-            left_input_halo, right_input_halo = inc.left_right_halo_exchange(self.handle, self.left_zero, self.right_zero, left_output_halo, right_output_halo, self.spatial_group_size)
+            left_input_halo, right_input_halo = inc.left_right_halo_exchange(self.handle, self.left_rank, self.right_rank , left_output_halo, right_output_halo)
             return left_input_halo, right_input_halo
         else:
-            inc.left_right_halo_exchange_inplace(self.handle, self.left_zero, self.right_zero, left_output_halo, right_output_halo, left_input_halo, right_input_halo, self.spatial_group_size)
+            inc.left_right_halo_exchange_inplace(self.handle, self.left_rank, self.right_rank, left_output_halo, right_output_halo, left_input_halo, right_input_halo)
 
 class HaloExchangerPeer(HaloExchanger):
-    def __init__(self, world_size, spatial_group_size, rank, comm, peer_pool, explicit_nhwc, numSM=1):
-        super(HaloExchangerPeer, self).__init__(spatial_group_size, rank)
+    def __init__(self, ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=0):
+        super(HaloExchangerPeer, self).__init__(ranks, rank_in_group)
         self.diagnostics = False
-        self.spatial_group_size = spatial_group_size
-        self.peer_rank = rank % spatial_group_size
-        self.left_neighbor = (self.peer_rank + self.spatial_group_size - 1) % self.spatial_group_size
-        self.right_neighbor = (self.peer_rank + 1) % self.spatial_group_size
-        self.peer_pool = peer_pool
-        self.signals = peer_pool.allocate_peer_tensors([2,4], torch.int32, False, False)
-        self.signals[self.peer_rank].zero_()
         self.explicit_nhwc = explicit_nhwc
         self.numSM = numSM
+        self.peer_pool = peer_pool
+
+    def _allocate_peer_tensor(self, halo):
+
+        # Compute size in bytes
+        # Note: Pad buffer so each CUDA block gets required buffer size
+        size = 4 * halo.numel() * halo.element_size()
+        size_per_block = 128 * 2 * 16   # 128 threads each require two 128b buffers
+        size = (size + size_per_block - 1) // size_per_block * size_per_block
+
+        # Construct dtype peer buffer with desired size
+        shape = [1, 1, 1, size // halo.element_size()]
+        return self.peer_pool.allocate_peer_tensors(shape, halo.dtype, False, True)
 
     def left_right_halo_exchange(self, left_output_halo, right_output_halo, left_input_halo=None, right_input_halo=None):
         inplace = False if left_input_halo is None and right_input_halo is None else True
@@ -98,19 +113,13 @@ class HaloExchangerPeer(HaloExchanger):
             left_input_halo = torch.empty_like(right_output_halo)
             right_input_halo = torch.empty_like(left_output_halo)
         channels_last = left_output_halo.is_contiguous(memory_format=torch.channels_last) and not self.explicit_nhwc
-        left_tx = self.peer_pool.allocate_peer_tensors(list(left_output_halo.shape), left_output_halo.dtype, channels_last, True)
-        right_tx = self.peer_pool.allocate_peer_tensors(list(right_output_halo.shape), right_output_halo.dtype, channels_last, True)
+        left_tx = self._allocate_peer_tensor(left_input_halo)
+        right_tx = self._allocate_peer_tensor(right_input_halo)
         pm.push_pull_halos_1d(
-                self.diagnostics, self.explicit_nhwc, self.numSM,
-                left_output_halo,  left_tx[self.peer_rank],  right_tx[self.left_neighbor], left_input_halo,
-                right_output_halo, right_tx[self.peer_rank], left_tx[self.right_neighbor],  right_input_halo,
-                self.signals[self.left_neighbor], self.signals[self.right_neighbor], self.signals[self.peer_rank]
+                self.diagnostics, self.explicit_nhwc, self.numSM, self.rank_in_group,
+                self.left_zero, left_output_halo,  left_tx[self.rank_in_group],  right_tx[self.wrap_around_left_rank_in_group], left_input_halo,
+                self.right_zero, right_output_halo, right_tx[self.rank_in_group], left_tx[self.wrap_around_right_rank_in_group],  right_input_halo,
                 )
-        # TODO: Add to push_pull_halos_1d kernel
-        if self.left_zero:
-            left_input_halo.zero_()
-        if self.right_zero:
-            right_input_halo.zero_()
         if not inplace:
             return left_input_halo, right_input_halo
 

@@ -103,15 +103,19 @@ def search_matrix(matrix, group_width):
 
     # found them, now try them
     best_improvement = 0.0
-    base_sum = sum_after_2_to_4(matrix)
-    for i in range(1,len(full_permutation_list)):
-        permutation = full_permutation_list[i]
-        permuted = matrix[:, permutation]
-        cur_improvement = sum_after_2_to_4(permuted) - base_sum
-
-        if (cur_improvement > best_improvement):
-            best_improvement = cur_improvement
-            best_permutation = permutation
+    use_cuda = use_gpu()
+    if use_cuda and matrix.shape[1] >= 8 and group_width == 4:  # CUDA path only works for a group width of 4
+        best_improvement, best_permutation = try_permutations_on_matrix(matrix, full_permutation_list)
+    else:
+        base_sum = sum_after_2_to_4(matrix)
+        for i in range(1,len(full_permutation_list)):
+            permutation = full_permutation_list[i]
+            permuted = matrix[:, permutation]
+            cur_improvement = sum_after_2_to_4(permuted) - base_sum
+    
+            if (cur_improvement > best_improvement):
+                best_improvement = cur_improvement
+                best_permutation = permutation
     seconds = time.perf_counter() - start_time
     return matrix[:, best_permutation], seconds, best_permutation, best_improvement
 
@@ -123,10 +127,7 @@ def search_matrix(matrix, group_width):
 # gather stripes from a larger matrix into a single matrix
 def collect_stripes(matrix, stripes, group_width):
     subset = np.zeros((matrix.shape[0], len(stripes)*group_width))
-    #print("[Debug][collect_stripes] matrix shape info: {}".format(matrix.shape))
-    #print("[Debug][collect_stripes] subset info: {}, {}, {}".format(matrix.shape[0], len(stripes), group_width))
     for s,stripe in enumerate(stripes):
-        #print("[Debug][collect_stripes] s: {}, stripe: {}".format(s, stripe))
         subset[...,s*group_width:s*group_width+group_width] = matrix[...,stripe*group_width:stripe*group_width+group_width]
     return subset
 
@@ -170,7 +171,6 @@ stripe_set_config = None
 # build the stripe map
 def build_stripe_map(matrix, group_width, window_size, stripe_map, stripe_ids, perm_map, used_stripes):
     global stripe_set, stripe_set_config
-    #print("[Debug][build_stripe_map] Now the stripe_set value is: {}".format(stripe_set))
 
     window_size = int(window_size / group_width)
 
@@ -178,7 +178,6 @@ def build_stripe_map(matrix, group_width, window_size, stripe_map, stripe_ids, p
         num_stripes = int(matrix.shape[1] / group_width)
         assert(group_width * num_stripes == matrix.shape[1])
         stripe_set = generate_stripe_groups(num_stripes, window_size)
-        #print("[Debug][build_stripe_map] Update stripe_set value as: {}".format(stripe_set))
         stripe_set_config = (group_width, window_size)
 
     # step through each, update the stripe_map/stripe_ids if necessary
@@ -222,6 +221,7 @@ def build_stripe_map(matrix, group_width, window_size, stripe_map, stripe_ids, p
         num_gpu_groups = len(gpu_list)
         gpu_improvement = np.zeros((num_gpu_groups), dtype=np.float32).flatten()
         gpu_permutation = np.zeros((num_gpu_groups), dtype=np.uint32).flatten()
+
         result = permutation_search_cuda_kernels.build_permute_map(matrix_view,
                                                               matrix.shape[0],
                                                               matrix.shape[1],
@@ -257,7 +257,7 @@ def use_stripe_map(matrix, group_width, stripe_map, stripe_ids, perm_map, permut
         stripe_group_id = ix[i]
         perm = perm_map[stripe_group_id].copy()
 
-        if stripe_map[stripe_group_id] <= 0.0001:
+        if stripe_map[stripe_group_id] <= np.finfo(np.float16).tiny*5.:
             # perturbations
             if len(used_stripes) == 0 and sm_perturbations < sm_perturbation_limit:
                 sm_perturbations += 1
@@ -342,9 +342,6 @@ def Exhaustive_Search(matrix, stripe_group_size=-1, escape_attempts=0, permutati
         stripe_ids = []
         perm_map = []
         used_stripes = []
-        optimized_groups_count = 0
-        agg_improvement = 0.
-        cur_total_sum = sum_after_2_to_4(result)
 
         # in practice, this work will be cached ahead of time; doing it now.
         # (Reading the cached list from disk can take several seconds, which shouldn't be counted against the search, but amortized over every layer in a network)
