@@ -104,6 +104,19 @@ execute_batch_norm_forward(
  * @param perChannelSum an array with shape (1, C, 1, 1) to denote the sum values for each channel in the input tensor
  * @param epsilon a scalar array with shape (1, 1, 1, 1) to represent the epsilon value for the BN
  * @param peerDims an array with shape (num GPUs, 2 * C, 1, 1) to denote the tensor dimensions for peer stat tensor in GBN
+    *
+*/
+void
+run_batch_norm_backward(
+    int64_t *tensorDims,
+    int64_t *perChannelSum,
+    int64_t *epsilon,
+    int64_t *peerDims,
+    cudnnDataType_t data_type);
+
+/**
+ * @brief Run a Group BN backward sample with 2 peer stat tensors.
+ *
  * @param xDevPtr input tensor device pointer
  * @param yDevPtr output tensor device pointer
  * @param scaledevPtr input scale device pointer for BN scaling
@@ -117,27 +130,22 @@ execute_batch_norm_forward(
  * @param peer_devPtr1 peer stat tensor 1 device pointer
  * @param peer_devPtr2 peer stat tensor 2 device pointer
  * @param epsilon_val episilon value as a double
- * @param exponential_decay_factor exponential_decay_factor as a value
  *
  */
 void
-run_batch_norm_backward(
-    int64_t *tensorDims,
-    int64_t *perChannelSum,
-    int64_t *epsilon,
-    int64_t *peerDims,
-
-    void *xDevPtr,
-    void *dyDevPtr,
-    void *scaledevPtr,
-    void *saved_meandevPtr,
-    void *saved_inv_vardevPtr,
-    void *peer_devPtr1,
-    void *peer_devPtr2,
-    void *dscaledevPtr,
-    void *dbiasdevPtr,
-    void *dxDevPtr,
-
-    double epsilon_val,
-    cudnnDataType_t in_out_data_type
+execute_batch_norm_backward(
+  cudnnHandle_t &handle_,
+  cudnn_frontend::ExecutionPlan plan,
+  void *xDevPtr,
+  void *dyDevPtr,
+  void *scaledevPtr,
+  void *saved_meandevPtr,
+  void *saved_inv_vardevPtr,
+  void *peer_devPtr1,
+  void *peer_devPtr2,
+  void *dscaledevPtr,
+  void *dbiasdevPtr,
+  void *dxDevPtr,
+  double epsilon_val,
+  cudnnDataType_t in_out_data_type
 );
