@@ -602,7 +602,7 @@ if "--fast_multihead_attn" in sys.argv:
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_90,code=sm_90")
 
-    subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
+    #subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
     ext_modules.append(
         CUDAExtension(
             name="fast_multihead_attn",
