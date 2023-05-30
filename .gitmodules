@@ -4,4 +4,4 @@
 	branch = v1.2.0
 [submodule "apex/contrib/csrc/cudnn-frontend"]
 	path = apex/contrib/csrc/cudnn-frontend
-	url = https://tkurth@glpat-X-qKM4GJxF3QQUZY9tiV:gitlab-master.nvidia.com/cudnn/cudnn_frontend.git
+	url = https://tkurth:glpat-X-qKM4GJxF3QQUZY9tiV@gitlab-master.nvidia.com/cudnn/cudnn_frontend.git
