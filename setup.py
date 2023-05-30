@@ -674,7 +674,7 @@ if "--cudnn_gbn" in sys.argv:
     sys.argv.remove("--cudnn_gbn")
     raise_if_cuda_home_none("--cudnn_gbn")
     if check_cudnn_version_and_warn("--cudnn_gbn", 8500):
-        subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
+        #subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
         ext_modules.append(
             CUDAExtension(
                 name="cudnn_gbn_lib",
