@@ -78,8 +78,7 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(
 
   generateStrides(perChannelSum, stride, 4, CUDNN_TENSOR_NHWC);
 
-  auto per_channel_tensor_create = [&stride, &perChannelSum](cudnnDataType_t type,
-  int64_t id) {
+  auto per_channel_tensor_create = [&stride, &perChannelSum](cudnnDataType_t type, int64_t id) {
     return cudnn_frontend::TensorBuilder()
       .setDim(4, perChannelSum)
         .setStrides(4, stride)
@@ -106,8 +105,7 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(
 
   int64_t epsilon_stride[4];
   generateStrides(epsilon, epsilon_stride, 4, CUDNN_TENSOR_NHWC);
-  auto scalar_tensor_create = [&epsilon_stride, &epsilon](cudnnDataType_t type,
-  int64_t id) {
+  auto scalar_tensor_create = [&epsilon_stride, &epsilon](cudnnDataType_t type, int64_t id) {
     return cudnn_frontend::TensorBuilder()
       .setDim(4, epsilon)
         .setStrides(4, epsilon_stride)

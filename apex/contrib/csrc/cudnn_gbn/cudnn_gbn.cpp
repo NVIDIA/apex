@@ -121,14 +121,12 @@ std::vector<at::Tensor> gbn_backward(
     auto plan = run_batch_norm_backward(handle, tensorDims, perChannelDims, epsilon, peerDims, CUDNN_DATA_HALF);
     gbn_plan_cache.insert(std::make_pair(fv, std::make_pair(handle, plan)));
   }
-
   
-  
-  run_batch_norm_backward(
-    perChannelDims,
-    epsilonDims,
-    tensorDims,
-    peerDims,
+  // execute  
+  cudnnHandle_t handle;
+  cudnn_frontend::ExecutionPlan plan;
+  std::tie(handle, plan) = gbn_plan_cache.find(fv)->second;
+  execute_batch_norm_forward(handle, plan,
     x.data_ptr(),
     dy.data_ptr(),
     scale.data_ptr(),
@@ -138,10 +136,7 @@ std::vector<at::Tensor> gbn_backward(
     scale_grad.data_ptr(),
     bias_grad.data_ptr(),
     void_peer_buffers,
-    epsilon,
-    rank_id);
-
-
+    epsilon);
 
   return std::vector<at::Tensor>{x_grad, scale_grad, bias_grad};
 }
