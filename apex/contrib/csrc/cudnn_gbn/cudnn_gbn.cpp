@@ -7,6 +7,12 @@
 
 #include "norm_sample.h"
 
+// define this enum:
+enum bn_type { BN_FWD, BN_BWD };
+
+// this is a global variable
+static std::map<std::vector<int64_t>, std::pair<cudnnHandle_t,cudnn_frontend::ExecutionPlan>> gbn_plan_cache;
+
 at::Tensor gbn_forward(const at::Tensor& x,
                        const at::Tensor& scale,
                        const at::Tensor& bias,
@@ -38,28 +44,37 @@ at::Tensor gbn_forward(const at::Tensor& x,
     void_peer_buffers.push_back((void*)addr);
   }
 
+  // sanity check
   assert(bn_group == void_peer_buffers.size());
-  run_batch_norm_forward(
-    perChannelDims,
-    epsilonDims,
-    tensorDims,
-    peerDims,
-    x.data_ptr(),
-    y.data_ptr(),
-    scale.data_ptr(),
-    bias.data_ptr(),
-    running_mean.data_ptr(),
-    running_var.data_ptr(),
-    running_mean.data_ptr(),
-    running_var.data_ptr(),
-    minibatch_mean.data_ptr(),
-    minibatch_inv_var.data_ptr(),
-    void_peer_buffers,
-    epsilon,
-    momentum,
-    rank_id
-  );
 
+  // check if plan already exists
+  std::vector<int64_t> fv = {(int)BN_FWD, N, C, H, W, bn_group, (int)CUDNN_DATA_HALF};
+  if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
+    cudnnHandle_t handle;
+    auto plan = run_batch_norm_forward(handle, tensorDims, perChannelDims, epsilon, peerDims, CUDNN_DATA_HALF);
+    gbn_plan_cache.insert(std::make_pair(fv, std::make_pair(handle, plan)));
+  }
+
+  // execute  
+  cudnnHandle_t handle;
+  cudnn_frontend::ExecutionPlan plan;
+  std::tie(handle, plan) = gbn_plan_cache.find(fv)->second;
+  execute_batch_norm_forward(handle, plan, 
+			     x.data_ptr(),
+			     y.data_ptr(),
+			     scale.data_ptr(),
+			     bias.data_ptr(),
+			     running_mean.data_ptr(),
+			     running_var.data_ptr(),
+			     running_mean.data_ptr(),
+			     running_var.data_ptr(),
+			     minibatch_mean.data_ptr(),
+			     minibatch_inv_var.data_ptr(),
+			     void_peer_buffers[0],
+			     void_peer_buffers[1],
+			     static_cast<double>(epsilon),
+			     static_cast<double>(momentum));
+  
   return y;
 }
 
@@ -100,6 +115,15 @@ std::vector<at::Tensor> gbn_backward(
 
   assert(bn_group == void_peer_buffers.size());
 
+  std::vector<int64_t> fv = {(int)BN_BWD, N, C, H, W, bn_group, (int)CUDNN_DATA_HALF};
+  if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
+    cudnnHandle_t handle;
+    auto plan = run_batch_norm_backward(handle, tensorDims, perChannelDims, epsilon, peerDims, CUDNN_DATA_HALF);
+    gbn_plan_cache.insert(std::make_pair(fv, std::make_pair(handle, plan)));
+  }
+
+  
+  
   run_batch_norm_backward(
     perChannelDims,
     epsilonDims,

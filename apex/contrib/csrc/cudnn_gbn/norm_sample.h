@@ -1,5 +1,7 @@
+#pragma once
+
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -27,21 +29,58 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <cuda_runtime.h>
 #include <assert.h>
 #include <tuple>
 #include <functional>
-#include <vector>
 
 #include <cudnn.h>
+#include <cudnn_frontend.h>
 
-void
+/* some helpers
+ */
+void generateStrides(const int64_t* dimA, int64_t* strideA, int nbDims, cudnnTensorFormat_t filterFormat);
+
+
+/**
+ * @brief Run a Group BN forward sample with 2 peer stat tensors.
+ *
+ * @param tensorDims an array with shape (N, C, H, W) for input tensor dims. Stride in NHWC or NCHW will take care of memory format
+ * @param perChannelSum an array with shape (1, C, 1, 1) to denote the sum values for each channel in the input tensor
+ * @param epsilon a scalar array with shape (1, 1, 1, 1) to represent the epsilon value for the BN
+ * @param peerDims an array with shape (num GPUs, 2 * C, 1, 1) to denote the tensor dimensions for peer stat tensor in GBN
+
+ *
+ */
+cudnn_frontend::ExecutionPlan
 run_batch_norm_forward(
+    cudnnHandle_t &handle_,
+    int64_t *tensorDims,
     int64_t *perChannelSum,
     int64_t *epsilon,
-    int64_t *tensorDims,
     int64_t *peerDims,
-
+    cudnnDataType_t in_out_data_type
+);
+/**
+ * @param xDevPtr input tensor device pointer
+ * @param yDevPtr output tensor device pointer
+ * @param scaledevPtr input scale device pointer for BN scaling
+ * @param biasdevPtr input scale device pointer for BN bias
+ * @param in_meandevPtr Input mean device pointer
+ * @param in_vardevPtr Input variance device pointer
+ * @param out_meandevPtr output mean device pointer
+ * @param out_vardevPtr output variance device pointer
+ * @param saved_meandevPtr saved mean device pointer for BN backward
+ * @param saved_inv_vardevPtr saved inverse variance device pointer for BN backward
+ * @param peer_devPtr1 peer stat tensor 1 device pointer
+ * @param peer_devPtr2 peer stat tensor 2 device pointer
+ * @param epsilon_val episilon value as a double
+ * @param exponential_decay_factor exponential_decay_factor as a value
+ *
+**/
+void
+execute_batch_norm_forward(
+    cudnnHandle_t &handle_,
+    cudnn_frontend::ExecutionPlan plan,
     void *xDevPtr,
     void *yDevPtr,
     void *scaledevPtr,
@@ -52,17 +91,40 @@ run_batch_norm_forward(
     void *out_vardevPtr,
     void *saved_meandevPtr,
     void *saved_inv_vardevPtr,
-    const std::vector<void*> &peer_devPtrs,
-    double epsilon_val,
-    double exponential_decay_factor,
-    int rank_id
-);
+    void *peer_devPtr1,
+    void *peer_devPtr2,
 
+    double epsilon_val,
+    double exponential_decay_factor);
+
+/**
+ * @brief Run a Group BN backward sample with 2 peer stat tensors.
+ *
+ * @param tensorDims an array with shape (N, C, H, W) for input tensor dims. Stride in NHWC or NCHW will take care of memory format
+ * @param perChannelSum an array with shape (1, C, 1, 1) to denote the sum values for each channel in the input tensor
+ * @param epsilon a scalar array with shape (1, 1, 1, 1) to represent the epsilon value for the BN
+ * @param peerDims an array with shape (num GPUs, 2 * C, 1, 1) to denote the tensor dimensions for peer stat tensor in GBN
+ * @param xDevPtr input tensor device pointer
+ * @param yDevPtr output tensor device pointer
+ * @param scaledevPtr input scale device pointer for BN scaling
+ * @param biasdevPtr input scale device pointer for BN bias
+ * @param in_meandevPtr Input mean device pointer
+ * @param in_vardevPtr Input variance device pointer
+ * @param out_meandevPtr output mean device pointer
+ * @param out_vardevPtr output variance device pointer
+ * @param saved_meandevPtr saved mean device pointer for BN backward
+ * @param saved_inv_vardevPtr saved inverse variance device pointer for BN backward
+ * @param peer_devPtr1 peer stat tensor 1 device pointer
+ * @param peer_devPtr2 peer stat tensor 2 device pointer
+ * @param epsilon_val episilon value as a double
+ * @param exponential_decay_factor exponential_decay_factor as a value
+ *
+ */
 void
 run_batch_norm_backward(
+    int64_t *tensorDims,
     int64_t *perChannelSum,
     int64_t *epsilon,
-    int64_t *tensorDims,
     int64_t *peerDims,
 
     void *xDevPtr,
@@ -70,10 +132,12 @@ run_batch_norm_backward(
     void *scaledevPtr,
     void *saved_meandevPtr,
     void *saved_inv_vardevPtr,
-    void *dxDevPtr,
+    void *peer_devPtr1,
+    void *peer_devPtr2,
     void *dscaledevPtr,
     void *dbiasdevPtr,
-    const std::vector<void*> &peer_devPtrs,
+    void *dxDevPtr,
+
     double epsilon_val,
-    int rank_id
+    cudnnDataType_t in_out_data_type
 );
