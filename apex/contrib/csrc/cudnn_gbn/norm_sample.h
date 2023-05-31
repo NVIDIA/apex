@@ -46,13 +46,13 @@ int64_t checkCudnnError(cudnnStatus_t code, const char* expr, const char* file, 
 #define checkCudaErr(...)                                                        \
     do {                                                                         \
         int64_t err = checkCudaError(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__); \
-        REQUIRE(err == 0);                                                       \
+        assert(err == 0);                                                       \
     } while (0)
 
 #define checkCudnnErr(...)                                                        \
     do {                                                                          \
         int64_t err = checkCudnnError(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__); \
-        REQUIRE(err == 0);                                                        \
+        assert(err == 0);                                                        \
     } while (0)
 
 /**

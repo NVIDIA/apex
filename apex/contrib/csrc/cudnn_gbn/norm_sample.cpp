@@ -249,7 +249,7 @@ void execute_batch_norm_forward(cudnnHandle_t &handle_,
     
   } catch (cudnn_frontend::cudnnException &e) {
     struct cudaDeviceProp prop;
-    checkCudaErrors(cudaGetDeviceProperties(&prop, 0));
+    checkCudaErr(cudaGetDeviceProperties(&prop, 0));
     if (prop.major == 8) {
       std::cout << "[ERROR] Exception " << e.what() << std::endl;
       assert(false);
@@ -438,10 +438,10 @@ void execute_batch_norm_backward(cudnnHandle_t &handle_,
     cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
     
     std::cout << "Batch normalization backward run completed successfully" << std::endl;
-#endif
+
   } catch (cudnn_frontend::cudnnException &e) {
     struct cudaDeviceProp prop;
-    checkCudaErrors(cudaGetDeviceProperties(&prop, 0));
+    checkCudaErr(cudaGetDeviceProperties(&prop, 0));
     if (prop.major == 8) {
       std::cout << "[ERROR] Exception " << e.what() << std::endl;
       CHECK(false);
