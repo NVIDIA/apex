@@ -24,6 +24,23 @@
 #include <cudnn_frontend.h>
 #include "cudnn_backend.h"
 
+// some helpers
+int64_t checkCudaError(cudaError_t code, const char* expr, const char* file, int line) {
+    if (code) {
+        printf("CUDA error at %s:%d, code=%d (%s) in '%s'", file, line, (int)code, cudaGetErrorString(code), expr);
+	return 1;
+    }
+    return 0;
+}
+
+int64_t checkCudnnError(cudnnStatus_t code, const char* expr, const char* file, int line) {
+    if (code) {
+        printf("CUDNN error at %s:%d, code=%d (%s) in '%s'\n", file, line, (int)code, cudnnGetErrorString(code), expr);
+        return 1;
+    }
+    return 0;
+}
+
 bool
 AllowAll(cudnnBackendDescriptor_t engine_config) {
   (void)engine_config;
@@ -31,6 +48,7 @@ AllowAll(cudnnBackendDescriptor_t engine_config) {
 }
 
 
+// runtime
 cudnn_frontend::ExecutionPlan run_batch_norm_forward(
 						     cudnnHandle_t &handle_,
 						     int64_t *tensorDims,
@@ -173,7 +191,7 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(
     return cudnn_frontend::ExecutionPlanBuilder().setHandle(handle_).setEngineConfig(filtered_configs[0], opGraph.getTag()).build();
   };
 
-  CHECK(filtered_configs.size() > 0);
+  assert(filtered_configs.size() > 0);
   auto plan = plan_builder();
   std::cout << "Plan tag: " << plan.getTag() << std::endl;
 
@@ -234,7 +252,7 @@ void execute_batch_norm_forward(cudnnHandle_t &handle_,
     checkCudaErrors(cudaGetDeviceProperties(&prop, 0));
     if (prop.major == 8) {
       std::cout << "[ERROR] Exception " << e.what() << std::endl;
-      CHECK(false);
+      assert(false);
     }
   }
 }

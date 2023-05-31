@@ -40,6 +40,20 @@
  */
 void generateStrides(const int64_t* dimA, int64_t* strideA, int nbDims, cudnnTensorFormat_t filterFormat);
 
+int64_t checkCudaError(cudaError_t code, const char* expr, const char* file, int line);
+int64_t checkCudnnError(cudnnStatus_t code, const char* expr, const char* file, int line);
+
+#define checkCudaErr(...)                                                        \
+    do {                                                                         \
+        int64_t err = checkCudaError(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__); \
+        REQUIRE(err == 0);                                                       \
+    } while (0)
+
+#define checkCudnnErr(...)                                                        \
+    do {                                                                          \
+        int64_t err = checkCudnnError(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__); \
+        REQUIRE(err == 0);                                                        \
+    } while (0)
 
 /**
  * @brief Run a Group BN forward sample with 2 peer stat tensors.
