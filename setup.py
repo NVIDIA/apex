@@ -9,6 +9,8 @@ import subprocess
 import torch
 from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension, CUDA_HOME, load
 
+PYTORCH_HOME = os.path.abspath(os.environ['PYTORCH_HOME']) if 'PYTORCH_HOME' in os.environ else None
+
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -357,6 +359,37 @@ if "--cuda_ext" in sys.argv:
                 },
             )
         )
+
+if PYTORCH_HOME is not None and os.path.exists(PYTORCH_HOME):
+    nvfuser_is_refactored = "nvfuser" in (
+        os.path.join(d) for d in os.listdir(os.path.join(PYTORCH_HOME, "third_party"))
+        if os.path.isdir(os.path.join(os.path.join(PYTORCH_HOME, "third_party"), d))
+    )
+    import nvfuser  # NOQA
+    print(PYTORCH_HOME)
+    include_dirs = [PYTORCH_HOME]
+    library_dirs = []
+    extra_link_args = []
+    if nvfuser_is_refactored:
+        include_dirs.append(os.path.join(PYTORCH_HOME, "third_party/nvfuser/csrc"))
+        library_dirs = nvfuser.__path__
+        extra_link_args.append("-lnvfuser_codegen")
+    ext_modules.append(
+        CUDAExtension(
+            name='instance_norm_nvfuser_cuda',
+            sources=[
+                'csrc/instance_norm_nvfuser.cpp',
+                'csrc/instance_norm_nvfuser_kernel.cu',
+            ],
+            include_dirs=include_dirs,
+            library_dirs=library_dirs,
+            extra_link_args=extra_link_args,
+            extra_compile_args={
+                "cxx": ["-O3"] + version_dependent_macros,
+                "nvcc": ["-O3"] + version_dependent_macros + [f"-DNVFUSER_THIRDPARTY={int(nvfuser_is_refactored)}"],
+            },
+        )
+    )
 
 if "--permutation_search" in sys.argv:
     sys.argv.remove("--permutation_search")
