@@ -602,7 +602,7 @@ if "--fast_multihead_attn" in sys.argv:
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_90,code=sm_90")
 
-    subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
+    #subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
     ext_modules.append(
         CUDAExtension(
             name="fast_multihead_attn",
@@ -674,7 +674,7 @@ if "--cudnn_gbn" in sys.argv:
     sys.argv.remove("--cudnn_gbn")
     raise_if_cuda_home_none("--cudnn_gbn")
     if check_cudnn_version_and_warn("--cudnn_gbn", 8500):
-        subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
+        #subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
         ext_modules.append(
             CUDAExtension(
                 name="cudnn_gbn_lib",
@@ -733,7 +733,7 @@ if "--fast_bottleneck" in sys.argv:
     sys.argv.remove("--fast_bottleneck")
     raise_if_cuda_home_none("--fast_bottleneck")
     if check_cudnn_version_and_warn("--fast_bottleneck", 8400):
-        subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
+        #subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
         ext_modules.append(
             CUDAExtension(
                 name="fast_bottleneck",
@@ -748,7 +748,7 @@ if "--fused_conv_bias_relu" in sys.argv:
     sys.argv.remove("--fused_conv_bias_relu")
     raise_if_cuda_home_none("--fused_conv_bias_relu")
     if check_cudnn_version_and_warn("--fused_conv_bias_relu", 8400):
-        subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
+        #subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
         ext_modules.append(
             CUDAExtension(
                 name="fused_conv_bias_relu",
