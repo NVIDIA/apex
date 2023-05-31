@@ -51,7 +51,7 @@ at::Tensor gbn_forward(const at::Tensor& x,
   std::vector<int64_t> fv = {(int)BN_FWD, N, C, H, W, bn_group, (int)CUDNN_DATA_HALF};
   if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
     cudnnHandle_t handle;
-    auto plan = run_batch_norm_forward(handle, tensorDims, perChannelDims, epsilon, peerDims, CUDNN_DATA_HALF);
+    auto plan = run_batch_norm_forward(handle, tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
     gbn_plan_cache.insert(std::make_pair(fv, std::make_pair(handle, plan)));
   }
 
@@ -118,7 +118,7 @@ std::vector<at::Tensor> gbn_backward(
   std::vector<int64_t> fv = {(int)BN_BWD, N, C, H, W, bn_group, (int)CUDNN_DATA_HALF};
   if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
     cudnnHandle_t handle;
-    auto plan = run_batch_norm_backward(handle, tensorDims, perChannelDims, epsilon, peerDims, CUDNN_DATA_HALF);
+    auto plan = run_batch_norm_backward(handle, tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
     gbn_plan_cache.insert(std::make_pair(fv, std::make_pair(handle, plan)));
   }
   
