@@ -122,6 +122,7 @@ execute_batch_norm_forward(
 */
 void
 run_batch_norm_backward(
+    cudnnHandle_t &handle_,
     int64_t *tensorDims,
     int64_t *perChannelSum,
     int64_t *epsilon,
