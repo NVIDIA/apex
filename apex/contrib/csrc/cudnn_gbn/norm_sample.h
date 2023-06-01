@@ -107,7 +107,6 @@ execute_batch_norm_forward(
     void *saved_inv_vardevPtr,
     void *peer_devPtr1,
     void *peer_devPtr2,
-
     double epsilon_val,
     double exponential_decay_factor);
 

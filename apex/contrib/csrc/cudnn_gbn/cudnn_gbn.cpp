@@ -55,10 +55,16 @@ at::Tensor gbn_forward(const at::Tensor& x,
     gbn_plan_cache.insert(std::make_pair(fv, std::make_pair(handle, plan)));
   }
 
-  // execute  
-  cudnnHandle_t handle;
-  cudnn_frontend::ExecutionPlan plan;
-  std::tie(handle, plan) = gbn_plan_cache.find(fv)->second;
+  // get plan and handle
+  auto token = gbn_plan_cache.find(fv)->second;
+  auto handle = token->first;
+  auto plan = token->second;
+
+  //cudnnHandle_t handle;
+  // cudnn_frontend::ExecutionPlan plan;
+  //std::tie(handle, plan) = gbn_plan_cache.find(fv)->second;
+
+  // execute
   execute_batch_norm_forward(handle, plan, 
 			     x.data_ptr(),
 			     y.data_ptr(),
@@ -122,10 +128,16 @@ std::vector<at::Tensor> gbn_backward(
     gbn_plan_cache.insert(std::make_pair(fv, std::make_pair(handle, plan)));
   }
   
-  // execute  
-  cudnnHandle_t handle;
-  cudnn_frontend::ExecutionPlan plan;
-  std::tie(handle, plan) = gbn_plan_cache.find(fv)->second;
+  // get plan and handle
+  auto token = gbn_plan_cache.find(fv)->second;
+  auto handle = token->first;
+  auto plan = token->second;
+  
+  //cudnnHandle_t handle;
+  //cudnn_frontend::ExecutionPlan plan;
+  //std::tie(handle, plan) = gbn_plan_cache.find(fv)->second;
+
+  // execute
   execute_batch_norm_backward(handle, plan,
 			      x.data_ptr(),
 			      dy.data_ptr(),
