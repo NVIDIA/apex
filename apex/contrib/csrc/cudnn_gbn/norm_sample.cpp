@@ -386,7 +386,7 @@ void run_batch_norm_backward(cudnnHandle_t &handle_,
     return cudnn_frontend::ExecutionPlanBuilder().setHandle(handle_).setEngineConfig(filtered_configs[0], opGraph.getTag()).build();
   };
 
-  CHECK(filtered_configs.size() > 0);
+  assert(filtered_configs.size() > 0);
   auto plan = plan_builder();
   std::cout << "Plan tag: " << plan.getTag() << std::endl;
 
@@ -444,7 +444,7 @@ void execute_batch_norm_backward(cudnnHandle_t &handle_,
     checkCudaErr(cudaGetDeviceProperties(&prop, 0));
     if (prop.major == 8) {
       std::cout << "[ERROR] Exception " << e.what() << std::endl;
-      CHECK(false);
+      assert(false);
     }
   }
 }
