@@ -126,17 +126,18 @@ std::vector<at::Tensor> gbn_backward(
   cudnnHandle_t handle;
   cudnn_frontend::ExecutionPlan plan;
   std::tie(handle, plan) = gbn_plan_cache.find(fv)->second;
-  execute_batch_norm_forward(handle, plan,
-    x.data_ptr(),
-    dy.data_ptr(),
-    scale.data_ptr(),
-    minibatch_mean.data_ptr(),
-    minibatch_inv_var.data_ptr(),
-    x_grad.data_ptr(),
-    scale_grad.data_ptr(),
-    bias_grad.data_ptr(),
-    void_peer_buffers,
-    epsilon);
+  execute_batch_norm_backward(handle, plan,
+			      x.data_ptr(),
+			      dy.data_ptr(),
+			      scale.data_ptr(),
+			      minibatch_mean.data_ptr(),
+			      minibatch_inv_var.data_ptr(),
+			      void_peer_buffers[0],
+			      void_peer_buffers[1],
+			      x_grad.data_ptr(),
+			      scale_grad.data_ptr(),
+			      bias_grad.data_ptr(),
+			      epsilon);
 
   return std::vector<at::Tensor>{x_grad, scale_grad, bias_grad};
 }
