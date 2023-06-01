@@ -148,18 +148,17 @@ run_batch_norm_backward(
  */
 void
 execute_batch_norm_backward(
-  cudnnHandle_t &handle_,
-  cudnn_frontend::ExecutionPlan plan,
-  void *xDevPtr,
-  void *dyDevPtr,
-  void *scaledevPtr,
-  void *saved_meandevPtr,
-  void *saved_inv_vardevPtr,
-  void *peer_devPtr1,
-  void *peer_devPtr2,
-  void *dscaledevPtr,
-  void *dbiasdevPtr,
-  void *dxDevPtr,
-  double epsilon_val,
-  cudnnDataType_t in_out_data_type
+cudnnHandle_t &handle_,
+cudnn_frontend::ExecutionPlan plan,
+void *xDevPtr,
+void *dyDevPtr,
+void *scaledevPtr,
+void *saved_meandevPtr,
+void *saved_inv_vardevPtr,
+void *peer_devPtr1,
+void *peer_devPtr2,
+void *dxDevPtr,
+void *dscaledevPtr,
+void *dbiasdevPtr,
+double epsilon_val
 );
