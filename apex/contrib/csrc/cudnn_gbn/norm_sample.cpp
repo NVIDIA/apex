@@ -257,12 +257,12 @@ void execute_batch_norm_forward(cudnnHandle_t &handle_,
   }
 }
 
-void run_batch_norm_backward(cudnnHandle_t &handle_,
-			     int64_t *tensorDims,
-			     int64_t *perChannelSum,
-			     int64_t *epsilon,
-			     int64_t *peerDims,
-			     cudnnDataType_t data_type) {
+cudnn_frontend::ExecutionPlan run_batch_norm_backward(cudnnHandle_t &handle_,
+						      int64_t *tensorDims,
+						      int64_t *perChannelSum,
+						      int64_t *epsilon,
+						      int64_t *peerDims,
+						      cudnnDataType_t data_type) {
   std::cout << "================ Running Batch Norm Backward =======================" << std::endl;
   // Create the cudnn handle
   checkCudnnErr(cudnnCreate(&handle_));

@@ -120,7 +120,7 @@ execute_batch_norm_forward(
  * @param peerDims an array with shape (num GPUs, 2 * C, 1, 1) to denote the tensor dimensions for peer stat tensor in GBN
     *
 */
-void
+cudnn_frontend::ExecutionPlan
 run_batch_norm_backward(
     cudnnHandle_t &handle_,
     int64_t *tensorDims,
