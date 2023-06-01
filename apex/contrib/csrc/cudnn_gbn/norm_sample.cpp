@@ -47,6 +47,25 @@ AllowAll(cudnnBackendDescriptor_t engine_config) {
   return false;
 }
 
+void generateStrides(const int64_t* dimA, int64_t* strideA, int64_t nbDims, cudnnTensorFormat_t filterFormat) {
+  // For INT8x4 and INT8x32 we still compute standard strides here to input
+  // into the cuDNN functions. We will manually scale by resizeFactor in the cpu ref.
+  if (filterFormat == CUDNN_TENSOR_NCHW) {
+    strideA[nbDims - 1] = 1;
+    for (int64_t d = nbDims - 2; d >= 0; d--) {
+      strideA[d] = strideA[d + 1] * dimA[d + 1];
+    }
+  } else {
+    // Here we assume that the format is CUDNN_TENSOR_NHWC
+    strideA[1]          = 1;
+    strideA[nbDims - 1] = strideA[1] * dimA[1];
+    for (int64_t d = nbDims - 2; d >= 2; d--) {
+      strideA[d] = strideA[d + 1] * dimA[d + 1];
+    }
+    strideA[0] = strideA[2] * dimA[2];
+  }
+}
+
 
 // runtime
 cudnn_frontend::ExecutionPlan run_batch_norm_forward(
