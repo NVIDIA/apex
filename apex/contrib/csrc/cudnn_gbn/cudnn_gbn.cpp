@@ -56,9 +56,9 @@ at::Tensor gbn_forward(const at::Tensor& x,
   }
 
   // get plan and handle
-  auto token = gbn_plan_cache.find(fv)->second;
-  auto handle = token->first;
-  auto plan = token->second;
+  auto& token = gbn_plan_cache.find(fv)->second;
+  auto& handle = token.first;
+  auto& plan = token.second;
 
   //cudnnHandle_t handle;
   // cudnn_frontend::ExecutionPlan plan;
@@ -129,9 +129,9 @@ std::vector<at::Tensor> gbn_backward(
   }
   
   // get plan and handle
-  auto token = gbn_plan_cache.find(fv)->second;
-  auto handle = token->first;
-  auto plan = token->second;
+  auto& token = gbn_plan_cache.find(fv)->second;
+  auto& handle = token.first;
+  auto& plan = token.second;
   
   //cudnnHandle_t handle;
   //cudnn_frontend::ExecutionPlan plan;
