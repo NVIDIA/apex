@@ -117,7 +117,7 @@ See [the NGC documentation](https://docs.nvidia.com/deeplearning/frameworks/pyto
 
 ## From Source
 
-To install Apex from source, we recommend using the nightly Pytorch obtainable from https://github.com/pytorch/pytorch.
+To install APEX from source, we recommend using the nightly PyTorch obtainable from https://github.com/pytorch/pytorch.
 
 The latest stable release obtainable from https://pytorch.org should also work.
 
