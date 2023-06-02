@@ -198,6 +198,9 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(
   std::cout << std::endl;
   std::cout << "Filter config list has " << filtered_configs.size() << " configurations " << std::endl;
 
+  // some verbose printing:
+  std::cout << "Tensor shape: (" << tensorDims[0] << ", " << tensorDims[1] << ", " << tensorDims[2] << ", " << tensorDims[3] << ")" << std::endl;
+  
   auto plan_builder = [&filtered_configs, &opGraph, &handle_]() {
     for (auto i = 0u; i < filtered_configs.size(); i++) {
       try {
