@@ -51,9 +51,9 @@ def get_nvidia_pytorch_version():
 
 CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV = False
 ngc_container_2209, pytorch_113 = Version("22.09"), Version("1.13")
-if parse(get_nvidia_pytorch_version()) >= ngc_container_2209:
+if parse(torch.__version__) >= pytorch_113:
     CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV = True
-elif parse(torch.__version__) >= pytorch_113:
+elif parse(get_nvidia_pytorch_version()) >= ngc_container_2209:
     CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV = True
 else:
     CAN_SKIP_SYNC_AFTER_BATCH_ISEND_IRECV = False
