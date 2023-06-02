@@ -135,10 +135,7 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(
   auto savedMeanTensor     = per_channel_tensor_create(CUDNN_DATA_FLOAT, 108);
   auto savedInvVarTensor   = per_channel_tensor_create(CUDNN_DATA_FLOAT, 109);
 
-  // Create the two peer stat tensors. Jump IDs in case we need to add more tensors with UIDs
-  auto peerStatTensor1      = peer_tensor_create(CUDNN_DATA_FLOAT, 200);
-  auto peerStatTensor2      = peer_tensor_create(CUDNN_DATA_FLOAT, 201);
-
+  
   int64_t epsilon_stride[4];
   generateStrides(epsilon, epsilon_stride, (int64_t)4, CUDNN_TENSOR_NHWC);
   auto scalar_tensor_create = [&epsilon_stride, &epsilon](cudnnDataType_t type, int64_t id) {
@@ -152,8 +149,14 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(
                   .build();
   };
 
-  auto epsilonTensor       = scalar_tensor_create(CUDNN_DATA_DOUBLE, 300);
-  auto expDecayTensor      = scalar_tensor_create(CUDNN_DATA_DOUBLE, 301);
+  auto epsilonTensor       = scalar_tensor_create(CUDNN_DATA_DOUBLE, 110);
+  auto expDecayTensor      = scalar_tensor_create(CUDNN_DATA_DOUBLE, 111);
+
+  // Create the two peer stat tensors. Jump IDs in case we need to add more tensors with UIDs
+  std::vector<cudnn_frontend::Tensor_v8> peerStatTensors;
+  for (size_t i = 112; i < 112 + peerDims[0]; ++i) {
+    peerStatTensors.push_back(peer_tensor_create(CUDNN_DATA_FLOAT, i));
+  }
 
 #if (CUDNN_VERSION >= 8500)
   // Batch normalization
@@ -165,18 +168,17 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(
   //Create a Finalize node
   auto batch_norm_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_NORM_FORWARD_DESCRIPTOR)
     .setNormalizationMode(normalizationMode)
-      .setNormFwdPhase(phase)
-        .setxDesc(xTensor)
-          .setScaleAndBias(scaleTensor, biasTensor)
-            .setPrevRunningMeanAndVar(inMeanTensor, inVarTensor)
-              .setNextRunningMeanAndVar(outMeanTensor, outVarTensor)
-                .setSavedMeanAndInvVar(savedMeanTensor, savedInvVarTensor)
-                  .setEpsilonTensor(epsilonTensor)
-                    .setExpDecayFactorTensor(expDecayTensor)
-                      .addPeerStatTensor(peerStatTensor1) // Add the two peer stat tensors for GBN with 2 GPUs
-                        .addPeerStatTensor(peerStatTensor2)
-                          .setyDesc(yTensor)
-                            .build();
+    .setNormFwdPhase(phase)
+    .setxDesc(xTensor)
+    .setScaleAndBias(scaleTensor, biasTensor)
+    .setPrevRunningMeanAndVar(inMeanTensor, inVarTensor)
+    .setNextRunningMeanAndVar(outMeanTensor, outVarTensor)
+    .setSavedMeanAndInvVar(savedMeanTensor, savedInvVarTensor)
+    .setEpsilonTensor(epsilonTensor)
+    .setExpDecayFactorTensor(expDecayTensor)
+    .setPeerStatTensor(peerStatTensors)
+    .setyDesc(yTensor)
+    .build();
 
   std::array<cudnn_frontend::Operation const*, 1> ops = {&batch_norm_op};
 #else
@@ -233,8 +235,7 @@ void execute_batch_norm_forward(cudnnHandle_t &handle_,
 				void *out_vardevPtr,
 				void *saved_meandevPtr,
 				void *saved_inv_vardevPtr,
-				void *peer_devPtr1,
-				void *peer_devPtr2,
+				const std::vector<void*> &peer_devPtrs,
 				double epsilon_val,
 				double exponential_decay_factor) {
   
@@ -246,16 +247,22 @@ void execute_batch_norm_forward(cudnnHandle_t &handle_,
     if (workspace_size > 0) {
       checkCudaErr(cudaMalloc(&workspace_ptr, workspace_size));
     }
-    
-    void* data_ptrs[14] = {xDevPtr, yDevPtr, scaledevPtr, biasdevPtr,
-			   in_meandevPtr, in_vardevPtr, out_meandevPtr, out_vardevPtr,
-			   saved_meandevPtr, saved_inv_vardevPtr, peer_devPtr1, peer_devPtr2,
-			   &epsilon_val, &exponential_decay_factor};
-    int64_t uids[14]    = {100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 200, 201, 300, 301};
+
+    // first the data pointers
+    std::vector<void*> data_ptrs {xDevPtr, yDevPtr, scaledevPtr, biasdevPtr,
+	in_meandevPtr, in_vardevPtr, out_meandevPtr, out_vardevPtr,
+	saved_meandevPtr, saved_inv_vardevPtr, 
+	&epsilon_val, &exponential_decay_factor};
+    data_ptrs.insert(data_ptrs.end(), peer_devPtrs.begin(), peer_devPtrs.end());
+    // then the uids
+    std::vector<int64_t> uids;
+    for (size_t i = 100; i < 100 + data_ptrs.size(); ++i) {
+      uids.push_back(i);
+    }
     auto variantPack  = cudnn_frontend::VariantPackBuilder()
       .setWorkspacePointer(workspace_ptr)
-      .setDataPointers(14, data_ptrs)
-      .setUids(14, uids)
+      .setDataPointers(data_ptrs.size(), data_ptrs.data())
+      .setUids(uids.size(), uids.data())
       .build();
     std::cout << "variantPack " << variantPack.describe() << std::endl;
     cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
@@ -335,12 +342,9 @@ cudnn_frontend::ExecutionPlan run_batch_norm_backward(cudnnHandle_t &handle_,
   auto scaleTensor         = per_channel_tensor_create(CUDNN_DATA_FLOAT, 102);
   auto savedMeanTensor     = per_channel_tensor_create(CUDNN_DATA_FLOAT, 103);
   auto savedInvVarTensor   = per_channel_tensor_create(CUDNN_DATA_FLOAT, 104);
-  auto peerStatTensor1      = peer_tensor_create(CUDNN_DATA_FLOAT, 105); // Create 2 peer stat tensors for GBN with 2 GPUs
-  auto peerStatTensor2      = peer_tensor_create(CUDNN_DATA_FLOAT, 106);
-
-  auto dxTensor            = tensor_create(data_type, 200);
-  auto dScaleTensor        = per_channel_tensor_create(CUDNN_DATA_FLOAT, 201);
-  auto dBiasTensor         = per_channel_tensor_create(CUDNN_DATA_FLOAT, 202);
+  auto dxTensor            = tensor_create(data_type, 105);
+  auto dScaleTensor        = per_channel_tensor_create(CUDNN_DATA_FLOAT, 106);
+  auto dBiasTensor         = per_channel_tensor_create(CUDNN_DATA_FLOAT, 107);
 
   int64_t epsilon_stride[4];
   generateStrides(epsilon, epsilon_stride, (int64_t)4, CUDNN_TENSOR_NHWC);
@@ -355,7 +359,12 @@ cudnn_frontend::ExecutionPlan run_batch_norm_backward(cudnnHandle_t &handle_,
                     .build();
   };
 
-  auto epsilonTensor       = scalar_tensor_create(CUDNN_DATA_DOUBLE, 300);
+  auto epsilonTensor       = scalar_tensor_create(CUDNN_DATA_DOUBLE, 108);
+
+  std::vector<cudnn_frontend::Tensor_v8> peerStatTensors;
+  for (size_t i = 109; i < 109 + peerDims[0]; ++i) {
+    peerStatTensors.push_back(peer_tensor_create(CUDNN_DATA_FLOAT, i));
+  }
 
 #if (CUDNN_VERSION >= 8500)
   // Batch normalization
@@ -363,17 +372,16 @@ cudnn_frontend::ExecutionPlan run_batch_norm_backward(cudnnHandle_t &handle_,
 
   //Create a Finalize node
   auto batch_norm_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_NORM_BACKWARD_DESCRIPTOR)
-      .setNormalizationMode(normalizationMode)
-        .setxDesc(xTensor)
-          .setSavedMeanAndInvVar(savedMeanTensor, savedInvVarTensor)
-            .setdyDesc(dyTensor)
-              .setScale(scaleTensor)
-                .setEpsilonTensor(epsilonTensor)
-                  .setDScaleAndDBias(dScaleTensor, dBiasTensor)
-                    .setdxDesc(dxTensor)
-                      .addPeerStatTensor(peerStatTensor1) // Add the 2 peer stat tensors for GBN with 2 GPUs
-                        .addPeerStatTensor(peerStatTensor2)
-                          .build();
+    .setNormalizationMode(normalizationMode)
+    .setxDesc(xTensor)
+    .setSavedMeanAndInvVar(savedMeanTensor, savedInvVarTensor)
+    .setdyDesc(dyTensor)
+    .setScale(scaleTensor)
+    .setEpsilonTensor(epsilonTensor)
+    .setDScaleAndDBias(dScaleTensor, dBiasTensor)
+    .setdxDesc(dxTensor)
+    .setPeerStatTensor(peerStatTensors)
+    .build();
 
   std::array<cudnn_frontend::Operation const*, 1> ops = {&batch_norm_op};
 #else
@@ -422,8 +430,7 @@ void execute_batch_norm_backward(cudnnHandle_t &handle_,
 				 void *scaledevPtr,
 				 void *saved_meandevPtr,
 				 void *saved_inv_vardevPtr,
-				 void *peer_devPtr1,
-				 void *peer_devPtr2,
+				 const std::vector<void*> &peer_devPtrs,
 				 void *dxDevPtr,
 				 void *dscaledevPtr,
 				 void *dbiasdevPtr,
@@ -438,16 +445,19 @@ void execute_batch_norm_backward(cudnnHandle_t &handle_,
       checkCudaErr(cudaMalloc(&workspace_ptr, workspace_size));
     }
     
-    constexpr int var_pack_size = 11;
-    void* data_ptrs[var_pack_size] = {xDevPtr, dyDevPtr, scaledevPtr,
-				      saved_meandevPtr, saved_inv_vardevPtr, peer_devPtr1, peer_devPtr2,
-				      &epsilon_val,
-				      dxDevPtr, dscaledevPtr, dbiasdevPtr};
-    int64_t uids[var_pack_size]    = {100, 101, 102, 103, 104, 105, 106, 300, 200, 201, 202};
+    std::vector<void*> data_ptrs {xDevPtr, dyDevPtr, scaledevPtr,
+	saved_meandevPtr, saved_inv_vardevPtr,
+	dxDevPtr, dscaledevPtr, dbiasdevPtr, &epsilon_val};
+    data_ptrs.insert(data_ptrs.end(), peer_devPtrs.begin(), peer_devPtrs.end());
+    std::vector<int64_t> uids;
+    for (size_t i = 100; i < 100 + data_ptrs.size(); ++i) {
+      uids.push_back(i);
+    }
+    
     auto variantPack  = cudnn_frontend::VariantPackBuilder()
       .setWorkspacePointer(workspace_ptr)
-      .setDataPointers(var_pack_size, data_ptrs)
-      .setUids(var_pack_size, uids)
+      .setDataPointers(data_ptrs.size(), data_ptrs.data())
+      .setUids(uids.size(), uids.data())
       .build();
     std::cout << "variantPack " << variantPack.describe() << std::endl;
     cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
