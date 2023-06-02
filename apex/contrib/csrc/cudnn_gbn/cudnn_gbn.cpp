@@ -48,7 +48,7 @@ at::Tensor gbn_forward(const at::Tensor& x,
   assert(bn_group == void_peer_buffers.size());
 
   // check if plan already exists
-  std::vector<int64_t> fv = {(int)BN_FWD, N, C, H, W, bn_group, (int)CUDNN_DATA_HALF};
+  std::vector<int64_t> fv = {(int64_t)BN_FWD, N, C, H, W, bn_group, (int64_t)CUDNN_DATA_HALF};
   if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
     cudnnHandle_t handle;
     auto plan = run_batch_norm_forward(handle, tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
@@ -121,7 +121,7 @@ std::vector<at::Tensor> gbn_backward(
 
   assert(bn_group == void_peer_buffers.size());
 
-  std::vector<int64_t> fv = {(int)BN_BWD, N, C, H, W, bn_group, (int)CUDNN_DATA_HALF};
+  std::vector<int64_t> fv = {(int64_t)BN_BWD, N, C, H, W, bn_group, (int64_t)CUDNN_DATA_HALF};
   if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
     cudnnHandle_t handle;
     auto plan = run_batch_norm_backward(handle, tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
@@ -149,7 +149,7 @@ std::vector<at::Tensor> gbn_backward(
 			      x_grad.data_ptr(),
 			      scale_grad.data_ptr(),
 			      bias_grad.data_ptr(),
-			      epsilon);
+			      static_cast<double>(epsilon));
 
   return std::vector<at::Tensor>{x_grad, scale_grad, bias_grad};
 }
