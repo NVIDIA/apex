@@ -38,7 +38,7 @@
 
 /* some helpers
  */
-void generateStrides(const int64_t* dimA, int64_t* strideA, int nbDims, cudnnTensorFormat_t filterFormat);
+void generateStrides(const int64_t* dimA, int64_t* strideA, int64_t nbDims, cudnnTensorFormat_t filterFormat);
 
 int64_t checkCudaError(cudaError_t code, const char* expr, const char* file, int line);
 int64_t checkCudnnError(cudnnStatus_t code, const char* expr, const char* file, int line);
