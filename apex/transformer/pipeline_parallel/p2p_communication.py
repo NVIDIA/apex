@@ -60,7 +60,7 @@ def _run_p2pops(
     need_to_sync = p2p_group.name() != default_group.name()
     reqs = []
 
-    if batch_p2p_comm:
+    if batch_p2p_comm and p2p_group.name() == "nccl":
         ops = []
         if tensor_send_prev is not None:
             send_prev_op = torch.distributed.P2POp(
@@ -101,9 +101,9 @@ def _run_p2pops(
             reqs = torch.distributed.batch_isend_irecv(ops)
     else:
         # sync before communication if needed
-        if need_to_sync and any(
+        if need_to_sync and any([
             tensor_send_prev is not None, tensor_recv_prev is not None,
-            tensor_send_next is not None, tensor_recv_next is not None):
+            tensor_send_next is not None, tensor_recv_next is not None]):
             torch.cuda.synchronize()
 
         if tensor_send_prev is not None:
