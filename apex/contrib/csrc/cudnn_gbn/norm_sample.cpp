@@ -432,7 +432,7 @@ run_batch_norm_backward(int64_t *tensorDims,
                                                   };
                                                 });
 
-  return <cudnnHandle_t, cudnn_frontend::ExecutionPlan, std::shared_ptr<void>>(handle, plan, workspace_handle);
+  return std::tuple<cudnnHandle_t, cudnn_frontend::ExecutionPlan, std::shared_ptr<void>>(handle, plan, workspace_handle);
 }
 
 void execute_batch_norm_backward(cudnnHandle_t &handle_,

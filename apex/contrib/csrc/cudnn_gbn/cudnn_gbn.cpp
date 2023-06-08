@@ -50,11 +50,8 @@ at::Tensor gbn_forward(const at::Tensor& x,
   // check if plan already exists
   std::vector<int64_t> fv = {(int64_t)BN_FWD, N, C, H, W, bn_group, (int64_t)CUDNN_DATA_HALF};
   if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
-    cudnnHandle_t handle;
-    auto plan_workspace = run_batch_norm_forward(handle, tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
-    auto plan = plan_workspace.first;
-    auto workspace = plan_workspace.second;
-    gbn_plan_cache.insert(std::make_pair(fv, std::make_tuple(handle, plan, workspace)));
+    auto handle_plan_workspace = run_batch_norm_forward(tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
+    gbn_plan_cache.insert(std::make_pair(fv, handle_plan_workspace));
   }
 
   // get plan and handle
@@ -120,27 +117,23 @@ std::vector<at::Tensor> gbn_backward(
   for (int64_t addr : peer_buffers) {
     void_peer_buffers.push_back((void*)addr);
   }
-
+  
   assert(bn_group == void_peer_buffers.size());
 
   std::vector<int64_t> fv = {(int64_t)BN_BWD, N, C, H, W, bn_group, (int64_t)CUDNN_DATA_HALF};
   if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
-    cudnnHandle_t handle;
-    auto plan = run_batch_norm_backward(handle, tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
-    gbn_plan_cache.insert(std::make_pair(fv, std::make_pair(handle, plan)));
+    auto handle_plan_workspace = run_batch_norm_backward(tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
+    gbn_plan_cache.insert(std::make_pair(fv, handle_plan_workspace));
   }
   
   // get plan and handle
   auto& token = gbn_plan_cache.find(fv)->second;
-  auto& handle = token.first;
-  auto& plan = token.second;
-  
-  //cudnnHandle_t handle;
-  //cudnn_frontend::ExecutionPlan plan;
-  //std::tie(handle, plan) = gbn_plan_cache.find(fv)->second;
-
+  auto& handle = std::get<0>(token);
+  auto& plan = std::get<1>(token);
+  auto& workspace = std::get<2>(token);
+        
   // execute
-  execute_batch_norm_backward(handle, plan,
+  execute_batch_norm_backward(handle, plan, workspace.get(),
 			      x.data_ptr(),
 			      dy.data_ptr(),
 			      scale.data_ptr(),
