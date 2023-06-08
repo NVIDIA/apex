@@ -50,22 +50,28 @@ at::Tensor gbn_forward(const at::Tensor& x,
   // check if plan already exists
   std::vector<int64_t> fv = {(int64_t)BN_FWD, N, C, H, W, bn_group, (int64_t)CUDNN_DATA_HALF};
   if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
-    auto handle_plan_workspace = run_batch_norm_forward(tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
-    gbn_plan_cache.insert(std::make_pair(fv, handle_plan_workspace));
+    auto plan = run_batch_norm_forward(tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
+    gbn_plan_cache.insert(std::make_pair(fv, plan));
   }
 
   // get plan and handle
-  auto& token = gbn_plan_cache.find(fv)->second;
-  auto& handle = std::get<0>(token);
-  auto& plan = std::get<1>(token);
-  auto& workspace = std::get<2>(token);
+  auto plan = gbn_plan_cache.find(fv)->second;
+
+  // allocate workspace
+  auto workspace_size = plan.getWorkspaceSize();
+  auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
+  void* workspace_ptr = nullptr;
+  if (workspace_size > 0) {
+    workspace_ptr = workspace_tensor.data_ptr<float>();
+  }
 
   //cudnnHandle_t handle;
   // cudnn_frontend::ExecutionPlan plan;
   //std::tie(handle, plan) = gbn_plan_cache.find(fv)->second;
 
   // execute
-  execute_batch_norm_forward(handle, plan, workspace.get(),
+  execute_batch_norm_forward(plan,
+			     workspace_ptr,
 			     x.data_ptr(),
 			     y.data_ptr(),
 			     scale.data_ptr(),
@@ -123,18 +129,24 @@ std::vector<at::Tensor> gbn_backward(
 
   std::vector<int64_t> fv = {(int64_t)BN_BWD, N, C, H, W, bn_group, (int64_t)CUDNN_DATA_HALF};
   if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
-    auto handle_plan_workspace = run_batch_norm_backward(tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
-    gbn_plan_cache.insert(std::make_pair(fv, handle_plan_workspace));
+    auto plan = run_batch_norm_backward(tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
+    gbn_plan_cache.insert(std::make_pair(fv, plan));
   }
   
   // get plan and handle
-  auto& token = gbn_plan_cache.find(fv)->second;
-  auto& handle = std::get<0>(token);
-  auto& plan = std::get<1>(token);
-  auto& workspace = std::get<2>(token);
+  auto plan = gbn_plan_cache.find(fv)->second;
+
+  // allocate workspace
+  auto workspace_size = plan.getWorkspaceSize();
+  auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
+  void* workspace_ptr = nullptr;
+  if (workspace_size > 0) {
+    workspace_ptr = workspace_tensor.data_ptr<float>();
+  }  
         
   // execute
-  execute_batch_norm_backward(handle, plan, workspace.get(),
+  execute_batch_norm_backward(plan,
+			      workspace_ptr,
 			      x.data_ptr(),
 			      dy.data_ptr(),
 			      scale.data_ptr(),

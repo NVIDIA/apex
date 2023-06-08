@@ -71,12 +71,11 @@ void generateStrides(const int64_t* dimA, int64_t* strideA, int64_t nbDims, cudn
 
 
 // runtime
-std::tuple<cudnnHandle_t, cudnn_frontend::ExecutionPlan, std::shared_ptr<void>>
-run_batch_norm_forward(int64_t *tensorDims,
-		       int64_t *perChannelSum,
-		       int64_t *epsilon,
-		       int64_t *peerDims,
-		       cudnnDataType_t data_type) {
+cudnn_frontend::ExecutionPlan run_batch_norm_forward(int64_t *tensorDims,
+						     int64_t *perChannelSum,
+						     int64_t *epsilon,
+						     int64_t *peerDims,
+						     cudnnDataType_t data_type) {
 
   // get the cudnn handle
   cudnnHandle_t handle = torch::native::getCudnnHandle();
@@ -219,25 +218,11 @@ run_batch_norm_forward(int64_t *tensorDims,
   assert(filtered_configs.size() > 0);
   auto plan = plan_builder();
 
-  // allocate workspace
-  auto workspace_size = plan.getWorkspaceSize();
-  void* workspace_ptr = nullptr;
-  if (workspace_size > 0) {
-    checkCudaErr(cudaMalloc(&workspace_ptr, workspace_size));
-  }
-  auto workspace_handle = std::shared_ptr<void>(workspace_ptr,
-						[](void* p){
-						  if(!p){
-						    checkCudaErr(cudaFree(p));
-						  };
-						});
-
-  return std::tuple<cudnnHandle_t, cudnn_frontend::ExecutionPlan, std::shared_ptr<void>>(handle, plan, workspace_handle);
+  return plan;
 
 }
 
-void execute_batch_norm_forward(cudnnHandle_t &handle_,
-				cudnn_frontend::ExecutionPlan plan,
+void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan,
 				void *workPtr,
 				void *xDevPtr,
 				void *yDevPtr,
@@ -254,6 +239,9 @@ void execute_batch_norm_forward(cudnnHandle_t &handle_,
 				double exponential_decay_factor,
 				int rank_id) {
 
+  // get handle
+  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  
   // get stream                                                                                                                                                          
   cudaStream_t stream;
   cudnnGetStream(handle_, &stream);
@@ -296,12 +284,11 @@ void execute_batch_norm_forward(cudnnHandle_t &handle_,
   }
 }
 
-std::tuple<cudnnHandle_t, cudnn_frontend::ExecutionPlan, std::shared_ptr<void>>
-run_batch_norm_backward(int64_t *tensorDims,
-			int64_t *perChannelSum,
-			int64_t *epsilon,
-			int64_t *peerDims,
-			cudnnDataType_t data_type) {
+cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims,
+						      int64_t *perChannelSum,
+						      int64_t *epsilon,
+						      int64_t *peerDims,
+						      cudnnDataType_t data_type) {
 
   // get cudnn handle
   cudnnHandle_t handle = torch::native::getCudnnHandle();
@@ -429,24 +416,10 @@ run_batch_norm_backward(int64_t *tensorDims,
   assert(filtered_configs.size() > 0);
   auto plan = plan_builder();
 
-  // allocate workspace
-  auto workspace_size = plan.getWorkspaceSize();
-  void* workspace_ptr = nullptr;
-  if (workspace_size > 0) {
-    checkCudaErr(cudaMalloc(&workspace_ptr, workspace_size));
-  }
-  auto workspace_handle = std::shared_ptr<void>(workspace_ptr,
-                                                [](void* p){
-                                                  if(!p){
-                                                    checkCudaErr(cudaFree(p));
-                                                  };
-                                                });
-
-  return std::tuple<cudnnHandle_t, cudnn_frontend::ExecutionPlan, std::shared_ptr<void>>(handle, plan, workspace_handle);
+  return plan;
 }
 
-void execute_batch_norm_backward(cudnnHandle_t &handle_,
-				 cudnn_frontend::ExecutionPlan plan,
+void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan,
 				 void *workPtr,
 				 void *xDevPtr,
 				 void *dyDevPtr,
@@ -460,6 +433,9 @@ void execute_batch_norm_backward(cudnnHandle_t &handle_,
 				 double epsilon_val,
 				 int rank_id) {
 
+  // get handle
+  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  
   // get stream
   cudaStream_t stream;
   cudnnGetStream(handle_, &stream);
