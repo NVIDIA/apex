@@ -11,7 +11,7 @@
 enum bn_type { BN_FWD, BN_BWD };
 
 // this is a global variable
-static std::map<std::vector<int64_t>, std::pair<cudnnHandle_t,cudnn_frontend::ExecutionPlan>> gbn_plan_cache;
+static std::map<std::vector<int64_t>, std::tuple<cudnnHandle_t,cudnn_frontend::ExecutionPlan,std::shared_ptr<void>>> gbn_plan_cache;
 
 at::Tensor gbn_forward(const at::Tensor& x,
                        const at::Tensor& scale,
@@ -51,21 +51,24 @@ at::Tensor gbn_forward(const at::Tensor& x,
   std::vector<int64_t> fv = {(int64_t)BN_FWD, N, C, H, W, bn_group, (int64_t)CUDNN_DATA_HALF};
   if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
     cudnnHandle_t handle;
-    auto plan = run_batch_norm_forward(handle, tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
-    gbn_plan_cache.insert(std::make_pair(fv, std::make_pair(handle, plan)));
+    auto plan_workspace = run_batch_norm_forward(handle, tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
+    auto plan = plan_workspace.first;
+    auto workspace = plan_workspace.second;
+    gbn_plan_cache.insert(std::make_pair(fv, std::make_tuple(handle, plan, workspace)));
   }
 
   // get plan and handle
   auto& token = gbn_plan_cache.find(fv)->second;
-  auto& handle = token.first;
-  auto& plan = token.second;
+  auto& handle = std::get<0>(token);
+  auto& plan = std::get<1>(token);
+  auto& workspace = std::get<2>(token);
 
   //cudnnHandle_t handle;
   // cudnn_frontend::ExecutionPlan plan;
   //std::tie(handle, plan) = gbn_plan_cache.find(fv)->second;
 
   // execute
-  execute_batch_norm_forward(handle, plan, 
+  execute_batch_norm_forward(handle, plan, workspace.get(),
 			     x.data_ptr(),
 			     y.data_ptr(),
 			     scale.data_ptr(),

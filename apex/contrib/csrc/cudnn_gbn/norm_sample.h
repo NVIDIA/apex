@@ -65,9 +65,8 @@ int64_t checkCudnnError(cudnnStatus_t code, const char* expr, const char* file, 
 
  *
  */
-cudnn_frontend::ExecutionPlan
+std::tuple<cudnnHandle_t, cudnn_frontend::ExecutionPlan, std::shared_ptr<void>>
 run_batch_norm_forward(
-    cudnnHandle_t &handle_,
     int64_t *tensorDims,
     int64_t *perChannelSum,
     int64_t *epsilon,
@@ -95,6 +94,7 @@ void
 execute_batch_norm_forward(
     cudnnHandle_t &handle_,
     cudnn_frontend::ExecutionPlan plan,
+    void *workPtr,
     void *xDevPtr,
     void *yDevPtr,
     void *scaledevPtr,
@@ -118,9 +118,8 @@ execute_batch_norm_forward(
  * @param peerDims an array with shape (num GPUs, 2 * C, 1, 1) to denote the tensor dimensions for peer stat tensor in GBN
     *
 */
-cudnn_frontend::ExecutionPlan
+std::tuple<cudnnHandle_t, cudnn_frontend::ExecutionPlan, std::shared_ptr<void>>
 run_batch_norm_backward(
-    cudnnHandle_t &handle_,
     int64_t *tensorDims,
     int64_t *perChannelSum,
     int64_t *epsilon,
@@ -149,6 +148,7 @@ void
 execute_batch_norm_backward(
 cudnnHandle_t &handle_,
 cudnn_frontend::ExecutionPlan plan,
+void *workPtr,
 void *xDevPtr,
 void *dyDevPtr,
 void *scaledevPtr,

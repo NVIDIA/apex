@@ -68,17 +68,17 @@ void generateStrides(const int64_t* dimA, int64_t* strideA, int64_t nbDims, cudn
 
 
 // runtime
-cudnn_frontend::ExecutionPlan run_batch_norm_forward(
-						     cudnnHandle_t &handle_,
-						     int64_t *tensorDims,
-						     int64_t *perChannelSum,
-						     int64_t *epsilon,
-						     int64_t *peerDims,
-						     cudnnDataType_t data_type) {
+std::tuple<cudnnHandle_t, cudnn_frontend::ExecutionPlan, std::shared_ptr<void>>
+run_batch_norm_forward(int64_t *tensorDims,
+		       int64_t *perChannelSum,
+		       int64_t *epsilon,
+		       int64_t *peerDims,
+		       cudnnDataType_t data_type) {
 
   std::cout << "================ Running Batch Norm Forward ======================= " << std::endl;
   // Create the cudnn handle
-  checkCudnnErr(cudnnCreate(&handle_));
+  cudnnHandle_t handle;
+  checkCudnnErr(cudnnCreate(&handle));
 
   // Creates the necessary tensor descriptors
   int64_t tensor_stride[4];
@@ -184,7 +184,7 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(
 #else
   std::array<cudnn_frontend::Operation const*, 0> ops = {};
 #endif
-  auto opGraph = cudnn_frontend::OperationGraphBuilder().setHandle(handle_).setOperationGraph(ops.size(), ops.data()).build();
+  auto opGraph = cudnn_frontend::OperationGraphBuilder().setHandle(handle).setOperationGraph(ops.size(), ops.data()).build();
   std::cout << opGraph.describe() << std::endl;
 
   cudnn_frontend::EngineConfigList filtered_configs;
@@ -193,38 +193,51 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(
       , "heuristics_fallback"
     }, opGraph,::AllowAll, filtered_configs, true);
 
-  std::cout << "get_heuristics_list Statuses: ";
-  for (auto i = 0u ; i < statuses.size(); i++) {
-    std::cout << cudnn_frontend::to_string(statuses[i]) << " ";
-  }
-  std::cout << std::endl;
-  std::cout << "Filter config list has " << filtered_configs.size() << " configurations " << std::endl;
+  //std::cout << "get_heuristics_list Statuses: ";
+  //for (auto i = 0u ; i < statuses.size(); i++) {
+  //  std::cout << cudnn_frontend::to_string(statuses[i]) << " ";
+  //}
+  //std::cout << std::endl;
+  //std::cout << "Filter config list has " << filtered_configs.size() << " configurations " << std::endl;
 
   // some verbose printing:
-  std::cout << "Tensor shape: (" << tensorDims[0] << ", " << tensorDims[1] << ", " << tensorDims[2] << ", " << tensorDims[3] << ")" << std::endl;
+  //std::cout << "Tensor shape: (" << tensorDims[0] << ", " << tensorDims[1] << ", " << tensorDims[2] << ", " << tensorDims[3] << ")" << std::endl;
   
-  auto plan_builder = [&filtered_configs, &opGraph, &handle_]() {
+  auto plan_builder = [&filtered_configs, &opGraph, &handle]() {
     for (auto i = 0u; i < filtered_configs.size(); i++) {
       try {
-        auto plan = cudnn_frontend::ExecutionPlanBuilder().setHandle(handle_).setEngineConfig(filtered_configs[i], opGraph.getTag()).build();
+        auto plan = cudnn_frontend::ExecutionPlanBuilder().setHandle(handle).setEngineConfig(filtered_configs[i], opGraph.getTag()).build();
         return plan;
       } catch (cudnn_frontend::cudnnException &e) {
         continue;
       }
     }
-    return cudnn_frontend::ExecutionPlanBuilder().setHandle(handle_).setEngineConfig(filtered_configs[0], opGraph.getTag()).build();
+    return cudnn_frontend::ExecutionPlanBuilder().setHandle(handle).setEngineConfig(filtered_configs[0], opGraph.getTag()).build();
   };
 
   assert(filtered_configs.size() > 0);
   auto plan = plan_builder();
-  std::cout << "Plan tag: " << plan.getTag() << std::endl;
 
-  return plan;
+  // allocate workspace
+  auto workspace_size = plan.getWorkspaceSize();
+  void* workspace_ptr = nullptr;
+  if (workspace_size > 0) {
+    checkCudaErr(cudaMalloc(&workspace_ptr, workspace_size));
+  }
+  auto workspace_handle = std::shared_ptr<void>(workspace_ptr,
+						[](void* p){
+						  if(!p){
+						    checkCudaErr(cudaFree(p));
+						  };
+						});
+
+  return std::tuple<cudnnHandle_t, cudnn_frontend::ExecutionPlan, std::shared_ptr<void>>(handle, plan, workspace_handle);
 
 }
 
 void execute_batch_norm_forward(cudnnHandle_t &handle_,
 				cudnn_frontend::ExecutionPlan plan,
+				void *workPtr,
 				void *xDevPtr,
 				void *yDevPtr,
 				void *scaledevPtr,
@@ -240,14 +253,6 @@ void execute_batch_norm_forward(cudnnHandle_t &handle_,
 				double exponential_decay_factor) {
   
   try {
-    auto workspace_size = plan.getWorkspaceSize();
-    std::cout << plan.describe() << std::endl;
-
-    void* workspace_ptr = nullptr;
-    if (workspace_size > 0) {
-      checkCudaErr(cudaMalloc(&workspace_ptr, workspace_size));
-    }
-
     // first the data pointers
     std::vector<void*> data_ptrs {xDevPtr, yDevPtr, scaledevPtr, biasdevPtr,
 	in_meandevPtr, in_vardevPtr, out_meandevPtr, out_vardevPtr,
@@ -260,21 +265,15 @@ void execute_batch_norm_forward(cudnnHandle_t &handle_,
       uids.push_back(i);
     }
     auto variantPack  = cudnn_frontend::VariantPackBuilder()
-      .setWorkspacePointer(workspace_ptr)
+      .setWorkspacePointer(workPtr)
       .setDataPointers(data_ptrs.size(), data_ptrs.data())
       .setUids(uids.size(), uids.data())
       .build();
-    std::cout << "variantPack " << variantPack.describe() << std::endl;
-    cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
-    
-    checkCudaErr(cudaDeviceSynchronize());
-    if (workspace_size > 0) {
-      checkCudaErr(cudaFree(workspace_ptr));
-    }
-    
+    //std::cout << "variantPack " << variantPack.describe() << std::endl;
+    cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());    
     cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
     
-    std::cout << "Batch normalization forward run completed successfully" << std::endl;
+    //std::cout << "Batch normalization forward run completed successfully" << std::endl;
     
   } catch (cudnn_frontend::cudnnException &e) {
     struct cudaDeviceProp prop;
@@ -286,15 +285,16 @@ void execute_batch_norm_forward(cudnnHandle_t &handle_,
   }
 }
 
-cudnn_frontend::ExecutionPlan run_batch_norm_backward(cudnnHandle_t &handle_,
-						      int64_t *tensorDims,
-						      int64_t *perChannelSum,
-						      int64_t *epsilon,
-						      int64_t *peerDims,
-						      cudnnDataType_t data_type) {
+std::tuple<cudnnHandle_t, cudnn_frontend::ExecutionPlan, std::shared_ptr<void>>
+run_batch_norm_backward(int64_t *tensorDims,
+			int64_t *perChannelSum,
+			int64_t *epsilon,
+			int64_t *peerDims,
+			cudnnDataType_t data_type) {
   std::cout << "================ Running Batch Norm Backward =======================" << std::endl;
   // Create the cudnn handle
-  checkCudnnErr(cudnnCreate(&handle_));
+  cudnnHandle_t handle;
+  checkCudnnErr(cudnnCreate(&handle));
 
   // Creates the necessary tensor descriptors
   int64_t tensor_stride[4];
@@ -388,43 +388,56 @@ cudnn_frontend::ExecutionPlan run_batch_norm_backward(cudnnHandle_t &handle_,
   std::array<cudnn_frontend::Operation const*, 0> ops = {};
 #endif
     
-  auto opGraph = cudnn_frontend::OperationGraphBuilder().setHandle(handle_).setOperationGraph(ops.size(), ops.data()).build();
+  auto opGraph = cudnn_frontend::OperationGraphBuilder().setHandle(handle).setOperationGraph(ops.size(), ops.data()).build();
   std::cout << opGraph.describe() << std::endl;
 
   cudnn_frontend::EngineConfigList filtered_configs;
-    auto statuses =
-      cudnn_frontend::get_heuristics_list<2>({"heuristics_instant"
-        , "heuristics_fallback"
-  }, opGraph,::AllowAll, filtered_configs, true);
-
-  std::cout << "get_heuristics_list Statuses: ";
-  for (auto i = 0u ; i < statuses.size(); i++) {
-    std::cout << cudnn_frontend::to_string(statuses[i]) << " ";
-  }
-  std::cout << std::endl;
-  std::cout << "Filter config list has " << filtered_configs.size() << " configurations " << std::endl;
-
-  auto plan_builder = [&filtered_configs, &opGraph, &handle_]() {
+  auto statuses =
+    cudnn_frontend::get_heuristics_list<2>({"heuristics_instant"
+					    , "heuristics_fallback"
+      }, opGraph,::AllowAll, filtered_configs, true);
+  
+  //std::cout << "get_heuristics_list Statuses: ";
+  //for (auto i = 0u ; i < statuses.size(); i++) {
+  //std::cout << cudnn_frontend::to_string(statuses[i]) << " ";
+  //}
+  //std::cout << std::endl;
+  //std::cout << "Filter config list has " << filtered_configs.size() << " configurations " << std::endl;
+  
+  auto plan_builder = [&filtered_configs, &opGraph, &handle]() {
     for (auto i = 0u; i < filtered_configs.size(); i++) {
       try {
-        auto plan = cudnn_frontend::ExecutionPlanBuilder().setHandle(handle_).setEngineConfig(filtered_configs[i], opGraph.getTag()).build();
+        auto plan = cudnn_frontend::ExecutionPlanBuilder().setHandle(handle).setEngineConfig(filtered_configs[i], opGraph.getTag()).build();
         return plan;
       } catch (cudnn_frontend::cudnnException &e) {
         continue;
       }
     }
-    return cudnn_frontend::ExecutionPlanBuilder().setHandle(handle_).setEngineConfig(filtered_configs[0], opGraph.getTag()).build();
+    return cudnn_frontend::ExecutionPlanBuilder().setHandle(handle).setEngineConfig(filtered_configs[0], opGraph.getTag()).build();
   };
 
   assert(filtered_configs.size() > 0);
   auto plan = plan_builder();
-  std::cout << "Plan tag: " << plan.getTag() << std::endl;
 
-  return plan;
+  // allocate workspace
+  auto workspace_size = plan.getWorkspaceSize();
+  void* workspace_ptr = nullptr;
+  if (workspace_size > 0) {
+    checkCudaErr(cudaMalloc(&workspace_ptr, workspace_size));
+  }
+  auto workspace_handle = std::shared_ptr<void>(workspace_ptr,
+                                                [](void* p){
+                                                  if(!p){
+                                                    checkCudaErr(cudaFree(p));
+                                                  };
+                                                });
+
+  return <cudnnHandle_t, cudnn_frontend::ExecutionPlan, std::shared_ptr<void>>(handle, plan, workspace_handle);
 }
 
 void execute_batch_norm_backward(cudnnHandle_t &handle_,
 				 cudnn_frontend::ExecutionPlan plan,
+				 void *workPtr,
 				 void *xDevPtr,
 				 void *dyDevPtr,
 				 void *scaledevPtr,
@@ -436,15 +449,7 @@ void execute_batch_norm_backward(cudnnHandle_t &handle_,
 				 void *dbiasdevPtr,
 				 double epsilon_val) {
       
-  try {
-    auto workspace_size = plan.getWorkspaceSize();
-    std::cout << plan.describe() << std::endl;
-    
-    void* workspace_ptr =  nullptr;
-    if (workspace_size > 0) {
-      checkCudaErr(cudaMalloc(&workspace_ptr, workspace_size));
-    }
-    
+  try {    
     std::vector<void*> data_ptrs {xDevPtr, dyDevPtr, scaledevPtr,
 	saved_meandevPtr, saved_inv_vardevPtr,
 	dxDevPtr, dscaledevPtr, dbiasdevPtr, &epsilon_val};
@@ -455,22 +460,13 @@ void execute_batch_norm_backward(cudnnHandle_t &handle_,
     }
     
     auto variantPack  = cudnn_frontend::VariantPackBuilder()
-      .setWorkspacePointer(workspace_ptr)
+      .setWorkspacePointer(workPtr)
       .setDataPointers(data_ptrs.size(), data_ptrs.data())
       .setUids(uids.size(), uids.data())
       .build();
-    std::cout << "variantPack " << variantPack.describe() << std::endl;
     cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
-    
-    checkCudaErr(cudaDeviceSynchronize());
-    if (workspace_size > 0) {
-      checkCudaErr(cudaFree(workspace_ptr));
-    }
 
     cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
-    
-    std::cout << "Batch normalization backward run completed successfully" << std::endl;
-
   } catch (cudnn_frontend::cudnnException &e) {
     struct cudaDeviceProp prop;
     checkCudaErr(cudaGetDeviceProperties(&prop, 0));
