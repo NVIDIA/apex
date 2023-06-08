@@ -107,7 +107,8 @@ execute_batch_norm_forward(
     void *saved_inv_vardevPtr,
     const std::vector<void*> &peer_devPtrs,
     double epsilon_val,
-    double exponential_decay_factor);
+    double exponential_decay_factor,
+    int rank_id);
 
 /**
  * @brief Run a Group BN backward sample with 2 peer stat tensors.
@@ -146,17 +147,17 @@ run_batch_norm_backward(
  */
 void
 execute_batch_norm_backward(
-cudnnHandle_t &handle_,
-cudnn_frontend::ExecutionPlan plan,
-void *workPtr,
-void *xDevPtr,
-void *dyDevPtr,
-void *scaledevPtr,
-void *saved_meandevPtr,
-void *saved_inv_vardevPtr,
-const std::vector<void*> &peer_devPtrs,
-void *dxDevPtr,
-void *dscaledevPtr,
-void *dbiasdevPtr,
-double epsilon_val
-);
+			    cudnnHandle_t &handle_,
+			    cudnn_frontend::ExecutionPlan plan,
+			    void *workPtr,
+			    void *xDevPtr,
+			    void *dyDevPtr,
+			    void *scaledevPtr,
+			    void *saved_meandevPtr,
+			    void *saved_inv_vardevPtr,
+			    const std::vector<void*> &peer_devPtrs,
+			    void *dxDevPtr,
+			    void *dscaledevPtr,
+			    void *dbiasdevPtr,
+			    double epsilon_val,
+			    int rank_id);

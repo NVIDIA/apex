@@ -78,7 +78,8 @@ at::Tensor gbn_forward(const at::Tensor& x,
 			     minibatch_inv_var.data_ptr(),
 			     void_peer_buffers,
 			     static_cast<double>(epsilon),
-			     static_cast<double>(momentum));
+			     static_cast<double>(momentum),
+			     rank_id);
   
   return y;
 }
@@ -143,7 +144,8 @@ std::vector<at::Tensor> gbn_backward(
 			      x_grad.data_ptr(),
 			      scale_grad.data_ptr(),
 			      bias_grad.data_ptr(),
-			      static_cast<double>(epsilon));
+			      static_cast<double>(epsilon),
+			      rank_id);
 
   return std::vector<at::Tensor>{x_grad, scale_grad, bias_grad};
 }

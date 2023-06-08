@@ -75,9 +75,8 @@ run_batch_norm_forward(int64_t *tensorDims,
 		       int64_t *peerDims,
 		       cudnnDataType_t data_type) {
 
-  // Create the cudnn handle
-  cudnnHandle_t handle;
-  checkCudnnErr(cudnnCreate(&handle));
+  // get the cudnn handle
+  cudnnHandle_t handle = torch::native::getCudnnHandle();
 
   // Creates the necessary tensor descriptors
   int64_t tensor_stride[4];
@@ -249,7 +248,12 @@ void execute_batch_norm_forward(cudnnHandle_t &handle_,
 				void *saved_inv_vardevPtr,
 				const std::vector<void*> &peer_devPtrs,
 				double epsilon_val,
-				double exponential_decay_factor) {
+				double exponential_decay_factor,
+				int rank_id) {
+
+  // get stream                                                                                                                                                          
+  cudaStream_t stream;
+  cudnnGetStream(handle_, &stream);
   
   try {
     // first the data pointers
@@ -271,8 +275,13 @@ void execute_batch_norm_forward(cudnnHandle_t &handle_,
     //std::cout << "variantPack " << variantPack.describe() << std::endl;
     cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());    
     cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
-    
-    //std::cout << "Batch normalization forward run completed successfully" << std::endl;
+
+    // Reset local communication buffer
+    size_t peer_size = 1;
+    for (size_t i = 0; i < 4; ++i){
+        peer_size *= peerDims[i];
+    }
+    cudaMemsetAsync(peer_devPtrs[rank_id], 0, peer_size*4, stream);
     
   } catch (cudnn_frontend::cudnnException &e) {
     struct cudaDeviceProp prop;
@@ -290,10 +299,9 @@ run_batch_norm_backward(int64_t *tensorDims,
 			int64_t *epsilon,
 			int64_t *peerDims,
 			cudnnDataType_t data_type) {
-  //std::cout << "================ Running Batch Norm Backward =======================" << std::endl;
-  // Create the cudnn handle
-  cudnnHandle_t handle;
-  checkCudnnErr(cudnnCreate(&handle));
+
+  // get cudnn handle
+  cudnnHandle_t handle = torch::native::getCudnnHandle();
 
   // Creates the necessary tensor descriptors
   int64_t tensor_stride[4];
@@ -446,9 +454,15 @@ void execute_batch_norm_backward(cudnnHandle_t &handle_,
 				 void *dxDevPtr,
 				 void *dscaledevPtr,
 				 void *dbiasdevPtr,
-				 double epsilon_val) {
+				 double epsilon_val,
+				 int rank_id) {
+
+  // get stream
+  cudaStream_t stream;
+  cudnnGetStream(handle_, &stream);
       
-  try {    
+  try {
+    // create helper arrays
     std::vector<void*> data_ptrs {xDevPtr, dyDevPtr, scaledevPtr,
 	saved_meandevPtr, saved_inv_vardevPtr,
 	dxDevPtr, dscaledevPtr, dbiasdevPtr, &epsilon_val};
@@ -466,6 +480,14 @@ void execute_batch_norm_backward(cudnnHandle_t &handle_,
     cudnnStatus_t status = cudnnBackendExecute(handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
 
     cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
+
+    // Reset local communication buffer
+    size_t peer_size = 1;
+    for (size_t i = 0; i < 4; ++i){
+        peer_size *= peerDims[i];
+    }
+    cudaMemsetAsync(peer_devPtrs[rank_id], 0, peer_size*4, stream);
+    
   } catch (cudnn_frontend::cudnnException &e) {
     struct cudaDeviceProp prop;
     checkCudaErr(cudaGetDeviceProperties(&prop, 0));
