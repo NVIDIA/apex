@@ -23,6 +23,9 @@
 #include "norm_sample.h"
 #include <cudnn_frontend.h>
 #include "cudnn_backend.h"
+#include <ATen/cudnn/Handle.h>  // for getcudnnhandle
+#include <torch/extension.h>
+#include <torch/torch.h>
 
 // some helpers
 int64_t checkCudaError(cudaError_t code, const char* expr, const char* file, int line) {
