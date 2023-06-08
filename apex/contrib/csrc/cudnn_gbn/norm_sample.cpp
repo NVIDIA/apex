@@ -75,7 +75,6 @@ run_batch_norm_forward(int64_t *tensorDims,
 		       int64_t *peerDims,
 		       cudnnDataType_t data_type) {
 
-  std::cout << "================ Running Batch Norm Forward ======================= " << std::endl;
   // Create the cudnn handle
   cudnnHandle_t handle;
   checkCudnnErr(cudnnCreate(&handle));
@@ -185,7 +184,7 @@ run_batch_norm_forward(int64_t *tensorDims,
   std::array<cudnn_frontend::Operation const*, 0> ops = {};
 #endif
   auto opGraph = cudnn_frontend::OperationGraphBuilder().setHandle(handle).setOperationGraph(ops.size(), ops.data()).build();
-  std::cout << opGraph.describe() << std::endl;
+  //std::cout << opGraph.describe() << std::endl;
 
   cudnn_frontend::EngineConfigList filtered_configs;
   auto statuses =
@@ -291,7 +290,7 @@ run_batch_norm_backward(int64_t *tensorDims,
 			int64_t *epsilon,
 			int64_t *peerDims,
 			cudnnDataType_t data_type) {
-  std::cout << "================ Running Batch Norm Backward =======================" << std::endl;
+  //std::cout << "================ Running Batch Norm Backward =======================" << std::endl;
   // Create the cudnn handle
   cudnnHandle_t handle;
   checkCudnnErr(cudnnCreate(&handle));
@@ -389,7 +388,7 @@ run_batch_norm_backward(int64_t *tensorDims,
 #endif
     
   auto opGraph = cudnn_frontend::OperationGraphBuilder().setHandle(handle).setOperationGraph(ops.size(), ops.data()).build();
-  std::cout << opGraph.describe() << std::endl;
+  //std::cout << opGraph.describe() << std::endl;
 
   cudnn_frontend::EngineConfigList filtered_configs;
   auto statuses =
