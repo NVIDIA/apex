@@ -11,7 +11,7 @@
 enum bn_type { BN_FWD, BN_BWD };
 
 // this is a global variable
-static std::map<std::vector<int64_t>, std::tuple<cudnnHandle_t,cudnn_frontend::ExecutionPlan,std::shared_ptr<void>>> gbn_plan_cache;
+static std::map<std::vector<int64_t>, cudnn_frontend::ExecutionPlan> gbn_plan_cache;
 
 at::Tensor gbn_forward(const at::Tensor& x,
                        const at::Tensor& scale,
@@ -57,21 +57,8 @@ at::Tensor gbn_forward(const at::Tensor& x,
   // get plan and handle
   auto plan = gbn_plan_cache.find(fv)->second;
 
-  // allocate workspace
-  auto workspace_size = plan.getWorkspaceSize();
-  auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
-  void* workspace_ptr = nullptr;
-  if (workspace_size > 0) {
-    workspace_ptr = workspace_tensor.data_ptr<float>();
-  }
-
-  //cudnnHandle_t handle;
-  // cudnn_frontend::ExecutionPlan plan;
-  //std::tie(handle, plan) = gbn_plan_cache.find(fv)->second;
-
   // execute
   execute_batch_norm_forward(plan,
-			     workspace_ptr,
 			     x.data_ptr(),
 			     y.data_ptr(),
 			     scale.data_ptr(),
@@ -135,18 +122,9 @@ std::vector<at::Tensor> gbn_backward(
   
   // get plan and handle
   auto plan = gbn_plan_cache.find(fv)->second;
-
-  // allocate workspace
-  auto workspace_size = plan.getWorkspaceSize();
-  auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
-  void* workspace_ptr = nullptr;
-  if (workspace_size > 0) {
-    workspace_ptr = workspace_tensor.data_ptr<float>();
-  }  
         
   // execute
   execute_batch_norm_backward(plan,
-			      workspace_ptr,
 			      x.data_ptr(),
 			      dy.data_ptr(),
 			      scale.data_ptr(),

@@ -223,7 +223,6 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(int64_t *tensorDims,
 }
 
 void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan,
-				void *workPtr,
 				void *xDevPtr,
 				void *yDevPtr,
 				void *scaledevPtr,
@@ -247,6 +246,14 @@ void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan,
   cudnnGetStream(handle_, &stream);
   
   try {
+    // allocate workspace
+    auto workspace_size = plan.getWorkspaceSize();
+    auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
+    void* workPtr = nullptr;
+    if (workspace_size > 0) {
+      workPtr = workspace_tensor.data_ptr<float>();
+    }
+    
     // first the data pointers
     std::vector<void*> data_ptrs {xDevPtr, yDevPtr, scaledevPtr, biasdevPtr,
 	in_meandevPtr, in_vardevPtr, out_meandevPtr, out_vardevPtr,
@@ -420,7 +427,6 @@ cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims,
 }
 
 void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan,
-				 void *workPtr,
 				 void *xDevPtr,
 				 void *dyDevPtr,
 				 void *scaledevPtr,
@@ -441,6 +447,14 @@ void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan,
   cudnnGetStream(handle_, &stream);
       
   try {
+    // allocate workspace
+    auto workspace_size = plan.getWorkspaceSize();
+    auto workspace_tensor = at::empty({(workspace_size+3)/4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
+    void* workPtr = nullptr;
+    if (workspace_size > 0) {
+      workPtr = workspace_tensor.data_ptr<float>();
+    }
+    
     // create helper arrays
     std::vector<void*> data_ptrs {xDevPtr, dyDevPtr, scaledevPtr,
 	saved_meandevPtr, saved_inv_vardevPtr,

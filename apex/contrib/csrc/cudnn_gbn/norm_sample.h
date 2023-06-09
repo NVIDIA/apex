@@ -89,7 +89,6 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(
  *
 **/
 void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan,
-				void *workPtr,
 				void *xDevPtr,
 				void *yDevPtr,
 				void *scaledevPtr,
@@ -139,7 +138,6 @@ cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims,
  *
  */
 void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan,
-				 void *workPtr,
 				 void *xDevPtr,
 				 void *dyDevPtr,
 				 void *scaledevPtr,
