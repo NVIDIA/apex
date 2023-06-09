@@ -102,6 +102,7 @@ void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan,
 				const std::vector<void*> &peer_devPtrs,
 				double epsilon_val,
 				double exponential_decay_factor,
+				size_t peer_size,
 				int rank_id);
 
 /**
@@ -148,4 +149,5 @@ void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan,
 				 void *dscaledevPtr,
 				 void *dbiasdevPtr,
 				 double epsilon_val,
+				 size_t peer_size,
 				 int rank_id);

@@ -44,6 +44,12 @@ at::Tensor gbn_forward(const at::Tensor& x,
     void_peer_buffers.push_back((void*)addr);
   }
 
+  // we need the peer size for the buffer reset
+  size_t peer_size = 1;
+  for (size_t i = 0; i < 4; ++i){
+    peer_size *= peerDims[i];
+  }
+
   // sanity check
   assert(bn_group == void_peer_buffers.size());
 
@@ -72,6 +78,7 @@ at::Tensor gbn_forward(const at::Tensor& x,
 			     void_peer_buffers,
 			     static_cast<double>(epsilon),
 			     static_cast<double>(momentum),
+			     peer_size,
 			     rank_id);
   
   return y;
@@ -111,6 +118,12 @@ std::vector<at::Tensor> gbn_backward(
   for (int64_t addr : peer_buffers) {
     void_peer_buffers.push_back((void*)addr);
   }
+
+  // we need the peer size for the buffer reset
+  size_t peer_size = 1;
+  for (size_t i = 0; i < 4; ++i){
+    peer_size *= peerDims[i];
+  }
   
   assert(bn_group == void_peer_buffers.size());
 
@@ -135,6 +148,7 @@ std::vector<at::Tensor> gbn_backward(
 			      scale_grad.data_ptr(),
 			      bias_grad.data_ptr(),
 			      static_cast<double>(epsilon),
+			      peer_size,
 			      rank_id);
 
   return std::vector<at::Tensor>{x_grad, scale_grad, bias_grad};

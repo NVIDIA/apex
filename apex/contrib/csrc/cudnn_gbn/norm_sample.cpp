@@ -236,6 +236,7 @@ void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan,
 				const std::vector<void*> &peer_devPtrs,
 				double epsilon_val,
 				double exponential_decay_factor,
+				size_t peer_size, 
 				int rank_id) {
 
   // get handle
@@ -275,10 +276,6 @@ void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan,
     cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
 
     // Reset local communication buffer
-    size_t peer_size = 1;
-    for (size_t i = 0; i < 4; ++i){
-        peer_size *= peerDims[i];
-    }
     cudaMemsetAsync(peer_devPtrs[rank_id], 0, peer_size*4, stream);
     
   } catch (cudnn_frontend::cudnnException &e) {
@@ -400,14 +397,7 @@ cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims,
     cudnn_frontend::get_heuristics_list<2>({"heuristics_instant"
 					    , "heuristics_fallback"
       }, opGraph,::AllowAll, filtered_configs, true);
-  
-  //std::cout << "get_heuristics_list Statuses: ";
-  //for (auto i = 0u ; i < statuses.size(); i++) {
-  //std::cout << cudnn_frontend::to_string(statuses[i]) << " ";
-  //}
-  //std::cout << std::endl;
-  //std::cout << "Filter config list has " << filtered_configs.size() << " configurations " << std::endl;
-  
+    
   auto plan_builder = [&filtered_configs, &opGraph, &handle]() {
     for (auto i = 0u; i < filtered_configs.size(); i++) {
       try {
@@ -437,6 +427,7 @@ void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan,
 				 void *dscaledevPtr,
 				 void *dbiasdevPtr,
 				 double epsilon_val,
+				 size_t peer_size,
 				 int rank_id) {
 
   // get handle
@@ -475,10 +466,6 @@ void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan,
     cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "Plan execute error", status);
 
     // Reset local communication buffer
-    size_t peer_size = 1;
-    for (size_t i = 0; i < 4; ++i){
-        peer_size *= peerDims[i];
-    }
     cudaMemsetAsync(peer_devPtrs[rank_id], 0, peer_size*4, stream);
     
   } catch (cudnn_frontend::cudnnException &e) {
