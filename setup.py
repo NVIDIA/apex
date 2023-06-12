@@ -7,7 +7,13 @@ from setuptools import setup, find_packages
 import subprocess
 
 import torch
-from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension, CUDA_HOME, load
+from torch.utils.cpp_extension import (
+    BuildExtension,
+    CppExtension,
+    CUDAExtension,
+    CUDA_HOME,
+    load,
+)
 
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -765,7 +771,7 @@ setup(
     packages=find_packages(
         exclude=("build", "csrc", "include", "tests", "dist", "docs", "tests", "examples", "apex.egg-info",)
     ),
-    install_requires=["packaging>20.6",],
+    install_requires=["packaging>20.6"],
     description="PyTorch Extensions written by NVIDIA",
     ext_modules=ext_modules,
     cmdclass={"build_ext": BuildExtension} if ext_modules else {},
