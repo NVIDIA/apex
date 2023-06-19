@@ -17,8 +17,8 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
             raise RuntimeError('FusedLAMB does not support the AMSGrad variant.')
 
         # init defaults
-        defaults = dict(lr=torch.tensor(lr, dtype=torch.float32, device=device),
-                        step=torch.tensor([step], dtype=torch.int, device=device),
+        defaults = dict(lr=torch.tensor(lr, dtype=torch.float32),
+                        step=torch.tensor([step], dtype=torch.int),
                         bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         grad_averaging=grad_averaging,
