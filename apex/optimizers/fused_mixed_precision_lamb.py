@@ -32,10 +32,7 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
 
         # The learning rate (lr) and optimizer step (step) should be located on device
 	# in order to faciliated device sync free execution  
-        #self.lr = self.lr.to(device)
-        #self.step = self.step.to(device)
         tensor_state = ['lr', 'step']
-
         for idx,group in enumerate(self.param_groups):
             for item in tensor_state:
                 self.param_groups[idx][item] = group[item].to(device=device)
