@@ -124,15 +124,13 @@ python setup.py install
 
 ### To install using extensions enabled use the following command in apex folder:
 ```
+# if pip >= 23.1 (ref: https://pip.pypa.io/en/stable/news/#v23-1) which supports multiple `--config-settings` with the same key...
+pip install -v --no-build-isolation --config-settings "--build-option=--cpp_ext" --config-settings "--build-option=--cuda_ext" ./
+# otherwise
 python setup.py install --cpp_ext --cuda_ext
+
 ```
 Note that using --cuda_ext flag to install Apex will also enable all the extensions supported on ROCm including "--distributed_adam", "--distributed_lamb", "--bnp", "--xentropy", "--deprecated_fused_adam", "--deprecated_fused_lamb", and "--fast_multihead_attn".
-
-### To install Apex on ROCm using ninja and without cloning the source
-```
-pip install ninja
-pip install -v --install-option="--cpp_ext" --install-option="--cuda_ext" 'git+https://github.com/ROCmSoftwarePlatform/apex.git'
-```
 
 ### Linux
 For performance and full functionality, we recommend installing Apex with
@@ -140,12 +138,15 @@ CUDA and C++ extensions via
 ```bash
 git clone https://github.com/NVIDIA/apex
 cd apex
-pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+# if pip >= 23.1 (ref: https://pip.pypa.io/en/stable/news/#v23-1) which supports multiple `--config-settings` with the same key...
+pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext" --config-settings "--build-option=--cuda_ext" ./
+# otherwise
+pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 ```
 
 Apex also supports a Python-only build via
 ```bash
-pip install -v --disable-pip-version-check --no-cache-dir ./
+pip install -v --disable-pip-version-check --no-build-isolation --no-cache-dir ./
 ```
 A Python-only build omits:
 - Fused kernels required to use `apex.optimizers.FusedAdam`.
