@@ -26,12 +26,10 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
 
         # init base module
         super(FusedMixedPrecisionLamb, self).__init__(params, defaults)
-        
-        # The learning rate (lr) and optimizer step (step) should be located on device
-        device = self.param_groups[0]['params'][0].device
 
         # The learning rate (lr) and optimizer step (step) should be located on device
-	# in order to faciliated device sync free execution  
+        # in order to faciliated device sync free execution
+        device = self.param_groups[0]['params'][0].device
         tensor_state = ['lr', 'step']
         for idx,group in enumerate(self.param_groups):
             for item in tensor_state:
