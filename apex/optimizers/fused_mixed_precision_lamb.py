@@ -12,22 +12,25 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
                  amsgrad=False, adam_w_mode=True,
                  grad_averaging=True, max_grad_norm=1.0, use_nvlamb=False,
                  reduced_precision_dtype=None):
+
         if amsgrad:
             raise RuntimeError('FusedLAMB does not support the AMSGrad variant.')
-        
-        # The learning rate (lr) and optimizer step (step) should be located on device
-        # in order to faciliated device sync free execution
+
+        # init defaults
         defaults = dict(lr=torch.tensor(lr, dtype=torch.float32),
                         step=torch.tensor([step], dtype=torch.int),
                         bias_correction=bias_correction,
                         betas=betas, eps=eps, weight_decay=weight_decay,
                         grad_averaging=grad_averaging,
                         max_grad_norm=max_grad_norm)
-        tensor_state = ['lr', 'step']
+
+        # init base module
         super(FusedMixedPrecisionLamb, self).__init__(params, defaults)
 
+        # The learning rate (lr) and optimizer step (step) should be located on device
+        # in order to faciliated device sync free execution
         device = self.param_groups[0]['params'][0].device
-
+        tensor_state = ['lr', 'step']
         for idx,group in enumerate(self.param_groups):
             for item in tensor_state:
                 self.param_groups[idx][item] = group[item].to(device=device)
