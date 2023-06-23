@@ -57,7 +57,7 @@ at::Tensor gbn_forward(const at::Tensor& x,
   std::vector<int64_t> fv = {(int64_t)BN_FWD, N, C, H, W, bn_group, (int64_t)CUDNN_DATA_HALF};
   if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
     auto plan = run_batch_norm_forward(tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
-    gbn_plan_cache.insert(std::make_pair(fv, plan));
+    gbn_plan_cache.emplace(fv, std::move(plan));
   }
 
   // get plan and handle
@@ -130,7 +130,7 @@ std::vector<at::Tensor> gbn_backward(
   std::vector<int64_t> fv = {(int64_t)BN_BWD, N, C, H, W, bn_group, (int64_t)CUDNN_DATA_HALF};
   if ( gbn_plan_cache.find(fv) == gbn_plan_cache.end() ) {
     auto plan = run_batch_norm_backward(tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
-    gbn_plan_cache.insert(std::make_pair(fv, plan));
+    gbn_plan_cache.emplace(fv, std::move(plan));
   }
   
   // get plan and handle
