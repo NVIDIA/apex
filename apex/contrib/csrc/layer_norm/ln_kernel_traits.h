@@ -128,6 +128,8 @@ struct Kernel_traits : public Base {
     using reduce_t = typename layer_norm::TypeToVec2<compute_t>::Type;
     using Reducer = layer_norm::Reducer<reduce_t, CTAS_PER_ROW, WARPS_M, WARPS_N>; 
 
+    using Reducer_single = layer_norm::Reducer<compute_t, CTAS_PER_ROW, WARPS_M, WARPS_N>;
+
     enum { SMEM_BYTES_DGRAD = Reducer::SMEM_BYTES };
     enum { SMEM_BYTES = SMEM_BYTES_DGRAD  + SMEM_BYTES_WGRAD };
 

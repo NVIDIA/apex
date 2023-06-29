@@ -30,7 +30,7 @@ void launch_(LaunchParams<FwdParams> &launch_params, const bool configure_params
                                         WARPS_N,
                                         BYTES_PER_LDG
                                         >;
-    auto kernel = &ln_fwd_kernel<Kernel_traits>;
+    auto kernel = launch_params.params.is_rms_only ? &rmsnorm_fwd_kernel<Kernel_traits> : &ln_fwd_kernel<Kernel_traits>;
 
     if( configure_params ) {
         int ctas_per_sm;
@@ -44,7 +44,7 @@ void launch_(LaunchParams<FwdParams> &launch_params, const bool configure_params
             launch_params.workspace_bytes = launch_params.params.ctas_per_col 
                                           * Kernel_traits::WARPS_M  
                                           * Kernel_traits::CTAS_PER_ROW 
-                                          * sizeof(typename Kernel_traits::Stats::stats_t)
+                                          * (launch_params.params.is_rms_only ? sizeof(compute_t) : sizeof(typename Kernel_traits::Stats::stats_t))
                                           * 2;
         }
         return;

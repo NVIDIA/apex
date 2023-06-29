@@ -31,7 +31,7 @@ void launch_(LaunchParams<BwdParams> &launch_params, const bool configure_params
                                         WARPS_N,
                                         BYTES_PER_LDG_MAIN
                                         >;
-    auto kernel = &ln_bwd_kernel<Kernel_traits>;
+    auto kernel = launch_params.params.is_rms_only ? &rmsnorm_bwd_kernel<Kernel_traits> : &ln_bwd_kernel<Kernel_traits>;
 
     if( configure_params ) {
         int ctas_per_sm;
@@ -45,7 +45,7 @@ void launch_(LaunchParams<BwdParams> &launch_params, const bool configure_params
             launch_params.workspace_bytes = launch_params.params.ctas_per_col 
                                           * Kernel_traits::WARPS_M  
                                           * Kernel_traits::CTAS_PER_ROW 
-                                          * sizeof(typename Kernel_traits::reduce_t)
+                                          * (launch_params.params.is_rms_only ? sizeof(compute_t) : sizeof(typename Kernel_traits::reduce_t))
                                           * 2;
         }
         return;
@@ -75,7 +75,7 @@ void launch_(LaunchParams<BwdParams> &launch_params, const bool configure_params
                                                                32 * 32,  // THREADS_PER_CTA
                                                                BYTES_PER_LDG_FINAL>;
 
-    auto kernel_f = &layer_norm::ln_bwd_finalize_kernel<Kernel_traits_f>;
+    auto kernel_f = launch_params.params.is_rms_only ? &rmsnorm_bwd_finalize_kernel<Kernel_traits_f> : &layer_norm::ln_bwd_finalize_kernel<Kernel_traits_f>;
     kernel_f<<<Kernel_traits_f::CTAS, Kernel_traits_f::THREADS_PER_CTA, 0, stream>>>(launch_params.params);
 }
 

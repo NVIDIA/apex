@@ -37,6 +37,7 @@ struct ParamsBase {
         , gamma(nullptr)
         , workspace(nullptr)
         , barrier(nullptr)
+        , is_rms_only(false)
     {
     }
 
@@ -58,6 +59,9 @@ struct ParamsBase {
 
     // Multi-CTA sync barriers in gmem.
     int *barrier;
+
+    //Indicates whether it is RMSnorm or not
+    bool is_rms_only;
 
 };
 
