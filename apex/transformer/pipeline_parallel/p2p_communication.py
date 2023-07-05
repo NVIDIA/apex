@@ -140,7 +140,7 @@ def _run_p2pops(
             return (None, None, None, None, reqs)
 
         if async_comm:
-            if len(ops) == 0 or len(reqs) == len(ops):
+            if not ops or len(reqs) == len(ops):
                 tensor_send_prev_req = None if tensor_send_prev is None else reqs.pop(0)
                 tensor_recv_prev_req = None if tensor_recv_prev is None else reqs.pop(0)
                 tensor_send_next_req = None if tensor_send_next is None else reqs.pop(0)
