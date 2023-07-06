@@ -67,10 +67,10 @@ class IndexMul2dTest(unittest.TestCase):
         loss = (out_.float()**2).sum() / out_.numel() + (force_.float()**2).sum()
         loss.backward()
 
-        self.assertTrue(torch.allclose(self.input1_float, self.input1_float_, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.input2_float, self.input2_float_, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.input1_float.grad, self.input1_float_.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.input2_float.grad, self.input2_float_.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
+        torch.testing.assert_close(self.input1_float, self.input1_float_, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.input2_float, self.input2_float_, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.input1_float.grad, self.input1_float_.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.input2_float.grad, self.input2_float_.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
     def test_index_mul_half(self):
         out = index_mul_2d(self.input1_half, self.input2_half, self.index1)
@@ -95,10 +95,10 @@ class IndexMul2dTest(unittest.TestCase):
         loss = (out_.float()**2).sum() / out_.numel() + (force_.float()**2).sum()
         loss.backward()
 
-        self.assertTrue(torch.allclose(self.input1_half, self.input1_half_, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.input2_half, self.input2_half_, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.input1_half.grad, self.input1_half_.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
-        self.assertTrue(torch.allclose(self.input2_half.grad, self.input2_half_.grad, atol=1e-3, rtol=1e-3, equal_nan=True))
+        torch.testing.assert_close(self.input1_half, self.input1_half_, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.input2_half, self.input2_half_, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.input1_half.grad, self.input1_half_.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.input2_half.grad, self.input2_half_.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
 if __name__ == '__main__':
     unittest.main()
