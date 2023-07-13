@@ -1,6 +1,7 @@
 import sys
 import warnings
 import os
+import glob
 from packaging.version import parse, Version
 
 from setuptools import setup, find_packages
@@ -432,6 +433,34 @@ if "--focal_loss" in sys.argv:
             extra_compile_args={
                 'cxx': ['-O3'] + version_dependent_macros,
                 'nvcc':['-O3', '--use_fast_math', '--ftz=false'] + version_dependent_macros,
+            },
+        )
+    )
+
+if "--group_norm" in sys.argv:
+    sys.argv.remove("--group_norm")
+    raise_if_cuda_home_none("--group_norm")
+
+    # CUDA group norm supports from SM70
+    arch_flags = []
+    for arch in [70, 75, 80, 86, 90]:
+        arch_flag = f"-gencode=arch=compute_{arch},code=sm_{arch}"
+        arch_flags.append(arch_flag)
+    arch_flag = f"-gencode=arch=compute_90,code=compute_90"
+    arch_flags.append(arch_flag)
+
+    ext_modules.append(
+        CUDAExtension(
+            name="group_norm_cuda",
+            sources=[
+                "apex/contrib/csrc/group_norm/group_norm_nhwc_op.cpp",
+            ] + glob.glob("apex/contrib/csrc/group_norm/*.cu"),
+            include_dirs=[os.path.join(this_dir, 'csrc')],
+            extra_compile_args={
+                "cxx": ["-O3", "-std=c++17"] + version_dependent_macros,
+                "nvcc": [
+                    "-O3", "-std=c++17", "--use_fast_math", "--ftz=false", "-Xptxas=-v",
+                ] + arch_flags + version_dependent_macros,
             },
         )
     )
