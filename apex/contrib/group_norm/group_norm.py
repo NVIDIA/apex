@@ -33,27 +33,6 @@ __all__ = [
 ]
 
 
-# pytorch group norm requires same input type
-def torch_group_norm(x, g, w, b, eps, act=""):
-    xdtype, wdtype = x.dtype, w.dtype
-    if xdtype != wdtype:
-        x = x.to(dtype=wdtype)
-    y = F.group_norm(x, g, w, b, eps)
-    if act in ["silu", "swish"]:
-        y = F.silu(y)
-    if xdtype != wdtype and y.dtype != xdtype:
-        y = y.to(dtype=xdtype)
-    return y
-
-
-@torch.compile
-def inductor_group_norm(x, g, w, b, eps, act=""):
-    y = F.group_norm(x, g, w, b, eps)
-    if act in ["silu", "swish"]:
-        y = F.silu(y)
-    return y
-
-
 class GroupNormNHWC(torch.autograd.Function):
 
     @staticmethod
@@ -138,6 +117,8 @@ cuda_group_norm_nhwc_two_pass = GroupNormTwoPass.apply
 # support inheritance. Extends:
 # https://github.com/pytorch/pytorch/blob/main/torch/nn/modules/normalization.py
 class GroupNormOpt(torch.nn.Module):
+    """Optimized GroupNorm for NHWC layout with Swish/SiLU fusion."""
+
     __constants__ = ['num_groups', 'num_channels', 'eps', 'affine', 'act']
     num_groups: int
     num_channels: int
@@ -164,7 +145,8 @@ class GroupNormOpt(torch.nn.Module):
         self.affine = affine
         self.act = act.lower()
         if self.affine:
-            self.weight = Parameter(torch.empty(num_channels, **factory_kwargs))
+            self.weight = Parameter(torch.empty(num_channels,
+                                                **factory_kwargs))
             self.bias = Parameter(torch.empty(num_channels, **factory_kwargs))
         else:
             self.register_parameter('weight', None)
@@ -181,7 +163,9 @@ class GroupNormOpt(torch.nn.Module):
 
     def forward(self, input: Tensor) -> Tensor:
         is_nhwc = input.is_contiguous(memory_format=torch.channels_last)
-        is_half_or_float_or_bf16 = input.dtype in [torch.float16, torch.bfloat16, torch.float32]
+        is_half_or_float_or_bf16 = input.dtype in [
+            torch.float16, torch.bfloat16, torch.float32
+        ]
         is_legal_act = self.act in ['', 'silu', 'swish']
 
         if is_nhwc and is_half_or_float_or_bf16 and is_legal_act and self.affine:
@@ -190,7 +174,8 @@ class GroupNormOpt(torch.nn.Module):
             for i in range(2, len(input.shape)):
                 hw *= input.shape[i]
             max_hw_one_pass = 1024 if self.sm >= 80 else 256
-            if (hw >= 512 and channels in (3136, 3584, 4096)) or hw > max_hw_one_pass:
+            if (hw >= 512 and channels
+                    in (3136, 3584, 4096)) or hw > max_hw_one_pass:
                 algo = group_norm_cuda.TwoPass
             else:
                 algo = group_norm_cuda.OnePass
