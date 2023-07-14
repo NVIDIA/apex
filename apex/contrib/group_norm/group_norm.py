@@ -26,7 +26,7 @@ from torch._dynamo import disable
 from functools import partial
 
 __all__ = [
-    'GroupNormOpt',
+    'GroupNorm',
     'cuda_group_norm_nhwc',
     'cuda_group_norm_nhwc_one_pass',
     'cuda_group_norm_nhwc_two_pass',
@@ -116,8 +116,8 @@ cuda_group_norm_nhwc_two_pass = GroupNormTwoPass.apply
 # We do not direct inherit from torch.nn.GroupNorm since several fusers don't
 # support inheritance. Extends:
 # https://github.com/pytorch/pytorch/blob/main/torch/nn/modules/normalization.py
-class GroupNormOpt(torch.nn.Module):
-    """Optimized GroupNorm for NHWC layout with Swish/SiLU fusion."""
+class GroupNorm(torch.nn.Module):
+    """Optimized GroupNorm for NHWC layout with optional Swish/SiLU fusion."""
 
     __constants__ = ['num_groups', 'num_channels', 'eps', 'affine', 'act']
     num_groups: int

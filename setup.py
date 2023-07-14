@@ -459,7 +459,7 @@ if "--group_norm" in sys.argv:
             extra_compile_args={
                 "cxx": ["-O3", "-std=c++17"] + version_dependent_macros,
                 "nvcc": [
-                    "-O3", "-std=c++17", "--use_fast_math", "--ftz=false", "-Xptxas=-v",
+                    "-O3", "-std=c++17", "--use_fast_math", "--ftz=false",
                 ] + arch_flags + version_dependent_macros,
             },
         )
