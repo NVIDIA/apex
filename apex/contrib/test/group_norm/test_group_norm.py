@@ -101,7 +101,7 @@ class GroupNormTest(unittest.TestCase):
         dgrad_close = torch.allclose(dx_tst, dx_ref, atol=1e-2, rtol=0)
         self.assertTrue(dgrad_close)
         if not dgrad_close:
-            print('Result mis-match: dgrad')
+            print('\nResult mis-match: dgrad')
             if peep > 0:
                 print(dx_ref[0, 0, 0, :peep])
                 print(dx_tst[0, 0, 0, :peep])
@@ -109,7 +109,7 @@ class GroupNormTest(unittest.TestCase):
         wgrad_close = torch.allclose(dw_tst, dw_ref, atol=1e-2, rtol=0)
         self.assertTrue(wgrad_close)
         if not wgrad_close:
-            print('Result mis-match: wgrad')
+            print('\nResult mis-match: wgrad')
             if peep > 0:
                 print(dw_ref[:peep])
                 print(dw_tst[:peep])
@@ -117,7 +117,7 @@ class GroupNormTest(unittest.TestCase):
         bgrad_close = torch.allclose(db_tst, db_ref, atol=1e-2, rtol=0)
         self.assertTrue(bgrad_close)
         if not bgrad_close:
-            print('Result mis-match: bgrad')
+            print('\nResult mis-match: bgrad')
             if peep > 0:
                 print(db_ref[:peep])
                 print(db_tst[:peep])
