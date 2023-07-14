@@ -1,0 +1,191 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# Copyright (c) 2011-2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without modification, are not permit-
+# ted.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+# IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+# FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NVIDIA CORPORATION BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+# OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+import torch
+import unittest
+
+SKIP_TEST = None
+try:
+    from apex.contrib.group_norm import cuda_group_norm_nhwc_one_pass
+    from apex.contrib.group_norm import cuda_group_norm_nhwc_two_pass
+except ImportError as e:
+    SKIP_TEST = e
+
+
+# pytorch group norm requires same input type
+def torch_group_norm(x, g, w, b, eps, act=""):
+    xdtype, wdtype = x.dtype, w.dtype
+    if xdtype != wdtype:
+        x = x.to(dtype=wdtype)
+    y = torch.nn.functional.group_norm(x, g, w, b, eps)
+    if act in ["silu", "swish"]:
+        y = torch.nn.functional.silu(y)
+    if xdtype != wdtype and y.dtype != xdtype:
+        y = y.to(dtype=xdtype)
+    return y
+
+
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
+class GroupNormTest(unittest.TestCase):
+
+    def setUp(self, seed=0):
+        super().setUp()
+        torch.manual_seed(seed)
+
+    def verify_group_norm(self,
+                          tst_func,
+                          N=32,
+                          C=128,
+                          H=256,
+                          W=256,
+                          G=32,
+                          ref_func=torch_group_norm,
+                          xdtype=torch.float16,
+                          wdtype=torch.float32,
+                          eps=1e-5,
+                          memory_format=torch.channels_last,
+                          device='cuda',
+                          peep=0,
+                          act=""):
+        # create data
+        x_shape = (N, C, H, W)
+        w_shape = (C, )
+        weight = torch.rand(w_shape,
+                            dtype=wdtype,
+                            device='cuda',
+                            requires_grad=True)
+        bias = torch.rand(w_shape,
+                          dtype=wdtype,
+                          device='cuda',
+                          requires_grad=True)
+        x = -2.3 + 0.5 * torch.randn(x_shape, dtype=xdtype, device='cuda')
+        x = x.to(memory_format=memory_format)
+        dy = .1 * torch.randn_like(x)
+        x.requires_grad_(True)
+
+        # forward pass
+        y_ref = ref_func(x, G, weight, bias, eps, act)
+        y_tst = tst_func(x, G, weight, bias, eps, act)
+        # backward pass
+        y_ref.backward(dy, retain_graph=True)
+        dx_ref, dw_ref, db_ref = [_.grad.clone() for _ in [x, weight, bias]]
+        x.grad.zero_()
+        weight.grad.zero_()
+        bias.grad.zero_()
+        y_tst.backward(dy, retain_graph=True)
+        dx_tst, dw_tst, db_tst = [_.grad.clone() for _ in [x, weight, bias]]
+
+        # compare
+        fprop_close = torch.allclose(y_tst, y_ref, atol=4e-2, rtol=0)
+        self.assertTrue(fprop_close)
+        if not fprop_close:
+            print('\nResult mis-match: fprop')
+            if peep > 0:
+                print(y_ref[0, 0, 0, :peep])
+                print(y_tst[0, 0, 0, :peep])
+
+        dgrad_close = torch.allclose(dx_tst, dx_ref, atol=1e-2, rtol=0)
+        self.assertTrue(dgrad_close)
+        if not dgrad_close:
+            print('Result mis-match: dgrad')
+            if peep > 0:
+                print(dx_ref[0, 0, 0, :peep])
+                print(dx_tst[0, 0, 0, :peep])
+
+        wgrad_close = torch.allclose(dw_tst, dw_ref, atol=1e-2, rtol=0)
+        self.assertTrue(wgrad_close)
+        if not wgrad_close:
+            print('Result mis-match: wgrad')
+            if peep > 0:
+                print(dw_ref[:peep])
+                print(dw_tst[:peep])
+
+        bgrad_close = torch.allclose(db_tst, db_ref, atol=1e-2, rtol=0)
+        self.assertTrue(bgrad_close)
+        if not bgrad_close:
+            print('Result mis-match: bgrad')
+            if peep > 0:
+                print(db_ref[:peep])
+                print(db_tst[:peep])
+
+    def test_fp16_one_pass_algo(self):
+        self.verify_group_norm(cuda_group_norm_nhwc_one_pass, peep=16, act="")
+
+    def test_fp16_two_pass_algo(self):
+        self.verify_group_norm(cuda_group_norm_nhwc_two_pass, peep=16, act="")
+
+    def test_fp16_one_pass_algo_with_swish(self):
+        self.verify_group_norm(cuda_group_norm_nhwc_one_pass,
+                               peep=16,
+                               act="swish")
+
+    def test_fp16_two_pass_algo_with_swish(self):
+        self.verify_group_norm(cuda_group_norm_nhwc_two_pass,
+                               peep=16,
+                               act="swish")
+
+    def test_bf16_one_pass_algo(self):
+        self.verify_group_norm(cuda_group_norm_nhwc_one_pass,
+                               peep=16,
+                               xdtype=torch.bfloat16,
+                               act="")
+
+    def test_bf16_two_pass_algo(self):
+        self.verify_group_norm(cuda_group_norm_nhwc_two_pass,
+                               peep=16,
+                               xdtype=torch.bfloat16,
+                               act="")
+
+    def test_bf16_one_pass_algo_with_swish(self):
+        self.verify_group_norm(cuda_group_norm_nhwc_one_pass,
+                               peep=16,
+                               xdtype=torch.bfloat16,
+                               act="swish")
+
+    def test_bf16_two_pass_algo_with_swish(self):
+        self.verify_group_norm(cuda_group_norm_nhwc_two_pass,
+                               peep=16,
+                               xdtype=torch.bfloat16,
+                               act="swish")
+
+    def test_fp32_one_pass_algo(self):
+        self.verify_group_norm(cuda_group_norm_nhwc_one_pass,
+                               peep=16,
+                               xdtype=torch.float32,
+                               act="")
+
+    def test_fp32_two_pass_algo(self):
+        self.verify_group_norm(cuda_group_norm_nhwc_two_pass,
+                               peep=16,
+                               xdtype=torch.float32,
+                               act="")
+
+    def test_fp32_one_pass_algo_with_swish(self):
+        self.verify_group_norm(cuda_group_norm_nhwc_one_pass,
+                               peep=16,
+                               xdtype=torch.float32,
+                               act="swish")
+
+    def test_fp32_two_pass_algo_with_swish(self):
+        self.verify_group_norm(cuda_group_norm_nhwc_two_pass,
+                               peep=16,
+                               xdtype=torch.float32,
+                               act="swish")
+
+
+if __name__ == '__main__':
+    unittest.main()
