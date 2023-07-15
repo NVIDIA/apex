@@ -59,7 +59,6 @@ class GroupNormTest(unittest.TestCase):
                           eps=1e-5,
                           memory_format=torch.channels_last,
                           device='cuda',
-                          peep=0,
                           act=""):
         # create data
         x_shape = (N, C, H, W)
@@ -98,66 +97,54 @@ class GroupNormTest(unittest.TestCase):
         torch.testing.assert_close(db_tst, db_ref, atol=1e-2, rtol=0)
 
     def test_fp16_one_pass_algo(self):
-        self.verify_group_norm(cuda_group_norm_nhwc_one_pass, peep=16, act="")
+        self.verify_group_norm(cuda_group_norm_nhwc_one_pass, act="")
 
     def test_fp16_two_pass_algo(self):
-        self.verify_group_norm(cuda_group_norm_nhwc_two_pass, peep=16, act="")
+        self.verify_group_norm(cuda_group_norm_nhwc_two_pass, act="")
 
     def test_fp16_one_pass_algo_with_swish(self):
-        self.verify_group_norm(cuda_group_norm_nhwc_one_pass,
-                               peep=16,
-                               act="swish")
+        self.verify_group_norm(cuda_group_norm_nhwc_one_pass, act="swish")
 
     def test_fp16_two_pass_algo_with_swish(self):
-        self.verify_group_norm(cuda_group_norm_nhwc_two_pass,
-                               peep=16,
-                               act="swish")
+        self.verify_group_norm(cuda_group_norm_nhwc_two_pass, act="swish")
 
     def test_bf16_one_pass_algo(self):
         self.verify_group_norm(cuda_group_norm_nhwc_one_pass,
-                               peep=16,
                                xdtype=torch.bfloat16,
                                act="")
 
     def test_bf16_two_pass_algo(self):
         self.verify_group_norm(cuda_group_norm_nhwc_two_pass,
-                               peep=16,
                                xdtype=torch.bfloat16,
                                act="")
 
     def test_bf16_one_pass_algo_with_swish(self):
         self.verify_group_norm(cuda_group_norm_nhwc_one_pass,
-                               peep=16,
                                xdtype=torch.bfloat16,
                                act="swish")
 
     def test_bf16_two_pass_algo_with_swish(self):
         self.verify_group_norm(cuda_group_norm_nhwc_two_pass,
-                               peep=16,
                                xdtype=torch.bfloat16,
                                act="swish")
 
     def test_fp32_one_pass_algo(self):
         self.verify_group_norm(cuda_group_norm_nhwc_one_pass,
-                               peep=16,
                                xdtype=torch.float32,
                                act="")
 
     def test_fp32_two_pass_algo(self):
         self.verify_group_norm(cuda_group_norm_nhwc_two_pass,
-                               peep=16,
                                xdtype=torch.float32,
                                act="")
 
     def test_fp32_one_pass_algo_with_swish(self):
         self.verify_group_norm(cuda_group_norm_nhwc_one_pass,
-                               peep=16,
                                xdtype=torch.float32,
                                act="swish")
 
     def test_fp32_two_pass_algo_with_swish(self):
         self.verify_group_norm(cuda_group_norm_nhwc_two_pass,
-                               peep=16,
                                xdtype=torch.float32,
                                act="swish")
 
