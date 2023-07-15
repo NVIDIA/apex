@@ -90,37 +90,12 @@ class GroupNormTest(unittest.TestCase):
         dx_tst, dw_tst, db_tst = [_.grad.clone() for _ in [x, weight, bias]]
 
         # compare
-        fprop_close = torch.allclose(y_tst, y_ref, atol=4e-2, rtol=0)
-        self.assertTrue(fprop_close)
-        if not fprop_close:
-            print('\nResult mis-match: fprop')
-            if peep > 0:
-                print(y_ref[0, 0, 0, :peep])
-                print(y_tst[0, 0, 0, :peep])
+        torch.testing.assert_close(y_tst, y_ref, atol=4e-2, rtol=0)
 
-        dgrad_close = torch.allclose(dx_tst, dx_ref, atol=1e-2, rtol=0)
-        self.assertTrue(dgrad_close)
-        if not dgrad_close:
-            print('\nResult mis-match: dgrad')
-            if peep > 0:
-                print(dx_ref[0, 0, 0, :peep])
-                print(dx_tst[0, 0, 0, :peep])
+        torch.testing.assert_close(dx_tst, dx_ref, atol=1e-2, rtol=0)
 
-        wgrad_close = torch.allclose(dw_tst, dw_ref, atol=1e-2, rtol=0)
-        self.assertTrue(wgrad_close)
-        if not wgrad_close:
-            print('\nResult mis-match: wgrad')
-            if peep > 0:
-                print(dw_ref[:peep])
-                print(dw_tst[:peep])
-
-        bgrad_close = torch.allclose(db_tst, db_ref, atol=1e-2, rtol=0)
-        self.assertTrue(bgrad_close)
-        if not bgrad_close:
-            print('\nResult mis-match: bgrad')
-            if peep > 0:
-                print(db_ref[:peep])
-                print(db_tst[:peep])
+        torch.testing.assert_close(dw_tst, dw_ref, atol=1e-2, rtol=0)
+        torch.testing.assert_close(db_tst, db_ref, atol=1e-2, rtol=0)
 
     def test_fp16_one_pass_algo(self):
         self.verify_group_norm(cuda_group_norm_nhwc_one_pass, peep=16, act="")
