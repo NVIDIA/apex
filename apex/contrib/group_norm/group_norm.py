@@ -25,12 +25,7 @@ from torch.nn.parameter import Parameter
 from torch._dynamo import disable
 from functools import partial
 
-__all__ = [
-    'GroupNorm',
-    'cuda_group_norm_nhwc',
-    'cuda_group_norm_nhwc_one_pass',
-    'cuda_group_norm_nhwc_two_pass',
-]
+__all__ = ['GroupNorm']
 
 
 class GroupNormNHWC(torch.autograd.Function):

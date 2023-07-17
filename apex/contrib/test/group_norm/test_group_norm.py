@@ -20,8 +20,8 @@ import unittest
 
 SKIP_TEST = None
 try:
-    from apex.contrib.group_norm import cuda_group_norm_nhwc_one_pass
-    from apex.contrib.group_norm import cuda_group_norm_nhwc_two_pass
+    from apex.contrib.group_norm.group_norm import cuda_group_norm_nhwc_one_pass
+    from apex.contrib.group_norm.group_norm import cuda_group_norm_nhwc_two_pass
 except ImportError as e:
     SKIP_TEST = e
 
