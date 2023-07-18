@@ -119,7 +119,7 @@ class GroupNorm(torch.nn.Module):
 
     Limitations:
 
-    * Number of groups (G) is limited to 32;
+    * Designed for 32 groups, though some other number of groups can also work;
     * Supported number of channels C are:
 
         128, 256, 320, 448, 512, 640, 768, 896, 960, 1024, 1280, 1344, 1536,
@@ -130,12 +130,40 @@ class GroupNorm(torch.nn.Module):
     * N/H/W do not have lower (except >0) and upper bound limitations;
     """
 
-    __constants__ = ['num_groups', 'num_channels', 'eps', 'affine', 'act']
+    __constants__ = [
+        'num_groups', 'num_channels', 'eps', 'affine', 'act',
+        'SUPPORTED_CHANNELS'
+    ]
     num_groups: int
     num_channels: int
     eps: float
     affine: bool
     act: str
+    SUPPORTED_CHANNELS = [
+        128,
+        256,
+        320,
+        448,
+        512,
+        640,
+        768,
+        896,
+        960,
+        1024,
+        1280,
+        1344,
+        1536,
+        1792,
+        1920,
+        2048,
+        2240,
+        2560,
+        2688,
+        3072,
+        3136,
+        3584,
+        4096,
+    ]
 
     def __init__(self,
                  num_groups: int,
@@ -172,14 +200,25 @@ class GroupNorm(torch.nn.Module):
             init.ones_(self.weight)
             init.zeros_(self.bias)
 
-    def forward(self, input: Tensor) -> Tensor:
+    def _check_legality(self, input: Tensor) -> bool:
         is_nhwc = input.is_contiguous(memory_format=torch.channels_last)
+        is_legal_groups = self.num_groups in [16, 32]
+        is_legal_channels = self.num_channels in SUPPORTED_CHANNELS
         is_half_or_float_or_bf16 = input.dtype in [
             torch.float16, torch.bfloat16, torch.float32
         ]
         is_legal_act = self.act in ['', 'silu', 'swish']
 
-        if is_nhwc and is_half_or_float_or_bf16 and is_legal_act and self.affine:
+        if is_nhwc and is_half_or_float_or_bf16 and is_legal_act and \
+                self.affine and is_legal_groups and is_legal_channels:
+            return True
+        else:
+            return False
+
+    def forward(self, input: Tensor) -> Tensor:
+        can_use_nhwc_group_norm = self._check_legality(input)
+
+        if can_use_nhwc_group_norm:
             channels = input.shape[1]
             hw = 1
             for i in range(2, len(input.shape)):
