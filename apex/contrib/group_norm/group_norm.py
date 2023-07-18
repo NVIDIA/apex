@@ -112,7 +112,23 @@ cuda_group_norm_nhwc_two_pass = GroupNormTwoPass.apply
 # support inheritance. Extends:
 # https://github.com/pytorch/pytorch/blob/main/torch/nn/modules/normalization.py
 class GroupNorm(torch.nn.Module):
-    """Optimized GroupNorm for NHWC layout with optional Swish/SiLU fusion."""
+    """Optimized GroupNorm for NHWC layout with optional Swish/SiLU fusion.
+
+    There are two version of CUDA kernels under the hood: one pass and two
+    passes. This operator contains a simple heuristic to choose algorithm.
+
+    Limitations:
+
+    * Number of groups (G) is limited to 32;
+    * Supported number of channels C are:
+
+        128, 256, 320, 448, 512, 640, 768, 896, 960, 1024, 1280, 1344, 1536,
+        1792, 1920, 2048, 2240, 2560, 2688, 3072, 3136, 3584, 4096.
+
+      One pass algorithm supports only channels mentioned above. Two pass
+      algorithm might automatically support some other channels as well.
+    * N/H/W do not have lower (except >0) and upper bound limitations;
+    """
 
     __constants__ = ['num_groups', 'num_channels', 'eps', 'affine', 'act']
     num_groups: int
