@@ -81,12 +81,12 @@ class GroupNormTest(unittest.TestCase):
         y_tst = tst_func(x, G, weight, bias, eps, act)
         # backward pass
         y_ref.backward(dy, retain_graph=True)
-        dx_ref, dw_ref, db_ref = [_.grad.clone() for _ in [x, weight, bias]]
+        dx_ref, dw_ref, db_ref = [t.grad.clone() for t in [x, weight, bias]]
         x.grad.zero_()
         weight.grad.zero_()
         bias.grad.zero_()
         y_tst.backward(dy, retain_graph=True)
-        dx_tst, dw_tst, db_tst = [_.grad.clone() for _ in [x, weight, bias]]
+        dx_tst, dw_tst, db_tst = [t.grad.clone() for t in [x, weight, bias]]
 
         # compare
         torch.testing.assert_close(y_tst, y_ref, atol=4e-2, rtol=0)
