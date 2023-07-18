@@ -28,6 +28,19 @@ from functools import partial
 __all__ = ['GroupNorm']
 
 
+# pytorch group norm requires same input type
+def torch_group_norm(x, g, w, b, eps, act=""):
+    xdtype, wdtype = x.dtype, w.dtype
+    if xdtype != wdtype:
+        x = x.to(dtype=wdtype)
+    y = torch.nn.functional.group_norm(x, g, w, b, eps)
+    if act in ["silu", "swish"]:
+        y = torch.nn.functional.silu(y)
+    if xdtype != wdtype and y.dtype != xdtype:
+        y = y.to(dtype=xdtype)
+    return y
+
+
 class GroupNormNHWC(torch.autograd.Function):
 
     @staticmethod
@@ -203,7 +216,7 @@ class GroupNorm(torch.nn.Module):
     def _check_legality(self, input: Tensor) -> bool:
         is_nhwc = input.is_contiguous(memory_format=torch.channels_last)
         is_legal_groups = self.num_groups in [16, 32]
-        is_legal_channels = self.num_channels in SUPPORTED_CHANNELS
+        is_legal_channels = self.num_channels in self.SUPPORTED_CHANNELS
         is_half_or_float_or_bf16 = input.dtype in [
             torch.float16, torch.bfloat16, torch.float32
         ]

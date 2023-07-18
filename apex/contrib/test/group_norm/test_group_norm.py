@@ -22,21 +22,10 @@ SKIP_TEST = None
 try:
     from apex.contrib.group_norm.group_norm import cuda_group_norm_nhwc_one_pass
     from apex.contrib.group_norm.group_norm import cuda_group_norm_nhwc_two_pass
+    from apex.contrib.group_norm.group_norm import torch_group_norm
+    from apex.contrib.group_norm import GroupNorm
 except ImportError as e:
     SKIP_TEST = e
-
-
-# pytorch group norm requires same input type
-def torch_group_norm(x, g, w, b, eps, act=""):
-    xdtype, wdtype = x.dtype, w.dtype
-    if xdtype != wdtype:
-        x = x.to(dtype=wdtype)
-    y = torch.nn.functional.group_norm(x, g, w, b, eps)
-    if act in ["silu", "swish"]:
-        y = torch.nn.functional.silu(y)
-    if xdtype != wdtype and y.dtype != xdtype:
-        y = y.to(dtype=xdtype)
-    return y
 
 
 @unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
@@ -78,7 +67,15 @@ class GroupNormTest(unittest.TestCase):
 
         # forward pass
         y_ref = ref_func(x, G, weight, bias, eps, act)
-        y_tst = tst_func(x, G, weight, bias, eps, act)
+        if tst_func is GroupNorm:
+            gn = GroupNorm(G, C, eps, device=device, dtype=wdtype, act=act)
+            with torch.no_grad():
+                gn.weight = torch.nn.Parameter(weight)
+                gn.bias = torch.nn.Parameter(bias)
+            y_tst = gn(x)
+        else:
+            y_tst = tst_func(x, G, weight, bias, eps, act)
+
         # backward pass
         y_ref.backward(dy, retain_graph=True)
         dx_ref, dw_ref, db_ref = [t.grad.clone() for t in [x, weight, bias]]
@@ -86,13 +83,16 @@ class GroupNormTest(unittest.TestCase):
         weight.grad.zero_()
         bias.grad.zero_()
         y_tst.backward(dy, retain_graph=True)
-        dx_tst, dw_tst, db_tst = [t.grad.clone() for t in [x, weight, bias]]
+        if tst_func is GroupNorm:
+            dx_tst, dw_tst, db_tst = x.grad, gn.weight.grad, gn.bias.grad
+        else:
+            dx_tst, dw_tst, db_tst = [
+                t.grad.clone() for t in [x, weight, bias]
+            ]
 
         # compare
         torch.testing.assert_close(y_tst, y_ref, atol=4e-2, rtol=0)
-
         torch.testing.assert_close(dx_tst, dx_ref, atol=1e-2, rtol=0)
-
         torch.testing.assert_close(dw_tst, dw_ref, atol=1e-2, rtol=0)
         torch.testing.assert_close(db_tst, db_ref, atol=1e-2, rtol=0)
 
@@ -147,6 +147,9 @@ class GroupNormTest(unittest.TestCase):
         self.verify_group_norm(cuda_group_norm_nhwc_two_pass,
                                xdtype=torch.float32,
                                act="swish")
+
+    def test_group_norm_module(self):
+        self.verify_group_norm(GroupNorm, G=16, act="swish")
 
 
 if __name__ == '__main__':
