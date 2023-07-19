@@ -37,11 +37,11 @@
   } while (0)
 
 #define CHECK_CUDA(x) \
-  AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")
+  TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) \
-  AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
+  TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_CHANNELS_LAST(x)                                \
-  AT_ASSERTM(x.is_contiguous(at::MemoryFormat::ChannelsLast), \
+  TORCH_CHECK(x.is_contiguous(at::MemoryFormat::ChannelsLast), \
              #x " must be channels last")
 #define CHECK_INPUT(x) \
   CHECK_CUDA(x);       \

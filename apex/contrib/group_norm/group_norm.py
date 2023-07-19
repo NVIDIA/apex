@@ -145,14 +145,14 @@ class GroupNorm(torch.nn.Module):
 
     __constants__ = [
         'num_groups', 'num_channels', 'eps', 'affine', 'act',
-        'SUPPORTED_CHANNELS'
+        'SUPPORTED_CHANNELS', 'SUPPORTED_GROUPS'
     ]
     num_groups: int
     num_channels: int
     eps: float
     affine: bool
     act: str
-    SUPPORTED_CHANNELS = [
+    SUPPORTED_CHANNELS = {
         128,
         256,
         320,
@@ -176,7 +176,8 @@ class GroupNorm(torch.nn.Module):
         3136,
         3584,
         4096,
-    ]
+    }
+    SUPPORTED_GROUPS = {16, 32}
 
     def __init__(self,
                  num_groups: int,
@@ -215,7 +216,7 @@ class GroupNorm(torch.nn.Module):
 
     def _check_legality(self, input: Tensor) -> bool:
         is_nhwc = input.is_contiguous(memory_format=torch.channels_last)
-        is_legal_groups = self.num_groups in [16, 32]
+        is_legal_groups = self.num_groups in self.SUPPORTED_GROUPS
         is_legal_channels = self.num_channels in self.SUPPORTED_CHANNELS
         is_half_or_float_or_bf16 = input.dtype in [
             torch.float16, torch.bfloat16, torch.float32
