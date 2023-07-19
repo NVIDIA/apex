@@ -132,7 +132,8 @@ class GroupNorm(torch.nn.Module):
 
     Limitations:
 
-    * Designed for 32 groups, though some other number of groups can also work;
+    * Designed for 32 groups, also tested with 16 groups, some other number
+      of groups can also work but not guaranteed;
     * Supported number of channels C are:
 
         128, 256, 320, 448, 512, 640, 768, 896, 960, 1024, 1280, 1344, 1536,
@@ -141,6 +142,8 @@ class GroupNorm(torch.nn.Module):
       One pass algorithm supports only channels mentioned above. Two pass
       algorithm might automatically support some other channels as well.
     * N/H/W do not have lower (except >0) and upper bound limitations;
+
+    All the unsupported cases will be forwarded to PyTorch implementation.
     """
 
     __constants__ = [
