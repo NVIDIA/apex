@@ -53,9 +53,10 @@ class NcclDistributedFusedLAMB(NcclDistributedTestBase):
         clip_after_ar,
         full_ar,
     ):
-        if no_copy and 'no_copy' not in inspect.getfullargspec(torch.distributed.reduce_scatter).args:
+        supports_no_copy = 'no_copy' in inspect.getfullargspec(torch.distributed.reduce_scatter).args
+        if no_copy and not supports_no_copy:
             self.skipTest("does not support no_copy")
-        if no_copy and 'no_copy' not in inspect.getfullargspec(torch.distributed.all_gather).args:
+        if no_copy and not supports_no_copy:
             self.skipTest("does not support no_copy")
 
         assert torch.distributed.is_initialized()
@@ -79,26 +80,26 @@ class NcclDistributedFusedLAMB(NcclDistributedTestBase):
         # Aidyn-A: not sure what parameters are the best for testing purposes,
         # setting up whatever I think appropriate.
         optimizer = DistributedFusedLAMB(
-                optimizer_grouped_parameters,
-                lr=0.1,
-                betas=(0.9, 0.9),
-                eps=1e-6,
-                max_grad_norm=1.0,
-                dwu_group_size=gpu_count,
-                dwu_num_rs_pg=1,
-                dwu_num_ar_pg=1,
-                dwu_num_ag_pg=1,
-                use_nvlamb=False,
-                set_param_views_to_flat_buffer=False,
-                e5m2_allgather=False,
-                no_copy=no_copy,
-                overlap_reductions=overlap_reductions,
-                dwu_num_blocks=dwu_num_blocks,
-                dwu_num_chunks=dwu_num_chunks,
-                fused_norm=fused_norm,
-                fuse_scale=fuse_scale,
-                clip_after_ar=clip_after_ar,
-                full_ar=full_ar,
+            optimizer_grouped_parameters,
+            lr=0.1,
+            betas=(0.9, 0.9),
+            eps=1e-6,
+            max_grad_norm=1.0,
+            dwu_group_size=gpu_count,
+            dwu_num_rs_pg=1,
+            dwu_num_ar_pg=1,
+            dwu_num_ag_pg=1,
+            use_nvlamb=False,
+            set_param_views_to_flat_buffer=False,
+            e5m2_allgather=False,
+            overlap_reductions=overlap_reductions,
+            dwu_num_blocks=dwu_num_blocks,
+            dwu_num_chunks=dwu_num_chunks,
+            fused_norm=fused_norm,
+            fuse_scale=fuse_scale,
+            clip_after_ar=clip_after_ar,
+            full_ar=full_ar,
+            **{'no_copy': no_copy} if supports_no_copy else {}
         )
         optimizer.set_global_scale(init_scale)
 
