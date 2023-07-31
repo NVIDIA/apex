@@ -99,7 +99,7 @@ class NcclDistributedFusedLAMB(NcclDistributedTestBase):
             fuse_scale=fuse_scale,
             clip_after_ar=clip_after_ar,
             full_ar=full_ar,
-            **{'no_copy': no_copy} if supports_no_copy else {}
+            **({'no_copy': no_copy} if supports_no_copy else {})
         )
         optimizer.set_global_scale(init_scale)
 
