@@ -436,7 +436,7 @@ void multi_tensor_lamb_mp_cuda(
           found_inf.data_ptr<float>(),
           inv_scale.data_ptr<float>()); )
   } else {
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
+    DISPATCH_FLOAT_HALF_AND_BFLOAT(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
         multi_tensor_apply<4>(
           BLOCK_SIZE,
           chunk_size,
@@ -478,7 +478,7 @@ void multi_tensor_lamb_mp_cuda(
       use_nvlamb); )
   } else {
     grad_param_list.push_back(tensor_lists[4]);
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
+    DISPATCH_FLOAT_HALF_AND_BFLOAT(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
         multi_tensor_apply<3>(
           BLOCK_SIZE,
           chunk_size,

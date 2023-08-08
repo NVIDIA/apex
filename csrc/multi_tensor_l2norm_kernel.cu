@@ -406,7 +406,7 @@ void multi_tensor_norm_out_cuda(
         max_chunks_per_tensor);)
   }
   else {
-    DISPATCH_FLOAT_AND_HALF(
+    DISPATCH_FLOAT_HALF_AND_BFLOAT(
       tensor_lists[0][0].scalar_type(), 0, "multi_tensor_l2norm_cuda",
       multi_tensor_apply<1>(
         BLOCK_SIZE,

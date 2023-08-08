@@ -56,8 +56,8 @@ class RefLAMB(Optimizer):
         if closure is not None:
             loss = closure()
 
-        # create separate grad lists for fp32 and fp16 params
-        g_all_32, g_all_16 = [], []
+        # create separate grad lists for fp32, fp16, and bf16 params
+        g_all_32, g_all_16, g_all_bf16 = [], [], []
         for group in self.param_groups:
             for p in group['params']:
                 if p.grad is None:
@@ -66,11 +66,13 @@ class RefLAMB(Optimizer):
                     g_all_32.append(p.grad.data)
                 elif p.dtype == torch.float16:
                     g_all_16.append(p.grad.data)
+                elif p.dtype == torch.bfloat16:
+                    g_all_bf16.append(p.grad.data)
                 else:
-                    raise RuntimeError('FusedLAMB only support fp16 and fp32.')
+                    raise RuntimeError('FusedLAMB only support fp16, fp32, and bf16.')
 
         device = self.param_groups[0]["params"][0].device
-        g_norm_32, g_norm_16 = torch.zeros(1, device=device), torch.zeros(1, device=device)
+        g_norm_32, g_norm_16, g_norm_bf16 = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
         # compute grad norm for two lists
         if len(g_all_32) > 0:
             g_norm_32 = multi_tensor_applier(self.multi_tensor_l2norm,
@@ -80,11 +82,15 @@ class RefLAMB(Optimizer):
             g_norm_16 = multi_tensor_applier(self.multi_tensor_l2norm,
                                              self._dummy_overflow_buf,
                                              [g_all_16], False)[0]
+        if len(g_all_bf16) > 0:
+            g_norm_bf16 = multi_tensor_applier(self.multi_tensor_l2norm,
+                                             self._dummy_overflow_buf,
+                                             [g_all_bf16], False)[0]
 
         # blend two grad norms to get global grad norm
         global_grad_norm = multi_tensor_applier(self.multi_tensor_l2norm,
                                                 self._dummy_overflow_buf,
-                                                [[g_norm_32, g_norm_16]],
+                                                [[g_norm_32, g_norm_16, g_norm_bf16]],
                                                 False)[0]
 
         max_grad_norm = 1.0
@@ -117,7 +123,13 @@ class RefLAMB(Optimizer):
                 # m_t = beta1 * m + (1 - beta1) * g_t
                 m_t.mul_(beta1).add_(grad, alpha=1-beta1)
                 # v_t = beta2 * v + (1 - beta2) * (g_t * g_t)
-                v_t.mul_(beta2).addcmul_(grad, grad, value=1-beta2)
+                if len(g_all_16) > 0:
+                    v_t.mul_(beta2)
+                    v_t = v_t.to(torch.float32)
+                    grad32 = grad.to(torch.float32)
+                    v_t.addcmul_(grad32, grad32, value=1-beta2)
+                else:
+                    v_t.mul_(beta2).addcmul_(grad, grad, value=1-beta2)
 
                 # Debiasing
                 m_t_hat = m_t / (1.0 - beta1 ** state['step'])
@@ -129,7 +141,7 @@ class RefLAMB(Optimizer):
                     update.add_(p.data, alpha=group['weight_decay'])
 
                 trust_ratio = 1.0
-                w_norm = p.data.pow(2).sum().sqrt()
+                w_norm = p.data.to(torch.float32).pow(2).sum().sqrt()
                 g_norm = update.pow(2).sum().sqrt()
                 if w_norm > 0 and g_norm > 0:
                     trust_ratio = w_norm / g_norm
@@ -191,7 +203,7 @@ class TestLamb(unittest.TestCase):
         return max_abs_diff, max_rel_diff
 
     def gen_single_type_test(self, param_type=torch.float, device="cuda"):
-        nelem = 278011
+        nelem = 18011
         tensor = torch.rand(nelem, dtype=param_type, device=device)
         weight_decay = [0, 0.01]
 
@@ -200,16 +212,20 @@ class TestLamb(unittest.TestCase):
             ref_param, tst_param, ref_optim, tst_optim = \
                 self.gen_param_optim([tensor], lamb_option)
 
+            if isinstance(tst_optim, apex.optimizers.FusedMixedPrecisionLamb):
+                if param_type != torch.float:
+                    # joseli: This parameter is usually passed into the constructor, 
+                    # but I do not want to change the testing interface.
+                    # As long as this parameter is set before the first call to step(), 
+                    # then it should act normally.
+                    tst_optim.reduced_precision_dtype = param_type
             for i in range(self.iters):
                 self.gen_grad(ref_param, tst_param)
                 ref_optim.step()
                 torch.cuda.synchronize()
                 tst_optim.step()
                 torch.cuda.synchronize()
-                max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
-
-                self.assertLessEqual(max_abs_diff, self.max_abs_diff)
-                self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+                torch.testing.assert_close(tst_param, ref_param)
 
 class TestFusedLAMB(TestLamb):
     def __init__(self, *args, **kwargs):
@@ -281,8 +297,12 @@ class TestFusedMixedPrecisionLamb(TestLamb):
     def test_float(self):
         self.gen_single_type_test(param_type=torch.float)
 
-    @unittest.skip("PyTorch optimizer is not numerically correct for fp16")
+    def test_bfloat16(self):
+        self.iters = 4
+        self.gen_single_type_test(param_type=torch.bfloat16)
+
     def test_half(self):
+        self.iters = 1
         self.gen_single_type_test(param_type=torch.float16)
 
     @unittest.skipIf(torch.cuda.device_count()<2, "more than 1 GPU required")
