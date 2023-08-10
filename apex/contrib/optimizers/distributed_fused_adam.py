@@ -2394,8 +2394,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             for param in self.parameters():
                 # Get param index in state dict
                 fragment = self.state[param]["fragments"][0]
-                param_id = fragment.param_id
                 param_group_id = fragment.param_group_id
+                param_id = fragment.param_id
                 index = state_dict["param_groups"][param_group_id]["params"][param_id]
 
                 # Construct CPU buffers with optimizer state
@@ -2405,10 +2405,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     exp_avg_sq=torch.zeros_like(param, dtype=self.dtype, device="cpu"),
                 )
 
-        # Construct workspace buffers
-        max_bucket_size = max(bucket.bucket_size for bucket in self.state["buckets"])
-        max_shard_size = max(bucket.shard_size for bucket in self.state["buckets"])
+        # Workspace buffers for gathering shards on root rank
+        num_buckets = len(self.state["buckets"])
         if self.distributed_rank == 0:
+            max_bucket_size = max(bucket.bucket_size for bucket in self.state["buckets"])
             bucket_buffers = [
                 torch.empty(
                     [max_bucket_size],
@@ -2417,6 +2417,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 )
                 for _ in range(self.pipeline_size)
             ]
+
+        # Workspace buffers for packing param state
+        max_shard_size = max(bucket.shard_size for bucket in self.state["buckets"])
         if self.store_params:
             pass
         elif self.store_param_remainders:
@@ -2434,77 +2437,29 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 for _ in range(self.pipeline_size)
             ]
 
-        # Helper function to gather bucket shards on root rank and
-        # update state dict
-        def gather_shards_on_root(
-            stream_id: int,
-            bucket: self.StateBucket,
-            shard: torch.Tensor,
-            state_dict_key: str,
-        ) -> None:
-            # Buffers for gather
-            bucket_size = bucket.bucket_size
-            shard_size = bucket.shard_size
-            if self.distributed_rank == 0:
-                bucket_buffer = bucket_buffers[stream_id][:bucket_size]
-                bucket_shards = [
-                    bucket_buffer[i * shard_size : (i + 1) * shard_size]
-                    for i in range(self.distributed_size)
-                ]
-
-            # Gather on root
-            # Note: Call in main stream to ensure consistent
-            # ordering
-            main_stream.wait_stream(stream)
-            with torch.cuda.stream(main_stream):
-                if self.distributed_rank == 0:
-                    torch.distributed.gather(
-                        shard,
-                        bucket_shards,
-                        dst=self.process_group_root,
-                        group=self.distributed_process_group,
-                    )
-                else:
-                    torch.distributed.gather(
-                        shard,
-                        dst=self.process_group_root,
-                        group=self.distributed_process_group,
-                    )
-            stream.wait_stream(main_stream)
-
-            # Update state dict
-            if self.distributed_rank == 0:
-                for fragment in bucket.fragments:
-                    param_group_id = fragment.param_group_id
-                    param_id = fragment.param_id
-                    param_start, param_end = fragment.param_range
-                    bucket_start, bucket_end = fragment.bucket_range
-                    index = state_dict["param_groups"][param_group_id]["params"][
-                        param_id
-                    ]
-                    state_buffer = state_dict["state"][index][state_dict_key]
-                    state_fragment = state_buffer.view(-1)[param_start:param_end]
-                    bucket_fragment = bucket_buffer[bucket_start:bucket_end]
-                    state_fragment.copy_(bucket_fragment, non_blocking=True)
-
         # Synchronize streams
-        stream_id = -1
         main_stream = torch.cuda.current_stream()
         for stream in self._pipeline_streams:
             stream.wait_stream(main_stream)
 
-        # Gather param state on root
-        for bucket in self.state["buckets"]:
-            stream_id = (stream_id + 1) % self.pipeline_size
-            stream = self._pipeline_streams[stream_id]
-            with torch.cuda.stream(stream):
-                # Pack local shard of param state
-                shard_size = bucket.shard_size
-                if self.store_params:
-                    # Param state is already packed
-                    shard = bucket.params_shard
+        def pack_param_shard(bucket_id: int) -> torch.Tensor:
+            """Pack local shard of param values into contiguous buffer"""
 
-                elif self.store_param_remainders:
+            # Stream objects
+            stream_id = bucket_id % self.pipeline_size
+            stream = self._pipeline_streams[stream_id]
+
+            # Bucket objects
+            bucket = self.state["buckets"][bucket_id]
+            shard_size = bucket.shard_size
+
+            # Case 1: Param state is already packed
+            if self.store_params:
+                return bucket.params_shard
+
+            # Case 2: Pack BF16 model params with 16-bit remainders
+            if self.store_param_remainders:
+                with torch.cuda.stream(stream):
                     # Pack bf16 param values
                     shard_bf16 = shard_bf16_buffers[stream_id][:shard_size]
                     buffers_in = []
@@ -2514,11 +2469,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                             continue
                         param_id = fragment.param_id
                         param_group_id = fragment.param_group_id
-                        param_start, param_end = fragment.shard_param_range
-                        shard_start, shard_end = fragment.shard_range
+                        param_range = slice(*fragment.shard_param_range)
+                        shard_range = slice(*fragment.shard_range)
                         param = self.param_groups[param_group_id]["params"][param_id]
-                        buffers_in.append(param.view(-1)[param_start:param_end])
-                        buffers_out.append(shard_bf16[shard_start:shard_end])
+                        buffers_in.append(param.view(-1)[param_range])
+                        buffers_out.append(shard_bf16[shard_range])
                     _multi_tensor_copy(
                         buffers_in,
                         buffers_out,
@@ -2532,59 +2487,133 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         bucket.param_remainders_shard,
                         shard,
                     )
+                    return shard
 
-                else:
-                    # Pack param values
-                    shard = shard_buffers[stream_id][:shard_size]
-                    buffers_in = []
-                    buffers_out = []
-                    for fragment in bucket.fragments:
-                        if not fragment.in_local_shard:
-                            continue
-                        param_id = fragment.param_id
-                        param_group_id = fragment.param_group_id
-                        param_start, param_end = fragment.shard_param_range
-                        shard_start, shard_end = fragment.shard_range
-                        param = self.param_groups[param_group_id]["params"][param_id]
-                        buffers_in.append(param.view(-1)[param_start:param_end])
-                        buffers_out.append(shard[shard_start:shard_end])
-                    _multi_tensor_copy(
-                        buffers_in,
-                        buffers_out,
-                        dummy_overflow_buf=self._dummy_overflow_buf,
-                    )
-
-                # Gather param state
-                gather_shards_on_root(
-                    stream_id,
-                    bucket,
-                    shard,
-                    "param",
-                )
-
-        # Gather exp_avg state on root
-        for bucket in self.state["buckets"]:
-            stream_id = (stream_id + 1) % self.pipeline_size
-            stream = self._pipeline_streams[stream_id]
+            # Case 3: Pack model params
             with torch.cuda.stream(stream):
-                gather_shards_on_root(
-                    stream_id,
-                    bucket,
-                    bucket.exp_avg_shard,
-                    "exp_avg",
+                shard = shard_buffers[stream_id][:shard_size]
+                buffers_in = []
+                buffers_out = []
+                for fragment in bucket.fragments:
+                    if not fragment.in_local_shard:
+                        continue
+                    param_id = fragment.param_id
+                    param_group_id = fragment.param_group_id
+                    param_range = slice(*fragment.shard_param_range)
+                    shard_range = slice(*fragment.shard_range)
+                    param = self.param_groups[param_group_id]["params"][param_id]
+                    buffers_in.append(param.view(-1)[param_range])
+                    buffers_out.append(shard[shard_range])
+                _multi_tensor_copy(
+                    buffers_in,
+                    buffers_out,
+                    dummy_overflow_buf=self._dummy_overflow_buf,
                 )
+                return shard
 
-        # Gather exp_avg_sq state on root
-        for bucket in self.state["buckets"]:
-            stream_id = (stream_id + 1) % self.pipeline_size
+        def start_gather(bucket_id: int, shard: torch.Tensor) -> None:
+            """Launch gather on bucket shards
+
+            Communication is done on main stream to ensure consistent
+            ordering. Bucket shards are gathered into root rank.
+
+            """
+
+            # Stream objects
+            stream_id = bucket_id % self.pipeline_size
             stream = self._pipeline_streams[stream_id]
+
+            # Initialize gather buffer on root rank
+            bucket_shards = None
+            if self.distributed_rank == 0:
+
+                # Workspace buffer
+                bucket = self.state["buckets"][bucket_id]
+                bucket_size = bucket.bucket_size
+                bucket_buffer = bucket_buffers[stream_id][:bucket_size]
+
+                # Shards in workspace buffer
+                shard_size = bucket.shard_size
+                bucket_shards = [
+                    bucket_buffer[i * shard_size : (i + 1) * shard_size]
+                    for i in range(self.distributed_size)
+                ]
+
+            # Gather shards into root rank
+            main_stream.wait_stream(stream)
+            torch.distributed.gather(
+                shard,
+                bucket_shards,
+                dst=self.process_group_root,
+                group=self.distributed_process_group,
+            )
+            stream.wait_stream(main_stream)
+
+        def finish_gather(bucket_id: int, state_dict_key: str) -> None:
+            """Finish gather on bucket shards
+
+            Data is copied into state dict CPU buffers on the root
+            rank.
+
+            Splitting the NCCL gather and the CPU memcpys into
+            separate stages helps achieve good overlap when kernel
+            launches are serialized with
+            CUDA_DEVICE_MAX_CONNECTIONS=1. In particular, the pipeline
+            calls start_gather(bucket_id+1) before
+            finish_gather(bucket_id).
+
+            """
+            if self.distributed_rank != 0:
+                return
+
+            # Stream objects
+            stream_id = bucket_id % self.pipeline_size
+            stream = self._pipeline_streams[stream_id]
+
+            # Bucket objects
+            bucket = self.state["buckets"][bucket_id]
+            bucket_size = bucket.bucket_size
+            bucket_buffer = bucket_buffers[stream_id][:bucket_size]
+
+            # Update state dict
             with torch.cuda.stream(stream):
-                gather_shards_on_root(
-                    stream_id,
-                    bucket,
-                    bucket.exp_avg_sq_shard,
-                    "exp_avg_sq",
-                )
+                for fragment in bucket.fragments:
+                    param_range = slice(*fragment.param_range)
+                    bucket_range = slice(*fragment.bucket_range)
+                    param_group_id = fragment.param_group_id
+                    param_id = fragment.param_id
+                    index = state_dict["param_groups"][param_group_id]["params"][param_id]
+                    state_buffer = state_dict["state"][index][state_dict_key]
+                    state_fragment = state_buffer.view(-1)[param_range]
+                    bucket_fragment = bucket_buffer[bucket_range]
+                    state_fragment.copy_(bucket_fragment, non_blocking=True)
+
+        # Gather param state
+        for bucket_id in range(num_buckets):
+            shard = pack_param_shard(bucket_id)
+            start_gather(bucket_id, shard)
+            if bucket_id > 0:
+                finish_gather(bucket_id - 1, "param")
+            if bucket_id == num_buckets - 1:
+                finish_gather(bucket_id, "param")
+
+        # Gather exp_avg state
+        for bucket_id in range(num_buckets):
+            shard = self.state["buckets"][bucket_id].exp_avg_shard
+            start_gather(bucket_id, shard)
+            if bucket_id > 0:
+                finish_gather(bucket_id - 1, "exp_avg")
+            if bucket_id == num_buckets - 1:
+                finish_gather(bucket_id, "exp_avg")
+
+        # Gather exp_avg_sq state
+        for bucket_id in range(num_buckets):
+            shard = self.state["buckets"][bucket_id].exp_avg_sq_shard
+            start_gather(bucket_id, shard)
+            if bucket_id > 0:
+                finish_gather(bucket_id - 1, "exp_avg_sq")
+            if bucket_id == num_buckets - 1:
+                finish_gather(bucket_id, "exp_avg_sq")
 
         # Synchronize GPU
         for stream in self._pipeline_streams:
