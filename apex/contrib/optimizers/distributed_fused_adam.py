@@ -2408,7 +2408,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Workspace buffers for gathering shards on root rank
         num_buckets = len(self.state["buckets"])
         if self.distributed_rank == 0:
-            max_bucket_size = max(bucket.bucket_size for bucket in self.state["buckets"])
+            max_bucket_size = max(
+                bucket.bucket_size for bucket in self.state["buckets"]
+            )
             bucket_buffers = [
                 torch.empty(
                     [max_bucket_size],
@@ -2526,7 +2528,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             # Initialize gather buffer on root rank
             bucket_shards = None
             if self.distributed_rank == 0:
-
                 # Workspace buffer
                 bucket = self.state["buckets"][bucket_id]
                 bucket_size = bucket.bucket_size
@@ -2582,7 +2583,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     bucket_range = slice(*fragment.bucket_range)
                     param_group_id = fragment.param_group_id
                     param_id = fragment.param_id
-                    index = state_dict["param_groups"][param_group_id]["params"][param_id]
+                    index = state_dict["param_groups"][param_group_id]["params"][
+                        param_id
+                    ]
                     state_buffer = state_dict["state"][index][state_dict_key]
                     state_fragment = state_buffer.view(-1)[param_range]
                     bucket_fragment = bucket_buffer[bucket_range]
