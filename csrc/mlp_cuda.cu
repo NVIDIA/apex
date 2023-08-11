@@ -12,6 +12,8 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 
+#include <rocblas/rocblas.h>
+
 #if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
 // includes cublaslt
 #include <cublasLt.h>
@@ -58,6 +60,52 @@ __device__ __inline__ float sigmoid(float a) {
   return (retf);
 }
 
+// needed to work around calling rocblas API instead of hipblas API
+static rocblas_operation hipOperationToRocOperation(hipblasOperation_t op)
+{
+    switch(op)
+    {
+    case HIPBLAS_OP_N:
+        return rocblas_operation_none;
+    case HIPBLAS_OP_T:
+        return rocblas_operation_transpose;
+    case HIPBLAS_OP_C:
+        return rocblas_operation_conjugate_transpose;
+    }
+    AT_ERROR("HIPBLAS_STATUS_INVALID_ENUM");
+}
+
+static hipblasStatus_t rocBLASStatusToHIPStatus(rocblas_status error)
+{
+    switch(error)
+    {
+    case rocblas_status_size_unchanged:
+    case rocblas_status_size_increased:
+    case rocblas_status_success:
+    case rocblas_status_continue:
+        return HIPBLAS_STATUS_SUCCESS;
+    case rocblas_status_invalid_handle:
+        return HIPBLAS_STATUS_NOT_INITIALIZED;
+    case rocblas_status_not_implemented:
+    case rocblas_status_excluded_from_build:
+        return HIPBLAS_STATUS_NOT_SUPPORTED;
+    case rocblas_status_invalid_pointer:
+    case rocblas_status_invalid_size:
+    case rocblas_status_invalid_value:
+    case rocblas_status_size_query_mismatch:
+        return HIPBLAS_STATUS_INVALID_VALUE;
+    case rocblas_status_memory_error:
+        return HIPBLAS_STATUS_ALLOC_FAILED;
+    case rocblas_status_internal_error:
+    case rocblas_status_perf_degraded:
+    case rocblas_status_check_numerics_fail:
+        return HIPBLAS_STATUS_INTERNAL_ERROR;
+    case rocblas_status_arch_mismatch:
+	return HIPBLAS_STATUS_ARCH_MISMATCH;
+    }
+    AT_ERROR("HIPBLAS_STATUS_INVALID_ENUM");
+}
+
 // FP64 Wrapper around cublas GEMMEx
 cublasStatus_t mlp_gemm(
     cublasHandle_t handle,
@@ -76,10 +124,10 @@ cublasStatus_t mlp_gemm(
     int ldc,
     int flag) {
 #ifdef __HIP_PLATFORM_HCC__
-  return rocblas_gemm_ex(
-      handle,
-      transa,
-      transb,
+  return rocBLASStatusToHIPStatus(rocblas_gemm_ex(
+      (rocblas_handle) handle,
+      hipOperationToRocOperation(transa),
+      hipOperationToRocOperation(transb),
       m,
       n,
       k,
@@ -100,7 +148,7 @@ cublasStatus_t mlp_gemm(
       rocblas_datatype_f64_r,
       rocblas_gemm_algo_standard,
       0,
-      flag);  
+      flag));  
 #else
   return cublasGemmEx(
       handle,
@@ -143,10 +191,10 @@ cublasStatus_t mlp_gemm(
     int ldc,
     int flag) {
 #ifdef __HIP_PLATFORM_HCC__
-  return rocblas_gemm_ex(
-      handle,
-      transa,
-      transb,
+  return rocBLASStatusToHIPStatus(rocblas_gemm_ex(
+      (rocblas_handle) handle,
+      hipOperationToRocOperation(transa),
+      hipOperationToRocOperation(transb),
       m,
       n,
       k,
@@ -167,7 +215,7 @@ cublasStatus_t mlp_gemm(
       rocblas_datatype_f32_r,
       rocblas_gemm_algo_standard,
       0,
-      flag);
+      flag));
 
 #else
   return cublasGemmEx(
@@ -211,10 +259,10 @@ cublasStatus_t mlp_gemm(
     int ldc,
     int flag) {
 #ifdef __HIP_PLATFORM_HCC__
-  return rocblas_gemm_ex(
-      handle,
-      transa,
-      transb,
+  return rocBLASStatusToHIPStatus(rocblas_gemm_ex(
+      (rocblas_handle) handle,
+      hipOperationToRocOperation(transa),
+      hipOperationToRocOperation(transb),
       m,
       n,
       k,
@@ -235,7 +283,7 @@ cublasStatus_t mlp_gemm(
       rocblas_datatype_f32_r,
       rocblas_gemm_algo_standard,
       0,
-      flag);
+      flag));
 #else
   return cublasGemmEx(
       handle,
