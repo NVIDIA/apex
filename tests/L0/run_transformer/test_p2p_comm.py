@@ -115,6 +115,7 @@ class P2PCommTestBase:
 
 
 # n.b.(mkozuki): Intentionally skip NCCL backend tests as I trust pytorch/pytorch repo.
+@unittest.skipIf(torch.cuda.device_count() < 2, "Requires >= 2 GPUs")
 class UccP2PCommTest(P2PCommTestBase, UccDistributedTestBase): pass
 
 
