@@ -2160,7 +2160,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             if bf16_rem_buckets:
                 self._local_step_with_param_remainders(sorted(bucket_ids))
             bucket_ids = [
-                bucket_id in bucket_ids
+                bucket_id for bucket_id in bucket_ids
                 if bucket_id not in bf16_rem_buckets
             ]
             if not bucket_ids:

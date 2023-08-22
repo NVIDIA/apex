@@ -1,16 +1,12 @@
 from contextlib import contextmanager
 import io
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 import unittest
 
 import torch
 from torch.testing._internal import common_utils
 
-SKIP_TEST = None
-try:
-    from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
-except ImportError as e:
-    SKIP_TEST = e
+from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 
 
@@ -29,20 +25,20 @@ class SimpleModel(torch.nn.Module):
 
 
 def make_models(
-        num_layers,
-        size,
-        adam_w_mode=True,
-        model_dtype=torch.float32,
-        optim_dtype=None,
-        grad_sync_dtype=None,
-        param_sync_dtype=None,
-        device='cuda',
-        process_group=None,
-        average_grad_sync=True,
-        overlap_communication=True,
-        contiguous_buffers=False,
-        store_params=False,
-        store_param_remainders=False,
+        num_layers: int,
+        size: int,
+        adam_w_mode: bool = True,
+        model_dtype: torch.dtype = torch.float32,
+        optim_dtype: Optional[torch.dtype] = None,
+        grad_sync_dtype: Optional[torch.dtype] = None,
+        param_sync_dtype: Optional[torch.dtype] = None,
+        device: torch.device = 'cuda',
+        process_group: Optional[torch.distributed.ProcessGroup] = None,
+        average_grad_sync: bool =True,
+        overlap_communication: bool = True,
+        contiguous_buffers: bool = False,
+        store_params: bool = False,
+        store_param_remainders: bool = False,
 ):
 
     # Construct models with same parameters
@@ -106,31 +102,31 @@ def dummy_context():
         pass
 
 
-@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     seed = 1234
 
     def test_matches_pytorch(
             self,
-            rtol=None,
-            atol=None,
-            num_layers=11,
-            layer_size=7,
-            batch_size=3,
-            num_steps=3,
-            micro_batch_steps=3,
-            adam_w_mode=True,
-            overlap_communication=True,
-            use_nosync=True,
-            model_dtype=torch.float32,
-            optim_dtype=None,
-            grad_sync_dtype=None,
-            param_sync_dtype=None,
-            device='cuda',
-            contiguous_buffers=False,
-            store_params=False,
-            store_param_remainders=False,
+            rtol: Optional[float] = None,
+            atol: Optional[float] = None,
+            num_layers: int = 11,
+            layer_size: int = 7,
+            batch_size: int = 3,
+            num_steps: int = 3,
+            micro_batch_steps: int = 3,
+            adam_w_mode: bool = True,
+            overlap_communication: bool = True,
+            use_nosync: bool = True,
+            model_dtype: torch.dtype = torch.float32,
+            optim_dtype: Optional[torch.dtype] = None,
+            grad_sync_dtype: Optional[torch.dtype] = None,
+            param_sync_dtype: Optional[torch.dtype] = None,
+            device: torch.device = 'cuda',
+            contiguous_buffers: bool = False,
+            store_params: bool = False,
+            store_param_remainders: bool = False,
+            init_optim_func: Optional[Callable[[DistributedFusedAdam], None]] = None,
     ):
 
         torch.manual_seed(self.seed + self.rank)
@@ -150,6 +146,10 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             store_params=store_params,
             store_param_remainders=store_param_remainders,
         )
+
+        # Initialize distributed optimizer
+        if init_optim_func is not None:
+            init_optim_func(dist_optim)
 
         # Training loop
         for step in range(num_steps):
@@ -269,6 +269,17 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             param_sync_dtype=torch.bfloat16,
             store_params=False,
             store_param_remainders=True,
+        )
+
+    def test_matches_pytorch_multi_dtypes(self):
+        def init_optim(optim: DistributedFusedAdam):
+            params = list(optim.parameters())
+            optim.init_params(params[0::3], grad_sync_dtype=torch.bfloat16)
+            optim.init_params(params[1::3], param_sync_dtype=torch.bfloat16)
+        self.test_matches_pytorch(
+            rtol=5e-2,
+            atol=1e-5,
+            init_optim_func=init_optim,
         )
 
     def test_raises_on_mismatch(self):
