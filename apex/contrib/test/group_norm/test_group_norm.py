@@ -51,7 +51,7 @@ class GroupNormTest(unittest.TestCase):
                           act=""):
         # create data
         x_shape = (N, C, H, W)
-        w_shape = (C, )
+        w_shape = (C,)
         weight = torch.rand(w_shape,
                             dtype=wdtype,
                             device='cuda',
@@ -86,9 +86,7 @@ class GroupNormTest(unittest.TestCase):
         if tst_func is GroupNorm:
             dx_tst, dw_tst, db_tst = x.grad, gn.weight.grad, gn.bias.grad
         else:
-            dx_tst, dw_tst, db_tst = [
-                t.grad.clone() for t in [x, weight, bias]
-            ]
+            dx_tst, dw_tst, db_tst = [t.grad.clone() for t in [x, weight, bias]]
 
         # compare
         torch.testing.assert_close(y_tst, y_ref, atol=4e-2, rtol=0)
@@ -150,6 +148,23 @@ class GroupNormTest(unittest.TestCase):
 
     def test_group_norm_module(self):
         self.verify_group_norm(GroupNorm, G=16, act="swish")
+
+    def test_16_groups(self):
+        sizes = [
+            [8, 2560, 16, 16],
+            [8, 1920, 32, 32],
+            [8, 1920, 16, 16],
+            [8, 2560, 8, 8],
+        ]
+        for sz in sizes:
+            n, c, h, w = sz
+            self.verify_group_norm(GroupNorm,
+                                   N=n,
+                                   C=c,
+                                   H=h,
+                                   W=w,
+                                   G=16,
+                                   act="swish")
 
 
 if __name__ == '__main__':

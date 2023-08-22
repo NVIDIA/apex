@@ -7,6 +7,7 @@ import io
 import itertools
 import threading
 from typing import Any, Callable, Iterable, List, Optional, Set, Tuple, Union
+import warnings
 
 import torch
 from torch.distributed.distributed_c10d import _get_default_group
@@ -113,8 +114,6 @@ try:
 
     _FOUND_DEPRECATED_FUSED_ADAM = True
 except ImportError:
-    import warnings
-
     warnings.warn(
         "Could not find recommended CUDA kernels when importing "
         "`DistributedFusedAdam`. "
@@ -215,6 +214,33 @@ def _disable_pre_forward_hook(
     finally:
         if hook_is_enabled:
             param._pre_forward_hook_is_enabled = True
+
+
+@torch.no_grad()
+def _bf16_rem_to_fp32(
+    bf16: torch.Tensor,
+    rem: torch.Tensor,
+    fp32: torch.Tensor,
+) -> None:
+    """Pack BF16 tensor and 16-bit remainders into FP32 tensor"""
+
+    # Check inputs
+    assert bf16.size() == rem.size() == fp32.size(), (
+        "Tensor dimensions do not match: "
+        f"bf16={list(bf16.size())}, "
+        f"rem={list(rem.size())}, "
+        f"fp32={list(fp32.size())}, "
+    )
+    assert bf16.dtype is torch.bfloat16, f"bf16 buffer has invalid dtype ({bf16.dtype})"
+    assert rem.dtype is torch.int16, f"rem buffer has invalid dtype ({rem.dtype})"
+    assert fp32.dtype is torch.float32, f"fp32 buffer has invalid dtype ({fp32.dtype})"
+
+    # Undo bf16 rounding
+    bf16 = bf16.view(torch.int16) - torch.where(rem < 0, 1, 0)
+
+    # Pack bf16 and remainder into little-endian fp32
+    fp32 = fp32.unsqueeze(-1).view(torch.int16)
+    fp32 = torch.stack((rem, bf16), dim=-1, out=fp32)
 
 
 class DistributedFusedAdam(torch.optim.Optimizer):
@@ -2289,8 +2315,37 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
     ### TODO Handle checkpoint with multiple dtypes
 
-    def state_dict(self, gather_on_root: bool = True) -> dict:
+    def state_dict(
+        self,
+        *,
+        v1_format: bool = False,
+        gather_on_root: Optional[bool] = None,
+    ) -> Optional[dict]:
         """Get dictionary containing optimizer state
+
+        Gathers optimizer state on the process group's root rank and
+        returns empty dictionaries on non-root ranks.
+
+        Arguments:
+            v1_format (bool, optional): Use deprecated v1 format
+                (default: False).
+            gather_on_root (bool, optional): Option for deprecated v1
+                format.
+
+        """
+
+        # Deprecated v1 format
+        if v1_format:
+            kwargs = {}
+            if gather_on_root is not None:
+                kwargs["gather_on_root"] = gather_on_root
+            return self._state_dict_v1(**kwargs)
+
+        # Default v2 format
+        return self._state_dict_v2()
+
+    def _state_dict_v1(self, gather_on_root: bool = True) -> Optional[dict]:
+        """Get dictionary containing optimizer state (deprecated v1 format)
 
         Default behavior is to perform communication so that the
         entire optimizer state is returned on the root rank in the
@@ -2303,6 +2358,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 ranks on the root rank (default: True)
 
         """
+        warnings.warn(
+            "Making optimizer state dictionary in deprecated v1 format. "
+            "Future support is not guaranteed."
+        )
+
         state_dict = super().state_dict()
         if not gather_on_root:
             return state_dict
@@ -2443,8 +2503,295 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         else:
             return None
 
+    @torch.no_grad()
+    def _state_dict_v2(self) -> dict:
+        """Get dictionary containing optimizer state (default v2 format)
+
+        Gathers optimizer state on the process group's root rank and
+        returns empty dictionaries on non-root ranks.
+
+        """
+
+        # Make sure params are initialized
+        self.init_params()
+
+        # Finish any asynchronous communication
+        self.grad_sync()
+        self.param_sync()
+
+        # Return immediately on ranks with redundant data
+        if self.redundant_size > 1:
+            if torch.distributed.get_rank(self.redundant_process_group) > 0:
+                return {}
+
+        # Initialize state dict on root rank
+        if self.distributed_rank == 0:
+            # Get state dict from base class
+            state_dict = super().state_dict()
+            state_dict["state"] = {"step": state_dict["state"]["step"]}
+
+            # Initialize state dict with CPU buffers
+            for param in self.parameters():
+                # Get param index in state dict
+                fragment = self.state[param]["fragments"][0]
+                param_group_id = fragment.param_group_id
+                param_id = fragment.param_id
+                index = state_dict["param_groups"][param_group_id]["params"][param_id]
+
+                # Construct CPU buffers with optimizer state
+                state_dict["state"][index] = dict(
+                    param=torch.zeros_like(param, dtype=self.dtype, device="cpu"),
+                    exp_avg=torch.zeros_like(param, dtype=self.dtype, device="cpu"),
+                    exp_avg_sq=torch.zeros_like(param, dtype=self.dtype, device="cpu"),
+                )
+
+        # Workspace buffers for gathering shards on root rank
+        num_buckets = len(self.state["buckets"])
+        if self.distributed_rank == 0:
+            max_bucket_size = max(
+                bucket.bucket_size for bucket in self.state["buckets"]
+            )
+            bucket_buffers = [
+                torch.empty(
+                    [max_bucket_size],
+                    dtype=self.dtype,
+                    device=self.device,
+                )
+                for _ in range(self.pipeline_size)
+            ]
+
+        # Workspace buffers for packing param state
+        max_shard_size = max(bucket.shard_size for bucket in self.state["buckets"])
+        if self.store_params:
+            pass
+        elif self.store_param_remainders:
+            shard_bf16_buffers = [
+                torch.empty([max_shard_size], dtype=torch.bfloat16, device=self.device)
+                for _ in range(self.pipeline_size)
+            ]
+            shard_fp32_buffers = [
+                torch.empty([max_shard_size], dtype=torch.float32, device=self.device)
+                for _ in range(self.pipeline_size)
+            ]
+        else:
+            shard_buffers = [
+                torch.empty([max_shard_size], dtype=self.dtype, device=self.device)
+                for _ in range(self.pipeline_size)
+            ]
+
+        # Synchronize streams
+        main_stream = torch.cuda.current_stream()
+        for stream in self._pipeline_streams:
+            stream.wait_stream(main_stream)
+
+        def pack_param_shard(bucket_id: int) -> torch.Tensor:
+            """Pack local shard of param values into contiguous buffer"""
+
+            # Stream objects
+            stream_id = bucket_id % self.pipeline_size
+            stream = self._pipeline_streams[stream_id]
+
+            # Bucket objects
+            bucket = self.state["buckets"][bucket_id]
+            shard_size = bucket.shard_size
+
+            # Case 1: Param state is already packed
+            if self.store_params:
+                return bucket.params_shard
+
+            # Case 2: Pack BF16 model params with 16-bit remainders
+            if self.store_param_remainders:
+                with torch.cuda.stream(stream):
+                    # Pack bf16 param values
+                    shard_bf16 = shard_bf16_buffers[stream_id][:shard_size]
+                    buffers_in = []
+                    buffers_out = []
+                    for fragment in bucket.fragments:
+                        if not fragment.in_local_shard:
+                            continue
+                        param_id = fragment.param_id
+                        param_group_id = fragment.param_group_id
+                        param_range = slice(*fragment.shard_param_range)
+                        shard_range = slice(*fragment.shard_range)
+                        param = self.param_groups[param_group_id]["params"][param_id]
+                        buffers_in.append(param.view(-1)[param_range])
+                        buffers_out.append(shard_bf16[shard_range])
+                    _multi_tensor_copy(
+                        buffers_in,
+                        buffers_out,
+                        dummy_overflow_buf=self._dummy_overflow_buf,
+                    )
+
+                    # Reconstruct fp32 from bf16 and remainders
+                    shard = shard_fp32_buffers[stream_id][:shard_size]
+                    _bf16_rem_to_fp32(
+                        shard_bf16,
+                        bucket.param_remainders_shard,
+                        shard,
+                    )
+                    return shard
+
+            # Case 3: Pack model params
+            with torch.cuda.stream(stream):
+                shard = shard_buffers[stream_id][:shard_size]
+                buffers_in = []
+                buffers_out = []
+                for fragment in bucket.fragments:
+                    if not fragment.in_local_shard:
+                        continue
+                    param_id = fragment.param_id
+                    param_group_id = fragment.param_group_id
+                    param_range = slice(*fragment.shard_param_range)
+                    shard_range = slice(*fragment.shard_range)
+                    param = self.param_groups[param_group_id]["params"][param_id]
+                    buffers_in.append(param.view(-1)[param_range])
+                    buffers_out.append(shard[shard_range])
+                _multi_tensor_copy(
+                    buffers_in,
+                    buffers_out,
+                    dummy_overflow_buf=self._dummy_overflow_buf,
+                )
+                return shard
+
+        def start_gather(bucket_id: int, shard: torch.Tensor) -> None:
+            """Launch gather on bucket shards
+
+            Communication is done on main stream to ensure consistent
+            ordering. Bucket shards are gathered into root rank.
+
+            """
+
+            # Stream objects
+            stream_id = bucket_id % self.pipeline_size
+            stream = self._pipeline_streams[stream_id]
+
+            # Initialize gather buffer on root rank
+            bucket_shards = None
+            if self.distributed_rank == 0:
+                # Workspace buffer
+                bucket = self.state["buckets"][bucket_id]
+                bucket_size = bucket.bucket_size
+                bucket_buffer = bucket_buffers[stream_id][:bucket_size]
+
+                # Shards in workspace buffer
+                shard_size = bucket.shard_size
+                bucket_shards = [
+                    bucket_buffer[i * shard_size : (i + 1) * shard_size]
+                    for i in range(self.distributed_size)
+                ]
+
+            # Gather shards into root rank
+            main_stream.wait_stream(stream)
+            torch.distributed.gather(
+                shard,
+                bucket_shards,
+                dst=self.process_group_root,
+                group=self.distributed_process_group,
+            )
+            stream.wait_stream(main_stream)
+
+        def finish_gather(bucket_id: int, state_dict_key: str) -> None:
+            """Finish gather on bucket shards
+
+            Data is copied into state dict CPU buffers on the root
+            rank.
+
+            Splitting the NCCL gather and the CPU memcpys into
+            separate stages helps achieve good overlap when kernel
+            launches are serialized with
+            CUDA_DEVICE_MAX_CONNECTIONS=1. In particular, the pipeline
+            calls start_gather(bucket_id+1) before
+            finish_gather(bucket_id).
+
+            """
+            if self.distributed_rank != 0:
+                return
+
+            # Stream objects
+            stream_id = bucket_id % self.pipeline_size
+            stream = self._pipeline_streams[stream_id]
+
+            # Bucket objects
+            bucket = self.state["buckets"][bucket_id]
+            bucket_size = bucket.bucket_size
+            bucket_buffer = bucket_buffers[stream_id][:bucket_size]
+
+            # Update state dict
+            with torch.cuda.stream(stream):
+                for fragment in bucket.fragments:
+                    param_range = slice(*fragment.param_range)
+                    bucket_range = slice(*fragment.bucket_range)
+                    param_group_id = fragment.param_group_id
+                    param_id = fragment.param_id
+                    index = state_dict["param_groups"][param_group_id]["params"][
+                        param_id
+                    ]
+                    state_buffer = state_dict["state"][index][state_dict_key]
+                    state_fragment = state_buffer.view(-1)[param_range]
+                    bucket_fragment = bucket_buffer[bucket_range]
+                    state_fragment.copy_(bucket_fragment, non_blocking=True)
+
+        # Gather param state
+        for bucket_id in range(num_buckets):
+            shard = pack_param_shard(bucket_id)
+            start_gather(bucket_id, shard)
+            if bucket_id > 0:
+                finish_gather(bucket_id - 1, "param")
+            if bucket_id == num_buckets - 1:
+                finish_gather(bucket_id, "param")
+
+        # Gather exp_avg state
+        for bucket_id in range(num_buckets):
+            shard = self.state["buckets"][bucket_id].exp_avg_shard
+            start_gather(bucket_id, shard)
+            if bucket_id > 0:
+                finish_gather(bucket_id - 1, "exp_avg")
+            if bucket_id == num_buckets - 1:
+                finish_gather(bucket_id, "exp_avg")
+
+        # Gather exp_avg_sq state
+        for bucket_id in range(num_buckets):
+            shard = self.state["buckets"][bucket_id].exp_avg_sq_shard
+            start_gather(bucket_id, shard)
+            if bucket_id > 0:
+                finish_gather(bucket_id - 1, "exp_avg_sq")
+            if bucket_id == num_buckets - 1:
+                finish_gather(bucket_id, "exp_avg_sq")
+
+        # Synchronize GPU
+        for stream in self._pipeline_streams:
+            main_stream.wait_stream(stream)
+        main_stream.synchronize()
+
+        # Return state dict on root rank
+        if self.distributed_rank == 0:
+            return state_dict
+        else:
+            return {}
+
     def load_state_dict(self, state_dict: dict) -> None:
         """Load optimizer state"""
+
+        # Deprecated v1 format
+        if "buckets" in state_dict["state"] or "gathered_states" in state_dict["state"]:
+            self._load_state_dict_v1(state_dict)
+            return
+
+        # Default v2 format
+        self._load_state_dict_v2(state_dict)
+
+    def _load_state_dict_v1(self, state_dict: dict) -> None:
+        """Load optimizer state (deprecated v1 format)
+
+        Parallel configuration (e.g. process group sizes) and
+        optimizer options must match between saving and loading the
+        optimizer state.
+
+        """
+        warnings.warn(
+            "Loading checkpoint in deprecated v1 format. "
+            "Future support is not guaranteed."
+        )
 
         # State dict contains state for all ranks
         if "gathered_states" in state_dict:
@@ -2459,3 +2806,65 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             state_dict = torch.load(state_bytes)
 
         super().load_state_dict(state_dict)
+
+    @torch.no_grad()
+    def _load_state_dict_v2(self, state_dict: dict) -> None:
+        """Load optimizer state (default v2 format)
+
+        The parallel configuration and optimizer options are allowed
+        to differ between saving and loading the model.
+
+        """
+
+        # Make sure params are initialized
+        self.init_params()
+
+        # Finish any asynchronous communication
+        self.grad_sync()
+        self.param_sync()
+
+        # Load step count
+        self.state["step"] = state_dict["state"]["step"]
+
+        # Load state for each param
+        for param in self.parameters():
+            # Get param index in state dict
+            fragment = self.state[param]["fragments"][0]
+            param_id = fragment.param_id
+            param_group_id = fragment.param_group_id
+            index = state_dict["param_groups"][param_group_id]["params"][param_id]
+
+            # Buffers in state dict
+            param_state = state_dict["state"][index]["param"].view(-1)
+            exp_avg = state_dict["state"][index]["exp_avg"].view(-1)
+            exp_avg_sq = state_dict["state"][index]["exp_avg_sq"].view(-1)
+
+            # Copy to local shard of state buckets
+            for fragment in self.state[param]["fragments"]:
+                if not fragment.in_local_shard:
+                    continue
+                bucket = self.state["buckets"][fragment.bucket_id]
+                param_start, param_end = fragment.shard_param_range
+                shard_start, shard_end = fragment.shard_range
+                if bucket.params_shard is not None:
+                    bucket.params_shard[shard_start:shard_end].copy_(
+                        param_state[param_start:param_end],
+                        non_blocking=True,
+                    )
+                if bucket.param_remainders_shard is not None:
+                    param_state_int16 = param_state.unsqueeze(-1).view(torch.int16)
+                    bucket.param_remainders_shard[shard_start:shard_end].copy_(
+                        param_state_int16[param_start:param_end, 0],
+                        non_blocking=True,
+                    )
+                bucket.exp_avg_shard[shard_start:shard_end].copy_(
+                    exp_avg[param_start:param_end],
+                    non_blocking=True,
+                )
+                bucket.exp_avg_sq_shard[shard_start:shard_end].copy_(
+                    exp_avg_sq[param_start:param_end],
+                    non_blocking=True,
+                )
+
+        # Synchronize GPU
+        torch.cuda.current_stream().synchronize()
