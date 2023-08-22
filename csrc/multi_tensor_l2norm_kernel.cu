@@ -109,6 +109,91 @@ struct L2NormFunctor
   }
 };
 
+template<typename x_t>
+struct ScaleL2NormFunctor
+{
+  __device__ __forceinline__ void operator()(
+    int chunk_size,
+    volatile int* noop_gmem,
+    TensorListMetadata<1>& tl,
+    const float* scale,
+    float* output,
+    float* output_per_tensor,
+    bool per_tensor,
+    int max_chunks_per_tensor)
+  {
+    // I'd like this kernel to propagate infs/nans.
+    // if(*noop_gmem == 1)
+    //   return;
+
+    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    int chunk_idx = tl.block_to_chunk[blockIdx.x];
+    int n = tl.sizes[tensor_loc];
+
+    x_t* x = (x_t*)tl.addresses[0][tensor_loc];
+    x += chunk_idx*chunk_size;
+
+    n -= chunk_idx*chunk_size;
+
+    __shared__ float s_vals[512];
+
+    float vals[ILP]; // = {0}; // this probably works too but I want to be sure...
+    x_t r_x[ILP];
+    for(int i = 0; i < ILP; i++)
+    {
+      vals[i] = 0.f;
+      r_x[i] = 0;
+    }
+
+    // to make things simple, we put aligned case in a different code path
+    if(n % ILP == 0 && chunk_size % ILP == 0 && is_aligned(x))
+    {
+      for(int i_start = threadIdx.x; i_start*ILP < n && i_start*ILP < chunk_size; i_start += blockDim.x)
+      {
+        // load
+        load_store(r_x, x, 0 , i_start);
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          float next = static_cast<float>(r_x[ii]) * (*scale);
+          vals[ii] += next*next;
+        }
+      }
+    }
+    else
+    {
+      for(int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x*ILP)
+      {
+#pragma unroll
+        for(int ii = 0; ii < ILP; ii++)
+        {
+          int i = i_start + threadIdx.x + ii*blockDim.x;
+          if(i < n && i < chunk_size)
+          {
+            float next = static_cast<float>(x[i]) * (*scale);
+            vals[ii] += next*next;
+          }
+        }
+      }
+    }
+
+    float val = 0.f;
+    for(int i = 0; i < ILP; i++)
+        val += vals[i];
+
+    float final = reduce_block_into_lanes(s_vals, val);
+
+    if(threadIdx.x == 0)
+    {
+      if(!isfinite(final))
+        *noop_gmem = 1; // Blindly fire off a write.  These will race but that's ok.
+      output[blockIdx.x] += final;
+      if(per_tensor)
+        output_per_tensor[(tl.start_tensor_this_launch + tensor_loc)*max_chunks_per_tensor + chunk_idx] = final;
+    }
+  }
+};
+
 // Probably better to template, but since we are not likely to support other norm
 template<typename x_t>
 struct MaxNormFunctor
@@ -330,6 +415,73 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
       noop_flag,
       tensor_lists,
       L2NormFunctor<scalar_t_0>(),
+      output.DATA_PTR<float>(),
+      per_tensor ? output_per_tensor.DATA_PTR<float>() : nullptr,
+      per_tensor,
+      max_chunks_per_tensor);)
+
+  AT_CUDA_CHECK(cudaGetLastError());
+  // AT_CUDA_CHECK(cudaDeviceSynchronize());
+
+  // This involves one more small kernel launches, but will be negligible end to end.
+  // I could get rid of these by hacking the functor + multi tensor harness with persistence
+  // logic, but keeping it simple for now
+  auto ret = at::empty({1}, output.options());
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(output));
+  auto stream = at::cuda::getCurrentCUDAStream();
+  cleanup<<<per_tensor ? ntensors : 1, 512, 0, stream>>>(
+    output.DATA_PTR<float>(),
+    per_tensor ? output_per_tensor.DATA_PTR<float>() : nullptr,
+    ret.DATA_PTR<float>(),
+    per_tensor ? ret_per_tensor.DATA_PTR<float>() : nullptr,
+    per_tensor,
+    max_chunks_per_tensor);
+
+  return std::tuple<at::Tensor, at::Tensor>(ret, ret_per_tensor);
+}
+
+std::tuple<at::Tensor, at::Tensor> multi_tensor_scale_l2norm_cuda(
+  int chunk_size,
+  at::Tensor noop_flag,
+  std::vector<std::vector<at::Tensor>> tensor_lists,
+  at::Tensor scale,
+  at::optional<bool> per_tensor_python)
+{
+  bool per_tensor = per_tensor_python.has_value() ? per_tensor_python.value() : false;
+
+  auto float_options = tensor_lists[0][0].options().dtype(at::kFloat);
+  auto output = at::zeros({320}, float_options);
+
+  at::Tensor output_per_tensor;
+  at::Tensor ret_per_tensor;
+
+  int ntensors = tensor_lists[0].size();
+  int max_chunks_per_tensor = -1;
+
+  if(per_tensor)
+  {
+    for(int t = 0; t < ntensors; t++)
+    {
+      int max_chunks_this_tensor = (tensor_lists[0][t].numel() + chunk_size - 1)/chunk_size;
+      if(max_chunks_this_tensor > max_chunks_per_tensor)
+        max_chunks_per_tensor = max_chunks_this_tensor;
+    }
+    output_per_tensor = at::zeros({ntensors*max_chunks_per_tensor}, float_options);
+    ret_per_tensor = at::empty({ntensors}, float_options);
+  }
+  else
+  {
+    ret_per_tensor = at::empty({0}, float_options);
+  }
+
+  DISPATCH_FLOAT_HALF_AND_BFLOAT(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_scale_l2norm_cuda",
+    multi_tensor_apply<1>(
+      BLOCK_SIZE,
+      chunk_size,
+      noop_flag,
+      tensor_lists,
+      ScaleL2NormFunctor<scalar_t_0>(),
+      scale.DATA_PTR<float>(),
       output.DATA_PTR<float>(),
       per_tensor ? output_per_tensor.DATA_PTR<float>() : nullptr,
       per_tensor,
