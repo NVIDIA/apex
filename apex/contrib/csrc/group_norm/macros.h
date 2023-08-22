@@ -117,7 +117,14 @@ GN_BWD_ONE_PASS_DEFINITION(CHANNELS_PER_GROUP, THREADS_PER_BLOCK)
     function = group_norm_nhwc_ ## PASS_NAME ## _one_pass_ ## CHANNELS_PER_GROUP ## _ ## ACTS_PER_BLOCK ## _ ## Traits ## FUNC_POSTFIX ; \
   } else
 
+#define GN_SELECTION_STATEMENT_WITH_CPG_LIMIT(function, Traits, PRECISION, FUNC_POSTFIX, HW_THRESHOLD, ACTS_PER_BLOCK, CHANNELS_PER_GROUP, PASS_NAME, LIMIT_CPG) \
+  if( params.hw >= HW_THRESHOLD && params.channels_per_group == CHANNELS_PER_GROUP && params.precision == PrecisionMode::PRECISION && CHANNELS_PER_GROUP >= LIMIT_CPG ) { \
+    function = group_norm_nhwc_ ## PASS_NAME ## _one_pass_ ## CHANNELS_PER_GROUP ## _ ## ACTS_PER_BLOCK ## _ ## Traits ## FUNC_POSTFIX ; \
+  } else
+
 #define GN_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(Traits, PRECISION, CHANNELS_PER_GROUP, FUNC_POSTFIX, function, PASS_NAME) \
+  GN_SELECTION_STATEMENT_WITH_CPG_LIMIT(function, Traits, PRECISION, FUNC_POSTFIX, 1024,     128,    CHANNELS_PER_GROUP, PASS_NAME, 80) \
+  GN_SELECTION_STATEMENT_WITH_CPG_LIMIT(function, Traits, PRECISION, FUNC_POSTFIX, 256,      128,    CHANNELS_PER_GROUP, PASS_NAME, 160) \
   GN_SELECTION_STATEMENT(function, Traits, PRECISION, FUNC_POSTFIX, 512,      512,    CHANNELS_PER_GROUP, PASS_NAME) \
   GN_SELECTION_STATEMENT(function, Traits, PRECISION, FUNC_POSTFIX, 256,      256,    CHANNELS_PER_GROUP, PASS_NAME) \
   GN_SELECTION_STATEMENT(function, Traits, PRECISION, FUNC_POSTFIX, 128,      128,    CHANNELS_PER_GROUP, PASS_NAME) \
@@ -152,6 +159,8 @@ GN_ONE_PASS_DECLARATION(CHANNELS_PER_GROUP, bwd)
     Kernel<Precision, 160><<<grid, 160, 0, stream>>>(params); \
   } else if( params.channels_per_block == 280 ) { \
     Kernel<Precision, 140><<<grid, 140, 0, stream>>>(params); \
+  } else if( params.channels_per_block == 208 ) { \
+    Kernel<Precision, 140><<<grid, 104, 0, stream>>>(params); \
   } else if( params.channels_per_block == 240 ) { \
     Kernel<Precision, 120><<<grid, 120, 0, stream>>>(params); \
   } else if( params.channels_per_block == 512 ) { \

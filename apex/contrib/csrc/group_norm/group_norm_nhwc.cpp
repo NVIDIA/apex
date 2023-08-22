@@ -1055,7 +1055,7 @@ int main(int argc, char **argv) {
       }
     }
   } else {
-    printf("%d,%d,%d,%d,%d,%d,%f\n", n, h, w, c, (uint32_t)use_one_pass, (uint32_t)mode, elapsed / (float) runs);
+    printf("%d,%d,%d,%d,%d,%d,%d,%f\n", n, h, w, c, groups, (uint32_t)use_one_pass, (uint32_t)mode, elapsed / (float) runs);
   }
 
   // Destroy the cuda events.

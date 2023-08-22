@@ -153,6 +153,9 @@ void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &params,
   if( params.c == 2240 ) {
     params.channels_per_block = 280;
   }
+  else if (params.c == 832){
+    params.channels_per_block = 208;
+  }
 
   if (params.c % params.channels_per_block != 0) {
     if (params.c % 512 == 0 && params.c != 1536 && params.c != 3072 && params.c % 448 != 0) {
