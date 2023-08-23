@@ -393,6 +393,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             self.shard_size: int = shard_size
             # Size of the filled region in the bucket
             self.filled_size: int = 0
+            # Is it able to continue filling
+            self.able_to_fill: bool = True
             # Offset to bucket in contiguous buffers
             self.contiguous_buffer_offset: int = contiguous_buffer_offset
             # Buffer ranges corresponding to parameter fragments
@@ -1037,6 +1039,15 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 param_group_id, param_id = id_map[param]
                 self._init_param_state(param, param_group_id, param_id)
 
+        bucket_size = sum(bucket.bucket_size for bucket in self.state["buckets"])
+        filled_size = sum(bucket.filled_size for bucket in self.state["buckets"])
+        buckets_utilization = filled_size / bucket_size
+        if buckets_utilization < 0.7:
+            warnings.warn(
+                f"Only {buckets_utilization:.1%} of buckets are used. "
+                "Consider decreasing the bucket_cap_mb argument."
+            )
+
     def init_params_bucket(self, params: Iterable[torch.nn.Parameter]) -> None:
         """Initialize optimizer state for parameters in one effective bucket
 
@@ -1065,7 +1076,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         # Mark existings bucket as fully filled
         for bucket in self.state["buckets"]:
-            bucket.filled_size = bucket.bucket_size
+            bucket.able_to_fill = False
 
         # Initialize optimizer state for parameters
         start_bucket_id = len(self.state["buckets"])
@@ -1076,7 +1087,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         for bucket_id in range(start_bucket_id, end_bucket_id):
             bucket = self.state["buckets"][bucket_id]
             bucket_size = bucket.bucket_size
-            bucket.filled_size = bucket_size
+            bucket.able_to_fill = False
             ids_in_bucket = set(
                 (fragment.param_group_id, fragment.param_id)
                 for fragment in bucket.fragments
@@ -1151,7 +1162,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             bucket_end = bucket_start + fragment_size
 
             # Create new bucket if current one is full
-            if fragment_size <= 0:
+            if fragment_size <= 0 or not bucket.able_to_fill:
                 shard_size = self.default_shard_size
                 bucket_size = shard_size * self.distributed_size
                 buffer_offset = bucket.contiguous_buffer_offset + bucket.bucket_size
