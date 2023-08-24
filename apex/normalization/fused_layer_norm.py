@@ -43,15 +43,15 @@ class FusedLayerNormAffineFunction(torch.autograd.Function):
         output, mean, invvar = fused_layer_norm_cuda.forward_affine(
             input_, ctx.normalized_shape, weight_, bias_, ctx.eps
         )
-        ctx.save_for_backward(input_, weight_, bias_, mean, invvar)
+        ctx.save_for_backward(output, weight_, bias_, invvar)
         return output
 
     @staticmethod
     def backward(ctx, grad_output):
-        input_, weight_, bias_, mean, invvar = ctx.saved_tensors
+        output, weight_, bias_, invvar = ctx.saved_tensors
         grad_input = grad_weight = grad_bias = None
         grad_input, grad_weight, grad_bias = fused_layer_norm_cuda.backward_affine(
-            grad_output.contiguous(), mean, invvar, input_, ctx.normalized_shape, weight_, bias_, ctx.eps
+            grad_output.contiguous(), invvar, output, ctx.normalized_shape, weight_, bias_, ctx.eps
         )
         return grad_input, grad_weight, grad_bias, None, None
 
@@ -68,15 +68,15 @@ class FusedRMSNormAffineFunction(torch.autograd.Function):
         weight_ = weight.contiguous()
         output, invvar = fused_layer_norm_cuda.rms_forward_affine(
             input_, ctx.normalized_shape, weight_, ctx.eps)
-        ctx.save_for_backward(input_, weight_, invvar)
+        ctx.save_for_backward(output, weight_, invvar)
         return output
 
     @staticmethod
     def backward(ctx, grad_output):
-        input_, weight_, invvar = ctx.saved_tensors
+        output, weight_, invvar = ctx.saved_tensors
         grad_input = grad_weight = None
         grad_input, grad_weight = fused_layer_norm_cuda.rms_backward_affine(
-           grad_output.contiguous(), invvar, input_, ctx.normalized_shape, weight_, ctx.eps
+           grad_output.contiguous(), invvar, output, ctx.normalized_shape, weight_, ctx.eps
         )
         return grad_input, grad_weight, None, None
 
@@ -96,7 +96,7 @@ class FusedLayerNormAffineMixedDtypesFunction(FusedLayerNormAffineFunction):
         output, mean, invvar = fused_layer_norm_cuda.forward_affine_mixed_dtypes(
             input_, ctx.normalized_shape, weight_, bias_, ctx.eps
         )
-        ctx.save_for_backward(input_, weight_, bias_, mean, invvar)
+        ctx.save_for_backward(output, weight_, bias_, invvar)
         return output
 
 
@@ -115,7 +115,7 @@ class FusedRMSNormAffineMixedDtypesFunction(FusedRMSNormAffineFunction):
             input_, ctx.normalized_shape, weight_, ctx.eps
         )
 
-        ctx.save_for_backward(input_, weight_, invvar)
+        ctx.save_for_backward(output, weight_, invvar)
         return output
 
 
@@ -129,15 +129,15 @@ class FusedLayerNormFunction(torch.autograd.Function):
         ctx.eps = eps
         input_ = input.contiguous()
         output, mean, invvar = fused_layer_norm_cuda.forward(input_, ctx.normalized_shape, ctx.eps)
-        ctx.save_for_backward(input_, mean, invvar)
+        ctx.save_for_backward(output, invvar)
         return output
 
     @staticmethod
     def backward(ctx, grad_output):
-        input_, mean, invvar = ctx.saved_tensors
+        output, invvar = ctx.saved_tensors
         grad_input = None
         grad_input = fused_layer_norm_cuda.backward(
-            grad_output.contiguous(), mean, invvar, input_, ctx.normalized_shape, ctx.eps
+            grad_output.contiguous(), invvar, output, ctx.normalized_shape, ctx.eps
         )
         return grad_input, None, None
 
@@ -152,15 +152,15 @@ class FusedRMSNormFunction(torch.autograd.Function):
         ctx.eps = eps
         input_ = input.contiguous()
         output, invvar = fused_layer_norm_cuda.rms_forward(input_, ctx.normalized_shape, ctx.eps)
-        ctx.save_for_backward(input_, invvar)
+        ctx.save_for_backward(output, invvar)
         return output
 
     @staticmethod
     def backward(ctx, grad_output):
-        input_, invvar = ctx.saved_tensors
+        output, invvar = ctx.saved_tensors
         grad_input = None
         grad_input = fused_layer_norm_cuda.rms_backward(
-            grad_output.contiguous(), invvar, input_, ctx.normalized_shape, ctx.eps
+            grad_output.contiguous(), invvar, output, ctx.normalized_shape, ctx.eps
         )
         return grad_input, None, None
 
