@@ -1039,14 +1039,20 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 param_group_id, param_id = id_map[param]
                 self._init_param_state(param, param_group_id, param_id)
 
-        bucket_size = sum(bucket.bucket_size for bucket in self.state["buckets"])
-        filled_size = sum(bucket.filled_size for bucket in self.state["buckets"])
-        buckets_utilization = filled_size / bucket_size
-        if buckets_utilization < 0.7:
-            warnings.warn(
-                f"Only {buckets_utilization:.1%} of buckets are used. "
-                "Consider decreasing the bucket_cap_mb argument."
-            )
+        num_params = sum(1 for param in self.parameters())
+        num_initialized_params = sum(
+            1 for param in self.parameters()
+            if "fragments" in self.state[param]
+        )
+        if num_initialized_params == num_params:
+            bucket_size = sum(bucket.bucket_size for bucket in self.state["buckets"])
+            filled_size = sum(bucket.filled_size for bucket in self.state["buckets"])
+            buckets_utilization = filled_size / bucket_size
+            if buckets_utilization < 0.7:
+                warnings.warn(
+                    f"Only {buckets_utilization:.1%} of buckets are used. "
+                    "Consider decreasing the bucket_cap_mb argument."
+                )
 
     def init_params_bucket(self, params: Iterable[torch.nn.Parameter]) -> None:
         """Initialize optimizer state for parameters in one effective bucket
