@@ -437,6 +437,27 @@ void cuApplyRMSNorm(
   cuApplyLayerNorm_<T, U, V>(output_vals, NULL, invvar, vals, n1, n2, epsilon, gamma, NULL, true);
 }
 
+
+template<typename V> __device__
+V clamp_by_magnitude(V curr_gamma, double eps)
+{
+  const V kMinGamma = V(eps);
+  if (curr_gamma >= 0) {
+    if (curr_gamma < kMinGamma) {
+      return kMinGamma;
+    } else {
+      return curr_gamma;
+    }
+  } else {
+    if (curr_gamma > -kMinGamma) {
+      return -kMinGamma;
+    } else {
+      return curr_gamma;
+    }
+  }
+}
+
+
 template<typename T, typename U, typename V> __device__
 void cuLoadWriteStridedInputs(
     const int i1_block,
@@ -452,6 +473,7 @@ void cuLoadWriteStridedInputs(
     const int n2,
     const V* __restrict__ gamma,
     const V* __restrict__ beta,
+    const double eps,
     bool rms_only
     )
 {
@@ -464,7 +486,7 @@ void cuLoadWriteStridedInputs(
       if (i2<n2) {
         U curr_output = static_cast<U>(output[load_idx]);
         U curr_dout = static_cast<U>(dout[load_idx]);
-        U curr_gamma = static_cast<U>(gamma[i2]);
+        U curr_gamma = static_cast<U>(clamp_by_magnitude(gamma[i2], eps));
         if (!rms_only) {
           U curr_beta = static_cast<U>(beta[i2]);
           warp_buf1[write_idx] = curr_dout;
@@ -505,6 +527,7 @@ void cuLoadAddStridedInputs(
     const int n2,
     const V* __restrict__ gamma,
     const V* __restrict__ beta,
+    const double eps,
     bool rms_only
     )
 {
@@ -517,7 +540,7 @@ void cuLoadAddStridedInputs(
       if (i2<n2) {
         U curr_output = static_cast<U>(output[load_idx]);
         U curr_dout = static_cast<U>(dout[load_idx]);
-        U curr_gamma = static_cast<U>(gamma[i2]);
+        U curr_gamma = static_cast<U>(clamp_by_magnitude(gamma[i2], eps));
         if (!rms_only) {
           U curr_beta = static_cast<U>(beta[i2]);
           warp_buf1[write_idx] += curr_dout;
@@ -537,12 +560,12 @@ void cuComputePartGradGammaBeta(
     const T* __restrict__ output,
     const int n1,
     const int n2,
-    const U* __restrict__ invvar,
     U epsilon,
     const V* __restrict__ gamma,
     const V* __restrict__ beta,
     U* part_grad_gamma,
     U* part_grad_beta,
+    const double eps,
     bool rms_only)
 {
     const int numsegs_n1 = (n1+blockDim.y*blockDim.y-1) / (blockDim.y*blockDim.y);
@@ -560,9 +583,9 @@ void cuComputePartGradGammaBeta(
     U* warp_buf2 = warp_buf1 + blockDim.y * blockDim.y * row_stride;
     // compute partial sums from strided inputs
     // do this to increase number of loads in flight
-    cuLoadWriteStridedInputs(i1_beg,thr_load_row_off,thr_load_col_off,i2_off,row_stride,warp_buf1,warp_buf2,output,dout,i1_end,n2,gamma,beta, rms_only);
+    cuLoadWriteStridedInputs(i1_beg,thr_load_row_off,thr_load_col_off,i2_off,row_stride,warp_buf1,warp_buf2,output,dout,i1_end,n2,gamma,beta,eps, rms_only);
     for (int i1_block = i1_beg+blockDim.y*blockDim.y;  i1_block < i1_end;  i1_block+=blockDim.y*blockDim.y) {
-      cuLoadAddStridedInputs(i1_block,thr_load_row_off,thr_load_col_off,i2_off,row_stride,warp_buf1,warp_buf2,output,dout,i1_end,n2,gamma,beta, rms_only);
+      cuLoadAddStridedInputs(i1_block,thr_load_row_off,thr_load_col_off,i2_off,row_stride,warp_buf1,warp_buf2,output,dout,i1_end,n2,gamma,beta,eps, rms_only);
     }
     __syncthreads();
     // inter-warp reductions
@@ -681,6 +704,7 @@ void cuComputeGradInput(
     const V* gamma,
     const V* beta,
     T* grad_input,
+    const double eps,
     bool rms_only)
 {
   for (auto i1=blockIdx.y; i1 < n1; i1 += gridDim.y) {
@@ -794,7 +818,7 @@ void cuComputeGradInput(
       for (int l = thrx;  l < n2;  l+=numx) {
         const U c_h = static_cast<U>(k_output[l]);
         const U c_loss = static_cast<U>(k_dout[l]);
-        const U k_gamma = static_cast<U>(gamma[l]);
+        const U k_gamma = static_cast<U>(clamp_by_magnitude(gamma[l], eps));
         U f_grad_input = fH * c_loss * k_gamma;
         if (!rms_only) {
           const U k_beta = beta[l];
@@ -972,12 +996,12 @@ void HostLayerNormGradient(
                       dout,
                       output->DATA_PTR<T>(),
                       n1,n2,
-                      invvar,
                       U(epsilon),
                       gamma,
                       beta,
                       part_grad_gamma.DATA_PTR<U>(),
                       part_grad_beta.DATA_PTR<U>(),
+                      epsilon,
                       false);
 
       const dim3 threads3(32,8,1);
@@ -1010,6 +1034,7 @@ void HostLayerNormGradient(
             gamma,
             beta,
             grad_input,
+            epsilon,
             false);
 }
 
@@ -1045,12 +1070,12 @@ void HostRMSNormGradient(
                       dout,
                       output->DATA_PTR<T>(),
                       n1,n2,
-                      invvar,
                       U(epsilon),
                       gamma,
                       gamma, /* unused */
                       part_grad_gamma.DATA_PTR<U>(),
                       part_grad_gamma.DATA_PTR<U>(), /* unused */
+                      epsilon,
                       true);
 
       const dim3 threads3(32,8,1);
@@ -1083,6 +1108,7 @@ void HostRMSNormGradient(
             gamma,
             gamma, /* unused */
             grad_input,
+            epsilon,
             true);
 }
 
