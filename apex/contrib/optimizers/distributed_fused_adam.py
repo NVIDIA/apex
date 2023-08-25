@@ -2187,9 +2187,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         returns None on non-root ranks.
 
         Arguments:
-            state_dict_format (optional): Tag for state dict format
-                (default: 2). Typically used to output in deprecated
-                formats.
+            state_dict_format (optional): Tag for custom or deprecated
+                state dict format.
             gather_on_root (bool, optional): Option for deprecated v1
                 format.
 
