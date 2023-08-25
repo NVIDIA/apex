@@ -2648,9 +2648,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def load_state_dict(self, state_dict: dict) -> None:
         """Load optimizer state"""
 
-        # Get format tag
-        state_dict_format = state_dict.get("format", 1)
-        state_dict.pop("format", None)
+        # Figure out state dict format
+        state_dict_format = state_dict.pop("format", None)
+        if state_dict_format is None:
+            if "buckets" in state_dict or "gathered_states" in state_dict:
+                state_dict_format = 1
+            else:
+                state_dict_format = 2
 
         # Load state dict
         if state_dict_format == 1:
