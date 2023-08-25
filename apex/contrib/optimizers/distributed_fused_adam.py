@@ -1922,7 +1922,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 multi_tensor_applier(
                     amp_C.multi_tensor_l2norm,
                     self._dummy_overflow_buf,
-                    [grads],
+                    [grad_group],
                     False,
                 )[0]
                 ** 2
@@ -2283,7 +2283,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 param_fragment = param_fragment.to(
                     dtype=torch.bfloat16, device=self.device
                 )
-                buffers[param_group_id].append(
+                buffers[buffers_key].append(
                     [
                         param_fragment,
                         param_remainders_shard[shard_range],
@@ -2421,7 +2421,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Note: Assuming we are using the NCCL backend, communication
         # must happen on the GPU. We split the data into fixed-size
         # chunks to limit GPU memory usage.
-        # TODO: Avoid chunking with direct communication between CPUs
         main_stream = torch.cuda.current_stream()
         for stream in self._pipeline_streams:
             stream.wait_stream(main_stream)
