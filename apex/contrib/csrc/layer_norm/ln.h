@@ -26,11 +26,12 @@ struct LaunchParams{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct ParamsBase {
-    ParamsBase()
+struct FwdParams{
+    FwdParams()
         : ctas_per_col(0)
         , rows(0)
         , cols(0)
+        , x(nullptr)
         , z(nullptr)
         , mu(nullptr)
         , rs(nullptr)
@@ -38,6 +39,7 @@ struct ParamsBase {
         , beta(nullptr)
         , workspace(nullptr)
         , barrier(nullptr)
+        , epsilon(0.f)
     {
     }
 
@@ -49,6 +51,7 @@ struct ParamsBase {
     int cols;
 
     // Common data pointers.
+    void *x;
     void *z;
     void *mu;
     void *rs;
@@ -61,29 +64,15 @@ struct ParamsBase {
     // Multi-CTA sync barriers in gmem.
     int *barrier;
 
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-struct FwdParams : public ParamsBase {
-    FwdParams()
-        : ParamsBase()
-        , x(nullptr)
-        , epsilon(0.f)
-    {
-    }
-
     // Output of LN FWD.
-    void *x;
     float epsilon;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct BwdParams : public ParamsBase {
+struct BwdParams : public  FwdParams{
     BwdParams()
-        : ParamsBase()
+        : FwdParams()
         , dz(nullptr)
         , dbeta_part(nullptr)
         , dgamma_part(nullptr)

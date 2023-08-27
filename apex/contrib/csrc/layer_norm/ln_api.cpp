@@ -153,32 +153,39 @@ std::vector<at::Tensor> ln_fwd(const at::Tensor &x,      // BxSxhidden_size
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-
-std::vector<at::Tensor> ln_bwd(const at::Tensor &dz,     // BxSxhidden_size
-                               const at::Tensor &z,      // BxSxhidden_size
-                               const at::Tensor &rsigma, // BxS, FP32!
-                               const at::Tensor &gamma,  // hidden_size
-                               const at::Tensor &beta    // hidden_size
+std::vector<at::Tensor> ln_bwd(const at::Tensor &dz,                    // BxSxhidden_size
+                               const at::Tensor &x_or_z,                // BxSxhidden_size
+                               c10::optional<const at::Tensor> &mu_,    // BxS, FP32!
+                               const at::Tensor &rsigma,                // BxS, FP32!
+                               const at::Tensor &gamma,                 // hidden_size
+                               c10::optional<const at::Tensor>&beta_,   // hidden_size
+                               bool memory_efficient
 ) {
 
-    auto itype = z.scalar_type();
+    auto itype = x_or_z.scalar_type();
     auto wtype = gamma.scalar_type();
     auto otype = wtype;
     auto ctype = torch::kFloat32;
 
     TORCH_CHECK(dz.dtype() == otype);
     TORCH_CHECK(rsigma.dtype() == ctype);
+    if (mu_.has_value()) {
+        TORCH_CHECK(mu_.value().dtype() == ctype);
+    }
 
-    TORCH_CHECK(z.is_cuda());
+    TORCH_CHECK(x_or_z.is_cuda());
     TORCH_CHECK(dz.is_cuda());
     TORCH_CHECK(rsigma.is_cuda());
     TORCH_CHECK(gamma.is_cuda());
-    TORCH_CHECK(beta.is_cuda());
+    if (beta_.has_value()) {
+        TORCH_CHECK(beta_.value().is_cuda());
+        TORCH_CHECK(beta_.value().dtype() == wtype);
+    }
 
-    TORCH_CHECK(z.is_contiguous());
+    TORCH_CHECK(x_or_z.is_contiguous());
     TORCH_CHECK(dz.is_contiguous());
 
-    auto sizes = z.sizes();
+    auto sizes = x_or_z.sizes();
     TORCH_CHECK(sizes.size() == 2);
     TORCH_CHECK(dz.sizes() == sizes);
     auto rows = sizes[0];
@@ -187,11 +194,13 @@ std::vector<at::Tensor> ln_bwd(const at::Tensor &dz,     // BxSxhidden_size
     auto hidden_size = gamma.numel();
 
     TORCH_CHECK(gamma.numel() == cols);
-    TORCH_CHECK(beta.numel() == cols);
+    if (beta_.has_value()) {
+        TORCH_CHECK(beta_.value().numel() == cols);
+    }
 
-    auto options = z.options();
+    auto options = x_or_z.options();
 
-    auto dx = torch::empty_like(z);
+    auto dx = torch::empty_like(x_or_z);
     auto dgamma = torch::empty_like(gamma);
     auto dbeta = torch::empty_like(gamma);
 
@@ -210,11 +219,15 @@ std::vector<at::Tensor> ln_bwd(const at::Tensor &dz,     // BxSxhidden_size
     layer_norm::BwdParams &params = launch_params.params;
     params.rows = rows;
     params.cols = cols;
-    params.z = z.data_ptr();
+    if (memory_efficient) {
+        params.z = x_or_z.data_ptr();
+        params.beta = beta_.value().data_ptr();
+    } else {
+        params.x = x_or_z.data_ptr();
+        params.mu = mu_.value().data_ptr();
+    }
     params.rs = rsigma.data_ptr();
     params.gamma = gamma.data_ptr();
-    params.beta = beta.data_ptr();
-
     params.dz = dz.data_ptr();
     params.dx = dx.data_ptr();
     params.dbeta = dbeta.data_ptr();
