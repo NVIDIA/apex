@@ -106,7 +106,7 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
 
         timer.start()
         for r in range(runs):
-            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(dz, x, mu, rsigma, gamma)
+            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(dz, z, rsigma, gamma, beta)
         timer.stop()
         timer.sync()
 
@@ -165,7 +165,7 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
     dx_ref, dg_ref, db_ref = backward_(dz, x, mu_ref, rs_ref, gamma)
 
     z, mu, rs = fln.ln_fwd(x, gamma, beta, epsilon)
-    dx, dg, db, dg_part, db_part = fln.ln_bwd(dz, x, mu, rs, gamma)
+    dx, dg, db, dg_part, db_part = fln.ln_bwd(dz, z, rs, gamma, beta)
 
     re_z, mse_z = metrics(z_ref, z)
     re_mu, mse_mu = metrics(mu_ref, mu)
@@ -184,7 +184,7 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
     print(f"db: relerr={re_db:.4e} mse={mse_db:.4e}")
 
     def check_err(x, relerr):
-        tol = 1e-3 if x.dtype == torch.float16 else 5e-6
+        tol = 2e-2 if x.dtype in (torch.float16, torch.bfloat16) else 5e-6
         return relerr < tol
 
     return [

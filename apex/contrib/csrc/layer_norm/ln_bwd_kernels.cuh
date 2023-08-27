@@ -57,10 +57,12 @@ void ln_bwd_kernel(layer_norm::BwdParams params) {
 
     constexpr float rn = 1.f / float(COLS);
     Wvec gamma[LDGS];
+    Wvec beta[LDGS];
     index_t idx = c;
     #pragma unroll
     for( int it = 0; it < LDGS; it++ ) {
         gamma[it].load_from(params.gamma, idx);
+        beta[it].load_from(params.beta, idx);
         idx += Ktraits::VEC_COLS_PER_LDG;
     }
     // TODO if ROWS_PER_CTA does not divide rows, we might get divergence in the
@@ -68,15 +70,15 @@ void ln_bwd_kernel(layer_norm::BwdParams params) {
     // grid stride over rows
     #pragma unroll 1
     for( int row = r; row < params.rows; row += params.ctas_per_col * ROWS_PER_CTA ) {
-        const compute_t mu_r = static_cast<const compute_t *>(params.mu)[row];
+        // const compute_t mu_r = static_cast<const compute_t *>(params.mu)[row];
         const compute_t rs_r = static_cast<const compute_t *>(params.rs)[row];
-        Ivec x[LDGS];
+        Ivec z[LDGS];
         Ovec dz[LDGS];
         index_t idx = row * Ktraits::VEC_COLS + c;
         #pragma unroll
         for( int it = 0; it < LDGS; it++ ) {
             dz[it].load_from(params.dz, idx);
-            x[it].load_from(params.x, idx);
+            z[it].load_from(params.z, idx);
             idx += Ktraits::VEC_COLS_PER_LDG;
         }
 
@@ -89,10 +91,12 @@ void ln_bwd_kernel(layer_norm::BwdParams params) {
         for( int it = 0; it < LDGS; it++ ) {
             #pragma unroll
             for( int jt = 0; jt < NUM_ELTS; jt++ ) {
-                compute_t x_tmp = x[it].data.elt[jt];
-                compute_t y_tmp = rs_r * (x_tmp - mu_r);
-                compute_t dy_tmp = compute_t(gamma[it].data.elt[jt]);
-                dy_tmp *= compute_t(dz[it].data.elt[jt]);
+                compute_t gamma_tmp = compute_t(gamma[it].data.elt[jt]);
+                compute_t beta_tmp = compute_t(beta[it].data.elt[jt]);
+                compute_t z_tmp = compute_t(z[it].data.elt[jt]);
+                // compute_t y_tmp = rs_r * (x_tmp - mu_r);
+                compute_t y_tmp = (z_tmp - beta_tmp) / gamma_tmp;
+                compute_t dy_tmp = compute_t(dz[it].data.elt[jt]) * gamma_tmp;
                 compute_t dz_tmp = dz[it].data.elt[jt];
 
                 mdy_local += dy_tmp;

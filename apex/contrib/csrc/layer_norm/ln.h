@@ -10,7 +10,7 @@ namespace layer_norm {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<typename Params> 
+template<typename Params>
 struct LaunchParams{
 
     size_t workspace_bytes;
@@ -31,10 +31,11 @@ struct ParamsBase {
         : ctas_per_col(0)
         , rows(0)
         , cols(0)
-        , x(nullptr)
+        , z(nullptr)
         , mu(nullptr)
         , rs(nullptr)
         , gamma(nullptr)
+        , beta(nullptr)
         , workspace(nullptr)
         , barrier(nullptr)
     {
@@ -48,10 +49,11 @@ struct ParamsBase {
     int cols;
 
     // Common data pointers.
-    void *x;
+    void *z;
     void *mu;
     void *rs;
     void *gamma;
+    void *beta;
 
     // Multi-CTA workspace in gmem.
     void *workspace;
@@ -66,15 +68,13 @@ struct ParamsBase {
 struct FwdParams : public ParamsBase {
     FwdParams()
         : ParamsBase()
-        , z(nullptr)
-        , beta(nullptr)
+        , x(nullptr)
         , epsilon(0.f)
     {
     }
 
     // Output of LN FWD.
-    void *z;
-    void *beta;
+    void *x;
     float epsilon;
 
 };
@@ -92,7 +92,6 @@ struct BwdParams : public ParamsBase {
         , dgamma(nullptr)
     {
     }
-
     // Input: gradient wrt. LN FWD output.
     void *dz;
 
@@ -200,3 +199,4 @@ struct BwdRegistrar{
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 }  // namespace layer_norm
+
