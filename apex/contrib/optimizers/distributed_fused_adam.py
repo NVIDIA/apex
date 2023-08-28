@@ -1183,7 +1183,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         )
 
         def last_bucket_id() -> int:
-            """Index of last bucket with desired dtypes
+            """Index of last optimizer state bucket with desired dtypes
 
             -1 if there are no such buckets.
 
@@ -1198,21 +1198,23 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             return bucket_id
 
         def make_bucket(
-            bucket_size,
-            shard_size,
-            buffer_offset,
-            **kwargs,
-        ) -> self.StateBucket:
-            return self.StateBucket(
-                bucket_size,
-                shard_size,
-                dtype,
-                self.device,
-                grad_sync_dtype,
-                param_sync_dtype,
-                contiguous_buffer_offset=buffer_offset,
-                store_params=store_params,
-                store_param_remainders=store_param_remainders,
+            bucket_size: int,
+            shard_size: int,
+            buffer_offset: int,
+        ) -> None:
+            """Construct new optimizer state bucket"""
+            self.state["buckets"].append(
+                self.StateBucket(
+                    bucket_size,
+                    shard_size,
+                    dtype,
+                    self.device,
+                    grad_sync_dtype,
+                    param_sync_dtype,
+                    contiguous_buffer_offset=buffer_offset,
+                    store_params=store_params,
+                    store_param_remainders=store_param_remainders,
+                )
             )
 
         # Make sure there is at least one bucket with expected dtypes
@@ -1220,9 +1222,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             shard_size = self.default_shard_size
             bucket_size = shard_size * self.distributed_size
             buffer_offset = 0
-            self.state["buckets"].append(
-                make_bucket(bucket_size, shard_size, buffer_offset)
-            )
+            make_bucket(bucket_size, shard_size, buffer_offset)
 
         # Split parameter values into fragments
         # Note: Each fragment resides within a bucket
@@ -1251,9 +1251,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 shard_size = self.default_shard_size
                 bucket_size = shard_size * self.distributed_size
                 buffer_offset = bucket.contiguous_buffer_offset + bucket.bucket_size
-                self.state["buckets"].append(
-                    make_bucket(bucket_size, shard_size, buffer_offset)
-                )
+                make_bucket(bucket_size, shard_size, buffer_offset)
                 continue
 
             # Fragment position within local shard
@@ -1329,11 +1327,19 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Reset param grads
         for param in self.parameters():
             with _disable_pre_forward_hook(param):
+                need_to_zero = True
                 if set_to_none:
                     param.grad = None
                 elif self.contiguous_grad_buffer:
-                    param.grad = self.grad_buffer_view(param)
-                elif param.grad is not None:
+                    bucket_id = self.state[param]["fragments"][0].bucket_id
+                    bucket = self.state["buckets"][bucket_id]
+                    if (
+                        param.dtype == bucket.grad_sync_dtype
+                        and _devices_match(param.device, self.device)
+                    ):
+                        param.grad = self.grad_buffer_view(param)
+                        need_to_zero = False
+                if need_to_zero and param.grad is not None:
                     param.grad.zero_()
 
         # Reset other state
@@ -2156,7 +2162,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 ):
                     bf16_rem_buckets.add(bucket_id)
             if bf16_rem_buckets:
-                self._local_step_with_param_remainders(sorted(bucket_ids))
+                self._local_step_with_param_remainders(sorted(bf16_rem_buckets))
             bucket_ids = [
                 bucket_id for bucket_id in bucket_ids
                 if bucket_id not in bf16_rem_buckets
