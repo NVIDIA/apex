@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import io
 from typing import Optional, Tuple
 import unittest
+import warnings
 
 import torch
 from torch.testing._internal import common_utils
@@ -43,6 +44,7 @@ def make_models(
         contiguous_buffers=False,
         store_params=False,
         store_param_remainders=False,
+        bucket_cap_mb=71/(4*1024*1024),
 ):
 
     # Construct models with same parameters
@@ -82,7 +84,7 @@ def make_models(
         adam_w_mode=adam_w_mode,
         overlap_grad_sync=overlap_communication,
         overlap_param_sync=overlap_communication,
-        bucket_cap_mb=71/(4*1024*1024),
+        bucket_cap_mb=bucket_cap_mb,
         dtype=optim_dtype,
         grad_sync_dtype=grad_sync_dtype,
         param_sync_dtype=param_sync_dtype,
@@ -131,6 +133,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             contiguous_buffers=False,
             store_params=False,
             store_param_remainders=False,
+            bucket_cap_mb=71/(4*1024*1024),
     ):
 
         torch.manual_seed(self.seed + self.rank)
@@ -149,6 +152,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             contiguous_buffers=contiguous_buffers,
             store_params=store_params,
             store_param_remainders=store_param_remainders,
+            bucket_cap_mb=bucket_cap_mb,
         )
 
         # Training loop
@@ -677,6 +681,32 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 store_param_remainders=True,
             ),
         )
+
+    def test_bucket_low_utilization_warning(self):
+        """Test warning when bucket utilization is low"""
+        layer_size = 2*1024*1024
+        num_layers = 4
+        fairish_bucket_cap_mb = 4*num_layers*layer_size/(1024*1024)
+
+        # Check that warning is raised when bucket utilization is low
+        with self.assertWarnsRegex(Warning, ".*Consider decreasing the bucket_cap_mb argument."):
+            self.test_matches_pytorch(
+                num_layers=num_layers,
+                layer_size=layer_size,
+                bucket_cap_mb=fairish_bucket_cap_mb * 2,
+                contiguous_buffers=True,
+            )
+
+        # Check that warning is not raised when bucket utilization is high
+        with warnings.catch_warnings(record=True) as warns:
+            self.test_matches_pytorch(
+                num_layers=num_layers,
+                layer_size=layer_size,
+                bucket_cap_mb=fairish_bucket_cap_mb,
+                contiguous_buffers=True,
+            )
+            for w in warns:
+                self.assertNotRegex(str(w.message), ".*Consider decreasing the bucket_cap_mb argument.")
 
 
 if __name__ == "__main__":
