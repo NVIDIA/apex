@@ -2195,31 +2195,46 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def state_dict(
         self,
         *,
-        v1_format: bool = False,
+        state_dict_format: Optional[int] = None,
         gather_on_root: Optional[bool] = None,
     ) -> Optional[dict]:
         """Get dictionary containing optimizer state
 
         Gathers optimizer state on the process group's root rank and
-        returns empty dictionaries on non-root ranks.
+        returns None on non-root ranks.
 
         Arguments:
-            v1_format (bool, optional): Use deprecated v1 format
-                (default: False).
+            state_dict_format (optional): Tag for custom or deprecated
+                state dict format.
             gather_on_root (bool, optional): Option for deprecated v1
                 format.
 
         """
 
-        # Deprecated v1 format
-        if v1_format:
+        # Default state dict format
+        if state_dict_format is None:
+            state_dict_format = 2
+
+        # Construct state dict
+        state_dict = None
+        if state_dict_format == 1:
+            # Deprecated v1 format
             kwargs = {}
             if gather_on_root is not None:
                 kwargs["gather_on_root"] = gather_on_root
-            return self._state_dict_v1(**kwargs)
+            state_dict = self._state_dict_v1(**kwargs)
+        elif state_dict_format == 2:
+            # Default v2 format
+            state_dict = self._state_dict_v2()
+        else:
+            # Unrecognized format
+            raise ValueError(f"Unrecognized state dict format ({state_dict_format})")
 
-        # Default v2 format
-        return self._state_dict_v2()
+        # Add format tag to state dict
+        if state_dict is not None:
+            state_dict["format"] = state_dict_format
+
+        return state_dict
 
     def _state_dict_v1(self, gather_on_root: bool = True) -> Optional[dict]:
         """Get dictionary containing optimizer state (deprecated v1 format)
@@ -2381,11 +2396,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             return None
 
     @torch.no_grad()
-    def _state_dict_v2(self) -> dict:
+    def _state_dict_v2(self) -> Optional[dict]:
         """Get dictionary containing optimizer state (default v2 format)
 
         Gathers optimizer state on the process group's root rank and
-        returns empty dictionaries on non-root ranks.
+        returns None on non-root ranks.
 
         """
 
@@ -2399,7 +2414,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Return immediately on ranks with redundant data
         if self.redundant_size > 1:
             if torch.distributed.get_rank(self.redundant_process_group) > 0:
-                return {}
+                return None
 
         # Initialize state dict on root rank
         if self.distributed_rank == 0:
@@ -2644,18 +2659,29 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if self.distributed_rank == 0:
             return state_dict
         else:
-            return {}
+            return None
 
     def load_state_dict(self, state_dict: dict) -> None:
         """Load optimizer state"""
 
-        # Deprecated v1 format
-        if "buckets" in state_dict["state"] or "gathered_states" in state_dict["state"]:
-            self._load_state_dict_v1(state_dict)
-            return
+        # Figure out state dict format
+        state_dict_format = state_dict.pop("format", None)
+        if state_dict_format is None:
+            if "buckets" in state_dict or "gathered_states" in state_dict:
+                state_dict_format = 1
+            else:
+                state_dict_format = 2
 
-        # Default v2 format
-        self._load_state_dict_v2(state_dict)
+        # Load state dict
+        if state_dict_format == 1:
+            # Deprecated v1 format
+            self._load_state_dict_v1(state_dict)
+        elif state_dict_format == 2:
+            # Default v2 format
+            self._load_state_dict_v2(state_dict)
+        else:
+            # Unrecognized format
+            raise ValueError(f"Unrecognized state dict format ({state_dict_format})")
 
     def _load_state_dict_v1(self, state_dict: dict) -> None:
         """Load optimizer state (deprecated v1 format)
