@@ -268,9 +268,10 @@ class TestFusedLayerNorm(common_utils.TestCase):
         # check that export() is working
         onnx_str = torch.onnx.export_to_pretty_string(fused, (fused_x,),
                                                       input_names=['x_in'],
+                                                      opset_version=18,
         )
         assert 'x_in' in onnx_str
-        assert 'ReduceMean' in onnx_str
+        assert 'ReduceMean' in onnx_str or 'LayerNormalization' in onnx_str
 
     def test_rms_export(self):
         batch_size = 16
@@ -279,7 +280,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
             normalized_shape=normalized_shape, elementwise_affine=True
         ).cuda()
         fused_m = MixedFusedRMSNorm(
-            normalized_shape=normalized_shape, elementwise_affine=True
+            normalized_shape=normalized_shape
         ).cuda()
         native_x, fused_x = _prep_inputs(batch_size, normalized_shape, torch.float32)
         self._verify_export(fused, fused_x)
@@ -292,7 +293,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
             normalized_shape=normalized_shape, elementwise_affine=True
         ).cuda()
         fused_m = MixedFusedLayerNorm(
-            normalized_shape=normalized_shape, elementwise_affine=True
+            normalized_shape=normalized_shape
         ).cuda()
         native_x, fused_x = _prep_inputs(batch_size, normalized_shape, torch.float32)
         self._verify_export(fused, fused_x)
