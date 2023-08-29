@@ -2178,7 +2178,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def state_dict(
         self,
         *,
-        state_dict_format: Optional[Any] = None,
+        state_dict_format: Optional[int] = None,
         gather_on_root: Optional[bool] = None,
     ) -> Optional[dict]:
         """Get dictionary containing optimizer state
