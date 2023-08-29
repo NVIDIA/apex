@@ -270,7 +270,6 @@ class TestFusedLayerNorm(common_utils.TestCase):
                                                       input_names=['x_in'],
                                                       opset_version=18,
         )
-        print(onnx_str)
         assert 'x_in' in onnx_str
         assert 'ReduceMean' in onnx_str or 'LayerNormalization' in onnx_str
 
