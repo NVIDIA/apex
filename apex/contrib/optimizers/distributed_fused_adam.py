@@ -1041,8 +1041,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         num_params = sum(1 for param in self.parameters())
         num_initialized_params = sum(
-            1 for param in self.parameters()
-            if "fragments" in self.state[param]
+            1 for param in self.parameters() if "fragments" in self.state[param]
         )
         if num_initialized_params == num_params:
             bucket_size = sum(bucket.bucket_size for bucket in self.state["buckets"])
@@ -2411,63 +2410,40 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self.grad_sync()
         self.param_sync()
 
-        # Return immediately on ranks with redundant data
-        if self.redundant_size > 1:
-            if torch.distributed.get_rank(self.redundant_process_group) > 0:
-                return None
+        # Get state dict from base class
+        state_dict = super().state_dict()
+        state_dict["state"] = {"step": state_dict["state"]["step"]}
 
-        # Initialize state dict on root rank
-        if self.distributed_rank == 0:
-            # Get state dict from base class
-            state_dict = super().state_dict()
-            state_dict["state"] = {"step": state_dict["state"]["step"]}
+        # Initialize state dict with CPU buffers
+        for param in self.parameters():
+            # Get param index in state dict
+            fragment = self.state[param]["fragments"][0]
+            param_group_id = fragment.param_group_id
+            param_id = fragment.param_id
+            index = state_dict["param_groups"][param_group_id]["params"][param_id]
 
-            # Initialize state dict with CPU buffers
-            for param in self.parameters():
-                # Get param index in state dict
-                fragment = self.state[param]["fragments"][0]
-                param_group_id = fragment.param_group_id
-                param_id = fragment.param_id
-                index = state_dict["param_groups"][param_group_id]["params"][param_id]
-
-                # Construct CPU buffers with optimizer state
-                state_dict["state"][index] = dict(
-                    param=torch.zeros_like(param, dtype=self.dtype, device="cpu"),
-                    exp_avg=torch.zeros_like(param, dtype=self.dtype, device="cpu"),
-                    exp_avg_sq=torch.zeros_like(param, dtype=self.dtype, device="cpu"),
-                )
+            # Construct CPU buffers with optimizer state
+            state_dict["state"][index] = dict(
+                param=torch.zeros_like(param, dtype=self.dtype, device="cpu"),
+                exp_avg=torch.zeros_like(param, dtype=self.dtype, device="cpu"),
+                exp_avg_sq=torch.zeros_like(param, dtype=self.dtype, device="cpu"),
+            )
 
         # Workspace buffers for gathering shards on root rank
         num_buckets = len(self.state["buckets"])
-        if self.distributed_rank == 0:
-            max_bucket_size = max(
-                bucket.bucket_size for bucket in self.state["buckets"]
+        max_bucket_size = max(bucket.bucket_size for bucket in self.state["buckets"])
+        bucket_buffers = [
+            torch.empty(
+                [max_bucket_size],
+                dtype=self.dtype,
+                device=self.device,
             )
-            bucket_buffers = [
-                torch.empty(
-                    [max_bucket_size],
-                    dtype=self.dtype,
-                    device=self.device,
-                )
-                for _ in range(self.pipeline_size)
-            ]
-
-        # Workspace buffers for packing param state
-        max_shard_size = max(bucket.shard_size for bucket in self.state["buckets"])
-        if self.store_params:
-            pass
-        elif self.store_param_remainders:
+            for _ in range(self.pipeline_size)
+        ]
+        if self.store_param_remainders:
+            max_shard_size = max(bucket.shard_size for bucket in self.state["buckets"])
             shard_bf16_buffers = [
                 torch.empty([max_shard_size], dtype=torch.bfloat16, device=self.device)
-                for _ in range(self.pipeline_size)
-            ]
-            shard_fp32_buffers = [
-                torch.empty([max_shard_size], dtype=torch.float32, device=self.device)
-                for _ in range(self.pipeline_size)
-            ]
-        else:
-            shard_buffers = [
-                torch.empty([max_shard_size], dtype=self.dtype, device=self.device)
                 for _ in range(self.pipeline_size)
             ]
 
@@ -2488,11 +2464,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             shard_size = bucket.shard_size
 
             # Case 1: Param state is already packed
-            if self.store_params:
+            if bucket.params_shard is not None:
                 return bucket.params_shard
 
             # Case 2: Pack BF16 model params with 16-bit remainders
-            if self.store_param_remainders:
+            if bucket.param_remainders_shard is not None:
                 with torch.cuda.stream(stream):
                     # Pack bf16 param values
                     shard_bf16 = shard_bf16_buffers[stream_id][:shard_size]
@@ -2515,17 +2491,25 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     )
 
                     # Reconstruct fp32 from bf16 and remainders
-                    shard = shard_fp32_buffers[stream_id][:shard_size]
+                    shard_range = slice(
+                        shard_size * self.distributed_rank,
+                        shard_size * (self.distributed_rank + 1),
+                    )
+                    shard_fp32 = bucket_buffers[stream_id][shard_range]
                     _bf16_rem_to_fp32(
                         shard_bf16,
                         bucket.param_remainders_shard,
-                        shard,
+                        shard_fp32,
                     )
-                    return shard
+                    return shard_fp32
 
             # Case 3: Pack model params
             with torch.cuda.stream(stream):
-                shard = shard_buffers[stream_id][:shard_size]
+                shard_range = slice(
+                    shard_size * self.distributed_rank,
+                    shard_size * (self.distributed_rank + 1),
+                )
+                shard = bucket_buffers[stream_id][shard_range]
                 buffers_in = []
                 buffers_out = []
                 for fragment in bucket.fragments:
@@ -2545,11 +2529,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 )
                 return shard
 
-        def start_gather(bucket_id: int, shard: torch.Tensor) -> None:
-            """Launch gather on bucket shards
+        def start_all_gather(bucket_id: int, shard: torch.Tensor) -> None:
+            """Launch all-gather on bucket shards
 
             Communication is done on main stream to ensure consistent
-            ordering. Bucket shards are gathered into root rank.
+            ordering.
 
             """
 
@@ -2557,47 +2541,33 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             stream_id = bucket_id % self.pipeline_size
             stream = self._pipeline_streams[stream_id]
 
-            # Initialize gather buffer on root rank
-            bucket_shards = None
-            if self.distributed_rank == 0:
-                # Workspace buffer
-                bucket = self.state["buckets"][bucket_id]
-                bucket_size = bucket.bucket_size
-                bucket_buffer = bucket_buffers[stream_id][:bucket_size]
+            # Workspace buffer
+            bucket = self.state["buckets"][bucket_id]
+            bucket_size = bucket.bucket_size
+            bucket_buffer = bucket_buffers[stream_id][:bucket_size]
 
-                # Shards in workspace buffer
-                shard_size = bucket.shard_size
-                bucket_shards = [
-                    bucket_buffer[i * shard_size : (i + 1) * shard_size]
-                    for i in range(self.distributed_size)
-                ]
-
-            # Gather shards into root rank
+            # All-gather shards
             main_stream.wait_stream(stream)
-            torch.distributed.gather(
+            all_gather_into_tensor(
+                bucket_buffer,
                 shard,
-                bucket_shards,
-                dst=self.process_group_root,
                 group=self.distributed_process_group,
             )
             stream.wait_stream(main_stream)
 
-        def finish_gather(bucket_id: int, state_dict_key: str) -> None:
-            """Finish gather on bucket shards
+        def finish_all_gather(bucket_id: int, state_dict_key: str) -> None:
+            """Finish all-gather on bucket shards
 
-            Data is copied into state dict CPU buffers on the root
-            rank.
+            Data is copied into state dict CPU buffers.
 
-            Splitting the NCCL gather and the CPU memcpys into
+            Splitting the NCCL all-gather and the CPU memcpys into
             separate stages helps achieve good overlap when kernel
             launches are serialized with
             CUDA_DEVICE_MAX_CONNECTIONS=1. In particular, the pipeline
-            calls start_gather(bucket_id+1) before
-            finish_gather(bucket_id).
+            calls start_all_gather(bucket_id+1) before
+            finish_all_gather(bucket_id).
 
             """
-            if self.distributed_rank != 0:
-                return
 
             # Stream objects
             stream_id = bucket_id % self.pipeline_size
@@ -2623,43 +2593,38 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     bucket_fragment = bucket_buffer[bucket_range]
                     state_fragment.copy_(bucket_fragment, non_blocking=True)
 
-        # Gather param state
+        # All-gather param state
         for bucket_id in range(num_buckets):
             shard = pack_param_shard(bucket_id)
-            start_gather(bucket_id, shard)
+            start_all_gather(bucket_id, shard)
             if bucket_id > 0:
-                finish_gather(bucket_id - 1, "param")
+                finish_all_gather(bucket_id - 1, "param")
             if bucket_id == num_buckets - 1:
-                finish_gather(bucket_id, "param")
+                finish_all_gather(bucket_id, "param")
 
-        # Gather exp_avg state
+        # All-gather exp_avg state
         for bucket_id in range(num_buckets):
             shard = self.state["buckets"][bucket_id].exp_avg_shard
-            start_gather(bucket_id, shard)
+            start_all_gather(bucket_id, shard)
             if bucket_id > 0:
-                finish_gather(bucket_id - 1, "exp_avg")
+                finish_all_gather(bucket_id - 1, "exp_avg")
             if bucket_id == num_buckets - 1:
-                finish_gather(bucket_id, "exp_avg")
+                finish_all_gather(bucket_id, "exp_avg")
 
-        # Gather exp_avg_sq state
+        # All-gather exp_avg_sq state
         for bucket_id in range(num_buckets):
             shard = self.state["buckets"][bucket_id].exp_avg_sq_shard
-            start_gather(bucket_id, shard)
+            start_all_gather(bucket_id, shard)
             if bucket_id > 0:
-                finish_gather(bucket_id - 1, "exp_avg_sq")
+                finish_all_gather(bucket_id - 1, "exp_avg_sq")
             if bucket_id == num_buckets - 1:
-                finish_gather(bucket_id, "exp_avg_sq")
+                finish_all_gather(bucket_id, "exp_avg_sq")
 
-        # Synchronize GPU
+        # Synchronize GPU and return
         for stream in self._pipeline_streams:
             main_stream.wait_stream(stream)
         main_stream.synchronize()
-
-        # Return state dict on root rank
-        if self.distributed_rank == 0:
-            return state_dict
-        else:
-            return None
+        return state_dict
 
     def load_state_dict(self, state_dict: dict) -> None:
         """Load optimizer state"""

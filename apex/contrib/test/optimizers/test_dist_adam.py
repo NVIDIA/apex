@@ -473,8 +473,6 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             )
             optim_load.init_params(list(model_load.parameters()))
 
-        # Helper functions
-
         batch_size = 2 * save_group_size * load_group_size
         def make_global_batch() -> torch.Tensor:
             """Generate random tensor on root rank and broadcast"""
@@ -555,29 +553,30 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                     atol=atol,
                 )
 
-        # Save state on root rank
+        # Save state
         state_bytes = None
         if self.rank < save_group_size:
-            optim_state = optim_save.state_dict()
-            if self.rank == 0:
-                state_dict = {
-                    'model': model_save.state_dict(),
-                    'optim': optim_state,
-                }
-                byte_stream = io.BytesIO()
-                torch.save(state_dict, byte_stream)
-                state_bytes = byte_stream.getvalue()
+            state_dict = {
+                'model': model_save.state_dict(),
+                'optim': optim_save.state_dict(),
+            }
+            byte_stream = io.BytesIO()
+            torch.save(state_dict, byte_stream)
+            state_bytes = byte_stream.getvalue()
 
         # Broadcast state from root rank and load
         if self.rank < load_group_size:
-            state_bytes = [state_bytes]
-            torch.distributed.broadcast_object_list(
-                state_bytes,
-                src=0,
-                group=load_group,
-            )
-            state_bytes = io.BytesIO(state_bytes[0])
-            state_dict = torch.load(state_bytes)
+            if load_group_size != save_group_size:
+                if self.rank != 0:
+                    state_bytes = None
+                state_bytes = [state_bytes]
+                torch.distributed.broadcast_object_list(
+                    state_bytes,
+                    src=0,
+                    group=load_group,
+                )
+                state_bytes = state_bytes[0]
+            state_dict = torch.load(io.BytesIO(state_bytes))
             model_load.load_state_dict(state_dict['model'])
             optim_load.load_state_dict(state_dict['optim'])
 
