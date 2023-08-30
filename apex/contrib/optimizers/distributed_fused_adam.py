@@ -2199,12 +2199,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     ) -> Optional[dict]:
         """Get dictionary containing optimizer state
 
-        Gathers optimizer state on the process group's root rank and
-        returns None on non-root ranks.
+        All ranks in the process group must call this function since
+        it performs communication. The same optimizer state is
+        returned on all ranks.
 
         Arguments:
-            state_dict_format (optional): Tag for custom or deprecated
-                state dict format.
+            state_dict_format (int, optional): Tag for custom or
+                deprecated state dict format.
             gather_on_root (bool, optional): Option for deprecated v1
                 format.
 
@@ -2398,8 +2399,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def _state_dict_v2(self) -> Optional[dict]:
         """Get dictionary containing optimizer state (default v2 format)
 
-        Gathers optimizer state on the process group's root rank and
-        returns None on non-root ranks.
+        All ranks in the process group must call this function since
+        it performs communication. The same optimizer state is
+        returned on all ranks.
 
         """
 
