@@ -2179,10 +2179,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             bf16_rem_buckets = set()
             for bucket_id in bucket_ids:
                 state_bucket = self.state["buckets"][bucket_id]
-                if (
-                    state_bucket.dtype == self.dtype
-                    and state_bucket.param_sync_dtype == self.param_sync_dtype
-                ):
+                if state_bucket.param_remainders_shard is not None:
                     bf16_rem_buckets.add(bucket_id)
             if bf16_rem_buckets:
                 self._local_step_with_param_remainders(sorted(bf16_rem_buckets))
