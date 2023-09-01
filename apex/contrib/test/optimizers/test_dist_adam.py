@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import io
 from typing import Callable, Optional, Tuple
 import unittest
+import warnings
 
 import torch
 from torch.testing._internal import common_utils
@@ -39,6 +40,7 @@ def make_models(
         contiguous_buffers: bool = False,
         store_params: bool = False,
         store_param_remainders: bool = False,
+        bucket_cap_mb: float = 71/(4*1024*1024),
 ):
 
     # Construct models with same parameters
@@ -78,7 +80,7 @@ def make_models(
         adam_w_mode=adam_w_mode,
         overlap_grad_sync=overlap_communication,
         overlap_param_sync=overlap_communication,
-        bucket_cap_mb=71/(4*1024*1024),
+        bucket_cap_mb=bucket_cap_mb,
         dtype=optim_dtype,
         grad_sync_dtype=grad_sync_dtype,
         param_sync_dtype=param_sync_dtype,
@@ -126,6 +128,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             contiguous_buffers: bool = False,
             store_params: bool = False,
             store_param_remainders: bool = False,
+            bucket_cap_mb: float = 71/(4*1024*1024),
             init_optim_func: Optional[Callable[[DistributedFusedAdam], None]] = None,
     ):
 
@@ -145,6 +148,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             contiguous_buffers=contiguous_buffers,
             store_params=store_params,
             store_param_remainders=store_param_remainders,
+            bucket_cap_mb=bucket_cap_mb,
         )
 
         # Initialize distributed optimizer
@@ -480,8 +484,6 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             )
             optim_load.init_params(list(model_load.parameters()))
 
-        # Helper functions
-
         batch_size = 2 * save_group_size * load_group_size
         def make_global_batch() -> torch.Tensor:
             """Generate random tensor on root rank and broadcast"""
@@ -562,29 +564,30 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                     atol=atol,
                 )
 
-        # Save state on root rank
+        # Save state
         state_bytes = None
         if self.rank < save_group_size:
-            optim_state = optim_save.state_dict()
-            if self.rank == 0:
-                state_dict = {
-                    'model': model_save.state_dict(),
-                    'optim': optim_state,
-                }
-                byte_stream = io.BytesIO()
-                torch.save(state_dict, byte_stream)
-                state_bytes = byte_stream.getvalue()
+            state_dict = {
+                'model': model_save.state_dict(),
+                'optim': optim_save.state_dict(),
+            }
+            byte_stream = io.BytesIO()
+            torch.save(state_dict, byte_stream)
+            state_bytes = byte_stream.getvalue()
 
         # Broadcast state from root rank and load
         if self.rank < load_group_size:
-            state_bytes = [state_bytes]
-            torch.distributed.broadcast_object_list(
-                state_bytes,
-                src=0,
-                group=load_group,
-            )
-            state_bytes = io.BytesIO(state_bytes[0])
-            state_dict = torch.load(state_bytes)
+            if load_group_size != save_group_size:
+                if self.rank != 0:
+                    state_bytes = None
+                state_bytes = [state_bytes]
+                torch.distributed.broadcast_object_list(
+                    state_bytes,
+                    src=0,
+                    group=load_group,
+                )
+                state_bytes = state_bytes[0]
+            state_dict = torch.load(io.BytesIO(state_bytes))
             model_load.load_state_dict(state_dict['model'])
             optim_load.load_state_dict(state_dict['optim'])
 
@@ -688,6 +691,32 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 store_param_remainders=True,
             ),
         )
+
+    def test_bucket_low_utilization_warning(self):
+        """Test warning when bucket utilization is low"""
+        layer_size = 2*1024*1024
+        num_layers = 4
+        fairish_bucket_cap_mb = 4*num_layers*layer_size/(1024*1024)
+
+        # Check that warning is raised when bucket utilization is low
+        with self.assertWarnsRegex(Warning, ".*Consider decreasing the bucket_cap_mb argument."):
+            self.test_matches_pytorch(
+                num_layers=num_layers,
+                layer_size=layer_size,
+                bucket_cap_mb=fairish_bucket_cap_mb * 2,
+                contiguous_buffers=True,
+            )
+
+        # Check that warning is not raised when bucket utilization is high
+        with warnings.catch_warnings(record=True) as warns:
+            self.test_matches_pytorch(
+                num_layers=num_layers,
+                layer_size=layer_size,
+                bucket_cap_mb=fairish_bucket_cap_mb,
+                contiguous_buffers=True,
+            )
+            for w in warns:
+                self.assertNotRegex(str(w.message), ".*Consider decreasing the bucket_cap_mb argument.")
 
 
 if __name__ == "__main__":
