@@ -95,8 +95,6 @@ class LabelSmoothingTest(unittest.TestCase):
             self.print_max_diff_elem(ref_grad, val_grad)
             torch.testing.assert_close(val_loss, ref_loss)
             torch.testing.assert_close(val_grad, ref_grad)
-            # self.assertTrue(torch.allclose(ref_loss, val_loss, atol=1e-5, rtol=1e-5))
-            # self.assertTrue(torch.allclose(ref_grad, val_grad, atol=1e-5, rtol=1e-5))
 
     def test_label_smoothing_function_fp16(self):
         self._test_label_smoothing_function(torch.half)
