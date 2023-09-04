@@ -605,7 +605,7 @@ std::vector<Tensor> host_softmax_xentropy(
   dim3 grid(outer_size);
 
   using namespace at;
-  DISPATCH_FLOAT_AND_HALF(input.scalar_type(), 0, "host_softmax_xentropy",
+  DISPATCH_FLOAT_HALF_AND_BFLOAT(input.scalar_type(), 0, "host_softmax_xentropy",
     using accscalar_t = at::acc_type<scalar_t_0, true>;
     const int ILP = sizeof(float4)/sizeof(scalar_t_0);
     dim3 block = SoftMax_getBlockSize(ILP, dim_size);
@@ -673,7 +673,7 @@ Tensor host_softmax_xentropy_backward(
 
   dim3 grid(outer_size);
 
-  DISPATCH_FLOAT_AND_HALF(gI.scalar_type(), 0, "host_softmax_xentropy_backward",
+  DISPATCH_FLOAT_HALF_AND_BFLOAT(gI.scalar_type(), 0, "host_softmax_xentropy_backward",
     using accscalar_t = acc_type<scalar_t_0, true>;
     const int ILP = sizeof(float4)/sizeof(scalar_t_0);
     dim3 block = SoftMax_getBlockSize(ILP, dim_size);

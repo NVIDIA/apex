@@ -405,15 +405,18 @@ if "--bnp" in sys.argv:
     )
 
 if "--xentropy" in sys.argv:
+    from datetime import datetime
     sys.argv.remove("--xentropy")
     raise_if_cuda_home_none("--xentropy")
+    xentropy_ver = datetime.today().strftime("%y.%m.%d")
+    print(f"`--xentropy` setting version of {xentropy_ver}")
     ext_modules.append(
         CUDAExtension(
             name="xentropy_cuda",
             sources=["apex/contrib/csrc/xentropy/interface.cpp", "apex/contrib/csrc/xentropy/xentropy_kernel.cu"],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"] + version_dependent_macros + [f'-DXENTROPY_VER="{xentropy_ver}"'],
                 "nvcc": ["-O3"] + version_dependent_macros,
             },
         )

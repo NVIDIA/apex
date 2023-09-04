@@ -45,8 +45,8 @@ class LabelSmoothingTest(unittest.TestCase):
         # Set pytorch print precision
         torch.set_printoptions(precision=10)
 
-    def gen_test_inputs(self, N, T, H, smoothing, padding_idx):
-        logits = torch.randn((N*T, H), dtype=torch.half, device='cuda',
+    def gen_test_inputs(self, N, T, H, smoothing, padding_idx, dtype=torch.half):
+        logits = torch.randn((N*T, H), dtype=dtype, device='cuda',
             requires_grad=True)
         labels = torch.randint(0, H, [N*T], device='cuda')
         for i in random.sample(range(N*T), N*T//6):
@@ -62,7 +62,7 @@ class LabelSmoothingTest(unittest.TestCase):
         print("Max atol idx: {}, diff: {:.6f}, ref: {:.6f}, tst: {:.6f}".format(
             idx, diff, ref[idx], tst[idx]))
 
-    def test_label_smoothing_function(self):
+    def _test_label_smoothing_function(self, dtype):
         # Set label smoothing configuration
         smoothing, padding_idx = 0.1, 0
         N, T, H = 128, 74, 32320
@@ -93,8 +93,14 @@ class LabelSmoothingTest(unittest.TestCase):
 
             # Validate
             self.print_max_diff_elem(ref_grad, val_grad)
-            self.assertTrue(torch.allclose(ref_loss, val_loss, atol=1e-5, rtol=1e-5))
-            self.assertTrue(torch.allclose(ref_grad, val_grad, atol=1e-5, rtol=1e-5))
+            torch.testing.assert_close(val_loss, ref_loss)
+            torch.testing.assert_close(val_grad, ref_grad)
+
+    def test_label_smoothing_function_fp16(self):
+        self._test_label_smoothing_function(torch.half)
+
+    def test_label_smoothing_function_bf16(self):
+        self._test_label_smoothing_function(torch.bfloat16)
 
     def test_label_smoothing_perf(self):
         # Set label smoothing configuration
@@ -131,6 +137,6 @@ class LabelSmoothingTest(unittest.TestCase):
         print("Opt time {:.2f} s elapsed for {} iterations, norm {:.4f}".format(
             time.time() - ts, iters, logits.grad.norm()))
 
+
 if __name__ == '__main__':
     unittest.main()
-
