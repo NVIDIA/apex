@@ -7,7 +7,11 @@ import warnings
 import torch
 from torch.testing._internal import common_utils
 
-from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+SKIP_TEST = None
+try:
+    from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+except ImportError as e:
+    SKIP_TEST = e
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 
 
@@ -104,6 +108,7 @@ def dummy_context():
         pass
 
 
+@unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     seed = 1234
