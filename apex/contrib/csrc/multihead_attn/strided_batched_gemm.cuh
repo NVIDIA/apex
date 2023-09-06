@@ -7,8 +7,6 @@
 //#include <cuda_profiler_api.h>
 #include <cuda_runtime.h>
 
-#include <rocblas/rocblas.h>
-
 //#include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
@@ -44,52 +42,6 @@ cublasOperation_t convertTransToCublasOperation(char trans) {
   }
 }
 
-// needed to work around calling rocblas API instead of hipblas API
-static rocblas_operation hipOperationToRocOperation(hipblasOperation_t op)
-{
-    switch(op)
-    {
-    case HIPBLAS_OP_N:
-        return rocblas_operation_none;
-    case HIPBLAS_OP_T:
-        return rocblas_operation_transpose;
-    case HIPBLAS_OP_C:
-        return rocblas_operation_conjugate_transpose;
-    }
-    AT_ERROR("HIPBLAS_STATUS_INVALID_ENUM");
-}
-
-static hipblasStatus_t rocBLASStatusToHIPStatus(rocblas_status error)
-{
-    switch(error)
-    {
-    case rocblas_status_size_unchanged:
-    case rocblas_status_size_increased:
-    case rocblas_status_success:
-    case rocblas_status_continue:
-        return HIPBLAS_STATUS_SUCCESS;
-    case rocblas_status_invalid_handle:
-        return HIPBLAS_STATUS_NOT_INITIALIZED;
-    case rocblas_status_not_implemented:
-    case rocblas_status_excluded_from_build:
-        return HIPBLAS_STATUS_NOT_SUPPORTED;
-    case rocblas_status_invalid_pointer:
-    case rocblas_status_invalid_size:
-    case rocblas_status_invalid_value:
-    case rocblas_status_size_query_mismatch:
-        return HIPBLAS_STATUS_INVALID_VALUE;
-    case rocblas_status_memory_error:
-        return HIPBLAS_STATUS_ALLOC_FAILED;
-    case rocblas_status_internal_error:
-    case rocblas_status_perf_degraded:
-    case rocblas_status_check_numerics_fail:
-        return HIPBLAS_STATUS_INTERNAL_ERROR;
-    case rocblas_status_arch_mismatch:
-        return HIPBLAS_STATUS_ARCH_MISMATCH;
-    }
-    AT_ERROR("HIPBLAS_STATUS_INVALID_ENUM");
-}
-
 void RocblasStridedBatchedGemm(char transa, char transb, long m, long n, long k,
                     float alpha, const half *a, long lda, long strideA, const half *b, long ldb, long strideB,
                     float beta, half *c, long ldc, long strideC, half *d, long ldd, long strideD, long batchCount, rocblas_gemm_algo algo, rocblas_int flags) {
@@ -102,13 +54,13 @@ void RocblasStridedBatchedGemm(char transa, char transb, long m, long n, long k,
     float fAlpha = alpha;
     float fBeta = beta;
     //THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
-    TORCH_CUDABLAS_CHECK(rocBLASStatusToHIPStatus(rocblas_gemm_strided_batched_ex((rocblas_handle)handle,
-                                     hipOperationToRocOperation(opa), hipOperationToRocOperation(opb), (int)m, (int)n, (int)k,
+    TORCH_CUDABLAS_CHECK(rocblas_gemm_strided_batched_ex(handle,
+                                     opa, opb, (int)m, (int)n, (int)k,
                                      (void*)&fAlpha, a, rocblas_datatype_f16_r /*a_type*/, (int)lda, strideA,
                                      b, rocblas_datatype_f16_r /*b_type*/, (int)ldb, strideB,
                                      (void*)&fBeta, c, rocblas_datatype_f16_r /*c_type*/, (int)ldc, strideC,
                                      d, rocblas_datatype_f16_r /*d_type*/, int(ldd), strideD,
-                                     (int)batchCount, rocblas_datatype_f32_r /*compute_type*/, algo, 0 /*solution_index*/, flags)));
+                                     (int)batchCount, rocblas_datatype_f32_r /*compute_type*/, algo, 0 /*solution_index*/, flags));
 }
 
 void gemm_switch_fp32accum(char transa, char transb, long m, long n, long k,
