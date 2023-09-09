@@ -42,6 +42,8 @@ void ln_fwd_kernel(FwdParams params) {
     const index_t r = bidm * ROWS_PER_CTA + warp_m;
     const index_t c = bidn * THREADS_PER_ROW + warp_n * THREADS_PER_WARP + lane;
 
+    output_t gamma_shift = params.gamma_shift;
+
     Stats stats(params, bidm, bidn, warp_m, warp_n, lane, smem_);
 
     compute_t *mu_ptr = static_cast<compute_t *>(params.mu);
@@ -98,7 +100,7 @@ void ln_fwd_kernel(FwdParams params) {
                 output_t y_ij = output_t(rs * (xf[it * NUM_ELTS + jt] - mu));
                 output_t g_ij = gamma[it].data.elt[jt];
                 output_t b_ij = beta[it].data.elt[jt];
-                z[it].data.elt[jt] = (g_ij * y_ij + b_ij);
+                z[it].data.elt[jt] = ((g_ij + gamma_shift) * y_ij + b_ij);
             }
             z[it].store_to(params.z, idx);
             idx += VEC_COLS_PER_LDG;
