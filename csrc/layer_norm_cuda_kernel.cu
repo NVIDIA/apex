@@ -7,6 +7,7 @@
 #include <cuda_runtime.h>
 
 #include "type_shim.h"
+#include "static_switch.h"
 
 template<typename U> __device__
 void cuWelfordOnlineSum(
@@ -458,7 +459,7 @@ V clamp_by_magnitude(V curr_gamma, double eps)
 }
 
 
-template<typename T, typename U, typename V> __device__
+template<typename T, typename U, typename V, bool MemoryEfficient> __device__
 void cuLoadWriteStridedInputs(
     const int i1_block,
     const int thr_load_row_off,
@@ -476,8 +477,7 @@ void cuLoadWriteStridedInputs(
     const V* __restrict__ gamma,
     const V* __restrict__ beta,
     const double eps,
-    bool rms_only,
-    bool memory_efficient
+    bool rms_only
     )
 {
   int i1 = i1_block+thr_load_row_off;
@@ -491,14 +491,14 @@ void cuLoadWriteStridedInputs(
         U curr_dout = static_cast<U>(dout[load_idx]);
         if (!rms_only) {
           warp_buf1[write_idx] = curr_dout;
-          if (memory_efficient) {
+          if (MemoryEfficient) {
             U curr_beta = static_cast<U>(beta[i2]);
             warp_buf2[write_idx] = curr_dout * (c_h - curr_beta) / static_cast<U>(clamp_by_magnitude(gamma[i2], eps));
           } else {
             warp_buf2[write_idx] = curr_dout * (c_h - mean[i1]) * invvar[i1];
           }
         } else {
-          if (memory_efficient) {
+          if (MemoryEfficient) {
             warp_buf2[write_idx] = curr_dout * (c_h) / static_cast<U>(clamp_by_magnitude(gamma[i2], eps));
           } else {
             warp_buf2[write_idx] = curr_dout * (c_h) * invvar[i1];
@@ -522,7 +522,7 @@ void cuLoadWriteStridedInputs(
   }
 }
 
-template<typename T, typename U, typename V> __device__
+template<typename T, typename U, typename V, bool MemoryEfficient> __device__
 void cuLoadAddStridedInputs(
     const int i1_block,
     const int thr_load_row_off,
@@ -540,8 +540,7 @@ void cuLoadAddStridedInputs(
     const V* __restrict__ gamma,
     const V* __restrict__ beta,
     const double eps,
-    bool rms_only,
-    bool memory_efficient
+    bool rms_only
     )
 {
   int i1 = i1_block+thr_load_row_off;
@@ -556,13 +555,13 @@ void cuLoadAddStridedInputs(
         if (!rms_only) {
           U curr_beta = static_cast<U>(beta[i2]);
           warp_buf1[write_idx] += curr_dout;
-          if (memory_efficient) {
+          if (MemoryEfficient) {
             warp_buf2[write_idx] += curr_dout * (c_h - curr_beta) / static_cast<U>(clamp_by_magnitude(gamma[i2], eps));
           } else {
             warp_buf2[write_idx] += curr_dout * (c_h - mean[i1]) * invvar[i1];
           }
         } else {
-          if (memory_efficient) {
+          if (MemoryEfficient) {
             warp_buf2[write_idx] += curr_dout * (c_h) / static_cast<U>(clamp_by_magnitude(gamma[i2], eps));
           } else {
             warp_buf2[write_idx] += curr_dout * (c_h) * invvar[i1];
@@ -574,7 +573,7 @@ void cuLoadAddStridedInputs(
 }
 
 
-template<typename T, typename U, typename V> __global__
+template<typename T, typename U, typename V, bool MemoryEfficient> __global__
 void cuComputePartGradGammaBeta(
     const V* __restrict__ dout,
     const T* __restrict__ input_or_output,
@@ -588,8 +587,7 @@ void cuComputePartGradGammaBeta(
     U* part_grad_gamma,
     U* part_grad_beta,
     const double eps,
-    bool rms_only,
-    bool memory_efficient)
+    bool rms_only)
 {
     const int numsegs_n1 = (n1+blockDim.y*blockDim.y-1) / (blockDim.y*blockDim.y);
     const int segs_per_block = (numsegs_n1 + gridDim.y - 1) / gridDim.y;
@@ -606,9 +604,9 @@ void cuComputePartGradGammaBeta(
     U* warp_buf2 = warp_buf1 + blockDim.y * blockDim.y * row_stride;
     // compute partial sums from strided inputs
     // do this to increase number of loads in flight
-    cuLoadWriteStridedInputs(i1_beg,thr_load_row_off,thr_load_col_off,i2_off,row_stride,warp_buf1,warp_buf2,input_or_output,dout,i1_end,n2,mean,invvar,gamma,beta,eps, rms_only,memory_efficient);
+    cuLoadWriteStridedInputs<T, U, V, MemoryEfficient>(i1_beg,thr_load_row_off,thr_load_col_off,i2_off,row_stride,warp_buf1,warp_buf2,input_or_output,dout,i1_end,n2,mean,invvar,gamma,beta,eps, rms_only);
     for (int i1_block = i1_beg+blockDim.y*blockDim.y;  i1_block < i1_end;  i1_block+=blockDim.y*blockDim.y) {
-      cuLoadAddStridedInputs(i1_block,thr_load_row_off,thr_load_col_off,i2_off,row_stride,warp_buf1,warp_buf2,input_or_output,dout,i1_end,n2,mean,invvar,gamma,beta,eps, rms_only,memory_efficient);
+      cuLoadAddStridedInputs<T, U, V, MemoryEfficient>(i1_block,thr_load_row_off,thr_load_col_off,i2_off,row_stride,warp_buf1,warp_buf2,input_or_output,dout,i1_end,n2,mean,invvar,gamma,beta,eps, rms_only);
     }
     __syncthreads();
     // inter-warp reductions
@@ -716,7 +714,7 @@ void cuComputeGradGammaBeta(
 }
 
 
-template<typename T, typename U, typename V> __global__
+template<typename T, typename U, typename V, bool MemoryEfficient> __global__
 void cuComputeGradInput(
     const V* __restrict__ dout,
     const T* __restrict__ input_or_output,
@@ -729,8 +727,7 @@ void cuComputeGradInput(
     const V* beta,
     T* grad_input,
     const double eps,
-    bool rms_only,
-    bool memory_efficient)
+    bool rms_only)
 {
   for (auto i1=blockIdx.y; i1 < n1; i1 += gridDim.y) {
     U sum_loss1 = U(0);
@@ -738,7 +735,7 @@ void cuComputeGradInput(
     const T* k_h = input_or_output + i1*n2;
     const V* k_dout = dout + i1*n2;
     const U c_invvar = invvar[i1];
-    const U c_mean = !memory_efficient ? mean[i1] : 0.;
+    const U c_mean = !MemoryEfficient ? mean[i1] : 0.;
     const int numx = blockDim.x * blockDim.y;
     const int thrx = threadIdx.x + threadIdx.y * blockDim.x;
     if (gamma != NULL) {
@@ -749,13 +746,13 @@ void cuComputeGradInput(
           const U c_loss = static_cast<U>(k_dout[l+k]);
           if (!rms_only) {
             sum_loss1 += c_loss * gamma[l+k];
-            if (memory_efficient) {
+            if (MemoryEfficient) {
               sum_loss2 += c_loss * (c_h - beta[l+k]);
             } else {
               sum_loss2 += c_loss * gamma[l+k] * (c_h - c_mean) * c_invvar;
             }
           } else {
-            if (memory_efficient) {
+            if (MemoryEfficient) {
               sum_loss2 += c_loss * c_h;
             } else {
               sum_loss2 += c_loss * gamma[l+k] * (c_h) * c_invvar;
@@ -768,13 +765,13 @@ void cuComputeGradInput(
         const U c_loss = static_cast<U>(k_dout[l]);
         if (!rms_only) {
           sum_loss1 += c_loss * gamma[l];
-          if (memory_efficient) {
+          if (MemoryEfficient) {
             sum_loss2 += c_loss * (c_h - beta[l]);
           } else {
             sum_loss2 += c_loss * gamma[l] * (c_h - c_mean) * c_invvar;
           }
         } else {
-          if (memory_efficient) {
+          if (MemoryEfficient) {
             sum_loss2 += c_loss * c_h;
           } else {
             sum_loss2 += c_loss * gamma[l] * (c_h) * c_invvar;
@@ -789,13 +786,13 @@ void cuComputeGradInput(
           const U c_loss = static_cast<U>(k_dout[l+k]);
           if (!rms_only) {
             sum_loss1 += c_loss;
-            if (memory_efficient) {
+            if (MemoryEfficient) {
               sum_loss2 += c_loss * c_h;
             } else {
               sum_loss2 += c_loss * (c_h - c_mean) * c_invvar;
             }
           } else {
-            if (memory_efficient) {
+            if (MemoryEfficient) {
               sum_loss2 += c_loss * c_h;
             } else {
               sum_loss2 += c_loss * (c_h) * c_invvar;
@@ -808,13 +805,13 @@ void cuComputeGradInput(
         const U c_loss = static_cast<U>(k_dout[l]);
         if (!rms_only) {
           sum_loss1 += c_loss;
-          if (memory_efficient) {
+          if (MemoryEfficient) {
             sum_loss2 += c_loss * c_h;
           } else {
             sum_loss2 += c_loss * (c_h - c_mean) * c_invvar;
           }
         } else {
-          if (memory_efficient) {
+          if (MemoryEfficient) {
             sum_loss2 += c_loss * c_h;
           } else {
             sum_loss2 += c_loss * (c_h) * c_invvar;
@@ -880,13 +877,13 @@ void cuComputeGradInput(
         if (!rms_only) {
           const U k_beta = beta[l];
           f_grad_input -= sum_loss1;
-          if (memory_efficient) {
+          if (MemoryEfficient) {
             f_grad_input -= (c_h - k_beta) / k_gamma * sum_loss2;
           } else {
             f_grad_input -= (c_h - c_mean) * c_invvar * sum_loss2;
           }
         } else {
-          if (memory_efficient) {
+          if (MemoryEfficient) {
             f_grad_input -= c_h / k_gamma * sum_loss2;
           } else {
             f_grad_input -= c_h * c_invvar * sum_loss2;
@@ -902,13 +899,13 @@ void cuComputeGradInput(
         U f_grad_input = fH * c_loss;
         if (!rms_only) {
           f_grad_input -= sum_loss1;
-          if (memory_efficient) {
+          if (MemoryEfficient) {
             f_grad_input -= c_h * sum_loss2;
           } else {
             f_grad_input -= (c_h - c_mean) * c_invvar * sum_loss2;
           }
         } else {
-          if (memory_efficient) {
+          if (MemoryEfficient) {
             f_grad_input -= c_h * sum_loss2;
           } else {
             f_grad_input -= c_h * c_invvar * sum_loss2;
@@ -1067,20 +1064,22 @@ void HostLayerNormGradient(
         input_or_output->scalar_type();
       at::Tensor part_grad_gamma = at::empty({part_size,n2}, input_or_output->options().dtype(part_grad_dtype));
       at::Tensor part_grad_beta = at::empty_like(part_grad_gamma);
-      cuComputePartGradGammaBeta<<<blocks2, threads2, nshared2, stream>>>(
-                      dout,
-                      input_or_output->DATA_PTR<T>(),
-                      n1,n2,
-                      mean,
-                      invvar,
-                      U(epsilon),
-                      gamma,
-                      beta,
-                      part_grad_gamma.DATA_PTR<U>(),
-                      part_grad_beta.DATA_PTR<U>(),
-                      epsilon,
-                      false,
-                      memory_efficient);
+      BOOL_SWITCH(memory_efficient, MemoryEfficient, [&]{
+        auto kernel = &cuComputePartGradGammaBeta<T, U, V, MemoryEfficient>;
+        kernel<<<blocks2, threads2, nshared2, stream>>>(
+                        dout,
+                        input_or_output->DATA_PTR<T>(),
+                        n1,n2,
+                        mean,
+                        invvar,
+                        U(epsilon),
+                        gamma,
+                        beta,
+                        part_grad_gamma.DATA_PTR<U>(),
+                        part_grad_beta.DATA_PTR<U>(),
+                        epsilon,
+                        false);
+      });
 
       const dim3 threads3(32,8,1);
       const dim3 blocks3((n2+threads2.x-1)/threads2.x,1,1);
@@ -1103,19 +1102,21 @@ void HostLayerNormGradient(
             threads1.y > 1 ?
             threads1.y*threads1.x*sizeof(U) :
             0;
-    cuComputeGradInput<<<blocks1, threads1, nshared, stream>>>(
-            dout,
-            input_or_output->DATA_PTR<T>(),
-            n1,n2,
-            mean,
-            invvar,
-            U(epsilon),
-            gamma,
-            beta,
-            grad_input,
-            epsilon,
-            false,
-            memory_efficient);
+    BOOL_SWITCH(memory_efficient, MemoryEfficient, [&] {
+      auto kernel = cuComputeGradInput<T, U, V, MemoryEfficient>;
+      kernel<<<blocks1, threads1, nshared, stream>>>(
+              dout,
+              input_or_output->DATA_PTR<T>(),
+              n1,n2,
+              mean,
+              invvar,
+              U(epsilon),
+              gamma,
+              beta,
+              grad_input,
+              epsilon,
+              false);
+    });
 }
 
 template<typename T, typename U=float, typename V=T>
@@ -1147,20 +1148,23 @@ void HostRMSNormGradient(
         at::ScalarType::Float :
         input_or_output->scalar_type();
       at::Tensor part_grad_gamma = at::empty({part_size,n2}, input_or_output->options().dtype(part_grad_dtype));
-      cuComputePartGradGammaBeta<<<blocks2, threads2, nshared2, stream>>>(
-                      dout,
-                      input_or_output->DATA_PTR<T>(),
-                      n1,n2,
-                      invvar, /* unused */
-                      invvar,
-                      U(epsilon),
-                      gamma,
-                      gamma, /* unused */
-                      part_grad_gamma.DATA_PTR<U>(),
-                      part_grad_gamma.DATA_PTR<U>(), /* unused */
-                      epsilon,
-                      true,
-                      memory_efficient);
+      BOOL_SWITCH(memory_efficient, MemoryEfficient, [&]{
+        auto kernel = &cuComputePartGradGammaBeta<T, U, V, MemoryEfficient>;
+        kernel<<<blocks2, threads2, nshared2, stream>>>(
+                        dout,
+                        input_or_output->DATA_PTR<T>(),
+                        n1,n2,
+                        invvar, /* unused */
+                        invvar,
+                        U(epsilon),
+                        gamma,
+                        gamma, /* unused */
+                        part_grad_gamma.DATA_PTR<U>(),
+                        part_grad_gamma.DATA_PTR<U>(), /* unused */
+                        epsilon,
+                        true);
+      });
+            
 
       const dim3 threads3(32,8,1);
       const dim3 blocks3((n2+threads2.x-1)/threads2.x,1,1);
@@ -1183,19 +1187,21 @@ void HostRMSNormGradient(
             threads1.y > 1 ?
             threads1.y*threads1.x*sizeof(U) :
             0;
-    cuComputeGradInput<<<blocks1, threads1, nshared, stream>>>(
-            dout,
-            input_or_output->DATA_PTR<T>(),
-            n1,n2,
-            invvar, /* unused */
-            invvar,
-            U(epsilon),
-            gamma,
-            gamma, /* unused */
-            grad_input,
-            epsilon,
-            true,
-            memory_efficient);
+    BOOL_SWITCH(memory_efficient, MemoryEfficient, [&] {
+      auto kernel = cuComputeGradInput<T, U, V, MemoryEfficient>;
+      kernel<<<blocks1, threads1, nshared, stream>>>(
+              dout,
+              input_or_output->DATA_PTR<T>(),
+              n1,n2,
+              invvar, /* unused */
+              invvar,
+              U(epsilon),
+              gamma,
+              gamma, /* unused */
+              grad_input,
+              epsilon,
+              true);
+    });
 }
 
 void cuda_layer_norm_gradient(
