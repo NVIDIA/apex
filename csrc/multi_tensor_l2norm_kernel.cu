@@ -110,13 +110,13 @@ struct L2NormFunctor
 };
 
 template<typename x_t>
-struct ScaleL2NormFunctor
+struct UnscaleL2NormFunctor
 {
   __device__ __forceinline__ void operator()(
     int chunk_size,
     volatile int* noop_gmem,
     TensorListMetadata<1>& tl,
-    const float* scale,
+    const float* inv_scale,
     float* output,
     float* output_per_tensor,
     bool per_tensor,
@@ -155,7 +155,7 @@ struct ScaleL2NormFunctor
 #pragma unroll
         for(int ii = 0; ii < ILP; ii++)
         {
-          float next = static_cast<float>(r_x[ii]) * (*scale);
+          float next = static_cast<float>(r_x[ii]) * (*inv_scale);
           vals[ii] += next*next;
         }
       }
@@ -170,7 +170,7 @@ struct ScaleL2NormFunctor
           int i = i_start + threadIdx.x + ii*blockDim.x;
           if(i < n && i < chunk_size)
           {
-            float next = static_cast<float>(x[i]) * (*scale);
+            float next = static_cast<float>(x[i]) * (*inv_scale);
             vals[ii] += next*next;
           }
         }
@@ -440,11 +440,11 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(
   return std::tuple<at::Tensor, at::Tensor>(ret, ret_per_tensor);
 }
 
-std::tuple<at::Tensor, at::Tensor> multi_tensor_scale_l2norm_cuda(
+std::tuple<at::Tensor, at::Tensor> multi_tensor_unscale_l2norm_cuda(
   int chunk_size,
   at::Tensor noop_flag,
   std::vector<std::vector<at::Tensor>> tensor_lists,
-  at::Tensor scale,
+  at::Tensor inv_scale,
   at::optional<bool> per_tensor_python)
 {
   bool per_tensor = per_tensor_python.has_value() ? per_tensor_python.value() : false;
@@ -474,14 +474,14 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_scale_l2norm_cuda(
     ret_per_tensor = at::empty({0}, float_options);
   }
 
-  DISPATCH_FLOAT_HALF_AND_BFLOAT(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_scale_l2norm_cuda",
+  DISPATCH_FLOAT_HALF_AND_BFLOAT(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_unscale_l2norm_cuda",
     multi_tensor_apply<1>(
       BLOCK_SIZE,
       chunk_size,
       noop_flag,
       tensor_lists,
-      ScaleL2NormFunctor<scalar_t_0>(),
-      scale.DATA_PTR<float>(),
+      UnscaleL2NormFunctor<scalar_t_0>(),
+      inv_scale.DATA_PTR<float>(),
       output.DATA_PTR<float>(),
       per_tensor ? output_per_tensor.DATA_PTR<float>() : nullptr,
       per_tensor,
