@@ -1,6 +1,8 @@
 from contextlib import contextmanager
 import io
+from typing import Callable, Optional, Tuple
 import unittest
+import warnings
 
 import torch
 from torch.testing._internal import common_utils
@@ -28,18 +30,21 @@ class SimpleModel(torch.nn.Module):
 
 
 def make_models(
-        num_layers,
-        size,
-        adam_w_mode=True,
-        model_dtype=torch.float32,
-        optim_dtype=None,
-        grad_sync_dtype=None,
-        param_sync_dtype=None,
-        device='cuda',
-        overlap_communication=True,
-        contiguous_buffers=False,
-        store_params=False,
-        store_param_remainders=False,
+        num_layers: int,
+        size: int,
+        adam_w_mode: bool = True,
+        model_dtype: torch.dtype = torch.float32,
+        optim_dtype: Optional[torch.dtype] = None,
+        grad_sync_dtype: Optional[torch.dtype] = None,
+        param_sync_dtype: Optional[torch.dtype] = None,
+        device: torch.device = 'cuda',
+        process_group: Optional[torch.distributed.ProcessGroup] = None,
+        average_grad_sync: bool =True,
+        overlap_communication: bool = True,
+        contiguous_buffers: bool = False,
+        store_params: bool = False,
+        store_param_remainders: bool = False,
+        bucket_cap_mb: float = 71/(4*1024*1024),
 ):
 
     # Construct models with same parameters
@@ -56,6 +61,7 @@ def make_models(
         ref_model,
         device_ids=[rank] if device=='cuda' else None,
         output_device=rank if device=='cuda' else None,
+        process_group=process_group,
     )
 
     # Construct optimizers with same hyperparameters
@@ -78,10 +84,12 @@ def make_models(
         adam_w_mode=adam_w_mode,
         overlap_grad_sync=overlap_communication,
         overlap_param_sync=overlap_communication,
-        bucket_cap_mb=71/(4*1024*1024),
+        bucket_cap_mb=bucket_cap_mb,
         dtype=optim_dtype,
         grad_sync_dtype=grad_sync_dtype,
         param_sync_dtype=param_sync_dtype,
+        process_group=process_group,
+        average_grad_sync=average_grad_sync,
         contiguous_param_buffer=contiguous_buffers,
         contiguous_grad_buffer=contiguous_buffers,
         store_params=store_params,
@@ -107,24 +115,26 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     def test_matches_pytorch(
             self,
-            rtol=None,
-            atol=None,
-            num_layers=11,
-            layer_size=7,
-            batch_size=3,
-            num_steps=3,
-            micro_batch_steps=3,
-            adam_w_mode=True,
-            overlap_communication=True,
-            use_nosync=True,
-            model_dtype=torch.float32,
-            optim_dtype=None,
-            grad_sync_dtype=None,
-            param_sync_dtype=None,
-            device='cuda',
-            contiguous_buffers=False,
-            store_params=False,
-            store_param_remainders=False,
+            rtol: Optional[float] = None,
+            atol: Optional[float] = None,
+            num_layers: int = 11,
+            layer_size: int = 7,
+            batch_size: int = 3,
+            num_steps: int = 3,
+            micro_batch_steps: int = 3,
+            adam_w_mode: bool = True,
+            overlap_communication: bool = True,
+            use_nosync: bool = True,
+            model_dtype: torch.dtype = torch.float32,
+            optim_dtype: Optional[torch.dtype] = None,
+            grad_sync_dtype: Optional[torch.dtype] = None,
+            param_sync_dtype: Optional[torch.dtype] = None,
+            device: torch.device = 'cuda',
+            contiguous_buffers: bool = False,
+            store_params: bool = False,
+            store_param_remainders: bool = False,
+            bucket_cap_mb: float = 71/(4*1024*1024),
+            init_optim_func: Optional[Callable[[DistributedFusedAdam], None]] = None,
     ):
 
         torch.manual_seed(self.seed + self.rank)
@@ -143,7 +153,12 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             contiguous_buffers=contiguous_buffers,
             store_params=store_params,
             store_param_remainders=store_param_remainders,
+            bucket_cap_mb=bucket_cap_mb,
         )
+
+        # Initialize distributed optimizer
+        if init_optim_func is not None:
+            init_optim_func(dist_optim)
 
         # Training loop
         for step in range(num_steps):
@@ -265,6 +280,17 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             store_param_remainders=True,
         )
 
+    def test_matches_pytorch_multi_dtypes(self):
+        def init_optim(optim: DistributedFusedAdam):
+            params = list(optim.parameters())
+            optim.init_params(params[0::3], grad_sync_dtype=torch.bfloat16)
+            optim.init_params(params[1::3], param_sync_dtype=torch.bfloat16)
+        self.test_matches_pytorch(
+            rtol=5e-2,
+            atol=1e-5,
+            init_optim_func=init_optim,
+        )
+
     def test_raises_on_mismatch(self):
 
         torch.manual_seed(self.seed + self.rank)
@@ -370,100 +396,333 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                                              dist_model.parameters()):
                 torch.testing.assert_close(dist_param, ref_param)
 
-    def test_checkpoint(self):
+    def test_checkpoint(
+            self,
+            rtol: Optional[float] = None,
+            atol: Optional[float] = None,
+            num_layers: int = 2,
+            layer_size: int = 2,
+            num_steps: int = 3,
+            save_group_size: Optional[int] = None,
+            load_group_size: Optional[int] = None,
+            save_model_kwargs: Optional[dict] = None,
+            load_model_kwargs: Optional[dict] = None,
+    ):
+        """Test state_dict and load_state_dict functions
+
+        Two models are constructed, possibly on different process
+        groups. One of the models is trained for a few steps, a
+        checkpoint is saved, and the checkpoint is loaded on the other
+        model. Both models are then trained for a few steps and
+        checked to make sure that they produce identical results.
+
+        Arguments:
+            rtol (float): Relative tolerance for numerical checks (see
+                torch.allclose).
+            atol (float): Absolute tolerance for numerical checks (see
+                torch.allclose).
+            num_layers (int): Number of layers in test model.
+            layer_size (int): Number of features in model layers.
+            num_steps (int): Number of training steps to perform
+                before and after checkpointing.
+            save_group_size (int): Process group size for model that
+                saves the checkpoint. Uses the default process group
+                by default.
+            load_group_size (int): Process group size for model that
+                loads the checkpoint. Uses the default process group
+                by default.
+            save_model_kwargs (dict): keyword arguments passed to
+                make_models when constructing the model that saves the
+                checkpoint.
+            load_model_kwargs (dict): keyword arguments passed to
+                make_models when constructing the model that loads the
+                checkpoint.
+
+        """
+
+        # Initialize process groups
+        world_size = torch.distributed.get_world_size()
+        if save_group_size is None:
+            save_group_size = world_size
+            save_group = None
+        else:
+            if save_group_size > world_size:
+                self.skipTest(
+                    f"Requires {save_group_size} ranks, found {world_size}"
+                )
+            save_ranks = list(range(save_group_size))
+            save_group = torch.distributed.new_group(ranks=save_ranks)
+        if load_group_size is None:
+            load_group_size = world_size
+            load_group = None
+        else:
+            if load_group_size > world_size:
+                self.skipTest(
+                    f"Requires {load_group_size} ranks, found {world_size}"
+                )
+            load_ranks = list(range(load_group_size))
+            load_group = torch.distributed.new_group(ranks=load_ranks)
 
         # Construct two models with same config and different params
-        num_layers = 5
-        layer_size = 2
-        torch.manual_seed(self.seed + self.rank)
-        _, _, model_save, optim_save = make_models(num_layers, layer_size)
-        _, _, model_load, optim_load = make_models(num_layers, layer_size)
+        torch.manual_seed(self.seed)
+        if self.rank < save_group_size:
+            if not save_model_kwargs:
+                save_model_kwargs = {}
+            _, _, model_save, optim_save = make_models(
+                num_layers,
+                layer_size,
+                process_group=save_group,
+                average_grad_sync=False,
+                **save_model_kwargs,
+            )
+            optim_save.init_params(reversed(list(model_save.parameters())))
+        torch.manual_seed(self.seed+1)
+        if self.rank < load_group_size:
+            if not load_model_kwargs:
+                load_model_kwargs = {}
+            _, _, model_load, optim_load = make_models(
+                num_layers,
+                layer_size,
+                process_group=load_group,
+                average_grad_sync=False,
+                **load_model_kwargs,
+            )
+            optim_load.init_params(list(model_load.parameters()))
+
+        batch_size = 2 * save_group_size * load_group_size
+        def make_global_batch() -> torch.Tensor:
+            """Generate random tensor on root rank and broadcast"""
+            x = torch.empty(batch_size, layer_size, device='cuda')
+            if self.rank == 0:
+                torch.rand(x.size(), out=x)
+                x -= 0.5
+            torch.distributed.broadcast(x, src=0)
+            return x
+
+        def to_local_batch(
+                global_batch: torch.Tensor,
+                group: Optional[torch.distributed.ProcessGroup],
+        ) -> Optional[torch.Tensor]:
+            """Get local portion of tensor that is replicated across all ranks"""
+            group_size = torch.distributed.get_world_size(group)
+            if group_size < 0:
+                return None
+            local_batch_size = batch_size // group_size
+            batch_start = self.rank * local_batch_size
+            batch_end = (self.rank + 1) * local_batch_size
+            return global_batch[batch_start:batch_end, ...]
+
+        def to_global_batch(
+                local_batch: torch.Tensor,
+                group: Optional[torch.distributed.ProcessGroup],
+        ) -> torch.Tensor:
+            """Gather distributed tensor and broadcast to all ranks"""
+
+            # Allocate buffer
+            global_batch = torch.empty(batch_size, layer_size, device='cuda')
+
+            # Gather data on root rank
+            group_size = torch.distributed.get_world_size(group)
+            if group_size > 0:
+                local_batches = None
+                if self.rank == 0:
+                    local_batch_size = batch_size // group_size
+                    local_batches = [
+                        global_batch[rank*local_batch_size:(rank+1)*local_batch_size, ...]
+                        for rank in range(group_size)
+                    ]
+                torch.distributed.gather(
+                    local_batch,
+                    local_batches,
+                    dst=0,
+                    group=group,
+                )
+
+            # Broadcast data to all ranks
+            torch.distributed.broadcast(global_batch, src=0)
+            return global_batch
 
         # Train one of the models
-        num_steps = 3
-        micro_batch_steps = 2
-        batch_size = 4
+        torch.manual_seed(self.seed+2)
         for step in range(num_steps):
-            optim_save.zero_grad()
-            for micro_step in range(micro_batch_steps):
-                x = torch.rand(batch_size, layer_size) - 0.5
-                dy = torch.rand_like(x) - 0.5
-                x = x.cuda()
-                dy = dy.cuda()
+            if self.rank < save_group_size:
+                optim_save.zero_grad()
+            x = make_global_batch()
+            dy = make_global_batch()
+            if self.rank < save_group_size:
+                x = to_local_batch(x, save_group)
+                dy = to_local_batch(dy, save_group)
                 y = model_save(x)
                 y.backward(dy)
-            optim_save.step()
+                optim_save.step()
 
         # Make sure models are different
-        for param_save, param_load in zip(model_save.parameters(),
-                                          model_load.parameters()):
-            self.assertRaises(
-                AssertionError,
-                torch.testing.assert_close,
-                param_load, param_save,
-            )
-
-        # Save state on root rank and load on all ranks
-        state_dict = {
-            'model': model_save.state_dict(),
-            'optim': optim_save.state_dict(),
-        }
-        if self.rank == 0:
-            state_bytes = io.BytesIO()
-            torch.save(state_dict, state_bytes)
-            state_bytes = [state_bytes.getvalue()]
-        else:
-            state_bytes = [None]
-        torch.distributed.broadcast_object_list(state_bytes, src=0)
-        state_bytes = io.BytesIO(state_bytes[0])
-        state_dict = torch.load(state_bytes)
-        model_load.load_state_dict(state_dict['model'])
-        optim_load.load_state_dict(state_dict['optim'])
-
-        # Make sure models are identical
-        for param_save, param_load in zip(model_save.parameters(),
-                                          model_load.parameters()):
-            torch.testing.assert_close(param_load, param_save)
-
-        # Train both models
-        num_steps = 3
-        micro_batch_steps = 3
-        batch_size = 5
-        for step in range(num_steps):
-
-            # Reset gradients
-            optim_save.zero_grad()
-            optim_load.zero_grad()
-
-            # Forward and backward passes
-            for micro_step in range(micro_batch_steps):
-
-                # Synthetic data
-                x = torch.rand(batch_size, layer_size) - 0.5
-                dy = torch.rand_like(x) - 0.5
-                x = x.cuda()
-                dy = dy.cuda()
-
-                # Forward and backward pass
-                x_save = x.detach().clone().requires_grad_(True)
-                y_save = model_save(x_save)
-                y_save.backward(dy)
-                x_load = x.detach().clone().requires_grad_(True)
-                y_load = model_load(x_load)
-                y_load.backward(dy)
-
-                # Check that data tensors match
-                torch.testing.assert_close(y_load, y_save)
-                torch.testing.assert_close(x_load.grad, x_save.grad)
-
-            # Optimizer step
-            optim_save.step()
-            optim_load.step()
-
-            # Check that parameters match
+        if self.rank < min(save_group_size, load_group_size):
             for param_save, param_load in zip(model_save.parameters(),
                                               model_load.parameters()):
-                torch.testing.assert_close(param_load, param_save)
+                self.assertRaises(
+                    AssertionError,
+                    torch.testing.assert_close,
+                    param_load,
+                    param_save,
+                    rtol=rtol,
+                    atol=atol,
+                )
+
+        # Save state
+        state_bytes = None
+        if self.rank < save_group_size:
+            state_dict = {
+                'model': model_save.state_dict(),
+                'optim': optim_save.state_dict(),
+            }
+            byte_stream = io.BytesIO()
+            torch.save(state_dict, byte_stream)
+            state_bytes = byte_stream.getvalue()
+
+        # Broadcast state from root rank and load
+        if self.rank < load_group_size:
+            if load_group_size != save_group_size:
+                if self.rank != 0:
+                    state_bytes = None
+                state_bytes = [state_bytes]
+                torch.distributed.broadcast_object_list(
+                    state_bytes,
+                    src=0,
+                    group=load_group,
+                )
+                state_bytes = state_bytes[0]
+            state_dict = torch.load(io.BytesIO(state_bytes))
+            model_load.load_state_dict(state_dict['model'])
+            optim_load.load_state_dict(state_dict['optim'])
+
+        # Make sure models are identical
+        if self.rank < min(save_group_size, load_group_size):
+            for param_save, param_load in zip(model_save.parameters(),
+                                              model_load.parameters()):
+                torch.testing.assert_close(
+                    param_load,
+                    param_save,
+                    rtol=rtol,
+                    atol=atol
+                )
+
+        # Train both models
+        torch.manual_seed(self.seed+3)
+        for step in range(num_steps):
+
+            # Reset grads
+            if self.rank < save_group_size:
+                optim_save.zero_grad()
+            if self.rank < load_group_size:
+                optim_load.zero_grad()
+
+            # Synthetic data
+            x = make_global_batch()
+            dy = make_global_batch()
+
+            # Training step for model that saved checkpoint
+            y_save = None
+            dx_save = None
+            if self.rank < save_group_size:
+                x_save = to_local_batch(x, save_group)
+                x_save = x_save.detach().clone().requires_grad_(True)
+                dy_save = to_local_batch(dy, save_group)
+                y_save = model_save(x_save)
+                y_save.backward(dy_save)
+                dx_save = x_save.grad
+            y_save = to_global_batch(y_save, save_group)
+            dx_save = to_global_batch(dx_save, save_group)
+
+            # Training step for model that loaded checkpoint
+            y_load = None
+            dx_load = None
+            if self.rank < load_group_size:
+                x_load = to_local_batch(x, load_group)
+                x_load = x_load.detach().clone().requires_grad_(True)
+                dy_load = to_local_batch(dy, load_group)
+                y_load = model_load(x_load)
+                y_load.backward(dy_load)
+                dx_load = x_load.grad
+            y_load = to_global_batch(y_load, load_group)
+            dx_load = to_global_batch(dx_load, load_group)
+
+            # Check that data tensors match
+            torch.testing.assert_close(y_load, y_save, rtol=rtol, atol=atol)
+            torch.testing.assert_close(dx_load, dx_save, rtol=rtol, atol=atol)
+
+            # Optimizer step
+            if self.rank < save_group_size:
+                optim_save.step()
+            if self.rank < load_group_size:
+                optim_load.step()
+
+            # Check that parameters match
+            if self.rank < min(save_group_size, load_group_size):
+                for param_save, param_load in zip(model_save.parameters(),
+                                                  model_load.parameters()):
+                    torch.testing.assert_close(
+                        param_load,
+                        param_save,
+                        rtol=rtol,
+                        atol=atol,
+                    )
+
+    def test_checkpoint_save_1gpu(self):
+        """Test loading checkpoint with one GPU"""
+        self.test_checkpoint(save_group_size=1)
+
+    def test_checkpoint_load_1gpu(self):
+        """Test saving checkpoint with one GPU"""
+        self.test_checkpoint(load_group_size=1)
+
+    def test_checkpoint_bf16(self):
+        """Test checkpoint with BF16 model"""
+        self.test_checkpoint(
+            rtol=5e-2,
+            atol=1e-5,
+            save_model_kwargs=dict(
+                model_dtype=torch.bfloat16,
+                optim_dtype=torch.float32,
+                param_sync_dtype=torch.bfloat16,
+                store_params=False,
+                store_param_remainders=True,
+            ),
+            load_model_kwargs=dict(
+                model_dtype=torch.bfloat16,
+                optim_dtype=torch.float32,
+                param_sync_dtype=torch.bfloat16,
+                store_params=False,
+                store_param_remainders=True,
+            ),
+        )
+
+    def test_bucket_low_utilization_warning(self):
+        """Test warning when bucket utilization is low"""
+        layer_size = 2*1024*1024
+        num_layers = 4
+        fairish_bucket_cap_mb = 4*num_layers*layer_size/(1024*1024)
+
+        # Check that warning is raised when bucket utilization is low
+        with self.assertWarnsRegex(Warning, ".*Consider decreasing the bucket_cap_mb argument."):
+            self.test_matches_pytorch(
+                num_layers=num_layers,
+                layer_size=layer_size,
+                bucket_cap_mb=fairish_bucket_cap_mb * 2,
+                contiguous_buffers=True,
+            )
+
+        # Check that warning is not raised when bucket utilization is high
+        with warnings.catch_warnings(record=True) as warns:
+            self.test_matches_pytorch(
+                num_layers=num_layers,
+                layer_size=layer_size,
+                bucket_cap_mb=fairish_bucket_cap_mb,
+                contiguous_buffers=True,
+            )
+            for w in warns:
+                self.assertNotRegex(str(w.message), ".*Consider decreasing the bucket_cap_mb argument.")
+
 
 if __name__ == "__main__":
     # Assume script has been run with torchrun
