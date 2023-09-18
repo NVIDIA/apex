@@ -1081,7 +1081,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             raise TypeError(
                 "Expected input types are "
                 "[int, int] or [DistributedFusedAdam.ParameterFragment], "
-                "but found {[type(arg).__name__ for arg in args]}"
+                f"but found {[type(arg).__name__ for arg in args]}"
             )
         return self.param_groups[param_group_id]["params"][param_id]
 
