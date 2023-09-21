@@ -51,3 +51,47 @@ class FastLayerNorm(torch.nn.Module):
 
     def forward(self, x):
         return _fast_layer_norm(x, self.weight, self.bias, self.epsilon)
+
+class FastRMSNormFN(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, gamma, epsilon):
+        x = x.contiguous()
+        gamma = gamma.contiguous()
+        hidden_size = gamma.numel()
+        xmat = x.view((-1, hidden_size))
+        ymat, rsigma = fast_layer_norm.rmsnorm_fwd(xmat, gamma, epsilon)
+        ctx.save_for_backward(x, gamma, rsigma)
+        return ymat.view(x.shape)
+
+    @staticmethod
+    def backward(ctx, dy):
+        # assert dy.is_contiguous()
+        dy = dy.contiguous()  # this happens!
+        x, gamma, rsigma = ctx.saved_tensors
+
+        hidden_size = gamma.numel()
+        xmat = x.view((-1, hidden_size))
+        dymat = dy.view(xmat.shape)
+        dxmat, dgamma, _ = fast_layer_norm.rmsnorm_bwd(dymat, xmat, rsigma, gamma)
+        dx = dxmat.view(x.shape)
+        return dx, dgamma, None
+
+
+def _fast_rms_norm(x, weight, epsilon):
+    args = _cast_if_autocast_enabled(x, weight, epsilon)
+    with torch.cuda.amp.autocast(enabled=False):
+        return FastRMSNormFN.apply(*args)
+
+
+class FastRMSNorm(torch.nn.Module):
+    def __init__(self, hidden_size, eps=1e-5):
+        super().__init__()
+        self.epsilon = eps
+        self.weight = torch.nn.Parameter(torch.empty(hidden_size))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        init.ones_(self.weight)
+
+    def forward(self, x):
+        return _fast_rms_norm(x, self.weight, self.epsilon)
