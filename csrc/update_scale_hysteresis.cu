@@ -1,5 +1,6 @@
 #include <ATen/ATen.h>
 #include <ATen/cuda/Exceptions.h>
+#include <ATen/cuda/CUDAContext.h>
 
 __global__ void update_scale_hysteresis_cuda_kernel(float* current_scale,
                                                     int* growth_tracker,
@@ -30,7 +31,7 @@ __global__ void update_scale_hysteresis_cuda_kernel(float* current_scale,
     if (successful == growth_interval) {
       auto new_scale = static_cast<float>((*current_scale)*growth_factor);
       // Do not grow the scale past fp32 bounds to inf.
-      if (isfinite_ensure_cuda_math(new_scale)) {
+      if (isfinite(new_scale)) {
           *current_scale = new_scale;
       }
       *growth_tracker = 0;
