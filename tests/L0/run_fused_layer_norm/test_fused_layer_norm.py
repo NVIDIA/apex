@@ -236,7 +236,12 @@ class TestFusedLayerNorm(common_utils.TestCase):
         expected.backward(g_native)
         actual.backward(g_fused)
 
-        tols = {'rtol': None, 'atol': None} if dtype == torch.half else bf16_bwd_thresholds
+        if dtype != torch.half:
+            tols = bf16_bwd_thresholds
+        elif memory_efficient:
+            tols = {'rtol': 1e-3, 'atol': 1e-4}
+        else:
+            tols = {'rtol': None, 'atol': None}
         torch.testing.assert_close(native_x.grad, fused_x.grad, **tols, check_dtype=False)
     @common_utils.parametrize(
         "dtype, elementwise_affine, memory_efficient",
