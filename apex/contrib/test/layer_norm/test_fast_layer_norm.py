@@ -1,3 +1,4 @@
+import itertools
 import unittest
 
 import torch
@@ -106,7 +107,7 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
 
         timer.start()
         for r in range(runs):
-            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(dz, x, mu, rsigma, gamma)
+            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(dz, z, mu, rsigma, gamma, beta, True)
         timer.stop()
         timer.sync()
 
@@ -126,7 +127,7 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
         )
 
 
-def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
+def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32, mem_eff=False):
 
     seed = 1243
     torch.manual_seed(seed)
@@ -134,7 +135,7 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
 
     otype = wtype
     print("========================================================")
-    print(f"S={S} B={B} Hidden={hidden_size} {itype} {wtype}")
+    print(f"S={S} B={B} Hidden={hidden_size} {itype} {wtype} Mem_Eff={mem_eff}")
     print("--------------------------------------------------------")
 
     x = torch.randn(S * B, hidden_size, dtype=itype, device=device)
@@ -165,7 +166,10 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
     dx_ref, dg_ref, db_ref = backward_(dz, x, mu_ref, rs_ref, gamma)
 
     z, mu, rs = fln.ln_fwd(x, gamma, beta, epsilon)
-    dx, dg, db, dg_part, db_part = fln.ln_bwd(dz, x, mu, rs, gamma)
+    if mem_eff:
+        dx, dg, db, dg_part, db_part = fln.ln_bwd(dz, z, mu, rs, gamma, beta, True)
+    else:
+        dx, dg, db, dg_part, db_part = fln.ln_bwd(dz, x, mu, rs, gamma, beta, False)
 
     re_z, mse_z = metrics(z_ref, z)
     re_mu, mse_mu = metrics(mu_ref, mu)
@@ -184,7 +188,7 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32):
     print(f"db: relerr={re_db:.4e} mse={mse_db:.4e}")
 
     def check_err(x, relerr):
-        tol = 1e-3 if x.dtype == torch.float16 else 5e-6
+        tol = 2e-2 if x.dtype in (torch.float16, torch.bfloat16) else 5e-6
         return relerr < tol
 
     return [
@@ -233,13 +237,13 @@ class TestFastLayerNorm(unittest.TestCase):
             65536,
         ]
 
-        for h in hidden_sizes:
+        for (h, mem_eff) in itertools.product(hidden_sizes, (True, False)):
             with self.subTest(f"hidden_size={h}"):
-                self.assertAll(_test_impl(256, 2, h, fp32, fp32))
-                self.assertAll(_test_impl(256, 2, h, fp16, fp16))
-                self.assertAll(_test_impl(256, 2, h, fp32, fp16))
-                self.assertAll(_test_impl(256, 2, h, bf16, bf16))
-                self.assertAll(_test_impl(256, 2, h, fp32, bf16))
+                self.assertAll(_test_impl(256, 2, h, fp32, fp32, mem_eff=mem_eff))
+                self.assertAll(_test_impl(256, 2, h, fp16, fp16, mem_eff=mem_eff))
+                self.assertAll(_test_impl(256, 2, h, fp32, fp16, mem_eff=mem_eff))
+                self.assertAll(_test_impl(256, 2, h, bf16, bf16, mem_eff=mem_eff))
+                self.assertAll(_test_impl(256, 2, h, fp32, bf16, mem_eff=mem_eff))
 
     def test_run_benchmark(self):
         for (S, B, hidden_size, runs) in (
