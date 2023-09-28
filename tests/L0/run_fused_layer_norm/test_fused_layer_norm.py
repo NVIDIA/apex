@@ -21,7 +21,7 @@ autocast_dtypes = (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported()
 class TestFusedLayerNorm(common_utils.TestCase):
 
     def _test_fused_layer_norm(
-        self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype,
+        self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient,
         fwd_thresholds=dict(rtol=None, atol=None), bwd_thresholds=dict(rtol=None, atol=None)
         ):
 
@@ -29,15 +29,19 @@ class TestFusedLayerNorm(common_utils.TestCase):
 
         if not mixed_fused:
             module_cpu_ = FusedLayerNorm(
-                normalized_shape=normalized_shape, elementwise_affine=elementwise_affine).cpu()
+                normalized_shape=normalized_shape, elementwise_affine=elementwise_affine, memory_efficient=memory_efficient
+            ).cpu()
             module_cuda_ = FusedLayerNorm(
-                normalized_shape=normalized_shape, elementwise_affine=elementwise_affine).to(device="cuda", dtype=dtype)
+                normalized_shape=normalized_shape, elementwise_affine=elementwise_affine, memory_efficient=memory_efficient
+            ).to(device="cuda", dtype=dtype)
         else:
             assert elementwise_affine
             module_cpu_ = MixedFusedLayerNorm(
-                normalized_shape=normalized_shape).cpu()
+                normalized_shape=normalized_shape, memory_efficient=memory_efficient
+            ).cpu()
             module_cuda_ = MixedFusedLayerNorm(
-                normalized_shape=normalized_shape).to(device="cuda", dtype=dtype)
+                normalized_shape=normalized_shape, memory_efficient=memory_efficient
+            ).to(device="cuda", dtype=dtype)
 
         torch.cuda.manual_seed(42)
         if contiguous:
@@ -70,7 +74,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
             input_.grad.to(device="cuda", dtype=dtype), input_cuda_.grad, **bwd_thresholds)
 
     def _test_fused_rms_norm(
-        self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype,
+        self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient,
         fwd_thresholds=dict(rtol=None, atol=None), bwd_thresholds=dict(rtol=None, atol=None)
         ):
 
@@ -78,9 +82,11 @@ class TestFusedLayerNorm(common_utils.TestCase):
 
         if not mixed_fused:
             module_cpu_ = FusedRMSNorm(
-                normalized_shape=normalized_shape, elementwise_affine=elementwise_affine).cpu()
+                normalized_shape=normalized_shape, elementwise_affine=elementwise_affine, memory_efficient=memory_efficient
+            ).cpu()
             module_cuda_ = FusedRMSNorm(
-                normalized_shape=normalized_shape, elementwise_affine=elementwise_affine).to(device="cuda", dtype=dtype)
+                normalized_shape=normalized_shape, elementwise_affine=elementwise_affine, memory_efficient=memory_efficient
+            ).to(device="cuda", dtype=dtype)
         else:
             assert elementwise_affine
             module_cpu_ = MixedFusedRMSNorm(
@@ -123,87 +129,87 @@ class TestFusedLayerNorm(common_utils.TestCase):
 
     # layer norm tests
     @common_utils.parametrize(
-        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype",
-        list(product((16, 65536), (True, False), (False,), (False,), (torch.float,)))
+        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient",
+        list(product((16, 65536), (True, False), (False,), (False,), (torch.float,), (True, False)))
     )
-    def test_layer_norm_regular(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype):
-        self._test_fused_layer_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype)
+    def test_layer_norm_regular(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient):
+        self._test_fused_layer_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient)
     
     @common_utils.parametrize(
-        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype",
-        list(product((16, 65536), (True, False), (True,), (False,), (torch.float,)))
+        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient",
+        list(product((16, 65536), (True, False), (True,), (False,), (torch.float,), (True, False)))
     )
-    def test_layer_norm_elemwise(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype):
-        self._test_fused_layer_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype)
+    def test_layer_norm_elemwise(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient):
+        self._test_fused_layer_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient)
 
     @common_utils.parametrize(
-        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype",
-        list(product((16, 65536), (True, False), (True,), (True,), (torch.float,)))
+        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient",
+        list(product((16, 65536), (True, False), (True,), (True,), (torch.float,), (True, False)))
     )
-    def test_layer_norm_mixed(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype):
-        self._test_fused_layer_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype)
+    def test_layer_norm_mixed(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient):
+        self._test_fused_layer_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient)
     
     @common_utils.parametrize(
-        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype",
-        list(product((16,), (True, False), (True,), (False,), (torch.half,)))
+        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient",
+        list(product((16,), (True, False), (True,), (False,), (torch.half,), (True, False)))
     )
-    def test_layer_norm_half(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype):
-        self._test_fused_layer_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype,
+    def test_layer_norm_half(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient):
+        self._test_fused_layer_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient,
                                 fwd_thresholds=dict(rtol=1e-3, atol=1e-3), bwd_thresholds=dict(rtol=1e-3, atol=1e-3))
     
     @common_utils.parametrize(
-        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype",
-        list(product((16,), (True, False), (True,), (False,), (torch.bfloat16,)))
+        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient",
+        list(product((16,), (True, False), (True,), (False,), (torch.bfloat16,), (True, False)))
     )
-    def test_layer_norm_bfloat16(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype):
-        self._test_fused_layer_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, 
+    def test_layer_norm_bfloat16(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient):
+        self._test_fused_layer_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient, 
                                 fwd_thresholds=dict(rtol=1.6e-2, atol=3e-4), bwd_thresholds=dict(rtol=1.6e-2, atol=3e-3))
 
     # rms norm tests
     @common_utils.parametrize(
-        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype",
-        list(product((16, 65536), (True, False), (False,), (False,), (torch.float,)))
+        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient",
+        list(product((16, 65536), (True, False), (False,), (False,), (torch.float,), (True, False)))
     )
-    def test_rms_norm_regular(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype):
-        self._test_fused_rms_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype)
+    def test_rms_norm_regular(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient):
+        self._test_fused_rms_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient)
 
     @common_utils.parametrize(
-        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype",
-        list(product((16, 65536), (True, False), (True,), (False,), (torch.float,)))
+        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient",
+        list(product((16, 65536), (True, False), (True,), (False,), (torch.float,), (True, False)))
     )
-    def test_rms_norm_elemwise(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype):
-        self._test_fused_rms_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype,
+    def test_rms_norm_elemwise(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient):
+        self._test_fused_rms_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient,
                                 bwd_thresholds=dict(rtol=2e-3, atol=2e-4))
 
     @common_utils.parametrize(
-        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype",
-        list(product((16, 65536), (True, False), (True,), (True,), (torch.float,)))
+        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient",
+        list(product((16, 65536), (True, False), (True,), (True,), (torch.float,), (True, False)))
     )
-    def test_rms_norm_mixed(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype):
-        self._test_fused_rms_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype,
+    def test_rms_norm_mixed(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient):
+        self._test_fused_rms_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient,
                                 bwd_thresholds=dict(rtol=2e-3, atol=2e-4))
     
     @common_utils.parametrize(
-        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype",
-        list(product((16,), (True, False), (True,), (False,), (torch.half,)))
+        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient",
+        list(product((16,), (True, False), (True,), (False,), (torch.half,), (True, False)))
     )
-    def test_rms_norm_half(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype):
-        self._test_fused_rms_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype,
+    def test_rms_norm_half(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient):
+        self._test_fused_rms_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient,
                                 bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3))
     
     @common_utils.parametrize(
-        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype",
-        list(product((16,), (True, False), (True,), (False,), (torch.bfloat16,)))
+        "batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient",
+        list(product((16,), (True, False), (True,), (False,), (torch.bfloat16,), (True, False)))
     )
-    def test_rms_norm_bfloat16(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype):
-        self._test_fused_rms_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, 
+    def test_rms_norm_bfloat16(self, batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient):
+        self._test_fused_rms_norm(batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient, 
                                 fwd_thresholds=dict(rtol=1.6e-2, atol=3e-4), bwd_thresholds=dict(rtol=1.6e-2, atol=3e-2))
 
     @common_utils.parametrize(
-        "dtype, elementwise_affine",
-        list(product(autocast_dtypes, (True, False)))
+        "dtype, elementwise_affine, memory_efficient",
+        list(product(autocast_dtypes, (True, False), (True, False)))
     )
-    def test_autocast_fused_layer_norm(self, dtype, elementwise_affine):
+    def test_autocast_fused_layer_norm(self, dtype, elementwise_affine, memory_efficient):
         bf16_fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
         bf16_bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
         batch_size = 16
@@ -212,7 +218,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
             normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
         ).to(device="cuda", dtype=dtype)
         fused = FusedLayerNorm(
-            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine, memory_efficient=memory_efficient
         ).cuda()
         native_x, fused_x = _prep_inputs(batch_size, normalized_shape, dtype)
 
@@ -230,22 +236,27 @@ class TestFusedLayerNorm(common_utils.TestCase):
         expected.backward(g_native)
         actual.backward(g_fused)
 
-        tols = {'rtol': None, 'atol': None} if dtype == torch.half else bf16_bwd_thresholds
+        if dtype != torch.half:
+            tols = bf16_bwd_thresholds
+        elif memory_efficient:
+            tols = {'rtol': 1e-3, 'atol': 1e-4}
+        else:
+            tols = {'rtol': None, 'atol': None}
         torch.testing.assert_close(native_x.grad, fused_x.grad, **tols, check_dtype=False)
     @common_utils.parametrize(
-        "dtype, elementwise_affine",
-        list(product(autocast_dtypes, (True, False)))
+        "dtype, elementwise_affine, memory_efficient",
+        list(product(autocast_dtypes, (True, False), (True, False)))
     )
-    def test_autocast_fused_rms_norm(self, dtype, elementwise_affine):
+    def test_autocast_fused_rms_norm(self, dtype, elementwise_affine, memory_efficient):
         bf16_fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
         bf16_bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
         batch_size = 16
         normalized_shape = [32, 16]
         native = FusedRMSNorm(
-            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine, memory_efficient=memory_efficient, 
         ).to(dtype=dtype)
         fused = FusedRMSNorm(
-            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine, memory_efficient=memory_efficient, 
         ).cuda()
         native_x, fused_x = _prep_inputs(batch_size, normalized_shape, dtype)
 
