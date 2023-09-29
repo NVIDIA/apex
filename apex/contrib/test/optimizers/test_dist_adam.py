@@ -291,6 +291,21 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             init_optim_func=init_optim,
         )
 
+    def test_matches_pytorch_int64_param_sync(self):
+        self.test_matches_pytorch(
+            param_sync_dtype=torch.int64,
+        )
+
+    def test_matches_pytorch_uint8_param_sync(self):
+        self.test_matches_pytorch(
+            rtol=0.5,
+            atol=0.05,
+            model_dtype=torch.float16,
+            optim_dtype=torch.float16,
+            micro_batch_steps=1,
+            param_sync_dtype=torch.uint8,
+        )
+
     def test_raises_on_mismatch(self):
 
         torch.manual_seed(self.seed + self.rank)
