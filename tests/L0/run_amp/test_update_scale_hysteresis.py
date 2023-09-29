@@ -67,7 +67,7 @@ class TestUpdateScaleHysteresis(unittest.TestCase):
                 scale_ref = 0 # Scale update kernel does not check for underflow when backing off, which results in zero
         self.assertTrue(scale.item() == scale_ref)
 
-        # No infs for growth_interval iterations, scale should be increased
+        # No infs for more than growth_interval iterations, scale should be increased
         found_inf.fill_(0)
         extra_iters = random.randint(0, 1000)
         scale_before = scale.detach().item()
