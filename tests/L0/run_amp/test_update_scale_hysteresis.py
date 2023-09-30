@@ -2,10 +2,7 @@ import unittest
 import random
 import math
 
-from apex import amp
 import torch
-
-from utils import common_init
 
 try:
   import amp_C
@@ -21,7 +18,7 @@ def isfinite(val):
 class TestUpdateScaleHysteresis(unittest.TestCase):
 
     def setUp(self):
-        common_init(self)
+        pass
 
     def tearDown(self):
         pass
