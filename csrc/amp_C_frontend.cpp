@@ -178,6 +178,16 @@ void multi_tensor_lamb_mp_cuda(
   at::Tensor found_inf,
   at::Tensor inv_scale);
 
+at::Tensor update_scale_hysteresis_cuda(
+  at::Tensor current_scale,
+  at::Tensor growth_tracker,
+  at::Tensor hysteresis_tracker,
+  at::Tensor found_inf,
+  const double growth_factor,
+  const double backoff_factor,
+  const int64_t growth_interval,
+  const int hysteresis);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("multi_tensor_scale", &multi_tensor_scale_cuda,
         "Fused overflow check + scale for a list of contiguous tensors");
@@ -211,4 +221,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         "Computes and apply update for LAMB optimizer");
   m.def("multi_tensor_lamb_mp", &multi_tensor_lamb_mp_cuda,
         "Computes and apply update for LAMB optimizer");
+  m.def("update_scale_hysteresis", &update_scale_hysteresis_cuda,
+        "Updates scale while accounting for hysteresis");
 }

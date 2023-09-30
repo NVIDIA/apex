@@ -195,6 +195,7 @@ if "--cuda_ext" in sys.argv:
                 "csrc/multi_tensor_novograd.cu",
                 "csrc/multi_tensor_lamb.cu",
                 "csrc/multi_tensor_lamb_mp.cu",
+                "csrc/update_scale_hysteresis.cu",
             ],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,
