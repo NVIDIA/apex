@@ -2,6 +2,12 @@
 
 This subpackage is a collection of Triton kernels written specifically for the OpenFold model architecture initial training mode.
 
+To use this subpackage, you must install additional dependencies:
+
+```bash
+pip install einops
+```
+
 The following sections list all main features and show how to use them.
 
 ## Multi-Head Attention
