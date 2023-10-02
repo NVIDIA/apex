@@ -1,3 +1,5 @@
+# © 2023 NVIDIA CORPORATION & AFFILIATES
+
 from distutils.version import LooseVersion
 
 import triton

@@ -1,3 +1,5 @@
+# © 2023 NVIDIA CORPORATION & AFFILIATES
+
 import triton
 import triton.language as tl
 

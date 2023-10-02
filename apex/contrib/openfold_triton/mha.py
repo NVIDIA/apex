@@ -1,3 +1,5 @@
+# © 2023 NVIDIA CORPORATION & AFFILIATES
+
 import math
 from typing import Optional
 

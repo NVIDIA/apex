@@ -1,3 +1,5 @@
+# © 2023 NVIDIA CORPORATION & AFFILIATES
+
 from triton import Config
 
 # Mapping schema: Dict[

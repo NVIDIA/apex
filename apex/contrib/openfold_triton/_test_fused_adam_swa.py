@@ -1,3 +1,5 @@
+# © 2023 NVIDIA CORPORATION & AFFILIATES
+
 import random
 from itertools import chain
 

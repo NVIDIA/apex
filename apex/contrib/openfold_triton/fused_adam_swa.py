@@ -1,3 +1,5 @@
+# © 2023 NVIDIA CORPORATION & AFFILIATES
+
 from __future__ import annotations
 
 from collections import defaultdict

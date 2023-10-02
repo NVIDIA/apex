@@ -1,3 +1,5 @@
+# © 2023 NVIDIA CORPORATION & AFFILIATES
+
 import pickle
 from collections import OrderedDict
 from copy import deepcopy
