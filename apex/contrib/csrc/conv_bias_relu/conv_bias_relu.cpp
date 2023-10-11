@@ -149,8 +149,8 @@ cudnn_frontend::ExecutionPlan& getOrCreatePlan(cudnnHandle_t handle_,
         .setOperationGraph(opGraph)
         .setHeurMode(CUDNN_HEUR_MODE_INSTANT)
         .build();
-      // try 3 times for now as WAR for no heuristic training
-      int max_tries = 3, count = 0;
+      // try 10 times for now as WAR for no heuristic training
+      int max_tries = 10, count = 0;
       auto& engine_configs = heuristics.getEngineConfig(max_tries);
       while(true) {
         try {
