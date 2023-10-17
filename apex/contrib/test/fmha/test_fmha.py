@@ -96,7 +96,7 @@ class TestFMHA(unittest.TestCase):
         ctx = ctx.view(b,s,h,d)
 
         ctx_ref = py_mha(qkv, amask, b,s,h,d)
-        self.assertTrue(torch.allclose(ctx_ref.float(), ctx.float(), atol=1e-3))
+        torch.testing.assert_close(ctx_ref.float(), ctx.float(), atol=1e-3)
 
         labels = torch.randn_like(ctx_ref)
         diff = ctx_ref - labels
@@ -114,7 +114,7 @@ class TestFMHA(unittest.TestCase):
 
         dqkv2 = dqkv2.permute(0,2,1,3).view(b,s, h,3,d)
 
-        self.assertTrue(torch.allclose(qkv.grad.float(), dqkv2.float(), atol=1e-3))
+        torch.testing.assert_close(qkv.grad.float(), dqkv2.float(), atol=1e-3)
 
     def test_128(self):
         self.run_test(128, 32, False)

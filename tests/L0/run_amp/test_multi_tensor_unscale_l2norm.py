@@ -52,9 +52,9 @@ class TestMultiTensorUnscaleL2Norm(unittest.TestCase):
 
         reference = torch.full([(sizea + sizeb)*repeat_tensors], self.val * self.inv_scale, dtype=torch.float32, device='cuda').norm()
 
-        self.assertTrue(torch.allclose(norm, reference))
+        torch.testing.assert_close(norm, reference)
         if per_tensor:
-            self.assertTrue(torch.allclose(norm_per_tensor, normab))
+            torch.testing.assert_close(norm_per_tensor, normab)
         self.assertTrue(self.overflow_buf.item() == 0)
 
     @unittest.skipIf(disabled, "amp_C is unavailable")

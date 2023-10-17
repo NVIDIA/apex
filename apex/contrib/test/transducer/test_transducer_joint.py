@@ -118,9 +118,9 @@ class TransducerJointTest(unittest.TestCase):
         f_grad_tst = self.f_tst.grad
         g_grad_tst = self.g_tst.grad
 
-        self.assertTrue(torch.allclose(h_ref, h_tst, atol=1e-5, rtol=1e-5))
-        self.assertTrue(torch.allclose(f_grad_ref, f_grad_tst, atol=1e-5, rtol=1e-5))
-        self.assertTrue(torch.allclose(g_grad_ref, g_grad_tst, atol=1e-4, rtol=1e-4))
+        torch.testing.assert_close(h_ref, h_tst, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(f_grad_ref, f_grad_tst, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(g_grad_ref, g_grad_tst, atol=1e-4, rtol=1e-4)
 
     def test_transducer_joint(self):
         self.run_transducer_joint(for_vector_kernel=True, pack_output=True, relu=False, dropout=False)

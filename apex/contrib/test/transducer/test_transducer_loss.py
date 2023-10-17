@@ -99,40 +99,40 @@ class TransducerLossTest(unittest.TestCase):
                                                         fuse_softmax_backward=False,
                                                         packed_input=False,
                                                         for_vector_kernel=False)
-        self.assertTrue(torch.allclose(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5))
-        self.assertTrue(torch.allclose(self.grad_ref, grad_tst, atol=1e-5, rtol=1e-5))
+        torch.testing.assert_close(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(self.grad_ref, grad_tst, atol=1e-5, rtol=1e-5)
 
     def test_transducer_loss_fp16(self):
         loss_tst, grad_tst = self.run_transducer_loss(  scalar_t=torch.float16,
                                                         fuse_softmax_backward=False,
                                                         packed_input=False,
                                                         for_vector_kernel=False)
-        self.assertTrue(torch.allclose(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5))
-        self.assertTrue(torch.allclose(self.grad_ref, grad_tst, atol=1e-4, rtol=1e-3))
+        torch.testing.assert_close(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(self.grad_ref, grad_tst, atol=1e-4, rtol=1e-3)
 
     def test_transducer_loss_fp16_backward_fusion(self):
         loss_tst, grad_tst = self.run_transducer_loss(  scalar_t=torch.float16,
                                                         fuse_softmax_backward=True,
                                                         packed_input=False,
                                                         for_vector_kernel=False)
-        self.assertTrue(torch.allclose(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5))
-        self.assertTrue(torch.allclose(self.grad_ref, grad_tst, atol=1e-4, rtol=1e-3))
+        torch.testing.assert_close(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(self.grad_ref, grad_tst, atol=1e-4, rtol=1e-3)
 
     def test_transducer_loss_fp16_backward_fusion_packed(self):
         loss_tst, grad_tst = self.run_transducer_loss(  scalar_t=torch.float16,
                                                         fuse_softmax_backward=True,
                                                         packed_input=True,
                                                         for_vector_kernel=False)
-        self.assertTrue(torch.allclose(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5))
-        self.assertTrue(torch.allclose(self.grad_ref, grad_tst, atol=1e-4, rtol=1e-3))
+        torch.testing.assert_close(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(self.grad_ref, grad_tst, atol=1e-4, rtol=1e-3)
 
     def test_transducer_loss_fp16_backward_fusion_packed_vec(self):
         loss_tst, grad_tst = self.run_transducer_loss(  scalar_t=torch.float16,
                                                         fuse_softmax_backward=True,
                                                         packed_input=True,
                                                         for_vector_kernel=True)
-        self.assertTrue(torch.allclose(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5))
-        self.assertTrue(torch.allclose(self.grad_ref, grad_tst, atol=1e-4, rtol=1e-3))
+        torch.testing.assert_close(self.loss_ref, loss_tst, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(self.grad_ref, grad_tst, atol=1e-4, rtol=1e-3)
 
 
 if __name__ == '__main__':

@@ -152,7 +152,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                           if i != inject_inf:
                               for param, reference_grad in zip(amp.master_params(optimizer),
                                                                reference_grads[unskipped]):
-                                  self.assertTrue(torch.allclose(param.grad.float(), reference_grad.float()))
+                                  torch.testing.assert_close(param.grad.float(), reference_grad.float())
                               unskipped += 1
                           optimizer.step()
 
@@ -161,8 +161,8 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                               model_params,
                               amp.master_params(optimizer),
                               final_params):
-                          self.assertTrue(torch.allclose(model, reference))
-                          self.assertTrue(torch.allclose(model, master.to(model.dtype)))
+                          torch.testing.assert_close(model, reference)
+                          torch.testing.assert_close(model, master.to(model.dtype))
 
                       if opt_level == "O1":
                           _amp_state.handle._deactivate()
@@ -305,7 +305,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                             if i != inject_inf:
                                 for param, reference_grad in zip(amp.master_params(optimizer),
                                                                  reference_grads[unskipped]):
-                                    self.assertTrue(torch.allclose(param.grad.float(), reference_grad.float()))
+                                    torch.testing.assert_close(param.grad.float(), reference_grad.float())
                                 unskipped += 1
 
                             optimizer.step()
@@ -317,8 +317,8 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                 model_params,
                                 amp.master_params(optimizer),
                                 final_params):
-                            self.assertTrue(torch.allclose(model, reference))
-                            self.assertTrue(torch.allclose(model, master.to(model.dtype)))
+                            torch.testing.assert_close(model, reference)
+                            torch.testing.assert_close(model, master.to(model.dtype))
 
                         if opt_level == "O1":
                             _amp_state.handle._deactivate()
@@ -494,7 +494,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                               list(amp.master_params(optimizer1))
                               for param, reference_grad in zip(master_params,
                                       reference_grads[what_got_skipped(inject_inf, which_backward)][unskipped]):
-                                  self.assertTrue(torch.allclose(param.grad.float(), reference_grad.float()))
+                                  torch.testing.assert_close(param.grad.float(), reference_grad.float())
                               unskipped += 1
 
                           optimizer0.step()
@@ -507,8 +507,8 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                               model_params,
                               master_params,
                               final_params[what_got_skipped(inject_inf, which_backward)]):
-                          self.assertTrue(torch.allclose(model, reference))
-                          self.assertTrue(torch.allclose(model, master.to(model.dtype)))
+                          torch.testing.assert_close(model, reference)
+                          torch.testing.assert_close(model, master.to(model.dtype))
 
                       if opt_level == "O1":
                           _amp_state.handle._deactivate()
@@ -734,7 +734,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                 for param, reference_grad in zip(master_params,
                                       reference_grads[what_got_skipped(inject_inf,
                                           which_backward, which_model)][unskipped]):
-                                    self.assertTrue(torch.allclose(param.grad.float(), reference_grad.float()))
+                                    torch.testing.assert_close(param.grad.float(), reference_grad.float())
                                 unskipped += 1
 
                             optimizer0.step()
@@ -752,8 +752,8 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                 model_params,
                                 master_params,
                                 final_params[what_got_skipped(inject_inf, which_backward, which_model)]):
-                            self.assertTrue(torch.allclose(model, reference))
-                            self.assertTrue(torch.allclose(model, master.to(model.dtype)))
+                            torch.testing.assert_close(model, reference)
+                            torch.testing.assert_close(model, master.to(model.dtype))
 
                         if opt_level == "O1":
                             _amp_state.handle._deactivate()
