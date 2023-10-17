@@ -168,8 +168,8 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                     if opt_level == "O2" and not materialize_master_grads:
                                         continue
                                     else:
-                                        self.assertTrue(torch.allclose(param.grad.float(), reference_grad.float()),
-                                                        "opt_level {} i {} inject_inf {} which_backward {} inject_inf_loc {} use_multiple_loss_scalers {}".format(opt_level, i, inject_inf, which_backward, inject_inf_loc, use_multiple_loss_scalers))
+                                        torch.testing.assert_close(param.grad.float(), reference_grad.float(),
+                                                        msg="opt_level {} i {} inject_inf {} which_backward {} inject_inf_loc {} use_multiple_loss_scalers {}".format(opt_level, i, inject_inf, which_backward, inject_inf_loc, use_multiple_loss_scalers))
                                 unskipped += 1
                             optimizer.step()
 
@@ -178,8 +178,8 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                 model_params,
                                 amp.master_params(optimizer),
                                 final_params):
-                            self.assertTrue(torch.allclose(model, reference))
-                            self.assertTrue(torch.allclose(model, master.to(model.dtype)))
+                            torch.testing.assert_close(model, reference)
+                            torch.testing.assert_close(model, master.to(model.dtype))
 
                         if opt_level == "O1":
                             _amp_state.handle._deactivate()
@@ -326,8 +326,8 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                       if opt_level == "O2" and not materialize_master_grads:
                                           continue
                                       else:
-                                          self.assertTrue(torch.allclose(param.grad.float(), reference_grad.float()),
-                                          "opt_level {} i {} inject_inf {} which_backward {} inject_inf_loc {} which_model {} use_multiple_loss_scalers {}".format(opt_level, i, inject_inf, which_backward, inject_inf_loc, which_model, use_multiple_loss_scalers))
+                                          torch.testing.assert_close(param.grad.float(), reference_grad.float(),
+                                          msg="opt_level {} i {} inject_inf {} which_backward {} inject_inf_loc {} which_model {} use_multiple_loss_scalers {}".format(opt_level, i, inject_inf, which_backward, inject_inf_loc, which_model, use_multiple_loss_scalers))
                                   unskipped += 1
 
                               optimizer.step()
@@ -339,8 +339,8 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                   model_params,
                                   amp.master_params(optimizer),
                                   final_params):
-                              self.assertTrue(torch.allclose(model, reference))
-                              self.assertTrue(torch.allclose(model, master.to(model.dtype)))
+                              torch.testing.assert_close(model, reference)
+                              torch.testing.assert_close(model, master.to(model.dtype))
 
                           if opt_level == "O1":
                               _amp_state.handle._deactivate()
@@ -521,7 +521,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                     if opt_level == "O2" and not materialize_master_grads:
                                         continue
                                     else:
-                                        self.assertTrue(torch.allclose(param.grad.float(), reference_grad.float()))
+                                        torch.testing.assert_close(param.grad.float(), reference_grad.float())
                                 unskipped += 1
 
                             optimizer0.step()
@@ -534,8 +534,8 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                 model_params,
                                 master_params,
                                 final_params[what_got_skipped(inject_inf, which_backward)]):
-                            self.assertTrue(torch.allclose(model, reference))
-                            self.assertTrue(torch.allclose(model, master.to(model.dtype)))
+                            torch.testing.assert_close(model, reference)
+                            torch.testing.assert_close(model, master.to(model.dtype))
 
                         if opt_level == "O1":
                             _amp_state.handle._deactivate()
@@ -766,7 +766,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                       if opt_level == "O2" and not materialize_master_grads:
                                           continue
                                       else:
-                                          self.assertTrue(torch.allclose(param.grad.float(), reference_grad.float()))
+                                          torch.testing.assert_close(param.grad.float(), reference_grad.float())
                                   unskipped += 1
 
                               optimizer0.step()
@@ -784,8 +784,8 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                                   model_params,
                                   master_params,
                                   final_params[what_got_skipped(inject_inf, which_backward, which_model)]):
-                              self.assertTrue(torch.allclose(model, reference))
-                              self.assertTrue(torch.allclose(model, master.to(model.dtype)))
+                              torch.testing.assert_close(model, reference)
+                              torch.testing.assert_close(model, master.to(model.dtype))
 
                           if opt_level == "O1":
                               _amp_state.handle._deactivate()

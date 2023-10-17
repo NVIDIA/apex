@@ -92,9 +92,9 @@ class TestCache(unittest.TestCase):
             # Currently there's no difference in the allclose calls, so no need for branching,
             # but I'm keeping this in case we want different tolerances for fp16 and fp32 checks. 
             if model.weight.grad.type() == "torch.cuda.HalfTensor":
-                self.assertTrue(torch.allclose(model.weight.grad.float(), reference_grad))
+                torch.testing.assert_close(model.weight.grad.float(), reference_grad)
             elif model.weight.grad.type() == "torch.cuda.FloatTensor":
-                self.assertTrue(torch.allclose(model.weight.grad.float(), reference_grad))
+                torch.testing.assert_close(model.weight.grad.float(), reference_grad)
             else:
                 raise RuntimeError("model.weight.grad.type = {}".format(model.weight.grad.type()))
 

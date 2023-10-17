@@ -139,8 +139,8 @@ class TestAddParamGroup(unittest.TestCase):
                                  [param.data.clone() for param in model1.parameters()]
 
                   for reference, final in zip(reference_params, final_params):
-                      self.assertTrue(torch.allclose(reference.to(final.dtype), final),
-                                      "opt_level = {}, how_to_zero = {}, zero_before_add = {}".format(
+                      torch.testing.assert_close(reference.to(final.dtype), final,
+                                      msg="opt_level = {}, how_to_zero = {}, zero_before_add = {}".format(
                                       opt_level, how_to_zero, zero_before_add))
 
 
