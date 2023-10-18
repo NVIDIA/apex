@@ -143,6 +143,7 @@ cudnn_frontend::ExecutionPlan& getOrCreatePlan(cudnnHandle_t handle_,
     DEBUG_CUDNN_MSG(log_buf, "Found plan in cache");
     return it->second;
   } else {
+    DEBUG_CUDNN_MSG(log_buf, "No plan in cache");
     if (use_heuristic) {
       // TODO: confirm which mode to use
       auto heuristics = cudnn_frontend::EngineHeuristicsBuilder()
@@ -168,7 +169,6 @@ cudnn_frontend::ExecutionPlan& getOrCreatePlan(cudnnHandle_t handle_,
         }
       }
     } else {
-      DEBUG_CUDNN_MSG(log_buf, "No plan in cache");
       // How many engines support this operation graph ?
       auto total_engines = opGraph.getEngineCount();
       DEBUG_CUDNN_MSG(log_buf, opGraph.describe() << " has " << total_engines << " engines.");
