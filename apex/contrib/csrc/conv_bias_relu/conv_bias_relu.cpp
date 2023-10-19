@@ -143,16 +143,16 @@ cudnn_frontend::ExecutionPlan& getOrCreatePlan(cudnnHandle_t handle_,
     DEBUG_CUDNN_MSG(log_buf, "Found plan in cache");
     return it->second;
   } else {
-    if (use_heuristic){
+    DEBUG_CUDNN_MSG(log_buf, "No plan in cache");
+    if (use_heuristic) {
       // TODO: confirm which mode to use
       auto heuristics = cudnn_frontend::EngineHeuristicsBuilder()
         .setOperationGraph(opGraph)
         .setHeurMode(CUDNN_HEUR_MODE_INSTANT)
         .build();
-      // try 3 times for now as WAR for no heuristic training
-      int max_tries = 3, count = 0;
-      auto& engine_configs = heuristics.getEngineConfig(max_tries);
-      while(true) {
+      auto engine_config_count = heuristics.getEngineConfigCount();
+      auto& engine_configs = heuristics.getEngineConfig(engine_config_count);
+      for (int64_t count = 0; count < engine_config_count; count++) {
         try {
           plan_cache.emplace(cache_string, std::move(cudnn_frontend::ExecutionPlanBuilder()
                                                      .setHandle(handle_)
@@ -160,32 +160,36 @@ cudnn_frontend::ExecutionPlan& getOrCreatePlan(cudnnHandle_t handle_,
                                                      .build()));
           break;
         } catch (cudnn_frontend::cudnnException e) {
-          if (++count == max_tries) throw e;
+          // Throw exception if all engines failed
+          if (count == (engine_config_count - 1)) {
+            throw e;
+          } else {
+            continue;
+          }
         }
       }
-    }else{
-    DEBUG_CUDNN_MSG(log_buf, "No plan in cache");
-    // How many engines support this operation graph ?
-    auto total_engines = opGraph.getEngineCount();
-    DEBUG_CUDNN_MSG(log_buf, opGraph.describe() << " has " << total_engines << " engines.");
-    // We have to randomly pick one engine from [0, total_engines)
-    // Selecting "0" by default
-    auto engine = cudnn_frontend::EngineBuilder().setGlobalEngineIdx(0).setOperationGraph(opGraph).build();
-    DEBUG_CUDNN_MSG(log_buf, engine.describe());
-    auto& knobs = engine.getSupportedKnobs();
-    for (auto it = std::begin(knobs); it != std::end(knobs); ++it) {
-      DEBUG_CUDNN_MSG(log_buf, it->describe());
-    }
-    if (knobs.begin() != knobs.end()) {
-      DEBUG_CUDNN_MSG(log_buf, "Updated knob choice");
-      knobs.begin()->setChoice(knobs.begin()->getMinValue() + 1);
-      DEBUG_CUDNN_MSG(log_buf, knobs.begin()->describe());
-    }
+    } else {
+      // How many engines support this operation graph ?
+      auto total_engines = opGraph.getEngineCount();
+      DEBUG_CUDNN_MSG(log_buf, opGraph.describe() << " has " << total_engines << " engines.");
+      // We have to randomly pick one engine from [0, total_engines)
+      // Selecting "0" by default
+      auto engine = cudnn_frontend::EngineBuilder().setGlobalEngineIdx(0).setOperationGraph(opGraph).build();
+      DEBUG_CUDNN_MSG(log_buf, engine.describe());
+      auto& knobs = engine.getSupportedKnobs();
+      for (auto it = std::begin(knobs); it != std::end(knobs); ++it) {
+        DEBUG_CUDNN_MSG(log_buf, it->describe());
+      }
+      if (knobs.begin() != knobs.end()) {
+        DEBUG_CUDNN_MSG(log_buf, "Updated knob choice");
+        knobs.begin()->setChoice(knobs.begin()->getMinValue() + 1);
+        DEBUG_CUDNN_MSG(log_buf, knobs.begin()->describe());
+      }
 
-    // Createmplacee the requisite engine config
-    auto engine_config = cudnn_frontend::EngineConfigBuilder().setEngine(engine).build();
-    DEBUG_CUDNN_MSG(log_buf, engine_config.describe());
-    plan_cache.emplace(cache_string, std::move(cudnn_frontend::ExecutionPlanBuilder().setHandle(handle_).setEngineConfig(engine_config).build()));
+      // Createmplacee the requisite engine config
+      auto engine_config = cudnn_frontend::EngineConfigBuilder().setEngine(engine).build();
+      DEBUG_CUDNN_MSG(log_buf, engine_config.describe());
+      plan_cache.emplace(cache_string, std::move(cudnn_frontend::ExecutionPlanBuilder().setHandle(handle_).setEngineConfig(engine_config).build()));
     }
 
     return plan_cache.find(cache_string)->second;
