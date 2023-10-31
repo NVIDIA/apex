@@ -2211,7 +2211,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             state_bucket = self.state["buckets"][bucket_id]
             shard_size = state_bucket.shard_size
             param_sync_dtype = state_bucket.param_sync_dtype
-            if self.contiguous_param_buffer:
+            if not param_sync_dtype.is_floating_point:
+                # Allocate temporary buffer for param shard
+                # Note: Adam kernel only supports floating-point
+                # dtypes.
+                params_bucket.params_shard = torch.empty(
+                    [shard_size],
+                    dtype=self.dtype,
+                    device=self.device,
+                )
+                overlap_first_bucket = False
+            elif self.contiguous_param_buffer:
                 # Construct view into contiguous param buffer
                 if not self._param_buffers:
                     self.init_param_buffer()
@@ -2225,16 +2235,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 params_bucket.params_shard = params_bucket.params_bucket[
                     bucket_start:bucket_end
                 ]
-            elif not param_sync_dtype.is_floating_point:
-                # Allocate temporary buffer for param shard
-                # Note: Adam kernel only supports floating-point
-                # dtypes.
-                params_bucket.params_shard = torch.empty(
-                    [shard_size],
-                    dtype=self.dtype,
-                    device=self.device,
-                )
-                overlap_first_bucket = False
             else:
                 # Allocate param shard buffer
                 params_bucket.params_shard = torch.empty(
