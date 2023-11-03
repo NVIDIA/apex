@@ -181,6 +181,14 @@ class GroupNorm(torch.nn.Module):
         4096,
     }
     SUPPORTED_GROUPS = {16, 32}
+    SUPPORTED_DTYPES = {
+        # (input dtype, parameter dtype)
+        (torch.float32, torch.float32),
+        (torch.float16, torch.float16),
+        (torch.float16, torch.float32),
+        (torch.bfloat16, torch.bfloat16),
+        (torch.bfloat16, torch.float32),
+    }
 
     def __init__(self,
                  num_groups: int,
@@ -224,9 +232,8 @@ class GroupNorm(torch.nn.Module):
         is_input_half_or_float_or_bf16 = input.dtype in [
             torch.float16, torch.bfloat16, torch.float32
         ]
-        is_supported_dtype_combination = not self.affine or input.dtype in [
-            self.weight.dtype, torch.float32
-        ]
+        is_supported_dtype_combination = not self.affine or \
+            (input.dtype, self.weight.dtype) in self.SUPPORTED_DTYPES
         is_legal_act = self.act in ['', 'silu', 'swish']
 
         if is_nhwc and is_input_half_or_float_or_bf16 and \
