@@ -31,10 +31,20 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
 
   // The IO traits.
   using Traits = Traits_;
+  // The IO traits.
+  using IOTraits = typename Traits::IOTraits;
+  // The Weights traits.
+  using WTraits = typename Traits::WTraits;
+
   // The IO type
-  using IOType = typename Traits::IOType;
+  using IOType = typename IOTraits::Type;
   // The IO doubled type
-  using IOType2 = typename Traits::IOType2;
+  using IOType2 = typename IOTraits::Type2;
+
+  // Weights type
+  using WType = typename WTraits::Type;
+  // Weights doubled type
+  using WType2 = typename WTraits::Type2;
 
   // The number of activations per block.
   constexpr int ACTS_PER_BLOCK = ACTS_PER_BLOCK_;
@@ -104,8 +114,8 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
     #pragma unroll
     for( int ii = 0; ii < ACTS_PER_THREAD; ++ii ) {
       int hwj = hwi + ii*ACTS_PER_LOOP;
-      x [ii] = Traits::zero();
-      dy[ii] = Traits::zero();
+      x [ii] = IOTraits::zero();
+      dy[ii] = IOTraits::zero();
       if( is_active && hwj < params.hw ) {
         x [ii] = *reinterpret_cast<const IOType2*>(&x_ptr [hwj*params.c]);
         dy[ii] = *reinterpret_cast<const IOType2*>(&dy_ptr[hwj*params.c]);
@@ -116,9 +126,11 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
     float2 gamma_f2 = make_float2(0.f, 0.f);
     float2 beta_f2 = make_float2(0.f, 0.f);
     if( is_active ) {
-      gamma_f2 = *reinterpret_cast<const float2*>(&params.gamma[gi*CHANNELS_PER_GROUP + ci]);
+      gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(
+        &reinterpret_cast<const WType*>(params.gamma)[gi*CHANNELS_PER_GROUP+ci]));
       if (params.with_swish) {
-        beta_f2 = *reinterpret_cast<const float2*>(&params.beta[gi*CHANNELS_PER_GROUP + ci]);
+        beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(
+          &reinterpret_cast<const WType*>(params.beta) [gi*CHANNELS_PER_GROUP+ci]));
       }
     }
 
@@ -131,9 +143,9 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
     #pragma unroll
     for( int ii = 0; ii < ACTS_PER_THREAD; ++ii ) {
       // Convert x to float.
-      float2 x_f2  = Traits::unpack(x [ii]);
+      float2 x_f2  = IOTraits::unpack(x [ii]);
       // Convert dY to float.
-      float2 dy_f2 = Traits::unpack(dy[ii]);
+      float2 dy_f2 = IOTraits::unpack(dy[ii]);
 
       // X - X_mean.
       float x_minus_x_mean_x = x_f2.x - x_mean;
@@ -271,9 +283,9 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
     // Iterate over the activations to normalize the activations and store the results.
     for( int ii = 0; ii < ACTS_PER_THREAD; ++ii ) {
       // Convert x to float.
-      float2 x_f2  = Traits::unpack(x [ii]);
+      float2 x_f2  = IOTraits::unpack(x [ii]);
       // Convert dY to float.
-      float2 dy_f2 = Traits::unpack(dy[ii]);
+      float2 dy_f2 = IOTraits::unpack(dy[ii]);
 
       // X - X_mean.
       float2 x_minus_x_mean_f2;
@@ -306,7 +318,7 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
       // Store the scaled values.
       int hwj = hwi + ii*ACTS_PER_LOOP;
       if( is_active && hwj < params.hw ) {
-        *reinterpret_cast<IOType2*>(&dx_ptr[hwj*params.c]) = Traits::pack(dx);
+        *reinterpret_cast<IOType2*>(&dx_ptr[hwj*params.c]) = IOTraits::pack(dx);
       }
     }
   }
@@ -345,8 +357,8 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
     dbeta.y = params.zeroed_red_buffer[idx + 3*params.c/2];
 
     // Store to global memory.
-    *reinterpret_cast<float2*>(&params.dgamma[idx*2]) = dgamma;
-    *reinterpret_cast<float2*>(&params.dbeta [idx*2]) = dbeta;
+    *reinterpret_cast<WType2*>(&reinterpret_cast<WType*>(params.dgamma)[idx*2]) = WTraits::pack(dgamma);
+    *reinterpret_cast<WType2*>(&reinterpret_cast<WType*>(params.dbeta )[idx*2]) = WTraits::pack(dbeta);
   }
 }
 

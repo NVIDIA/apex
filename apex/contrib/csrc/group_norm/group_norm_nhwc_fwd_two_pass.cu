@@ -29,12 +29,15 @@
 template< typename Traits_, int THREADS_PER_BLOCK >
 __global__ void group_norm_nhwc_fwd_sum_kernel(Group_norm_nhwc_fwd_params params) {
 
-  // The IO traits.
+  // The traits.
   using Traits = Traits_;
+  // The IO traits.
+  using IOTraits = typename Traits::IOTraits;
+
   // The IO type
-  using IOType = typename Traits::IOType;
+  using IOType = typename IOTraits::Type;
   // The IO doubled type
-  using IOType2 = typename Traits::IOType2;
+  using IOType2 = typename IOTraits::Type2;
 
   // The object in charge of doing the sums for the different blocks.
   typedef cub::BlockScan<Group_sums, THREADS_PER_BLOCK> Block_scan;
@@ -64,13 +67,13 @@ __global__ void group_norm_nhwc_fwd_sum_kernel(Group_norm_nhwc_fwd_params params
     int64_t offset = (int64_t) ni*params.hwc + hwi*params.c + ci;
 
     // Fetch two channels per thread.
-    IOType2 v2 = Traits::zero();
+    IOType2 v2 = IOTraits::zero();
     if( ci < params.c ) {
       v2  = *reinterpret_cast<const IOType2*>(&reinterpret_cast<const IOType*>(params.x )[offset]);
     }
 
     // Extract the two values.
-    float2 f2 = Traits::unpack(v2);
+    float2 f2 = IOTraits::unpack(v2);
 
     // Update the sum.
     sum += f2.x + f2.y;
@@ -203,12 +206,24 @@ void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params &params
   grid.z = params.n;
 
   // Launch the kernel.
-  if (params.precision == PrecisionMode::FP16) {
-    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_sum_kernel, Fp16)
-  } else if (params.precision == PrecisionMode::BF16) {
-    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_sum_kernel, Bf16)
+  if (params.precision == PrecisionMode::FP16IOFP16W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_sum_kernel, Fp16IOFp16W)
+  } else if (params.precision == PrecisionMode::FP16IOBF16W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_sum_kernel, Fp16IOBf16W)
+  } else if (params.precision == PrecisionMode::FP16IOFP32W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_sum_kernel, Fp16IOFp32W)
+  } else if (params.precision == PrecisionMode::BF16IOFP16W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_sum_kernel, Bf16IOFp16W)
+  } else if (params.precision == PrecisionMode::BF16IOBF16W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_sum_kernel, Bf16IOBf16W)
+  } else if (params.precision == PrecisionMode::BF16IOFP32W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_sum_kernel, Bf16IOFp32W)
+  } else if (params.precision == PrecisionMode::FP32IOFP16W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_sum_kernel, Fp32IOFp16W)
+  } else if (params.precision == PrecisionMode::FP32IOBF16W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_sum_kernel, Fp32IOBf16W)
   } else {
-    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_sum_kernel, Fp32)
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_sum_kernel, Fp32IOFp32W)
   }
 
   // Make sure it launched ok.
@@ -220,12 +235,22 @@ void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params &params
 template< typename Traits_, int THREADS_PER_BLOCK >
 __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params params) {
 
-  // The IO traits.
+  // The traits.
   using Traits = Traits_;
+  // The IO traits.
+  using IOTraits = typename Traits::IOTraits;
+  // The Weights traits.
+  using WTraits = typename Traits::WTraits;
+
   // The IO type
-  using IOType = typename Traits::IOType;
+  using IOType = typename IOTraits::Type;
   // The IO doubled type
-  using IOType2 = typename Traits::IOType2;
+  using IOType2 = typename IOTraits::Type2;
+
+  // Weights type
+  using WType = typename WTraits::Type;
+  // Weights doubled type
+  using WType2 = typename WTraits::Type2;
 
   // The instance in the batch.
   int ni = blockIdx.z;
@@ -244,8 +269,10 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
   // Load gamma/beta.
   float2 gamma_f2, beta_f2;
   if( ci < params.c ) {
-    gamma_f2 = *reinterpret_cast<const float2*>(&params.gamma[ci]);
-    beta_f2  = *reinterpret_cast<const float2*>(&params.beta [ci]);
+    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(
+      &reinterpret_cast<const WType*>(params.gamma)[ci]));
+    beta_f2  = WTraits::unpack(*reinterpret_cast<const WType2*>(
+      &reinterpret_cast<const WType*>(params.beta) [ci]));
   }
 
   // Compute the mean.
@@ -267,13 +294,13 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
     int64_t offset = (int64_t) ni*params.hwc + hwi*params.c + ci;
 
     // Fetch two channels per thread.
-    IOType2 v2 = Traits::zero();
+    IOType2 v2 = IOTraits::zero();
     if( ci < params.c ) {
       v2  = *reinterpret_cast<const IOType2*>(&reinterpret_cast<const IOType*>(params.x )[offset]);
     }
 
     // Extract the two values.
-    float2 f2 = Traits::unpack(v2);
+    float2 f2 = IOTraits::unpack(v2);
 
     // Normalize the channels.
     f2.x = (f2.x - mean) * inv_stddev;
@@ -291,7 +318,7 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
 
     // Store the scaled values.
     if( ci < params.c ) {
-      *reinterpret_cast<IOType2*>(&reinterpret_cast<IOType*>(params.y)[offset]) = Traits::pack(f2);
+      *reinterpret_cast<IOType2*>(&reinterpret_cast<IOType*>(params.y)[offset]) = IOTraits::pack(f2);
     }
   }
 
@@ -319,13 +346,24 @@ void group_norm_nhwc_fwd_two_passes_scale(const Group_norm_nhwc_fwd_params &para
   // The number of instances.
   grid.z = params.n;
 
-  // Launch the kernel.
-  if (params.precision == PrecisionMode::FP16) {
-    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_scale_kernel, Fp16)
-  } else if (params.precision == PrecisionMode::BF16) {
-    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_scale_kernel, Bf16)
+  if (params.precision == PrecisionMode::FP16IOFP16W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_scale_kernel, Fp16IOFp16W)
+  } else if (params.precision == PrecisionMode::FP16IOBF16W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_scale_kernel, Fp16IOBf16W)
+  } else if (params.precision == PrecisionMode::FP16IOFP32W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_scale_kernel, Fp16IOFp32W)
+  } else if (params.precision == PrecisionMode::BF16IOFP16W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_scale_kernel, Bf16IOFp16W)
+  } else if (params.precision == PrecisionMode::BF16IOBF16W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_scale_kernel, Bf16IOBf16W)
+  } else if (params.precision == PrecisionMode::BF16IOFP32W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_scale_kernel, Bf16IOFp32W)
+  } else if (params.precision == PrecisionMode::FP32IOFP16W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_scale_kernel, Fp32IOFp16W)
+  } else if (params.precision == PrecisionMode::FP32IOBF16W) {
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_scale_kernel, Fp32IOBf16W)
   } else {
-    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_scale_kernel, Fp32)
+    CALL_TWO_PASS_KERNEL(group_norm_nhwc_fwd_scale_kernel, Fp32IOFp32W)
   }
 
   // Make sure it launched ok.

@@ -867,6 +867,20 @@ int main(int argc, char **argv) {
   Group_norm_nhwc_bwd_params params_bwd;
   memset(&params_bwd, 0, sizeof(params_bwd));
 
+  PrecisionMode precision;
+  if (use_fp32)
+  {
+    precision = PrecisionMode::FP32IOFP32W;
+  }
+  else if (use_bf16)
+  {
+    precision = PrecisionMode::BF16IOFP32W;
+  }
+  else
+  {
+    precision = PrecisionMode::FP16IOFP32W;
+  }
+
   // Initialize the parameters.
   if( mode == Mode::BWD ) { 
     params_bwd.dx = dx_d;
@@ -884,7 +898,7 @@ int main(int argc, char **argv) {
     params_bwd.c = c;
     params_bwd.groups = groups;
     params_bwd.with_swish = with_swish;
-    params_bwd.precision = use_fp32 ? PrecisionMode::FP32 : (use_bf16 ? PrecisionMode::BF16 : PrecisionMode::FP16);
+    params_bwd.precision = precision;
   } else {
     params_fwd.y = y_d;
     params_fwd.sums = sums_d;
@@ -898,7 +912,7 @@ int main(int argc, char **argv) {
     params_fwd.c = c;
     params_fwd.groups = groups;
     params_fwd.with_swish = with_swish;
-    params_fwd.precision = use_fp32 ? PrecisionMode::FP32 : (use_bf16 ? PrecisionMode::BF16 : PrecisionMode::FP16);
+    params_fwd.precision = precision;
   }
 
   // The number of barriers.
