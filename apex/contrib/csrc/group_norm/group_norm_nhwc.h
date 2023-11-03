@@ -64,9 +64,15 @@ static inline __device__ void spin_wait_(int *barrier, int step, int expected) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 enum PrecisionMode {
-  FP16,
-  BF16,
-  FP32,
+  FP32IOFP16W,
+  FP32IOBF16W,
+  FP32IOFP32W,
+  FP16IOFP16W,
+  FP16IOBF16W,
+  FP16IOFP32W,
+  BF16IOFP16W,
+  BF16IOBF16W,
+  BF16IOFP32W,
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -103,9 +109,9 @@ struct Group_norm_nhwc_fwd_params {
   // The input buffer. Layout NHWC.
   const void *x;
   // The gamma scaling factor.
-  const float *gamma;
+  const void *gamma;
   // The beta term to add in GN.
-  const float *beta;
+  const void *beta;
   // The constant epsilon for sqrt(var + epsilon).
   float epsilon;
   // The barriers for the persistent kernel.
@@ -160,17 +166,17 @@ struct Group_norm_nhwc_bwd_params {
   // The output buffer. Layout NHWC.
   void *dx;
   // The output buffer. Layout NHWC.
-  float *dgamma;
+  void *dgamma;
   // The output buffer. Layout NHWC.
-  float *dbeta;
+  void *dbeta;
   // The input buffer. Layout NHWC.
   const void *dy;
   // The input buffer. Layout NHWC.
   const void *x;
   // The gamma scaling factor.
-  const float *gamma;
+  const void *gamma;
   // The beta term to add in GN.
-  const float *beta;
+  const void *beta;
   // The sums from the fwd pass.
   const float2 *sums;
   // The constant epsilon for sqrt(var + epsilon).

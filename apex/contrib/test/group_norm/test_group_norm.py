@@ -90,9 +90,9 @@ class GroupNormTest(unittest.TestCase):
 
         # compare
         torch.testing.assert_close(y_tst, y_ref, atol=4e-2, rtol=0)
-        torch.testing.assert_close(dx_tst, dx_ref, atol=1e-2, rtol=0)
-        torch.testing.assert_close(dw_tst, dw_ref, atol=1e-2, rtol=0)
-        torch.testing.assert_close(db_tst, db_ref, atol=1e-2, rtol=0)
+        torch.testing.assert_close(dx_tst, dx_ref, atol=4e-2, rtol=0)
+        torch.testing.assert_close(dw_tst, dw_ref, atol=4e-2, rtol=0)
+        torch.testing.assert_close(db_tst, db_ref, atol=4e-2, rtol=0)
 
     def test_fp16_one_pass_algo(self):
         self.verify_group_norm(cuda_group_norm_nhwc_one_pass, act="")
@@ -165,6 +165,18 @@ class GroupNormTest(unittest.TestCase):
                                    W=w,
                                    G=16,
                                    act="swish")
+
+    def test_fp16_parameters(self):
+        n, c, h, w = 8, 2560, 16, 16
+        self.verify_group_norm(GroupNorm,
+                               N=n,
+                               C=c,
+                               H=h,
+                               W=w,
+                               G=16,
+                               xdtype=torch.float16,
+                               wdtype=torch.float16,
+                               act="swish")
 
 
 if __name__ == '__main__':

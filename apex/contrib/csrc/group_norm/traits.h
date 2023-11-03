@@ -28,10 +28,10 @@
 
 struct Fp32
 {
-  // I/O type is float32_t
-  using IOType = float;
-  // Doubled I/O type
-  using IOType2 = float2;
+  // Type is float32_t
+  using Type = float;
+  // Doubled type
+  using Type2 = float2;
 
   // Unpack input to accumulators type
   static inline __device__ float2 unpack(const float2& f2)
@@ -55,10 +55,10 @@ struct Fp32
 
 struct Fp16
 {
-  // I/O type is __half
-  using IOType = __half;
-  // Doubled I/O type
-  using IOType2 = __half2;
+  // Type is __half
+  using Type = __half;
+  // Doubled type
+  using Type2 = __half2;
 
   // Unpack input to accumulators type
   static inline __device__ float2 unpack(const __half2& h2)
@@ -86,10 +86,10 @@ struct Fp16
 
 struct Bf16
 {
-  // I/O type is __nv_bfloat16
-  using IOType = __nv_bfloat16;
-  // Doubled I/O type
-  using IOType2 = __nv_bfloat162;
+  // Type is __nv_bfloat16
+  using Type = __nv_bfloat16;
+  // Doubled type
+  using Type2 = __nv_bfloat162;
 
   // Unpack input to accumulators type
   static inline __device__ float2 unpack(const __nv_bfloat162& h2)
@@ -111,6 +111,83 @@ struct Bf16
     uint32_t zero = 0;
     return *reinterpret_cast<__nv_bfloat162*>(&zero);
   }
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+struct Fp32IOFp16W
+{
+  // IO traits
+  using IOTraits = Fp32;
+  // Weigths traits
+  using WTraits = Fp16;
+};
+
+struct Fp32IOBf16W
+{
+  // IO traits
+  using IOTraits = Fp32;
+  // Weigths traits
+  using WTraits = Bf16;
+};
+
+
+struct Fp32IOFp32W
+{
+  // IO traits
+  using IOTraits = Fp32;
+  // Weigths traits
+  using WTraits = Fp32;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct Fp16IOFp16W
+{
+  // IO traits
+  using IOTraits = Fp16;
+  // Weigths traits
+  using WTraits = Fp16;
+};
+
+struct Fp16IOBf16W
+{
+  // IO traits
+  using IOTraits = Fp16;
+  // Weigths traits
+  using WTraits = Bf16;
+};
+
+struct Fp16IOFp32W
+{
+  // IO traits
+  using IOTraits = Fp16;
+  // Weigths traits
+  using WTraits = Fp32;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+struct Bf16IOFp16W
+{
+  // IO traits
+  using IOTraits = Bf16;
+  // Weigths traits
+  using WTraits = Fp16;
+};
+
+struct Bf16IOBf16W
+{
+  // IO traits
+  using IOTraits = Bf16;
+  // Weigths traits
+  using WTraits = Bf16;
+};
+
+struct Bf16IOFp32W
+{
+  // IO traits
+  using IOTraits = Bf16;
+  // Weigths traits
+  using WTraits = Fp32;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

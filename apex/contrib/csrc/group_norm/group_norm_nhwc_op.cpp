@@ -98,9 +98,9 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups,
   params_fwd.sums = reinterpret_cast<float2 *>(sums_d.data_ptr());
   params_fwd.x = const_cast<void *>(reinterpret_cast<void *>(input.data_ptr()));
   params_fwd.gamma =
-      const_cast<float *>(reinterpret_cast<float *>(weight.data_ptr()));
+      const_cast<void *>(reinterpret_cast<void *>(weight.data_ptr()));
   params_fwd.beta =
-      const_cast<float *>(reinterpret_cast<float *>(bias.data_ptr()));
+      const_cast<void *>(reinterpret_cast<void *>(bias.data_ptr()));
   params_fwd.epsilon = eps;
   params_fwd.n = n;
   params_fwd.h = h;
@@ -108,11 +108,34 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups,
   params_fwd.c = c;
   params_fwd.groups = groups;
   params_fwd.with_swish = with_swish;
-  params_fwd.precision =
-      input.dtype() == torch::kFloat32
-          ? PrecisionMode::FP32
-          : (input.dtype() == torch::kBFloat16 ? PrecisionMode::BF16
-                                               : PrecisionMode::FP16);
+
+  PrecisionMode mode;
+  if (input.dtype() == torch::kFloat32) {
+    if (weight.dtype() == torch::kFloat16) {
+      mode = PrecisionMode::FP32IOFP16W;
+    } else if (weight.dtype() == torch::kBFloat16) {
+      mode = PrecisionMode::FP32IOBF16W;
+    } else {
+      mode = PrecisionMode::FP32IOFP32W;
+    }
+  } else if (input.dtype() == torch::kBFloat16) {
+    if (weight.dtype() == torch::kFloat16) {
+      mode = PrecisionMode::BF16IOFP16W;
+    } else if (weight.dtype() == torch::kBFloat16) {
+      mode = PrecisionMode::BF16IOBF16W;
+    } else {
+      mode = PrecisionMode::BF16IOFP32W;
+    }
+  } else {
+    if (weight.dtype() == torch::kFloat16) {
+      mode = PrecisionMode::FP16IOFP16W;
+    } else if (weight.dtype() == torch::kBFloat16) {
+      mode = PrecisionMode::FP16IOBF16W;
+    } else {
+      mode = PrecisionMode::FP16IOFP32W;
+    }
+  }
+  params_fwd.precision = mode;
 
   // The number of barriers.
   size_t barriers_elts = 0;
@@ -190,8 +213,8 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
 
   // Initialize the parameters.
   params_bwd.dx = reinterpret_cast<void *>(grad_input.data_ptr());
-  params_bwd.dgamma = reinterpret_cast<float *>(grad_weight.data_ptr());
-  params_bwd.dbeta = reinterpret_cast<float *>(grad_bias.data_ptr());
+  params_bwd.dgamma = reinterpret_cast<void *>(grad_weight.data_ptr());
+  params_bwd.dbeta = reinterpret_cast<void *>(grad_bias.data_ptr());
   params_bwd.sums =
       const_cast<float2 *>(reinterpret_cast<float2 *>(sums.data_ptr()));
   params_bwd.dy =
@@ -199,9 +222,9 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
   params_bwd.x = const_cast<void *>(reinterpret_cast<void *>(input.data_ptr()));
   ;
   params_bwd.gamma =
-      const_cast<float *>(reinterpret_cast<float *>(weight.data_ptr()));
+      const_cast<void *>(reinterpret_cast<void *>(weight.data_ptr()));
   params_bwd.beta =
-      const_cast<float *>(reinterpret_cast<float *>(bias.data_ptr()));
+      const_cast<void *>(reinterpret_cast<void *>(bias.data_ptr()));
   ;
   params_bwd.epsilon = eps;
   params_bwd.n = n;
@@ -210,11 +233,34 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
   params_bwd.c = c;
   params_bwd.groups = groups;
   params_bwd.with_swish = with_swish;
-  params_bwd.precision =
-      input.dtype() == torch::kFloat32
-          ? PrecisionMode::FP32
-          : (input.dtype() == torch::kBFloat16 ? PrecisionMode::BF16
-                                               : PrecisionMode::FP16);
+
+  PrecisionMode mode;
+  if (input.dtype() == torch::kFloat32) {
+    if (weight.dtype() == torch::kFloat16) {
+      mode = PrecisionMode::FP32IOFP16W;
+    } else if (weight.dtype() == torch::kBFloat16) {
+      mode = PrecisionMode::FP32IOBF16W;
+    } else {
+      mode = PrecisionMode::FP32IOFP32W;
+    }
+  } else if (input.dtype() == torch::kBFloat16) {
+    if (weight.dtype() == torch::kFloat16) {
+      mode = PrecisionMode::BF16IOFP16W;
+    } else if (weight.dtype() == torch::kBFloat16) {
+      mode = PrecisionMode::BF16IOBF16W;
+    } else {
+      mode = PrecisionMode::BF16IOFP32W;
+    }
+  } else {
+    if (weight.dtype() == torch::kFloat16) {
+      mode = PrecisionMode::FP16IOFP16W;
+    } else if (weight.dtype() == torch::kBFloat16) {
+      mode = PrecisionMode::FP16IOBF16W;
+    } else {
+      mode = PrecisionMode::FP16IOFP32W;
+    }
+  }
+  params_bwd.precision = mode;
 
   // The number of barriers.
   size_t barriers_elts = 0;
