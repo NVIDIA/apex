@@ -184,9 +184,13 @@ class GroupNorm(torch.nn.Module):
     SUPPORTED_DTYPES = {
         # (input dtype, parameter dtype)
         (torch.float32, torch.float32),
+        (torch.float32, torch.float16),
+        (torch.float32, torch.bfloat16),
         (torch.float16, torch.float16),
+        (torch.float16, torch.bfloat16),
         (torch.float16, torch.float32),
         (torch.bfloat16, torch.bfloat16),
+        (torch.bfloat16, torch.float16),
         (torch.bfloat16, torch.float32),
     }
 
