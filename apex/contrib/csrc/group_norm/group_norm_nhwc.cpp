@@ -867,19 +867,15 @@ int main(int argc, char **argv) {
   Group_norm_nhwc_bwd_params params_bwd;
   memset(&params_bwd, 0, sizeof(params_bwd));
 
-  PrecisionMode precision;
-  if (use_fp32)
-  {
-    precision = PrecisionMode::FP32IOFP32W;
-  }
-  else if (use_bf16)
-  {
-    precision = PrecisionMode::BF16IOFP32W;
-  }
-  else
-  {
-    precision = PrecisionMode::FP16IOFP32W;
-  }
+  const auto precision = [&]() -> PrecisionMode {
+    if (use_fp32) {
+      return PrecisionMode::FP32IOFP32W;
+    } else if (use_bf16) {
+      return PrecisionMode::BF16IOFP32W;
+    } else {
+      return PrecisionMode::FP16IOFP32W;
+    }
+  }();
 
   // Initialize the parameters.
   if( mode == Mode::BWD ) { 
