@@ -63,6 +63,7 @@ static inline __device__ void spin_wait_(int *barrier, int step, int expected) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Input type followed by parameter type
 enum PrecisionMode {
   FP32IOFP16W,
   FP32IOBF16W,
