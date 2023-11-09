@@ -35,7 +35,7 @@ __global__ void fused_rope_forward(int sq, int b, int np, int hn, int hn2,
     scalar_t v_cos = cos[sq_id * hn2 + hn_id];
     scalar_t v_sin = sin[sq_id * hn2 + hn_id];
 #pragma unroll
-    for (int head_id = 0; head_id < np; head_id += 1) {
+    for (int head_id = threadIdx.y; head_id < np; head_id += blockDim.y) {
       int offset_src_dst = offset_block + head_id * hn + hn_id;
       scalar_t v_src = src[offset_src_dst];
       scalar_t v_src_rotate = (hn_id + hn2 / 2 < hn2)
@@ -48,7 +48,7 @@ __global__ void fused_rope_forward(int sq, int b, int np, int hn, int hn2,
   // copy the rest
   if (hn > hn2) {
 #pragma unroll
-    for (int head_id = 0; head_id < np; head_id += 1) {
+    for (int head_id = threadIdx.y; head_id < np; head_id += blockDim.y) {
       int offset_head = offset_block + head_id * hn;
 #pragma unroll
       for (int hn_id = hn2 + threadIdx.x; hn_id < hn; hn_id += blockDim.x) {
@@ -72,7 +72,7 @@ __global__ void fused_rope_backward(int sq, int b, int np, int hn, int hn2,
                          ? sin[sq_id * hn2 + hn_id + hn2 / 2]
                          : -sin[sq_id * hn2 + hn_id + hn2 / 2 - hn2];
 #pragma unroll
-    for (int head_id = 0; head_id < np; head_id += 1) {
+    for (int head_id = threadIdx.y; head_id < np; head_id += blockDim.y) {
       int offset_src_dst = offset_block + head_id * hn + hn_id;
       scalar_t v_src = src[offset_src_dst];
       scalar_t v_src_rotate = (hn_id + hn2 / 2 < hn2)
@@ -85,7 +85,7 @@ __global__ void fused_rope_backward(int sq, int b, int np, int hn, int hn2,
   // handle the tail
   if (hn > hn2) {
 #pragma unroll
-    for (int head_id = 0; head_id < np; head_id += 1) {
+    for (int head_id = threadIdx.y; head_id < np; head_id += blockDim.y) {
       int offset_head = offset_block + head_id * hn;
 #pragma unroll
       for (int hn_id = hn2 + threadIdx.x; hn_id < hn; hn_id += blockDim.x) {
@@ -103,9 +103,9 @@ void dispatch_fused_rope_forward(int sq, int b, int np, int hn, int hn2,
                                  const scalar_t* sin, scalar_t* output) {
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  constexpr int threads_per_block = 256;
+  int warps_per_block = np < 16 ? 4 : 8;
   dim3 blocks(sq, b);
-  dim3 threads(threads_per_block);
+  dim3 threads(C10_WARP_SIZE, warps_per_block);
 
   fused_rope_forward<<<blocks, threads, 0, stream>>>(sq, b, np, hn, hn2, input,
                                                      cos, sin, output);
@@ -119,9 +119,9 @@ void dispatch_fused_rope_backward(int sq, int b, int np, int hn, int hn2,
                                   scalar_t* input_grads) {
   auto stream = at::cuda::getCurrentCUDAStream();
 
-  constexpr int threads_per_block = 256;
+  int warps_per_block = np < 16 ? 4 : 8;
   dim3 blocks(sq, b);
-  dim3 threads(threads_per_block);
+  dim3 threads(C10_WARP_SIZE, warps_per_block);
 
   fused_rope_backward<<<blocks, threads, 0, stream>>>(
       sq, b, np, hn, hn2, output_grads, cos, sin, input_grads);
