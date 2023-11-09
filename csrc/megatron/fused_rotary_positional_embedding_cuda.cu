@@ -21,8 +21,8 @@
 
 namespace fused_rope {
 
-torch::Tensor fwd_cuda(torch::Tensor const& input, torch::Tensor const& cos,
-                       torch::Tensor const& sin) {
+torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &cos,
+                       const torch::Tensor &sin) {
   const int sq = input.size(0);
   const int b = input.size(1);
   const int np = input.size(2);
@@ -42,8 +42,8 @@ torch::Tensor fwd_cuda(torch::Tensor const& input, torch::Tensor const& cos,
   return output;
 }
 
-torch::Tensor bwd_cuda(torch::Tensor const& output_grads,
-                       torch::Tensor const& cos, torch::Tensor const& sin) {
+torch::Tensor bwd_cuda(const torch::Tensor &output_grads,
+                       const torch::Tensor &cos, const torch::Tensor &sin) {
   const int sq = output_grads.size(0);
   const int b = output_grads.size(1);
   const int np = output_grads.size(2);
