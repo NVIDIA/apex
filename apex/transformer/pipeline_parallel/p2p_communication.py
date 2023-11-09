@@ -187,7 +187,7 @@ def _communicate(
 
 
     .. note::
-        Reference https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/cfd2e2160700b7f2c1bf35298ac14bc341f4c759/megatron/p2p_communication.py#L24-L159
+        Reference https://github.com/NVIDIA/Megatron-LM/blob/cfd2e2160700b7f2c1bf35298ac14bc341f4c759/megatron/p2p_communication.py#L24-L159
 
     dtype logic: If none of ``dtype_``, ``params_dtype``, ``fp32_residual_connection`` is specified,
     torch.float32 is used.
