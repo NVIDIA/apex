@@ -332,7 +332,10 @@ if "--cuda_ext" in sys.argv:
     ext_modules.append(
         CUDAExtension(
             name="fused_rotary_positional_embedding",
-            sources=["csrc/megatron/fused_rotary_positional_embedding.cpp", "csrc/megatron/fused_rotary_positional_embedding_cuda.cu"],
+            sources=[
+                "csrc/megatron/fused_rotary_positional_embedding.cpp",
+                "csrc/megatron/fused_rotary_positional_embedding_cuda.cu",
+            ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"] + version_dependent_macros,

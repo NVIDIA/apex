@@ -3,40 +3,10 @@
 Ref: https://github.com/NVIDIA/Megatron-LM/blob/40becfc96c4144985458ac0e0fae45dbb111fbd2/megatron/fused_kernels/tests/test_fused_kernels.py
 """  # NOQA
 import itertools
-from typing import Tuple, Union
 
 import torch
 from torch.testing._internal import common_utils
-
-
-class FusedRoPEFunc(torch.autograd.Function):
-    @staticmethod
-    def forward(
-        ctx, t: torch.Tensor, cos_: torch.Tensor, sin_: torch.Tensor
-    ) -> torch.Tensor:
-        import fused_rotary_positional_embedding
-
-        output = fused_rotary_positional_embedding.forward(t, cos_, sin_)
-        ctx.save_for_backward(cos_, sin_)
-
-        return output
-
-    @staticmethod
-    def backward(
-        ctx, grad_output: torch.Tensor
-    ) -> Tuple[Union[torch.Tensor, None], ...]:
-        import fused_rotary_positional_embedding
-
-        cos_, sin_ = ctx.saved_tensors
-        grad_q = fused_rotary_positional_embedding.backward(grad_output, cos_, sin_)
-
-        return grad_q, None, None
-
-
-def apply_rotary_pos_emb_fused(t: torch.Tensor, freqs: torch.Tensor) -> torch.Tensor:
-    cos_ = torch.cos(freqs).to(t.dtype)
-    sin_ = torch.sin(freqs).to(t.dtype)
-    return FusedRoPEFunc.apply(t, cos_, sin_)
+from apex.transformer.functional import fused_apply_rotary_pos_emb
 
 
 def _rotate_half(x: torch.Tensor) -> torch.Tensor:
@@ -52,7 +22,8 @@ def _rotate_half(x: torch.Tensor) -> torch.Tensor:
     x1, x2 = torch.chunk(x, 2, dim=-1)
     return torch.cat((-x2, x1), dim=-1)
 
-
+# Copied from Megatron-Core for testing.
+# https://github.com/NVIDIA/Megatron-LM/blob/5f2877d85cb26e47ce6dcdae4b80adf376abf4e8/megatron/core/models/common/embeddings/rotary_pos_embedding.py#L139
 def apply_rotary_pos_emb(t: torch.Tensor, freqs: torch.Tensor) -> torch.Tensor:
     """Apply rotary positional embedding to input tensor T.
 
@@ -118,7 +89,7 @@ class TestFusedRoPE(common_utils.TestCase):
             t.grad = None
 
             # fused
-            output_fused = apply_rotary_pos_emb_fused(t, emb)
+            output_fused = fused_apply_rotary_pos_emb(t, emb)
             output_fused.sum().backward()
             grad_fused = t.grad.detach().clone()
 
