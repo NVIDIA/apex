@@ -5,7 +5,7 @@
 #include <cstdio>
 #include <ctime>
 #include <cassert>
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 #include "rccl/rccl.h"
 #else
 #include "nccl.h"

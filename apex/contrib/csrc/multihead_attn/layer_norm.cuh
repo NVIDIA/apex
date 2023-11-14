@@ -211,7 +211,7 @@ template<typename U> U rsqrt(U v) {
 //  return rsqrtf(v);
 //}
 
-#if defined __HIP_PLATFORM_HCC__
+#if defined USE_ROCM
 __device__ float rsqrt(float v) { return rsqrtf(v); }
 #else
 template<> float rsqrt(float v) { return rsqrtf(v); }

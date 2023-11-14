@@ -1,7 +1,7 @@
 #ifndef DNN_H
 #define DNN_H
 
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 #include <miopen/miopen.h>
 #define DNN_STATUS_SUCCESS miopenStatusSuccess
 #define DNN_DATA_HALF miopenHalf

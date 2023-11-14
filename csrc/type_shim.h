@@ -415,7 +415,7 @@ __device__ __forceinline__ T reduce_block_into_lanes
 
     #pragma unroll
     for(int i = warpSize / 2; i >= lanes; i >>= 1) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
       final = final + __shfl_down(final, i);
 #else
       final = final + __shfl_down_sync(0xffffffff, final, i);
@@ -471,7 +471,7 @@ __device__ __forceinline__ T reduce_block_into_lanes_max_op
 
     #pragma unroll
     for(int i = 16; i >= lanes; i >>= 1) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
       final = fmaxf(fabsf(final), fabsf(__shfl_down(final, i)));
 #else
       final = fmaxf(fabsf(final), fabsf(__shfl_down_sync(0xffffffff, final, i)));

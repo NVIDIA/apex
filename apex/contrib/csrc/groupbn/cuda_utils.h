@@ -1,4 +1,4 @@
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 #include <ATen/hip/HIPContext.h>
 #else
 #include <ATen/cuda/CUDAContext.h>
@@ -12,7 +12,7 @@ namespace cuda {
 namespace utils {
 
 static inline int MaxSharedMemoryPerMultiprocessor(int device_id) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
     return getDeviceProperties(device_id)->maxSharedMemoryPerMultiProcessor;
 #else
     return getDeviceProperties(device_id)->sharedMemPerMultiprocessor;

@@ -37,7 +37,7 @@
 #include "cuda_utils.h"
 #include "c10/macros/Macros.h"
 
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 using bitmask_t = uint64_t;
 using bitmask_pyt_t = int64_t;
 #else
@@ -133,7 +133,7 @@ class NhwcBatchNormAddRelu {
   void processCudnnStatus(const dnnStatus_t& status,
                           const std::string& string = std::string(),
                           bool verbose = VERBOSE_DEFAULT) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
     if (status != DNN_STATUS_SUCCESS)
       LOG(FATAL) << string << " " << miopenGetErrorString(status);
     else if (verbose)
@@ -206,7 +206,7 @@ class NhwcBatchNormAddRelu {
                            dnnDataType_t     data_type,
                            int n, int c, int h, int w) {
     dnnStatus_t status = DNN_STATUS_SUCCESS;
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
     status = miopenSet4dTensorDescriptor(descriptor, data_type, n, c, h, w);
 #else
     status = cudnnSetTensor4dDescriptor(descriptor, format, data_type, n, c, h, w);
@@ -216,7 +216,7 @@ class NhwcBatchNormAddRelu {
 
   void createTensorDescriptor(dnnTensorDescriptor_t *descriptor) {
     dnnStatus_t status = DNN_STATUS_SUCCESS;
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
     status = miopenCreateTensorDescriptor(descriptor);
 #else
     status = cudnnCreateTensorDescriptor(descriptor);
@@ -226,7 +226,7 @@ class NhwcBatchNormAddRelu {
 
   void destroyTensorDescriptor(dnnTensorDescriptor_t descriptor) {
     dnnStatus_t status = DNN_STATUS_SUCCESS;
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
     status = miopenDestroyTensorDescriptor(descriptor);
 #else
     status = cudnnDestroyTensorDescriptor(descriptor);
@@ -289,7 +289,7 @@ class NhwcBatchNormAddRelu {
   // needless register spills.
   void _fwdKernelLauncher(cudaStream_t stream, NhwcBatchNormFwdParams params,
                                 dim3 grid_dim, int outer_loops, const int occupancy, const bool coop) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 #define LAUNCH_FWD_KERNEL(OUTER_LOOPS, USE_RELU, USE_ADD_RELU, COMPILED_FOR_OCCUPANCY, COOP) \
     do { \
         CHECK(SMEM_SIZE_FWD <= MAX_SMEM_WITHOUT_OPT_IN) << \
@@ -412,7 +412,7 @@ class NhwcBatchNormAddRelu {
 
   void _bwdKernelLauncher(cudaStream_t stream, NhwcBatchNormBwdParams params,
                                 dim3 grid_dim, int outer_loops, const int occupancy, const bool coop) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 #define LAUNCH_BWD_ADD_RELU_KERNEL(OUTER_LOOPS, COMPILED_FOR_OCCUPANCY, COOP) \
     do { \
         CHECK(SMEM_SIZE_BWD <= MAX_SMEM_WITHOUT_OPT_IN) << \
@@ -558,7 +558,7 @@ const std::vector<size_t> NhwcBatchNormAddRelu::numWorkspaceBytes() const {
   const size_t num_mean_bytes     = c_ * sizeof(float);
   const size_t num_variance_bytes = num_mean_bytes;
 
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
   int elems_per_group = ((m_ + 3) & ~3) * 2;
 #else
   int elems_per_group = ((m_ + 31) & ~31) * 2;

@@ -30,7 +30,7 @@ cublasStatus_t gemm_bias(
     const float* beta,
     double* C,
     int ldc) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
   return rocblas_gemm_ex(
       handle,
       transa,
@@ -96,7 +96,7 @@ cublasStatus_t gemm_bias(
     const float* beta,
     float* C,
     int ldc) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
   return rocblas_gemm_ex(
       handle,
       transa,
@@ -163,7 +163,7 @@ cublasStatus_t gemm_bias(
     const float* beta,
     at::Half* C,
     int ldc) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
   return rocblas_gemm_ex(
       handle,
       transa,

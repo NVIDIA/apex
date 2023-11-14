@@ -75,7 +75,7 @@ cublasStatus_t mlp_gemm(
     double* C,
     int ldc,
     int flag) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
   return rocblas_gemm_ex(
       handle,
       transa,
@@ -142,7 +142,7 @@ cublasStatus_t mlp_gemm(
     float* C,
     int ldc,
     int flag) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
   return rocblas_gemm_ex(
       handle,
       transa,
@@ -210,7 +210,7 @@ cublasStatus_t mlp_gemm(
     at::Half* C,
     int ldc,
     int flag) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
   return rocblas_gemm_ex(
       handle,
       transa,
@@ -1506,7 +1506,7 @@ int mlp_bp(
   cudaStream_t stream;
   cublasGetStream(handle, &stream);
   int flag = 0;
-  #ifdef __HIP_PLATFORM_HCC__
+  #ifdef USE_ROCM
     #define PYTORCH_ROCBLAS_VERSION_DECIMAL (ROCBLAS_VERSION_MAJOR * 100 + ROCBLAS_VERSION_MINOR)
     #define USE_GEMM_FLAGS_FP16_ALT_IMPL (PYTORCH_ROCBLAS_VERSION_DECIMAL >= 242)
     #if USE_GEMM_FLAGS_FP16_ALT_IMPL

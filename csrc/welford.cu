@@ -11,7 +11,7 @@
 #include "type_shim.h"
 #include "compat.h"
 
-#if defined __HIP_PLATFORM_HCC__
+#if defined USE_ROCM
 #define SHFL_DOWN(mask,val,i) __shfl_down(val, i)
 #else
 #define SHFL_DOWN __shfl_down_sync
@@ -44,7 +44,7 @@ __host__ __forceinline__ int h_last_pow2(unsigned int n) {
     return n - (n >> 1);
 }
 
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 #define WARP_SIZE 64
 #else
 #define WARP_SIZE 32
@@ -266,7 +266,7 @@ __device__ __forceinline__ void merge_block_vertical(T& sum_dy,
 
 // welford kernel calculating mean/biased_variance/unbiased_variance
 template <typename scalar_t, typename accscalar_t, typename outscalar_t>
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 __launch_bounds__(MAX_BLOCK_SIZE)
 #endif
 __global__ void welford_kernel(
@@ -308,7 +308,7 @@ __global__ void welford_kernel(
 
 // elementwise BN kernel
 template <typename scalar_t, typename accscalar_t, typename layerscalar_t>
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 __launch_bounds__(MAX_BLOCK_SIZE)
 #endif
 __global__ void batchnorm_forward_kernel(
@@ -338,7 +338,7 @@ __global__ void batchnorm_forward_kernel(
 // Breaking the grad_input to two step to support sync BN, which requires all
 // reduce of the intermediate results across processes.
 template <typename scalar_t, typename accscalar_t, typename layerscalar_t>
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 __launch_bounds__(MAX_BLOCK_SIZE)
 #endif
 __global__ void reduce_bn_kernel(
@@ -405,7 +405,7 @@ __global__ void reduce_bn_kernel(
 
 // elementwise backward BN kernel
 template <typename scalar_t, typename accscalar_t, typename layerscalar_t>
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 __launch_bounds__(MAX_BLOCK_SIZE)
 #endif
 __global__ void batchnorm_backward_kernel(
@@ -447,7 +447,7 @@ template
     typename accscalar_t,
     typename outscalar_t,
     int PARALLEL_LOADS>
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 __launch_bounds__(MAX_BLOCK_SIZE)
 #endif
 __global__ void
@@ -591,7 +591,7 @@ welford_kernel_c_last(
 // parallel welford kernel to further reduce mean / biased_var
 // into mean / unbiased_var / inv_std across multiple processes.
 template <typename scalar_t>
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 __launch_bounds__(MAX_BLOCK_SIZE)
 #endif
 __global__ void welford_kernel_parallel(
@@ -627,7 +627,7 @@ template <
     typename accscalar_t,
     typename layerscalar_t,
     int PARALLEL_LOADS>
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 __launch_bounds__(MAX_BLOCK_SIZE)
 #endif
 __global__ void batchnorm_forward_c_last_kernel(
@@ -680,7 +680,7 @@ template <
     typename accscalar_t,
     typename layerscalar_t,
     int PARALLEL_LOADS>
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 __launch_bounds__(MAX_BLOCK_SIZE)
 #endif
 __global__ void relu_backward_c_last_kernel(
@@ -733,7 +733,7 @@ template
     typename accscalar_t,
     typename layerscalar_t,
     int PARALLEL_LOADS>
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 __launch_bounds__(MAX_BLOCK_SIZE)
 #endif
 __global__ void reduce_bn_c_last_kernel(
@@ -889,7 +889,7 @@ template <
     typename accscalar_t,
     typename layerscalar_t,
     int PARALLEL_LOADS>
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 __launch_bounds__(MAX_BLOCK_SIZE)
 #endif
 __global__ void batchnorm_backward_c_last_kernel(

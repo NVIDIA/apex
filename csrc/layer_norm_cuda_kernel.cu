@@ -306,7 +306,7 @@ void cuWelfordMuSigma2(
 template<typename U> U rsqrt(U v) {
   return U(1) / sqrt(v);
 }
-#if defined __HIP_PLATFORM_HCC__
+#if defined USE_ROCM
 __device__ float rsqrt(float v) {
   return rsqrtf(v);
 }
@@ -709,7 +709,7 @@ void cuComputeGradInput(
     const int numx = blockDim.x * blockDim.y;
     const int thrx = threadIdx.x + threadIdx.y * blockDim.x;
     if (gamma != NULL) {
-      #ifndef __HIP_PLATFORM_HCC__
+      #ifndef USE_ROCM
       int l = 4*thrx;
       for (;  l+3 < n2;  l+=4*numx) {           
         for (int k = 0;  k < 4;  ++k) {
@@ -750,7 +750,7 @@ void cuComputeGradInput(
       }
       #endif
     } else {
-      #ifndef __HIP_PLATFORM_HCC__
+      #ifndef USE_ROCM
       int l = 4*thrx;
       for (;  l+3 < n2;  l+=4*numx) {
         for (int k = 0;  k < 4;  ++k) {
@@ -888,7 +888,7 @@ void HostApplyLayerNorm(
     auto stream = at::cuda::getCurrentCUDAStream().stream();
     const int warp_size = at::cuda::warp_size();
     dim3 threads(warp_size ,4, 1);  // MI100 wavefront/warp = 64
-    #ifdef __HIP_PLATFORM_HCC__
+    #ifdef USE_ROCM
     // Optimization for ROCm MI100
     threads.y = 1;
     #endif
@@ -919,7 +919,7 @@ void HostApplyRMSNorm(
     const uint64_t maxGridY = at::cuda::getCurrentDeviceProperties()->maxGridSize[1];
     const dim3 blocks(1, std::min((uint64_t)n1, maxGridY), 1);
     dim3 threads(warp_size,4,1);
-    #ifdef __HIP_PLATFORM_HCC__
+    #ifdef USE_ROCM
     // Optimization for ROCm MI100
     threads.y = 2;
     #endif
@@ -1059,7 +1059,7 @@ void HostLayerNormGradient(
     const uint64_t maxGridY = at::cuda::getCurrentDeviceProperties()->maxGridSize[1];
     const dim3 blocks1(1, std::min((uint64_t)n1, maxGridY), 1);
     dim3 threads1(warp_size,4,1);  // MI100 wavefront/warp = 64
-    #ifdef __HIP_PLATFORM_HCC__
+    #ifdef USE_ROCM
     // Optimization for ROCm MI100
     threads1.y = 2;
     #endif

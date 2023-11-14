@@ -270,7 +270,7 @@ std::vector<torch::Tensor> bwd_cuda(
   rocblas_int flags = 0;
 
   //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
-  #ifdef __HIP_PLATFORM_HCC__
+  #ifdef USE_ROCM
     #define PYTORCH_ROCBLAS_VERSION_DECIMAL (ROCBLAS_VERSION_MAJOR * 100 + ROCBLAS_VERSION_MINOR)
     #define USE_GEMM_FLAGS_FP16_ALT_IMPL (PYTORCH_ROCBLAS_VERSION_DECIMAL >= 242)
     #if USE_GEMM_FLAGS_FP16_ALT_IMPL

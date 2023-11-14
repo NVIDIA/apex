@@ -81,7 +81,7 @@
 
 #define ALIGN_BYTES 16
 
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 #define WARP_SIZE 64
 #define SYNCWARP(mask)
 #else

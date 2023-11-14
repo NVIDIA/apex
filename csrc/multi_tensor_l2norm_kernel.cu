@@ -196,7 +196,7 @@ struct MaxNormFunctor
 
 
 __global__ void
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 __launch_bounds__(1024)
 #endif
 cleanup(
@@ -237,7 +237,7 @@ cleanup(
 }
 
 __global__ void
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 __launch_bounds__(1024)
 #endif
 cleanup_v2(

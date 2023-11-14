@@ -17,7 +17,7 @@
 
 #include "philox.cuh"
 
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef USE_ROCM
 #define SHFL_DOWN(val, laneMask, width) __shfl_down(val, laneMask, width)
 #else
 #define SHFL_DOWN(val, laneMask, width) __shfl_down_sync(0xffffffff, val, laneMask, width)
