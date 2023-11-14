@@ -329,6 +329,27 @@ if "--cuda_ext" in sys.argv:
         )
     )
 
+    ext_modules.append(
+        CUDAExtension(
+            name="fused_rotary_positional_embedding",
+            sources=[
+                "csrc/megatron/fused_rotary_positional_embedding.cpp",
+                "csrc/megatron/fused_rotary_positional_embedding_cuda.cu",
+            ],
+            include_dirs=[os.path.join(this_dir, "csrc")],
+            extra_compile_args={
+                "cxx": ["-O3"] + version_dependent_macros,
+                "nvcc": [
+                    "-O3",
+                    "-U__CUDA_NO_HALF_OPERATORS__",
+                    "-U__CUDA_NO_HALF_CONVERSIONS__",
+                    "--expt-relaxed-constexpr",
+                    "--expt-extended-lambda",
+                ] + version_dependent_macros,
+            },
+        )
+    )
+
     if bare_metal_version >= Version("11.0"):
 
         cc_flag = []
