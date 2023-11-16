@@ -84,13 +84,15 @@ class TestFusedRoPE(common_utils.TestCase):
 
             # unfused
             output_unfused = apply_rotary_pos_emb(t, emb)
-            output_unfused.sum().backward()
+            loss_unfused = output_unfused.sum() * 2
+            loss_unfused.backward()
             grad_unfused = t.grad.detach().clone()
             t.grad = None
 
             # fused
             output_fused = fused_apply_rotary_pos_emb(t, emb)
-            output_fused.sum().backward()
+            loss_fused = output_fused.sum() * 2
+            loss_fused.backward()
             grad_fused = t.grad.detach().clone()
 
             self.assertEqual(
