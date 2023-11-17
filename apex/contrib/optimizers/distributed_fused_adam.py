@@ -1007,7 +1007,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             if param_buffer_view.dtype != param.dtype:
                 raise RuntimeError(
                     f"Attempted to change a parameter with dtype={param.dtype} "
-                    f"into a buffer view with dtype={param_view_buffer.dtype}"
+                    f"into a buffer view with dtype={param_buffer_view.dtype}"
                 )
             param_flat_views.append(param.detach().view(-1))
             param_buffer_views.append(param_buffer_view)
