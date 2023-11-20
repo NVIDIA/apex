@@ -24,11 +24,8 @@ torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &cos,
 torch::Tensor bwd_cuda(const torch::Tensor &output_grads,
                        const torch::Tensor &cos, const torch::Tensor &sin);
 
-torch::Tensor fwd(const at::Tensor &input_, const at::Tensor &cos_,
-                  const at::Tensor &sin_) {
-  auto input = input_.contiguous();
-  auto cos = cos_.contiguous();
-  auto sin = sin_.contiguous();
+torch::Tensor fwd(const at::Tensor &input, const at::Tensor &cos,
+                  const at::Tensor &sin) {
   TORCH_CHECK(input.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(cos.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(sin.dim() == 4, "expected 4D tensor");
@@ -50,11 +47,8 @@ torch::Tensor fwd(const at::Tensor &input_, const at::Tensor &cos_,
   return fwd_cuda(input, cos, sin);
 }
 
-torch::Tensor bwd(const torch::Tensor &output_grads_, const at::Tensor &cos_,
-                  const at::Tensor &sin_) {
-  auto output_grads = output_grads_.contiguous();
-  auto cos = cos_.contiguous();
-  auto sin = sin_.contiguous();
+torch::Tensor bwd(const torch::Tensor &output_grads, const at::Tensor &cos,
+                  const at::Tensor &sin) {
   TORCH_CHECK(output_grads.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(cos.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(sin.dim() == 4, "expected 4D tensor");
