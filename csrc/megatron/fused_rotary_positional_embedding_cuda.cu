@@ -22,7 +22,7 @@
 namespace fused_rope {
 
 torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &cos,
-                       const torch::Tensor &sin) {
+                       const torch::Tensor &sin, const bool transpose_output) {
   // input sizes: (s, b, h, d)
   // s: sequence length
   // b: batch size
@@ -43,7 +43,12 @@ torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &cos,
 
   // output
   auto act_options = input.options().requires_grad(false);
-  torch::Tensor output = torch::empty({s, b, h, d}, act_options);
+  torch::Tensor output;
+  if (transpose_output) {
+    output = torch::empty({b, s, h, d}, act_options).transpose(0, 1);
+  } else {
+    output = torch::empty({s, b, h, d}, act_options);
+  }
   // output strides
   const int o_stride_s = output.stride(0);
   const int o_stride_b = output.stride(1);
@@ -53,15 +58,16 @@ torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &cos,
   DISPATCH_FLOAT_HALF_AND_BFLOAT(
       input.scalar_type(), 0, "dispatch_fused_rope_forward",
       dispatch_fused_rope_forward(
-          s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d,
-          o_stride_s, o_stride_b, o_stride_h, o_stride_d,
-          input.data_ptr<scalar_t_0>(), cos.data_ptr<scalar_t_0>(),
-          sin.data_ptr<scalar_t_0>(), output.data_ptr<scalar_t_0>()););
+          s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s,
+          o_stride_b, o_stride_h, o_stride_d, input.data_ptr<scalar_t_0>(),
+          cos.data_ptr<scalar_t_0>(), sin.data_ptr<scalar_t_0>(),
+          output.data_ptr<scalar_t_0>()););
   return output;
 }
 
 torch::Tensor bwd_cuda(const torch::Tensor &output_grads,
-                       const torch::Tensor &cos, const torch::Tensor &sin) {
+                       const torch::Tensor &cos, const torch::Tensor &sin,
+                       const bool transpose_output) {
   // output_grads sizes: (s, b, h, d)
   // s: sequence length
   // b: batch size
@@ -81,7 +87,12 @@ torch::Tensor bwd_cuda(const torch::Tensor &output_grads,
   const int d2 = cos.size(3);
 
   auto act_options = output_grads.options().requires_grad(false);
-  torch::Tensor input_grads = torch::empty({s, b, h, d}, act_options);
+  torch::Tensor input_grads;
+  if (transpose_output) {
+    input_grads = torch::empty({b, s, h, d}, act_options).transpose(0, 1);
+  } else {
+    input_grads = torch::empty({s, b, h, d}, act_options);
+  }
   const int o_stride_s = input_grads.stride(0);
   const int o_stride_b = input_grads.stride(1);
   const int o_stride_h = input_grads.stride(2);
@@ -90,8 +101,8 @@ torch::Tensor bwd_cuda(const torch::Tensor &output_grads,
   DISPATCH_FLOAT_HALF_AND_BFLOAT(
       output_grads.scalar_type(), 0, "dispatch_fused_rope_backward",
       dispatch_fused_rope_backward(
-          s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d,
-          o_stride_s, o_stride_b, o_stride_h, o_stride_d,
+          s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s,
+          o_stride_b, o_stride_h, o_stride_d,
           output_grads.data_ptr<scalar_t_0>(), cos.data_ptr<scalar_t_0>(),
           sin.data_ptr<scalar_t_0>(), input_grads.data_ptr<scalar_t_0>());)
   return input_grads;

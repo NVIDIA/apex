@@ -19,13 +19,14 @@
 namespace fused_rope {
 
 torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &cos,
-                       const torch::Tensor &sin);
+                       const torch::Tensor &sin, const bool transpose_output);
 
 torch::Tensor bwd_cuda(const torch::Tensor &output_grads,
-                       const torch::Tensor &cos, const torch::Tensor &sin);
+                       const torch::Tensor &cos, const torch::Tensor &sin,
+                       const bool transpose_output);
 
 torch::Tensor fwd(const at::Tensor &input, const at::Tensor &cos,
-                  const at::Tensor &sin) {
+                  const at::Tensor &sin, const bool transpose_output) {
   TORCH_CHECK(input.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(cos.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(sin.dim() == 4, "expected 4D tensor");
@@ -44,11 +45,11 @@ torch::Tensor fwd(const at::Tensor &input, const at::Tensor &cos,
               "expected the last dim of the input tensor is greater than the "
               "sin tensor");
 
-  return fwd_cuda(input, cos, sin);
+  return fwd_cuda(input, cos, sin, transpose_output);
 }
 
 torch::Tensor bwd(const torch::Tensor &output_grads, const at::Tensor &cos,
-                  const at::Tensor &sin) {
+                  const at::Tensor &sin, const bool transpose_output) {
   TORCH_CHECK(output_grads.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(cos.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(sin.dim() == 4, "expected 4D tensor");
@@ -71,7 +72,7 @@ torch::Tensor bwd(const torch::Tensor &output_grads, const at::Tensor &cos,
       "expected the last dim of the output_grads tensor is greater than the "
       "sin tensor");
 
-  return bwd_cuda(output_grads, cos, sin);
+  return bwd_cuda(output_grads, cos, sin, transpose_output);
 }
 
 }  // end namespace fused_rope

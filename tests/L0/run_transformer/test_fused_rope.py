@@ -60,7 +60,8 @@ class TestFusedRoPE(common_utils.TestCase):
         self.hidden_size = [128, 256]
         self.rotary_percent = [0.5, 1.0]
         self.dtype = [torch.float32, torch.bfloat16, torch.float16]
-        self.memory_format = [torch.contiguous_format, torch.channels_last]
+        self.transpose = [None, (0, 1), (2, 3)]
+        self.transpose_output_memory = [False, True]
         self.loss_func = [self._overlapping_grad, self._non_overlapping_grad]
         self.device = torch.cuda.current_device()
 
@@ -81,14 +82,16 @@ class TestFusedRoPE(common_utils.TestCase):
             seq_length,
             hidden_size,
             rotary_percent,
-            memory_format,
+            transpose,
+            transpose_output_memory,
             loss_func,
         ) in itertools.product(
             self.dtype,
             self.seq_length,
             self.hidden_size,
             self.rotary_percent,
-            self.memory_format,
+            self.transpose,
+            self.transpose_output_memory,
             self.loss_func,
         ):
             t = torch.rand(
@@ -96,7 +99,9 @@ class TestFusedRoPE(common_utils.TestCase):
                 dtype=dtype,
                 device=self.device,
             )
-            t = t.contiguous(memory_format=memory_format)
+            if transpose:
+                t = t.transpose(*transpose)
+                t = t.reshape((seq_length, self.batch_size, self.head_num, hidden_size))
             t.requires_grad = True
 
             emb = torch.rand(
@@ -113,7 +118,9 @@ class TestFusedRoPE(common_utils.TestCase):
             t.grad = None
 
             # fused
-            output_fused = fused_apply_rotary_pos_emb(t, emb)
+            output_fused = fused_apply_rotary_pos_emb(
+                t, emb, transpose_output_memory=transpose_output_memory
+            )
             loss_fused = loss_func(output_fused)
             loss_fused.backward()
             grad_fused = t.grad.detach().clone()
@@ -122,13 +129,16 @@ class TestFusedRoPE(common_utils.TestCase):
             self.assertEqual(
                 output_unfused,
                 output_fused,
-                msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, {memory_format=}, loss_func={loss_func.__name__}",
+                msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, "
+                    f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
             )
             self.assertEqual(
                 grad_unfused,
                 grad_fused,
-                msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, {memory_format=}, loss_func={loss_func.__name__}",
+                msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, "
+                    f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
             )
+            assert output_fused.transpose(0, 1).is_contiguous() is transpose_output_memory
 
 
 if __name__ == "__main__":
