@@ -29,16 +29,15 @@ class FusedRoPEFunc(torch.autograd.Function):
     def forward(
         ctx,
         t: torch.Tensor,
-        cos_: torch.Tensor,
-        sin_: torch.Tensor,
+        freqs: torch.Tensor,
         transpose_output_memory: bool = False,
     ) -> torch.Tensor:
         import fused_rotary_positional_embedding
 
         output = fused_rotary_positional_embedding.forward(
-            t, cos_, sin_, transpose_output_memory
+            t, freqs, transpose_output_memory
         )
-        ctx.save_for_backward(cos_, sin_)
+        ctx.save_for_backward(freqs)
         ctx.transpose_output_memory = transpose_output_memory
 
         return output
@@ -49,12 +48,12 @@ class FusedRoPEFunc(torch.autograd.Function):
     ) -> Tuple[Union[torch.Tensor, None], ...]:
         import fused_rotary_positional_embedding
 
-        cos_, sin_ = ctx.saved_tensors
+        freqs, = ctx.saved_tensors
         grad_input = fused_rotary_positional_embedding.backward(
-            grad_output, cos_, sin_, ctx.transpose_output_memory
+            grad_output, freqs, ctx.transpose_output_memory
         )
 
-        return grad_input, None, None, None
+        return grad_input, None, None
 
 
 def fused_apply_rotary_pos_emb(
@@ -74,9 +73,48 @@ def fused_apply_rotary_pos_emb(
     Returns:
         Tensor: The input tensor after applying RoPE
     """
-    cos_ = torch.cos(freqs)
-    sin_ = torch.sin(freqs)
-    return FusedRoPEFunc.apply(t, cos_, sin_, transpose_output_memory)
+    return FusedRoPEFunc.apply(t, freqs, transpose_output_memory)
+
+
+class FusedRoPECachedFunc(torch.autograd.Function):
+    """
+    Fused RoPE function
+    
+    This implementation assumes the input tensor to be in `sbhd` format and the RoPE tensor to be
+    of shape (s, 1, 1, d). It accepts arbitrary memory layouts to avoid the expensive
+    `.contiguous()` calls, thus it may not achieve the best memory access pattern.
+    """
+
+    @staticmethod
+    def forward(
+        ctx,
+        t: torch.Tensor,
+        cos_: torch.Tensor,
+        sin_: torch.Tensor,
+        transpose_output_memory: bool = False,
+    ) -> torch.Tensor:
+        import fused_rotary_positional_embedding
+
+        output = fused_rotary_positional_embedding.forward_cached(
+            t, cos_, sin_, transpose_output_memory
+        )
+        ctx.save_for_backward(cos_, sin_)
+        ctx.transpose_output_memory = transpose_output_memory
+
+        return output
+
+    @staticmethod
+    def backward(
+        ctx, grad_output: torch.Tensor
+    ) -> Tuple[Union[torch.Tensor, None], ...]:
+        import fused_rotary_positional_embedding
+
+        cos_, sin_ = ctx.saved_tensors
+        grad_input = fused_rotary_positional_embedding.backward_cached(
+            grad_output, cos_, sin_, ctx.transpose_output_memory
+        )
+
+        return grad_input, None, None, None
 
 
 def fused_apply_rotary_pos_emb_cached(
@@ -98,4 +136,4 @@ def fused_apply_rotary_pos_emb_cached(
     Returns:
         Tensor: The input tensor after applying RoPE
     """
-    return FusedRoPEFunc.apply(t, cos_, sin_, transpose_output_memory)
+    return FusedRoPECachedFunc.apply(t, cos_, sin_, transpose_output_memory)
