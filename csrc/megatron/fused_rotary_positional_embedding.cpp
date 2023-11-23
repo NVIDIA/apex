@@ -38,12 +38,13 @@ torch::Tensor fwd(const at::Tensor &input, const at::Tensor &cos,
               "expected the second and third dims of the cos tensor equal 1");
   TORCH_CHECK(sin.size(1) == 1 && sin.size(2) == 1,
               "expected the second and third dims of the sin tensor equal 1");
+  TORCH_CHECK(cos.size(3) == sin.size(3),
+              "expected cos and sin tensor have the same last dim");
   TORCH_CHECK(input.size(3) >= cos.size(3),
-              "expected the last dim of the input tensor is greater than the "
-              "cos tensor");
-  TORCH_CHECK(input.size(3) >= sin.size(3),
-              "expected the last dim of the input tensor is greater than the "
-              "sin tensor");
+              "expected the last dim of the input tensor equals or is "
+              "greater than the cos tensor");
+  TORCH_CHECK(cos.scalar_type() == sin.scalar_type(),
+              "expected cos and sin tensor have the same dtype");
 
   return fwd_cuda(input, cos, sin, transpose_output);
 }
@@ -63,14 +64,13 @@ torch::Tensor bwd(const torch::Tensor &output_grads, const at::Tensor &cos,
               "expected the second and third dims of the cos tensor equal 1");
   TORCH_CHECK(sin.size(1) == 1 && sin.size(2) == 1,
               "expected the second and third dims of the sin tensor equal 1");
-  TORCH_CHECK(
-      output_grads.size(3) >= cos.size(3),
-      "expected the last dim of the output_grads tensor is greater than the "
-      "cos tensor");
-  TORCH_CHECK(
-      output_grads.size(3) >= sin.size(3),
-      "expected the last dim of the output_grads tensor is greater than the "
-      "sin tensor");
+  TORCH_CHECK(cos.size(3) == sin.size(3),
+              "expected cos and sin tensor have the same last dim");
+  TORCH_CHECK(output_grads.size(3) >= cos.size(3),
+              "expected the last dim of the output_grads tensor equals or is "
+              "greater than the cos tensor");
+  TORCH_CHECK(cos.scalar_type() == sin.scalar_type(),
+              "expected cos and sin tensor have the same dtype");
 
   return bwd_cuda(output_grads, cos, sin, transpose_output);
 }

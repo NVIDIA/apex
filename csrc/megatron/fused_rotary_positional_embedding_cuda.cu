@@ -21,6 +21,75 @@
 
 namespace fused_rope {
 
+#define DISPATCH_FUSED_ROPE_TYPES(TYPE1, TYPE2, NAME, ...)                     \
+  switch (TYPE1) {                                                             \
+    case at::ScalarType::Float: {                                              \
+      using scalar_t_0 = float;                                                \
+      switch (TYPE2) {                                                         \
+        case at::ScalarType::Float: {                                          \
+          using scalar_t_1 = float;                                            \
+          __VA_ARGS__;                                                         \
+          break;                                                               \
+        }                                                                      \
+        case at::ScalarType::Half: {                                           \
+          using scalar_t_1 = at::Half;                                         \
+          __VA_ARGS__;                                                         \
+          break;                                                               \
+        }                                                                      \
+        case at::ScalarType::BFloat16: {                                       \
+          using scalar_t_1 = at::BFloat16;                                     \
+          __VA_ARGS__;                                                         \
+          break;                                                               \
+        }                                                                      \
+        default:                                                               \
+          AT_ERROR(#NAME, " not supported for '", toString(TYPE1), "' with '", \
+                   toString(TYPE2), "'");                                      \
+      }                                                                        \
+      break;                                                                   \
+    }                                                                          \
+    case at::ScalarType::Half: {                                               \
+      using scalar_t_0 = at::Half;                                             \
+      switch (TYPE2) {                                                         \
+        case at::ScalarType::Float: {                                          \
+          using scalar_t_1 = float;                                            \
+          __VA_ARGS__;                                                         \
+          break;                                                               \
+        }                                                                      \
+        case at::ScalarType::Half: {                                           \
+          using scalar_t_1 = at::Half;                                         \
+          __VA_ARGS__;                                                         \
+          break;                                                               \
+        }                                                                      \
+        default:                                                               \
+          AT_ERROR(#NAME, " not supported for '", toString(TYPE1), "' with '", \
+                   toString(TYPE2), "'");                                      \
+      }                                                                        \
+      break;                                                                   \
+    }                                                                          \
+    case at::ScalarType::BFloat16: {                                           \
+      using scalar_t_0 = at::BFloat16;                                         \
+      switch (TYPE2) {                                                         \
+        case at::ScalarType::Float: {                                          \
+          using scalar_t_1 = float;                                            \
+          __VA_ARGS__;                                                         \
+          break;                                                               \
+        }                                                                      \
+        case at::ScalarType::BFloat16: {                                       \
+          using scalar_t_1 = at::BFloat16;                                     \
+          __VA_ARGS__;                                                         \
+          break;                                                               \
+        }                                                                      \
+        default:                                                               \
+          AT_ERROR(#NAME, " not supported for '", toString(TYPE1), "' with '", \
+                   toString(TYPE2), "'");                                      \
+      }                                                                        \
+      break;                                                                   \
+    }                                                                          \
+    default:                                                                   \
+      AT_ERROR(#NAME, " not supported for '", toString(TYPE1), "' with '",     \
+               toString(TYPE2), "'");                                          \
+  }
+
 torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &cos,
                        const torch::Tensor &sin, const bool transpose_output) {
   // input sizes: (s, b, h, d)
@@ -55,12 +124,12 @@ torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &cos,
   const int o_stride_h = output.stride(2);
   const int o_stride_d = output.stride(3);
 
-  DISPATCH_FLOAT_HALF_AND_BFLOAT(
-      input.scalar_type(), 0, "dispatch_fused_rope_forward",
+  DISPATCH_FUSED_ROPE_TYPES(
+      input.scalar_type(), cos.scalar_type(), "dispatch_fused_rope_forward",
       dispatch_fused_rope_forward(
           s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s,
           o_stride_b, o_stride_h, o_stride_d, input.data_ptr<scalar_t_0>(),
-          cos.data_ptr<scalar_t_0>(), sin.data_ptr<scalar_t_0>(),
+          cos.data_ptr<scalar_t_1>(), sin.data_ptr<scalar_t_1>(),
           output.data_ptr<scalar_t_0>()););
   return output;
 }
@@ -98,13 +167,14 @@ torch::Tensor bwd_cuda(const torch::Tensor &output_grads,
   const int o_stride_h = input_grads.stride(2);
   const int o_stride_d = input_grads.stride(3);
 
-  DISPATCH_FLOAT_HALF_AND_BFLOAT(
-      output_grads.scalar_type(), 0, "dispatch_fused_rope_backward",
+  DISPATCH_FUSED_ROPE_TYPES(
+      output_grads.scalar_type(), cos.scalar_type(),
+      "dispatch_fused_rope_backward",
       dispatch_fused_rope_backward(
           s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s,
           o_stride_b, o_stride_h, o_stride_d,
-          output_grads.data_ptr<scalar_t_0>(), cos.data_ptr<scalar_t_0>(),
-          sin.data_ptr<scalar_t_0>(), input_grads.data_ptr<scalar_t_0>());)
+          output_grads.data_ptr<scalar_t_0>(), cos.data_ptr<scalar_t_1>(),
+          sin.data_ptr<scalar_t_1>(), input_grads.data_ptr<scalar_t_0>()););
   return input_grads;
 }
 }  // end namespace fused_rope

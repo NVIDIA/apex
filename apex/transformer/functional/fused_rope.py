@@ -74,15 +74,15 @@ def fused_apply_rotary_pos_emb(
     Returns:
         Tensor: The input tensor after applying RoPE
     """
-    cos_ = torch.cos(freqs).to(t.dtype)
-    sin_ = torch.sin(freqs).to(t.dtype)
+    cos_ = torch.cos(freqs)
+    sin_ = torch.sin(freqs)
     return FusedRoPEFunc.apply(t, cos_, sin_, transpose_output_memory)
 
 
 def fused_apply_rotary_pos_emb_cached(
     t: torch.Tensor,
-    cos: torch.Tensor,
-    sin: torch.Tensor,
+    cos_: torch.Tensor,
+    sin_: torch.Tensor,
     transpose_output_memory: bool = False,
 ) -> torch.Tensor:
     """Apply rotary positional embedding to input tensor T.
@@ -98,6 +98,4 @@ def fused_apply_rotary_pos_emb_cached(
     Returns:
         Tensor: The input tensor after applying RoPE
     """
-    cos_ = cos.to(t.dtype)
-    sin_ = sin.to(t.dtype)
     return FusedRoPEFunc.apply(t, cos_, sin_, transpose_output_memory)
