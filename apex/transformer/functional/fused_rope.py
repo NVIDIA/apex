@@ -17,7 +17,13 @@ import torch
 
 
 class FusedRoPEFunc(torch.autograd.Function):
-    """Fused RoPE function"""
+    """
+    Fused RoPE function
+    
+    This implementation assumes the input tensor to be in `sbhd` format and the RoPE tensor to be
+    of shape (s, 1, 1, d). It accepts arbitrary memory layouts to avoid the expensive
+    `.contiguous()` calls, thus it may not achieve the best memory access pattern.
+    """
 
     @staticmethod
     def forward(
