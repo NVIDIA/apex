@@ -17,14 +17,23 @@ import torch
 
 
 class FusedRoPEFunc(torch.autograd.Function):
+    """Fused RoPE function"""
+
     @staticmethod
     def forward(
-        ctx, t: torch.Tensor, cos_: torch.Tensor, sin_: torch.Tensor
+        ctx,
+        t: torch.Tensor,
+        cos_: torch.Tensor,
+        sin_: torch.Tensor,
+        transpose_output_memory: bool = False,
     ) -> torch.Tensor:
         import fused_rotary_positional_embedding
 
-        output = fused_rotary_positional_embedding.forward(t, cos_, sin_)
+        output = fused_rotary_positional_embedding.forward(
+            t, cos_, sin_, transpose_output_memory
+        )
         ctx.save_for_backward(cos_, sin_)
+        ctx.transpose_output_memory = transpose_output_memory
 
         return output
 
@@ -35,28 +44,40 @@ class FusedRoPEFunc(torch.autograd.Function):
         import fused_rotary_positional_embedding
 
         cos_, sin_ = ctx.saved_tensors
-        grad_q = fused_rotary_positional_embedding.backward(grad_output, cos_, sin_)
+        grad_input = fused_rotary_positional_embedding.backward(
+            grad_output, cos_, sin_, ctx.transpose_output_memory
+        )
 
-        return grad_q, None, None
+        return grad_input, None, None, None
 
 
-def fused_apply_rotary_pos_emb(t: torch.Tensor, freqs: torch.Tensor) -> torch.Tensor:
+def fused_apply_rotary_pos_emb(
+    t: torch.Tensor,
+    freqs: torch.Tensor,
+    transpose_output_memory: bool = False,
+) -> torch.Tensor:
     """Apply rotary positional embedding to input tensor T.
 
     Args:
         t (Tensor): Input tensor T is of shape [seq_length, ... , dim]
         freqs (Tensor): Rotary Positional embedding tensor freq is of shape [seq_length, ..., dim]
+        transpose_output_memory (bool): Default to False. Whether to transpose the 's' and 'b'
+        dimension of the output's underlying memory format. This is very helpful when you want to
+        get a contiguous tensor after calling `output.transpose(0, 1)`.
 
     Returns:
         Tensor: The input tensor after applying RoPE
     """
     cos_ = torch.cos(freqs).to(t.dtype)
     sin_ = torch.sin(freqs).to(t.dtype)
-    return FusedRoPEFunc.apply(t, cos_, sin_)
+    return FusedRoPEFunc.apply(t, cos_, sin_, transpose_output_memory)
 
 
 def fused_apply_rotary_pos_emb_cached(
-    t: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor
+    t: torch.Tensor,
+    cos: torch.Tensor,
+    sin: torch.Tensor,
+    transpose_output_memory: bool = False,
 ) -> torch.Tensor:
     """Apply rotary positional embedding to input tensor T.
 
@@ -64,10 +85,13 @@ def fused_apply_rotary_pos_emb_cached(
         t (Tensor): Input tensor T is of shape [seq_length, ... , dim]
         cos (Tensor): Cached cosine of the rotary positional embedding tensor is of shape [seq_length, ..., dim]
         sin (Tensor): Cached sine of the rotary positional embedding tensor is of shape [seq_length, ..., dim]
+        transpose_output_memory (bool): Default to False. Whether to transpose the 's' and 'b'
+        dimension of the output's underlying memory format. This is very helpful when you want to
+        get a contiguous tensor after calling `output.transpose(0, 1)`.
 
     Returns:
         Tensor: The input tensor after applying RoPE
     """
     cos_ = cos.to(t.dtype)
     sin_ = sin.to(t.dtype)
-    return FusedRoPEFunc.apply(t, cos_, sin_)
+    return FusedRoPEFunc.apply(t, cos_, sin_, transpose_output_memory)

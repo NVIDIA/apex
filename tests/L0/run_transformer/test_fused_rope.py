@@ -22,6 +22,7 @@ def _rotate_half(x: torch.Tensor) -> torch.Tensor:
     x1, x2 = torch.chunk(x, 2, dim=-1)
     return torch.cat((-x2, x1), dim=-1)
 
+
 # Copied from Megatron-Core for testing.
 # https://github.com/NVIDIA/Megatron-LM/blob/5f2877d85cb26e47ce6dcdae4b80adf376abf4e8/megatron/core/models/common/embeddings/rotary_pos_embedding.py#L139
 def apply_rotary_pos_emb(t: torch.Tensor, freqs: torch.Tensor) -> torch.Tensor:
@@ -59,22 +60,49 @@ class TestFusedRoPE(common_utils.TestCase):
         self.hidden_size = [128, 256]
         self.rotary_percent = [0.5, 1.0]
         self.dtype = [torch.float32, torch.bfloat16, torch.float16]
+        self.transpose = [None, (0, 1), (2, 3)]
+        self.transpose_output_memory = [False, True]
+        self.loss_func = [self._overlapping_grad, self._non_overlapping_grad]
         self.device = torch.cuda.current_device()
 
     def tearDown(self) -> None:
         torch.cuda.empty_cache()
         super().tearDown()
 
+    def _overlapping_grad(self, output) -> torch.Tensor:
+        return output.sum() * 2
+
+    def _non_overlapping_grad(self, output) -> torch.Tensor:
+        t = torch.ones_like(output)
+        return torch.sum(output * t)
+
     def test_forward_backward(self):
-        for dtype, seq_length, hidden_size, rotary_percent in itertools.product(
-            self.dtype, self.seq_length, self.hidden_size, self.rotary_percent
+        for (
+            dtype,
+            seq_length,
+            hidden_size,
+            rotary_percent,
+            transpose,
+            transpose_output_memory,
+            loss_func,
+        ) in itertools.product(
+            self.dtype,
+            self.seq_length,
+            self.hidden_size,
+            self.rotary_percent,
+            self.transpose,
+            self.transpose_output_memory,
+            self.loss_func,
         ):
             t = torch.rand(
                 (seq_length, self.batch_size, self.head_num, hidden_size),
                 dtype=dtype,
                 device=self.device,
-                requires_grad=True,
             )
+            if transpose:
+                t = t.transpose(*transpose)
+                t = t.reshape((seq_length, self.batch_size, self.head_num, hidden_size))
+            t.requires_grad = True
 
             emb = torch.rand(
                 (seq_length, 1, 1, int(hidden_size * rotary_percent)),
@@ -84,27 +112,33 @@ class TestFusedRoPE(common_utils.TestCase):
 
             # unfused
             output_unfused = apply_rotary_pos_emb(t, emb)
-            loss_unfused = output_unfused.sum() * 2
+            loss_unfused = loss_func(output_unfused)
             loss_unfused.backward()
             grad_unfused = t.grad.detach().clone()
             t.grad = None
 
             # fused
-            output_fused = fused_apply_rotary_pos_emb(t, emb)
-            loss_fused = output_fused.sum() * 2
+            output_fused = fused_apply_rotary_pos_emb(
+                t, emb, transpose_output_memory=transpose_output_memory
+            )
+            loss_fused = loss_func(output_fused)
             loss_fused.backward()
             grad_fused = t.grad.detach().clone()
+            t.grad = None
 
             self.assertEqual(
                 output_unfused,
                 output_fused,
-                msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}",
+                msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, "
+                    f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
             )
             self.assertEqual(
                 grad_unfused,
                 grad_fused,
-                msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}",
+                msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, "
+                    f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
             )
+            assert output_fused.transpose(0, 1).is_contiguous() is transpose_output_memory
 
 
 if __name__ == "__main__":
