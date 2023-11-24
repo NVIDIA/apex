@@ -117,16 +117,6 @@ torch::Tensor bwd_cuda(const torch::Tensor &output_grads,
           __VA_ARGS__;                                                         \
           break;                                                               \
         }                                                                      \
-        case at::ScalarType::Half: {                                           \
-          using scalar_t_1 = at::Half;                                         \
-          __VA_ARGS__;                                                         \
-          break;                                                               \
-        }                                                                      \
-        case at::ScalarType::BFloat16: {                                       \
-          using scalar_t_1 = at::BFloat16;                                     \
-          __VA_ARGS__;                                                         \
-          break;                                                               \
-        }                                                                      \
         default:                                                               \
           AT_ERROR(#NAME, " not supported for '", toString(TYPE1), "' with '", \
                    toString(TYPE2), "'");                                      \

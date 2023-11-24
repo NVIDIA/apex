@@ -19,7 +19,7 @@ import torch
 class FusedRoPEFunc(torch.autograd.Function):
     """
     Fused RoPE function
-    
+
     This implementation assumes the input tensor to be in `sbhd` format and the RoPE tensor to be
     of shape (s, 1, 1, d). It accepts arbitrary memory layouts to avoid the expensive
     `.contiguous()` calls, thus it may not achieve the best memory access pattern.
@@ -48,7 +48,7 @@ class FusedRoPEFunc(torch.autograd.Function):
     ) -> Tuple[Union[torch.Tensor, None], ...]:
         import fused_rotary_positional_embedding
 
-        freqs, = ctx.saved_tensors
+        (freqs,) = ctx.saved_tensors
         grad_input = fused_rotary_positional_embedding.backward(
             grad_output, freqs, ctx.transpose_output_memory
         )
@@ -64,8 +64,9 @@ def fused_apply_rotary_pos_emb(
     """Apply rotary positional embedding to input tensor T.
 
     Args:
-        t (Tensor): Input tensor T is of shape [seq_length, ... , dim]
-        freqs (Tensor): Rotary Positional embedding tensor freq is of shape [seq_length, ..., dim]
+        t (Tensor): Input tensor T is of shape [s, b, h, d]
+        freqs (Tensor): Rotary Positional embedding tensor freq is of shape [s, 1, 1, d] and
+        `float` dtype
         transpose_output_memory (bool): Default to False. Whether to transpose the 's' and 'b'
         dimension of the output's underlying memory format. This is very helpful when you want to
         get a contiguous tensor after calling `output.transpose(0, 1)`.
@@ -79,7 +80,7 @@ def fused_apply_rotary_pos_emb(
 class FusedRoPECachedFunc(torch.autograd.Function):
     """
     Fused RoPE function
-    
+
     This implementation assumes the input tensor to be in `sbhd` format and the RoPE tensor to be
     of shape (s, 1, 1, d). It accepts arbitrary memory layouts to avoid the expensive
     `.contiguous()` calls, thus it may not achieve the best memory access pattern.
@@ -126,9 +127,11 @@ def fused_apply_rotary_pos_emb_cached(
     """Apply rotary positional embedding to input tensor T.
 
     Args:
-        t (Tensor): Input tensor T is of shape [seq_length, ... , dim]
-        cos (Tensor): Cached cosine of the rotary positional embedding tensor is of shape [seq_length, ..., dim]
-        sin (Tensor): Cached sine of the rotary positional embedding tensor is of shape [seq_length, ..., dim]
+        t (Tensor): Input tensor T is of shape [s, b, h, d]
+        cos (Tensor): Cached cosine of the rotary positional embedding tensor is of
+        shape [s, 1, 1, d] and dtype either `float` or the same as `t`.
+        sin (Tensor): Cached sine of the rotary positional embedding tensor is of
+        shape [s, 1, 1, d] and dtype either `float` or the same as `t`.
         transpose_output_memory (bool): Default to False. Whether to transpose the 's' and 'b'
         dimension of the output's underlying memory format. This is very helpful when you want to
         get a contiguous tensor after calling `output.transpose(0, 1)`.
