@@ -128,9 +128,9 @@ def fused_apply_rotary_pos_emb_cached(
 
     Args:
         t (Tensor): Input tensor T is of shape [s, b, h, d]
-        cos (Tensor): Cached cosine of the rotary positional embedding tensor is of
+        cos_ (Tensor): Cached cosine of the rotary positional embedding tensor is of
         shape [s, 1, 1, d] and dtype either `float` or the same as `t`.
-        sin (Tensor): Cached sine of the rotary positional embedding tensor is of
+        sin_ (Tensor): Cached sine of the rotary positional embedding tensor is of
         shape [s, 1, 1, d] and dtype either `float` or the same as `t`.
         transpose_output_memory (bool): Default to False. Whether to transpose the 's' and 'b'
         dimension of the output's underlying memory format. This is very helpful when you want to
