@@ -98,7 +98,7 @@ class TestFusedRoPE(common_utils.TestCase):
             self.transpose,
             self.transpose_output_memory,
             self.loss_func,
-            self.cached
+            self.cached,
         ):
             t = torch.rand(
                 (seq_length, self.batch_size, self.head_num, hidden_size),

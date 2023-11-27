@@ -24,13 +24,14 @@
 
 namespace {
 
-template <typename scalar_t_0>
+template <typename scalar_t>
 __global__ void fused_rope_forward(const int h, const int d, const int d2,
                                    const int stride_s, const int stride_b,
                                    const int stride_h, const int stride_d,
                                    const int o_stride_s, const int o_stride_b,
                                    const int o_stride_h, const int o_stride_d,
-                                   const scalar_t_0* src, const float* freqs, scalar_t_0* dst) {
+                                   const scalar_t* src, const float* freqs,
+                                   scalar_t* dst) {
   int s_id = blockIdx.x, b_id = blockIdx.y;
   int offset_block = s_id * stride_s + b_id * stride_b;
   int offset_block_dst = s_id * o_stride_s + b_id * o_stride_b;
@@ -42,11 +43,12 @@ __global__ void fused_rope_forward(const int h, const int d, const int d2,
     for (int h_id = threadIdx.y; h_id < h; h_id += blockDim.y) {
       int offset_src = offset_block + h_id * stride_h + d_id * stride_d;
       int offset_dst = offset_block_dst + h_id * o_stride_h + d_id * o_stride_d;
-      scalar_t_0 v_src = src[offset_src];
-      scalar_t_0 v_src_rotate =
-          (d_id + d2 / 2 < d2) ? -src[offset_src + (d2 / 2) * stride_d]
-                               : src[offset_src + (d2 / 2 - d2) * stride_d];
-      dst[offset_dst] = v_src * (scalar_t_0)v_cos + v_src_rotate * (scalar_t_0)v_sin;
+      scalar_t v_src = src[offset_src];
+      scalar_t v_src_rotate = (d_id + d2 / 2 < d2)
+                                  ? -src[offset_src + (d2 / 2) * stride_d]
+                                  : src[offset_src + (d2 / 2 - d2) * stride_d];
+      dst[offset_dst] =
+          v_src * (scalar_t)v_cos + v_src_rotate * (scalar_t)v_sin;
     }
   }
 
@@ -65,31 +67,31 @@ __global__ void fused_rope_forward(const int h, const int d, const int d2,
   }
 }
 
-template <typename scalar_t_0>
+template <typename scalar_t>
 __global__ void fused_rope_backward(const int h, const int d, const int d2,
                                     const int stride_s, const int stride_b,
                                     const int stride_h, const int stride_d,
                                     const int o_stride_s, const int o_stride_b,
                                     const int o_stride_h, const int o_stride_d,
-                                    const scalar_t_0* src,
-                                    const float* freqs, scalar_t_0* dst) {
+                                    const scalar_t* src, const float* freqs,
+                                    scalar_t* dst) {
   int s_id = blockIdx.x, b_id = blockIdx.y;
   int offset_block = s_id * stride_s + b_id * stride_b;
   int offset_block_dst = s_id * o_stride_s + b_id * o_stride_b;
 #pragma unroll
   for (int d_id = threadIdx.x; d_id < d2; d_id += blockDim.x) {
-    scalar_t_0 v_cos = cosf(freqs[s_id * d2 + d_id]);
-    scalar_t_0 v_sin = (d_id + d2 / 2 < d2)
-                           ? sinf(freqs[s_id * d2 + d_id + d2 / 2])
-                           : -sinf(freqs[s_id * d2 + d_id + d2 / 2 - d2]);
+    scalar_t v_cos = cosf(freqs[s_id * d2 + d_id]);
+    scalar_t v_sin = (d_id + d2 / 2 < d2)
+                         ? sinf(freqs[s_id * d2 + d_id + d2 / 2])
+                         : -sinf(freqs[s_id * d2 + d_id + d2 / 2 - d2]);
 #pragma unroll
     for (int h_id = threadIdx.y; h_id < h; h_id += blockDim.y) {
       int offset_src = offset_block + h_id * stride_h + d_id * stride_d;
       int offset_dst = offset_block_dst + h_id * o_stride_h + d_id * o_stride_d;
-      scalar_t_0 v_src = src[offset_src];
-      scalar_t_0 v_src_rotate =
-          (d_id + d2 / 2 < d2) ? src[offset_src + (d2 / 2) * stride_d]
-                               : src[offset_src + (d2 / 2 - d2) * stride_d];
+      scalar_t v_src = src[offset_src];
+      scalar_t v_src_rotate = (d_id + d2 / 2 < d2)
+                                  ? src[offset_src + (d2 / 2) * stride_d]
+                                  : src[offset_src + (d2 / 2 - d2) * stride_d];
       dst[offset_dst] = v_src * v_cos + v_src_rotate * v_sin;
     }
   }
@@ -195,14 +197,14 @@ __global__ void fused_rope_cached_backward(
 
 }  // end of anonymous namespace
 
-template <typename scalar_t_0>
+template <typename scalar_t>
 void dispatch_fused_rope_forward(const int s, const int b, const int h,
                                  const int d, const int d2, const int stride_s,
                                  const int stride_b, const int stride_h,
                                  const int stride_d, const int o_stride_s,
                                  const int o_stride_b, const int o_stride_h,
-                                 const int o_stride_d, const scalar_t_0* input,
-                                 const float* freqs, scalar_t_0* output) {
+                                 const int o_stride_d, const scalar_t* input,
+                                 const float* freqs, scalar_t* output) {
   auto stream = at::cuda::getCurrentCUDAStream();
 
   int warps_per_block = h < 16 ? 4 : 8;
@@ -215,15 +217,15 @@ void dispatch_fused_rope_forward(const int s, const int b, const int h,
   C10_CUDA_KERNEL_LAUNCH_CHECK();
 }
 
-template <typename scalar_t_0>
+template <typename scalar_t>
 void dispatch_fused_rope_backward(const int s, const int b, const int h,
                                   const int d, const int d2, const int stride_s,
                                   const int stride_b, const int stride_h,
                                   const int stride_d, const int o_stride_s,
                                   const int o_stride_b, const int o_stride_h,
                                   const int o_stride_d,
-                                  const scalar_t_0* output_grads,
-                                  const float* freqs, scalar_t_0* input_grads) {
+                                  const scalar_t* output_grads,
+                                  const float* freqs, scalar_t* input_grads) {
   auto stream = at::cuda::getCurrentCUDAStream();
 
   int warps_per_block = h < 16 ? 4 : 8;
