@@ -9,6 +9,7 @@ from torch.testing._internal import common_utils
 from apex.transformer.functional import (
     fused_apply_rotary_pos_emb,
     fused_apply_rotary_pos_emb_cached,
+    fused_apply_rotary_pos_emb_thd,
 )
 
 
@@ -152,6 +153,78 @@ class TestFusedRoPE(common_utils.TestCase):
             )
             assert (
                 output_fused.transpose(0, 1).is_contiguous() is transpose_output_memory
+            )
+
+    def test_thd_forward_backward(self):
+        seqlens = [1020, 1022, 1024]
+        cu_seqlens = torch.tensor(
+            [0] + torch.cumsum(torch.tensor(seqlens), dim=0).tolist(),
+            dtype=torch.int32,
+            device=self.device,
+        )
+        for (
+            dtype,
+            hidden_size,
+            rotary_percent,
+            transpose,
+            loss_func,
+        ) in itertools.product(
+            self.dtype,
+            self.hidden_size,
+            self.rotary_percent,
+            [None, [1, 2]],
+            self.loss_func,
+        ):
+            t = torch.rand(
+                (cu_seqlens[-1], self.head_num, hidden_size),
+                dtype=dtype,
+                device=self.device,
+            )
+            if transpose:
+                t = t.transpose(*transpose)
+                t = t.reshape((cu_seqlens[-1], self.head_num, hidden_size))
+            t.requires_grad = True
+
+            emb = torch.rand(
+                (max(seqlens), 1, 1, int(hidden_size * rotary_percent)),
+                dtype=torch.float32,
+                device=self.device,
+            )
+
+            # unfused
+            output_unfused = torch.cat(
+                [
+                    apply_rotary_pos_emb(x.unsqueeze(1), emb[: x.size(0)])
+                    for x in torch.split(t, seqlens)
+                ]
+            ).squeeze(1)
+            loss_unfused = loss_func(output_unfused)
+            loss_unfused.backward()
+            grad_unfused = t.grad.detach().clone()
+            t.grad = None
+
+            # fused
+            output_fused = fused_apply_rotary_pos_emb_thd(
+                t,
+                cu_seqlens,
+                emb,
+            )
+            loss_fused = loss_func(output_fused)
+            loss_fused.backward()
+            grad_fused = t.grad.detach().clone()
+            t.grad = None
+
+            self.assertEqual(
+                output_unfused,
+                output_fused,
+                msg=f"{dtype=}, {seqlens=}, {hidden_size=}, {rotary_percent=}, "
+                f"{transpose=}, loss_func={loss_func.__name__}",
+            )
+            self.assertEqual(
+                grad_unfused,
+                grad_fused,
+                msg=f"{dtype=}, {seqlens=}, {hidden_size=}, {rotary_percent=}, "
+                f"{transpose=}, loss_func={loss_func.__name__}",
             )
 
 

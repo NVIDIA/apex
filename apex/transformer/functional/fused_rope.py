@@ -140,3 +140,61 @@ def fused_apply_rotary_pos_emb_cached(
         Tensor: The input tensor after applying RoPE
     """
     return FusedRoPECachedFunc.apply(t, cos_, sin_, transpose_output_memory)
+
+
+class FusedRoPETHDFunc(torch.autograd.Function):
+    """
+    Fused RoPE function for `thd` format.
+
+    This implementation accepts arbitrary memory layouts to avoid the expensive
+    `.contiguous()` calls, thus it may not achieve the best memory access pattern.
+    """
+
+    @staticmethod
+    def forward(
+        ctx,
+        t: torch.Tensor,
+        cu_seqlens: torch.Tensor,
+        freqs: torch.Tensor,
+    ) -> torch.Tensor:
+        import fused_rotary_positional_embedding
+
+        output = fused_rotary_positional_embedding.forward_thd(
+            t, cu_seqlens, freqs
+        )
+        ctx.save_for_backward(cu_seqlens, freqs)
+
+        return output
+
+    @staticmethod
+    def backward(
+        ctx, grad_output: torch.Tensor
+    ) -> Tuple[Union[torch.Tensor, None], ...]:
+        import fused_rotary_positional_embedding
+
+        cu_seqlens, freqs = ctx.saved_tensors
+        grad_input = fused_rotary_positional_embedding.backward_thd(
+            grad_output, cu_seqlens, freqs
+        )
+
+        return grad_input, None, None
+
+
+def fused_apply_rotary_pos_emb_thd(
+    t: torch.Tensor,
+    cu_seqlens: torch.Tensor,
+    freqs: torch.Tensor,
+) -> torch.Tensor:
+    """Apply rotary positional embedding to input tensor T.
+
+    Args:
+        t (Tensor): Input tensor T is of shape [t, h, d]
+        cu_seqlens (Tensor): Cumulative sum of sequence lengths in a batch for `t`,
+        with shape [b + 1] and dtype torch.int32.
+        freqs (Tensor): Rotary Positional embedding tensor freq is of shape [max_s, 1, 1, d] and
+        `float` dtype
+
+    Returns:
+        Tensor: The input tensor after applying RoPE
+    """
+    return FusedRoPETHDFunc.apply(t, cu_seqlens, freqs)

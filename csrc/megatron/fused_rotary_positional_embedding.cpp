@@ -34,6 +34,14 @@ torch::Tensor bwd_cached_cuda(const torch::Tensor &output_grads,
                               const torch::Tensor &sin,
                               const bool transpose_output);
 
+torch::Tensor fwd_thd_cuda(const torch::Tensor &input,
+                           const torch::Tensor &cu_seqlens,
+                           const torch::Tensor &freqs);
+
+torch::Tensor bwd_thd_cuda(const torch::Tensor &output_grads,
+                           const torch::Tensor &cu_seqlens,
+                           const torch::Tensor &freqs);
+
 torch::Tensor fwd(const at::Tensor &input, const at::Tensor &freqs,
                   const bool transpose_output) {
   TORCH_CHECK(input.dim() == 4, "expected 4D tensor");
@@ -120,6 +128,40 @@ torch::Tensor bwd_cached(const torch::Tensor &output_grads,
   return bwd_cached_cuda(output_grads, cos, sin, transpose_output);
 }
 
+torch::Tensor fwd_thd(const torch::Tensor &input,
+                      const torch::Tensor &cu_seqlens,
+                      const torch::Tensor &freqs) {
+  TORCH_CHECK(input.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(cu_seqlens.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(freqs.dim() == 4, "expected 4D tensor");
+  TORCH_CHECK(freqs.size(1) == 1 && freqs.size(2) == 1,
+              "expected the second and third dims of the freqs tensor equal 1");
+  TORCH_CHECK(input.size(2) >= freqs.size(3),
+              "expected the last dim of the input tensor equals or is "
+              "greater than the freqs tensor");
+  TORCH_CHECK(freqs.scalar_type() == at::ScalarType::Float,
+              "Dtype of the freqs tensor must be float");
+
+  return fwd_thd_cuda(input, cu_seqlens, freqs);
+}
+
+torch::Tensor bwd_thd(const torch::Tensor &output_grads,
+                      const torch::Tensor &cu_seqlens,
+                      const torch::Tensor &freqs) {
+  TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
+  TORCH_CHECK(cu_seqlens.dim() == 1, "expected 1D tensor");
+  TORCH_CHECK(freqs.dim() == 4, "expected 4D tensor");
+  TORCH_CHECK(freqs.size(1) == 1 && freqs.size(2) == 1,
+              "expected the second and third dims of the freqs tensor equal 1");
+  TORCH_CHECK(output_grads.size(2) >= freqs.size(3),
+              "expected the last dim of the output_grads tensor equals or is "
+              "greater than the freqs tensor");
+  TORCH_CHECK(freqs.scalar_type() == at::ScalarType::Float,
+              "Dtype of the freqs tensor must be float");
+
+  return bwd_thd_cuda(output_grads, cu_seqlens, freqs);
+}
+
 }  // end namespace fused_rope
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
@@ -127,8 +169,14 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         "Fused Rotary Positional Embedding -- Forward.");
   m.def("backward", &fused_rope::bwd,
         "Fused Rotary Positional Embedding -- Backward.");
+  // cache sin/cos
   m.def("forward_cached", &fused_rope::fwd_cached,
         "Fused Rotary Positional Embedding Cached -- Forward.");
   m.def("backward_cached", &fused_rope::bwd_cached,
         "Fused Rotary Positional Embedding Cached -- Backward.");
+  // thd
+  m.def("forward_thd", &fused_rope::fwd_thd,
+        "Fused Rotary Positional Embedding for thd layout -- Forward.");
+  m.def("backward_thd", &fused_rope::bwd_thd,
+        "Fused Rotary Positional Embedding for thd layout -- Backward.");
 }

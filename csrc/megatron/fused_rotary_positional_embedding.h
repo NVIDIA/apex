@@ -195,6 +195,95 @@ __global__ void fused_rope_cached_backward(
   }
 }
 
+template <typename scalar_t>
+__global__ void fused_rope_thd_forward(
+    const int max_s, const int b, const int h, const int d, const int d2,
+    const int stride_t, const int stride_h, const int stride_d,
+    const int o_stride_t, const int o_stride_h, const int o_stride_d,
+    const scalar_t* src, const int* cu_seqlens, const float* freqs,
+    scalar_t* dst) {
+  int s_id = blockIdx.x, b_id = blockIdx.y;
+  int t_id = s_id + cu_seqlens[b_id];
+  if (t_id >= cu_seqlens[b_id + 1]) return;
+  int offset_block = t_id * stride_t;
+  int offset_block_dst = t_id * o_stride_t;
+#pragma unroll
+  for (int d_id = threadIdx.x; d_id < d2; d_id += blockDim.x) {
+    float v_cos, v_sin;
+    sincosf(freqs[s_id * d2 + d_id], &v_sin, &v_cos);
+#pragma unroll
+    for (int h_id = threadIdx.y; h_id < h; h_id += blockDim.y) {
+      int offset_src = offset_block + h_id * stride_h + d_id * stride_d;
+      int offset_dst = offset_block_dst + h_id * o_stride_h + d_id * o_stride_d;
+      scalar_t v_src = src[offset_src];
+      scalar_t v_src_rotate = (d_id + d2 / 2 < d2)
+                                  ? -src[offset_src + (d2 / 2) * stride_d]
+                                  : src[offset_src + (d2 / 2 - d2) * stride_d];
+      dst[offset_dst] =
+          v_src * (scalar_t)v_cos + v_src_rotate * (scalar_t)v_sin;
+    }
+  }
+
+  // copy the rest
+  if (d > d2) {
+#pragma unroll
+    for (int h_id = threadIdx.y; h_id < h; h_id += blockDim.y) {
+      int offset_head = offset_block + h_id * stride_h;
+      int offset_head_dst = offset_block_dst + h_id * o_stride_h;
+#pragma unroll
+      for (int d_id = d2 + threadIdx.x; d_id < d; d_id += blockDim.x) {
+        dst[offset_head_dst + d_id * o_stride_d] =
+            src[offset_head + d_id * stride_d];
+      }
+    }
+  }
+}
+
+template <typename scalar_t>
+__global__ void fused_rope_thd_backward(
+    const int max_s, const int b, const int h, const int d, const int d2,
+    const int stride_t, const int stride_h, const int stride_d,
+    const int o_stride_t, const int o_stride_h, const int o_stride_d,
+    const scalar_t* src, const int* cu_seqlens, const float* freqs,
+    scalar_t* dst) {
+  int s_id = blockIdx.x, b_id = blockIdx.y;
+  int t_id = s_id + cu_seqlens[b_id];
+  if (t_id >= cu_seqlens[b_id + 1]) return;
+  int offset_block = t_id * stride_t;
+  int offset_block_dst = t_id * o_stride_t;
+#pragma unroll
+  for (int d_id = threadIdx.x; d_id < d2; d_id += blockDim.x) {
+    scalar_t v_cos = cosf(freqs[s_id * d2 + d_id]);
+    scalar_t v_sin = (d_id + d2 / 2 < d2)
+                         ? sinf(freqs[s_id * d2 + d_id + d2 / 2])
+                         : -sinf(freqs[s_id * d2 + d_id + d2 / 2 - d2]);
+#pragma unroll
+    for (int h_id = threadIdx.y; h_id < h; h_id += blockDim.y) {
+      int offset_src = offset_block + h_id * stride_h + d_id * stride_d;
+      int offset_dst = offset_block_dst + h_id * o_stride_h + d_id * o_stride_d;
+      scalar_t v_src = src[offset_src];
+      scalar_t v_src_rotate = (d_id + d2 / 2 < d2)
+                                  ? src[offset_src + (d2 / 2) * stride_d]
+                                  : src[offset_src + (d2 / 2 - d2) * stride_d];
+      dst[offset_dst] = v_src * v_cos + v_src_rotate * v_sin;
+    }
+  }
+
+  // handle the tail
+  if (d > d2) {
+#pragma unroll
+    for (int h_id = threadIdx.y; h_id < h; h_id += blockDim.y) {
+      int offset_head = offset_block + h_id * stride_h;
+      int offset_head_dst = offset_block_dst + h_id * o_stride_h;
+#pragma unroll
+      for (int d_id = d2 + threadIdx.x; d_id < d; d_id += blockDim.x) {
+        dst[offset_head_dst + d_id * o_stride_d] =
+            src[offset_head + d_id * stride_d];
+      }
+    }
+  }
+}
+
 }  // end of anonymous namespace
 
 template <typename scalar_t>
@@ -273,5 +362,45 @@ void dispatch_fused_rope_cached_backward(
   fused_rope_cached_backward<<<blocks, threads, 0, stream>>>(
       h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s, o_stride_b,
       o_stride_h, o_stride_d, output_grads, cos, sin, input_grads);
+  C10_CUDA_KERNEL_LAUNCH_CHECK();
+}
+
+template <typename scalar_t>
+void dispatch_fused_rope_thd_forward(const int max_s, const int b, const int h,
+                                     const int d, const int d2,
+                                     const int stride_t, const int stride_h,
+                                     const int stride_d, const int o_stride_t,
+                                     const int o_stride_h, const int o_stride_d,
+                                     const scalar_t* input,
+                                     const int* cu_seqlens, const float* freqs,
+                                     scalar_t* output) {
+  auto stream = at::cuda::getCurrentCUDAStream();
+
+  int warps_per_block = h < 16 ? 4 : 8;
+  dim3 blocks(max_s, b);
+  dim3 threads(C10_WARP_SIZE, warps_per_block);
+
+  fused_rope_thd_forward<<<blocks, threads, 0, stream>>>(
+      max_s, b, h, d, d2, stride_t, stride_h, stride_d, o_stride_t, o_stride_h,
+      o_stride_d, input, cu_seqlens, freqs, output);
+  C10_CUDA_KERNEL_LAUNCH_CHECK();
+}
+
+template <typename scalar_t>
+void dispatch_fused_rope_thd_backward(
+    const int max_s, const int b, const int h, const int d, const int d2,
+    const int stride_t, const int stride_h, const int stride_d,
+    const int o_stride_t, const int o_stride_h, const int o_stride_d,
+    const scalar_t* output_grads, const int* cu_seqlens, const float* freqs,
+    scalar_t* input_grads) {
+  auto stream = at::cuda::getCurrentCUDAStream();
+
+  int warps_per_block = h < 16 ? 4 : 8;
+  dim3 blocks(max_s, b);
+  dim3 threads(C10_WARP_SIZE, warps_per_block);
+
+  fused_rope_thd_backward<<<blocks, threads, 0, stream>>>(
+      max_s, b, h, d, d2, stride_t, stride_h, stride_d, o_stride_t, o_stride_h,
+      o_stride_d, output_grads, cu_seqlens, freqs, input_grads);
   C10_CUDA_KERNEL_LAUNCH_CHECK();
 }

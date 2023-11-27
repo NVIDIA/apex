@@ -257,4 +257,79 @@ torch::Tensor bwd_cached_cuda(const torch::Tensor &output_grads,
           sin.data_ptr<scalar_t_1>(), input_grads.data_ptr<scalar_t_0>()););
   return input_grads;
 }
+
+torch::Tensor fwd_thd_cuda(const torch::Tensor &input,
+                           const torch::Tensor &cu_seqlens,
+                           const torch::Tensor &freqs) {
+  // input sizes: (t, h, d)
+  // t: cumulative sum of sequence lengths
+  // h: head num
+  // d: dim of each head
+  const int t = input.size(0);
+  const int h = input.size(1);
+  const int d = input.size(2);
+  // input strides
+  const int stride_t = input.stride(0);
+  const int stride_h = input.stride(1);
+  const int stride_d = input.stride(2);
+  // batch size
+  const int b = cu_seqlens.size(0) - 1;
+  // freqs' shape is (max_s, 1, 1, d2)
+  const int max_s = freqs.size(0);
+  const int d2 = freqs.size(3);
+
+  // output
+  auto act_options = input.options().requires_grad(false);
+  auto output = torch::empty({t, h, d}, act_options);
+  // output strides
+  const int o_stride_t = output.stride(0);
+  const int o_stride_h = output.stride(1);
+  const int o_stride_d = output.stride(2);
+
+  DISPATCH_FLOAT_HALF_AND_BFLOAT(
+      input.scalar_type(), 0, "dispatch_fused_rope_thd_forward",
+      dispatch_fused_rope_thd_forward(
+          max_s, b, h, d, d2, stride_t, stride_h, stride_d, o_stride_t,
+          o_stride_h, o_stride_d, input.data_ptr<scalar_t_0>(),
+          cu_seqlens.data_ptr<int>(), freqs.data_ptr<float>(),
+          output.data_ptr<scalar_t_0>()););
+  return output;
+}
+
+torch::Tensor bwd_thd_cuda(const torch::Tensor &output_grads,
+                           const torch::Tensor &cu_seqlens,
+                           const torch::Tensor &freqs) {
+  // output_grads sizes: (t, h, d)
+  // t: cumulative sum of sequence lengths
+  // h: head num
+  // d: dim of each head
+  const int t = output_grads.size(0);
+  const int h = output_grads.size(1);
+  const int d = output_grads.size(2);
+  // output_grads strides
+  const int stride_t = output_grads.stride(0);
+  const int stride_h = output_grads.stride(1);
+  const int stride_d = output_grads.stride(2);
+  // batch size
+  const int b = cu_seqlens.size(0) - 1;
+  // freqs' shape is (max_s, 1, 1, d2)
+  const int max_s = freqs.size(0);
+  const int d2 = freqs.size(3);
+
+  auto act_options = output_grads.options().requires_grad(false);
+  auto input_grads = torch::empty({t, h, d}, act_options);
+  const int o_stride_t = input_grads.stride(0);
+  const int o_stride_h = input_grads.stride(1);
+  const int o_stride_d = input_grads.stride(2);
+
+  DISPATCH_FLOAT_HALF_AND_BFLOAT(
+      output_grads.scalar_type(), 0, "dispatch_fused_rope_thd_backward",
+      dispatch_fused_rope_thd_backward(
+          max_s, b, h, d, d2, stride_t, stride_h, stride_d, o_stride_t,
+          o_stride_h, o_stride_d, output_grads.data_ptr<scalar_t_0>(),
+          cu_seqlens.data_ptr<int>(), freqs.data_ptr<float>(),
+          input_grads.data_ptr<scalar_t_0>()););
+  return input_grads;
+}
+
 } // end namespace fused_rope
