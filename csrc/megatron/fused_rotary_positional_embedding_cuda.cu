@@ -109,61 +109,61 @@ torch::Tensor bwd_cuda(const torch::Tensor &output_grads,
 
 #define DISPATCH_FUSED_ROPE_TYPES(TYPE1, TYPE2, NAME, ...)                     \
   switch (TYPE1) {                                                             \
+  case at::ScalarType::Float: {                                                \
+    using scalar_t_0 = float;                                                  \
+    switch (TYPE2) {                                                           \
     case at::ScalarType::Float: {                                              \
-      using scalar_t_0 = float;                                                \
-      switch (TYPE2) {                                                         \
-        case at::ScalarType::Float: {                                          \
-          using scalar_t_1 = float;                                            \
-          __VA_ARGS__;                                                         \
-          break;                                                               \
-        }                                                                      \
-        default:                                                               \
-          AT_ERROR(#NAME, " not supported for '", toString(TYPE1), "' with '", \
-                   toString(TYPE2), "'");                                      \
-      }                                                                        \
-      break;                                                                   \
-    }                                                                          \
-    case at::ScalarType::Half: {                                               \
-      using scalar_t_0 = at::Half;                                             \
-      switch (TYPE2) {                                                         \
-        case at::ScalarType::Float: {                                          \
-          using scalar_t_1 = float;                                            \
-          __VA_ARGS__;                                                         \
-          break;                                                               \
-        }                                                                      \
-        case at::ScalarType::Half: {                                           \
-          using scalar_t_1 = at::Half;                                         \
-          __VA_ARGS__;                                                         \
-          break;                                                               \
-        }                                                                      \
-        default:                                                               \
-          AT_ERROR(#NAME, " not supported for '", toString(TYPE1), "' with '", \
-                   toString(TYPE2), "'");                                      \
-      }                                                                        \
-      break;                                                                   \
-    }                                                                          \
-    case at::ScalarType::BFloat16: {                                           \
-      using scalar_t_0 = at::BFloat16;                                         \
-      switch (TYPE2) {                                                         \
-        case at::ScalarType::Float: {                                          \
-          using scalar_t_1 = float;                                            \
-          __VA_ARGS__;                                                         \
-          break;                                                               \
-        }                                                                      \
-        case at::ScalarType::BFloat16: {                                       \
-          using scalar_t_1 = at::BFloat16;                                     \
-          __VA_ARGS__;                                                         \
-          break;                                                               \
-        }                                                                      \
-        default:                                                               \
-          AT_ERROR(#NAME, " not supported for '", toString(TYPE1), "' with '", \
-                   toString(TYPE2), "'");                                      \
-      }                                                                        \
+      using scalar_t_1 = float;                                                \
+      __VA_ARGS__;                                                             \
       break;                                                                   \
     }                                                                          \
     default:                                                                   \
-      AT_ERROR(#NAME, " not supported for '", toString(TYPE1), "' with '",     \
-               toString(TYPE2), "'");                                          \
+      TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1),       \
+                  "' with '", toString(TYPE2), "'");                           \
+    }                                                                          \
+    break;                                                                     \
+  }                                                                            \
+  case at::ScalarType::Half: {                                                 \
+    using scalar_t_0 = at::Half;                                               \
+    switch (TYPE2) {                                                           \
+    case at::ScalarType::Float: {                                              \
+      using scalar_t_1 = float;                                                \
+      __VA_ARGS__;                                                             \
+      break;                                                                   \
+    }                                                                          \
+    case at::ScalarType::Half: {                                               \
+      using scalar_t_1 = at::Half;                                             \
+      __VA_ARGS__;                                                             \
+      break;                                                                   \
+    }                                                                          \
+    default:                                                                   \
+      TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1),       \
+                  "' with '", toString(TYPE2), "'");                           \
+    }                                                                          \
+    break;                                                                     \
+  }                                                                            \
+  case at::ScalarType::BFloat16: {                                             \
+    using scalar_t_0 = at::BFloat16;                                           \
+    switch (TYPE2) {                                                           \
+    case at::ScalarType::Float: {                                              \
+      using scalar_t_1 = float;                                                \
+      __VA_ARGS__;                                                             \
+      break;                                                                   \
+    }                                                                          \
+    case at::ScalarType::BFloat16: {                                           \
+      using scalar_t_1 = at::BFloat16;                                         \
+      __VA_ARGS__;                                                             \
+      break;                                                                   \
+    }                                                                          \
+    default:                                                                   \
+      TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1),       \
+                  "' with '", toString(TYPE2), "'");                           \
+    }                                                                          \
+    break;                                                                     \
+  }                                                                            \
+  default:                                                                     \
+    TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1),         \
+                "' with '", toString(TYPE2), "'");                             \
   }
 
 torch::Tensor fwd_cached_cuda(const torch::Tensor &input,
@@ -257,4 +257,4 @@ torch::Tensor bwd_cached_cuda(const torch::Tensor &output_grads,
           sin.data_ptr<scalar_t_1>(), input_grads.data_ptr<scalar_t_0>()););
   return input_grads;
 }
-}  // end namespace fused_rope
+} // end namespace fused_rope
