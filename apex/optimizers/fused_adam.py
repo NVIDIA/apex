@@ -109,7 +109,7 @@ class FusedAdam(torch.optim.Optimizer):
         if multi_tensor_applier.available:
             import amp_C
             # Skip buffer
-            self._dummy_overflow_buf = torch.cuda.IntTensor([0])
+            self._dummy_overflow_buf = torch.tensor([0], dtype=torch.int, device='cuda')
             self.multi_tensor_adam = amp_C.multi_tensor_adam
             self.multi_tensor_adam_capturable = amp_C.multi_tensor_adam_capturable
             self.multi_tensor_adam_capturable_master = amp_C.multi_tensor_adam_capturable_master
