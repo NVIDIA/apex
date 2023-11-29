@@ -55,6 +55,29 @@ def apply_rotary_pos_emb(t: torch.Tensor, freqs: torch.Tensor) -> torch.Tensor:
     return torch.cat((t, t_pass), dim=-1)
 
 
+def apply_rotary_pos_emb_thd(
+    t: torch.Tensor, cu_seqlens: torch.Tensor, freqs: torch.Tensor
+) -> torch.Tensor:
+    """A baseline implementation of applying RoPE for `thd` format.
+
+    Args:
+        t (Tensor): Input tensor T is of shape [t, h, d]
+        cu_seqlens(Tensor):  Cumulative sum of sequence lengths in a batch for `t`,
+        with shape [b + 1] and dtype torch.int32.
+        freqs (Tensor): Rotary Positional embedding tensor freq is of shape [max_s, 1, 1, d]
+
+    Returns:
+        Tensor: Shape [t, h, d]. The input tensor after applying RoPE.
+    """
+    seqlens = (cu_seqlens[1:] - cu_seqlens[:-1]).tolist()
+    return torch.cat(
+        [
+            apply_rotary_pos_emb(x.unsqueeze(1), freqs[: x.size(0)])
+            for x in torch.split(t, seqlens)
+        ]
+    ).squeeze(1)
+
+
 class TestFusedRoPE(common_utils.TestCase):
     def setUp(self):
         super().setUp()
@@ -156,9 +179,8 @@ class TestFusedRoPE(common_utils.TestCase):
             )
 
     def test_thd_forward_backward(self):
-        seqlens = [1020, 1022, 1024]
         cu_seqlens = torch.tensor(
-            [0] + torch.cumsum(torch.tensor(seqlens), dim=0).tolist(),
+            [0, 400, 542, 711, 727, 752, 1270, 1426, 1450, 1954, 2044, 2048],
             dtype=torch.int32,
             device=self.device,
         )
@@ -186,18 +208,13 @@ class TestFusedRoPE(common_utils.TestCase):
             t.requires_grad = True
 
             emb = torch.rand(
-                (max(seqlens), 1, 1, int(hidden_size * rotary_percent)),
+                (cu_seqlens[-1], 1, 1, int(hidden_size * rotary_percent)),
                 dtype=torch.float32,
                 device=self.device,
             )
 
             # unfused
-            output_unfused = torch.cat(
-                [
-                    apply_rotary_pos_emb(x.unsqueeze(1), emb[: x.size(0)])
-                    for x in torch.split(t, seqlens)
-                ]
-            ).squeeze(1)
+            output_unfused = apply_rotary_pos_emb_thd(t, cu_seqlens, emb)
             loss_unfused = loss_func(output_unfused)
             loss_unfused.backward()
             grad_unfused = t.grad.detach().clone()
@@ -217,13 +234,13 @@ class TestFusedRoPE(common_utils.TestCase):
             self.assertEqual(
                 output_unfused,
                 output_fused,
-                msg=f"{dtype=}, {seqlens=}, {hidden_size=}, {rotary_percent=}, "
+                msg=f"{dtype=}, {cu_seqlens=}, {hidden_size=}, {rotary_percent=}, "
                 f"{transpose=}, loss_func={loss_func.__name__}",
             )
             self.assertEqual(
                 grad_unfused,
                 grad_fused,
-                msg=f"{dtype=}, {seqlens=}, {hidden_size=}, {rotary_percent=}, "
+                msg=f"{dtype=}, {cu_seqlens=}, {hidden_size=}, {rotary_percent=}, "
                 f"{transpose=}, loss_func={loss_func.__name__}",
             )
 
