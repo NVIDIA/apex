@@ -6,7 +6,10 @@ import itertools
 
 import torch
 from torch.testing._internal import common_utils
-from apex.transformer.functional import fused_apply_rotary_pos_emb
+from apex.transformer.functional import (
+    fused_apply_rotary_pos_emb,
+    fused_apply_rotary_pos_emb_cached,
+)
 
 
 def _rotate_half(x: torch.Tensor) -> torch.Tensor:
@@ -63,6 +66,7 @@ class TestFusedRoPE(common_utils.TestCase):
         self.transpose = [None, (0, 1), (2, 3)]
         self.transpose_output_memory = [False, True]
         self.loss_func = [self._overlapping_grad, self._non_overlapping_grad]
+        self.cached = [False, True]
         self.device = torch.cuda.current_device()
 
     def tearDown(self) -> None:
@@ -85,6 +89,7 @@ class TestFusedRoPE(common_utils.TestCase):
             transpose,
             transpose_output_memory,
             loss_func,
+            cached,
         ) in itertools.product(
             self.dtype,
             self.seq_length,
@@ -93,6 +98,7 @@ class TestFusedRoPE(common_utils.TestCase):
             self.transpose,
             self.transpose_output_memory,
             self.loss_func,
+            self.cached,
         ):
             t = torch.rand(
                 (seq_length, self.batch_size, self.head_num, hidden_size),
@@ -118,9 +124,15 @@ class TestFusedRoPE(common_utils.TestCase):
             t.grad = None
 
             # fused
-            output_fused = fused_apply_rotary_pos_emb(
-                t, emb, transpose_output_memory=transpose_output_memory
-            )
+            if cached:
+                cos, sin = emb.cos(), emb.sin()
+                output_fused = fused_apply_rotary_pos_emb_cached(
+                    t, cos, sin, transpose_output_memory=transpose_output_memory
+                )
+            else:
+                output_fused = fused_apply_rotary_pos_emb(
+                    t, emb, transpose_output_memory=transpose_output_memory
+                )
             loss_fused = loss_func(output_fused)
             loss_fused.backward()
             grad_fused = t.grad.detach().clone()
@@ -130,15 +142,17 @@ class TestFusedRoPE(common_utils.TestCase):
                 output_unfused,
                 output_fused,
                 msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, "
-                    f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
+                f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
             )
             self.assertEqual(
                 grad_unfused,
                 grad_fused,
                 msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, "
-                    f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
+                f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
             )
-            assert output_fused.transpose(0, 1).is_contiguous() is transpose_output_memory
+            assert (
+                output_fused.transpose(0, 1).is_contiguous() is transpose_output_memory
+            )
 
 
 if __name__ == "__main__":
