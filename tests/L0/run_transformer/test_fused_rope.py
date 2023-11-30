@@ -130,8 +130,7 @@ class TestFusedRoPE(common_utils.TestCase):
                 device=self.device,
             )
             if transpose:
-                t = t.transpose(*transpose)
-                t = t.reshape((seq_length, self.batch_size, self.head_num, hidden_size))
+                t = t.transpose(*transpose).contiguous().transpose(*transpose)
             t.requires_grad = True
 
             emb = torch.rand(
@@ -203,8 +202,7 @@ class TestFusedRoPE(common_utils.TestCase):
                 device=self.device,
             )
             if transpose:
-                t = t.transpose(*transpose)
-                t = t.reshape((cu_seqlens[-1], self.head_num, hidden_size))
+                t = t.transpose(*transpose).contiguous().transpose(*transpose)
             t.requires_grad = True
 
             emb = torch.rand(
