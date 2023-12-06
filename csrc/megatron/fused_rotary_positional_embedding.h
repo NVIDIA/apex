@@ -197,11 +197,10 @@ __global__ void fused_rope_cached_backward(
 
 template <typename scalar_t>
 __global__ void fused_rope_thd_forward(
-    const int max_s, const int b, const int h, const int d, const int d2,
-    const int stride_t, const int stride_h, const int stride_d,
-    const int o_stride_t, const int o_stride_h, const int o_stride_d,
-    const scalar_t* src, const int* cu_seqlens, const float* freqs,
-    scalar_t* dst) {
+    const int h, const int d, const int d2, const int stride_t,
+    const int stride_h, const int stride_d, const int o_stride_t,
+    const int o_stride_h, const int o_stride_d, const scalar_t* src,
+    const int* cu_seqlens, const float* freqs, scalar_t* dst) {
   int s_id = blockIdx.x, b_id = blockIdx.y;
   int t_id = s_id + cu_seqlens[b_id];
   if (t_id >= cu_seqlens[b_id + 1]) return;
@@ -241,11 +240,10 @@ __global__ void fused_rope_thd_forward(
 
 template <typename scalar_t>
 __global__ void fused_rope_thd_backward(
-    const int max_s, const int b, const int h, const int d, const int d2,
-    const int stride_t, const int stride_h, const int stride_d,
-    const int o_stride_t, const int o_stride_h, const int o_stride_d,
-    const scalar_t* src, const int* cu_seqlens, const float* freqs,
-    scalar_t* dst) {
+    const int h, const int d, const int d2, const int stride_t,
+    const int stride_h, const int stride_d, const int o_stride_t,
+    const int o_stride_h, const int o_stride_d, const scalar_t* src,
+    const int* cu_seqlens, const float* freqs, scalar_t* dst) {
   int s_id = blockIdx.x, b_id = blockIdx.y;
   int t_id = s_id + cu_seqlens[b_id];
   if (t_id >= cu_seqlens[b_id + 1]) return;
@@ -381,7 +379,7 @@ void dispatch_fused_rope_thd_forward(const int max_s, const int b, const int h,
   dim3 threads(C10_WARP_SIZE, warps_per_block);
 
   fused_rope_thd_forward<<<blocks, threads, 0, stream>>>(
-      max_s, b, h, d, d2, stride_t, stride_h, stride_d, o_stride_t, o_stride_h,
+      h, d, d2, stride_t, stride_h, stride_d, o_stride_t, o_stride_h,
       o_stride_d, input, cu_seqlens, freqs, output);
   C10_CUDA_KERNEL_LAUNCH_CHECK();
 }
@@ -400,7 +398,7 @@ void dispatch_fused_rope_thd_backward(
   dim3 threads(C10_WARP_SIZE, warps_per_block);
 
   fused_rope_thd_backward<<<blocks, threads, 0, stream>>>(
-      max_s, b, h, d, d2, stride_t, stride_h, stride_d, o_stride_t, o_stride_h,
+      h, d, d2, stride_t, stride_h, stride_d, o_stride_t, o_stride_h,
       o_stride_d, output_grads, cu_seqlens, freqs, input_grads);
   C10_CUDA_KERNEL_LAUNCH_CHECK();
 }
