@@ -61,7 +61,11 @@ def fused_apply_rotary_pos_emb(
     freqs: torch.Tensor,
     transpose_output_memory: bool = False,
 ) -> torch.Tensor:
-    """Apply rotary positional embedding to input tensor T.
+    """Apply rotary positional embedding to input tensor T in `sbhd` format, where
+    s: sequence length
+    b: batch size
+    h: head num
+    d: dim of each head
 
     Args:
         t (Tensor): Input tensor T is of shape [s, b, h, d]
@@ -124,7 +128,11 @@ def fused_apply_rotary_pos_emb_cached(
     sin_: torch.Tensor,
     transpose_output_memory: bool = False,
 ) -> torch.Tensor:
-    """Apply rotary positional embedding to input tensor T.
+    """Apply rotary positional embedding to input tensor T in `sbhd` format, where
+    s: sequence length
+    b: batch size
+    h: head num
+    d: dim of each head
 
     Args:
         t (Tensor): Input tensor T is of shape [s, b, h, d]
@@ -185,7 +193,10 @@ def fused_apply_rotary_pos_emb_thd(
     cu_seqlens: torch.Tensor,
     freqs: torch.Tensor,
 ) -> torch.Tensor:
-    """Apply rotary positional embedding to input tensor T.
+    """Apply rotary positional embedding to input tensor T in `thd` format, where
+    t: cumulative sum of sequence lengths
+    h: head num
+    d: dim of each head
 
     Args:
         t (Tensor): Input tensor T is of shape [t, h, d]

@@ -25,16 +25,12 @@
 namespace {
 
 template <typename scalar_t>
-__global__ void fused_rope_forward(const int h, const int d, const int d2,
-                                   const int stride_s, const int stride_b,
-                                   const int stride_h, const int stride_d,
-                                   const int o_stride_s, const int o_stride_b,
-                                   const int o_stride_h, const int o_stride_d,
-                                   const scalar_t* src, const float* freqs,
-                                   scalar_t* dst) {
-  int s_id = blockIdx.x, b_id = blockIdx.y;
-  int offset_block = s_id * stride_s + b_id * stride_b;
-  int offset_block_dst = s_id * o_stride_s + b_id * o_stride_b;
+__device__ void fused_rope_block_forward(
+    const scalar_t *src, const float *freqs, scalar_t *dst,
+    const int offset_block, const int offset_block_dst, const int h,
+    const int d, const int d2, const int stride_h, const int stride_d,
+    const int o_stride_h, const int o_stride_d) {
+  int s_id = blockIdx.x;
 #pragma unroll
   for (int d_id = threadIdx.x; d_id < d2; d_id += blockDim.x) {
     float v_cos, v_sin;
@@ -68,16 +64,12 @@ __global__ void fused_rope_forward(const int h, const int d, const int d2,
 }
 
 template <typename scalar_t>
-__global__ void fused_rope_backward(const int h, const int d, const int d2,
-                                    const int stride_s, const int stride_b,
-                                    const int stride_h, const int stride_d,
-                                    const int o_stride_s, const int o_stride_b,
-                                    const int o_stride_h, const int o_stride_d,
-                                    const scalar_t* src, const float* freqs,
-                                    scalar_t* dst) {
-  int s_id = blockIdx.x, b_id = blockIdx.y;
-  int offset_block = s_id * stride_s + b_id * stride_b;
-  int offset_block_dst = s_id * o_stride_s + b_id * o_stride_b;
+__device__ void fused_rope_block_backward(
+    const scalar_t *src, const float *freqs, scalar_t *dst,
+    const int offset_block, const int offset_block_dst, const int h,
+    const int d, const int d2, const int stride_h, const int stride_d,
+    const int o_stride_h, const int o_stride_d) {
+  int s_id = blockIdx.x;
 #pragma unroll
   for (int d_id = threadIdx.x; d_id < d2; d_id += blockDim.x) {
     scalar_t v_cos = cosf(freqs[s_id * d2 + d_id]);
@@ -109,6 +101,36 @@ __global__ void fused_rope_backward(const int h, const int d, const int d2,
       }
     }
   }
+}
+
+template <typename scalar_t>
+__global__ void fused_rope_forward(const int h, const int d, const int d2,
+                                   const int stride_s, const int stride_b,
+                                   const int stride_h, const int stride_d,
+                                   const int o_stride_s, const int o_stride_b,
+                                   const int o_stride_h, const int o_stride_d,
+                                   const scalar_t* src, const float* freqs,
+                                   scalar_t* dst) {
+  int s_id = blockIdx.x, b_id = blockIdx.y;
+  int offset_block = s_id * stride_s + b_id * stride_b;
+  int offset_block_dst = s_id * o_stride_s + b_id * o_stride_b;
+  fused_rope_block_forward(src, freqs, dst, offset_block, offset_block_dst, h,
+                           d, d2, stride_h, stride_d, o_stride_h, o_stride_d);
+}
+
+template <typename scalar_t>
+__global__ void fused_rope_backward(const int h, const int d, const int d2,
+                                    const int stride_s, const int stride_b,
+                                    const int stride_h, const int stride_d,
+                                    const int o_stride_s, const int o_stride_b,
+                                    const int o_stride_h, const int o_stride_d,
+                                    const scalar_t* src, const float* freqs,
+                                    scalar_t* dst) {
+  int s_id = blockIdx.x, b_id = blockIdx.y;
+  int offset_block = s_id * stride_s + b_id * stride_b;
+  int offset_block_dst = s_id * o_stride_s + b_id * o_stride_b;
+  fused_rope_block_backward(src, freqs, dst, offset_block, offset_block_dst, h,
+                            d, d2, stride_h, stride_d, o_stride_h, o_stride_d);
 }
 
 template <typename scalar_t_0, typename scalar_t_1>
@@ -206,36 +228,8 @@ __global__ void fused_rope_thd_forward(
   if (t_id >= cu_seqlens[b_id + 1]) return;
   int offset_block = t_id * stride_t;
   int offset_block_dst = t_id * o_stride_t;
-#pragma unroll
-  for (int d_id = threadIdx.x; d_id < d2; d_id += blockDim.x) {
-    float v_cos, v_sin;
-    sincosf(freqs[s_id * d2 + d_id], &v_sin, &v_cos);
-#pragma unroll
-    for (int h_id = threadIdx.y; h_id < h; h_id += blockDim.y) {
-      int offset_src = offset_block + h_id * stride_h + d_id * stride_d;
-      int offset_dst = offset_block_dst + h_id * o_stride_h + d_id * o_stride_d;
-      scalar_t v_src = src[offset_src];
-      scalar_t v_src_rotate = (d_id + d2 / 2 < d2)
-                                  ? -src[offset_src + (d2 / 2) * stride_d]
-                                  : src[offset_src + (d2 / 2 - d2) * stride_d];
-      dst[offset_dst] =
-          v_src * (scalar_t)v_cos + v_src_rotate * (scalar_t)v_sin;
-    }
-  }
-
-  // copy the rest
-  if (d > d2) {
-#pragma unroll
-    for (int h_id = threadIdx.y; h_id < h; h_id += blockDim.y) {
-      int offset_head = offset_block + h_id * stride_h;
-      int offset_head_dst = offset_block_dst + h_id * o_stride_h;
-#pragma unroll
-      for (int d_id = d2 + threadIdx.x; d_id < d; d_id += blockDim.x) {
-        dst[offset_head_dst + d_id * o_stride_d] =
-            src[offset_head + d_id * stride_d];
-      }
-    }
-  }
+  fused_rope_block_forward(src, freqs, dst, offset_block, offset_block_dst, h,
+                           d, d2, stride_h, stride_d, o_stride_h, o_stride_d);
 }
 
 template <typename scalar_t>
@@ -249,37 +243,8 @@ __global__ void fused_rope_thd_backward(
   if (t_id >= cu_seqlens[b_id + 1]) return;
   int offset_block = t_id * stride_t;
   int offset_block_dst = t_id * o_stride_t;
-#pragma unroll
-  for (int d_id = threadIdx.x; d_id < d2; d_id += blockDim.x) {
-    scalar_t v_cos = cosf(freqs[s_id * d2 + d_id]);
-    scalar_t v_sin = (d_id + d2 / 2 < d2)
-                         ? sinf(freqs[s_id * d2 + d_id + d2 / 2])
-                         : -sinf(freqs[s_id * d2 + d_id + d2 / 2 - d2]);
-#pragma unroll
-    for (int h_id = threadIdx.y; h_id < h; h_id += blockDim.y) {
-      int offset_src = offset_block + h_id * stride_h + d_id * stride_d;
-      int offset_dst = offset_block_dst + h_id * o_stride_h + d_id * o_stride_d;
-      scalar_t v_src = src[offset_src];
-      scalar_t v_src_rotate = (d_id + d2 / 2 < d2)
-                                  ? src[offset_src + (d2 / 2) * stride_d]
-                                  : src[offset_src + (d2 / 2 - d2) * stride_d];
-      dst[offset_dst] = v_src * v_cos + v_src_rotate * v_sin;
-    }
-  }
-
-  // handle the tail
-  if (d > d2) {
-#pragma unroll
-    for (int h_id = threadIdx.y; h_id < h; h_id += blockDim.y) {
-      int offset_head = offset_block + h_id * stride_h;
-      int offset_head_dst = offset_block_dst + h_id * o_stride_h;
-#pragma unroll
-      for (int d_id = d2 + threadIdx.x; d_id < d; d_id += blockDim.x) {
-        dst[offset_head_dst + d_id * o_stride_d] =
-            src[offset_head + d_id * stride_d];
-      }
-    }
-  }
+  fused_rope_block_backward(src, freqs, dst, offset_block, offset_block_dst, h,
+                            d, d2, stride_h, stride_d, o_stride_h, o_stride_d);
 }
 
 }  // end of anonymous namespace
