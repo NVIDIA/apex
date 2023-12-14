@@ -122,6 +122,21 @@ Note: Pytorch version recommended is >=1.5 for extension build.
 python setup.py install
 ```
 
+=======
+### Supported Versions
+| APEX Version  | PyTorch Version |
+| ------------- | ------------- |
+| release/1.0.0 | release/2.0 and older |
+| release/1.1.0 | release/2.1 |
+
+
+The relation between APEX and ROCm PyTorch is maintained in file `related_commits` in ROCm PyTorch release branches in the following format. 
+
+```
+ubuntu|pytorch|apex|release/1.0.0|06c33eee43f7a22f3ed7d9c3e5be0ddd757dc345|https://github.com/ROCmSoftwarePlatform/apex
+centos|pytorch|apex|release/1.0.0|06c33eee43f7a22f3ed7d9c3e5be0ddd757dc345|https://github.com/ROCmSoftwarePlatform/apex
+```
+
 ### To install using extensions enabled use the following command in apex folder:
 ```
 # if pip >= 23.1 (ref: https://pip.pypa.io/en/stable/news/#v23-1) which supports multiple `--config-settings` with the same key...

@@ -10,10 +10,21 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 
+#include <rocblas/rocblas.h>
+
 #if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
 // includes cublaslt
 #include <cublasLt.h>
 #endif
+
+// until we use hipblas v2
+// hipify correctly maps things like CUDA_R_16F to HIP_R_16F,
+// however hipblas v1 is still using its custom type
+#define HIP_R_64F  HIPBLAS_R_64F
+#define HIP_R_32F  HIPBLAS_R_32F
+#define HIP_R_16F  HIPBLAS_R_16F
+
+
 // FP64 Wrapper around cublas GEMMEx
 cublasStatus_t gemm_bias(
     cublasHandle_t handle,
@@ -30,33 +41,6 @@ cublasStatus_t gemm_bias(
     const float* beta,
     double* C,
     int ldc) {
-#ifdef USE_ROCM
-  return rocblas_gemm_ex(
-      handle,
-      transa,
-      transb,
-      m,
-      n,
-      k,
-      alpha,
-      A,
-      rocblas_datatype_f64_r,
-      lda,
-      B,
-      rocblas_datatype_f64_r,
-      ldb,
-      beta,
-      C,
-      rocblas_datatype_f64_r,
-      ldc,
-      C,
-      rocblas_datatype_f64_r,
-      ldc,
-      rocblas_datatype_f64_r,
-      rocblas_gemm_algo_standard,
-      0,
-      0);  
-#else
   return cublasGemmEx(
       handle,
       transa,
@@ -75,9 +59,8 @@ cublasStatus_t gemm_bias(
       C,
       CUDA_R_64F,
       ldc,
-      CUDA_R_64F,
+      CUBLAS_COMPUTE_64F,
       CUBLAS_GEMM_DEFAULT);
-#endif
 }
 
 // FP32 Wrapper around cublas GEMMEx
@@ -96,34 +79,6 @@ cublasStatus_t gemm_bias(
     const float* beta,
     float* C,
     int ldc) {
-#ifdef USE_ROCM
-  return rocblas_gemm_ex(
-      handle,
-      transa,
-      transb,
-      m,
-      n,
-      k,
-      alpha,
-      A,
-      rocblas_datatype_f32_r,
-      lda,
-      B,
-      rocblas_datatype_f32_r,
-      ldb,
-      beta,
-      C,
-      rocblas_datatype_f32_r,
-      ldc,
-      C,
-      rocblas_datatype_f32_r,
-      ldc,
-      rocblas_datatype_f32_r,
-      rocblas_gemm_algo_standard,
-      0,
-      0);
-
-#else
   return cublasGemmEx(
       handle,
       transa,
@@ -142,9 +97,8 @@ cublasStatus_t gemm_bias(
       C,
       CUDA_R_32F,
       ldc,
-      CUDA_R_32F,
+      CUBLAS_COMPUTE_32F,
       CUBLAS_GEMM_DEFAULT);
-#endif
 }
 
 // FP16 Tensor core wrapper around cublas GEMMEx
@@ -163,33 +117,6 @@ cublasStatus_t gemm_bias(
     const float* beta,
     at::Half* C,
     int ldc) {
-#ifdef USE_ROCM
-  return rocblas_gemm_ex(
-      handle,
-      transa,
-      transb,
-      m,
-      n,
-      k,
-      alpha,
-      A,
-      rocblas_datatype_f16_r,
-      lda,
-      B,
-      rocblas_datatype_f16_r,
-      ldb,
-      beta,
-      C,
-      rocblas_datatype_f16_r,
-      ldc,
-      C,
-      rocblas_datatype_f16_r,
-      ldc,
-      rocblas_datatype_f32_r,
-      rocblas_gemm_algo_standard,
-      0,
-      0);
-#else
   return cublasGemmEx(
       handle,
       transa,
@@ -208,9 +135,8 @@ cublasStatus_t gemm_bias(
       C,
       CUDA_R_16F,
       ldc,
-      CUDA_R_32F,
+      CUBLAS_COMPUTE_16F,
       CUBLAS_GEMM_DEFAULT_TENSOR_OP);
-#endif
 }
 
 
