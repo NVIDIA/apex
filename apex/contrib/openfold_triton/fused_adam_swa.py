@@ -427,7 +427,7 @@ class FusedAdamSWA(Optimizer):
             grad_ptr_this_group = torch.tensor(grad_ptr_this_group, dtype=torch.int64)
             grad_ptr_per_chunk = torch.repeat_interleave(
                 grad_ptr_this_group, buffer_group["chunks_per_param"]
-            ).to(device)
+            ).to(device, non_blocking=True)
 
             grid = (buffer_group["total_chunks"],)
             _multi_tensor_adam_swa[grid](
