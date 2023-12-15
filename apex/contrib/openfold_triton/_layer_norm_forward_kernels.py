@@ -1,12 +1,12 @@
 # © 2023 NVIDIA CORPORATION & AFFILIATES
 
-from distutils.version import LooseVersion
+from packaging.version import Version
 
 import triton
 import triton.language as tl
 from triton import Config
 
-if LooseVersion("2.0.0") < LooseVersion(triton.__version__):
+if Version("2.0.0") < Version(triton.__version__):
     rsqrt = tl.math.rsqrt
 else:
     rsqrt = tl.libdevice.rsqrt
