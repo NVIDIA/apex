@@ -124,10 +124,11 @@ python setup.py install
 
 =======
 ### Supported Versions
-| APEX Version  | PyTorch Version |
-| ------------- | ------------- |
-| release/1.0.0 | release/2.0 and older |
-| release/1.1.0 | release/2.1 |
+| ``APEX Version`` | ``APEX branch``  | ``Torch Version`` |
+| ------------- | ------------- | ------------- |
+| ``1.2.0`` | master | ``2.2`` | 
+| ``1.1.0`` | release/1.1.0 | ``2.1`` |
+| ``1.0.0`` | release/1.0.0 | ``2.0`` and older |
 
 
 The relation between APEX and ROCm PyTorch is maintained in file `related_commits` in ROCm PyTorch release branches in the following format. 
