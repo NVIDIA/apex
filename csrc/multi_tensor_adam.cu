@@ -384,7 +384,7 @@ void multi_tensor_adam_cuda(
     for (auto it2 = it->begin(); it2 != it->end(); it2++) {
       if (it2->numel() > max_size) {
         max_size = it2->numel();
-	if (max_size) {
+	if (max_size >= INT_MAX) {
           requires_64bit_indexing = true;
 	  break;
         }
