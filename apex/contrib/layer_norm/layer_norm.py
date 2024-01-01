@@ -7,7 +7,7 @@ import fast_layer_norm
 
 class FastLayerNormFN(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x, gamma, beta, epsilon, memory_efficient):
+    def forward(ctx, x, gamma, beta, epsilon, memory_efficient=False):
         ctx.x_shape = x.shape
         ctx.memory_efficient = memory_efficient
 
