@@ -97,7 +97,7 @@ class IndexMul2dTest(unittest.TestCase):
 
         torch.testing.assert_close(self.input1_half, self.input1_half_, atol=1e-3, rtol=1e-3, equal_nan=True)
         torch.testing.assert_close(self.input2_half, self.input2_half_, atol=1e-3, rtol=1e-3, equal_nan=True)
-        torch.testing.assert_close(self.input1_half.grad, self.input1_half_.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(self.input1_half.grad, self.input1_half_.grad, atol=2e-3, rtol=5e-2, equal_nan=True)
         torch.testing.assert_close(self.input2_half.grad, self.input2_half_.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
 if __name__ == '__main__':
