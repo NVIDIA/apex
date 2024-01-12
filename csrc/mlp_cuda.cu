@@ -120,31 +120,27 @@ cublasStatus_t mlp_gemm(
     int ldc,
     int flag) {
 #ifdef USE_ROCM
-  return rocBLASStatusToHIPStatus(rocblas_gemm_ex(
-      (rocblas_handle) handle,
-      hipOperationToRocOperation(transa),
-      hipOperationToRocOperation(transb),
+  return hipblasGemmEx(
+      handle,
+      transa,
+      transb,
       m,
       n,
       k,
       alpha,
       A,
-      rocblas_datatype_f64_r,
+      HIPBLAS_R_64F,
       lda,
       B,
-      rocblas_datatype_f64_r,
+      HIPBLAS_R_64F,
       ldb,
       beta,
       C,
-      rocblas_datatype_f64_r,
+      HIPBLAS_R_64F,
       ldc,
-      C,
-      rocblas_datatype_f64_r,
-      ldc,
-      rocblas_datatype_f64_r,
-      rocblas_gemm_algo_standard,
-      0,
-      flag));  
+      HIPBLAS_R_64F,
+      HIPBLAS_GEMM_DEFAULT
+      );  
 #else
   return cublasGemmEx(
       handle,
@@ -187,31 +183,27 @@ cublasStatus_t mlp_gemm(
     int ldc,
     int flag) {
 #ifdef USE_ROCM
-  return rocBLASStatusToHIPStatus(rocblas_gemm_ex(
-      (rocblas_handle) handle,
-      hipOperationToRocOperation(transa),
-      hipOperationToRocOperation(transb),
+  return hipblasGemmEx(
+      handle,
+      transa,
+      transb,
       m,
       n,
       k,
       alpha,
       A,
-      rocblas_datatype_f32_r,
+      HIPBLAS_R_32F,
       lda,
       B,
-      rocblas_datatype_f32_r,
+      HIPBLAS_R_32F,
       ldb,
       beta,
       C,
-      rocblas_datatype_f32_r,
+      HIPBLAS_R_32F,
       ldc,
-      C,
-      rocblas_datatype_f32_r,
-      ldc,
-      rocblas_datatype_f32_r,
-      rocblas_gemm_algo_standard,
-      0,
-      flag));
+      HIPBLAS_R_32F,
+      HIPBLAS_GEMM_DEFAULT
+      );
 
 #else
   return cublasGemmEx(
@@ -255,31 +247,27 @@ cublasStatus_t mlp_gemm(
     int ldc,
     int flag) {
 #ifdef USE_ROCM
-  return rocBLASStatusToHIPStatus(rocblas_gemm_ex(
-      (rocblas_handle) handle,
-      hipOperationToRocOperation(transa),
-      hipOperationToRocOperation(transb),
+  return hipblasGemmEx(
+      handle,
+      transa,
+      transb,
       m,
       n,
       k,
       alpha,
       A,
-      rocblas_datatype_f16_r,
+      HIPBLAS_R_16F,
       lda,
       B,
-      rocblas_datatype_f16_r,
+      HIPBLAS_R_16F,
       ldb,
       beta,
       C,
-      rocblas_datatype_f16_r,
+      HIPBLAS_R_16F,
       ldc,
-      C,
-      rocblas_datatype_f16_r,
-      ldc,
-      rocblas_datatype_f32_r,
-      rocblas_gemm_algo_standard,
-      0,
-      flag));
+      HIPBLAS_R_32F,
+      HIPBLAS_GEMM_DEFAULT 
+      );
 #else
   return cublasGemmEx(
       handle,

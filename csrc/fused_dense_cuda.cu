@@ -41,6 +41,29 @@ cublasStatus_t gemm_bias(
     const float* beta,
     double* C,
     int ldc) {
+#ifdef USE_ROCM
+  return hipblasGemmEx(
+      handle,
+      transa,
+      transb,
+      m,
+      n,
+      k,
+      alpha,
+      A,
+      HIPBLAS_R_64F,
+      lda,
+      B,
+      HIPBLAS_R_64F,
+      ldb,
+      beta,
+      C,
+      HIPBLAS_R_64F,
+      ldc,
+      HIPBLAS_R_64F,
+      HIPBLAS_GEMM_DEFAULT
+      );
+#else
   return cublasGemmEx(
       handle,
       transa,
@@ -61,6 +84,7 @@ cublasStatus_t gemm_bias(
       ldc,
       CUBLAS_COMPUTE_64F,
       CUBLAS_GEMM_DEFAULT);
+#endif
 }
 
 // FP32 Wrapper around cublas GEMMEx
@@ -79,6 +103,30 @@ cublasStatus_t gemm_bias(
     const float* beta,
     float* C,
     int ldc) {
+#ifdef USE_ROCM
+  return hipblasGemmEx(
+      handle,
+      transa,
+      transb,
+      m,
+      n,
+      k,
+      alpha,
+      A,
+      HIPBLAS_R_32F,
+      lda,
+      B,
+      HIPBLAS_R_32F,
+      ldb,
+      beta,
+      C,
+      HIPBLAS_R_32F,
+      ldc,
+      HIPBLAS_R_32F,
+      HIPBLAS_GEMM_DEFAULT
+      );
+
+#else
   return cublasGemmEx(
       handle,
       transa,
@@ -99,6 +147,7 @@ cublasStatus_t gemm_bias(
       ldc,
       CUBLAS_COMPUTE_32F,
       CUBLAS_GEMM_DEFAULT);
+#endif
 }
 
 // FP16 Tensor core wrapper around cublas GEMMEx
@@ -117,6 +166,29 @@ cublasStatus_t gemm_bias(
     const float* beta,
     at::Half* C,
     int ldc) {
+#ifdef USE_ROCM
+  return hipblasGemmEx(
+      handle,
+      transa,
+      transb,
+      m,
+      n,
+      k,
+      alpha,
+      A,
+      HIPBLAS_R_16F,
+      lda,
+      B,
+      HIPBLAS_R_16F,
+      ldb,
+      beta,
+      C,
+      HIPBLAS_R_16F,
+      ldc,
+      HIPBLAS_R_32F,
+      HIPBLAS_GEMM_DEFAULT
+      );
+#else
   return cublasGemmEx(
       handle,
       transa,
@@ -137,6 +209,7 @@ cublasStatus_t gemm_bias(
       ldc,
       CUBLAS_COMPUTE_16F,
       CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+#endif
 }
 
 
