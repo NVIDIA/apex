@@ -41,10 +41,11 @@ def make_models(
         process_group: Optional[torch.distributed.ProcessGroup] = None,
         average_grad_sync: bool =True,
         overlap_communication: bool = True,
+        bucket_cap_mb: float = 71/(4*1024*1024),
         contiguous_buffers: bool = False,
         store_params: bool = False,
         store_param_remainders: bool = False,
-        bucket_cap_mb: float = 71/(4*1024*1024),
+        with_scaled_state: bool = False,
 ):
 
     # Construct models with same parameters
@@ -94,6 +95,7 @@ def make_models(
         contiguous_grad_buffer=contiguous_buffers,
         store_params=store_params,
         store_param_remainders=store_param_remainders,
+        with_scaled_state=with_scaled_state,
         **optim_args,
     )
 
@@ -130,10 +132,11 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             grad_sync_dtype: Optional[torch.dtype] = None,
             param_sync_dtype: Optional[torch.dtype] = None,
             device: torch.device = 'cuda',
+            bucket_cap_mb: float = 71/(4*1024*1024),
             contiguous_buffers: bool = False,
             store_params: bool = False,
             store_param_remainders: bool = False,
-            bucket_cap_mb: float = 71/(4*1024*1024),
+            with_scaled_state: bool = False,
             init_optim_func: Optional[Callable[[DistributedFusedAdam], None]] = None,
     ):
 
@@ -150,10 +153,11 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             param_sync_dtype=param_sync_dtype,
             device=device,
             overlap_communication=overlap_communication,
+            bucket_cap_mb=bucket_cap_mb,
             contiguous_buffers=contiguous_buffers,
             store_params=store_params,
             store_param_remainders=store_param_remainders,
-            bucket_cap_mb=bucket_cap_mb,
+            with_scaled_state=with_scaled_state,
         )
 
         # Initialize distributed optimizer
@@ -310,6 +314,18 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             optim_dtype=torch.float16,
             micro_batch_steps=1,
             param_sync_dtype=torch.uint8,
+        )
+
+    def test_matches_pytorch_scaled_state(self):
+        self.test_matches_pytorch(
+            rtol=5e-2,
+            atol=1e-5,
+            micro_batch_steps=1,
+            model_dtype=torch.bfloat16,
+            optim_dtype=torch.float16,
+            #param_sync_dtype=torch.int,
+            store_params=True,
+            with_scaled_state=True,
         )
 
     def test_raises_on_mismatch(self):

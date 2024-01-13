@@ -544,6 +544,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         contiguous_grad_buffer: bool = False,
         store_params: bool = True,
         store_param_remainders: bool = False,
+        with_scaled_state: bool = False,
     ):
         defaults = dict(
             lr=lr,
@@ -723,6 +724,19 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Attach hooks for param synchronization
         if self.overlap_param_sync:
             self._register_pre_forward_hooks()
+
+        ### TODO Clean up
+        self.with_scaled_states = with_scaled_state
+        self._state_scales = {}
+        if self.with_scaled_states:
+            assert self.store_params
+            assert not self.store_param_remainders
+            self._max_scaled_state = torch.full(
+                [1],
+                torch.finfo(self.dtype).max / 2,
+                dtype=torch.float32,
+                device=self.device,
+            )
 
     def _broadcast_params(self) -> None:
         """Broadcast parameter values from root rank"""
@@ -1378,6 +1392,16 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             bucket.filled_size = bucket_end
             param_start = param_end
 
+        # Scales for optimizer state
+        param_rscale = None
+        if self.with_scaled_states:
+            scale, param_rscale = self._compute_state_scale(param)
+            self._state_scales[(param_group_id, param_id)] = dict(
+                param=scale,
+                exp_avg=torch.zeros([1], dtype=torch.float32, device=self.device),
+                exp_avg_sq=torch.zeros([1], dtype=torch.float32, device=self.device),
+            )
+
         # Initialize main param buffer
         if store_params:
             for fragment in self.state[param]["fragments"]:
@@ -1389,7 +1413,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         param_start:param_end
                     ]
                     main_param_fragment = bucket.params_shard[shard_start:shard_end]
-                    main_param_fragment.copy_(model_param_fragment)
+                    if self.with_scaled_states:
+                        torch.mul(
+                            param_rscale,
+                            model_param_fragment,
+                            out=main_param_fragment,
+                        )
+                    else:
+                        main_param_fragment.copy_(model_param_fragment)
 
     def zero_grad(self, set_to_none: bool = False) -> None:
         """Clear parameter gradients"""
@@ -2205,6 +2236,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             self.distributed_size > 1
             and self.overlap_param_sync
             and self.state["buckets"]
+            and not self.with_scaled_states
         )
         for bucket_id in reversed(range(len(self.state["buckets"]))):
             params_bucket = self.ParameterBucket()
@@ -2257,7 +2289,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         # Apply optimizer step
         self.state["step"] += 1
-        if overlap_first_bucket:
+        if self.with_scaled_states:
+            self._local_step_with_scaled_states()
+            self._check_params_shard_dtypes(self._params_buckets)
+        elif overlap_first_bucket:
             # Local step and non-blocking param sync
             # Note: Overlap param sync of first buckets with optimizer
             # step of remaining buckets.
@@ -2475,6 +2510,164 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             )
 
     @torch.no_grad()
+    def _local_step_with_scaled_states(self) -> None:
+
+        # Perform local step with each bucket
+        param_buffers = collections.defaultdict(list)
+        for bucket_id, state_bucket in enumerate(self.state["buckets"]):
+            grads_bucket = self._grads_buckets[bucket_id]
+            params_bucket = self._params_buckets[bucket_id]
+            params_bucket.params_shard = torch.empty_like(
+                state_bucket.params_shard,
+                dtype=torch.float32,
+            )
+
+            # Find param fragments in local shard
+            group_buffers = collections.defaultdict(list)  # p_in, m, v, g, p_out
+            fragment_buffers = []
+            for fragment in state_bucket.fragments:
+                if not fragment.in_local_shard:
+                    continue
+                shard_start, shard_end = fragment.shard_range
+                if shard_end <= shard_start:
+                    continue
+                param_group_id = fragment.param_group_id
+                param_id = fragment.param_id
+                shard_range = slice(shard_start, shard_end)
+
+                # Unscale optimizer state
+                scaled_param = state_bucket.params_shard[shard_range]
+                scaled_exp_avg = state_bucket.exp_avg_shard[shard_range]
+                scaled_exp_avg_sq = state_bucket.exp_avg_sq_shard[shard_range]
+                scales = self._state_scales[(param_group_id, param_id)]
+                param = torch.mul(
+                    scales["param"],
+                    scaled_param,
+                    out=params_bucket.params_shard[shard_range],
+                )
+                exp_avg = torch.mul(
+                    scales["exp_avg"],
+                    scaled_exp_avg,
+                    out=torch.empty_like(scaled_exp_avg, dtype=torch.float32),
+                )
+                exp_avg_sq = torch.mul(
+                    scales["exp_avg_sq"],
+                    scaled_exp_avg_sq,
+                    out=torch.empty_like(scaled_exp_avg_sq, dtype=torch.float32),
+                )
+                fragment_buffers.append(
+                    (
+                        fragment,
+                        (
+                            param,
+                            exp_avg,
+                            exp_avg_sq,
+                            scaled_param,
+                            scaled_exp_avg,
+                            scaled_exp_avg_sq,
+                        ),
+                    )
+                )
+
+                # Buffers for optimizer step
+                grads = grads_bucket.grads_shard[shard_range]
+                group_buffers[param_group_id].append(
+                    [param, exp_avg, exp_avg_sq, grads, param]
+                )
+
+            # Apply optimizer step to each param group
+            for group_id, buffers in group_buffers.items():
+                group = self.param_groups[group_id]
+                beta1, beta2 = group["betas"]
+                multi_tensor_applier(
+                    distributed_adam_cuda.multi_tensor_fused_adam,
+                    self._dummy_overflow_buf,
+                    list(zip(*buffers)),
+                    self._grad_scale,
+                    group["lr"],
+                    beta1,
+                    beta2,
+                    group["eps"],
+                    self.state["step"],
+                    1 if self.adam_w_mode else 0,
+                    1 if group["bias_correction"] else 0,
+                    group["weight_decay"],
+                )
+            del group_buffers
+
+            # Make sure param sync buffer has correct dtype
+            self._check_params_shard_dtypes({bucket_id: params_bucket})
+
+            # Scale optimizer state
+            for fragment, buffers in fragment_buffers:
+                (
+                    param,
+                    exp_avg,
+                    exp_avg_sq,
+                    scaled_param,
+                    scaled_exp_avg,
+                    scaled_exp_avg_sq,
+                ) = buffers
+                param_group_id = fragment.param_group_id
+                param_id = fragment.param_id
+                param_scale, param_rscale = self._compute_state_scale(param)
+                exp_avg_scale, exp_avg_rscale = self._compute_state_scale(exp_avg)
+                exp_avg_sq_scale, exp_avg_sq_rscale = self._compute_state_scale(exp_avg_sq)
+                torch.mul(param_rscale, param, out=scaled_param)
+                torch.mul(exp_avg_rscale, exp_avg, out=scaled_exp_avg)
+                torch.mul(exp_avg_sq_rscale, exp_avg_sq, out=scaled_exp_avg_sq)
+                param_buffers[(param_group_id, param_id)].append(
+                    (
+                        scaled_param,
+                        scaled_exp_avg,
+                        scaled_exp_avg_sq,
+                        param_scale,
+                        exp_avg_scale,
+                        exp_avg_sq_scale,
+                    )
+                )
+            del fragment_buffers
+
+        def reconcile_buffers(
+            buffers: List[torch.Tensor],
+            scales: List[torch.Tensor],
+        ) -> torch.Tensor:
+            """Adjust scaled buffers to have same scaling factor
+
+            The buffers are modified in-place and the new scaling
+            factor is returned.
+
+            """
+            if len(scales) == 1:
+                return scales[0]
+            scales = torch.cat(scales)
+            new_scale = scales.amax()
+            new_rscale = torch.where(
+                new_scale > 0,
+                new_scale.reciprocal(),
+                0.0,
+            )
+            for buf, s in zip(buffers, scales * new_rscale):
+                buf.mul_(s)
+            return new_scale
+
+        # Reconcile scaling factors between param fragments
+        for key, buffers in param_buffers.items():
+            (
+                scaled_param,
+                scaled_exp_avg,
+                scaled_exp_avg_sq,
+                param_scale,
+                exp_avg_scale,
+                exp_avg_sq_scale,
+            ) = list(zip(*buffers))
+            self._state_scales[key] = dict(
+                param=reconcile_buffers(scaled_param, param_scale),
+                exp_avg=reconcile_buffers(scaled_exp_avg, exp_avg_scale),
+                exp_avg_sq=reconcile_buffers(scaled_exp_avg_sq, exp_avg_sq_scale),
+            )
+
+    @torch.no_grad()
     def _check_params_shard_dtypes(
         self,
         params_buckets: Dict[int, ParameterBucket],
@@ -2534,6 +2727,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             buffers_out,
             dummy_overflow_buf=self._dummy_overflow_buf,
         )
+
+    def _compute_state_scale(
+        self,
+        tensor: torch.Tensor,
+    ) -> torch.Tensor:
+        minval, maxval = torch.aminmax(tensor)
+        absmax = torch.maximum(-minval, maxval)
+        absmax = absmax.to(dtype=torch.float32, device=self.device)
+        scale = absmax / self._max_scaled_state
+        rscale = torch.where(scale > 0, scale.reciprocal(), 0.0)
+        return scale, rscale
 
     def state_dict(
         self,
