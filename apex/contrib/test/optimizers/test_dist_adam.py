@@ -323,7 +323,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             micro_batch_steps=1,
             model_dtype=torch.bfloat16,
             optim_dtype=torch.float16,
-            #param_sync_dtype=torch.int,
+            param_sync_dtype=torch.int,
             store_params=True,
             with_scaled_state=True,
         )
@@ -731,6 +731,27 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 param_sync_dtype=torch.bfloat16,
                 store_params=False,
                 store_param_remainders=True,
+            ),
+        )
+
+    def test_checkpoint_scaled_state(self):
+        """Test checkpoint with scaled FP16 state"""
+        self.test_checkpoint(
+            rtol=5e-2,
+            atol=1e-5,
+            save_model_kwargs=dict(
+                model_dtype=torch.bfloat16,
+                optim_dtype=torch.float16,
+                param_sync_dtype=torch.int,
+                store_params=True,
+                with_scaled_state=True,
+            ),
+            load_model_kwargs=dict(
+                model_dtype=torch.bfloat16,
+                optim_dtype=torch.float16,
+                param_sync_dtype=torch.int,
+                store_params=True,
+                with_scaled_state=True,
             ),
         )
 
