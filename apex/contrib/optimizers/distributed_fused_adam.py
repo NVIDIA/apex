@@ -3079,7 +3079,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     shard_range = slice(*fragment.shard_range)
                     torch.mul(
                         self._state_scales[(param_group_id, param_id)][state_key],
-                        scaled_shard[shard_range],
+                        shard[shard_range],
                         out=out[shard_range],
                     )
             return out
@@ -3370,17 +3370,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 if self.with_scaled_states:
                     torch.mul(
                         param_rscale,
-                        param_state[param_range],
+                        param_state[param_range].to(device=self.device),
                         out=bucket.params_shard[shard_range],
                     )
                     torch.mul(
                         exp_avg_rscale,
-                        exp_avg[param_range],
+                        exp_avg[param_range].to(device=self.device),
                         out=bucket.exp_avg_shard[shard_range],
                     )
                     torch.mul(
                         exp_avg_sq_rscale,
-                        exp_avg_sq[param_range],
+                        exp_avg_sq[param_range].to(device=self.device),
                         out=bucket.exp_avg_sq_shard[shard_range],
                     )
                 else:
