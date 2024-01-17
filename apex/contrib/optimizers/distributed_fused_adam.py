@@ -355,7 +355,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         store_param_remainders (bool, optional): if model is BF16 and
             optimizer is FP32, store bits required to reconstruct FP32
             params (default: False). This is an experimental feature.
-        with_scaled_state (bool, optional): apply per-tensor scaling
+        with_scaled_states (bool, optional): apply per-tensor scaling
             factors to the optimizer state (default: False). As
             discussed in `FP8-LM: Training FP8 Large Language
             Models`_, this helps maintain a reasonable dynamic range
@@ -552,7 +552,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         contiguous_grad_buffer: bool = False,
         store_params: bool = True,
         store_param_remainders: bool = False,
-        with_scaled_state: bool = False,
+        with_scaled_states: bool = False,
     ):
         defaults = dict(
             lr=lr,
@@ -662,7 +662,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self.store_param_remainders: bool = store_param_remainders
 
         # Whether to scale optimizer state
-        if with_scaled_state:
+        if with_scaled_states:
             if not self.store_params:
                 raise RuntimeError(
                     "Attempted to construct DistributedFusedAdam "
@@ -673,7 +673,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     "Attempted to construct DistributedFusedAdam "
                     "with with_scaled_state=True and store_params_remainders=True"
                 )
-        self.with_scaled_states: bool = with_scaled_state
+        self.with_scaled_states: bool = with_scaled_states
         # Scaling factors for optimizer state
         self._state_scales: dict = {}
 
@@ -1244,6 +1244,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     self.state[param]["fragments"].append(fragment)
                     bucket.fragments.append(fragment)
 
+    @torch.no_grad()
     def _init_param_state(
         self,
         param: torch.nn.Parameter,
@@ -2255,7 +2256,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             shard_size = state_bucket.shard_size
             dtype = state_bucket.dtype
             param_sync_dtype = state_bucket.param_sync_dtype
-            if not param_sync_dtype.is_floating_point:
+            if self.with_scaled_states:
+                overlap_first_bucket = False
+                params_bucket.params_shard = None
+            elif not param_sync_dtype.is_floating_point:
                 # Make sure param shard buffer is floating-point
                 overlap_first_bucket = False
                 if (
@@ -2302,7 +2306,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self.state["step"] += 1
         if self.with_scaled_states:
             self._local_step_with_scaled_states()
-            self._check_params_shard_dtypes(self._params_buckets)
         elif overlap_first_bucket:
             # Local step and non-blocking param sync
             # Note: Overlap param sync of first buckets with optimizer
@@ -2739,6 +2742,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             dummy_overflow_buf=self._dummy_overflow_buf,
         )
 
+    @torch.no_grad()
     def _compute_state_scale(
         self,
         tensor: torch.Tensor,
@@ -2830,7 +2834,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             "Making optimizer state dictionary in deprecated v1 format. "
             "Future support is not guaranteed."
         )
-        if self.with_scaled_state:
+        if self.with_scaled_states:
             raise NotImplementedError(
                 "Deprecated v1 format does not support scaled state"
             )
@@ -2992,7 +2996,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self.param_sync()
 
         # Output tensor format
-        dtype = torch.float32 if self.with_scaled_state else self.dtype
+        dtype = torch.float32 if self.with_scaled_states else self.dtype
         device = torch.device("cpu")
 
         # Get state dict from base class
@@ -3060,7 +3064,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             immediately returned.
 
             """
-            if not self.with_scaled_state:
+            if not self.with_scaled_states:
                 return shard
             out = get_workspace_shard(bucket_id)
             bucket = self.state["buckets"][bucket_id]
@@ -3284,7 +3288,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             "Loading checkpoint in deprecated v1 format. "
             "Future support is not guaranteed."
         )
-        if self.with_scaled_state:
+        if self.with_scaled_states:
             raise NotImplementedError(
                 "Deprecated v1 format does not support scaled state"
             )
@@ -3363,7 +3367,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 bucket = self.state["buckets"][fragment.bucket_id]
                 param_range = slice(*fragment.shard_param_range)
                 shard_range = slice(*fragment.shard_range)
-                if self.with_scaled_state:
+                if self.with_scaled_states:
                     torch.mul(
                         param_rscale,
                         param_state[param_range],

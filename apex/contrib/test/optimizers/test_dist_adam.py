@@ -45,7 +45,7 @@ def make_models(
         contiguous_buffers: bool = False,
         store_params: bool = False,
         store_param_remainders: bool = False,
-        with_scaled_state: bool = False,
+        with_scaled_states: bool = False,
 ):
 
     # Construct models with same parameters
@@ -95,7 +95,7 @@ def make_models(
         contiguous_grad_buffer=contiguous_buffers,
         store_params=store_params,
         store_param_remainders=store_param_remainders,
-        with_scaled_state=with_scaled_state,
+        with_scaled_states=with_scaled_states,
         **optim_args,
     )
 
@@ -136,7 +136,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             contiguous_buffers: bool = False,
             store_params: bool = False,
             store_param_remainders: bool = False,
-            with_scaled_state: bool = False,
+            with_scaled_states: bool = False,
             init_optim_func: Optional[Callable[[DistributedFusedAdam], None]] = None,
     ):
 
@@ -157,7 +157,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             contiguous_buffers=contiguous_buffers,
             store_params=store_params,
             store_param_remainders=store_param_remainders,
-            with_scaled_state=with_scaled_state,
+            with_scaled_states=with_scaled_states,
         )
 
         # Initialize distributed optimizer
@@ -325,7 +325,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             optim_dtype=torch.float16,
             param_sync_dtype=torch.int,
             store_params=True,
-            with_scaled_state=True,
+            with_scaled_states=True,
         )
 
     def test_raises_on_mismatch(self):
@@ -744,14 +744,14 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 optim_dtype=torch.float16,
                 param_sync_dtype=torch.int,
                 store_params=True,
-                with_scaled_state=True,
+                with_scaled_states=True,
             ),
             load_model_kwargs=dict(
                 model_dtype=torch.bfloat16,
                 optim_dtype=torch.float16,
                 param_sync_dtype=torch.int,
                 store_params=True,
-                with_scaled_state=True,
+                with_scaled_states=True,
             ),
         )
 
