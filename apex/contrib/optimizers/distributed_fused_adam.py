@@ -662,7 +662,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self.store_param_remainders: bool = store_param_remainders
 
         # Whether to scale optimizer state
-        if with_scaled_states:
+        self.with_scaled_states: bool = with_scaled_states
+        if self.with_scaled_states:
             if not self.store_params:
                 raise RuntimeError(
                     "Attempted to construct DistributedFusedAdam "
@@ -673,7 +674,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     "Attempted to construct DistributedFusedAdam "
                     "with with_scaled_state=True and store_params_remainders=True"
                 )
-        self.with_scaled_states: bool = with_scaled_states
+            if self.dtype not in (torch.float16, torch.bfloat16):
+                raise RuntimeError(
+                    "Attempted to construct DistributedFusedAdam "
+                    f"with with_scaled_state=True and dtype={self.dtype} "
+                    "(only fp16 and bf16 are supported)"
+                )
         # Scaling factors for optimizer state
         self._state_scales: dict = {}
 
