@@ -2297,12 +2297,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
             # Initialize param shard buffer
             if self.with_scaled_states:
-                # Use FP32 buffer if using scaled optimizer state
-                params_bucket.params_shard = torch.empty(
-                    [shard_size],
-                    dtype=torch.float32,
-                    device=self.device,
-                )
+                # Use FP32 workspace buffer with scaled optimizer state
+                params_bucket.params_shard = None
             elif not param_sync_dtype.is_floating_point:
                 # Make sure param shard buffer is floating-point
                 if (
