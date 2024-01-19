@@ -32,6 +32,8 @@ class SimpleModel(torch.nn.Module):
 def make_models(
         num_layers: int,
         size: int,
+        *,
+        lr: float = 0.1,
         adam_w_mode: bool = True,
         model_dtype: torch.dtype = torch.float32,
         optim_dtype: Optional[torch.dtype] = None,
@@ -68,18 +70,18 @@ def make_models(
     # Construct optimizers with same hyperparameters
     if optim_dtype is None:
         optim_dtype = model_dtype
-    optim_args = dict(lr=0.1, betas=(0.1,0.2), eps=0.25, weight_decay=0.1)
+    optim_args = dict(lr=lr, betas=(0.1,0.2), eps=0.25, weight_decay=0.1)
     ref_optim_class = torch.optim.AdamW if adam_w_mode else torch.optim.Adam
     ref_optim = ref_optim_class(
         [
-            {'params': list(ref_model.parameters())[1::2], 'lr': 0.2},
+            {'params': list(ref_model.parameters())[1::2], 'lr': lr*2},
             {'params': list(ref_model.parameters())[0::2]},
         ],
         **optim_args,
     )
     dist_optim = DistributedFusedAdam(
         [
-            {'params': list(dist_model.parameters())[1::2], 'lr': 0.2},
+            {'params': list(dist_model.parameters())[1::2], 'lr': lr*2},
             {'params': list(dist_model.parameters())[0::2]},
         ],
         adam_w_mode=adam_w_mode,
@@ -508,6 +510,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             _, _, model_save, optim_save = make_models(
                 num_layers,
                 layer_size,
+                lr=0.1,
                 process_group=save_group,
                 average_grad_sync=False,
                 **save_model_kwargs,
@@ -520,6 +523,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             _, _, model_load, optim_load = make_models(
                 num_layers,
                 layer_size,
+                lr=1234.,
                 process_group=load_group,
                 average_grad_sync=False,
                 **load_model_kwargs,

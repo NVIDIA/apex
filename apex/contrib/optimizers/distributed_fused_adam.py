@@ -263,20 +263,6 @@ def _bf16_rem_to_fp32(
     fp32 = torch.stack((rem, bf16), dim=-1, out=fp32)
 
 
-@torch.compile
-def _compute_state_scales(
-    min_val: torch.Tensor,
-    max_val: torch.Tensor,
-    max_scaled_val: torch.Tensor,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Compute scaling factors for scaled optimizer state"""
-    absmax = torch.maximum(-min_val, max_val)
-    absmax = absmax.to(dtype=torch.float32)
-    scale = absmax / max_scaled_val
-    rscale = torch.where(scale > 0, scale.reciprocal(), 0.0)
-    return scale, rscale
-
-
 class DistributedFusedAdam(torch.optim.Optimizer):
     """Adam optimizer with ZeRO algorithm.
 
@@ -2494,7 +2480,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Make sure param sync buffer has correct dtype
         self._check_params_shard_dtypes(
             {
-                bucket_id: self.state["buckets"][bucket_id]
+                bucket_id: self._params_buckets[bucket_id]
                 for bucket_id in bucket_ids
             }
         )
@@ -2581,7 +2567,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Make sure param sync buffer has correct dtype
         self._check_params_shard_dtypes(
             {
-                bucket_id: self.state["buckets"][bucket_id]
+                bucket_id: self._params_buckets[bucket_id]
                 for bucket_id in bucket_ids
             }
         )
@@ -2759,13 +2745,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 device=self.device,
             )
         min_val, max_val = torch.aminmax(tensor)
-        new_scale, rscale = _compute_state_scales(
-            min_val,
-            max_val,
-            self._max_scaled_state,
-        )
+        absmax = torch.maximum(-min_val, max_val)
+        absmax = absmax.to(dtype=torch.float32, device=self.device)
+        torch.div(absmax, self._max_scaled_state, out=scale)
+        rscale = torch.where(scale > 0, scale.reciprocal(), 0.0)
         tensor.mul_(rscale)
-        scale.copy_(new_scale)
 
     def state_dict(
         self,
@@ -3326,7 +3310,21 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self.grad_sync()
         self.param_sync()
 
-        # Load step count
+        # Load general state
+        # Note: State includes bucketing scheme (e.g.
+        # self.state["buckets"] and self.state[param]["fragments"]).
+        # This was needed for v1 checkpoints, but not for v2. As a
+        # kludge, we temporarily set state to dummy dict to avoid
+        # messing up the bucketing scheme.
+        state = self.state
+        self.state = {}
+        super().load_state_dict(
+            {
+                "state": {},
+                "param_groups": state_dict["param_groups"],
+            }
+        )
+        self.state = state
         self.state["step"] = state_dict["state"]["step"]
 
         # Load state for each param
@@ -3360,10 +3358,10 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     temp.copy_(param_state[param_range], non_blocking=True)
                     self._apply_state_scale(temp, scales["param"])
                     bucket.params_shard[shard_range].copy_(temp)
-                    temp.copy_(exp_avg_state[param_range], non_blocking=True)
+                    temp.copy_(exp_avg[param_range], non_blocking=True)
                     self._apply_state_scale(temp, scales["exp_avg"])
                     bucket.exp_avg_shard[shard_range].copy_(temp)
-                    temp.copy_(exp_avg_sq_state[param_range], non_blocking=True)
+                    temp.copy_(exp_avg_sq[param_range], non_blocking=True)
                     self._apply_state_scale(temp, scales["exp_avg_sq"])
                     bucket.exp_avg_sq_shard[shard_range].copy_(temp)
                 else:
