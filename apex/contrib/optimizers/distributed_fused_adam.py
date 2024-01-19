@@ -2278,38 +2278,18 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 return
         self._grad_scale = self._grad_scale.to(dtype=torch.float32, device=self.device)
 
-        # Initialize param shard buffers
-        overlap_first_bucket = (
-            self.distributed_size > 1
-            and self.overlap_param_sync
-            and self.state["buckets"]
-            and not self.with_scaled_states ### TODO Fix
-        )
-        for bucket_id in reversed(range(len(self.state["buckets"]))):
-            params_bucket = self.ParameterBucket()
+        # Initialize buffers for param syncs
+        num_buckets = len(self.state["buckets"])
+        for bucket_id in reversed(range(num_buckets)):
+            self._params_buckets[bucket_id] = self.ParameterBucket()
+            params_bucket = self._params_buckets[bucket_id]
             state_bucket = self.state["buckets"][bucket_id]
             shard_size = state_bucket.shard_size
             dtype = state_bucket.dtype
             param_sync_dtype = state_bucket.param_sync_dtype
-            if self.with_scaled_states:
-                overlap_first_bucket = False
-                params_bucket.params_shard = None
-            elif not param_sync_dtype.is_floating_point:
-                # Make sure param shard buffer is floating-point
-                overlap_first_bucket = False
-                if (
-                    state_bucket.params_shard is not None
-                    and dtype.is_floating_point
-                ):
-                    params_bucket.params_shard = state_bucket.params_shard
-                else:
-                    params_bucket.params_shard = torch.empty(
-                        [shard_size],
-                        dtype=self.dtype,
-                        device=self.device,
-                    )
-            elif self.contiguous_param_buffer:
-                # Construct view into contiguous param buffer
+
+            if self.contiguous_param_buffer:
+                # Construct views into contiguous param buffer
                 if not self._param_buffers:
                     self.init_param_buffer()
                 bucket_size = state_bucket.bucket_size
@@ -2322,9 +2302,33 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 params_bucket.params_shard = params_bucket.params_bucket[
                     bucket_start:bucket_end
                 ]
-            else:
-                # Allocate param shard buffer
+
+            # Initialize param shard buffer
+            if self.with_scaled_states:
+                # Use FP32 buffer if using scaled optimizer state
+                params_bucket.params_shard = torch.empty(
+                    [shard_size],
+                    dtype=torch.float32,
+                    device=self.device,
+                )
+            elif not param_sync_dtype.is_floating_point:
+                # Make sure param shard buffer is floating-point
                 if (
+                    state_bucket.params_shard is not None
+                    and dtype.is_floating_point
+                ):
+                    params_bucket.params_shard = state_bucket.params_shard
+                else:
+                    params_bucket.params_shard = torch.empty(
+                        [shard_size],
+                        dtype=self.dtype,
+                        device=self.device,
+                    )
+            else:
+                # Allocate param shard buffer if needed
+                if params_bucket.params_shard is not None:
+                    pass
+                elif (
                     state_bucket.params_shard is not None
                     and dtype == param_sync_dtype
                 ):
@@ -2335,10 +2339,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         dtype=param_sync_dtype,
                         device=self.device,
                     )
-            self._params_buckets[bucket_id] = params_bucket
 
         # Apply optimizer step
         self.state["step"] += 1
+        overlap_first_bucket = (
+            self.distributed_size > 1
+            and self.overlap_param_sync
+            and self.state["buckets"]
+        )
         if overlap_first_bucket:
             # Local step and non-blocking param sync
             # Note: Overlap param sync of first buckets with optimizer
@@ -2362,14 +2370,16 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             # Local step for remaining buckets
             first_bucket_ids = set(first_bucket_ids)
             self._local_step(
-                bucket_id
-                for bucket_id in range(len(self.state["buckets"]))
-                if bucket_id not in first_bucket_ids
+                [
+                    bucket_id
+                    for bucket_id in range(num_buckets)
+                    if bucket_id not in first_bucket_ids
+                ]
             )
 
         else:
             # Local step
-            self._local_step(list(range(len(self.state["buckets"]))))
+            self._local_step(list(range(num_buckets)))
 
         # Synchronize params
         if self.distributed_size > 1 and self.overlap_param_sync:
