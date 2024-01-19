@@ -302,9 +302,9 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             param_sync_dtype=torch.int64,
         )
 
-    def test_matches_pytorch_int64_param_sync_contiguous_buffers(self):
+    def test_matches_pytorch_int32_param_sync_contiguous_buffers(self):
         self.test_matches_pytorch(
-            param_sync_dtype=torch.int64,
+            param_sync_dtype=torch.int32,
             contiguous_buffers=True,
         )
 
