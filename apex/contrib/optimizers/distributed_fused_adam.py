@@ -691,7 +691,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     "Attempted to construct DistributedFusedAdam "
                     f"with with_scaled_state=True and param_sync_dtype={self.param_sync_dtype}"
                 )
-        # Scaling factors for optimizer state
+        # Scaling factors to apply to recover unscaled optimizer state
         self._state_scales: dict = {}
 
         # Determine bucket sizes
