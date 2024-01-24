@@ -1,4 +1,5 @@
 import torch
+import os
 from ._initialize import _initialize
 from ._amp_state import _amp_state, warn_or_err, maybe_print
 from collections import OrderedDict
@@ -421,6 +422,11 @@ def initialize(
     maybe_print("After processing overrides, optimization options are:", True)
     for k, v in _amp_state.opt_properties.options.items():
         maybe_print("{:26} : {}".format(k, v), True)
+
+
+    # Set flag to tell F8 that apex.amp is initialized
+    os.environ["APEX_AMP_ENABLED"] = "1"
+
 
     return _initialize(models, optimizers, _amp_state.opt_properties, num_losses, cast_model_outputs)
 
