@@ -1,3 +1,5 @@
+
+
 import torch
 import numpy as np
 import apex
@@ -5,6 +7,9 @@ import syncbn
 import os
 import argparse
 import torch.optim as optim
+from apex.parallel import DistributedDataParallel as DDP
+
+
 
 def compare(desc, inp1, inp2, error):
     a = inp1.clone().detach().cpu().numpy()
@@ -19,84 +24,92 @@ def compare(desc, inp1, inp2, error):
         print("inp2   : ", b[index])
     return close
 
-feature_size = 10
-space_size = 40
-batch_size = 32
-
-
-from apex.parallel import DistributedDataParallel as DDP
 parser = argparse.ArgumentParser()
 parser.add_argument("--local_rank", default=0, type=int)
 parser.add_argument("--fp16", action='store_true', default=False)
 parser.add_argument("--fp64", action='store_true', default=False)
 args = parser.parse_args()
-args.world_size = int(os.environ['WORLD_SIZE'])
-torch.cuda.set_device(args.local_rank)
-torch.distributed.init_process_group(backend='nccl', init_method='env://')
-start = args.local_rank * batch_size//args.world_size
-finish = (args.local_rank + 1) * batch_size//args.world_size
 
-error = 1e-5
-dtype = np.float32
+args.world_size = int(os.environ['WORLD_SIZE'])
+rank=int(os.environ["RANK"])
+
+error  = 1e-5
+dtype  = np.float32
+tdtype = torch.float32
+
 if args.fp16:
-    error = 1e-3
-    dtype = np.float16
+    error  = 1e-3
+    dtype  = np.float16
+    tdtype = torch.float16
 elif args.fp64:
-    error = 1e-8
-    dtype = np.float64
+    error  = 1e-8
+    dtype  = np.float64
+    tdtype = torch.float64
+
+feature_size = 10
+space_size   = 40
+batch_size   = 32
+
+torch.cuda.set_device(rank)
+torch.distributed.init_process_group()
+
+start  = rank * batch_size//args.world_size
+finish = (rank + 1) * batch_size//args.world_size
 
 np.random.seed(18)
-inp = np.random.randn(batch_size, feature_size, space_size, space_size).astype(dtype)
-grad = np.random.randn(batch_size, feature_size, space_size, space_size).astype(dtype)
-weight = np.random.randn(feature_size).astype(dtype)
-bias = np.random.randn(feature_size).astype(dtype)
 
+inp      = np.random.randn(batch_size, feature_size, space_size, space_size).astype(dtype)
+grad     = np.random.randn(batch_size, feature_size, space_size, space_size).astype(dtype)
+weight   = np.random.randn(feature_size).astype(dtype)
+bias     = np.random.randn(feature_size).astype(dtype)
 
-type_tensor = torch.cuda.FloatTensor
-if args.fp16:
-    type_tensor = torch.cuda.HalfTensor
-if args.fp64:
-    type_tensor = torch.cuda.DoubleTensor
+inp_t    = torch.tensor(inp, dtype=tdtype, device='cuda')
+weight_t = torch.tensor(weight, dtype=tdtype, device='cuda')
+bias_t   = torch.tensor(bias, dtype=tdtype, device='cuda')
 
-ref_tensor = torch.cuda.DoubleTensor
+inp_r    = torch.tensor(inp.transpose(1, 0, 2, 3),dtype=torch.float64,device='cuda').reshape(feature_size, -1)
+inp2_r   = torch.tensor(inp,dtype=torch.float64,device='cuda')
+weight_r = torch.tensor(weight, dtype=torch.float64, device='cuda').view(-1, 1, 1)
+bias_r   = torch.tensor(bias,dtype=torch.float64, device='cuda').view(-1, 1, 1)
 
-inp_t = type_tensor(inp)
-weight_t = type_tensor(weight)
-bias_t = type_tensor(bias)
+grad_output_t = torch.tensor(grad, dtype=torch.float64, device='cuda')
 
-inp_r = ref_tensor(inp.transpose(1, 0, 2, 3).reshape(feature_size, -1))
-inp2_r = ref_tensor(inp)
-weight_r = ref_tensor(weight).view(-1, 1, 1)
-bias_r = ref_tensor(bias).view(-1, 1, 1)
-
-grad_output_t = type_tensor(grad)
-
-m = inp_r.mean(1)
-b_v = inp_r.var(1, unbiased=False)
+m     = inp_r.mean(1)
+b_v   = inp_r.var(1, unbiased=False)
 unb_v = inp_r.var(1, unbiased=True)
 
 eps = 1e-5
 
 mean, var_biased = syncbn.welford_mean_var(inp_t)
+
 inv_std = 1.0 / torch.sqrt(var_biased + eps)
 
 bn = torch.nn.BatchNorm2d(feature_size).cuda()
+
 bn.momentum = 1.0
+
 bn.weight.data = weight_t.clone()
+
 bn.bias.data = bias_t.clone()
+
 if args.fp16:
     bn.half()
+
 if args.fp64:
     bn.double()
-inp_bn = inp_t.clone().requires_grad_()
-grad_bn = grad_output_t.clone().detach()
-out_bn = bn(inp_bn)
+
+inp_bn   = inp_t.clone().requires_grad_()
+grad_bn  = grad_output_t.clone().detach()
+out_bn   = bn(inp_bn)
+
 out_bn.backward(grad_bn)
+
 # compensating the averaging over processes done by DDP
 # in order to produce mathematically equivalent result
 # https://github.com/NVIDIA/apex/issues/134#issuecomment-458307368
 for param in bn.parameters():
     param.grad = param.grad / args.world_size
+
 bn_opt = optim.SGD(bn.parameters(), lr=1.0)
 
 sbn = apex.parallel.SyncBatchNorm(feature_size).cuda()
@@ -107,11 +120,13 @@ if args.fp16:
     sbn.half()
 if args.fp64:
     sbn.double()
-sbn = DDP(sbn)
-sbn_opt = optim.SGD(sbn.parameters(), lr=1.0)
-inp_sbn = inp_t.clone().requires_grad_()
+
+sbn      = DDP(sbn)
+sbn_opt  = optim.SGD(sbn.parameters(), lr=1.0)
+inp_sbn  = inp_t.clone().requires_grad_()
 grad_sbn = grad_output_t.clone().detach()
-out_sbn = sbn(inp_sbn[start:finish])
+out_sbn  = sbn(inp_sbn[start:finish])
+
 out_sbn.backward(grad_sbn[start:finish])
 
 count = [ space_size**2 * ( (i+1) * batch_size // args.world_size - i * batch_size // args.world_size ) for i in range(0, args.world_size)]
@@ -133,18 +148,17 @@ if args.local_rank == 0:
     sbn_result = compare("comparing output: ", out, out_r, error) and sbn_result
     compare("comparing bn output: ", out_bn, out_r, error)
 
-grad_output_t = type_tensor(grad)
+grad_output_t  = torch.tensor(grad, dtype=tdtype, device='cuda') 
+grad_output_r  = torch.tensor(grad.transpose(1, 0, 2, 3), dtype=torch.float64, device='cuda').reshape(feature_size, -1)
+grad_output2_r = torch.tensor(grad, dtype=torch.float64, device='cuda')
 
-grad_output_r = ref_tensor(grad.transpose(1, 0, 2, 3).reshape(feature_size, -1))
-grad_output2_r = ref_tensor(grad)
-
-grad_bias_r = grad_output_r.sum(1)
+grad_bias_r   = grad_output_r.sum(1)
 grad_weight_r = ((inp2_r - m.view(-1, 1, 1)) * torch.rsqrt(b_v.view(-1,1,1) + eps) * grad_output2_r).transpose(1,0).contiguous().view(feature_size, -1).sum(1)
 
-sum_dy_r = grad_output_r.sum(1)
-mean_dy_r = grad_output_r.mean(1)
+sum_dy_r      = grad_output_r.sum(1)
+mean_dy_r     = grad_output_r.mean(1)
 mean_dy_xmu_r = ((inp2_r - m.view(-1, 1, 1)) * grad_output2_r).transpose(1,0).contiguous().view(feature_size, -1).mean(1)
-sum_dy_xmu_r = ((inp2_r - m.view(-1, 1, 1)) * grad_output2_r).transpose(1,0).contiguous().view(feature_size, -1).sum(1)
+sum_dy_xmu_r  = ((inp2_r - m.view(-1, 1, 1)) * grad_output2_r).transpose(1,0).contiguous().view(feature_size, -1).sum(1)
 
 grad_input_r = (grad_output2_r - mean_dy_r.view(-1, 1, 1) - (inp2_r - m.view(-1, 1, 1)) / (b_v.view(-1,1,1) + eps) * mean_dy_xmu_r.view(-1, 1, 1) ) * torch.rsqrt(b_v.view(-1,1,1) + eps) * weight_r.view(-1,1,1)
 

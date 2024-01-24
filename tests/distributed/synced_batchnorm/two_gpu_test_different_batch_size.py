@@ -27,17 +27,14 @@ parser.add_argument('--local_rank', type=int, default=0)
 parser.add_argument('--apex', action='store_true')
 args = parser.parse_args()
 
+rank=int(os.environ["RANK"])
 
 torch.manual_seed(2809)
 # Setup DDP
-torch.cuda.set_device(args.local_rank)
-device = torch.device('cuda:{}'.format(args.local_rank))
+torch.cuda.set_device(rank)
+device = torch.device('cuda:{}'.format(rank))
 
-torch.distributed.init_process_group(
-    'nccl',
-    init_method='env://',
-    rank=args.local_rank,
-)
+torch.distributed.init_process_group('nccl', init_method='env://', rank=rank)
 
 # Setup model
 if args.apex:
@@ -63,11 +60,11 @@ with torch.no_grad():
 model_reference.to(device)
 
 model = model.to(device)
-model = DDP(model, device_ids=[args.local_rank], output_device=args.local_rank)
+model = DDP(model, device_ids=[rank], output_device=rank)
 
 global_batch_size = var_batch + 8
 # Create random data
-if args.local_rank == 0:
+if rank == 0:
     data = torch.randn(var_batch, 3, 8, 8, device=device, dtype=torch.float) * 50.0
     grad = torch.randint(0, 10, (var_batch, 6, 8, 8), device=device, dtype=torch.float) / 10.0
 else:
@@ -91,7 +88,7 @@ d_list = [torch.randn(8, 3, 8, 8, device=device) for i in range(int(os.environ['
 y_list = [torch.randn(8, 6, 8, 8, device=device) for i in range(int(os.environ['WORLD_SIZE']))]
 dgrad_list = [torch.randn(8, 3, 8, 8, device=device) for i in range(int(os.environ['WORLD_SIZE']))]
 grad_list = [torch.randn(8, 6, 8, 8, device=device) for i in range(int(os.environ['WORLD_SIZE']))]
-if args.local_rank == 0:
+if rank == 0:
     # placeholder, these random data will later be discarded.
     torch.distributed.all_gather(d_list, torch.randn(8, 3, 8, 8, device=device))
     torch.distributed.all_gather(y_list, torch.randn(8, 6, 8, 8, device=device))
@@ -105,7 +102,7 @@ else:
 
 torch.distributed.barrier()
 
-if args.local_rank == 0:
+if rank == 0:
     ref_tensor = d_list[1:]
     ref_tensor.insert(0, data)
     assert(ref_tensor[0].equal(data))

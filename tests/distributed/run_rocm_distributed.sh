@@ -1,12 +1,15 @@
-#!/bin/bash
+#!/bin/bash -x
 set -e
 
 # To run the test on 2 gpus
 export WORLD_SIZE=2
 
+torchrun=`dirname \`which python\``/torchrun
+
 # Test with opt_level="O2"
 echo "running opt_level O2"
-python -m torch.distributed.launch --nproc_per_node=2 amp_master_params/amp_master_params.py --opt_level "O2"
+# python -m torch.distributed.launch --nproc_per_node=2 amp_master_params/amp_master_params.py --opt_level "O2"
+python $torchrun --nproc_per_node=2 amp_master_params/amp_master_params.py --opt_level "O2"
 python amp_master_params/compare.py
 
 # delete the model files
