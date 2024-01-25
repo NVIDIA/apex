@@ -6,6 +6,7 @@ import unittest
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.testing._internal.common_device_type import largeTensorTest
 
 try:
     import apex
@@ -232,6 +233,7 @@ class AdamTest(unittest.TestCase):
             
             self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
 
+    @largeTensorTest('60GB', 'cuda')
     def testLargeTensor(self):
         t = torch.zeros(2359332864, dtype=torch.half, device='cuda')
         t2 = torch.zeros(2359332864, dtype=torch.half, device='cuda')
