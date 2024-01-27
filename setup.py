@@ -1,5 +1,5 @@
 import torch
-from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension, CUDA_HOME
+from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension, CUDA_HOME, ROCM_HOME
 from setuptools import setup, find_packages
 import subprocess
 
@@ -45,6 +45,15 @@ def get_cuda_bare_metal_version(cuda_dir):
 
     return raw_output, bare_metal_major, bare_metal_minor
 
+def get_rocm_bare_metal_version(rocm_dir):
+    raw_output = subprocess.check_output([rocm_dir + "/bin/hipcc", "--version"], universal_newlines=True)
+    output = raw_output.split()
+    release_idx = output.index("version:") + 1
+    release = output[release_idx].split(".")
+    bare_metal_major = release[0]
+    bare_metal_minor = release[1][0]
+
+    return raw_output, bare_metal_major, bare_metal_minor
 
 def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
     raw_output, bare_metal_major, bare_metal_minor = get_cuda_bare_metal_version(cuda_dir)
@@ -64,6 +73,23 @@ def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
             "You can try commenting out this check (at your own risk)."
         )
 
+def check_rocm_torch_binary_vs_bare_metal(rocm_dir):
+    raw_output, bare_metal_major, bare_metal_minor = get_rocm_bare_metal_version(rocm_dir)
+    torch_binary_major = torch.version.hip.split(".")[0]
+    torch_binary_minor = torch.version.hip.split(".")[1]
+
+    print("\nCompiling rocm extensions with")
+    print(raw_output + "from " + rocm_dir + "/bin\n")
+
+    if (bare_metal_major != torch_binary_major) or (bare_metal_minor != torch_binary_minor):
+        raise RuntimeError(
+            "Cuda extensions are being compiled with a version of Cuda that does "
+            "not match the version used to compile Pytorch binaries.  "
+            "Pytorch binaries were compiled with Cuda {}.\n".format(torch.version.cuda)
+            + "In some cases, a minor-version mismatch will not cause later errors:  "
+            "https://github.com/NVIDIA/apex/pull/323#discussion_r287021798.  "
+            "You can try commenting out this check (at your own risk)."
+        )
 
 def raise_if_cuda_home_none(global_option: str) -> None:
     if CUDA_HOME is not None:
@@ -73,6 +99,16 @@ def raise_if_cuda_home_none(global_option: str) -> None:
         "If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, "
         "only images whose names contain 'devel' will provide nvcc."
     )
+
+def raise_if_rocm_home_none(global_option: str) -> None:
+    if ROCM_HOME is not None:
+        return
+    raise RuntimeError(
+        f"{global_option} was requested, but hipcc was not found.  Are you sure your environment has hipcc available?  "
+        "If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, "
+        "only images whose names contain 'devel' will provide hipcc."
+    )
+
 
 def get_apex_version():
     cwd = os.path.dirname(os.path.abspath(__file__))
@@ -102,10 +138,13 @@ def check_cudnn_version_and_warn(global_option: str, required_cudnn_version: int
         return False
     return True
 
-
 print("\n\ntorch.__version__  = {}\n\n".format(torch.__version__))
 TORCH_MAJOR = int(torch.__version__.split('.')[0])
 TORCH_MINOR = int(torch.__version__.split('.')[1])
+
+print("\n\ntorch.version.hip  = {}\n\n".format(torch.version.hip))
+ROCM_MAJOR = int(torch.version.hip.split('.')[0])
+ROCM_MINOR = int(torch.version.hip.split('.')[1])
 
 def check_if_rocm_pytorch():
     is_rocm_pytorch = False
@@ -178,6 +217,11 @@ if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 4):
     version_ge_1_5 = ["-DVERSION_GE_1_5"]
 version_dependent_macros = version_ge_1_1 + version_ge_1_3 + version_ge_1_5
 
+if IS_ROCM_PYTORCH and (ROCM_MAJOR >= 6):
+    version_dependent_macros += ["-DHIPBLAS_V2"] 
+
+
+
 if "--distributed_adam" in sys.argv or "--cuda_ext" in sys.argv:
     if "--distributed_adam" in sys.argv:
         sys.argv.remove("--distributed_adam")
@@ -215,11 +259,13 @@ if "--distributed_lamb" in sys.argv or "--cuda_ext" in sys.argv:
                                               'nvcc': nvcc_args_distributed_lamb if not IS_ROCM_PYTORCH else hipcc_args_distributed_lamb}))
 
 if "--cuda_ext" in sys.argv:
-    if torch.utils.cpp_extension.CUDA_HOME is None and not IS_ROCM_PYTORCH:
-        raise RuntimeError("--cuda_ext was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    if torch.utils.cpp_extension.CUDA_HOME is None and torch.utils.cpp_extension.ROCM_HOME is None:
+        raise RuntimeError("--cuda_ext was requested, but nvcc or hipcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
     else:
         if not IS_ROCM_PYTORCH:
             check_cuda_torch_binary_vs_bare_metal(torch.utils.cpp_extension.CUDA_HOME)
+        else:
+            check_rocm_torch_binary_vs_bare_metal(torch.utils.cpp_extension.ROCM_HOME)
 
         print ("INFO: Building the multi-tensor apply extension.")
         nvcc_args_multi_tensor = ['-lineinfo', '-O3', '--use_fast_math'] + version_dependent_macros

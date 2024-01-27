@@ -98,12 +98,31 @@ void RocblasStridedBatchedGemm(char transa, char transb, long m, long n, long k,
     float fAlpha = alpha;
     float fBeta = beta;
     //THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
-    TORCH_CUDABLAS_CHECK(hipblasGemmStridedBatchedEx(handle,
-                                     opa, opb, (int)m, (int)n, (int)k,
-                                     (void*)&fAlpha, a, HIPBLAS_R_16F /*a_type*/, (int)lda, strideA,
-                                     b, HIPBLAS_R_16F /*b_type*/, (int)ldb, strideB,
-                                     (void*)&fBeta, c, HIPBLAS_R_16F /*c_type*/, (int)ldc, strideC,
-                                     (int)batchCount, HIPBLAS_R_32F /*compute_type*/, algo));
+    TORCH_CUDABLAS_CHECK(hipblasGemmStridedBatchedEx(
+			    handle,
+                            opa, 
+			    opb, 
+			    (int)m, 
+			    (int)n, 
+			    (int)k,
+                            (void*)&fAlpha, 
+			    a, 
+			    HIPBLAS_R_16F /*a_type*/, 
+			    (int)lda, 
+			    strideA,
+                            b, 
+			    HIPBLAS_R_16F /*b_type*/, 
+			    (int)ldb, 
+			    strideB,
+                            (void*)&fBeta, 
+			    c, 
+			    HIPBLAS_R_16F /*c_type*/, 
+			    (int)ldc, 
+			    strideC,
+                            (int)batchCount,
+			    HIPBLAS_COMPUTE_32F, 
+			    /* HIPBLAS_R_32F compute_type,*/ 
+			    algo));
 }
 
 void gemm_switch_fp32accum(char transa, char transb, long m, long n, long k,

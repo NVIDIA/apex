@@ -24,6 +24,27 @@
 #define BIAS_RELU_BW_NTHREADS_Y 16 // backward number of thread in batch dim
 #define BIAS_RELU_RED_PER_THREAD 16 // backward minimal reduction length per thread
 
+#ifndef HIPBLAS_V2
+#define HIPBLASLT_COMPUTE_F64 HIPBLAS_R_64F
+#define HIPBLASLT_COMPUTE_F32 HIPBLAS_R_32F
+
+#define HIP_R_16F  HIPBLAS_R_16F
+#define HIP_R_32F  HIPBLAS_R_32F
+#define HIP_R_64F  HIPBLAS_R_64F
+#define HIP_C_16F  HIPBLAS_C_16F
+#define HIP_C_32F  HIPBLAS_C_32F
+#define HIP_C_64F  HIPBLAS_C_64F
+#define HIP_R_8I   HIPBLAS_R_8I
+#define HIP_R_8U   HIPBLAS_R_8U
+#define HIP_R_32I  HIPBLAS_R_32I
+#define HIP_R_32U  HIPBLAS_R_32U
+#define HIP_C_8I   HIPBLAS_C_8I
+#define HIP_C_8U   HIPBLAS_C_8U
+#define HIP_C_32I  HIPBLAS_C_32I
+#define HIP_C_32U  HIPBLAS_C_32U
+#define HIP_R_16BF HIPBLAS_R_16B
+#define HIP_C_16BF HIPBLAS_C_16B
+#endif
 
 // move to a header later on
 #define ILP 4
@@ -119,29 +140,6 @@ cublasStatus_t mlp_gemm(
     double* C,
     int ldc,
     int flag) {
-#ifdef USE_ROCM
-  return hipblasGemmEx(
-      handle,
-      transa,
-      transb,
-      m,
-      n,
-      k,
-      alpha,
-      A,
-      HIPBLAS_R_64F,
-      lda,
-      B,
-      HIPBLAS_R_64F,
-      ldb,
-      beta,
-      C,
-      HIPBLAS_R_64F,
-      ldc,
-      HIPBLAS_R_64F,
-      HIPBLAS_GEMM_DEFAULT
-      );  
-#else
   return cublasGemmEx(
       handle,
       transa,
@@ -160,9 +158,8 @@ cublasStatus_t mlp_gemm(
       C,
       CUDA_R_64F,
       ldc,
-      CUDA_R_64F,
+      CUBLAS_COMPUTE_64F,
       CUBLAS_GEMM_DEFAULT);
-#endif
 }
 
 // FP32 Wrapper around cublas GEMMEx
@@ -182,30 +179,6 @@ cublasStatus_t mlp_gemm(
     float* C,
     int ldc,
     int flag) {
-#ifdef USE_ROCM
-  return hipblasGemmEx(
-      handle,
-      transa,
-      transb,
-      m,
-      n,
-      k,
-      alpha,
-      A,
-      HIPBLAS_R_32F,
-      lda,
-      B,
-      HIPBLAS_R_32F,
-      ldb,
-      beta,
-      C,
-      HIPBLAS_R_32F,
-      ldc,
-      HIPBLAS_R_32F,
-      HIPBLAS_GEMM_DEFAULT
-      );
-
-#else
   return cublasGemmEx(
       handle,
       transa,
@@ -224,9 +197,8 @@ cublasStatus_t mlp_gemm(
       C,
       CUDA_R_32F,
       ldc,
-      CUDA_R_32F,
+      CUBLAS_COMPUTE_32F,
       CUBLAS_GEMM_DEFAULT);
-#endif
 }
 
 // FP16 Tensor core wrapper around cublas GEMMEx
@@ -246,29 +218,6 @@ cublasStatus_t mlp_gemm(
     at::Half* C,
     int ldc,
     int flag) {
-#ifdef USE_ROCM
-  return hipblasGemmEx(
-      handle,
-      transa,
-      transb,
-      m,
-      n,
-      k,
-      alpha,
-      A,
-      HIPBLAS_R_16F,
-      lda,
-      B,
-      HIPBLAS_R_16F,
-      ldb,
-      beta,
-      C,
-      HIPBLAS_R_16F,
-      ldc,
-      HIPBLAS_R_32F,
-      HIPBLAS_GEMM_DEFAULT 
-      );
-#else
   return cublasGemmEx(
       handle,
       transa,
@@ -287,9 +236,8 @@ cublasStatus_t mlp_gemm(
       C,
       CUDA_R_16F,
       ldc,
-      CUDA_R_32F,
+      CUBLAS_COMPUTE_32F,
       CUBLAS_GEMM_DEFAULT_TENSOR_OP);
-#endif
 }
 #if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
 int mlp_gemm_lt(

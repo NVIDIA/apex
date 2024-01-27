@@ -132,7 +132,8 @@ std::vector<torch::Tensor> fwd_cuda(
                              q_lin_results_ptr,
                              HIPBLAS_R_16F /*c_type*/, 
                              output_lin_q_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             //HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
   
@@ -154,7 +155,8 @@ std::vector<torch::Tensor> fwd_cuda(
                              k_lin_results_ptr,
                              HIPBLAS_R_16F /*c_type*/, 
                              output_lin_kv_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
   // MatMul1 of Dot-Product Attention Plus scaling by 1/Sqrt(head size)
@@ -247,7 +249,8 @@ std::vector<torch::Tensor> fwd_cuda(
                              static_cast<void*>(output_lin_results.data_ptr()),
                              HIPBLAS_R_16F /*c_type*/, 
                              embed_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
 
@@ -392,7 +395,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<void*>(output_lin_grads.data_ptr()),
                              HIPBLAS_R_16F /*c_type*/, 
                              embed_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
  
@@ -414,7 +418,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<void*>(output_weight_grads.data_ptr()),
                              HIPBLAS_R_16F /*c_type*/, 
                              embed_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
   
@@ -534,7 +539,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<void*>(input_lin_q_grads.data_ptr()),
                              HIPBLAS_R_16F /*c_type*/, 
                              embed_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
   
@@ -556,7 +562,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<void*>(input_weight_q_grads.data_ptr()),
                              HIPBLAS_R_16F /*c_type*/, 
                              embed_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
   
@@ -578,7 +585,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<void*>(input_kv_grads.data_ptr()),
                              HIPBLAS_R_16F /*c_type*/, 
                              embed_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
   
@@ -600,7 +608,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<void*>(input_weight_kv_grads.data_ptr()),
                              HIPBLAS_R_16F /*c_type*/, 
                              embed_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
  

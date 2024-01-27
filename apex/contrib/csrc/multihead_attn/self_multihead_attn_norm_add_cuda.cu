@@ -119,7 +119,8 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
                              q_lin_results_ptr,
                              HIPBLAS_R_16F /*c_type*/, 
                              output_lin_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
 
@@ -213,7 +214,8 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
                              static_cast<void*>(output_lin_results.data_ptr()),
                              HIPBLAS_R_16F /*c_type*/, 
                              embed_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
   
@@ -341,7 +343,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<void*>(output_lin_grads.data_ptr()),
                              HIPBLAS_R_16F /*c_type*/, 
                              embed_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
  
@@ -363,7 +366,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<void*>(output_weight_grads.data_ptr()),
                              HIPBLAS_R_16F /*c_type*/, 
                              embed_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             //HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
 
@@ -483,7 +487,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<void*>(input_lin_grads.data_ptr()),
                              HIPBLAS_R_16F /*c_type*/, 
                              embed_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
   
@@ -506,7 +511,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<void*>(input_weight_grads.data_ptr()),
                              HIPBLAS_R_16F /*c_type*/, 
                              embed_dim,
-                             HIPBLAS_R_32F /*compute_type*/,
+                             // HIPBLAS_R_32F compute_type,
+			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
 
