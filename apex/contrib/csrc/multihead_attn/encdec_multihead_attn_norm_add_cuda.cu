@@ -15,6 +15,7 @@
 #include "layer_norm.cuh"
 #include "softmax.cuh"
 #include "strided_batched_gemm.cuh"
+#include "type_shim.h"
 
 namespace multihead_attn {
 namespace encdec_norm_add {
@@ -122,17 +123,16 @@ std::vector<torch::Tensor> fwd_cuda(
                              embed_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(input_weights_q.data_ptr()),
-                             HIPBLAS_R_16F /*a_type*/, 
+                             HIP_R_16F /*a_type*/, 
                              embed_dim,
                              //static_cast<const void*>(inputs_q.data_ptr()),
                              static_cast<const void*>(lyr_nrm_results.data_ptr()),
-                             HIPBLAS_R_16F /*b_type*/, 
+                             HIP_R_16F /*b_type*/, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
                              q_lin_results_ptr,
-                             HIPBLAS_R_16F /*c_type*/, 
+                             HIP_R_16F /*c_type*/, 
                              output_lin_q_dim,
-                             //HIPBLAS_R_32F compute_type,
 			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
@@ -146,16 +146,15 @@ std::vector<torch::Tensor> fwd_cuda(
                              embed_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(input_weights_kv.data_ptr()),
-                             HIPBLAS_R_16F /*a_type*/, 
+                             HIP_R_16F /*a_type*/, 
                              embed_dim,
                              static_cast<const void*>(inputs_kv.data_ptr()),
-                             HIPBLAS_R_16F /*b_type*/, 
+                             HIP_R_16F /*b_type*/, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
                              k_lin_results_ptr,
-                             HIPBLAS_R_16F /*c_type*/, 
+                             HIP_R_16F /*c_type*/, 
                              output_lin_kv_dim,
-                             // HIPBLAS_R_32F compute_type,
 			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
@@ -240,16 +239,15 @@ std::vector<torch::Tensor> fwd_cuda(
                              embed_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(output_weights.data_ptr()),
-                             HIPBLAS_R_16F /*a_type*/, 
+                             HIP_R_16F /*a_type*/, 
                              embed_dim,
                              static_cast<const void*>(matmul2_results.data_ptr()),
-                             HIPBLAS_R_16F /*b_type*/, 
+                             HIP_R_16F /*b_type*/, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
                              static_cast<void*>(output_lin_results.data_ptr()),
-                             HIPBLAS_R_16F /*c_type*/, 
+                             HIP_R_16F /*c_type*/, 
                              embed_dim,
-                             // HIPBLAS_R_32F compute_type,
 			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
@@ -358,17 +356,7 @@ std::vector<torch::Tensor> bwd_cuda(
   char b_layout_t{'t'}; 
 
   //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
-  /*
-  #ifdef USE_ROCM
-    #define PYTORCH_ROCBLAS_VERSION_DECIMAL (ROCBLAS_VERSION_MAJOR * 100 + ROCBLAS_VERSION_MINOR)
-    #define USE_GEMM_FLAGS_FP16_ALT_IMPL (PYTORCH_ROCBLAS_VERSION_DECIMAL >= 242)
-    #if USE_GEMM_FLAGS_FP16_ALT_IMPL
-      #ifdef BACKWARD_PASS_GUARD
-        flags = at::BACKWARD_PASS_GUARD_CLASS::is_backward_pass() ? rocblas_gemm_flags_fp16_alt_impl : 0;
-      #endif
-    #endif
-  #endif
-*/
+
   // Dropout Add Backward  
   apex_masked_scale_cuda<at::Half,float,uint32_t>(
                              static_cast<at::Half const*>(output_grads.data_ptr()),
@@ -386,16 +374,15 @@ std::vector<torch::Tensor> bwd_cuda(
                              embed_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(output_weights.data_ptr()),
-                             HIPBLAS_R_16F /*a_type*/, 
+                             HIP_R_16F /*a_type*/, 
                              embed_dim,
                              static_cast<const void*>(dropout_add_grads.data_ptr()),
-                             HIPBLAS_R_16F /*b_type*/, 
+                             HIP_R_16F /*b_type*/, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
                              static_cast<void*>(output_lin_grads.data_ptr()),
-                             HIPBLAS_R_16F /*c_type*/, 
+                             HIP_R_16F /*c_type*/, 
                              embed_dim,
-                             // HIPBLAS_R_32F compute_type,
 			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
@@ -409,16 +396,15 @@ std::vector<torch::Tensor> bwd_cuda(
                              batches_q, 
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(matmul2_results.data_ptr()),
-                             HIPBLAS_R_16F /*a_type*/, 
+                             HIP_R_16F /*a_type*/, 
                              embed_dim,
                              static_cast<const void*>(dropout_add_grads.data_ptr()),
-                             HIPBLAS_R_16F /*b_type*/, 
+                             HIP_R_16F /*b_type*/, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
                              static_cast<void*>(output_weight_grads.data_ptr()),
-                             HIPBLAS_R_16F /*c_type*/, 
+                             HIP_R_16F /*c_type*/, 
                              embed_dim,
-                             // HIPBLAS_R_32F compute_type,
 			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
@@ -529,17 +515,16 @@ std::vector<torch::Tensor> bwd_cuda(
                              output_lin_q_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(input_weights_q.data_ptr()),
-                             HIPBLAS_R_16F /*a_type*/, 
+                             HIP_R_16F /*a_type*/, 
                              embed_dim,
                              static_cast<const void*>(q_lin_grads_ptr),
-                             HIPBLAS_R_16F /*b_type*/, 
+                             HIP_R_16F /*b_type*/, 
                              output_lin_q_dim, 
                              static_cast<const void*>(&beta),
                              //static_cast<void*>(input_q_grads.data_ptr()),
                              static_cast<void*>(input_lin_q_grads.data_ptr()),
-                             HIPBLAS_R_16F /*c_type*/, 
+                             HIP_R_16F /*c_type*/, 
                              embed_dim,
-                             // HIPBLAS_R_32F compute_type,
 			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
@@ -553,16 +538,15 @@ std::vector<torch::Tensor> bwd_cuda(
                              batches_q, 
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(inputs_q.data_ptr()),
-                             HIPBLAS_R_16F /*a_type*/,
+                             HIP_R_16F /*a_type*/,
                              embed_dim,
                              static_cast<const void*>(q_lin_grads_ptr),
-                             HIPBLAS_R_16F /*b_type*/,
+                             HIP_R_16F /*b_type*/,
                              output_lin_q_dim,
                              static_cast<const void*>(&beta),
                              static_cast<void*>(input_weight_q_grads.data_ptr()),
-                             HIPBLAS_R_16F /*c_type*/, 
+                             HIP_R_16F /*c_type*/, 
                              embed_dim,
-                             // HIPBLAS_R_32F compute_type,
 			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
@@ -576,16 +560,15 @@ std::vector<torch::Tensor> bwd_cuda(
                              output_lin_kv_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(input_weights_kv.data_ptr()),
-                             HIPBLAS_R_16F /*a_type*/, 
+                             HIP_R_16F /*a_type*/, 
                              embed_dim,
                              static_cast<const void*>(k_lin_grads_ptr),
-                             HIPBLAS_R_16F /*b_type*/, 
+                             HIP_R_16F /*b_type*/, 
                              output_lin_kv_dim, 
                              static_cast<const void*>(&beta),
                              static_cast<void*>(input_kv_grads.data_ptr()),
-                             HIPBLAS_R_16F /*c_type*/, 
+                             HIP_R_16F /*c_type*/, 
                              embed_dim,
-                             // HIPBLAS_R_32F compute_type,
 			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
@@ -599,16 +582,15 @@ std::vector<torch::Tensor> bwd_cuda(
                              batches_kv, 
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(inputs_kv.data_ptr()),
-                             HIPBLAS_R_16F /*a_type*/,
+                             HIP_R_16F /*a_type*/,
                              embed_dim,
                              static_cast<const void*>(k_lin_grads_ptr),
-                             HIPBLAS_R_16F /*b_type*/,
+                             HIP_R_16F /*b_type*/,
                              output_lin_kv_dim,
                              static_cast<const void*>(&beta),
                              static_cast<void*>(input_weight_kv_grads.data_ptr()),
-                             HIPBLAS_R_16F /*c_type*/, 
+                             HIP_R_16F /*c_type*/, 
                              embed_dim,
-                             // HIPBLAS_R_32F compute_type,
 			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));

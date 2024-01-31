@@ -17,18 +17,7 @@
 //#include "cutlass/gemm/gemm.h"
 //#include "cutlass/gemm/wmma_gemm_traits.h"
 
-// symbol to be automatically resolved by PyTorch libs
-/*
-rocblas_datatype a_type       = HIPBLAS_R_16F; // OK
-rocblas_datatype b_type       = HIPBLAS_R_16F; // OK
-rocblas_datatype c_type       = HIPBLAS_R_16F; // OK
-rocblas_datatype d_type       = HIPBLAS_R_16F;
-rocblas_datatype compute_type       = HIPBLAS_R_32F;
-
-rocblas_gemm_algo algo           = HIPBLAS_GEMM_DEFAULT;
-int32_t           solution_index = 0;
-rocblas_int       flags          = 0;
-*/
+#include "type_shim.h"
 
 namespace {
 cublasOperation_t convertTransToCublasOperation(char trans) {
@@ -42,21 +31,6 @@ cublasOperation_t convertTransToCublasOperation(char trans) {
     AT_ERROR("trans must be one of: t, n, c");
     return CUBLAS_OP_T;
   }
-}
-
-// needed to work around calling rocblas API instead of hipblas API
-static rocblas_operation hipOperationToRocOperation(hipblasOperation_t op)
-{
-    switch(op)
-    {
-    case HIPBLAS_OP_N:
-        return rocblas_operation_none;
-    case HIPBLAS_OP_T:
-        return rocblas_operation_transpose;
-    case HIPBLAS_OP_C:
-        return rocblas_operation_conjugate_transpose;
-    }
-    AT_ERROR("HIPBLAS_STATUS_INVALID_ENUM");
 }
 
 static hipblasStatus_t rocBLASStatusToHIPStatus(rocblas_status error)
@@ -97,7 +71,7 @@ void RocblasStridedBatchedGemm(char transa, char transb, long m, long n, long k,
     cublasSetStream(handle, stream);
     float fAlpha = alpha;
     float fBeta = beta;
-    //THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
+
     TORCH_CUDABLAS_CHECK(hipblasGemmStridedBatchedEx(
 			    handle,
                             opa, 
@@ -107,21 +81,20 @@ void RocblasStridedBatchedGemm(char transa, char transb, long m, long n, long k,
 			    (int)k,
                             (void*)&fAlpha, 
 			    a, 
-			    HIPBLAS_R_16F /*a_type*/, 
+			    HIP_R_16F /*a_type*/, 
 			    (int)lda, 
 			    strideA,
                             b, 
-			    HIPBLAS_R_16F /*b_type*/, 
+			    HIP_R_16F /*b_type*/, 
 			    (int)ldb, 
 			    strideB,
                             (void*)&fBeta, 
 			    c, 
-			    HIPBLAS_R_16F /*c_type*/, 
+			    HIP_R_16F /*c_type*/, 
 			    (int)ldc, 
 			    strideC,
                             (int)batchCount,
 			    HIPBLAS_COMPUTE_32F, 
-			    /* HIPBLAS_R_32F compute_type,*/ 
 			    algo));
 }
 

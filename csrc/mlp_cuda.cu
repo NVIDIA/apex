@@ -13,6 +13,7 @@
 #include <cuda_runtime.h>
 
 #include <rocblas/rocblas.h>
+#include "type_shim.h"
 
 #if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
 // includes cublaslt
@@ -23,28 +24,6 @@
 #define BIAS_RELU_BW_NTHREADS_X 32 // backward number of thread in feature dim
 #define BIAS_RELU_BW_NTHREADS_Y 16 // backward number of thread in batch dim
 #define BIAS_RELU_RED_PER_THREAD 16 // backward minimal reduction length per thread
-
-#ifndef HIPBLAS_V2
-#define HIPBLASLT_COMPUTE_F64 HIPBLAS_R_64F
-#define HIPBLASLT_COMPUTE_F32 HIPBLAS_R_32F
-
-#define HIP_R_16F  HIPBLAS_R_16F
-#define HIP_R_32F  HIPBLAS_R_32F
-#define HIP_R_64F  HIPBLAS_R_64F
-#define HIP_C_16F  HIPBLAS_C_16F
-#define HIP_C_32F  HIPBLAS_C_32F
-#define HIP_C_64F  HIPBLAS_C_64F
-#define HIP_R_8I   HIPBLAS_R_8I
-#define HIP_R_8U   HIPBLAS_R_8U
-#define HIP_R_32I  HIPBLAS_R_32I
-#define HIP_R_32U  HIPBLAS_R_32U
-#define HIP_C_8I   HIPBLAS_C_8I
-#define HIP_C_8U   HIPBLAS_C_8U
-#define HIP_C_32I  HIPBLAS_C_32I
-#define HIP_C_32U  HIPBLAS_C_32U
-#define HIP_R_16BF HIPBLAS_R_16B
-#define HIP_C_16BF HIPBLAS_C_16B
-#endif
 
 // move to a header later on
 #define ILP 4
@@ -95,7 +74,7 @@ static rocblas_operation hipOperationToRocOperation(hipblasOperation_t op)
     }
     AT_ERROR("HIPBLAS_STATUS_INVALID_ENUM");
 }
-
+/*
 static hipblasStatus_t rocBLASStatusToHIPStatus(rocblas_status error)
 {
     switch(error)
@@ -122,7 +101,7 @@ static hipblasStatus_t rocBLASStatusToHIPStatus(rocblas_status error)
     }
     AT_ERROR("HIPBLAS_STATUS_INVALID_ENUM");
 }
-
+*/
 // FP64 Wrapper around cublas GEMMEx
 cublasStatus_t mlp_gemm(
     cublasHandle_t handle,
