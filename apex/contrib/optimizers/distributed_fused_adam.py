@@ -766,6 +766,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if self.overlap_param_sync:
             self._register_pre_forward_hooks()
 
+    @torch.no_grad()
     def _broadcast_params(self) -> None:
         """Broadcast parameter values from root rank"""
         process_group = self.process_group
