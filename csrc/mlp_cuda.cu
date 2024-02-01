@@ -74,34 +74,7 @@ static rocblas_operation hipOperationToRocOperation(hipblasOperation_t op)
     }
     AT_ERROR("HIPBLAS_STATUS_INVALID_ENUM");
 }
-/*
-static hipblasStatus_t rocBLASStatusToHIPStatus(rocblas_status error)
-{
-    switch(error)
-    {
-    case rocblas_status_size_unchanged:
-    case rocblas_status_size_increased:
-    case rocblas_status_success:
-    case rocblas_status_continue:
-        return HIPBLAS_STATUS_SUCCESS;
-    case rocblas_status_invalid_handle:
-        return HIPBLAS_STATUS_NOT_INITIALIZED;
-    case rocblas_status_not_implemented:
-        return HIPBLAS_STATUS_NOT_SUPPORTED;
-    case rocblas_status_invalid_pointer:
-    case rocblas_status_invalid_size:
-    case rocblas_status_invalid_value:
-        return HIPBLAS_STATUS_INVALID_VALUE;
-    case rocblas_status_memory_error:
-        return HIPBLAS_STATUS_ALLOC_FAILED;
-    case rocblas_status_internal_error:
-    case rocblas_status_perf_degraded:
-    case rocblas_status_check_numerics_fail:
-        return HIPBLAS_STATUS_INTERNAL_ERROR;
-    }
-    AT_ERROR("HIPBLAS_STATUS_INVALID_ENUM");
-}
-*/
+
 // FP64 Wrapper around cublas GEMMEx
 cublasStatus_t mlp_gemm(
     cublasHandle_t handle,
