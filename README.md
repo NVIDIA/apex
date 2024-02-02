@@ -126,7 +126,8 @@ python setup.py install
 ### Supported Versions
 | ``APEX Version`` | ``APEX branch``  | ``Torch Version`` |
 | ------------- | ------------- | ------------- |
-| ``1.2.0`` | master | ``2.2`` | 
+| ``1.3.0`` | master | ``2.3`` | 
+| ``1.2.0`` | release/1.2.0 | ``2.2`` | 
 | ``1.1.0`` | release/1.1.0 | ``2.1`` |
 | ``1.0.0`` | release/1.0.0 | ``2.0`` and older |
 
