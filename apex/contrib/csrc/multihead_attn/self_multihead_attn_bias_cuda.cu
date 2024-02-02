@@ -14,6 +14,7 @@
 #include "dropout.cuh"
 #include "softmax.cuh"
 #include "strided_batched_gemm.cuh"
+#include "type_shim.h"
 
 namespace multihead_attn {
 namespace self_bias {
@@ -78,36 +79,30 @@ fwd_cuda(bool use_time_mask, bool is_training, int heads,
   char a_layout_n{'n'};
   char b_layout_n{'n'};
 
-  rocblas_int flags = 0;
-
   //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
 
   // Input Linear Fwd
   input_lin_results.copy_(input_biases);
-  TORCH_CUDABLAS_CHECK(rocBLASStatusToHIPStatus(rocblas_gemm_ex((rocblas_handle) handle,
-                             hipOperationToRocOperation(CUBLAS_OP_T), 
-                             hipOperationToRocOperation(CUBLAS_OP_N),
+  TORCH_CUDABLAS_CHECK(hipblasGemmEx( handle,
+                             CUBLAS_OP_T, 
+                             CUBLAS_OP_N,
                              output_lin_dim, 
                              batches, 
                              embed_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(input_weights.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim,
                              static_cast<const void*>(inputs.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim, 
                              static_cast<const void*>(&beta_one),
                              q_lin_results_ptr,
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              output_lin_dim,
-                             q_lin_results_ptr,       
-                             rocblas_datatype_f16_r,  
-                             output_lin_dim,          
-                             rocblas_datatype_f32_r,
-                             rocblas_gemm_algo_standard /*algo*/,
-                             0 /*solution_index*/,
-                             flags)));
+			     HIPBLAS_COMPUTE_32F,
+                             HIPBLAS_GEMM_DEFAULT /*algo*/
+                             ));
 
   // MatMul1 of Dot-Product Attention Plus scaling by 1/Sqrt(head size)
   gemm_switch_fp32accum(     a_layout_t, 
@@ -126,11 +121,8 @@ fwd_cuda(bool use_time_mask, bool is_training, int heads,
                              static_cast<half*>(softmax_results_ptr), 
                              k_seq_len, 
                              k_seq_len*q_seq_len, 
-                             static_cast<half*>(softmax_results_ptr), 
-                             k_seq_len, 
-                             k_seq_len*q_seq_len, 
-                             attn_batches,
-                             flags);
+                             attn_batches
+                             );
   
   // Padded Softmax
   bool softmax_success = false;
@@ -180,39 +172,32 @@ fwd_cuda(bool use_time_mask, bool is_training, int heads,
                              static_cast<half*>(matmul2_results.data_ptr()), 
                              head_dim*attn_batches, 
                              head_dim, 
-                             static_cast<half*>(matmul2_results.data_ptr()), 
-                             head_dim*attn_batches, 
-                             head_dim, 
-                             attn_batches,
-                             flags);
+                             attn_batches
+                             );
 
   outputs.copy_(output_biases);
 
   // Output Linear
-  TORCH_CUDABLAS_CHECK(rocBLASStatusToHIPStatus(rocblas_gemm_ex((rocblas_handle) handle,
-                             hipOperationToRocOperation(CUBLAS_OP_T), 
-                             hipOperationToRocOperation(CUBLAS_OP_N),
+  TORCH_CUDABLAS_CHECK(hipblasGemmEx( handle,
+                             CUBLAS_OP_T, 
+                             CUBLAS_OP_N,
                              embed_dim, 
                              batches, 
                              embed_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(output_weights.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim,
                              static_cast<const void*>(matmul2_results.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim, 
                              static_cast<const void*>(&beta_one),
                              static_cast<void*>(outputs.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim,
-                             static_cast<void*>(outputs.data_ptr()),
-                             rocblas_datatype_f16_r, 
-                             embed_dim,
-                             rocblas_datatype_f32_r,
-                             rocblas_gemm_algo_standard /*algo*/,
-                             0 /*solution_index*/,
-                             flags)));
+			     HIPBLAS_COMPUTE_32F,
+                             HIPBLAS_GEMM_DEFAULT /*algo*/
+                             ));
   //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
 
   return {input_lin_results, softmax_results, dropout_results,
@@ -287,56 +272,48 @@ std::vector<torch::Tensor> bwd_cuda(
   #endif
 
   // Output Linear Dgrad
-  TORCH_CUDABLAS_CHECK(rocBLASStatusToHIPStatus(rocblas_gemm_ex((rocblas_handle) handle,
-                             hipOperationToRocOperation(CUBLAS_OP_N), 
-                             hipOperationToRocOperation(CUBLAS_OP_N),
+  TORCH_CUDABLAS_CHECK(hipblasGemmEx( handle,
+                             CUBLAS_OP_N, 
+                             CUBLAS_OP_N,
                              embed_dim, 
                              batches, 
                              embed_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(output_weights.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim,
                              static_cast<const void*>(output_grads.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
                              static_cast<void*>(output_lin_grads.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim,
-                             static_cast<void*>(output_lin_grads.data_ptr()),
-                             rocblas_datatype_f16_r, 
-                             embed_dim,
-                             rocblas_datatype_f32_r,
-                             rocblas_gemm_algo_standard /*algo*/,
-                             0 /*solution_index*/,
-                             flags)));
+			     HIPBLAS_COMPUTE_32F,
+                             HIPBLAS_GEMM_DEFAULT /*algo*/
+                             ));
 
   // Output Linear Wgrad
-  TORCH_CUDABLAS_CHECK(rocBLASStatusToHIPStatus(rocblas_gemm_ex((rocblas_handle) handle,
-                             hipOperationToRocOperation(CUBLAS_OP_N), 
-                             hipOperationToRocOperation(CUBLAS_OP_T),
+  TORCH_CUDABLAS_CHECK(hipblasGemmEx( handle,
+                             CUBLAS_OP_N, 
+                             CUBLAS_OP_T,
                              embed_dim, 
                              embed_dim,
                              batches, 
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(matmul2_results.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim,
                              static_cast<const void*>(output_grads.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim, 
                              static_cast<const void*>(&beta),
                              static_cast<void*>(output_weight_grads.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim,
-                             static_cast<void*>(output_weight_grads.data_ptr()),
-                             rocblas_datatype_f16_r, 
-                             embed_dim,
-                             rocblas_datatype_f32_r,
-                             rocblas_gemm_algo_standard /*algo*/,
-                             0 /*solution_index*/,
-                             flags)));
+			     HIPBLAS_COMPUTE_32F,
+                             HIPBLAS_GEMM_DEFAULT /*algo*/
+                             ));
 
   auto  output_bias_grads = output_grads.view({-1, embed_dim}) .sum(0, false);
   // MatMul2 Dgrad1
@@ -356,11 +333,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<half*>(matmul2_grads.data_ptr()),
                              k_seq_len, 
                              k_seq_len*q_seq_len,
-                             static_cast<half*>(matmul2_grads.data_ptr()),
-                             k_seq_len, 
-                             k_seq_len*q_seq_len,
-                             attn_batches,
-                             flags);
+                             attn_batches
+                             );
 
   // Matmul2 Dgrad2
   gemm_switch_fp32accum(     a_layout_n, 
@@ -379,11 +353,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              v_lin_grads_ptr, 
                              lead_dim, 
                              batch_stride, 
-                             v_lin_grads_ptr, 
-                             lead_dim, 
-                             batch_stride, 
-                             attn_batches,
-                             flags);
+                             attn_batches
+                             );
 
   // Apply Dropout Mask and Scale by Dropout Probability 
   // Softmax Grad
@@ -412,11 +383,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              q_lin_grads_ptr, 
                              lead_dim, 
                              batch_stride,  
-                             q_lin_grads_ptr, 
-                             lead_dim, 
-                             batch_stride, 
-                             attn_batches,
-                             flags);
+                             attn_batches
+                             );
 
   // Matmul1 Dgrad2
   gemm_switch_fp32accum(     a_layout_n, 
@@ -435,62 +403,51 @@ std::vector<torch::Tensor> bwd_cuda(
                              k_lin_grads_ptr, 
                              lead_dim, 
                              batch_stride,
-                             k_lin_grads_ptr, 
-                             lead_dim, 
-                             batch_stride, 
-                             attn_batches,
-                             flags);
+                             attn_batches
+                             );
   // Input Linear Dgrad  
-  TORCH_CUDABLAS_CHECK(rocBLASStatusToHIPStatus(rocblas_gemm_ex((rocblas_handle) handle,
-                             hipOperationToRocOperation(CUBLAS_OP_N), 
-                             hipOperationToRocOperation(CUBLAS_OP_N),
+  TORCH_CUDABLAS_CHECK(hipblasGemmEx( handle,
+                             CUBLAS_OP_N, 
+                             CUBLAS_OP_N,
                              embed_dim,
                              batches, 
                              output_lin_dim,
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(input_weights.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim,
                              static_cast<const void*>(input_lin_output_grads.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              output_lin_dim, 
                              static_cast<const void*>(&beta),
                              static_cast<void*>(input_grads.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim,
-                             static_cast<void*>(input_grads.data_ptr()),
-                             rocblas_datatype_f16_r, 
-                             embed_dim,
-                             rocblas_datatype_f32_r,
-                             rocblas_gemm_algo_standard /*algo*/,
-                             0 /*solution_index*/,
-                             flags)));
+			     HIPBLAS_COMPUTE_32F,
+                             HIPBLAS_GEMM_DEFAULT /*algo*/
+                             ));
 
   // Input Linear Wgrad  
-  TORCH_CUDABLAS_CHECK(rocBLASStatusToHIPStatus(rocblas_gemm_ex((rocblas_handle) handle,
-                             hipOperationToRocOperation(CUBLAS_OP_N), 
-                             hipOperationToRocOperation(CUBLAS_OP_T),
+  TORCH_CUDABLAS_CHECK(hipblasGemmEx( handle,
+                             CUBLAS_OP_N, 
+                             CUBLAS_OP_T,
                              embed_dim, 
                              output_lin_dim,
                              batches, 
                              static_cast<const void*>(&alpha),
                              static_cast<const void*>(inputs.data_ptr()),
-                             rocblas_datatype_f16_r,
+                             HIP_R_16F,
                              embed_dim,
                              static_cast<const void*>(q_lin_grads_ptr),
-                             rocblas_datatype_f16_r,
+                             HIP_R_16F,
                              output_lin_dim,
                              static_cast<const void*>(&beta),
                              static_cast<void*>(input_weight_grads.data_ptr()),
-                             rocblas_datatype_f16_r, 
+                             HIP_R_16F, 
                              embed_dim,
-                             static_cast<void*>(input_weight_grads.data_ptr()),
-                             rocblas_datatype_f16_r, 
-                             embed_dim,
-                             rocblas_datatype_f32_r,
-                             rocblas_gemm_algo_standard /*algo*/,
-                             0 /*solution_index*/,
-                             flags)));
+			     HIPBLAS_COMPUTE_32F,
+                             HIPBLAS_GEMM_DEFAULT /*algo*/
+                             ));
 
   auto  input_bias_grads = input_lin_output_grads.view({-1, output_lin_dim}).sum(0, false);
   //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));

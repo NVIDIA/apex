@@ -13,6 +13,7 @@
 #include <cuda_runtime.h>
 
 #include <rocblas/rocblas.h>
+#include "type_shim.h"
 
 #if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
 // includes cublaslt
@@ -23,7 +24,6 @@
 #define BIAS_RELU_BW_NTHREADS_X 32 // backward number of thread in feature dim
 #define BIAS_RELU_BW_NTHREADS_Y 16 // backward number of thread in batch dim
 #define BIAS_RELU_RED_PER_THREAD 16 // backward minimal reduction length per thread
-
 
 // move to a header later on
 #define ILP 4
@@ -60,48 +60,6 @@ __device__ __inline__ float sigmoid(float a) {
   return (retf);
 }
 
-// needed to work around calling rocblas API instead of hipblas API
-static rocblas_operation hipOperationToRocOperation(hipblasOperation_t op)
-{
-    switch(op)
-    {
-    case HIPBLAS_OP_N:
-        return rocblas_operation_none;
-    case HIPBLAS_OP_T:
-        return rocblas_operation_transpose;
-    case HIPBLAS_OP_C:
-        return rocblas_operation_conjugate_transpose;
-    }
-    AT_ERROR("HIPBLAS_STATUS_INVALID_ENUM");
-}
-
-static hipblasStatus_t rocBLASStatusToHIPStatus(rocblas_status error)
-{
-    switch(error)
-    {
-    case rocblas_status_size_unchanged:
-    case rocblas_status_size_increased:
-    case rocblas_status_success:
-    case rocblas_status_continue:
-        return HIPBLAS_STATUS_SUCCESS;
-    case rocblas_status_invalid_handle:
-        return HIPBLAS_STATUS_NOT_INITIALIZED;
-    case rocblas_status_not_implemented:
-        return HIPBLAS_STATUS_NOT_SUPPORTED;
-    case rocblas_status_invalid_pointer:
-    case rocblas_status_invalid_size:
-    case rocblas_status_invalid_value:
-        return HIPBLAS_STATUS_INVALID_VALUE;
-    case rocblas_status_memory_error:
-        return HIPBLAS_STATUS_ALLOC_FAILED;
-    case rocblas_status_internal_error:
-    case rocblas_status_perf_degraded:
-    case rocblas_status_check_numerics_fail:
-        return HIPBLAS_STATUS_INTERNAL_ERROR;
-    }
-    AT_ERROR("HIPBLAS_STATUS_INVALID_ENUM");
-}
-
 // FP64 Wrapper around cublas GEMMEx
 cublasStatus_t mlp_gemm(
     cublasHandle_t handle,
@@ -119,33 +77,6 @@ cublasStatus_t mlp_gemm(
     double* C,
     int ldc,
     int flag) {
-#ifdef USE_ROCM
-  return rocBLASStatusToHIPStatus(rocblas_gemm_ex(
-      (rocblas_handle) handle,
-      hipOperationToRocOperation(transa),
-      hipOperationToRocOperation(transb),
-      m,
-      n,
-      k,
-      alpha,
-      A,
-      rocblas_datatype_f64_r,
-      lda,
-      B,
-      rocblas_datatype_f64_r,
-      ldb,
-      beta,
-      C,
-      rocblas_datatype_f64_r,
-      ldc,
-      C,
-      rocblas_datatype_f64_r,
-      ldc,
-      rocblas_datatype_f64_r,
-      rocblas_gemm_algo_standard,
-      0,
-      flag));  
-#else
   return cublasGemmEx(
       handle,
       transa,
@@ -164,9 +95,8 @@ cublasStatus_t mlp_gemm(
       C,
       CUDA_R_64F,
       ldc,
-      CUDA_R_64F,
+      CUBLAS_COMPUTE_64F,
       CUBLAS_GEMM_DEFAULT);
-#endif
 }
 
 // FP32 Wrapper around cublas GEMMEx
@@ -186,34 +116,6 @@ cublasStatus_t mlp_gemm(
     float* C,
     int ldc,
     int flag) {
-#ifdef USE_ROCM
-  return rocBLASStatusToHIPStatus(rocblas_gemm_ex(
-      (rocblas_handle) handle,
-      hipOperationToRocOperation(transa),
-      hipOperationToRocOperation(transb),
-      m,
-      n,
-      k,
-      alpha,
-      A,
-      rocblas_datatype_f32_r,
-      lda,
-      B,
-      rocblas_datatype_f32_r,
-      ldb,
-      beta,
-      C,
-      rocblas_datatype_f32_r,
-      ldc,
-      C,
-      rocblas_datatype_f32_r,
-      ldc,
-      rocblas_datatype_f32_r,
-      rocblas_gemm_algo_standard,
-      0,
-      flag));
-
-#else
   return cublasGemmEx(
       handle,
       transa,
@@ -232,9 +134,8 @@ cublasStatus_t mlp_gemm(
       C,
       CUDA_R_32F,
       ldc,
-      CUDA_R_32F,
+      CUBLAS_COMPUTE_32F,
       CUBLAS_GEMM_DEFAULT);
-#endif
 }
 
 // FP16 Tensor core wrapper around cublas GEMMEx
@@ -254,33 +155,6 @@ cublasStatus_t mlp_gemm(
     at::Half* C,
     int ldc,
     int flag) {
-#ifdef USE_ROCM
-  return rocBLASStatusToHIPStatus(rocblas_gemm_ex(
-      (rocblas_handle) handle,
-      hipOperationToRocOperation(transa),
-      hipOperationToRocOperation(transb),
-      m,
-      n,
-      k,
-      alpha,
-      A,
-      rocblas_datatype_f16_r,
-      lda,
-      B,
-      rocblas_datatype_f16_r,
-      ldb,
-      beta,
-      C,
-      rocblas_datatype_f16_r,
-      ldc,
-      C,
-      rocblas_datatype_f16_r,
-      ldc,
-      rocblas_datatype_f32_r,
-      rocblas_gemm_algo_standard,
-      0,
-      flag));
-#else
   return cublasGemmEx(
       handle,
       transa,
@@ -299,9 +173,8 @@ cublasStatus_t mlp_gemm(
       C,
       CUDA_R_16F,
       ldc,
-      CUDA_R_32F,
+      CUBLAS_COMPUTE_32F,
       CUBLAS_GEMM_DEFAULT_TENSOR_OP);
-#endif
 }
 #if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
 int mlp_gemm_lt(

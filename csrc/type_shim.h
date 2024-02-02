@@ -1,6 +1,9 @@
 #include <ATen/ATen.h>
 #include "compat.h"
 
+
+#ifndef TYPE_SHIM
+#define TYPE_SHIM
 // Forward/backward compatiblity hack around
 // https://github.com/pytorch/pytorch/commit/3aeb78079bcd68282fe9117088e138b77318e288
 // pending more future-proof guidance from upstream.
@@ -13,6 +16,43 @@
 //   // Enable dispatch switch statements to take *this directly for  post-3aeb78
 //   //operator at::ScalarType(){ return payload.; };
 // };
+
+
+// hipify local to this source file until torch-hipify includes this mapping
+#ifndef HIPBLAS_V2
+#define CUBLAS_COMPUTE_16F HIPBLAS_C_16F
+#else
+#define CUBLAS_COMPUTE_16F HIPBLAS_COMPUTE_16F
+#endif
+
+// until we use hiblas v2
+// however hipblas v1 is still using its custom type
+#ifndef HIPBLAS_V2
+#define HIPBLAS_COMPUTE_64F HIPBLAS_R_64F
+#define HIPBLAS_COMPUTE_32F HIPBLAS_R_32F
+
+#define HIPBLASLT_COMPUTE_F64 HIPBLAS_R_64F
+#define HIPBLASLT_COMPUTE_F32 HIPBLAS_R_32F
+
+#define HIP_R_16F  HIPBLAS_R_16F
+#define HIP_R_32F  HIPBLAS_R_32F
+#define HIP_R_64F  HIPBLAS_R_64F
+#define HIP_C_16F  HIPBLAS_C_16F
+#define HIP_C_32F  HIPBLAS_C_32F
+#define HIP_C_64F  HIPBLAS_C_64F
+#define HIP_R_8I   HIPBLAS_R_8I
+#define HIP_R_8U   HIPBLAS_R_8U
+#define HIP_R_32I  HIPBLAS_R_32I
+#define HIP_R_32U  HIPBLAS_R_32U
+#define HIP_C_8I   HIPBLAS_C_8I
+#define HIP_C_8U   HIPBLAS_C_8U
+#define HIP_C_32I  HIPBLAS_C_32I
+#define HIP_C_32U  HIPBLAS_C_32U
+#define HIP_R_16BF HIPBLAS_R_16B
+#define HIP_C_16BF HIPBLAS_C_16B
+#endif
+
+
 
 #define DISPATCH_FLOAT_AND_HALF(TYPE, LEVEL, NAME, ...) \
   switch(TYPE) \
@@ -489,3 +529,5 @@ __device__ __forceinline__ T reduce_block_into_lanes_max_op
 
   return final;
 }
+
+#endif // TYPE_SHIM

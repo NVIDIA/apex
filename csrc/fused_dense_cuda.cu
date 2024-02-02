@@ -17,13 +17,7 @@
 #include <cublasLt.h>
 #endif
 
-// until we use hipblas v2
-// hipify correctly maps things like CUDA_R_16F to HIP_R_16F,
-// however hipblas v1 is still using its custom type
-#define HIP_R_64F  HIPBLAS_R_64F
-#define HIP_R_32F  HIPBLAS_R_32F
-#define HIP_R_16F  HIPBLAS_R_16F
-
+#include "type_shim.h"
 
 // FP64 Wrapper around cublas GEMMEx
 cublasStatus_t gemm_bias(
