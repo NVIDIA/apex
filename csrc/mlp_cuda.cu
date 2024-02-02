@@ -60,21 +60,6 @@ __device__ __inline__ float sigmoid(float a) {
   return (retf);
 }
 
-// needed to work around calling rocblas API instead of hipblas API
-static rocblas_operation hipOperationToRocOperation(hipblasOperation_t op)
-{
-    switch(op)
-    {
-    case HIPBLAS_OP_N:
-        return rocblas_operation_none;
-    case HIPBLAS_OP_T:
-        return rocblas_operation_transpose;
-    case HIPBLAS_OP_C:
-        return rocblas_operation_conjugate_transpose;
-    }
-    AT_ERROR("HIPBLAS_STATUS_INVALID_ENUM");
-}
-
 // FP64 Wrapper around cublas GEMMEx
 cublasStatus_t mlp_gemm(
     cublasHandle_t handle,
