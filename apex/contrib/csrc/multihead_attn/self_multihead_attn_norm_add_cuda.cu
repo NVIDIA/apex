@@ -89,7 +89,6 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
   char a_layout_n{'n'};
   char b_layout_n{'n'};
 
-  //THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
   // Layer Norm
   HostApplyLayerNorm<at::Half, float>(
       static_cast<at::Half *>(lyr_nrm_results.data_ptr()),
@@ -234,8 +233,6 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
         static_cast<at::Half *>(outputs.data_ptr()), total_tokens);
   }
 
-  //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
-
   return {lyr_nrm_results,  lyr_nrm_mean,    lyr_nrm_invvar, input_lin_results,
           softmax_results,  dropout_results, dropout_mask,   matmul2_results,
           dropout_add_mask, outputs};
@@ -305,18 +302,6 @@ std::vector<torch::Tensor> bwd_cuda(
   char b_layout_n{'n'};
   char b_layout_t{'t'}; 
   
-  //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
-  /*
-  #ifdef USE_ROCM
-    #define PYTORCH_ROCBLAS_VERSION_DECIMAL (ROCBLAS_VERSION_MAJOR * 100 + ROCBLAS_VERSION_MINOR)
-    #define USE_GEMM_FLAGS_FP16_ALT_IMPL (PYTORCH_ROCBLAS_VERSION_DECIMAL >= 242)
-    #if USE_GEMM_FLAGS_FP16_ALT_IMPL
-      #ifdef BACKWARD_PASS_GUARD
-        flags = at::BACKWARD_PASS_GUARD_CLASS::is_backward_pass() ? rocblas_gemm_flags_fp16_alt_impl : 0;
-      #endif
-    #endif
-  #endif
-*/
   // Dropout Add Backward
   apex_masked_scale_cuda<at::Half, float, uint32_t>(
       static_cast<at::Half const *>(output_grads.data_ptr()),

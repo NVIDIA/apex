@@ -78,8 +78,6 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
   char a_layout_n{'n'};
   char b_layout_n{'n'};
 
-  //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
-
   // Input Linear Fwd
   TORCH_CUDABLAS_CHECK(hipblasGemmEx( handle,
                              CUBLAS_OP_T, 
@@ -194,7 +192,6 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training,
 			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
-  //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
 
   return {input_lin_results, softmax_results, dropout_results,
           dropout_mask,      matmul2_results, outputs};
@@ -254,18 +251,6 @@ std::vector<torch::Tensor> bwd_cuda(
   char b_layout_n{'n'};
   char b_layout_t{'t'}; 
 
-  //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
-  /*
-  #ifdef USE_ROCM
-    #define PYTORCH_ROCBLAS_VERSION_DECIMAL (ROCBLAS_VERSION_MAJOR * 100 + ROCBLAS_VERSION_MINOR)
-    #define USE_GEMM_FLAGS_FP16_ALT_IMPL (PYTORCH_ROCBLAS_VERSION_DECIMAL >= 242)
-    #if USE_GEMM_FLAGS_FP16_ALT_IMPL
-      #ifdef BACKWARD_PASS_GUARD
-        flags = at::BACKWARD_PASS_GUARD_CLASS::is_backward_pass() ? rocblas_gemm_flags_fp16_alt_impl : 0;
-      #endif
-    #endif
-  #endif
-  */
   // Output Linear Dgrad
   TORCH_CUDABLAS_CHECK(hipblasGemmEx( handle,
                              CUBLAS_OP_N, 
@@ -450,7 +435,6 @@ std::vector<torch::Tensor> bwd_cuda(
 			     HIPBLAS_COMPUTE_32F,
                              HIPBLAS_GEMM_DEFAULT /*algo*/
                              ));
-  //TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
   
   return { 
            input_grads, 
