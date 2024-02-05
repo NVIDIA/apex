@@ -819,6 +819,20 @@ if "--fused_conv_bias_relu" in sys.argv:
         )
 
 
+if "--gpu_direct_storage" in sys.argv:
+    sys.argv.remove("--gpu_direct_storage")
+    raise_if_cuda_home_none("--gpu_direct_storage")
+    ext_modules.append(
+        CUDAExtension(
+            name="gpu_direct_storage",
+            sources=["apex/contrib/csrc/gpu_direct_storage/gds.cpp", "apex/contrib/csrc/gpu_direct_storage/gds_pybind.cpp"],
+            include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/gpu_direct_storage")],
+            libraries=["cufile"],
+            extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+        )
+    )
+
+
 setup(
     name="apex",
     version="0.1",
