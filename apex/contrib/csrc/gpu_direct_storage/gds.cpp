@@ -38,7 +38,7 @@ std::string cuFileGetErrorString(T status) {
   return errStr;
 }
 
-void load_data(torch::Tensor& tensor, std::string& filename) {
+void load_data(const torch::Tensor& tensor, const std::string& filename) {
   c10::cuda::CUDAGuard gpuGuard(tensor.device());
 
   int fd = -1;
@@ -78,7 +78,7 @@ void load_data(torch::Tensor& tensor, std::string& filename) {
   close(fd);
 }
 
-void save_data(torch::Tensor& tensor, std::string& filename) {
+void save_data(const torch::Tensor& tensor, const std::string& filename) {
   c10::cuda::CUDAGuard gpuGuard(tensor.device());
 
   int fd = -1;
@@ -133,7 +133,7 @@ void save_data(torch::Tensor& tensor, std::string& filename) {
 
 // Just for benchmarking purposes
 
-void load_data_no_gds(torch::Tensor& tensor, std::string& filename) {
+void load_data_no_gds(const torch::Tensor& tensor, const std::string& filename) {
   c10::cuda::CUDAGuard gpuGuard(tensor.device());
 
   void* dataPtrCpu = nullptr;
@@ -154,7 +154,7 @@ void load_data_no_gds(torch::Tensor& tensor, std::string& filename) {
   free(dataPtrCpu);
 }
 
-void save_data_no_gds(torch::Tensor& tensor, std::string& filename) {
+void save_data_no_gds(const torch::Tensor& tensor, const std::string& filename) {
   c10::cuda::CUDAGuard gpuGuard(tensor.device());
 
   void* dataPtrCpu = nullptr;
