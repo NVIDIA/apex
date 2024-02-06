@@ -1181,21 +1181,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     param_sync_dtype=param_sync_dtype,
                 )
 
-        # Check if buckets are underutilized
-        num_params = sum(1 for param in self.parameters())
-        num_initialized_params = sum(
-            1 for param in self.parameters() if "fragments" in self.state[param]
-        )
-        if num_initialized_params == num_params:
-            bucket_size = sum(bucket.bucket_size for bucket in self.state["buckets"])
-            filled_size = sum(bucket.filled_size for bucket in self.state["buckets"])
-            buckets_utilization = filled_size / bucket_size
-            if buckets_utilization < 0.7:
-                warnings.warn(
-                    f"Only {buckets_utilization:.1%} of buckets are used. "
-                    "Consider decreasing the bucket_cap_mb argument."
-                )
-
     def init_params_bucket(
         self,
         params: Iterable[torch.nn.Parameter],
@@ -1461,6 +1446,17 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     )
                 main_param_fragment = bucket.params_shard[shard_range]
                 main_param_fragment.copy_(model_param_fragment)
+
+        # Check if buckets are underutilized
+        if all("fragments" in self.state[param] for param in self.parameters()):
+            bucket_size = sum(bucket.bucket_size for bucket in self.state["buckets"])
+            filled_size = sum(bucket.filled_size for bucket in self.state["buckets"])
+            buckets_utilization = filled_size / bucket_size
+            if buckets_utilization < 0.7:
+                warnings.warn(
+                    f"Only {buckets_utilization:.1%} of buckets are used. "
+                    "Consider decreasing the bucket_cap_mb argument."
+                )
 
     def zero_grad(self, set_to_none: bool = False) -> None:
         """Clear parameter gradients"""
@@ -2246,6 +2242,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         loss = None
         if closure is not None:
             loss = closure()
+
+        # Make sure params are initialized
+        self.init_params()
 
         # Make sure that parameters and gradients are synchronized
         self.param_sync()

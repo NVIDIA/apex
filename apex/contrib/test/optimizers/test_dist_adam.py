@@ -41,7 +41,7 @@ def make_models(
         param_sync_dtype: Optional[torch.dtype] = None,
         device: torch.device = 'cuda',
         process_group: Optional[torch.distributed.ProcessGroup] = None,
-        average_grad_sync: bool =True,
+        average_grad_sync: bool = True,
         overlap_communication: bool = True,
         bucket_cap_mb: float = 71/(4*1024*1024),
         contiguous_buffers: bool = False,
@@ -513,6 +513,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 lr=0.1,
                 process_group=save_group,
                 average_grad_sync=False,
+                overlap_communication=False,
                 **save_model_kwargs,
             )
             optim_save.init_params(reversed(list(model_save.parameters())))
@@ -526,6 +527,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 lr=1234.,
                 process_group=load_group,
                 average_grad_sync=False,
+                overlap_communication=False,
                 **load_model_kwargs,
             )
             optim_load.init_params(list(model_load.parameters()))
@@ -770,8 +772,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             self.test_matches_pytorch(
                 num_layers=num_layers,
                 layer_size=layer_size,
+                overlap_communication=False,
                 bucket_cap_mb=fairish_bucket_cap_mb * 2,
-                contiguous_buffers=True,
             )
 
         # Check that warning is not raised when bucket utilization is high
@@ -779,8 +781,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             self.test_matches_pytorch(
                 num_layers=num_layers,
                 layer_size=layer_size,
+                overlap_communication=False,
                 bucket_cap_mb=fairish_bucket_cap_mb,
-                contiguous_buffers=True,
             )
             for w in warns:
                 self.assertNotRegex(str(w.message), ".*Consider decreasing the bucket_cap_mb argument.")
