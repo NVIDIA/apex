@@ -296,6 +296,7 @@ class TestBottleneck(NcclDistributedTestBase):
         bt = apply_to_different_bottleneck(gt, spatial_bottleneck)
         self.assertEqual(gt, bt, **self.fp16_tolerance)
 
+    @unittest.skipIf(not torch.cuda.can_device_access_peer(0,1), "peer memory access not supported")
     def test_bottleneck_with_peer_memory(self) -> None:
 
         explicit_nhwc: bool = True
