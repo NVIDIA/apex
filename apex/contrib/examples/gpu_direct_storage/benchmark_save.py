@@ -25,8 +25,15 @@ def run_benchmark(func):
         end_time = timeit.default_timer()
         print(f"{func.__name__}: size = {size}, {end_time - start_time}")
 
+def save_data_yes_gds(tensor, filename):
+    with gds.GDSFile(filename, "w") as f:
+        f.save_data(tensor)
+
+def save_data_no_gds(tensor, filename):
+    with gds.GDSFile(filename, "wn") as f:
+        f.save_data_no_gds(tensor)
+
 if __name__ == '__main__':
-    torch.cuda.set_device(0)
     run_benchmark(torch.save)
-    run_benchmark(gds.save_data_no_gds)
-    run_benchmark(gds.save_data)
+    run_benchmark(save_data_yes_gds)
+    run_benchmark(save_data_no_gds)

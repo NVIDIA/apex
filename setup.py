@@ -824,7 +824,7 @@ if "--gpu_direct_storage" in sys.argv:
     raise_if_cuda_home_none("--gpu_direct_storage")
     ext_modules.append(
         CUDAExtension(
-            name="gpu_direct_storage",
+            name="_apex_gpu_direct_storage",
             sources=["apex/contrib/csrc/gpu_direct_storage/gds.cpp", "apex/contrib/csrc/gpu_direct_storage/gds_pybind.cpp"],
             include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/gpu_direct_storage")],
             libraries=["cufile"],

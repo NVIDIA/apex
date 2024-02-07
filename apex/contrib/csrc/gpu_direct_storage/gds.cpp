@@ -38,141 +38,137 @@ std::string cuFileGetErrorString(T status) {
   return errStr;
 }
 
-void load_data(const torch::Tensor& tensor, const std::string& filename) {
-  c10::cuda::CUDAGuard gpuGuard(tensor.device());
+File::File() : is_open(false) {};
 
-  int fd = -1;
-  ssize_t ret = -1;
-  void* dataPtr = tensor.data_ptr();
-  const size_t size = tensor.nbytes();
-  CUfileError_t status;
-
-  CUfileDescr_t cf_descr;
-  CUfileHandle_t cf_handle;
-
-  // Open the binary file
-  fd = open(filename.c_str(), O_RDONLY | O_DIRECT);
-  TORCH_CHECK(fd >= 0, "fcntl cannot open file: ", filename);
-
-  // Register cuFile handle
-  memset((void*)&cf_descr, 0, sizeof(CUfileDescr_t));
-  cf_descr.handle.fd = fd;
-  cf_descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
-  status = cuFileHandleRegister(&cf_handle, &cf_descr);
-  if (status.err != CU_FILE_SUCCESS) {
-    close(fd);
-    fd = -1;
-    TORCH_CHECK(false, "cuFileHandleRegister failed: ", cuFileGetErrorString(status));
-  }
-
-  // Read the binary file
-  ret = cuFileRead(cf_handle, (void*)dataPtr, size, 0, 0);
-  if (ret < 0) {
-    cuFileHandleDeregister(cf_handle);
-    close(fd);
-    TORCH_CHECK(false, "cuFileWrite failed: ", cuFileGetErrorString(ret));
-  }
-
-  // Deregister cuFile handle and close the file
-  cuFileHandleDeregister(cf_handle);
-  close(fd);
+File::File(const std::string& filename, const std::string& mode) : filename(filename), mode(mode), is_open(false) {
+  open(filename, mode);
 }
 
-void save_data(const torch::Tensor& tensor, const std::string& filename) {
-  c10::cuda::CUDAGuard gpuGuard(tensor.device());
+File::~File() {
+  if (is_open) {
+    close();
+  }
+}
 
-  int fd = -1;
-  ssize_t ret = -1;
-  void* dataPtr = tensor.data_ptr();
-  const size_t size = tensor.nbytes();
-  CUfileError_t status;
+void File::open(const std::string& other_filename, const std::string& other_mode) {
+  TORCH_CHECK(is_open == false, "file", filename, "is already open");
+  if (!filename.empty()) {
+    TORCH_CHECK(other_filename == filename, "file", filename, "is already open with mode", mode);
+  }
+  if (!mode.empty()) {
+    TORCH_CHECK(other_mode == mode, "file", filename, "is already open with mode", mode);
+  }
 
-  CUfileDescr_t cf_descr;
-  CUfileHandle_t cf_handle;
-
-  // Opens a file to write
-  fd = open(filename.c_str(), O_CREAT | O_WRONLY | O_DIRECT, 0664);
+  maybe_register = true;
+  // Open the binary file
+  if(mode == "r") {
+    // for reading
+    fd = ::open(filename.c_str(), O_RDONLY | O_DIRECT);
+  } else if (mode == "w") {
+    // for writing
+    fd = ::open(filename.c_str(), O_CREAT | O_WRONLY | O_DIRECT, 0664);
+  } else if (mode == "rn") {
+    // for reading
+    fd = ::open(filename.c_str(), O_RDONLY);
+    maybe_register = false;
+  } else if (mode == "wn") {
+    // for writing
+    fd = ::open(filename.c_str(), O_CREAT | O_WRONLY, 0664);
+    maybe_register = false;
+  } else {
+    TORCH_CHECK(false, "only r and w modes are currently supported, but got:", mode);
+  }
   TORCH_CHECK(fd >= 0, "fcntl cannot open file: ", filename);
 
   // Register cuFile handle
-  memset((void*)&cf_descr, 0, sizeof(CUfileDescr_t));
-  cf_descr.handle.fd = fd;
-  cf_descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
-  status = cuFileHandleRegister(&cf_handle, &cf_descr);
-  if (status.err != CU_FILE_SUCCESS) {
-    close(fd);
-    fd = -1;
-    TORCH_CHECK(false, "cuFileHandleRegister failed: ", cuFileGetErrorString(status));
+  if(maybe_register) {
+      memset((void*)&cf_descr, 0, sizeof(CUfileDescr_t));
+      cf_descr.handle.fd = fd;
+      cf_descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
+      status = cuFileHandleRegister(&cf_handle, &cf_descr);
+      if (status.err != CU_FILE_SUCCESS) {
+        TORCH_CHECK(false, "cuFileHandleRegister failed: ", cuFileGetErrorString(status));
+      }
   }
+  is_open = true;
+}
+
+void File::close() {
+  // Deregister cuFile handle and close the file
+  if(is_open) {
+      if(maybe_register) {
+        cuFileHandleDeregister(cf_handle);
+      }
+      ::close(fd);
+      fd = -1;
+  }
+  is_open = false;
+}
+
+void File::load_data(const torch::Tensor& tensor) {
+  TORCH_CHECK(mode == "r", filename, " was opened for read only");
+  c10::cuda::CUDAGuard gpuGuard(tensor.device());
+
+  void* dataPtr = tensor.data_ptr();
+  const size_t nbytes = tensor.nbytes();
+
+  // Read the binary file
+  ssize_t ret = cuFileRead(cf_handle, (void*)dataPtr, nbytes, 0, 0);
+  TORCH_CHECK(ret >= 0, "cuFileWrite failed: ", cuFileGetErrorString(ret));
+}
+
+void File::save_data(const torch::Tensor& tensor) {
+  TORCH_CHECK(mode == "w", filename, " was opened for write only");
+  c10::cuda::CUDAGuard gpuGuard(tensor.device());
+
+  void* dataPtr = tensor.data_ptr();
+  const size_t nbytes = tensor.nbytes();
 
   // Register device memory
-  status = cuFileBufRegister(dataPtr, size, 0);
-  if (status.err != CU_FILE_SUCCESS) {
-    TORCH_CHECK(false, "cuFileBufRegister failed: ", cuFileGetErrorString(status));
-  }
+  status = cuFileBufRegister(dataPtr, nbytes, 0);
+  TORCH_CHECK(status.err == CU_FILE_SUCCESS, "cuFileBufRegister failed: ", cuFileGetErrorString(status));
 
   // Write device memory contents to the file
-  ret = cuFileWrite(cf_handle, dataPtr, size, 0, 0);
-  if (ret < 0) {
-    cuFileBufDeregister(dataPtr);
-    cuFileHandleDeregister(cf_handle);
-    close(fd);
-    TORCH_CHECK(false, "cuFileWrite failed: ", cuFileGetErrorString(ret));
-  }
-
-  // Deregister the device memory
+  ssize_t ret = cuFileWrite(cf_handle, dataPtr, nbytes, 0, 0);
   status = cuFileBufDeregister(dataPtr);
 
-  // Deregister cuFile handle and close the file
-  cuFileHandleDeregister(cf_handle);
-  close(fd);
-
+  TORCH_CHECK(ret >= 0, "cuFileWrite failed: ", cuFileGetErrorString(ret));
   TORCH_CHECK(status.err == CU_FILE_SUCCESS, "cuFileBufDeregister failed:", cuFileGetErrorString(status));
 }
 
 
 // Just for benchmarking purposes
 
-void load_data_no_gds(const torch::Tensor& tensor, const std::string& filename) {
+void File::load_data_no_gds(const torch::Tensor& tensor) {
+  TORCH_CHECK(mode == "rn", filename, " was opened for read only");
   c10::cuda::CUDAGuard gpuGuard(tensor.device());
 
-  void* dataPtrCpu = nullptr;
+  void* dataPtrCPU = nullptr;
   void* dataPtr = tensor.data_ptr();
-  const size_t numel = tensor.numel();
-  const size_t element_size = tensor.element_size();
-  const size_t size = tensor.nbytes();
-  dataPtrCpu = malloc(size);
-  TORCH_CHECK(dataPtrCpu != nullptr, "malloc failed");
+  const size_t nbytes = tensor.nbytes();
+  dataPtrCPU = malloc(nbytes);
+  TORCH_CHECK(dataPtrCPU != nullptr, "malloc failed");
 
-  FILE *fp_output;
-  fp_output = fopen(filename.c_str(), "rb");
-  TORCH_CHECK(fp_output != nullptr, "stdio cannot fopen file: ", filename);
-  const size_t count = fread(dataPtrCpu, element_size, numel, fp_output);
-  TORCH_CHECK(count == numel, "fread failed");
-  fclose(fp_output);
-  C10_CUDA_CHECK(cudaMemcpy(dataPtr, dataPtrCpu, size, cudaMemcpyHostToDevice));
-  free(dataPtrCpu);
+  const ssize_t nbytes_read = pread(fd, dataPtrCPU, nbytes, 0);
+  TORCH_CHECK(nbytes_read == nbytes || nbytes_read == 0, "fcntl pread failed");
+  C10_CUDA_CHECK(cudaMemcpy(dataPtr, dataPtrCPU, nbytes, cudaMemcpyHostToDevice));
+  free(dataPtrCPU);
 }
 
-void save_data_no_gds(const torch::Tensor& tensor, const std::string& filename) {
+void File::save_data_no_gds(const torch::Tensor& tensor) {
+  TORCH_CHECK(mode == "wn", filename, " was opened for write only");
   c10::cuda::CUDAGuard gpuGuard(tensor.device());
 
-  void* dataPtrCpu = nullptr;
+  void* dataPtrCPU = nullptr;
   void* dataPtr = tensor.data_ptr();
-  const size_t numel = tensor.numel();
-  const size_t element_size = tensor.element_size();
-  const size_t size = tensor.nbytes();
-  dataPtrCpu = malloc(size);
-  TORCH_CHECK(dataPtrCpu != nullptr, "malloc failed");
-  C10_CUDA_CHECK(cudaMemcpy(dataPtrCpu, dataPtr, size, cudaMemcpyDeviceToHost));
+  const size_t nbytes = tensor.nbytes();
+  dataPtrCPU = malloc(nbytes);
+  TORCH_CHECK(dataPtrCPU != nullptr, "malloc failed");
+  C10_CUDA_CHECK(cudaMemcpy(dataPtrCPU, dataPtr, nbytes, cudaMemcpyDeviceToHost));
 
-  FILE *fp_output;
-  fp_output = fopen(filename.c_str(), "wb");
-  TORCH_CHECK(fp_output != nullptr, "stdio cannot fopen file: ", filename);
-  const size_t count = fwrite(dataPtrCpu, element_size, numel, fp_output);
-  TORCH_CHECK(count == numel, "fwrite failed");
-  fclose(fp_output);
-  free(dataPtrCpu);
+  const ssize_t nbytes_written = pwrite(fd, dataPtrCPU, nbytes, 0);
+  TORCH_CHECK(nbytes_written == nbytes, "fcntl pwrite failed");
+  free(dataPtrCPU);
 }
 
-} // namespace apex::contrib::gds
+} // namespace torch_gds

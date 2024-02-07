@@ -34,7 +34,8 @@ def run_benchmark(func):
         x = torch.empty(size, device = "cuda")
         y = torch.linspace(0, 1, size, device = "cuda")
 
-        gds.save_data_no_gds(y, f"{size}.data")
+        with gds.GDSFile(f"{size}.data", "w") as f:
+            f.save_data(y)
 
         # warmup
         torch.cuda.synchronize()
@@ -50,8 +51,15 @@ def run_benchmark(func):
         print(f"{func.__name__}: size = {size}, {end_time - start_time}")
         assert(torch.allclose(x, y))
 
+def load_data_yes_gds(tensor, filename):
+    with gds.GDSFile(filename, "r") as f:
+        f.load_data(tensor)
+
+def load_data_no_gds(tensor, filename):
+    with gds.GDSFile(filename, "rn") as f:
+        f.load_data_no_gds(tensor)
+
 if __name__ == '__main__':
-    torch.cuda.set_device(0)
     run_benchmark_torch_load()
-    run_benchmark(gds.load_data_no_gds)
-    run_benchmark(gds.load_data)
+    run_benchmark(load_data_yes_gds)
+    run_benchmark(load_data_no_gds)
