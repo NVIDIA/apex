@@ -32,6 +32,8 @@ class SimpleModel(torch.nn.Module):
 def make_models(
         num_layers: int,
         size: int,
+        *,
+        lr: float = 0.1,
         adam_w_mode: bool = True,
         model_dtype: torch.dtype = torch.float32,
         optim_dtype: Optional[torch.dtype] = None,
@@ -39,12 +41,13 @@ def make_models(
         param_sync_dtype: Optional[torch.dtype] = None,
         device: torch.device = 'cuda',
         process_group: Optional[torch.distributed.ProcessGroup] = None,
-        average_grad_sync: bool =True,
+        average_grad_sync: bool = True,
         overlap_communication: bool = True,
+        bucket_cap_mb: float = 71/(4*1024*1024),
         contiguous_buffers: bool = False,
         store_params: bool = False,
         store_param_remainders: bool = False,
-        bucket_cap_mb: float = 71/(4*1024*1024),
+        with_scaled_states: bool = False,
 ):
 
     # Construct models with same parameters
@@ -67,18 +70,18 @@ def make_models(
     # Construct optimizers with same hyperparameters
     if optim_dtype is None:
         optim_dtype = model_dtype
-    optim_args = dict(lr=0.1, betas=(0.1,0.2), eps=0.25, weight_decay=0.1)
+    optim_args = dict(lr=lr, betas=(0.1,0.2), eps=0.25, weight_decay=0.1)
     ref_optim_class = torch.optim.AdamW if adam_w_mode else torch.optim.Adam
     ref_optim = ref_optim_class(
         [
-            {'params': list(ref_model.parameters())[1::2], 'lr': 0.2},
+            {'params': list(ref_model.parameters())[1::2], 'lr': lr*2},
             {'params': list(ref_model.parameters())[0::2]},
         ],
         **optim_args,
     )
     dist_optim = DistributedFusedAdam(
         [
-            {'params': list(dist_model.parameters())[1::2], 'lr': 0.2},
+            {'params': list(dist_model.parameters())[1::2], 'lr': lr*2},
             {'params': list(dist_model.parameters())[0::2]},
         ],
         adam_w_mode=adam_w_mode,
@@ -94,6 +97,7 @@ def make_models(
         contiguous_grad_buffer=contiguous_buffers,
         store_params=store_params,
         store_param_remainders=store_param_remainders,
+        with_scaled_states=with_scaled_states,
         **optim_args,
     )
 
@@ -130,10 +134,11 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             grad_sync_dtype: Optional[torch.dtype] = None,
             param_sync_dtype: Optional[torch.dtype] = None,
             device: torch.device = 'cuda',
+            bucket_cap_mb: float = 71/(4*1024*1024),
             contiguous_buffers: bool = False,
             store_params: bool = False,
             store_param_remainders: bool = False,
-            bucket_cap_mb: float = 71/(4*1024*1024),
+            with_scaled_states: bool = False,
             init_optim_func: Optional[Callable[[DistributedFusedAdam], None]] = None,
     ):
 
@@ -150,10 +155,11 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             param_sync_dtype=param_sync_dtype,
             device=device,
             overlap_communication=overlap_communication,
+            bucket_cap_mb=bucket_cap_mb,
             contiguous_buffers=contiguous_buffers,
             store_params=store_params,
             store_param_remainders=store_param_remainders,
-            bucket_cap_mb=bucket_cap_mb,
+            with_scaled_states=with_scaled_states,
         )
 
         # Initialize distributed optimizer
@@ -296,9 +302,9 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             param_sync_dtype=torch.int64,
         )
 
-    def test_matches_pytorch_int64_param_sync_contiguous_buffers(self):
+    def test_matches_pytorch_int32_param_sync_contiguous_buffers(self):
         self.test_matches_pytorch(
-            param_sync_dtype=torch.int64,
+            param_sync_dtype=torch.int32,
             contiguous_buffers=True,
         )
 
@@ -310,6 +316,18 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             optim_dtype=torch.float16,
             micro_batch_steps=1,
             param_sync_dtype=torch.uint8,
+        )
+
+    def test_matches_pytorch_scaled_state(self):
+        self.test_matches_pytorch(
+            rtol=5e-2,
+            atol=1e-5,
+            micro_batch_steps=1,
+            model_dtype=torch.bfloat16,
+            optim_dtype=torch.float16,
+            param_sync_dtype=torch.int,
+            store_params=True,
+            with_scaled_states=True,
         )
 
     def test_raises_on_mismatch(self):
@@ -492,8 +510,10 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             _, _, model_save, optim_save = make_models(
                 num_layers,
                 layer_size,
+                lr=0.1,
                 process_group=save_group,
                 average_grad_sync=False,
+                overlap_communication=False,
                 **save_model_kwargs,
             )
             optim_save.init_params(reversed(list(model_save.parameters())))
@@ -504,8 +524,10 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             _, _, model_load, optim_load = make_models(
                 num_layers,
                 layer_size,
+                lr=1234.,
                 process_group=load_group,
                 average_grad_sync=False,
+                overlap_communication=False,
                 **load_model_kwargs,
             )
             optim_load.init_params(list(model_load.parameters()))
@@ -718,6 +740,27 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             ),
         )
 
+    def test_checkpoint_scaled_state(self):
+        """Test checkpoint with scaled FP16 state"""
+        self.test_checkpoint(
+            rtol=5e-2,
+            atol=1e-5,
+            save_model_kwargs=dict(
+                model_dtype=torch.bfloat16,
+                optim_dtype=torch.float16,
+                param_sync_dtype=torch.int,
+                store_params=True,
+                with_scaled_states=True,
+            ),
+            load_model_kwargs=dict(
+                model_dtype=torch.bfloat16,
+                optim_dtype=torch.float16,
+                param_sync_dtype=torch.int,
+                store_params=True,
+                with_scaled_states=True,
+            ),
+        )
+
     def test_bucket_low_utilization_warning(self):
         """Test warning when bucket utilization is low"""
         layer_size = 2*1024*1024
@@ -729,8 +772,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             self.test_matches_pytorch(
                 num_layers=num_layers,
                 layer_size=layer_size,
+                overlap_communication=False,
                 bucket_cap_mb=fairish_bucket_cap_mb * 2,
-                contiguous_buffers=True,
             )
 
         # Check that warning is not raised when bucket utilization is high
@@ -738,8 +781,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             self.test_matches_pytorch(
                 num_layers=num_layers,
                 layer_size=layer_size,
+                overlap_communication=False,
                 bucket_cap_mb=fairish_bucket_cap_mb,
-                contiguous_buffers=True,
             )
             for w in warns:
                 self.assertNotRegex(str(w.message), ".*Consider decreasing the bucket_cap_mb argument.")
