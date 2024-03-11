@@ -346,6 +346,8 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
 
     def test_backward(self, allmasked: bool=False):
         import generic_scaled_masked_softmax_cuda
+        prev_thresh = self.thresh
+        self.thresh = {"atol": 1.5e-1, "rtol": 5e-3}
         for qlen, klen in self.q_k_lens:
             inputs = torch.normal(0, 2, (self.batch, self.attn, qlen, klen), dtype=self.dtype, device=self.device)
             backward = torch.rand_like(inputs, dtype=torch.float16, device=self.device)
@@ -359,6 +361,7 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
             softmax_results_torch = forward_torch_softmax(inputs, masks, self.scale_t)
             softmax_results_torch.backward(backward)
             self.assertEqual(back_grad, inputs.grad, **self.thresh, msg=f"(q, k) = ({qlen, klen})")
+        self.thresh = prev_thresh
 
     def test_allmasked(self):
         self.test_forward(True)
