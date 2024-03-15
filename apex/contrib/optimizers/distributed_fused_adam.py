@@ -3296,6 +3296,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             if getattr(bucket, "param_sync_dtype", None) is None:
                 bucket.param_sync_dtype = self.param_sync_dtype
 
+            if bucket.params_shard is not None:
+                bucket.params_shard = bucket.params_shard.to(self.device)
+            if bucket.param_remainders_shard is not None:
+                bucket.param_remainders_shard = bucket.param_remainders_shard.to(self.device)
+            bucket.exp_avg_shard = bucket.exp_avg_shard.to(self.device)
+            bucket.exp_avg_sq_shard = bucket.exp_avg_sq_shard.to(self.device)
+
     @torch.no_grad()
     def _load_state_dict_v2(self, state_dict: dict) -> None:
         """Load optimizer state (default v2 format)
