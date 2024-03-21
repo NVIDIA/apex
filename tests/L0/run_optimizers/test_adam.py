@@ -233,11 +233,18 @@ class AdamTest(unittest.TestCase):
             
             self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
 
-    @largeTensorTest('60GB', 'cuda')
+    @largeTensorTest('60GB', 'cuda') 
     def testLargeTensor(self):
         t = torch.zeros(2359332864, dtype=torch.half, device='cuda')
         t2 = torch.zeros(2359332864, dtype=torch.half, device='cuda')
-        grad = torch.randn_like(t)
+       
+        # Instead of using torch.randn_like, we use a combination of torch.zeros_like and uniform_
+        # to avoid creating gradients close to 0(like 0.01 in this case), which torch.optim.Adam could handle improperly,
+        # potentially updating parameters to inf values.
+        grad = torch.zeros_like(t).uniform_(0.1, 1000).cuda()
+        signs = (torch.randint(0, 2, grad.shape, dtype=grad.dtype) * 2 - 1).cuda()
+        grad = grad * signs
+       
         t.grad = grad
         t2.grad = grad
         params = [t]
@@ -245,6 +252,8 @@ class AdamTest(unittest.TestCase):
         optimizer = apex.optimizers.FusedAdam(params, lr=self.lr)
         optimizer.step()
         optimizer2 = torch.optim.Adam(params2, lr=self.lr)
+        optimizer2.step()
+
         torch.testing.assert_close(t, t2)
         torch.cuda.synchronize()
 
