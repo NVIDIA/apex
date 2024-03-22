@@ -209,3 +209,95 @@ def fused_apply_rotary_pos_emb_thd(
         Tensor: The input tensor after applying RoPE
     """
     return FusedRoPETHDFunc.apply(t, cu_seqlens, freqs)
+
+
+class FusedRoPE2DFunc(torch.autograd.Function):
+    """
+    Fused 2D RoPE function
+    """
+
+    @staticmethod
+    def forward(
+        ctx,
+        t: torch.Tensor,
+        img_h: int,
+        img_w: int,
+        cos_h: torch.Tensor,
+        sin_h: torch.Tensor,
+        cos_w: torch.Tensor,
+        sin_w: torch.Tensor,
+    ) -> torch.Tensor:
+        import fused_rotary_positional_embedding
+
+        t = t.view(t.shape[0], img_h, img_w, t.shape[2], t.shape[3])
+        output = fused_rotary_positional_embedding.forward_2d(
+            t, cos_h, sin_h, cos_w, sin_w
+        )
+        ctx.save_for_backward(cos_h, sin_h, cos_w, sin_w)
+        ctx.img_h = img_h
+        ctx.img_w = img_w
+
+        return output
+
+    @staticmethod
+    def backward(
+        ctx, grad_output: torch.Tensor
+    ) -> Tuple[Union[torch.Tensor, None], ...]:
+        import fused_rotary_positional_embedding
+
+        grad_output = grad_output.view(
+            grad_output.shape[0],
+            ctx.img_h,
+            ctx.img_w,
+            grad_output.shape[2],
+            grad_output.shape[3],
+        )
+        cos_h, sin_h, cos_w, sin_w = ctx.saved_tensors
+        grad_input = fused_rotary_positional_embedding.backward_2d(
+            grad_output, cos_h, sin_h, cos_w, sin_w
+        )
+
+        return grad_input, None, None, None, None, None, None
+
+
+def fused_apply_rotary_pos_emb_2d(
+    t: torch.Tensor,
+    img_h: int,
+    img_w: int,
+    cos_h: torch.Tensor,
+    sin_h: torch.Tensor,
+    cos_w: torch.Tensor,
+    sin_w: torch.Tensor,
+) -> torch.Tensor:
+    """Apply rotary positional embedding to input tensor T in `bshd` format, where
+    b: batch size
+    s: sequence length
+    h: head num
+    d: dim of each head
+
+    Args:
+        t (Tensor): Input tensor T is of shape [b, s, h, d]
+        img_h (int): s == img_h * img_w
+        img_w (int): s == img_h * img_w
+        cos_h (Tensor): shape [1, H, 1, d // 2] and dtype either `float` or
+            the same as `t`. H >= img_h.
+        sin_h (Tensor): shape [1, H, 1, d // 2] and dtype either `float` or
+            the same as `t`. H >= img_h.
+        cos_w (Tensor): shape [1, W, 1, d // 2] and dtype either `float` or
+            the same as `t`. W >= img_w.
+        sin_w (Tensor): shape [1, W, 1, d // 2] and dtype either `float` or
+            the same as `t`. W >= img_w.
+
+    Returns:
+        Tensor: The input tensor after applying RoPE
+    """
+    assert (
+        t.size(1) == img_h * img_w
+    ), "The sequence length should be equal to img_h * img_w"
+    assert (
+        cos_h.size() == sin_h.size()
+    ), "The shape of cos_h and sin_h should be the same"
+    assert (
+        cos_w.size() == sin_w.size()
+    ), "The shape of cos_w and sin_w should be the same"
+    return FusedRoPE2DFunc.apply(t, img_h, img_w, cos_h, sin_h, cos_w, sin_w)

@@ -332,4 +332,90 @@ torch::Tensor bwd_thd_cuda(const torch::Tensor &output_grads,
   return input_grads;
 }
 
-} // end namespace fused_rope
+torch::Tensor fwd_2d_cuda(const torch::Tensor &input,
+                          const torch::Tensor &cos_h,
+                          const torch::Tensor &sin_h,
+                          const torch::Tensor &cos_w,
+                          const torch::Tensor &sin_w) {
+  // input sizes: (b, ih, iw, h, d)
+  // b: batch size
+  // ih: image height
+  // iw: image width
+  // h: head num
+  // d: dim of each head
+  const int b = input.size(0);
+  const int ih = input.size(1);
+  const int iw = input.size(2);
+  const int h = input.size(3);
+  const int d = input.size(4);
+  // input strides
+  const int stride_b = input.stride(0);
+  const int stride_ih = input.stride(1);
+  const int stride_iw = input.stride(2);
+  const int stride_h = input.stride(3);
+  const int stride_d = input.stride(4);
+
+  // output
+  auto act_options = input.options().requires_grad(false);
+  auto output = torch::empty({b, ih * iw, h, d}, act_options);
+  // output strides
+  const int o_stride_b = output.stride(0);
+  const int o_stride_s = output.stride(1);
+  const int o_stride_h = output.stride(2);
+  const int o_stride_d = output.stride(3);
+
+  DISPATCH_FUSED_ROPE_TYPES(
+      input.scalar_type(), cos_h.scalar_type(),
+      "dispatch_fused_rope_2d_forward",
+      dispatch_fused_rope_2d_forward(
+          b, ih, iw, h, d, stride_b, stride_ih, stride_iw, stride_h, stride_d,
+          o_stride_b, o_stride_s, o_stride_h, o_stride_d,
+          input.data_ptr<scalar_t_0>(), cos_h.data_ptr<scalar_t_1>(),
+          sin_h.data_ptr<scalar_t_1>(), cos_w.data_ptr<scalar_t_1>(),
+          sin_w.data_ptr<scalar_t_1>(), output.data_ptr<scalar_t_0>()););
+  return output;
+}
+
+torch::Tensor bwd_2d_cuda(const torch::Tensor &output_grads,
+                          const torch::Tensor &cos_h,
+                          const torch::Tensor &sin_h,
+                          const torch::Tensor &cos_w,
+                          const torch::Tensor &sin_w) {
+  // output_grads sizes: (b, ih, iw, h, d)
+  // b: batch size
+  // ih: image height
+  // iw: image width
+  // h: head num
+  // d: dim of each head
+  const int b = output_grads.size(0);
+  const int ih = output_grads.size(1);
+  const int iw = output_grads.size(2);
+  const int h = output_grads.size(3);
+  const int d = output_grads.size(4);
+  // output_grads strides
+  const int stride_b = output_grads.stride(0);
+  const int stride_ih = output_grads.stride(1);
+  const int stride_iw = output_grads.stride(2);
+  const int stride_h = output_grads.stride(3);
+  const int stride_d = output_grads.stride(4);
+
+  auto act_options = output_grads.options().requires_grad(false);
+  auto input_grads = torch::empty({b, ih * iw, h, d}, act_options);
+  const int o_stride_b = input_grads.stride(0);
+  const int o_stride_s = input_grads.stride(1);
+  const int o_stride_h = input_grads.stride(2);
+  const int o_stride_d = input_grads.stride(3);
+
+  DISPATCH_FUSED_ROPE_TYPES(
+      output_grads.scalar_type(), cos_h.scalar_type(),
+      "dispatch_fused_rope_2d_backward",
+      dispatch_fused_rope_2d_backward(
+          b, ih, iw, h, d, stride_b, stride_ih, stride_iw, stride_h, stride_d,
+          o_stride_b, o_stride_s, o_stride_h, o_stride_d,
+          output_grads.data_ptr<scalar_t_0>(), cos_h.data_ptr<scalar_t_1>(),
+          sin_h.data_ptr<scalar_t_1>(), cos_w.data_ptr<scalar_t_1>(),
+          sin_w.data_ptr<scalar_t_1>(), input_grads.data_ptr<scalar_t_0>()););
+  return input_grads;
+}
+
+}  // end namespace fused_rope
