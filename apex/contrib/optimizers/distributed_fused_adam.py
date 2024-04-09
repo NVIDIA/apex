@@ -1465,6 +1465,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     continue
                 bucket_id = fragment.bucket_id
                 bucket = self.state["buckets"][bucket_id]
+                # If param is channels last, i.e. tensor with shape (N, C, H, W)
+                # and stride (HWC, 1, WC, C), then we will turn it into a tensor
+                # with shape (N, H, W, C) and stride (HWC, WC, C, 1). The purppose
+                # is to avoid failures when flattening the tensor (`.view(-1)`)
+                # and stepping the optimizer.
+                if param.is_contiguous(memory_format=torch.channels_last):
+                    param = param.permute(0, 2, 3, 1)
                 param_range = slice(*fragment.shard_param_range)
                 shard_range = slice(*fragment.shard_range)
                 model_param_fragment = param.detach().view(-1)[param_range]
@@ -1605,7 +1612,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
             # Copy param grad to bucket
             if param.grad is not None:
-                grad_in = param.grad.detach().view(-1)[grad_start:grad_end]
+                if param.grad.is_contiguous(memory_format=torch.channels_last):
+                    grad_in = param.grad.permute(0, 2, 3, 1)
+                else:
+                    grad_in = param.grad
+                grad_in = grad_in.detach().view(-1)[grad_start:grad_end]
                 grad_out = bucket.grads_bucket[bucket_start:bucket_end]
                 if grad_in.data_ptr() != grad_out.data_ptr():
                     grad_out.add_(grad_in)
@@ -1735,9 +1746,16 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         buffer_end = buffer_start + param.numel()
 
         # Construct view into grad buffer
+        # Preserve memory format for gradient here
         flat_buffer = self._grad_buffers[bucket.dtypes()]
-        flat_buffer = flat_buffer[buffer_start:buffer_end]
-        return flat_buffer.detach().view(param.size())
+        grad = torch.empty(1, dtype=param.dtype, device=param.device)
+        grad.set_(
+            source=flat_buffer,
+            storage_offset=buffer_start,
+            size=param.size(),
+            stride=param.stride(),
+        )
+        return grad
 
     def _force_bucket_grad_sync(self) -> None:
         """Ensure that all gradient buckets are synchronized"""
@@ -2485,6 +2503,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 shard_range = slice(shard_start, shard_end)
                 if state_bucket.params_shard is None:
                     param = self.parameter(fragment)
+                    if param.is_contiguous(memory_format=torch.channels_last):
+                        param = param.permute(0, 2, 3, 1)
                     param_range = slice(*fragment.shard_param_range)
                     param_fragment = param.detach().view(-1)[param_range]
                     param_fragment = param_fragment.to(
