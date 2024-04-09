@@ -2243,8 +2243,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 group=self.distributed_process_group,
             )
             self._grad_norm = grad_norm_sq.sqrt()
-        grad_norm = self._grad_norm * self._grad_scale
-        return grad_norm.detach()
+        if hasattr(self, "_step_supports_amp_scaling") and self._step_supports_amp_scaling:
+            return self._grad_norm.detach()
+        else:
+            # Notice that update of self._grad_scale changes grad_norm.
+            grad_norm = self._grad_norm * self._grad_scale
+            return grad_norm.detach()
 
     def clip_grad_norm(
         self,
@@ -2272,9 +2276,15 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """
         assert max_norm > 0
         total_norm = self.grad_norm(parameters=parameters, norm_type=norm_type)
-        clip_coef = max_norm / (total_norm + 1e-6)
-        clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
-        self._grad_scale *= clip_coef_clamped
+        if hasattr(self, "_step_supports_amp_scaling") and self._step_supports_amp_scaling:
+            # Gradients haven't been unscaled yet, thus total_norm is
+            # `scaler._scale` times larger and clip_coef_clamped is wrong.
+            # Thus the clipping must be deferred to optimizer step.
+            self._max_norm = max_norm
+        else:
+            clip_coef = max_norm / (total_norm + 1e-6)
+            clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
+            self._grad_scale *= clip_coef_clamped
         return total_norm
 
     def unscale_grads(self, inv_scale: torch.Tensor, *args):
@@ -2286,6 +2296,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             inv_scale (torch.Tensor): factor to multiply gradients
 
         """
+        # When `_step_supports_amp_scaling` set, gradient unscaling is performed
+        # in the optimizer step function.
+        if hasattr(self, "_step_supports_amp_scaling") and self._step_supports_amp_scaling:
+            raise Exception("`_step_supports_amp_scaling` was set, gradient "
+                "unscaling is expected to be applied in the optimizer step function.")
+
         self._grad_scale *= inv_scale.view([])
         return {self.device: torch.zeros(1, dtype=torch.float32, device=self.device)}
 
@@ -2330,6 +2346,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 assert grad_scaler._scale is not None
                 self._grad_scale /= grad_scaler._scale.view([])
             grad_norm = self.grad_norm()
+            if hasattr(self, "_step_supports_amp_scaling") and self._step_supports_amp_scaling:
+                # Gradient norm was computed before gradient unscaling.
+                grad_norm = grad_norm / grad_scaler._scale.view([])
+                clip_coef = self._max_norm / (grad_norm + 1e-6)
+                clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
+                self._grad_scale *= clip_coef_clamped
+
             found_inf = torch.logical_not(torch.isfinite(grad_norm))
             scaler_state = grad_scaler._per_optimizer_states[id(self)]
             scaler_state["found_inf_per_device"] = {found_inf.device: found_inf.float()}
