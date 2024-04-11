@@ -261,6 +261,11 @@ struct DistAdamCapturableFunctor
     adamMode_t mode,
     const float weight_decay) const
   {
+    assert(noop_gmem);
+    assert(grad_scale_ptr);
+    assert(step);
+    assert(lr);
+
     if(*noop_gmem == 1)
       return;
 
