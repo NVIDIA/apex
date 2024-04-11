@@ -2317,12 +2317,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 group=self.distributed_process_group,
             )
             self._grad_norm = grad_norm_sq.sqrt()
-        if hasattr(self, "_step_supports_amp_scaling") and self._step_supports_amp_scaling:
-            return self._grad_norm.detach()
-        else:
-            # Notice that update of self._grad_scale changes grad_norm.
-            grad_norm = self._grad_norm * self._grad_scale
-            return grad_norm.detach()
+        grad_norm = self._grad_norm * self._grad_scale
+        return grad_norm.detach()
 
     def clip_grad_norm(
         self,
@@ -2350,34 +2346,79 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         """
         assert max_norm > 0
         total_norm = self.grad_norm(parameters=parameters, norm_type=norm_type)
-        if hasattr(self, "_step_supports_amp_scaling") and self._step_supports_amp_scaling:
-            # Gradients haven't been unscaled yet, thus total_norm is
-            # `scaler._scale` times larger and clip_coef_clamped is wrong.
-            # Thus the clipping must be deferred to optimizer step.
-            self._max_norm = max_norm
-        else:
-            clip_coef = max_norm / (total_norm + 1e-6)
-            clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
-            self._grad_scale *= clip_coef_clamped
+        clip_coef = max_norm / (total_norm + 1e-6)
+        clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
+        self._grad_scale *= clip_coef_clamped
         return total_norm
 
-    def unscale_grads(self, inv_scale: torch.Tensor, *args):
+    @torch.no_grad
+    def unscale_grads(
+        self,
+        *args: Union[Optional[torch.Tensor], Any],
+        *,
+        inv_scale: Optional[torch.Tensor] = None,
+        grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
+    ):
         """Custom unscale function for use by AMP gradient scaler
 
-        Overflow checking is deferred to optimization step.
+        Either inv_scale or grad_scaler must be provided, but not
+        both. If grad_scaler is provided, this is equivalent to
+        calling its unscale_ function.
 
         Arguments:
-            inv_scale (torch.Tensor): factor to multiply gradients
+            inv_scale (torch.Tensor, optional): factor to multiply
+                gradients. May be provided either as a kwarg or as the
+                first positional arg.
+            grad_scaler (torch.cuda.amp.GradScaler): gradient scaler
+                (default: None)
 
         """
-        # When `_step_supports_amp_scaling` set, gradient unscaling is performed
-        # in the optimizer step function.
-        if hasattr(self, "_step_supports_amp_scaling") and self._step_supports_amp_scaling:
-            raise Exception("`_step_supports_amp_scaling` was set, gradient "
-                "unscaling is expected to be applied in the optimizer step function.")
 
+        # inv_scale is either kwarg or first positional arg
+        if inv_scale is None and len(args) >= 1:
+            inv_scale = args[0]
+
+        # Check for non-finite values
+        # Note: We compute gradient norm to check for non-finite
+        # values. This is more conservative and compute intensive than
+        # directly checking, but it avoids extra communication if we
+        # have already computed gradient norm e.g. for gradient
+        # clipping.
+        found_inf = torch.logical_not(torch.isfinite(self.grad_norm()))
+        found_inf_per_device = { found_inf.device: found_inf.float() }
+
+        # Get inv_scale from GradScaler if provided
+        if grad_scaler is not None and grad_scaler._enabled:
+            grad_scaler_state = grad_scaler._per_optimizer_states[id(self)]
+            GradScalerOptState = torch.cuda.amp.grad_scaler.OptState
+            if grad_scaler_state["stage"] is GradScalerOptState.UNSCALED:
+                raise RuntimeError(
+                    "unscale_grads has already been called since the last GradScaler update"
+                )
+            if grad_scaler_state["stage"] is GradScalerOptState.STEPPED:
+                raise RuntimeError(
+                    "unscale_grads is being called after optimizer step"
+                )
+            if grad_scaler._scale is None:
+                raise RuntimeError(
+                    "Attempted unscale_grads with GradScaler that is missing _scale"
+                )
+            if inv_scale is not None:
+                raise ValueError(
+                    "unscale_grads is being called with both scale_inv and grad_scaler"
+                )
+            inv_scale = grad_scaler._scale.double().reciprocal()
+            inv_scale = inv_scale.to(dtype=torch.float32, device=self.device)
+            grad_scaler_state["found_inf_per_device"] = found_inf_per_device
+            grad_scaler_state["stage"] = GradScalerOptState.UNSCALED
+
+        # Apply inv_scale to grad_scale
+        if inv_scale is None:
+            raise ValueError(
+                "unscale_grads is being called with neither scale_inv and grad_scaler"
+            )
         self._grad_scale *= inv_scale.view([])
-        return {self.device: torch.zeros(1, dtype=torch.float32, device=self.device)}
+        return found_inf_per_device
 
     def step(
         self,
@@ -2408,28 +2449,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self.grad_sync()
 
         # Apply gradient scaler if provided
-        # Note: We compute gradient norm to check for non-finite
-        # values. This is more conservative and compute intensive than
-        # directly checking, but it avoids extra communication if we
-        # have already computed gradient norm e.g. for gradient
-        # clipping.
-        if grad_scaler is not None:
+        if grad_scaler is not None and grad_scaler._enabled:
             grad_scaler_state = grad_scaler._per_optimizer_states[id(self)]
             GradScalerOptState = torch.cuda.amp.grad_scaler.OptState
             if grad_scaler_state["stage"] is GradScalerOptState.READY:
-                assert grad_scaler._scale is not None
-                self._grad_scale /= grad_scaler._scale.view([])
-            grad_norm = self.grad_norm()
-            if hasattr(self, "_step_supports_amp_scaling") and self._step_supports_amp_scaling:
-                # Gradient norm was computed before gradient unscaling.
-                grad_norm = grad_norm / grad_scaler._scale.view([])
-                clip_coef = self._max_norm / (grad_norm + 1e-6)
-                clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
-                self._grad_scale *= clip_coef_clamped
-
-            found_inf = torch.logical_not(torch.isfinite(grad_norm))
-            scaler_state = grad_scaler._per_optimizer_states[id(self)]
-            scaler_state["found_inf_per_device"] = {found_inf.device: found_inf.float()}
+                self.unscale_grads(grad_scaler=grad_scaler)
+            found_inf = grad_scaler_state["found_inf_per_device"][self.device]
             if self.capturable:
                 self._dummy_overflow_buf.copy_(found_inf)
             elif found_inf.item():
