@@ -372,6 +372,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             when IB SHARP is enabled in a one-rank-per-node communication
             group. This will help speedup the gemms overlapped with data-
             parallel communications.
+        capturable (bool, optional): whether to use the version of the
+            optimizer that can be used with CUDA Graphs. (default: False).
 
     .. _Adam\: A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
@@ -565,7 +567,18 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         store_param_remainders: bool = False,
         with_scaled_states: bool = False,
         nccl_ub: bool = False,
+        capturable: bool = False,
     ):
+        if (with_scaled_states or store_param_remainders) and capturable:
+            raise Exception(f"{self.__class__.__name__} with scaled states "
+                "or storing param remainders doesn't support CUDA graph yet.")
+
+        # If capturable for CUDA graph
+        self.capturable: bool = capturable
+        # If the optimizer is capturable then LR should be a tensor (on GPU)
+        lr: torch.Tensor | float = torch.tensor(lr, dtype=torch.float32) \
+            if capturable else lr
+
         defaults = dict(
             lr=lr,
             bias_correction=bias_correction,
@@ -717,7 +730,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         # Optimizer state
         self.state["buckets"]: List[StateBucket] = []
-        self.state["step"]: int = 0
+        self.state["step"]: torch.Tensor | int = torch.tensor([0], dtype=torch.int,
+            device=self.device) if self.capturable else 0
 
         # Gradient state
         self._grads_buckets: Dict[int, GradientBucket] = collections.defaultdict(
@@ -789,6 +803,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Attach hooks for param synchronization
         if self.overlap_param_sync:
             self._register_pre_forward_hooks()
+
+        # Move LR to device
+        if capturable:
+            for idx, group in enumerate(self.param_groups):
+                if len(group['params']) == 0:
+                    continue
+                for item in ['lr']:
+                    self.param_groups[idx][item] = group[item].to(device=self.device)
 
     @torch.no_grad()
     def _broadcast_params(self) -> None:
@@ -1546,11 +1568,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     param.grad.zero_()
 
         # Reset other state
-        self._grad_scale = torch.full([], 1.0, dtype=torch.float32, device=self.device)
+        self._grad_scale.fill_(1.0)
         self._grad_norm = None
-        self._dummy_overflow_buf = torch.zeros(
-            [1], dtype=torch.int32, device=self.device
-        )
+        self._dummy_overflow_buf.zero_()
 
     def _grad_copy(self, param: torch.nn.Parameter) -> None:
         """Copy parameter gradients to gradient buckets
@@ -2355,7 +2375,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             found_inf = torch.logical_not(torch.isfinite(grad_norm))
             scaler_state = grad_scaler._per_optimizer_states[id(self)]
             scaler_state["found_inf_per_device"] = {found_inf.device: found_inf.float()}
-            if found_inf.item():
+            if self.capturable:
+                self._dummy_overflow_buf.copy_(found_inf)
+            elif found_inf.item():
                 return
         self._grad_scale = self._grad_scale.to(dtype=torch.float32, device=self.device)
 
@@ -2418,7 +2440,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     )
 
         # Apply optimizer step
-        self.state["step"] += 1
+        self.state["step"] += 1 if not self.capturable else \
+            (self._dummy_overflow_buf != 1).to(torch.int)
         overlap_first_bucket = (
             self.distributed_size > 1
             and self.overlap_param_sync
@@ -2552,11 +2575,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 )
 
         # Apply optimizer step to each param group
+        adam_func = distributed_adam_cuda.multi_tensor_fused_adam_capturable \
+            if self.capturable else distributed_adam_cuda.multi_tensor_fused_adam
         for (group_id, _, _, _), group_buffers in buffers.items():
             group = self.param_groups[group_id]
             beta1, beta2 = group["betas"]
             multi_tensor_applier(
-                distributed_adam_cuda.multi_tensor_fused_adam,
+                adam_func,
                 self._dummy_overflow_buf,
                 list(zip(*group_buffers)),
                 self._grad_scale,
