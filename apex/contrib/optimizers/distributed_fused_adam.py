@@ -590,6 +590,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         # Adam options
         self.adam_w_mode: bool = adam_w_mode
+        self.amsgrad: bool = amsgrad
         if amsgrad:
             raise RuntimeError(
                 "DistributedFusedAdam does not support the AMSGrad variant."
@@ -722,6 +723,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Determine bucket sizes
         dtype_size = torch.finfo(self.grad_sync_dtype).bits // 8
         self.alignment: int = 128 // dtype_size
+        self.bucket_cap_mb: float = bucket_cap_mb
         bucket_size = 1024 * 1024 * bucket_cap_mb / dtype_size
         shard_size = int(bucket_size / self.distributed_size)
         shard_size = _round_to_multiple(shard_size, self.alignment, round_up=False)
@@ -811,6 +813,35 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     continue
                 for item in ['lr']:
                     self.param_groups[idx][item] = group[item].to(device=self.device)
+
+        # For better representation string
+        arg_names = inspect.getfullargspec(DistributedFusedAdam.__init__).args
+        arg_names.remove('self')
+        arg_names.remove('params')
+        for i, group in enumerate(self.param_groups):
+            for key in sorted(group.keys()):
+                if key in arg_names:
+                    arg_names.remove(key)
+        self.args_dict = {name: getattr(self, name) for name in arg_names}
+
+    def __repr__(self) -> str:
+        # Based on: https://github.com/pytorch/pytorch/blob/v2.3.0-rc12/torch/optim/optimizer.py#L315
+        format_string = self.__class__.__name__ + ' ('
+        for i, group in enumerate(self.param_groups):
+            format_string += '\n'
+            format_string += f'Parameter Group {i}\n'
+            for key in sorted(group.keys()):
+                if key != 'params':
+                    format_string += f'    {key}: {group[key]}\n'
+
+        for key, val in self.args_dict.items():
+            if 'process_group' in key:
+                format_string += f'{key}: {hex(id(val))}, world size {val.size()}\n'
+            else:
+                format_string += f'{key}: {val}\n'
+
+        format_string += ')'
+        return format_string
 
     @torch.no_grad()
     def _broadcast_params(self) -> None:
