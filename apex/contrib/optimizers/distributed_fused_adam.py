@@ -2355,10 +2355,9 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def unscale_grads(
         self,
         *args: Union[Optional[torch.Tensor], Any],
-        *,
         inv_scale: Optional[torch.Tensor] = None,
         grad_scaler: Optional[torch.cuda.amp.GradScaler] = None,
-    ):
+    ) -> None:
         """Custom unscale function for use by AMP gradient scaler
 
         Either inv_scale or grad_scaler must be provided, but not
