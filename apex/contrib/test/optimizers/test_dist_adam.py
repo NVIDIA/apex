@@ -48,6 +48,7 @@ def make_models(
         store_params: bool = False,
         store_param_remainders: bool = False,
         with_scaled_states: bool = False,
+        nccl_ub: bool = False,
 ):
 
     # Construct models with same parameters
@@ -98,6 +99,7 @@ def make_models(
         store_params=store_params,
         store_param_remainders=store_param_remainders,
         with_scaled_states=with_scaled_states,
+        nccl_ub=nccl_ub
         **optim_args,
     )
 
@@ -139,6 +141,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             store_params: bool = False,
             store_param_remainders: bool = False,
             with_scaled_states: bool = False,
+            nccl_ub: bool = False,
             init_optim_func: Optional[Callable[[DistributedFusedAdam], None]] = None,
     ):
 
@@ -160,6 +163,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             store_params=store_params,
             store_param_remainders=store_param_remainders,
             with_scaled_states=with_scaled_states,
+            nccl_ub=nccl_ub,
         )
 
         # Initialize distributed optimizer
@@ -329,6 +333,9 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             store_params=True,
             with_scaled_states=True,
         )
+    
+    def test_matches_pytorch_nccl_ub(self):
+        self.test_matches_pytorch(nccl_ub=True)
 
     def test_raises_on_mismatch(self):
 
