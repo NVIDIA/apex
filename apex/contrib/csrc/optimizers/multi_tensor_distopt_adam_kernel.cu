@@ -178,7 +178,9 @@ struct DistAdamFunctor
         load_store(p_in + i_start, local_p);
         load_store(m + i_start, local_m);
         load_store(v + i_start, local_v);
-        load_store(p_out + i_start, local_p_out);
+        if (static_cast<void*>(p_out) != static_cast<void*>(p_in)) {
+          load_store(p_out + i_start, local_p_out);
+        }
       } else {
 #pragma unroll
         for (int ii = 0, i = i_start; ii < ILP; ii++, i++) {
@@ -186,7 +188,9 @@ struct DistAdamFunctor
             p_in[i] = local_p[ii];
             m[i] = local_m[ii];
             v[i] = local_v[ii];
-	    p_out[i] = local_p_out[ii];
+            if (static_cast<void*>(p_out) != static_cast<void*>(p_in)) {
+              p_out[i] = local_p_out[ii];
+            }
           }
         }
       }
