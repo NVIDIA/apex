@@ -3438,4 +3438,3 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         # Synchronize GPU
         torch.cuda.current_stream().synchronize()
-
