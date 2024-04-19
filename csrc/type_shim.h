@@ -364,6 +364,7 @@ __device__ __forceinline__ T reduce_block_into_lanes
     // Make sure the smem result is visible to all warps.
   }
   __syncthreads();
+  // Avoid potential write before read race when reduce_block_into_lanes is called back to back
 
   return final;
 }
