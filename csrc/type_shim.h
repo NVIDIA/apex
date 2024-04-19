@@ -362,8 +362,8 @@ __device__ __forceinline__ T reduce_block_into_lanes
     if(tid < lanes)
       x[tid] = final; // EpilogueOp
     // Make sure the smem result is visible to all warps.
-    __syncthreads();
   }
+  __syncthreads();
 
   return final;
 }
