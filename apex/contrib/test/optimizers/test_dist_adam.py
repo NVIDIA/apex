@@ -99,7 +99,7 @@ def make_models(
         store_params=store_params,
         store_param_remainders=store_param_remainders,
         with_scaled_states=with_scaled_states,
-        nccl_ub=nccl_ub
+        nccl_ub=nccl_ub,
         **optim_args,
     )
 
@@ -335,7 +335,10 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         )
     
     def test_matches_pytorch_nccl_ub(self):
-        self.test_matches_pytorch(nccl_ub=True)
+        self.test_matches_pytorch(
+            contiguous_buffers=True,
+            nccl_ub=True,
+        )
 
     def test_raises_on_mismatch(self):
 
