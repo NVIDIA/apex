@@ -42,6 +42,18 @@ torch::Tensor bwd_thd_cuda(const torch::Tensor &output_grads,
                            const torch::Tensor &cu_seqlens,
                            const torch::Tensor &freqs);
 
+torch::Tensor fwd_2d_cuda(const torch::Tensor &input,
+                          const torch::Tensor &cos_h,
+                          const torch::Tensor &sin_h,
+                          const torch::Tensor &cos_w,
+                          const torch::Tensor &sin_w);
+
+torch::Tensor bwd_2d_cuda(const torch::Tensor &output_grads,
+                          const torch::Tensor &cos_h,
+                          const torch::Tensor &sin_h,
+                          const torch::Tensor &cos_w,
+                          const torch::Tensor &sin_w);
+
 torch::Tensor fwd(const at::Tensor &input, const at::Tensor &freqs,
                   const bool transpose_output) {
   TORCH_CHECK(input.dim() == 4, "expected 4D tensor");
@@ -162,6 +174,50 @@ torch::Tensor bwd_thd(const torch::Tensor &output_grads,
   return bwd_thd_cuda(output_grads, cu_seqlens, freqs);
 }
 
+torch::Tensor fwd_2d(const torch::Tensor &input, const torch::Tensor &cos_h,
+                     const torch::Tensor &sin_h, const torch::Tensor &cos_w,
+                     const torch::Tensor &sin_w) {
+  TORCH_CHECK(input.dim() == 5, "expected input to be 5D tensor");
+  TORCH_CHECK(cos_h.dim() == 4, "expected cos_h to be 4D tensor");
+  TORCH_CHECK(sin_h.dim() == 4, "expected sin_h to be 4D tensor");
+  TORCH_CHECK(cos_w.dim() == 4, "expected cos_w to be 4D tensor");
+  TORCH_CHECK(sin_w.dim() == 4, "expected sin_w to be 4D tensor");
+  TORCH_CHECK(cos_h.size(2) == 1, "expected third dim of cos_h/sin_h equals 1");
+  TORCH_CHECK(input.size(1) <= cos_h.size(1),
+              "expected input's height <= cos_h/sin_h's");
+  TORCH_CHECK(input.size(4) / 2 == cos_h.size(3),
+              "expected cos_h/sin_h's head dim equals input's head dim / 2");
+  TORCH_CHECK(cos_w.size(2) == 1, "expected third dim of cos_w/sin_w equals 1");
+  TORCH_CHECK(input.size(2) <= cos_w.size(1),
+              "expected input's width <= cos_w/sin_w's");
+  TORCH_CHECK(input.size(4) / 2 == cos_w.size(3),
+              "expected cos_w/sin_w's head dim equals input's head dim / 2");
+
+  return fwd_2d_cuda(input, cos_h, sin_h, cos_w, sin_w);
+}
+
+torch::Tensor bwd_2d(const torch::Tensor &output_grads,
+                     const torch::Tensor &cos_h, const torch::Tensor &sin_h,
+                     const torch::Tensor &cos_w, const torch::Tensor &sin_w) {
+  TORCH_CHECK(output_grads.dim() == 5, "expected output_grads to be 5D tensor");
+  TORCH_CHECK(cos_h.dim() == 4, "expected cos_h to be 4D tensor");
+  TORCH_CHECK(sin_h.dim() == 4, "expected sin_h to be 4D tensor");
+  TORCH_CHECK(cos_w.dim() == 4, "expected cos_w to be 4D tensor");
+  TORCH_CHECK(sin_w.dim() == 4, "expected sin_w to be 4D tensor");
+  TORCH_CHECK(cos_h.size(2) == 1, "expected third dim of cos_h/sin_h equals 1");
+  TORCH_CHECK(output_grads.size(1) <= cos_h.size(1),
+              "expected output_grads' height <= cos_h/sin_h's");
+  TORCH_CHECK(output_grads.size(4) / 2 == cos_h.size(3),
+              "expected cos_h/sin_h's head dim equals output_grads' head dim / 2");
+  TORCH_CHECK(cos_w.size(2) == 1, "expected third dim of cos_w/sin_w equals 1");
+  TORCH_CHECK(output_grads.size(2) <= cos_w.size(1),
+              "expected output_grads' width <= cos_w/sin_w's");
+  TORCH_CHECK(output_grads.size(4) / 2 == cos_w.size(3),
+              "expected cos_w/sin_w's head dim equals output_grads' head dim / 2");
+
+  return bwd_2d_cuda(output_grads, cos_h, sin_h, cos_w, sin_w);
+}
+
 }  // end namespace fused_rope
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
@@ -179,4 +235,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         "Fused Rotary Positional Embedding for thd layout -- Forward.");
   m.def("backward_thd", &fused_rope::bwd_thd,
         "Fused Rotary Positional Embedding for thd layout -- Backward.");
+  // 2d
+  m.def("forward_2d", &fused_rope::fwd_2d,
+        "2D Fused Rotary Positional Embedding -- Forward.");
+  m.def("backward_2d", &fused_rope::bwd_2d,
+        "2D Fused Rotary Positional Embedding -- Backward.");
 }
