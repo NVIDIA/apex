@@ -219,6 +219,7 @@ def _multi_tensor_copy(
                 list(zip(*buffers)),
             )
         else:
+            # Warning: dummy_overflow_buf was not set in such case
             for buf_in, buf_out in buffers:
                 buf_out.copy_(buf_in)
 
@@ -572,6 +573,12 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         if (with_scaled_states or store_param_remainders) and capturable:
             raise Exception(f"{self.__class__.__name__} with scaled states "
                 "or storing param remainders doesn't support CUDA graph yet.")
+
+        if capturable and not _FOUND_DEPRECATED_FUSED_ADAM:
+            raise Exception(f"Capturable {self.__class__.__name__} relies on "
+                "multi_tensor_copy to set dummy_overflow_buf to indicate "
+                "whether there's gradient Inf/NaN, build APEX with "
+                "`--deprecated_fused_adam` is essential.")
 
         # If capturable for CUDA graph
         self.capturable: bool = capturable
