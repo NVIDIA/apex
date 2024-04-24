@@ -155,7 +155,7 @@ c10::DataPtr NCCLAllocator::allocate(size_t size) {
       r,
       raw_deleter(),
       c10::Device(
-          c10::DeviceType::CUDA, static_cast<int>(device))};
+          c10::DeviceType::CUDA, device)};
   return data_ptr;
 }
 
@@ -167,7 +167,7 @@ void* NCCLAllocator::raw_alloc(size_t nbytes) {
   c10::DeviceIndex device = -1;
   C10_CUDA_CHECK(c10::cuda::GetDevice(&device));
   cudaStream_t stream =
-      c10::cuda::getCurrentCUDAStream(static_cast<int>(device));
+      c10::cuda::getCurrentCUDAStream(device);
   return malloc(nbytes, device, stream);
 }
 
@@ -192,10 +192,8 @@ void NCCLAllocator::raw_delete(void* ptr) {
       stream = metadata.stream;
       cuda_rt_allocation_metadata_.erase(ptr);
       cuda_rt_cache_metadata_.emplace(size, metadata);
-      // C10_CUDA_CHECK(cudaFree(ptr));
     } else if (nccl_allocation_metadata_.count(ptr)) {
       nccl_allocation_metadata_[ptr].is_free = true;
-      // C10_NCCL_CHECK(ncclMemFree(ptr));
     } else {
       TORCH_CHECK(false, "Trying to free a pointer not allocated here");
     }

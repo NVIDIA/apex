@@ -1,9 +1,10 @@
 ## General information
 
-`nccl_allocator` is a module that enables `ncclMemAlloc` to be used within PyTorch for faster NCCL NVLS collective communications.
+`nccl_allocator` is a module that enables `ncclMemAlloc`[^1] to be used within PyTorch for faster NCCL NVLS collective communications.
 It is mainly based on `CUDAPluggableAllocator`.
 The context manager `nccl_allocator.nccl_mem(enabled=True)` is used as a switch between `cudaMalloc` and `ncclMemAlloc` (if `enabled=True` it will use `cudaMalloc`).
 
+[^1]: https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/bufferreg.html
 
 ### Example usage:
 
