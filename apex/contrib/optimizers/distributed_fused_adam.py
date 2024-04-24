@@ -21,6 +21,12 @@ import warnings
 
 import torch
 from torch.distributed.distributed_c10d import _get_default_group
+
+try:
+    import apex.contrib.nccl_allocator as nccl_allocator
+except ImportError:
+    nccl_allocator = None
+
 from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
 import distributed_adam_cuda
@@ -361,6 +367,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             Models`_, this helps maintain a reasonable dynamic range
             even when the state is in a low-precision datatype like
             FP16.
+        nccl_ub (bool, optional): enable NCCL user buffers for zero-copy
+            (default: False). It allows the collectives to use only 1 SM
+            when IB SHARP is enabled in a one-rank-per-node communication 
+            group. This will help speedup the gemms overlapped with data-
+            parallel communications.
 
     .. _Adam\: A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
@@ -553,6 +564,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         store_params: bool = True,
         store_param_remainders: bool = False,
         with_scaled_states: bool = False,
+        nccl_ub: bool = False,
     ):
         defaults = dict(
             lr=lr,
@@ -718,6 +730,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self.contiguous_param_buffer: bool = contiguous_param_buffer
         # Whether to allocate contiguous buffers for gradients
         self.contiguous_grad_buffer: bool = contiguous_grad_buffer
+        # Whether to use NCCL User Buffer
+        self.nccl_ub: bool = nccl_ub
         # Contiguous buffers for parameters
         self._param_buffers: Dict[
             Tuple[torch.dtype, torch.dtype, torch.dtype], torch.Tensor
@@ -726,6 +740,16 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self._grad_buffers: Dict[
             Tuple[torch.dtype, torch.dtype, torch.dtype], torch.Tensor
         ] = {}
+        # Output buffer for gradient shards, only required for NCCL user buffer
+        if self.nccl_ub: 
+            if not nccl_allocator:
+                raise RuntimeError("NCCL allocator importing failed but nccl ub is still requested")
+            elif not self.contiguous_grad_buffer:
+                raise RuntimeError("NCCL user buffers require contiguous grad buffers")
+            else:
+                self._shard_grad_buffers: Dict[
+                    Tuple[torch.dtype, torch.dtype, torch.dtype], torch.Tensor
+                ] = {}
 
         # Side streams for optimizer step and communication
         self._pipeline_streams: List[torch.cuda.Stream] = [
@@ -1089,11 +1113,20 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             )
         for dtypes, buffer_size in buffer_sizes.items():
             _, grad_sync_dtype, _ = dtypes
-            self._grad_buffers[dtypes] = torch.zeros(
-                [buffer_size],
-                dtype=grad_sync_dtype,
-                device=self.device,
-            )
+            if not self.nccl_ub:
+                self._grad_buffers[dtypes] = torch.zeros(
+                    [buffer_size], dtype=grad_sync_dtype, device=self.device,
+                )
+            else:
+                with nccl_allocator.nccl_mem():
+                    self._grad_buffers[dtypes] = torch.zeros(
+                        [buffer_size], dtype=grad_sync_dtype, device=self.device,
+                    )
+                shard_buffer_size = buffer_size // self.distributed_size
+                with nccl_allocator.nccl_mem():
+                    self._shard_grad_buffers[dtypes] = torch.zeros(
+                        [shard_buffer_size], dtype=grad_sync_dtype, device=self.device,
+                    )
 
     def parameters(self) -> Iterable[torch.nn.Parameter]:
         """Returns an iterator over optimizer parameters"""
@@ -1478,6 +1511,16 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 self._grads_buckets[bucket_id].grads_bucket = grad_buffer[
                     buffer_start:buffer_end
                 ]
+                if self.nccl_ub:
+                    shard_size = bucket.shard_size
+                    shard_buffer_start = (
+                        bucket.contiguous_buffer_offset // self.distributed_size
+                    )
+                    shard_buffer_end = shard_buffer_start + shard_size
+                    shard_grad_buffer = self._shard_grad_buffers[bucket.dtypes()]
+                    self._grads_buckets[bucket_id].sync_grads_shard = shard_grad_buffer[
+                        shard_buffer_start:shard_buffer_end
+                    ]
 
         # Reset param grads
         for param in self.parameters():
@@ -1794,7 +1837,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             self._finish_bucket_grad_sync()
 
         # Reduction operation
-        if self.average_grad_sync:
+        if self.average_grad_sync and not self.nccl_ub:
             reduce_op = torch.distributed.ReduceOp.AVG
         else:
             reduce_op = torch.distributed.ReduceOp.SUM
@@ -1807,7 +1850,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             bucket.grads_generated.clear()
             if self.distributed_size == 1:
                 bucket.sync_grads_shard = bucket.grads_bucket
-            else:
+            elif bucket.sync_grads_shard is None:
                 bucket_size = bucket.grads_bucket.numel()
                 shard_size = bucket_size // self.distributed_size
                 bucket.sync_grads_shard = torch.empty(
@@ -1815,6 +1858,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     dtype=bucket.grads_bucket.dtype,
                     device=bucket.grads_bucket.device,
                 )
+
+            # Handle case with multiple grad accumulation steps
+            if bucket.grads_shard is not None:
+                if bucket.sync_grads_shard.data_ptr() == bucket.grads_shard.data_ptr():
+                    bucket.grads_shard = bucket.grads_shard.clone()
 
         # Side stream for communication
         main_stream = torch.cuda.current_stream()
@@ -1827,6 +1875,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 group = self.distributed_process_group
                 with _coalescing_manager(group, self.device, async_ops=True) as cm:
                     for bucket in buckets:
+                        if self.average_grad_sync and self.nccl_ub:
+                            bucket.grads_bucket /= self.distributed_size
                         _coalescing_manager_append_work(
                             cm,
                             reduce_scatter_tensor(
@@ -1869,7 +1919,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 else:
                     bucket.grads_shard.add_(bucket.sync_grads_shard)
                 bucket.grads_bucket = None
-                bucket.sync_grads_shard = None
 
                 # Reset status
                 bucket.status = self.GradientStatus.READY
