@@ -1153,7 +1153,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         # Make all params a view into the param buffer
         for param, buffer_view in zip(params, param_buffer_views):
-            param.data = buffer_view.view(param.size())
+            # Preserve memory format for param here, i.e. NHWC tensors
+            param.data.set_(
+                source=buffer_view,
+                storage_offset=0,
+                size=param.size(),
+                stride=param.stride(),
+            )
 
     def _init_grad_buffer(self) -> None:
         """Allocate contiguous buffer for grad buckets"""
