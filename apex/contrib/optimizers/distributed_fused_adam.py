@@ -1142,6 +1142,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         f"Attempted to change a parameter with dtype={param.dtype} "
                         f"into a buffer view with dtype={param_buffer_view.dtype}"
                     )
+            if param.is_contiguous(memory_format=torch.channels_last):
+                param = param.permute(0, 2, 3, 1)
             param_flat_views.append(param.detach().view(-1))
             param_buffer_views.append(param_buffer_view)
 
@@ -1759,6 +1761,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             # Corresponding positions in param bucket and param
             bucket = self._params_buckets[bucket_id]
             param = self.parameter(fragment)
+
+            # Conv with NHWC layout, i.e. shape (N, C, H, W) and stride
+            # (HWC, 1, WC, C), can't `.view(-1)`. Here to turn it to
+            # tensor with shape (N, H, W, C) and stride (HWC, WC, C, 1).
+            if param.is_contiguous(memory_format=torch.channels_last):
+                param = param.permute(0, 2, 3, 1)
+
             buffer_in = bucket.params_bucket[bucket_start:bucket_end]
             buffer_out = param.detach().view(-1)[param_start:param_end]
 
