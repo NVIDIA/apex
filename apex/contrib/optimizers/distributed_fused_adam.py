@@ -842,7 +842,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     format_string += f'    {key}: {group[key]}\n'
 
         for key, val in self.args_dict.items():
-            if 'process_group' in key:
+            if 'process_group' in key and val:
                 format_string += f'{key}: {hex(id(val))}, world size {val.size()}\n'
             else:
                 format_string += f'{key}: {val}\n'
