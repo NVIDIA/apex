@@ -132,7 +132,7 @@ python setup.py install
 | ``1.0.0`` | release/1.0.0 | ``2.0`` and older |
 
 
-The relation between APEX and ROCm PyTorch is maintained in file `related_commits` in ROCm PyTorch release branches in the following format. 
+The relation between APEX and ROCm PyTorch is maintained in file `related_commits` in [ROCm PyTorch release branches](https://github.com/ROCm/pytorch/branches/all?query=release) in the following format. 
 
 ```
 ubuntu|pytorch|apex|release/1.0.0|06c33eee43f7a22f3ed7d9c3e5be0ddd757dc345|https://github.com/ROCmSoftwarePlatform/apex
