@@ -191,17 +191,6 @@ class TestLamb(unittest.TestCase):
             p_ref.grad = half_grads[-1].float() / scale
         return half_grads
 
-    def get_max_diff(self, ref_param, tst_param):
-        max_abs_diff = max_rel_diff = 0
-        for p_ref, p_tst in zip(ref_param, tst_param):
-            max_abs_diff_p = (p_ref - p_tst).abs().max().item()
-            max_rel_diff_p = ((p_ref - p_tst) / p_ref).abs().max().item()
-
-            if max_abs_diff_p > max_abs_diff:  max_abs_diff = max_abs_diff_p
-            if max_rel_diff_p > max_rel_diff:  max_rel_diff = max_rel_diff_p
-
-        return max_abs_diff, max_rel_diff
-
     def gen_single_type_test(self, param_type=torch.float, device="cuda"):
         nelem = 18011
         tensor = torch.rand(nelem, dtype=param_type, device=device)
@@ -264,9 +253,7 @@ class TestFusedLAMB(TestLamb):
                 self.gen_grad(ref_param, tst_param)
                 ref_optim.step()
                 tst_optim.step()
-                max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
-                self.assertLessEqual(max_abs_diff, self.max_abs_diff)
-                self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+                torch.testing.assert_close(tst_param, ref_param)
 
     def test_lamb_option(self):
         nelem = 1
@@ -282,10 +269,7 @@ class TestFusedLAMB(TestLamb):
                 self.gen_grad(ref_param, tst_param)
                 ref_optim.step()
                 tst_optim.step()
-                max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
-
-                self.assertLessEqual(max_abs_diff, self.max_abs_diff)
-                self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+                torch.testing.assert_close(tst_param, ref_param)
 
 class TestFusedMixedPrecisionLamb(TestLamb):
     def __init__(self, *args, **kwargs):
@@ -328,9 +312,7 @@ class TestFusedMixedPrecisionLamb(TestLamb):
                 self.gen_grad(ref_param, tst_param)
                 ref_optim.step()
                 tst_optim.step()
-                max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
-                self.assertLessEqual(max_abs_diff, self.max_abs_diff)
-                self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+                torch.testing.assert_close(tst_param, ref_param)
 
     def test_lamb_option(self):
         nelem = 1
@@ -346,10 +328,7 @@ class TestFusedMixedPrecisionLamb(TestLamb):
                 self.gen_grad(ref_param, tst_param)
                 ref_optim.step()
                 tst_optim.step()
-                max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
-
-                self.assertLessEqual(max_abs_diff, self.max_abs_diff)
-                self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+                torch.testing.assert_close(tst_param, ref_param)
 
 if __name__ == '__main__':
     script_path = os.path.dirname(os.path.realpath(__file__))
