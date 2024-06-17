@@ -25,12 +25,14 @@ TEST_DIRS = [
     "run_fused_layer_norm",
     "run_mlp",
     "run_transformer",
+    "run_instance_norm_nvfuser",
 ]
 DEFAULT_TEST_DIRS = [
     "run_optimizers",
     "run_fused_layer_norm",
     "run_mlp",
     "run_transformer",
+    "run_instance_norm_nvfuser",
 ]
 
 
