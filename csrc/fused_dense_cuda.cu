@@ -129,7 +129,7 @@ cublasStatus_t gemm_bias(
       C,
       CUDA_R_16F,
       ldc,
-      CUBLAS_COMPUTE_16F,
+      CUBLAS_COMPUTE_32F,
       CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 
