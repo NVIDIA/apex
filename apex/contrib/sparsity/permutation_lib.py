@@ -1200,6 +1200,7 @@ class Permutation:
                     fx_graph[child]['C_param'] = children_GCD_param
                     
                 old_children_GCD = cls.__group_data['sibling_group_C_params'][sibling_group_id]
+                children_GCD_param = str(np.gcd.reduce([int(children_GCD_param), int(old_children_GCD)]))
                 cls.__group_data['sibling_group_C_params'][sibling_group_id] = children_GCD_param
 
                 # fixup this node's dimensions
