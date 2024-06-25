@@ -118,6 +118,8 @@ def get_apex_version():
             apex_version = f.read().strip()
     else:
         raise RuntimeError("version.txt file is missing")
+    if os.getenv("DESIRED_CUDA"):
+        apex_version += "+" + os.getenv("DESIRED_CUDA")
     return apex_version
 
 def append_nvcc_threads(nvcc_extra_args):
