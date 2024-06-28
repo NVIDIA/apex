@@ -453,7 +453,7 @@ def linear_with_grad_accumulation_and_async_allreduce(
         async_grad_allreduce,
         sequence_parallel_enabled,
     )
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         return LinearWithGradAccumulationAndAsyncCommunication.apply(*args)
 
 

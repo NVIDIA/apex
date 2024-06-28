@@ -294,7 +294,7 @@ def forward_step(
     input_tensor = [inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor]
 
     unwrapped_model.set_input_tensor(input_tensor)
-    with torch.cuda.amp.autocast(
+    with torch.amp.autocast('cuda', 
         enabled=not disable_autocast and dtype in (torch.half, torch.bfloat16),
         dtype=dtype,
     ):

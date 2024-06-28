@@ -36,7 +36,7 @@ class FastLayerNormFN(torch.autograd.Function):
 
 def _fast_layer_norm(x, weight, bias, epsilon, memory_efficient):
     args = _cast_if_autocast_enabled(x, weight, bias, epsilon, memory_efficient)
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         return FastLayerNormFN.apply(*args)
 
 

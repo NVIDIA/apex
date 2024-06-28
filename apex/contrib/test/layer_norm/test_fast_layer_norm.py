@@ -271,7 +271,7 @@ class TestFastLayerNorm(unittest.TestCase):
         for dtype in autocast_dtypes:
             layer_norm.zero_grad(set_to_none=True)
             with self.subTest(f"autocast_dtype={dtype}"):
-                with torch.cuda.amp.autocast(enabled=True, dtype=dtype):
+                with torch.amp.autocast('cuda', enabled=True, dtype=dtype):
                     out = layer_norm(input)
                     self.assertEqual(dtype, out.dtype)
                 grad = torch.randn_like(out)
