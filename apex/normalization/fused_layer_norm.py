@@ -193,37 +193,37 @@ class FusedRMSNormFunction(torch.autograd.Function):
 
 def fused_layer_norm_affine(input, weight, bias, normalized_shape, eps=1e-6, memory_efficient=False):
     args = _cast_if_autocast_enabled(input, weight, bias, normalized_shape, eps, memory_efficient)
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         return FusedLayerNormAffineFunction.apply(*args)
 
 
 def fused_layer_norm(input, normalized_shape, eps=1e-6, memory_efficient=False):
     args = _cast_if_autocast_enabled(input, normalized_shape, eps, memory_efficient)
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         return FusedLayerNormFunction.apply(*args)
 
 
 def mixed_dtype_fused_layer_norm_affine(input, weight, bias, normalized_shape, eps=1e-6, memory_efficient=False):
     args = _cast_if_autocast_enabled(input, weight, bias, normalized_shape, eps, memory_efficient)
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         return FusedLayerNormAffineMixedDtypesFunction.apply(*args)
 
 
 def fused_rms_norm_affine(input, weight, normalized_shape, eps=1e-6, memory_efficient=False):
     args = _cast_if_autocast_enabled(input, weight, normalized_shape, eps, memory_efficient)
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         return FusedRMSNormAffineFunction.apply(*args)
 
 
 def fused_rms_norm(input, normalized_shape, eps=1e-6, memory_efficient=False):
     args = _cast_if_autocast_enabled(input, normalized_shape, eps, memory_efficient)
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         return FusedRMSNormFunction.apply(*args)
 
 
 def mixed_dtype_fused_rms_norm_affine(input, weight, normalized_shape, eps=1e-6, memory_efficient=False):
     args = _cast_if_autocast_enabled(input, weight, normalized_shape, eps, memory_efficient)
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         return FusedRMSNormAffineMixedDtypesFunction.apply(*args)
 
 

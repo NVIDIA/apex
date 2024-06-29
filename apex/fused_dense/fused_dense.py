@@ -48,17 +48,17 @@ class FusedDenseGeluDenseFunc(torch.autograd.Function):
 
 def _fused_dense(input, weight, bias):
     args = _cast_if_autocast_enabled(input, weight, bias)
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         return FusedDenseFunc.apply(*args)
 
 def _dense_no_bias(input, weight):
     args = _cast_if_autocast_enabled(input, weight)
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         return DenseNoBiasFunc.apply(*args)
 
 def _fused_dense_gelu_dense(input, weight1, bias1, weight2, bias2):
     args = _cast_if_autocast_enabled(input, weight1, bias1, weight2, bias2)
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         return FusedDenseGeluDenseFunc.apply(*args)
 
 class FusedDense(nn.Module):

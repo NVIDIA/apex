@@ -64,11 +64,11 @@ class FusedDenseTest(unittest.TestCase):
 								    self.conv_stride, self.conv_pad))
 
     def test_conv_bias_relu(self):
-        with torch.cuda.amp.autocast(dtype=torch.half):
+        with torch.amp.autocast('cuda', dtype=torch.half):
             out = ConvBiasReLU(self.x, self.conv1.weight, self.conv1.bias.reshape(1, -1, 1, 1), self.conv_pad, self.conv_stride)
             loss = (out.float()**2).sum() / out.numel()
         loss.backward()
-        with torch.cuda.amp.autocast(dtype=torch.half):
+        with torch.amp.autocast('cuda', dtype=torch.half):
             out_ = F.relu(self.conv1_(self.x_))
             loss_ = (out_**2).sum() / out_.numel()
         loss_.backward()
@@ -79,12 +79,12 @@ class FusedDenseTest(unittest.TestCase):
         torch.testing.assert_close(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
     def test_conv_bias(self):
-        with torch.cuda.amp.autocast(dtype=torch.half):
+        with torch.amp.autocast('cuda', dtype=torch.half):
             out = ConvBias(self.x, self.conv1.weight, self.conv1.bias.reshape(1, -1, 1, 1), self.conv_pad, self.conv_stride)
             loss = (out.float()**2).sum() / out.numel()
         loss.backward()
 
-        with torch.cuda.amp.autocast(dtype=torch.half):
+        with torch.amp.autocast('cuda', dtype=torch.half):
             out_ = self.conv1_(self.x_)
             loss_ = (out_**2).sum() / out_.numel()
         loss_.backward()
@@ -95,11 +95,11 @@ class FusedDenseTest(unittest.TestCase):
         torch.testing.assert_close(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
     def test_conv_bias_mask_relu(self):
-        with torch.cuda.amp.autocast(dtype=torch.half):
+        with torch.amp.autocast('cuda', dtype=torch.half):
             out = ConvBiasMaskReLU(self.x, self.conv1.weight, self.conv1.bias.reshape(1, -1, 1, 1), self.mask, self.conv_pad, self.conv_stride)
             loss = (out.float()**2).sum() / out.numel()
         loss.backward()
-        with torch.cuda.amp.autocast(dtype=torch.half):
+        with torch.amp.autocast('cuda', dtype=torch.half):
             out_ = F.relu(self.conv1_(self.x_) * self.mask_)
             loss_ = (out_**2).sum() / out_.numel()
         loss_.backward()
@@ -110,11 +110,11 @@ class FusedDenseTest(unittest.TestCase):
         torch.testing.assert_close(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
     def test_conv_frozen_scale_bias_relu(self):
-        with torch.cuda.amp.autocast(dtype=torch.half):
+        with torch.amp.autocast('cuda', dtype=torch.half):
             out = ConvFrozenScaleBiasReLU(self.x, self.conv2.weight, self.scale, self.bias, self.conv_pad, self.conv_stride)
             loss = (out.float()**2).sum() / out.numel()
         loss.backward()
-        with torch.cuda.amp.autocast(dtype=torch.half):
+        with torch.amp.autocast('cuda', dtype=torch.half):
             out_ = F.relu(self.conv2_(self.x_) * self.scale_ + self.bias_)
             loss_ = (out_**2).sum() / out_.numel()
         loss_.backward()

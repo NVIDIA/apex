@@ -115,7 +115,7 @@ class TestCudnnGBN(NcclDistributedTestBase):
             ref_grad_out = grad_out.half().clone().detach()
             grad_out = grad_out[self.rank : self.rank + 1, ...].half().clone().detach()
 
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast('cuda'):
             out = cudnn_gbn_model(input)
             ref_out = ref_model(ref_input.half())
         out.backward(grad_out)

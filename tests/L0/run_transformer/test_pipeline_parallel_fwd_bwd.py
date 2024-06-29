@@ -144,7 +144,7 @@ class PipelineParallelForwardBackwardTestBase:
             dtype_options, self.deallocate_options,
         ):
             grad_scaler = (
-                torch.cuda.amp.GradScaler(init_scale=4.0)
+                torch.amp.GradScaler('cuda', init_scale=4.0)
                 if dtype == torch.half
                 else None
             )

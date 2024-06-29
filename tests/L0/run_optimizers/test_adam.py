@@ -66,8 +66,8 @@ class AdamTest(unittest.TestCase):
     def testGradScaler(self):
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
         optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=False)
-        scaler = torch.cuda.amp.GradScaler(enabled=True)
-        scaler_ = torch.cuda.amp.GradScaler(enabled=True)
+        scaler = torch.amp.GradScaler('cuda', enabled=True)
+        scaler_ = torch.amp.GradScaler('cuda', enabled=True)
 
         for i in range(100):
             x = torch.rand([32, 1, 28, 28]).cuda().to(memory_format=torch.channels_last)
@@ -76,7 +76,7 @@ class AdamTest(unittest.TestCase):
             gt_ = gt.clone()
 
             # Reference
-            with torch.cuda.amp.autocast(enabled=True):
+            with torch.amp.autocast('cuda', enabled=True):
                 y = self.model(x)
                 loss = ((gt - y) ** 2).mean()
 
@@ -85,7 +85,7 @@ class AdamTest(unittest.TestCase):
             scaler.update()
             
             # DUT
-            with torch.cuda.amp.autocast(enabled=True):
+            with torch.amp.autocast('cuda', enabled=True):
                 y = self.model_(x)
                 loss_ = ((gt_ - y) ** 2).mean()
 
@@ -109,8 +109,8 @@ class AdamTest(unittest.TestCase):
     def testGradScalerCapturable(self):
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
         optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=True)
-        scaler = torch.cuda.amp.GradScaler(enabled=True)
-        scaler_ = torch.cuda.amp.GradScaler(enabled=True)
+        scaler = torch.amp.GradScaler('cuda', enabled=True)
+        scaler_ = torch.amp.GradScaler('cuda', enabled=True)
 
         for i in range(100):
             x = torch.rand([32, 1, 28, 28]).cuda().to(memory_format=torch.channels_last)
@@ -119,7 +119,7 @@ class AdamTest(unittest.TestCase):
             gt_ = gt.clone()
 
             # Reference
-            with torch.cuda.amp.autocast(enabled=True):
+            with torch.amp.autocast('cuda', enabled=True):
                 y = self.model(x)
                 loss = ((gt - y) ** 2).mean()
 
@@ -128,7 +128,7 @@ class AdamTest(unittest.TestCase):
             scaler.update()
             
             # DUT
-            with torch.cuda.amp.autocast(enabled=True):
+            with torch.amp.autocast('cuda', enabled=True):
                 y = self.model_(x)
                 loss_ = ((gt_ - y) ** 2).mean()
 
@@ -156,8 +156,8 @@ class AdamTest(unittest.TestCase):
                 m.half()
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
         optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=True, master_weights=True)
-        scaler = torch.cuda.amp.GradScaler(enabled=True)
-        scaler_ = torch.cuda.amp.GradScaler(enabled=True)
+        scaler = torch.amp.GradScaler('cuda', enabled=True)
+        scaler_ = torch.amp.GradScaler('cuda', enabled=True)
 
         for i in range(100):
             x = torch.rand([32, 1, 28, 28]).cuda().to(memory_format=torch.channels_last)
@@ -166,7 +166,7 @@ class AdamTest(unittest.TestCase):
             gt_ = gt.clone()
 
             # Reference
-            with torch.cuda.amp.autocast(enabled=True):
+            with torch.amp.autocast('cuda', enabled=True):
                 y = self.model(x)
                 loss = ((gt - y) ** 2).mean()
 
@@ -175,7 +175,7 @@ class AdamTest(unittest.TestCase):
             scaler.update()
 
             # DUT
-            with torch.cuda.amp.autocast(enabled=True):
+            with torch.amp.autocast('cuda', enabled=True):
                 y = self.model_(x)
                 loss_ = ((gt_ - y) ** 2).mean()
 

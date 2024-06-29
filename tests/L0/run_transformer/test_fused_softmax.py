@@ -128,7 +128,7 @@ class TestFusedScaleMaskSoftmax(common_utils.TestCase):
             mask = torch.randint(0, 2, (4, 1, 24, 24)).bool().cuda()
 
             expected = torch_fn(attention_scores_1, mask)
-            with torch.cuda.amp.autocast(dtype=dtype):
+            with torch.amp.autocast('cuda', dtype=dtype):
                 actual = fused_fn(attention_scores_0, mask)
                 self.assertEqual(actual.dtype, dtype, msg=msg)
             self.assertEqual(actual, expected, msg=msg)
@@ -206,7 +206,7 @@ class TestFusedScaleMaskSoftmax(common_utils.TestCase):
             mask = None
 
             expected = torch_fn(attention_scores_1, mask)
-            with torch.cuda.amp.autocast(dtype=dtype):
+            with torch.amp.autocast('cuda', dtype=dtype):
                 actual = fused_fn(attention_scores_0, mask)
                 self.assertEqual(actual.dtype, dtype, msg=msg)
             self.assertEqual(actual, expected, msg=msg)
@@ -294,7 +294,7 @@ class TestFusedScaleMaskSoftmax(common_utils.TestCase):
                 .unsqueeze(0)
             )
 
-            with torch.cuda.amp.autocast(dtype=dtype):
+            with torch.amp.autocast('cuda', dtype=dtype):
                 actual = fused_fn(attn_weights_0, total_mask)
                 self.assertEqual(actual.dtype, dtype, msg=msg)
             expected = torch_fn(attn_weights_1, total_mask)

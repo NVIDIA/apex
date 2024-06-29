@@ -223,7 +223,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
         native_x, fused_x = _prep_inputs(batch_size, normalized_shape, dtype)
 
         expected = native(native_x)
-        with torch.cuda.amp.autocast(dtype=dtype):
+        with torch.amp.autocast('cuda', dtype=dtype):
             actual = fused(fused_x)
         tols = {'rtol': None, 'atol': None} if dtype == torch.half else bf16_fwd_thresholds
         # original tests used torch.testing.assert_allclose, which disables dtype checking by default. 
@@ -261,7 +261,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
         native_x, fused_x = _prep_inputs(batch_size, normalized_shape, dtype)
 
         expected = native(native_x.cpu())
-        with torch.cuda.amp.autocast(dtype=dtype):
+        with torch.amp.autocast('cuda', dtype=dtype):
             actual = fused(fused_x)
         tols = {'rtol': None, 'atol': None} if dtype == torch.half else bf16_fwd_thresholds
         torch.testing.assert_close(actual, expected.detach().clone().cuda(), **tols, check_dtype=False)

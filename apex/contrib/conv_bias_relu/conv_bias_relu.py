@@ -11,7 +11,7 @@ check_cudnn_version_and_warn(__name__, 8400)
 
 class ConvBiasReLU_(torch.autograd.Function):
     @staticmethod
-    @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
+    @torch.amp.custom_fwd(cast_inputs=torch.half, device_type='cuda')
     def forward(ctx, x, weight, bias, padding, stride):
         outputs = fused_conv_bias_relu.forward([x, weight, bias], padding, stride)
         ctx.save_for_backward(x, weight, outputs[0])
@@ -21,7 +21,7 @@ class ConvBiasReLU_(torch.autograd.Function):
         return outputs[0]
 
     @staticmethod
-    @torch.cuda.amp.custom_bwd
+    @torch.amp.custom_bwd(device_type='cuda')
     def backward(ctx, grad_output):
         bwd_args = [*ctx.saved_tensors, grad_output]
         padding = ctx.padding
@@ -33,7 +33,7 @@ class ConvBiasReLU_(torch.autograd.Function):
 
 class ConvBiasMaskReLU_(torch.autograd.Function):
     @staticmethod
-    @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
+    @torch.amp.custom_fwd(cast_inputs=torch.half, device_type='cuda')
     def forward(ctx, x, weight, bias, mask, padding, stride):
         outputs = fused_conv_bias_relu.forward_mask([x, weight, bias, mask], padding, stride)
         ctx.save_for_backward(x, weight, outputs[0])
@@ -43,7 +43,7 @@ class ConvBiasMaskReLU_(torch.autograd.Function):
         return outputs[0]
 
     @staticmethod
-    @torch.cuda.amp.custom_bwd
+    @torch.amp.custom_bwd(device_type='cuda')
     def backward(ctx, grad_output):
         bwd_args = [*ctx.saved_tensors, grad_output]
         padding = ctx.padding
@@ -55,7 +55,7 @@ class ConvBiasMaskReLU_(torch.autograd.Function):
 
 class ConvBias_(torch.autograd.Function):
     @staticmethod
-    @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
+    @torch.amp.custom_fwd(cast_inputs=torch.half, device_type='cuda')
     def forward(ctx, x, weight, bias, padding, stride):
         outputs = fused_conv_bias_relu.forward_no_relu([x, weight, bias], padding, stride)
         ctx.save_for_backward(x, weight)
@@ -65,7 +65,7 @@ class ConvBias_(torch.autograd.Function):
         return outputs[0]
 
     @staticmethod
-    @torch.cuda.amp.custom_bwd
+    @torch.amp.custom_bwd(device_type='cuda')
     def backward(ctx, grad_output):
         bwd_args = [*ctx.saved_tensors, grad_output]
         padding = ctx.padding
@@ -77,7 +77,7 @@ class ConvBias_(torch.autograd.Function):
 
 class ConvFrozenScaleBiasReLU_(torch.autograd.Function):
     @staticmethod
-    @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
+    @torch.amp.custom_fwd(cast_inputs=torch.half, device_type='cuda')
     def forward(ctx, x, weight, scale, bias, padding, stride):
         output = fused_conv_bias_relu.forward_cscale_cbias_relu([x, weight, scale, bias], padding, stride)
         ctx.save_for_backward(x, weight, scale, output)
@@ -87,7 +87,7 @@ class ConvFrozenScaleBiasReLU_(torch.autograd.Function):
         return output
 
     @staticmethod
-    @torch.cuda.amp.custom_bwd
+    @torch.amp.custom_bwd(device_type='cuda')
     def backward(ctx, grad_output):
         bwd_args = [*ctx.saved_tensors, grad_output]
         padding = ctx.padding

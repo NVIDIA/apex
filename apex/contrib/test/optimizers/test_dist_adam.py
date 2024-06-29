@@ -416,8 +416,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             backoff_factor=0.876,
             growth_interval=1,
         )
-        ref_scaler =  torch.cuda.amp.GradScaler(**grad_scaler_args)
-        dist_scaler =  torch.cuda.amp.GradScaler(**grad_scaler_args)
+        ref_scaler =  torch.amp.GradScaler('cuda', **grad_scaler_args)
+        dist_scaler =  torch.amp.GradScaler('cuda', **grad_scaler_args)
 
         # Training steps with pre-determined gradients
         xs = [3, 1, 4, 1, 5, 9]

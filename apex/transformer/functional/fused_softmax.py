@@ -56,7 +56,7 @@ def scaled_upper_triang_masked_softmax(inputs, _, scale):
     # Reshaping input to 3D tensor (attn_batches, sq, sk)
     inputs = inputs.view(-1, sq, sk)
     args = _cast_if_autocast_enabled(inputs, scale)
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         probs = ScaledUpperTriangMaskedSoftmax.apply(*args)
     return probs.view(b, np, sq, sk)
 
@@ -95,11 +95,11 @@ def scaled_masked_softmax(inputs, mask, scale):
     # input is 4D tensor (b, np, sq, sk)
     if mask is not None:
         args = _cast_if_autocast_enabled(inputs, mask, scale)
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast('cuda', enabled=False):
             return ScaledMaskedSoftmax.apply(*args)
     else:
         args = _cast_if_autocast_enabled(inputs, scale)
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast('cuda', enabled=False):
             return ScaledSoftmax.apply(*args)
 
 
@@ -126,7 +126,7 @@ class GenericScaledMaskedSoftmax(torch.autograd.Function):
 def generic_scaled_masked_softmax(inputs, mask, scale):
     # input is 4D tensor (b, np, sq, sk)
     args = _cast_if_autocast_enabled(inputs, mask, scale)
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda', enabled=False):
         return GenericScaledMaskedSoftmax.apply(*args)
 
 
