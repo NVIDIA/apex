@@ -76,12 +76,15 @@ if not torch.cuda.is_available():
     print(
         "\nWarning: Torch did not find available GPUs on this system.\n",
         "If your intention is to cross-compile, this is not an error.\n"
-        "By default, Apex will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2),\n"
-        "Volta (compute capability 7.0), Turing (compute capability 7.5),\n"
-        "and, if the CUDA version is >= 11.0, Ampere (compute capability 8.0).\n"
-        "If you wish to cross-compile for a single specific architecture,\n"
-        'export TORCH_CUDA_ARCH_LIST="compute capability" before running setup.py.\n',
     )
+    if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None:
+        print(
+            "By default, Apex will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2),\n"
+            "Volta (compute capability 7.0), Turing (compute capability 7.5),\n"
+            "and, if the CUDA version is >= 11.0, Ampere (compute capability 8.0).\n"
+            "If you wish to cross-compile for a single specific architecture,\n"
+            'export TORCH_CUDA_ARCH_LIST="compute capability" before running setup.py.\n',
+        )
     if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None and CUDA_HOME is not None:
         _, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
         if bare_metal_version >= Version("11.8"):
