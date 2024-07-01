@@ -17,9 +17,9 @@
 #include "nccl_p2p_cuda.cuh"
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("get_unique_nccl_id", &apex::contrib::nccl_p2p::get_unique_nccl_id, "get_unique_nccl_id");
-  m.def("init_nccl_comm", &apex::contrib::nccl_p2p::init_nccl_comm, "init_nccl_comm");
-  m.def("left_right_halo_exchange_inplace", &apex::contrib::nccl_p2p::left_right_halo_exchange_inplace, "left_right_halo_exchange_inplace");
-  m.def("left_right_halo_exchange", &apex::contrib::nccl_p2p::left_right_halo_exchange, "left_right_halo_exchange");
-  m.def("add_delay", &apex::contrib::nccl_p2p::add_delay, "add_delay");
+  m.def("get_unique_nccl_id", &apex::contrib::nccl_p2p::get_unique_nccl_id, "get_unique_nccl_id", py::call_guard<py::gil_scoped_release>());
+  m.def("init_nccl_comm", &apex::contrib::nccl_p2p::init_nccl_comm, "init_nccl_comm", py::call_guard<py::gil_scoped_release>());
+  m.def("left_right_halo_exchange_inplace", &apex::contrib::nccl_p2p::left_right_halo_exchange_inplace, "left_right_halo_exchange_inplace", py::call_guard<py::gil_scoped_release>());
+  m.def("left_right_halo_exchange", &apex::contrib::nccl_p2p::left_right_halo_exchange, "left_right_halo_exchange", py::call_guard<py::gil_scoped_release>());
+  m.def("add_delay", &apex::contrib::nccl_p2p::add_delay, "add_delay", py::call_guard<py::gil_scoped_release>());
 }

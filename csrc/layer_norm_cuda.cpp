@@ -443,17 +443,17 @@ std::vector<at::Tensor> rms_norm_gradient_affine(
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward_affine", &layer_norm_affine, "LayerNorm forward (CUDA)");
-  m.def("forward", &layer_norm, "LayerNorm forward (CUDA)");
-  m.def("backward_affine", &layer_norm_gradient_affine, "LayerNorm backward (CUDA)");
-  m.def("backward", &layer_norm_gradient, "LayerNorm backward (CUDA)");
+  m.def("forward_affine", &layer_norm_affine, "LayerNorm forward (CUDA)", py::call_guard<py::gil_scoped_release>());
+  m.def("forward", &layer_norm, "LayerNorm forward (CUDA)", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_affine", &layer_norm_gradient_affine, "LayerNorm backward (CUDA)", py::call_guard<py::gil_scoped_release>());
+  m.def("backward", &layer_norm_gradient, "LayerNorm backward (CUDA)", py::call_guard<py::gil_scoped_release>());
 
-  m.def("forward_affine_mixed_dtypes", &layer_norm_affine_mixed_dtypes, "LayerNorm forward with mixed dtypes (CUDA) compatible with Megatron's implementation");
+  m.def("forward_affine_mixed_dtypes", &layer_norm_affine_mixed_dtypes, "LayerNorm forward with mixed dtypes (CUDA) compatible with Megatron's implementation", py::call_guard<py::gil_scoped_release>());
 
-  m.def("rms_forward_affine", &rms_norm_affine, "RMSNorm forward (CUDA)");
-  m.def("rms_forward", &rms_norm, "RMSNorm forward (CUDA)");
-  m.def("rms_backward_affine", &rms_norm_gradient_affine, "RMSNorm backward (CUDA)");
-  m.def("rms_backward", &rms_norm_gradient, "RMSNorm backward (CUDA)");
+  m.def("rms_forward_affine", &rms_norm_affine, "RMSNorm forward (CUDA)", py::call_guard<py::gil_scoped_release>());
+  m.def("rms_forward", &rms_norm, "RMSNorm forward (CUDA)", py::call_guard<py::gil_scoped_release>());
+  m.def("rms_backward_affine", &rms_norm_gradient_affine, "RMSNorm backward (CUDA)", py::call_guard<py::gil_scoped_release>());
+  m.def("rms_backward", &rms_norm_gradient, "RMSNorm backward (CUDA)", py::call_guard<py::gil_scoped_release>());
 
-  m.def("rms_forward_affine_mixed_dtypes", &rms_norm_affine_mixed_dtypes, "RMSNorm forward with mixed dtypes (CUDA) compatible with Megatron's implementation");
+  m.def("rms_forward_affine_mixed_dtypes", &rms_norm_affine_mixed_dtypes, "RMSNorm forward with mixed dtypes (CUDA) compatible with Megatron's implementation", py::call_guard<py::gil_scoped_release>());
 }

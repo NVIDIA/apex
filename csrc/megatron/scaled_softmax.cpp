@@ -67,9 +67,9 @@ torch::Tensor bwd(
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", 
         &multihead_attn::fused_softmax::scaled_softmax::fwd, 
-	"Self Multihead Attention scaled, softmax -- Forward.");
+	"Self Multihead Attention scaled, softmax -- Forward.", py::call_guard<py::gil_scoped_release>());
   m.def("backward", 
         &multihead_attn::fused_softmax::scaled_softmax::bwd,
-	"Self Multihead Attention scaled, softmax -- Backward.");
+	"Self Multihead Attention scaled, softmax -- Backward.", py::call_guard<py::gil_scoped_release>());
 }
 

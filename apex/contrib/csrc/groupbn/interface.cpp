@@ -153,23 +153,23 @@ int nhwc_bn_addrelu_bwd_occupancy();
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 
-  m.def("get_buffer_size", &get_buffer_size, "get_buffer_size");
-  m.def("get_data_ptr", &get_data_ptr, "get_data_ptr");
-  m.def("get_remote_data_ptr", &get_remote_data_ptr, "get_remote_data_ptr");
-  m.def("close_remote_data", &close_remote_data, "close_remote_data");
+  m.def("get_buffer_size", &get_buffer_size, "get_buffer_size", py::call_guard<py::gil_scoped_release>());
+  m.def("get_data_ptr", &get_data_ptr, "get_data_ptr", py::call_guard<py::gil_scoped_release>());
+  m.def("get_remote_data_ptr", &get_remote_data_ptr, "get_remote_data_ptr", py::call_guard<py::gil_scoped_release>());
+  m.def("close_remote_data", &close_remote_data, "close_remote_data", py::call_guard<py::gil_scoped_release>());
 
-  m.def("bn_fwd_nhwc", &nhwc_bn_fwd_train, "bn_fwd_nhwc");
-  m.def("bn_fwd_eval_nhwc", &nhwc_bn_fwd_eval, "bn_fwd_eval_nhwc");
-  m.def("bn_bwd_nhwc", &nhwc_bn_bwd, "bn_bwd_nhwc");
+  m.def("bn_fwd_nhwc", &nhwc_bn_fwd_train, "bn_fwd_nhwc", py::call_guard<py::gil_scoped_release>());
+  m.def("bn_fwd_eval_nhwc", &nhwc_bn_fwd_eval, "bn_fwd_eval_nhwc", py::call_guard<py::gil_scoped_release>());
+  m.def("bn_bwd_nhwc", &nhwc_bn_bwd, "bn_bwd_nhwc", py::call_guard<py::gil_scoped_release>());
 
-  m.def("bn_fwd_nhwc_occupancy", &nhwc_bn_fwd_occupancy, "bn_fwd_nhwc_occupancy");
-  m.def("bn_bwd_nhwc_occupancy", &nhwc_bn_bwd_occupancy, "bn_bwd_nhwc_occupancy");
+  m.def("bn_fwd_nhwc_occupancy", &nhwc_bn_fwd_occupancy, "bn_fwd_nhwc_occupancy", py::call_guard<py::gil_scoped_release>());
+  m.def("bn_bwd_nhwc_occupancy", &nhwc_bn_bwd_occupancy, "bn_bwd_nhwc_occupancy", py::call_guard<py::gil_scoped_release>());
 
-  m.def("bn_addrelu_fwd_nhwc", &nhwc_bn_addrelu_fwd_train, "bn_addrelu_fwd_nhwc");
-  m.def("bn_addrelu_fwd_eval_nhwc", &nhwc_bn_addrelu_fwd_eval, "bn_addrelu_fwd_eval_nhwc");
-  m.def("bn_addrelu_bwd_nhwc", &nhwc_bn_addrelu_bwd, "bn_addrelu_bwd_nhwc");
+  m.def("bn_addrelu_fwd_nhwc", &nhwc_bn_addrelu_fwd_train, "bn_addrelu_fwd_nhwc", py::call_guard<py::gil_scoped_release>());
+  m.def("bn_addrelu_fwd_eval_nhwc", &nhwc_bn_addrelu_fwd_eval, "bn_addrelu_fwd_eval_nhwc", py::call_guard<py::gil_scoped_release>());
+  m.def("bn_addrelu_bwd_nhwc", &nhwc_bn_addrelu_bwd, "bn_addrelu_bwd_nhwc", py::call_guard<py::gil_scoped_release>());
 
-  m.def("bn_addrelu_fwd_nhwc_occupancy", &nhwc_bn_addrelu_fwd_occupancy, "bn_addrelu_fwd_nhwc_occupancy");
-  m.def("bn_addrelu_bwd_nhwc_occupancy", &nhwc_bn_addrelu_bwd_occupancy, "bn_addrelu_bwd_nhwc_occupancy");
+  m.def("bn_addrelu_fwd_nhwc_occupancy", &nhwc_bn_addrelu_fwd_occupancy, "bn_addrelu_fwd_nhwc_occupancy", py::call_guard<py::gil_scoped_release>());
+  m.def("bn_addrelu_bwd_nhwc_occupancy", &nhwc_bn_addrelu_bwd_occupancy, "bn_addrelu_bwd_nhwc_occupancy", py::call_guard<py::gil_scoped_release>());
 }
 

@@ -160,7 +160,7 @@ std::vector<at::Tensor> mlp_backward(
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &mlp_forward, "MLP forward");
-  m.def("backward", &mlp_backward, "MLP backward");
+  m.def("forward", &mlp_forward, "MLP forward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward", &mlp_backward, "MLP backward", py::call_guard<py::gil_scoped_release>());
 }
 

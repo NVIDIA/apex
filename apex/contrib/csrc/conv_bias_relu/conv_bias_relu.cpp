@@ -2142,12 +2142,12 @@ std::vector<at::Tensor> conv_bias_backward(std::vector<at::Tensor> inputs, int64
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &conv_bias_relu_forward, "Fused Conv-Bias-ReLU forward");
-  m.def("backward", &conv_bias_relu_backward, "Fused Conv-Bias-ReLU backward");
-  m.def("forward_no_relu", &conv_bias_forward, "Fused Conv-Bias forward");
-  m.def("backward_no_relu", &conv_bias_backward, "Fused Conv-Bias backward");
-  m.def("forward_mask", &conv_bias_mask_relu_forward, "Fused Conv-Bias-Mask-ReLU forward");
-  m.def("forward_cscale_cbias_relu", &conv_cscale_cbias_relu_forward, "Fused Conv-(const)Scale-(const)Bias-ReLU");
-  m.def("backward_cscale_cbias_relu", &conv_cscale_cbias_relu_backward, "Fused Conv-(const)Scale-(const)Bias-ReLU backward");
+  m.def("forward", &conv_bias_relu_forward, "Fused Conv-Bias-ReLU forward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward", &conv_bias_relu_backward, "Fused Conv-Bias-ReLU backward", py::call_guard<py::gil_scoped_release>());
+  m.def("forward_no_relu", &conv_bias_forward, "Fused Conv-Bias forward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_no_relu", &conv_bias_backward, "Fused Conv-Bias backward", py::call_guard<py::gil_scoped_release>());
+  m.def("forward_mask", &conv_bias_mask_relu_forward, "Fused Conv-Bias-Mask-ReLU forward", py::call_guard<py::gil_scoped_release>());
+  m.def("forward_cscale_cbias_relu", &conv_cscale_cbias_relu_forward, "Fused Conv-(const)Scale-(const)Bias-ReLU", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_cscale_cbias_relu", &conv_cscale_cbias_relu_backward, "Fused Conv-(const)Scale-(const)Bias-ReLU backward", py::call_guard<py::gil_scoped_release>());
 }
 

@@ -185,9 +185,9 @@ std::vector<at::Tensor> linear_gelu_linear_backward(at::Tensor input, at::Tensor
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("linear_bias_forward", &linear_bias_forward, "linear bias forward");
-  m.def("linear_bias_backward", &linear_bias_backward, "linear bias backward");
-  m.def("linear_gelu_linear_forward", &linear_gelu_linear_forward, "linear gelu linear forward");
-  m.def("linear_gelu_linear_backward", &linear_gelu_linear_backward, "linear gelu linear backward");
+  m.def("linear_bias_forward", &linear_bias_forward, "linear bias forward", py::call_guard<py::gil_scoped_release>());
+  m.def("linear_bias_backward", &linear_bias_backward, "linear bias backward", py::call_guard<py::gil_scoped_release>());
+  m.def("linear_gelu_linear_forward", &linear_gelu_linear_forward, "linear gelu linear forward", py::call_guard<py::gil_scoped_release>());
+  m.def("linear_gelu_linear_backward", &linear_gelu_linear_backward, "linear gelu linear backward", py::call_guard<py::gil_scoped_release>());
 }
 

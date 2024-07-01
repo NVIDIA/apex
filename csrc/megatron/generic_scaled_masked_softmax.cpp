@@ -75,9 +75,9 @@ namespace multihead_attn
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward",
         &multihead_attn::fused_softmax::generic_scaled_masked_softmax::fwd,
-	"Self Multihead Attention scaled, time masked softmax -- Forward.");
+	"Self Multihead Attention scaled, time masked softmax -- Forward.", py::call_guard<py::gil_scoped_release>());
 
   m.def("backward",
         &multihead_attn::fused_softmax::generic_scaled_masked_softmax::bwd,
-	"Self Multihead Attention scaled, time masked softmax -- Backward.");
+	"Self Multihead Attention scaled, time masked softmax -- Backward.", py::call_guard<py::gil_scoped_release>());
 }
