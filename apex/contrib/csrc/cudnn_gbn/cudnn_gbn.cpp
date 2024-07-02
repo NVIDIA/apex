@@ -158,6 +158,6 @@ std::vector<at::Tensor> gbn_backward(
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &gbn_forward, "Group batch norm forward");
-  m.def("backward", &gbn_backward, "Group batch backward");
+  m.def("forward", &gbn_forward, "Group batch norm forward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward", &gbn_backward, "Group batch backward", py::call_guard<py::gil_scoped_release>());
 }

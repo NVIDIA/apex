@@ -4048,26 +4048,26 @@ void bottleneck_backward_rest(bool explicit_nhwc, int stride_1X1, std::vector<at
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &bottleneck_forward, "Bottleneck block forward");
-  m.def("backward", &bottleneck_backward, "Bottleneck block backward");
-  m.def("forward_init", &bottleneck_forward_init, "Bottleneck block init");
-  m.def("forward_out1", &bottleneck_forward_out1, "Bottleneck block forward");
-  m.def("forward_out2", &bottleneck_forward_out2, "Bottleneck block forward");
-  m.def("forward_out2_mask", &bottleneck_forward_out2_mask, "Bottleneck block forward");
-  m.def("forward_out2_halo", &bottleneck_forward_out2_halo, "Bottleneck block forward");
-  m.def("forward_out2_halo_corr", &bottleneck_forward_out2_halo_corr, "Bottleneck block forward");
-  m.def("forward_out2_pad", &bottleneck_forward_out2_pad, "Bottleneck block forward");
-  m.def("forward_rest", &bottleneck_forward_rest, "Bottleneck block forward");
-  m.def("backward_init", &bottleneck_backward_init, "Bottleneck block backward init");
-  m.def("backward_grad_out2", &bottleneck_backward_grad_out2, "Bottleneck block backward");
-  m.def("backward_grad_out1", &bottleneck_backward_grad_out1, "Bottleneck block backward");
-  m.def("backward_grad_out1_mask", &bottleneck_backward_grad_out1_mask, "Bottleneck block backward");
-  m.def("backward_grad_out1_halo", &bottleneck_backward_grad_out1_halo, "Bottleneck block backward");
-  m.def("backward_grad_out1_halo_corr", &bottleneck_backward_grad_out1_halo_corr, "Bottleneck block backward");
-  m.def("backward_wgrad2_pad", &bottleneck_backward_wgrad2_pad, "Bottleneck block backward");
-  m.def("backward_wgrad2", &bottleneck_backward_wgrad2, "Bottleneck block backward");
-  m.def("backward_wgrad2_halo", &bottleneck_backward_wgrad2_halo, "Bottleneck block backward");
-  m.def("backward_wgrad3", &bottleneck_backward_wgrad3, "Bottleneck block backward");
-  m.def("backward_wgrad1", &bottleneck_backward_wgrad1, "Bottleneck block backward");
-  m.def("backward_rest", &bottleneck_backward_rest, "Bottleneck block backward");
+  m.def("forward", &bottleneck_forward, "Bottleneck block forward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward", &bottleneck_backward, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
+  m.def("forward_init", &bottleneck_forward_init, "Bottleneck block init", py::call_guard<py::gil_scoped_release>());
+  m.def("forward_out1", &bottleneck_forward_out1, "Bottleneck block forward", py::call_guard<py::gil_scoped_release>());
+  m.def("forward_out2", &bottleneck_forward_out2, "Bottleneck block forward", py::call_guard<py::gil_scoped_release>());
+  m.def("forward_out2_mask", &bottleneck_forward_out2_mask, "Bottleneck block forward", py::call_guard<py::gil_scoped_release>());
+  m.def("forward_out2_halo", &bottleneck_forward_out2_halo, "Bottleneck block forward", py::call_guard<py::gil_scoped_release>());
+  m.def("forward_out2_halo_corr", &bottleneck_forward_out2_halo_corr, "Bottleneck block forward", py::call_guard<py::gil_scoped_release>());
+  m.def("forward_out2_pad", &bottleneck_forward_out2_pad, "Bottleneck block forward", py::call_guard<py::gil_scoped_release>());
+  m.def("forward_rest", &bottleneck_forward_rest, "Bottleneck block forward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_init", &bottleneck_backward_init, "Bottleneck block backward init", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_grad_out2", &bottleneck_backward_grad_out2, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_grad_out1", &bottleneck_backward_grad_out1, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_grad_out1_mask", &bottleneck_backward_grad_out1_mask, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_grad_out1_halo", &bottleneck_backward_grad_out1_halo, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_grad_out1_halo_corr", &bottleneck_backward_grad_out1_halo_corr, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_wgrad2_pad", &bottleneck_backward_wgrad2_pad, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_wgrad2", &bottleneck_backward_wgrad2, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_wgrad2_halo", &bottleneck_backward_wgrad2_halo, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_wgrad3", &bottleneck_backward_wgrad3, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_wgrad1", &bottleneck_backward_wgrad1, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward_rest", &bottleneck_backward_rest, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
 }

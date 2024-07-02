@@ -96,14 +96,14 @@ at::Tensor relu_backward_c_last_CUDA(const at::Tensor grad_output,
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("welford_mean_var", &welford_mean_var_CUDA, "welford mean variance");
-  m.def("welford_parallel", &welford_parallel_CUDA, "welford parallel reduce mean variance");
-  m.def("batchnorm_forward", &batchnorm_forward_CUDA, "batchnorm forward");
-  m.def("reduce_bn", &reduce_bn_CUDA, "batchnorm backward reduce grad sum and bias/weight grad");
-  m.def("batchnorm_backward", &batchnorm_backward_CUDA, "batchnorm backward dgrad");
-  m.def("welford_mean_var_c_last", &welford_mean_var_c_last_CUDA, "welford mean variance nhwc");
-  m.def("batchnorm_forward_c_last", &batchnorm_forward_c_last_CUDA, "batchnorm forward nhwc");
-  m.def("reduce_bn_c_last", &reduce_bn_c_last_CUDA, "batchnorm backwards reduce grad sum and bias/weight grad nhwc");
-  m.def("batchnorm_backward_c_last", &batchnorm_backward_c_last_CUDA, "batchnorm backward dgrad nhwc");
-  m.def("relu_bw_c_last", &relu_backward_c_last_CUDA, "relu_bw_c_last");
+  m.def("welford_mean_var", &welford_mean_var_CUDA, "welford mean variance", py::call_guard<py::gil_scoped_release>());
+  m.def("welford_parallel", &welford_parallel_CUDA, "welford parallel reduce mean variance", py::call_guard<py::gil_scoped_release>());
+  m.def("batchnorm_forward", &batchnorm_forward_CUDA, "batchnorm forward", py::call_guard<py::gil_scoped_release>());
+  m.def("reduce_bn", &reduce_bn_CUDA, "batchnorm backward reduce grad sum and bias/weight grad", py::call_guard<py::gil_scoped_release>());
+  m.def("batchnorm_backward", &batchnorm_backward_CUDA, "batchnorm backward dgrad", py::call_guard<py::gil_scoped_release>());
+  m.def("welford_mean_var_c_last", &welford_mean_var_c_last_CUDA, "welford mean variance nhwc", py::call_guard<py::gil_scoped_release>());
+  m.def("batchnorm_forward_c_last", &batchnorm_forward_c_last_CUDA, "batchnorm forward nhwc", py::call_guard<py::gil_scoped_release>());
+  m.def("reduce_bn_c_last", &reduce_bn_c_last_CUDA, "batchnorm backwards reduce grad sum and bias/weight grad nhwc", py::call_guard<py::gil_scoped_release>());
+  m.def("batchnorm_backward_c_last", &batchnorm_backward_c_last_CUDA, "batchnorm backward dgrad nhwc", py::call_guard<py::gil_scoped_release>());
+  m.def("relu_bw_c_last", &relu_backward_c_last_CUDA, "relu_bw_c_last", py::call_guard<py::gil_scoped_release>());
 }

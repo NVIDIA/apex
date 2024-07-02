@@ -17,5 +17,5 @@ void multi_tensor_lamb_cuda(
   const float max_grad_norm);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-        m.def("lamb", &multi_tensor_lamb_cuda, "Computes and apply update for LAMB optimizer");
+        m.def("lamb", &multi_tensor_lamb_cuda, "Computes and apply update for LAMB optimizer", py::call_guard<py::gil_scoped_release>());
 }

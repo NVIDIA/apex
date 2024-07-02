@@ -252,6 +252,6 @@ std::vector<at::Tensor> ln_bwd(const at::Tensor &dz,                    // BxSxh
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.doc() = "CUDA LayerNorm"; 
-  m.def("ln_fwd", &ln_fwd, "Run LayerNorm forward kernel");
-  m.def("ln_bwd", &ln_bwd, "Run LayerNorm backward kernel");
+  m.def("ln_fwd", &ln_fwd, "Run LayerNorm forward kernel", py::call_guard<py::gil_scoped_release>());
+  m.def("ln_bwd", &ln_bwd, "Run LayerNorm backward kernel", py::call_guard<py::gil_scoped_release>());
 }

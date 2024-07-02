@@ -93,6 +93,6 @@ std::vector<torch::Tensor> transducer_joint_backward(
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &transducer_joint_forward, "transducer joint forward (CUDA)");
-  m.def("backward", &transducer_joint_backward, "transducer joint backward (CUDA)");
+  m.def("forward", &transducer_joint_forward, "transducer joint forward (CUDA)", py::call_guard<py::gil_scoped_release>());
+  m.def("backward", &transducer_joint_backward, "transducer joint backward (CUDA)", py::call_guard<py::gil_scoped_release>());
 }

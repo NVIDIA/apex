@@ -694,8 +694,8 @@ int run_build_swap_map(py::array_t<float>& py_matrix,
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
-    m.def("sum_after_2_to_4", &run_subset_sum_after_2_to_4, "matrix sum after applying 2:4 (CUDA)");
-    m.def("build_permute_map", &run_build_permute_map, "optimize stripe groups (CUDA)");
-    m.def("check_permutations", &run_check_permutations, "exhaustively check all permutations (CUDA)");
-    m.def("build_swap_map", &run_build_swap_map, "channel swaps (CUDA)");
+    m.def("sum_after_2_to_4", &run_subset_sum_after_2_to_4, "matrix sum after applying 2:4 (CUDA)", py::call_guard<py::gil_scoped_release>());
+    m.def("build_permute_map", &run_build_permute_map, "optimize stripe groups (CUDA)", py::call_guard<py::gil_scoped_release>());
+    m.def("check_permutations", &run_check_permutations, "exhaustively check all permutations (CUDA)", py::call_guard<py::gil_scoped_release>());
+    m.def("build_swap_map", &run_build_swap_map, "channel swaps (CUDA)", py::call_guard<py::gil_scoped_release>());
 }

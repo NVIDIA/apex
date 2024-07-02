@@ -64,7 +64,9 @@ at::Tensor focal_loss_backward(
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &focal_loss_forward,
-        "Focal loss calculation forward (CUDA)");
+        "Focal loss calculation forward (CUDA)",
+        py::call_guard<py::gil_scoped_release>());
   m.def("backward", &focal_loss_backward,
-        "Focal loss calculation backward (CUDA)");
+        "Focal loss calculation backward (CUDA)",
+        py::call_guard<py::gil_scoped_release>());
 }

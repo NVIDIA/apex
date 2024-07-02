@@ -76,11 +76,11 @@ void maybe_cast(at::Tensor & overflow_flag, at::Tensor & p_in, at::Tensor & p_ou
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-        m.def("strided_check_finite", &strided_check_finite, "Strided finite check.");
-        m.def("adam", &adam, "Adam optimized CUDA implementation.");
-        m.def("reversible_adam", &reversible_adam, "Reversible Adam optimized CUDA implementation.");
-        m.def("adam_mt", &fused_adam_cuda_mt, "Multi tensor Adam optimized CUDA implementation.");
-        m.def("maybe_adam_undo", &maybe_adam_undo, "Undo function for Adam optimized CUDA implementation.");
-        m.def("maybe_cast", &maybe_cast, "Unpack byte tensor containing e5m2 floats.");
-        m.def("maybe_cast_mt", &maybe_cast_cuda_mt, "Unpack byte tensor containing e5m2 floats.");
+        m.def("strided_check_finite", &strided_check_finite, "Strided finite check.", py::call_guard<py::gil_scoped_release>());
+        m.def("adam", &adam, "Adam optimized CUDA implementation.", py::call_guard<py::gil_scoped_release>());
+        m.def("reversible_adam", &reversible_adam, "Reversible Adam optimized CUDA implementation.", py::call_guard<py::gil_scoped_release>());
+        m.def("adam_mt", &fused_adam_cuda_mt, "Multi tensor Adam optimized CUDA implementation.", py::call_guard<py::gil_scoped_release>());
+        m.def("maybe_adam_undo", &maybe_adam_undo, "Undo function for Adam optimized CUDA implementation.", py::call_guard<py::gil_scoped_release>());
+        m.def("maybe_cast", &maybe_cast, "Unpack byte tensor containing e5m2 floats.", py::call_guard<py::gil_scoped_release>());
+        m.def("maybe_cast_mt", &maybe_cast_cuda_mt, "Unpack byte tensor containing e5m2 floats.", py::call_guard<py::gil_scoped_release>());
 }

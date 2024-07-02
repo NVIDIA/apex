@@ -17,13 +17,13 @@
 #include "peer_memory_cuda.cuh"
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("allocate_raw", &apex::contrib::peer_memory::allocate_raw, "allocate_raw");
-    m.def("free_raw", &apex::contrib::peer_memory::free_raw, "free_raw");
-    m.def("zero", &apex::contrib::peer_memory::zero, "zero");
-    m.def("get_raw_ipc_address", &apex::contrib::peer_memory::get_raw_ipc_address, "get_raw_ipc_address");
-    m.def("get_raw_peers", &apex::contrib::peer_memory::get_raw_peers, "get_raw_peers");
-    m.def("blob_view_half", &apex::contrib::peer_memory::blob_view_half, "blob_view_half");
-    m.def("blob_view_float", &apex::contrib::peer_memory::blob_view_float, "blob_view_float");
-    m.def("blob_view_int", &apex::contrib::peer_memory::blob_view_int, "blob_view_int");
-    m.def("push_pull_halos_1d", &apex::contrib::peer_memory::push_pull_halos_1d, "push_pull_halos_1d");
+    m.def("allocate_raw", &apex::contrib::peer_memory::allocate_raw, "allocate_raw", py::call_guard<py::gil_scoped_release>());
+    m.def("free_raw", &apex::contrib::peer_memory::free_raw, "free_raw", py::call_guard<py::gil_scoped_release>());
+    m.def("zero", &apex::contrib::peer_memory::zero, "zero", py::call_guard<py::gil_scoped_release>());
+    m.def("get_raw_ipc_address", &apex::contrib::peer_memory::get_raw_ipc_address, "get_raw_ipc_address", py::call_guard<py::gil_scoped_release>());
+    m.def("get_raw_peers", &apex::contrib::peer_memory::get_raw_peers, "get_raw_peers", py::call_guard<py::gil_scoped_release>());
+    m.def("blob_view_half", &apex::contrib::peer_memory::blob_view_half, "blob_view_half", py::call_guard<py::gil_scoped_release>());
+    m.def("blob_view_float", &apex::contrib::peer_memory::blob_view_float, "blob_view_float", py::call_guard<py::gil_scoped_release>());
+    m.def("blob_view_int", &apex::contrib::peer_memory::blob_view_int, "blob_view_int", py::call_guard<py::gil_scoped_release>());
+    m.def("push_pull_halos_1d", &apex::contrib::peer_memory::push_pull_halos_1d, "push_pull_halos_1d", py::call_guard<py::gil_scoped_release>());
 }

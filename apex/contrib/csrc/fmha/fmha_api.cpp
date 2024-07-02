@@ -359,7 +359,7 @@ std::vector<at::Tensor> mha_bwd_nl(const at::Tensor &dout,        // total x num
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.doc() = "Fused Multi-head Self-attention for BERT";  
-    m.def("fwd", &mha_fwd, "Forward pass");
-    m.def("bwd", &mha_bwd, "Backward pass");
-    m.def("bwd_nl", &mha_bwd_nl, "Backward pass (small-batch)");
+    m.def("fwd", &mha_fwd, "Forward pass", py::call_guard<py::gil_scoped_release>());
+    m.def("bwd", &mha_bwd, "Backward pass", py::call_guard<py::gil_scoped_release>());
+    m.def("bwd_nl", &mha_bwd_nl, "Backward pass (small-batch)", py::call_guard<py::gil_scoped_release>());
 }

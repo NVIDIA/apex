@@ -32,9 +32,11 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("multi_tensor_fused_adam",
         &multi_tensor_fused_adam_cuda,
         "CUDA kernels for multi-tensor Adam, "
-        "with param copy");
+        "with param copy",
+        py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_fused_adam_with_param_remainders",
         &multi_tensor_fused_adam_with_param_remainders_cuda,
         "CUDA kernel for multi-tensor Adam, "
-        "with stored param remainders and param copy");
+        "with stored param remainders and param copy",
+        py::call_guard<py::gil_scoped_release>());
 }

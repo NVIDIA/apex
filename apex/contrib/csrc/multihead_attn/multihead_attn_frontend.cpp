@@ -794,40 +794,46 @@ bwd(int heads, torch::Tensor const &output_grads,
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("additive_mask_softmax_dropout_forward",
         &multihead_attn::fused_softmax::additive_mask_softmax_dropout::fwd,
-        "Self Multihead Attention masked softmax dropout -- Forward.");
+        "Self Multihead Attention masked softmax dropout -- Forward.", 
+        py::call_guard<py::gil_scoped_release>());
   m.def("additive_mask_softmax_dropout_backward",
         &multihead_attn::fused_softmax::additive_mask_softmax_dropout::bwd,
-        "Self Multihead Attention masked softmax dropout -- Backward.");
+        "Self Multihead Attention masked softmax dropout -- Backward.",
+        py::call_guard<py::gil_scoped_release>());
   m.def("mask_softmax_dropout_forward", &multihead_attn::fused_softmax::mask_softmax_dropout::fwd,
-        "Self Multihead Attention masked softmax dropout -- Forward.");
+        "Self Multihead Attention masked softmax dropout -- Forward.",
+        py::call_guard<py::gil_scoped_release>());
   m.def("mask_softmax_dropout_backward", &multihead_attn::fused_softmax::mask_softmax_dropout::bwd,
-        "Self Multihead Attention masked softmax dropout -- Backward.");
+        "Self Multihead Attention masked softmax dropout -- Backward.",
+        py::call_guard<py::gil_scoped_release>());
   m.def("encdec_multihead_attn_forward", &multihead_attn::encdec::cublas_gemmex::fwd,
-        "Encdec Multihead Attention Forward.");
+        "Encdec Multihead Attention Forward.", py::call_guard<py::gil_scoped_release>());
   m.def("encdec_multihead_attn_backward", &multihead_attn::encdec::cublas_gemmex::bwd,
-        "Encdec Multihead Attention Backward.");
+        "Encdec Multihead Attention Backward.", py::call_guard<py::gil_scoped_release>());
   m.def("encdec_multihead_attn_norm_add_forward", &multihead_attn::encdec_norm_add::cublas_gemmex::fwd,
-        "Encdec Multihead Attention Plus Layer Norm and Residual Add Forward.");
+        "Encdec Multihead Attention Plus Layer Norm and Residual Add Forward.",
+        py::call_guard<py::gil_scoped_release>());
   m.def(
       "encdec_multihead_attn_norm_add_backward", &multihead_attn::encdec_norm_add::cublas_gemmex::bwd,
-      "Encdec Multihead Attention Plus Layer Norm and Residual Add Backward.");
+      "Encdec Multihead Attention Plus Layer Norm and Residual Add Backward.",
+      py::call_guard<py::gil_scoped_release>());
   m.def("self_attn_forward", &multihead_attn::self::cublas_gemmex::fwd,
-        "Self Multihead Attention Forward.");
+        "Self Multihead Attention Forward.", py::call_guard<py::gil_scoped_release>());
   m.def("self_attn_backward", &multihead_attn::self::cublas_gemmex::bwd,
-        "Self Multihead Attention Backward.");
+        "Self Multihead Attention Backward.", py::call_guard<py::gil_scoped_release>());
   m.def("self_attn_bias_forward", &multihead_attn::self_bias::cublas_gemmex::fwd,
-        "Self Multihead Attention with Bias -- Forward.");
+        "Self Multihead Attention with Bias -- Forward.", py::call_guard<py::gil_scoped_release>());
   m.def("self_attn_bias_backward", &multihead_attn::self_bias::cublas_gemmex::bwd,
-        "Self Multihead Attention with Bias -- Backward.");
+        "Self Multihead Attention with Bias -- Backward.", py::call_guard<py::gil_scoped_release>());
   m.def("self_attn_bias_additive_mask_forward", &multihead_attn::self_bias_additive_mask::cublas_gemmex::fwd,
-        "Self Multihead Attention with Bias -- Forward.");
+        "Self Multihead Attention with Bias -- Forward.", py::call_guard<py::gil_scoped_release>());
   m.def("self_attn_bias_additive_mask_backward",
         &multihead_attn::self_bias_additive_mask::cublas_gemmex::bwd,
-        "Self Multihead Attention with Bias -- Backward.");
+        "Self Multihead Attention with Bias -- Backward.", py::call_guard<py::gil_scoped_release>());
   m.def("self_attn_norm_add_forward", &multihead_attn::self_norm_add::cublas_gemmex::fwd,
-        "Self Multihead Attention Plus Layer Norm and Residual Add Forward.");
+        "Self Multihead Attention Plus Layer Norm and Residual Add Forward.", py::call_guard<py::gil_scoped_release>());
   m.def("self_attn_norm_add_backward", &multihead_attn::self_norm_add::cublas_gemmex::bwd,
-        "Self Multihead Attention Plus Layer Norm and Residual Add Backward.");
+        "Self Multihead Attention Plus Layer Norm and Residual Add Backward.", py::call_guard<py::gil_scoped_release>());
 }
 
 #undef CHECK_CUDA

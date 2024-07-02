@@ -30,7 +30,7 @@ void multi_tensor_lamb_update_weights_cuda(
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("multi_tensor_lamb_compute_update_term", &multi_tensor_lamb_compute_update_term_cuda,
-        "Computes update term for LAMB optimizer");
+        "Computes update term for LAMB optimizer", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_lamb_update_weights", &multi_tensor_lamb_update_weights_cuda,
-        "Applies update term for LAMB optimizer");
+        "Applies update term for LAMB optimizer", py::call_guard<py::gil_scoped_release>());
 }

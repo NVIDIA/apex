@@ -305,6 +305,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
       .value("OnePass", OnePass)
       .value("TwoPass", TwoPass)
       .export_values();
-  m.def("forward", &group_norm_fwd, "NHWC group norm forward");
-  m.def("backward", &group_norm_bwd, "NHWC group norm backward");
+  m.def("forward", &group_norm_fwd, "NHWC group norm forward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward", &group_norm_bwd, "NHWC group norm backward", py::call_guard<py::gil_scoped_release>());
 }

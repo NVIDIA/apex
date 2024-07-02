@@ -16,6 +16,6 @@ void wgrad_gemm_accum_fp16_cuda_stub(
 );
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("wgrad_gemm_accum_fp32", &wgrad_gemm_accum_fp32_cuda_stub, "wgrad gemm accum in fp32");
-    m.def("wgrad_gemm_accum_fp16", &wgrad_gemm_accum_fp16_cuda_stub, "wgrad gemm accum in fp16");
+    m.def("wgrad_gemm_accum_fp32", &wgrad_gemm_accum_fp32_cuda_stub, "wgrad gemm accum in fp32", py::call_guard<py::gil_scoped_release>());
+    m.def("wgrad_gemm_accum_fp16", &wgrad_gemm_accum_fp16_cuda_stub, "wgrad gemm accum in fp16", py::call_guard<py::gil_scoped_release>());
 }

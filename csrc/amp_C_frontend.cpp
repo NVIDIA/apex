@@ -190,37 +190,40 @@ at::Tensor update_scale_hysteresis_cuda(
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("multi_tensor_scale", &multi_tensor_scale_cuda,
-        "Fused overflow check + scale for a list of contiguous tensors");
+        "Fused overflow check + scale for a list of contiguous tensors", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_sgd", &multi_tensor_sgd_cuda,
-        "Fused SGD optimizer for list of contiguous tensors");
+        "Fused SGD optimizer for list of contiguous tensors", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_axpby", &multi_tensor_axpby_cuda,
-        "out = a*x + b*y for a list of contiguous tensors");
+        "out = a*x + b*y for a list of contiguous tensors", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_l2norm", &multi_tensor_l2norm_cuda,
-        "Computes L2 norm for a list of contiguous tensors");
+        "Computes L2 norm for a list of contiguous tensors", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_l2norm_mp", &multi_tensor_l2norm_mp_cuda,
-        "Computes L2 norm for a list of contiguous tensors");
+        "Computes L2 norm for a list of contiguous tensors", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_l2norm_scale", &multi_tensor_l2norm_scale_cuda,
-        "Computes L2 norm for a list of contiguous tensors and does scaling");
+        "Computes L2 norm for a list of contiguous tensors and does scaling", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_unscale_l2norm", &multi_tensor_unscale_l2norm_cuda,
-        "Computes L2 norm for a list of contiguous tensors after unscaling (unscaling is only performed for L2 norm computation, and tensors are not updated)");
+        "Computes L2 norm for a list of contiguous tensors after unscaling (unscaling is only performed for L2 norm computation, and tensors are not updated)",
+        py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_lamb_stage1_cuda", &multi_tensor_lamb_stage1_cuda,
-        "Computes update part of LAMB optimizer");
+        "Computes update part of LAMB optimizer", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_lamb_stage2_cuda", &multi_tensor_lamb_stage2_cuda,
-        "Completes application of gradient to parameters for LAMB optimizer");
+        "Completes application of gradient to parameters for LAMB optimizer", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_adam", &multi_tensor_adam_cuda,
-        "Compute and apply gradient update to parameters for Adam optimizer");
+        "Compute and apply gradient update to parameters for Adam optimizer", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_adam_capturable", &multi_tensor_adam_capturable_cuda,
-        "Compute and apply gradient update to parameters for Adam optimizer with CUDA graph support and LR scheduling");
+        "Compute and apply gradient update to parameters for Adam optimizer with CUDA graph support and LR scheduling",
+        py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_adam_capturable_master", &multi_tensor_adam_capturable_master_cuda,
-        "Compute and apply gradient update to parameters for Adam optimizer with CUDA graph support, LR scheduling and FP32 master weights");
+        "Compute and apply gradient update to parameters for Adam optimizer with CUDA graph support, LR scheduling and FP32 master weights",
+        py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_adagrad", &multi_tensor_adagrad_cuda,
-        "Compute and apply gradient update to parameters for Adam optimizer");
+        "Compute and apply gradient update to parameters for Adam optimizer", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_novograd", &multi_tensor_novograd_cuda,
-        "Compute and apply gradient update to parameters for Adam optimizer");
+        "Compute and apply gradient update to parameters for Adam optimizer", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_lamb", &multi_tensor_lamb_cuda,
-        "Computes and apply update for LAMB optimizer");
+        "Computes and apply update for LAMB optimizer", py::call_guard<py::gil_scoped_release>());
   m.def("multi_tensor_lamb_mp", &multi_tensor_lamb_mp_cuda,
-        "Computes and apply update for LAMB optimizer");
+        "Computes and apply update for LAMB optimizer", py::call_guard<py::gil_scoped_release>());
   m.def("update_scale_hysteresis", &update_scale_hysteresis_cuda,
-        "Updates scale while accounting for hysteresis");
+        "Updates scale while accounting for hysteresis", py::call_guard<py::gil_scoped_release>());
 }

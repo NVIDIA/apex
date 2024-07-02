@@ -49,8 +49,8 @@ at::Tensor softmax_xentropy_backward(
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("forward", &softmax_xentropy_forward, "Softmax cross entropy loss with label smoothing forward (CUDA)");
-    m.def("backward", &softmax_xentropy_backward, "Softmax cross entropy loss with label smoothing backward (CUDA)");
+    m.def("forward", &softmax_xentropy_forward, "Softmax cross entropy loss with label smoothing forward (CUDA)", py::call_guard<py::gil_scoped_release>());
+    m.def("backward", &softmax_xentropy_backward, "Softmax cross entropy loss with label smoothing backward (CUDA)", py::call_guard<py::gil_scoped_release>());
     // ref: https://pybind11.readthedocs.io/en/stable/basics.html#exporting-variables
     py::object version = py::cast(
 #ifdef XENTROPY_VER

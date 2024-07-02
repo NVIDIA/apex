@@ -92,14 +92,15 @@ int get_batch_per_block(
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward",
         &multihead_attn::fused_softmax::scaled_masked_softmax::fwd,
-	"Self Multihead Attention scaled, time masked softmax -- Forward.");
+	"Self Multihead Attention scaled, time masked softmax -- Forward.", py::call_guard<py::gil_scoped_release>());
 
   m.def("backward",
         &multihead_attn::fused_softmax::scaled_masked_softmax::bwd,
-	"Self Multihead Attention scaled, time masked softmax -- Backward.");
+	"Self Multihead Attention scaled, time masked softmax -- Backward.", py::call_guard<py::gil_scoped_release>());
 
   m.def("get_batch_per_block",
         &multihead_attn::fused_softmax::scaled_masked_softmax::get_batch_per_block,
-        "Return Batch per block size."
+        "Return Batch per block size.",
+        py::call_guard<py::gil_scoped_release>()
   );
 }

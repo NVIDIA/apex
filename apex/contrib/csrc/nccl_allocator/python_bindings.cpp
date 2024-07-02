@@ -31,11 +31,11 @@ void custom_raw_deleter(void* ptr) {
 } // namespace nccl_allocator::cuda
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("_use_nccl_mem", [](bool flag) { nccl_allocator::cuda::use_nccl_mem(flag); });
+  m.def("_use_nccl_mem", [](bool flag) { nccl_allocator::cuda::use_nccl_mem(flag); }, py::call_guard<py::gil_scoped_release>());
   m.def(
       "_cuda_change_current_allocator",
       [](std::shared_ptr<c10::cuda::CUDACachingAllocator::CUDAAllocator>
-             allocator) { nccl_allocator::cuda::changeCurrentAllocator(allocator); });
+             allocator) { nccl_allocator::cuda::changeCurrentAllocator(allocator); }, py::call_guard<py::gil_scoped_release>());
   py::class_<
       nccl_allocator::cuda::NCCLAllocator,
       c10::cuda::CUDACachingAllocator::CUDAAllocator,
@@ -43,5 +43,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
       m, "_NCCLAllocator");
   m.def("_cuda_create_managed_allocator", []() {
     return nccl_allocator::cuda::createNCCLAllocator();
-  });
+  }, py::call_guard<py::gil_scoped_release>());
 };
