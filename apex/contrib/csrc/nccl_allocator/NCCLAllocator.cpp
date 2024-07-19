@@ -324,7 +324,7 @@ c10::cuda::CUDACachingAllocator::SnapshotInfo NCCLAllocator::snapshot() {
   return result;
 }
 
-c10::cuda::CUDACachingAllocator::ShareableHandle CUDAPluggableAllocator::
+c10::cuda::CUDACachingAllocator::ShareableHandle NCCLAllocator::
     shareIpcHandle(void* ptr) {
   TORCH_CHECK(
       false,
