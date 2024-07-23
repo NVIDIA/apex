@@ -1,5 +1,8 @@
 from .permutation_utilities import *
 
+ASP_CACHE_DIR_ENV_VAR = "ASP_CACHE_DIR"
+ASP_CACHE_DIR_DEFAULT = ".cache"
+
 ################################################################################################################
 # Exhaustive
 #   Try them all
@@ -57,13 +60,19 @@ def generate_unique_combinations(built_permutation, remaining_columns, full_perm
                 remaining_columns.insert(c, built_permutation.pop(-1))
 
 import pickle
-import os.path
-from os import path
+from os import environ, path
 master_unique_permutation_list = {}
 def generate_all_unique_combinations(C, M, must_use_all_groups = False):
+
+    cache_dir_path = ASP_CACHE_DIR_DEFAULT
+    # The user is allowed to set the cache directory via an environment variable.
+    if environ.get(ASP_CACHE_DIR_ENV_VAR) is not None:
+        cache_dir_path = environ.get(ASP_CACHE_DIR_ENV_VAR)
+    cache_file_path = path.join(cache_dir_path, "master_list.pkl")
+
     global master_unique_permutation_list
-    if len(master_unique_permutation_list) == 0 and path.exists("master_list.pkl"):
-        with open("master_list.pkl","rb") as cache:
+    if len(master_unique_permutation_list) == 0 and path.exists(cache_file_path):
+        with open(cache_file_path,"rb") as cache:
             master_unique_permutation_list = pickle.load(cache)
 
     if (C,M) not in master_unique_permutation_list:
@@ -71,7 +80,7 @@ def generate_all_unique_combinations(C, M, must_use_all_groups = False):
         generate_unique_combinations([0], [c for c in range(1,C)], full_permutation_list, M)
         master_unique_permutation_list[(C,M)] = full_permutation_list
 
-        with open("master_list.pkl", "wb") as cache:
+        with open(cache_file_path, "wb") as cache:
             pickle.dump(master_unique_permutation_list, cache)
 
     unique_permutations = master_unique_permutation_list[(C,M)]
