@@ -60,6 +60,7 @@ def generate_unique_combinations(built_permutation, remaining_columns, full_perm
                 remaining_columns.insert(c, built_permutation.pop(-1))
 
 import pickle
+import os
 from os import environ, path
 master_unique_permutation_list = {}
 def generate_all_unique_combinations(C, M, must_use_all_groups = False):
@@ -79,7 +80,8 @@ def generate_all_unique_combinations(C, M, must_use_all_groups = False):
         full_permutation_list = []
         generate_unique_combinations([0], [c for c in range(1,C)], full_permutation_list, M)
         master_unique_permutation_list[(C,M)] = full_permutation_list
-
+        if not path.exists(cache_dir_path):
+            os.makedirs(cache_dir_path)
         with open(cache_file_path, "wb") as cache:
             pickle.dump(master_unique_permutation_list, cache)
 
