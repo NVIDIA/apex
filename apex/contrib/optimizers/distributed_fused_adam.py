@@ -369,7 +369,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             FP16.
         nccl_ub (bool, optional): enable NCCL user buffers for zero-copy
             (default: False). It allows the collectives to use only 1 SM
-            when IB SHARP is enabled in a one-rank-per-node communication 
+            when IB SHARP is enabled in a one-rank-per-node communication
             group. This will help speedup the gemms overlapped with data-
             parallel communications.
 
@@ -741,7 +741,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             Tuple[torch.dtype, torch.dtype, torch.dtype], torch.Tensor
         ] = {}
         # Output buffer for gradient shards, only required for NCCL user buffer
-        if self.nccl_ub: 
+        if self.nccl_ub:
             if not nccl_allocator:
                 raise RuntimeError("NCCL allocator importing failed but nccl ub is still requested")
             elif not self.contiguous_grad_buffer:
@@ -964,7 +964,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                         "__setitem__",
                         "__sizeof__",
                         "__sub__",
-                        "__torch_function__",
                         "__truediv__",
                         "__xor__",
                     ]
