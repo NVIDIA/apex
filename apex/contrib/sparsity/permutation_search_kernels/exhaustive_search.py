@@ -1,6 +1,6 @@
 from .permutation_utilities import *
 
-ASP_CACHE_DIR_ENV_VAR = "ASP_CACHE_DIR"
+ASP_CACHE_DIR_ENV_VAR = "APEX_ASP_CACHE_DIR"
 ASP_CACHE_DIR_DEFAULT = ".cache"
 
 ################################################################################################################
