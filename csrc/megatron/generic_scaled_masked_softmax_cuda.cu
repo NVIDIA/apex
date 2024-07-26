@@ -1,5 +1,5 @@
 /* coding=utf-8
- * Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,20 +18,15 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
-//#include <cuda_profiler_api.h>
+#include <cuda_profiler_api.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <torch/extension.h>
-#include "scaled_masked_softmax.h"
+#include "generic_scaled_masked_softmax.h"
 #include "type_shim.h"
 
 namespace multihead_attn {
 namespace fused_softmax {
-namespace scaled_masked_softmax {
-
-int get_batch_per_block_cuda(int query_seq_len, int key_seq_len, int batches, int attn_heads){
-    return get_batch_per_block(query_seq_len, key_seq_len, batches, attn_heads);
-}
-
+namespace generic_scaled_masked_softmax {
 
 torch::Tensor fwd_cuda(
     torch::Tensor const& input,
@@ -44,8 +39,6 @@ torch::Tensor fwd_cuda(
   const int attn_heads = input.size(1);
   const int query_seq_len = input.size(2);
   const int key_seq_len = input.size(3);
-  TORCH_INTERNAL_ASSERT(key_seq_len <= 16384);
-  TORCH_INTERNAL_ASSERT(query_seq_len > 1);
   TORCH_INTERNAL_ASSERT(pad_batches == 1 || pad_batches == batches);
   TORCH_INTERNAL_ASSERT(mask.size(1) == 1);
   TORCH_INTERNAL_ASSERT(mask.size(2) == query_seq_len);
@@ -64,7 +57,7 @@ torch::Tensor fwd_cuda(
   DISPATCH_HALF_AND_BFLOAT(
       input.scalar_type(),
       "dispatch_scaled_masked_softmax_forward",
-      dispatch_scaled_masked_softmax_forward<scalar_t, scalar_t, float>(
+      dispatch_scaled_masked_softmax_forward_new<scalar_t, scalar_t, float>(
           reinterpret_cast<scalar_t*>(softmax_results_ptr),
 	  reinterpret_cast<const scalar_t*>(input_ptr),
 	  reinterpret_cast<const uint8_t*>(mask_ptr),
@@ -82,7 +75,7 @@ torch::Tensor bwd_cuda(
     torch::Tensor const& output_grads_, 
     torch::Tensor const& softmax_results_, 
     float scale_factor)  {
-	
+
   auto output_grads = output_grads_.contiguous();
   auto softmax_results = softmax_results_.contiguous();
 
@@ -92,14 +85,18 @@ torch::Tensor bwd_cuda(
   const int query_seq_len = output_grads.size(2);
   const int key_seq_len = output_grads.size(3);
 
+  auto act_options = output_grads.options();
+  torch::Tensor input_grad = 
+      torch::empty({batches, attn_heads, query_seq_len, key_seq_len}, act_options);
+
   void* output_grads_ptr = static_cast<void*>(output_grads.data_ptr());
 
   //Softmax Grad
   DISPATCH_HALF_AND_BFLOAT(
       output_grads_.scalar_type(),
       "dispatch_scaled_masked_softmax_backward",
-      dispatch_scaled_masked_softmax_backward<scalar_t, scalar_t, float>(
-          reinterpret_cast<scalar_t*>(output_grads_ptr), 
+      dispatch_scaled_masked_softmax_backward_new<scalar_t, scalar_t, float>(
+          reinterpret_cast<scalar_t*>(static_cast<void*>(input_grad.data_ptr())), 
 	  reinterpret_cast<scalar_t*>(output_grads_ptr), 
 	  reinterpret_cast<scalar_t const*>(softmax_results.data_ptr()),
 	  scale_factor,
@@ -110,7 +107,7 @@ torch::Tensor bwd_cuda(
 			   );
   
   //backward pass is completely in-place
-  return output_grads;
+  return input_grad;
 }
 }
 }
