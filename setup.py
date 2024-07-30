@@ -227,7 +227,9 @@ if "--cpp_ext" in sys.argv:
     ext_modules.append(CppExtension("apex_C", ["csrc/flatten_unflatten.cpp"]))
 
 if "--distributed_adam" in sys.argv or "--cuda_ext" in sys.argv:
-    sys.argv.remove("--distributed_adam")
+    if "--distributed_adam" in sys.argv:
+        sys.argv.remove("--distributed_adam")
+
     raise_if_home_none("--distributed_adam")
     nvcc_args_adam = ['-O3', '--use_fast_math'] + version_dependent_macros
     hipcc_args_adam = ['-O3'] + version_dependent_macros
@@ -250,8 +252,10 @@ if "--distributed_adam" in sys.argv or "--cuda_ext" in sys.argv:
     )
 
 if "--distributed_lamb" in sys.argv or "--cuda_ext" in sys.argv:
-    sys.argv.remove("--distributed_lamb")
-    raise_if_home_none("--distributed_adam")
+    if "--distributed_lamb" in sys.argv:
+        sys.argv.remove("--distributed_lamb")
+
+    raise_if_home_none("--distributed_lamb")
 
     print ("INFO: Building the distributed_lamb extension.")
     nvcc_args_distributed_lamb = ['-O3', '--use_fast_math'] + version_dependent_macros
