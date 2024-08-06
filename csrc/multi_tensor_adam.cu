@@ -26,7 +26,7 @@ struct AdamFunctor
    __device__ __forceinline__ void operator()(
     index_t chunk_size,
     volatile int* noop_gmem,
-    TensorListMetadata<4>& tl,
+    TensorListMetadata<4, index_t>& tl,
     const float beta1,
     const float beta2,
     const float beta1_correction,
@@ -399,7 +399,7 @@ void multi_tensor_adam_cuda(
     // Assume single type across p,g,m1,m2 now
     DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT(
       tensor_lists[0][0].scalar_type(), 0, "adam",
-      multi_tensor_apply<4>(
+      multi_tensor_apply64<4>(
         (int64_t) BLOCK_SIZE,
         (int64_t) chunk_size,
         noop_flag,
