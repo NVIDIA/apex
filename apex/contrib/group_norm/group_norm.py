@@ -155,7 +155,7 @@ class GroupNorm(torch.nn.Module):
     eps: float
     affine: bool
     act: str
-    SUPPORTED_CHANNELS = {
+    SUPPORTED_CHANNELS = frozenset([
         128,
         256,
         320,
@@ -179,9 +179,9 @@ class GroupNorm(torch.nn.Module):
         3136,
         3584,
         4096,
-    }
-    SUPPORTED_GROUPS = {16, 32}
-    SUPPORTED_DTYPES = {
+    ])
+    SUPPORTED_GROUPS = frozenset([16, 32])
+    SUPPORTED_DTYPES = frozenset([
         # (input dtype, parameter dtype)
         (torch.float32, torch.float32),
         (torch.float32, torch.float16),
@@ -192,7 +192,7 @@ class GroupNorm(torch.nn.Module):
         (torch.bfloat16, torch.bfloat16),
         (torch.bfloat16, torch.float16),
         (torch.bfloat16, torch.float32),
-    }
+        ])
 
     def __init__(self,
                  num_groups: int,
