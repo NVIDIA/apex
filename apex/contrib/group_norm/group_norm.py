@@ -46,17 +46,17 @@ def group_norm_nhwc_fprop(
     weight: torch.Tensor,
     bias: torch.Tensor,
     eps: float,
-    act: str="",
+    act: str | None=None,
     passes: int=1,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     # sanity check
-    act = act.lower()
+    act = act.lower() if act else act
     assert x.is_contiguous(memory_format=torch.channels_last), \
         "Only support NHWC layout."
     assert weight.numel() == x.shape[1], "Unexpected parameter count."
     assert bias.numel() == x.shape[1], "Unexpected parameter count."
     assert x.shape[1] % G == 0, "C % G != 0."
-    assert act in ["", "silu", "swish"], "Unsupported activation."
+    assert act in [None, "", "silu", "swish"], "Unsupported activation."
     assert passes in [1, 2], "Invalid number of passes for algorithm."
 
     with_swish = (act in ["silu", "swish"])
@@ -67,15 +67,15 @@ def group_norm_nhwc_fprop(
     return y, sums
 
 @group_norm_nhwc_fprop.register_fake
-def fake_group_norm_nhwc_fprop(x, G, weight, bias, eps, act="", passes=1):
+def fake_group_norm_nhwc_fprop(x, G, weight, bias, eps, act=None, passes=1):
     # sanity check
-    act = act.lower()
+    act = act.lower() if act else act
     assert x.is_contiguous(memory_format=torch.channels_last), \
         "Only support NHWC layout."
     assert weight.numel() == x.shape[1], "Unexpected parameter count."
     assert bias.numel() == x.shape[1], "Unexpected parameter count."
     assert x.shape[1] % G == 0, "C % G != 0."
-    assert act in ["", "silu", "swish"], "Unsupported activation."
+    assert act in [None, "", "silu", "swish"], "Unsupported activation."
     assert passes in [1, 2], "Invalid number of passes for algorithm."
 
     y = torch.empty_like(x)
@@ -91,14 +91,14 @@ def group_norm_nhwc_bprop(
     weight: torch.Tensor,
     bias: torch.Tensor,
     eps: float,
-    act: str="",
+    act: str | None=None,
     passes: int=1,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     # sanity check
     assert grad_output.is_contiguous(memory_format=torch.channels_last), \
         "Only support NHWC layout."
 
-    act = act.lower()
+    act = act.lower() if act else act
     with_swish = (act in ["silu", "swish"])
 
     dx, dw, db = group_norm_cuda.backward(grad_output, sums, x, G,
@@ -107,7 +107,7 @@ def group_norm_nhwc_bprop(
     return dx, dw, db
 
 @group_norm_nhwc_bprop.register_fake
-def fake_group_norm_nhwc_bprop(grad_output, sums, x, G, weight, bias, eps, act="", passes=1):
+def fake_group_norm_nhwc_bprop(grad_output, sums, x, G, weight, bias, eps, act=None, passes=1):
     # sanity check
     assert grad_output.is_contiguous(memory_format=torch.channels_last), \
         "Only support NHWC layout."
@@ -141,11 +141,11 @@ def setup_context(ctx, inputs, output):
 
 group_norm_nhwc_fprop.register_autograd(backward, setup_context=setup_context)
 
-def cuda_group_norm_nhwc_one_pass(x, G, weight, bias, eps, act=""):
+def cuda_group_norm_nhwc_one_pass(x, G, weight, bias, eps, act=None):
     y, _ = group_norm_nhwc_fprop(x, G, weight, bias, eps, act, passes=1)
     return y
 
-def cuda_group_norm_nhwc_two_pass(x, G, weight, bias, eps, act=""):
+def cuda_group_norm_nhwc_two_pass(x, G, weight, bias, eps, act=None):
     y, _ = group_norm_nhwc_fprop(x, G, weight, bias, eps, act, passes=2)
     return y
 
@@ -182,7 +182,7 @@ class GroupNorm(torch.nn.Module):
     num_channels: int
     eps: float
     affine: bool
-    act: str
+    act: str | None
     SUPPORTED_CHANNELS = frozenset([
         128,
         256,
@@ -229,7 +229,7 @@ class GroupNorm(torch.nn.Module):
                  affine: bool = True,
                  device=None,
                  dtype=None,
-                 act="") -> None:
+                 act=None) -> None:
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
         if num_channels % num_groups != 0:
@@ -239,7 +239,7 @@ class GroupNorm(torch.nn.Module):
         self.num_channels = num_channels
         self.eps = eps
         self.affine = affine
-        self.act = act.lower()
+        self.act = act.lower() if act else act
         if self.affine:
             self.weight = Parameter(torch.empty(num_channels,
                                                 **factory_kwargs))
@@ -266,7 +266,7 @@ class GroupNorm(torch.nn.Module):
         ]
         is_supported_dtype_combination = not self.affine or \
             (input.dtype, self.weight.dtype) in self.SUPPORTED_DTYPES
-        is_legal_act = self.act in ['', 'silu', 'swish']
+        is_legal_act = self.act in [None, '', 'silu', 'swish']
 
         if is_nhwc and is_input_half_or_float_or_bf16 and \
                 is_supported_dtype_combination and is_legal_act and \
