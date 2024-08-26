@@ -22,7 +22,6 @@ import group_norm_cuda
 
 from torch import Tensor
 from torch.nn.parameter import Parameter
-from torch._dynamo import disable
 from functools import partial
 
 __all__ = ['GroupNorm']
@@ -44,7 +43,6 @@ def torch_group_norm(x, g, w, b, eps, act=""):
 class GroupNormNHWC(torch.autograd.Function):
 
     @staticmethod
-    @disable  # This shouldn't be captured by TorchDynamo
     def forward(ctx,
                 x,
                 G,
@@ -99,7 +97,6 @@ class GroupNormNHWC(torch.autograd.Function):
 class GroupNormOnePass(GroupNormNHWC):
 
     @staticmethod
-    @disable
     def forward(ctx, x, G, weight, bias, eps, act=""):
         return super(GroupNormOnePass,
                      GroupNormOnePass).forward(ctx, x, G, weight, bias, eps,
@@ -109,7 +106,6 @@ class GroupNormOnePass(GroupNormNHWC):
 class GroupNormTwoPass(GroupNormNHWC):
 
     @staticmethod
-    @disable
     def forward(ctx, x, G, weight, bias, eps, act=""):
         return super(GroupNormTwoPass,
                      GroupNormTwoPass).forward(ctx, x, G, weight, bias, eps,
