@@ -583,8 +583,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # If capturable for CUDA graph
         self.capturable: bool = capturable
         # If the optimizer is capturable then LR should be a tensor (on GPU)
-        lr: torch.Tensor | float = torch.tensor(lr, dtype=torch.float32) \
-            if capturable else lr
+        if capturable:
+            lr = torch.tensor([lr], dtype=torch.float32, device=device)
 
         defaults = dict(
             lr=lr,
