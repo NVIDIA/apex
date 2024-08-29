@@ -149,6 +149,28 @@ class GroupNormTest(unittest.TestCase):
     def test_group_norm_module(self):
         self.verify_group_norm(GroupNorm, G=16, act="swish")
 
+    def test_group_norm_inductor(self):
+        N, C, H, W, G = 32, 320, 256, 256, 16
+
+        model = torch.nn.Sequential(
+            GroupNorm(G, C, act='silu', dtype=torch.float16),
+            torch.nn.Conv2d(C, C, kernel_size=3, padding='same'),
+        ).cuda().half()
+        compiled = torch.compile(model)
+
+        x = -2.3 + 0.5 * torch.randn((N, C, H, W), dtype=torch.float16, device='cuda')
+        x = x.to(memory_format=torch.channels_last)
+        dy = .1 * torch.randn_like(x)
+        x.requires_grad_(True)
+
+        for _ in range(4):
+            y = compiled(x)
+            y.backward(dy)
+
+        from torch._dynamo.utils import counters
+        self.assertNotIn('graph_break', counters, "Shouldn't see any graph breaks.")
+        self.assertEqual(counters['stats']['unique_graphs'], 1, "Expect only one graph.")
+
     def test_16_groups(self):
         sizes = [
             [8, 2560, 16, 16],
