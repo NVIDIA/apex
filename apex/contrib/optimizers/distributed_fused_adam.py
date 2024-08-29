@@ -730,6 +730,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Determine bucket sizes
         dtype_size = torch.finfo(self.grad_sync_dtype).bits // 8
         self.alignment: int = 128 // dtype_size
+        self.bucket_cap_mb: float = bucket_cap_mb
         bucket_size = 1024 * 1024 * bucket_cap_mb / dtype_size
         shard_size = int(bucket_size / self.distributed_size)
         shard_size = _round_to_multiple(shard_size, self.alignment, round_up=False)
