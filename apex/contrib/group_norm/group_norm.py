@@ -59,7 +59,7 @@ def group_norm_nhwc_fprop(
     assert act in [None, "", "silu", "swish"], "Unsupported activation."
     assert passes in [1, 2], "Invalid number of passes for algorithm."
 
-    with_swish = (act in ["silu", "swish"])
+    with_swish = act in ("silu", "swish")
 
     # enqueue fprop kernel
     y, sums = group_norm_cuda.forward(x, G, weight, bias, eps, passes,
