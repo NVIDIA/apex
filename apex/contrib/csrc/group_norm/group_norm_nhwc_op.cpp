@@ -50,8 +50,6 @@
   CHECK_CUDA(x);            \
   CHECK_CHANNELS_LAST(x)
 
-enum Algo { OnePass, TwoPass };
-
 static bool initialized = false;
 static cudaDeviceProp props;
 
@@ -63,7 +61,7 @@ const std::unordered_set<int> supported_groups_values = {16, 32};
 std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups,
                                           torch::Tensor weight,
                                           torch::Tensor bias, float eps,
-                                          Algo algo, bool with_swish = false) {
+                                          int passes, bool with_swish = false) {
   if (!initialized) {
     CHECK_CUDA_STATUS(cudaGetDeviceProperties(&props, 0));
     initialized = true;
@@ -146,7 +144,7 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups,
 
   // Finalize the parameters.
   dim3 grid;
-  if (algo == OnePass) {
+  if (passes == 1) {
     group_norm_nhwc_fwd_one_pass_setup(params_fwd, barriers_elts,
                                        red_buffer_elts, grid, props);
   } else {
@@ -164,7 +162,7 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups,
       at::zeros({zeroed_red_buffer_elts}, options.dtype(at::kFloat));
   params_fwd.zeroed_red_buffer = zeroed_red_buffer.data_ptr<float>();
 
-  if (algo == OnePass) {
+  if (passes == 1) {
     group_norm_nhwc_fwd_one_pass_run(params_fwd, grid, stream);
   } else {
     group_norm_nhwc_fwd_two_passes_sum(params_fwd, stream);
@@ -179,7 +177,7 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
                                           torch::Tensor input, int groups,
                                           torch::Tensor weight,
                                           torch::Tensor bias, float eps,
-                                          Algo algo, bool with_swish = false) {
+                                          int passes, bool with_swish = false) {
   if (!initialized) {
     CHECK_CUDA_STATUS(cudaGetDeviceProperties(&props, 0));
     initialized = true;
@@ -271,7 +269,7 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
 
   // Finalize the parameters.
   dim3 grid;
-  if (algo == OnePass) {
+  if (passes == 1) {
     group_norm_nhwc_bwd_one_pass_setup(params_bwd, barriers_elts,
                                        red_buffer_elts, zeroed_red_buffer_elts,
                                        grid, props);
@@ -290,7 +288,7 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
       at::zeros({zeroed_red_buffer_elts}, options.dtype(at::kFloat));
   params_bwd.zeroed_red_buffer = zeroed_red_buffer.data_ptr<float>();
 
-  if (algo == OnePass) {
+  if (passes == 1) {
     group_norm_nhwc_bwd_one_pass_run(params_bwd, grid, stream);
   } else {
     group_norm_nhwc_bwd_two_passes_sum(params_bwd, stream);
@@ -301,10 +299,6 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  py::enum_<Algo>(m, "Algo")
-      .value("OnePass", OnePass)
-      .value("TwoPass", TwoPass)
-      .export_values();
   m.def("forward", &group_norm_fwd, "NHWC group norm forward", py::call_guard<py::gil_scoped_release>());
   m.def("backward", &group_norm_bwd, "NHWC group norm backward", py::call_guard<py::gil_scoped_release>());
 }

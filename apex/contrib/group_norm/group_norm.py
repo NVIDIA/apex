@@ -22,7 +22,6 @@ import group_norm_cuda
 
 from torch import Tensor
 from torch.nn.parameter import Parameter
-from torch._dynamo import disable
 from functools import partial
 
 __all__ = ['GroupNorm']
@@ -40,86 +39,115 @@ def torch_group_norm(x, g, w, b, eps, act=""):
         y = y.to(dtype=xdtype)
     return y
 
+@torch.library.custom_op("apex::group_norm_nhwc_fprop", mutates_args=())
+def group_norm_nhwc_fprop(
+    x: torch.Tensor,
+    G: int,
+    weight: torch.Tensor,
+    bias: torch.Tensor,
+    eps: float,
+    act: str | None=None,
+    passes: int=1,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    # sanity check
+    act = act.lower() if act else act
+    assert x.is_contiguous(memory_format=torch.channels_last), \
+        "Only support NHWC layout."
+    assert weight.numel() == x.shape[1], "Unexpected parameter count."
+    assert bias.numel() == x.shape[1], "Unexpected parameter count."
+    assert x.shape[1] % G == 0, "C % G != 0."
+    assert act in [None, "", "silu", "swish"], "Unsupported activation."
+    assert passes in [1, 2], "Invalid number of passes for algorithm."
 
-class GroupNormNHWC(torch.autograd.Function):
+    with_swish = act in ("silu", "swish")
 
-    @staticmethod
-    @disable  # This shouldn't be captured by TorchDynamo
-    def forward(ctx,
-                x,
-                G,
-                weight,
-                bias,
-                eps,
-                act="",
-                algo=group_norm_cuda.OnePass):
-        # sanity check
-        act = act.lower()
-        assert x.is_contiguous(memory_format=torch.channels_last), \
-            "Only support NHWC layout."
-        assert weight.numel() == x.shape[1], "Unexpected parameter count."
-        assert bias.numel() == x.shape[1], "Unexpected parameter count."
-        assert x.shape[1] % G == 0, "C % G != 0."
-        assert act in ["", "silu", "swish"], "Unsupported activation."
-
-        with_swish = (act in ["silu", "swish"])
-
-        # enqueue fprop kernel
-        y, sums = group_norm_cuda.forward(x, G, weight, bias, eps, algo,
+    # enqueue fprop kernel
+    y, sums = group_norm_cuda.forward(x, G, weight, bias, eps, passes,
                                           with_swish)
+    return y, sums
 
-        # save for backward
-        ctx.save_for_backward(x, weight, bias, sums)
-        ctx.G = G
-        ctx.eps = eps
-        ctx.algo = algo
-        ctx.with_swish = with_swish
-        return y
+@group_norm_nhwc_fprop.register_fake
+def fake_group_norm_nhwc_fprop(x, G, weight, bias, eps, act=None, passes=1):
+    # sanity check
+    act = act.lower() if act else act
+    assert x.is_contiguous(memory_format=torch.channels_last), \
+        "Only support NHWC layout."
+    assert weight.numel() == x.shape[1], "Unexpected parameter count."
+    assert bias.numel() == x.shape[1], "Unexpected parameter count."
+    assert x.shape[1] % G == 0, "C % G != 0."
+    assert act in [None, "", "silu", "swish"], "Unsupported activation."
+    assert passes in [1, 2], "Invalid number of passes for algorithm."
 
-    @staticmethod
-    def backward(ctx, dy):
-        # sanity check
-        assert dy.is_contiguous(memory_format=torch.channels_last), \
-            "Only support NHWC layout."
+    y = torch.empty_like(x)
+    sums = torch.empty(2 * x.shape[0] * G, device="cuda", dtype=torch.float32);
+    return y, sums
 
-        # retrive saved info
-        x, w, b, sums = ctx.saved_tensors
-        G = ctx.G
-        eps = ctx.eps
-        algo = ctx.algo
-        with_swish = ctx.with_swish
+@torch.library.custom_op("apex::group_norm_nhwc_bprop", mutates_args=())
+def group_norm_nhwc_bprop(
+    grad_output: torch.Tensor,
+    sums: torch.Tensor,
+    x: torch.Tensor,
+    G: int,
+    weight: torch.Tensor,
+    bias: torch.Tensor,
+    eps: float,
+    act: str | None=None,
+    passes: int=1,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    # sanity check
+    assert grad_output.is_contiguous(memory_format=torch.channels_last), \
+        "Only support NHWC layout."
 
-        # enqueue bprop kernel
-        dx, dw, db = group_norm_cuda.backward(dy, sums, x, G, w, b, eps, algo,
-                                              with_swish)
+    act = act.lower() if act else act
+    with_swish = (act in ["silu", "swish"])
 
-        return dx, None, dw, db, None, None, None
+    dx, dw, db = group_norm_cuda.backward(grad_output, sums, x, G,
+                                          weight, bias, eps,
+                                          passes, with_swish)
+    return dx, dw, db
 
+@group_norm_nhwc_bprop.register_fake
+def fake_group_norm_nhwc_bprop(grad_output, sums, x, G, weight, bias, eps, act=None, passes=1):
+    # sanity check
+    assert grad_output.is_contiguous(memory_format=torch.channels_last), \
+        "Only support NHWC layout."
 
-class GroupNormOnePass(GroupNormNHWC):
+    dx = torch.empty_like(x)
+    dw = torch.empty_like(weight)
+    db = torch.empty_like(bias)
+    return dx, dw, db
 
-    @staticmethod
-    @disable
-    def forward(ctx, x, G, weight, bias, eps, act=""):
-        return super(GroupNormOnePass,
-                     GroupNormOnePass).forward(ctx, x, G, weight, bias, eps,
-                                               act, group_norm_cuda.OnePass)
+def backward(ctx, grad_output, grad_sums):
+    # retrive saved info
+    x, w, b, sums = ctx.saved_tensors
+    G = ctx.G
+    eps = ctx.eps
+    passes = ctx.passes
+    act = ctx.act
 
+    dx, dw, db = group_norm_nhwc_bprop(grad_output, sums, x, G, w, b, eps,
+                                       act, passes)
+    return dx, None, dw, db, None, None, None
 
-class GroupNormTwoPass(GroupNormNHWC):
+def setup_context(ctx, inputs, output):
+    x, G, weight, bias, eps, act, passes = inputs
+    y, sums = output
+    # save for backward
+    ctx.save_for_backward(x, weight, bias, sums)
+    ctx.G = G
+    ctx.eps = eps
+    ctx.passes = passes
+    ctx.act = act
 
-    @staticmethod
-    @disable
-    def forward(ctx, x, G, weight, bias, eps, act=""):
-        return super(GroupNormTwoPass,
-                     GroupNormTwoPass).forward(ctx, x, G, weight, bias, eps,
-                                               act, group_norm_cuda.TwoPass)
+group_norm_nhwc_fprop.register_autograd(backward, setup_context=setup_context)
 
+def cuda_group_norm_nhwc_one_pass(x, G, weight, bias, eps, act=None):
+    y, _ = group_norm_nhwc_fprop(x, G, weight, bias, eps, act, passes=1)
+    return y
 
-cuda_group_norm_nhwc = GroupNormNHWC.apply
-cuda_group_norm_nhwc_one_pass = GroupNormOnePass.apply
-cuda_group_norm_nhwc_two_pass = GroupNormTwoPass.apply
-
+def cuda_group_norm_nhwc_two_pass(x, G, weight, bias, eps, act=None):
+    y, _ = group_norm_nhwc_fprop(x, G, weight, bias, eps, act, passes=2)
+    return y
 
 # We do not direct inherit from torch.nn.GroupNorm since several fusers don't
 # support inheritance. Extends:
@@ -154,8 +182,8 @@ class GroupNorm(torch.nn.Module):
     num_channels: int
     eps: float
     affine: bool
-    act: str
-    SUPPORTED_CHANNELS = {
+    act: str | None
+    SUPPORTED_CHANNELS = frozenset([
         128,
         256,
         320,
@@ -179,9 +207,9 @@ class GroupNorm(torch.nn.Module):
         3136,
         3584,
         4096,
-    }
-    SUPPORTED_GROUPS = {16, 32}
-    SUPPORTED_DTYPES = {
+    ])
+    SUPPORTED_GROUPS = frozenset([16, 32])
+    SUPPORTED_DTYPES = frozenset([
         # (input dtype, parameter dtype)
         (torch.float32, torch.float32),
         (torch.float32, torch.float16),
@@ -192,7 +220,7 @@ class GroupNorm(torch.nn.Module):
         (torch.bfloat16, torch.bfloat16),
         (torch.bfloat16, torch.float16),
         (torch.bfloat16, torch.float32),
-    }
+        ])
 
     def __init__(self,
                  num_groups: int,
@@ -201,7 +229,7 @@ class GroupNorm(torch.nn.Module):
                  affine: bool = True,
                  device=None,
                  dtype=None,
-                 act="") -> None:
+                 act=None) -> None:
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
         if num_channels % num_groups != 0:
@@ -211,7 +239,7 @@ class GroupNorm(torch.nn.Module):
         self.num_channels = num_channels
         self.eps = eps
         self.affine = affine
-        self.act = act.lower()
+        self.act = act.lower() if act else act
         if self.affine:
             self.weight = Parameter(torch.empty(num_channels,
                                                 **factory_kwargs))
@@ -238,7 +266,7 @@ class GroupNorm(torch.nn.Module):
         ]
         is_supported_dtype_combination = not self.affine or \
             (input.dtype, self.weight.dtype) in self.SUPPORTED_DTYPES
-        is_legal_act = self.act in ['', 'silu', 'swish']
+        is_legal_act = self.act in [None, '', 'silu', 'swish']
 
         if is_nhwc and is_input_half_or_float_or_bf16 and \
                 is_supported_dtype_combination and is_legal_act and \
@@ -258,11 +286,12 @@ class GroupNorm(torch.nn.Module):
             max_hw_one_pass = 1024 if self.sm >= 80 else 256
             if (hw >= 512 and channels
                     in (3136, 3584, 4096)) or hw > max_hw_one_pass:
-                algo = group_norm_cuda.TwoPass
+                passes = 2
             else:
-                algo = group_norm_cuda.OnePass
-            return cuda_group_norm_nhwc(input, self.num_groups, self.weight,
-                                        self.bias, self.eps, self.act, algo)
+                passes = 1
+            y, _ = group_norm_nhwc_fprop(input, self.num_groups, self.weight,
+                                         self.bias, self.eps, self.act, passes)
+            return y
         else:
             return torch_group_norm(input, self.num_groups, self.weight,
                                     self.bias, self.eps, self.act)
