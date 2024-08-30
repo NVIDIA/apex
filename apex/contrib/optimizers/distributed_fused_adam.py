@@ -819,7 +819,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 if len(group['params']) == 0:
                     continue
                 for item in ['lr']:
-                    self.param_groups[idx][item] = group[item].to(device=self.device)
+                    if torch.is_tensor(group[item]):
+                        self.param_groups[idx][item] = group[item].to(device=self.device)
+                    else:
+                        self.param_groups[idx][item] = torch.tensor(group[item],
+                            device=self.device)
 
         # For better representation string
         arg_names = inspect.getfullargspec(DistributedFusedAdam.__init__).args
