@@ -854,6 +854,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     def test_cuda_graph(self):
         """Test distributed adam with CUDA graph"""
+        if self.world_size <= 8:
+            self.skipTest(f"{self.world_size=} is expected to be >= 8")
         self.test_matches_pytorch(
             rtol=5e-3,
             atol=1e-5,
