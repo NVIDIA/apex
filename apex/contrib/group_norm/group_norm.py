@@ -26,6 +26,10 @@ from functools import partial
 
 __all__ = ['GroupNorm']
 
+def one_time_warning(msg: str):
+    if not hasattr(one_time_warning, 'has_been_called'):
+        one_time_warning.has_been_called = True
+        print(f'\033[93m{msg}\033[0m')  # hightlight with yellow color
 
 # pytorch group norm requires same input type
 def torch_group_norm(x, g, w, b, eps, act=""):
@@ -95,8 +99,15 @@ def group_norm_nhwc_bprop(
     passes: int=1,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     # sanity check
-    assert grad_output.is_contiguous(memory_format=torch.channels_last), \
-        "Only support NHWC layout."
+    if not grad_output.is_contiguous(memory_format=torch.channels_last):
+        one_time_warning(
+            "Warning: GroupNorm NHWC expects NHWC grad_output but it's not, "
+            "thus a memory format change is introduced. "
+            "This may come from the TorchInductor rule that tangents must be "
+            "contiguous. Try to avoid graph break around NHWC tensors "
+            "can fix this issue. (Future warning will be suppressed.)"
+        )
+        grad_output = grad_output.contiguous(memory_format=torch.channels_last)
 
     act = act.lower() if act else act
     with_swish = (act in ["silu", "swish"])
@@ -108,10 +119,6 @@ def group_norm_nhwc_bprop(
 
 @group_norm_nhwc_bprop.register_fake
 def fake_group_norm_nhwc_bprop(grad_output, sums, x, G, weight, bias, eps, act=None, passes=1):
-    # sanity check
-    assert grad_output.is_contiguous(memory_format=torch.channels_last), \
-        "Only support NHWC layout."
-
     dx = torch.empty_like(x)
     dw = torch.empty_like(weight)
     db = torch.empty_like(bias)
