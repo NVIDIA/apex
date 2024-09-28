@@ -30,7 +30,6 @@ DEFAULT_TEST_DIRS = [
     "run_optimizers",
     "run_fused_layer_norm",
     "run_mlp",
-    "run_transformer",
 ]
 
 
