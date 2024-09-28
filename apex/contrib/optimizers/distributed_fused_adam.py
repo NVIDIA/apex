@@ -1966,7 +1966,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         comm_stream.wait_stream(main_stream)
 
         # Reduce-scatter over distributed process group
-        if self.distributed_size > 1:
+        if buckets and self.distributed_size > 1:
             with torch.cuda.stream(comm_stream):
                 group = self.distributed_process_group
                 with _coalescing_manager(group, self.device, async_ops=True) as cm:
@@ -1986,7 +1986,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                 cm.wait()
 
         # All-reduce over redundant process group
-        if self.redundant_size > 1:
+        if buckets and self.redundant_size > 1:
             with torch.cuda.stream(comm_stream):
                 group = self.redundant_process_group
                 with _coalescing_manager(group, self.device, async_ops=True) as cm:
@@ -2117,7 +2117,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         comm_stream.wait_stream(main_stream)
 
         # All-gather over distributed process group
-        if self.distributed_size > 1:
+        if buckets and self.distributed_size > 1:
             with torch.cuda.stream(comm_stream):
                 group = self.distributed_process_group
                 with _coalescing_manager(group, self.device, async_ops=True) as cm:
