@@ -96,15 +96,21 @@ class FP16_Optimizer(object):
         Not supporting closure.
         """
         fp16_grads = []
+        fp16_groups = []
         norm_groups = []
         skip = False
 
         for group in self.fp16_groups:
             fp16_grad = []
+            new_params = []
             for i, p in enumerate(group):
-                fp16_grad.append(p.grad)
-            fp16_grads.append(fp16_grad)
-        
+                if p.grad is not None:
+                    fp16_grad.append(p.grad)
+                    new_params.append(p)
+            if len(new_params) > 0:
+                fp16_groups.append(new_params) 
+                fp16_grads.append(fp16_grad)
+
         # nan check
         self.overflow_buf.zero_()
         for fp16_grad in fp16_grads:
@@ -122,7 +128,7 @@ class FP16_Optimizer(object):
 
         # norm is in fact norm*cur_scale
         self.optimizer.step(grads=fp16_grads,
-                            output_params=self.fp16_groups,
+                            output_params=fp16_groups,
                             scale=self.cur_scale,
                             grad_norms=norm_groups)
 
