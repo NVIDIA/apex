@@ -54,15 +54,16 @@ class SyncBatchnormFunction(Function):
             r_v_inc = var if running_variance.dtype != torch.float16 else var.half()
             running_mean.data = running_mean.data * (1-momentum) + momentum*r_m_inc
             running_variance.data = running_variance.data * (1-momentum) + momentum*r_v_inc
+            ctx.save_for_backward(input, weight, mean, inv_std, z, bias, count_all.to(torch.int32))
+            ctx.process_group = process_group
+            ctx.channel_last = channel_last
+            ctx.world_size = world_size
+            ctx.fuse_relu = fuse_relu
         else:
             mean = running_mean.data
             inv_std = 1.0 / torch.sqrt(running_variance.data + eps)
 
-        ctx.save_for_backward(input, weight, mean, inv_std, z, bias, count_all.to(torch.int32))
-        ctx.process_group = process_group
-        ctx.channel_last = channel_last
-        ctx.world_size = world_size
-        ctx.fuse_relu = fuse_relu
+        
 
         if channel_last:
             out = syncbn.batchnorm_forward_c_last(input, z, mean, inv_std, weight, bias, fuse_relu)
