@@ -97,7 +97,7 @@ struct AdamFunctor
           r_v[ii] = beta2 * r_v[ii] + (1-beta2) * r_g[ii] * r_g[ii];
           MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
           MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
-          MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
+          MATH_T denom = sqrtf(next_v_unbiased + epsilon);
           MATH_T update = next_m_unbiased / denom;
           r_p[ii] = r_p[ii] - (lr * update);
         }
@@ -106,7 +106,7 @@ struct AdamFunctor
           r_v[ii] = beta2 * r_v[ii] + (1-beta2) * r_g[ii] * r_g[ii];
           MATH_T next_m_unbiased = r_m[ii] / beta1_correction;
           MATH_T next_v_unbiased = r_v[ii] / beta2_correction;
-          MATH_T denom = sqrtf(next_v_unbiased) + epsilon;
+          MATH_T denom = sqrtf(next_v_unbiased + epsilon);
           MATH_T update = (next_m_unbiased / denom) + (decay * r_p[ii]);
           r_p[ii] = r_p[ii] - (lr * update);
         }
