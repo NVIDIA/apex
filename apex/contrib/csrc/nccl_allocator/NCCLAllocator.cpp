@@ -440,11 +440,9 @@ void NCCLAllocator::copy_data(void* dest, const void* src, std::size_t count)
       cudaMemcpy(dest, src, count, cudaMemcpyKind::cudaMemcpyDeviceToDevice));
 }
 
-void NCCLAllocator::enable() {
+void NCCLAllocator::enable() {}
 
-}
-
-bool NCCLAllocator::isEnabled() {
+bool NCCLAllocator::isEnabled() const {
   return true;
 }
 
