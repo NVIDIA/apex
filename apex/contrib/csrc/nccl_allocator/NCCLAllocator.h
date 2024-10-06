@@ -87,7 +87,7 @@ struct NCCLAllocator
       bool p2p_enabled) override;
   std::string name() override;
   void copy_data(void* dest, const void* src, std::size_t count) const;
-  void enable(bool value) override;
+  void enable(bool) override;
   bool isEnabled() const override;
 
  protected:
