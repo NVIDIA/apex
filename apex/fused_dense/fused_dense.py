@@ -7,7 +7,7 @@ class FusedDenseFunc(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, weight, bias):
         ctx.save_for_backward(input, weight)
-        output = fused_dense_cuda.linear_bias_forward(input, weight, bias)
+        output = fused_dense_cuda.linear_bias_forward(input, weight, bias.t())
         return output
 
     @staticmethod
@@ -33,17 +33,23 @@ class DenseNoBiasFunc(torch.autograd.Function):
 
 class FusedDenseGeluDenseFunc(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, input, weight1, bias1, weight2, bias2):
-        ctx.save_for_backward(input, weight1, weight2)
-        output1, output2, gelu_in = fused_dense_cuda.linear_gelu_linear_forward(input, weight1, bias1, weight2, bias2)
-        ctx.save_for_backward(input, weight1, weight2, gelu_in, output1)
+    def forward(ctx, input, weight, bias, weight2, bias2):
+        '''
+        The forward method of the FusedDenseGELUDense layer performs the following operations:
+            Applies the first dense layer (dense1) to the input tensor.
+            Applies the GELU activation function (act) to the result.
+            Applies the second dense layer (dense2) to the GELU-activated output.
+        '''
+        ctx.save_for_backward(input, weight, weight2)
+        output, output2, gelu = fused_dense_cuda.linear_gelu_linear_forward(input, weight, bias, weight2, bias2)
+        ctx.save_for_backward(input, weight, weight2, gelu, output)
         return output2
 
     @staticmethod
     def backward(ctx, grad_output):
-        input, weight1, weight2, gelu_in, output1 = ctx.saved_tensors
-        grad_input, grad_weight1, grad_bias1, grad_weight2, grad_bias2 = fused_dense_cuda.linear_gelu_linear_backward(input, gelu_in, output1, weight1, weight2, grad_output)
-        return grad_input, grad_weight1, grad_bias1, grad_weight2, grad_bias2
+        input, weight, weight2, gelu, output = ctx.saved_tensors
+        grad_input, grad_weight, grad_bias, grad_weight2, grad_bias2 = fused_dense_cuda.linear_gelu_linear_backward(input, gelu, output, weight, weight2, grad_output)
+        return grad_input, grad_weight, grad_bias, grad_weight2, grad_bias2
 
 
 fused_dense_function = amp.half_function(FusedDenseFunc.apply)
@@ -55,9 +61,9 @@ class FusedDense(nn.Module):
         super(FusedDense, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.weight = nn.Parameter(torch.empty(out_features, in_features))
+        self.weight = nn.Parameter(torch.randn(out_features, in_features))
         if bias:
-            self.bias = nn.Parameter(torch.empty(out_features))
+            self.bias = nn.Parameter(torch.randn(out_features))
         else:
             #assert False, "no-bias option not added yet"
             self.register_parameter('bias', None)
@@ -67,19 +73,39 @@ class FusedDense(nn.Module):
             return fused_dense_function(input, self.weight, self.bias)
         else:
             return dense_no_bias_function(input, self.weight)
-
+#======================================================================================= 
+# 
+#======================================================================================= 
 class FusedDenseGeluDense(nn.Module):
+    '''
+    https://zeta.apac.ai/en/latest/zeta/nn/modules/fused_gelu_dense/
+    module combines dense layers with GELU activations in a single neural network layer.
+    layer consists of two dense sub-layers, each followed by a GELU activation function. 
+    It takes an input tensor and passes it through these sub-layers to produce the final output.
+    Parameters:
+        dim (int): Input dimension.
+        dim_out (int): Output dimension.
+        bias (bool, optional): Whether to include bias terms. Defaults to True.
+        has_fp16_weights (bool, optional): Whether to use fp16 weights. Defaults to False.
+        threshold (float, optional): Threshold for quantization. Defaults to 6.0.
+
+    layer consists of the following internal layers:
+        dense1: The first dense layer.
+        act: The GELU activation function.
+        dense2: The second dense layer.
+
+    '''
     def __init__(self, in_features, intermediate_features, out_features, bias=True):
         super(FusedDenseGeluDense, self).__init__()
         assert bias == True, "DenseGeluDense module without bias is currently not supported"
         self.in_features = in_features
         self.intermediate_features = intermediate_features
         self.out_features = out_features
-        self.weight1 = nn.Parameter(torch.empty(intermediate_features, in_features))
-        self.bias1 = nn.Parameter(torch.empty(intermediate_features))
-        self.weight2 = nn.Parameter(torch.empty(out_features, intermediate_features))
-        self.bias2 = nn.Parameter(torch.empty(out_features))
+        self.weight = nn.Parameter(torch.randn(intermediate_features, in_features))
+        self.bias = nn.Parameter(torch.randn(intermediate_features))
+        self.weight2 = nn.Parameter(torch.randn(out_features, intermediate_features))
+        self.bias2 = nn.Parameter(torch.randn(out_features))
 
     def forward(self, input):
-        return fused_dense_gelu_dense_function(input, self.weight1, self.bias1, self.weight2, self.bias2)
+        return fused_dense_gelu_dense_function(input, self.weight, self.bias, self.weight2, self.bias2)
 

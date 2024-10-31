@@ -22,6 +22,15 @@ from torch.utils.cpp_extension import (
 this_dir = os.path.dirname(os.path.abspath(__file__))
 torch_dir = torch.__path__[0]
 
+
+def hipBLASlt_supported():
+    supported_arch = ['gfx942']
+    device_props = torch.cuda.get_device_properties(0); 
+    if device_props.gcnArchName.split(":",1)[0] in supported_arch: 
+        return True
+    else:
+        return False
+
 # https://github.com/pytorch/pytorch/pull/71881
 # For the extensions which have rocblas_gemm_flags_fp16_alt_impl we need to make sure if at::BackwardPassGuard exists.
 # It helps the extensions be backward compatible with old PyTorch versions.
@@ -154,6 +163,7 @@ def check_if_rocm_pytorch():
     return is_rocm_pytorch
 
 IS_ROCM_PYTORCH = check_if_rocm_pytorch()
+IS_HIPBLASLT_SUPPORTED = hipBLASlt_supported()
 
 if not torch.cuda.is_available() and not IS_ROCM_PYTORCH:
     # https://github.com/NVIDIA/apex/issues/486
@@ -215,6 +225,9 @@ else:
 
 if IS_ROCM_PYTORCH and (ROCM_MAJOR >= 6):
     version_dependent_macros += ["-DHIPBLAS_V2"] 
+
+if IS_HIPBLASLT_SUPPORTED:
+    version_dependent_macros += ["-DHIPBLASLT"]
 
 if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
     if TORCH_MAJOR == 0:
@@ -313,7 +326,6 @@ if "--cuda_ext" in sys.argv:
             )
         )
 
-
 #**********  syncbn  ****************
     print("INFO: Building syncbn extension.")
     ext_modules.append(
@@ -351,6 +363,13 @@ if "--cuda_ext" in sys.argv:
             )
         )
 
+#**********  fused dense  ****************
+        ext_modules.append(
+            CUDAExtension(name='fused_dense_cuda',
+                          sources=['csrc/fused_dense_base.cpp',
+                                   'csrc/fused_dense_cuda.cu'],
+                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
+                                              'nvcc':['-O3'] + version_dependent_macros}))
 #**********  mlp_cuda  ****************
     hipcc_args_mlp = ['-O3'] + version_dependent_macros
     if found_Backward_Pass_Guard:
@@ -374,21 +393,7 @@ if "--cuda_ext" in sys.argv:
             )
         )
 
-#**********  fused_dense_cuda  ****************
-    ext_modules.append(
-        CUDAExtension(
-            name='fused_dense_cuda',
-            sources=[
-                'csrc/fused_dense.cpp',
-                'csrc/fused_dense_cuda.cu',
-            ],
-            extra_compile_args={
-                'cxx': ['-O3'] + version_dependent_macros,
-                'nvcc':['-O3'] + version_dependent_macros,
-                }
-            )
-        )
-
+#**********  scaled_upper_triang_masked_softmax_cuda  ****************
     nvcc_args_transformer = ['-O3',
                              '-U__CUDA_NO_HALF_OPERATORS__',
                              '-U__CUDA_NO_HALF_CONVERSIONS__',
@@ -398,7 +403,6 @@ if "--cuda_ext" in sys.argv:
                               '-U__CUDA_NO_HALF_OPERATORS__',
                               '-U__CUDA_NO_HALF_CONVERSIONS__'] + version_dependent_macros
 
-#**********  scaled_upper_triang_masked_softmax_cuda  ****************
     ext_modules.append(
         CUDAExtension(
             name='scaled_upper_triang_masked_softmax_cuda',
