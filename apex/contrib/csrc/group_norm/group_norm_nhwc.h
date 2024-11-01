@@ -123,7 +123,7 @@ struct Group_norm_nhwc_fwd_params {
   // The number of instances in the batch.
   int n;
   // The height and width of each activation map. The number of channels.
-  int h, w, c, hw, hwc;
+  int64_t h, w, c, hw, hwc;
   // The number of groups.
   int groups;
   // Do we apply the Swish activation function?
@@ -138,7 +138,7 @@ struct Group_norm_nhwc_fwd_params {
   // The number of groups in each block.
   int groups_per_block;
   // The number of channels per group = c / groups.
-  int channels_per_group; 
+  int channels_per_group;
   // The number of channels per block = groups_per_block * channels_per_group.
   int channels_per_block;
   // The inverse of hwc in floats (to compute mean/var).
@@ -149,7 +149,7 @@ struct Group_norm_nhwc_fwd_params {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params&, 
+void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params&,
                                           size_t &red_buffer_elts);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -190,7 +190,7 @@ struct Group_norm_nhwc_bwd_params {
   // The number of instances in the batch.
   int n;
   // The height and width of each activation map. The number of channels.
-  int h, w, c, hw, hwc;
+  int64_t h, w, c, hw, hwc;
   // The number of groups.
   int groups;
   // Do we apply the Swish activation function?

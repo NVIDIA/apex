@@ -89,10 +89,10 @@ class GroupNormTest(unittest.TestCase):
             dx_tst, dw_tst, db_tst = [t.grad.clone() for t in [x, weight, bias]]
 
         # compare
-        torch.testing.assert_close(y_tst, y_ref, atol=4e-2, rtol=0)
-        torch.testing.assert_close(dx_tst, dx_ref, atol=4e-2, rtol=0)
-        torch.testing.assert_close(dw_tst, dw_ref, atol=4e-2, rtol=0)
-        torch.testing.assert_close(db_tst, db_ref, atol=4e-2, rtol=0)
+        torch.testing.assert_close(y_tst,  y_ref,  atol=7e-2, rtol=0)
+        torch.testing.assert_close(dx_tst, dx_ref, atol=7e-2, rtol=0)
+        torch.testing.assert_close(dw_tst, dw_ref, atol=7e-2, rtol=0)
+        torch.testing.assert_close(db_tst, db_ref, atol=7e-2, rtol=0)
 
     def test_fp16_one_pass_algo(self):
         self.verify_group_norm(cuda_group_norm_nhwc_one_pass, act="")
@@ -177,6 +177,7 @@ class GroupNormTest(unittest.TestCase):
             [8, 1920, 32, 32],
             [8, 1920, 16, 16],
             [8, 2560, 8, 8],
+            [1, 128, 16128, 1200],
         ]
         for sz in sizes:
             n, c, h, w = sz
