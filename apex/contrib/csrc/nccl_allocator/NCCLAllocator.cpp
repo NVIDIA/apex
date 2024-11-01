@@ -324,6 +324,14 @@ c10::cuda::CUDACachingAllocator::SnapshotInfo NCCLAllocator::snapshot() {
   return result;
 }
 
+c10::cuda::CUDACachingAllocator::ShareableHandle NCCLAllocator::
+    shareIpcHandle(void* ptr) {
+  TORCH_CHECK(
+      false,
+      "CUDAPluggableAllocator does not yet support shareIPcHandle. "
+      "If you need it, please file an issue describing your use case.");
+}
+
 std::shared_ptr<void> NCCLAllocator::getIpcDevPtr(std::string handle) {
   TORCH_CHECK(
       false,
@@ -430,6 +438,12 @@ void NCCLAllocator::copy_data(void* dest, const void* src, std::size_t count)
     const {
   C10_CUDA_CHECK(
       cudaMemcpy(dest, src, count, cudaMemcpyKind::cudaMemcpyDeviceToDevice));
+}
+
+void NCCLAllocator::enable(bool) {}
+
+bool NCCLAllocator::isEnabled() const {
+  return true;
 }
 
 } // namespace nccl_allocator::cuda
