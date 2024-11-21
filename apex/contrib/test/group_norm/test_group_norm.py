@@ -27,7 +27,7 @@ try:
 except ImportError as e:
     SKIP_TEST = e
 
-
+@unittest.skipIf(torch.cuda.get_device_properties().multi_processor_count < 16, "GroupNorm is unsupported on low SM count devices")
 @unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class GroupNormTest(unittest.TestCase):
 
