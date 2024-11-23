@@ -67,7 +67,7 @@ class DistributedTestBase(common_distributed.MultiProcessTestCase):
         torch.cuda.set_device(self.rank % torch.cuda.device_count())
 
         dist.barrier()
-        self.run_test(test_name, pipe)
+        self.run_test(test_name, pipe, destroy_process_group=False)
         dist.barrier()
 
         dist.destroy_process_group()
