@@ -309,6 +309,29 @@ class TestFusedLayerNorm(common_utils.TestCase):
         native_x, fused_x = _prep_inputs(batch_size, normalized_shape, torch.float32)
         self._verify_export(fused, fused_x)
         self._verify_export(fused_m, fused_x)
+
+    def test_compile_fused_rms_norm(self):
+        batch_size = 16
+        normalized_shape = [32, 16]
+        eager_mod = FusedRMSNorm(
+            normalized_shape=normalized_shape, elementwise_affine=True
+        ).cuda()
+        compiled_mod = torch.compile(fullgraph=True)(eager_mod)
+        input_shape = [batch_size] + normalized_shape
+        eager_x = torch.randn(input_shape, device="cuda").requires_grad_(True)
+        compiled_x = eager_x.detach().clone().requires_grad_(True)
+
+        expected = eager_mod(eager_x)
+        actual = compiled_mod(compiled_x)
+        torch.testing.assert_close(actual, expected.detach())
+
+        g_eager = torch.rand_like(expected)
+        with torch.no_grad():
+            g_compiled = g_eager.detach().clone()
+        expected.backward(g_eager)
+        actual.backward(g_compiled)
+
+        torch.testing.assert_close(eager_x.grad, compiled_x.grad)
         
 instantiate_device_type_tests(TestFusedLayerNorm, globals(), only_for=("cuda",))
 if __name__ == "__main__":
