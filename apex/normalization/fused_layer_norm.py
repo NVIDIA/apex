@@ -179,7 +179,7 @@ def fused_rms_norm_affine_bwd_fake(
     return grad_input, grad_weight
 
 
-def backward(ctx, grad_output, grad_invvar):
+def _fused_rms_norm_affine_backward(ctx, grad_output, grad_invvar):
     input_or_output, weight_, invvar = ctx.saved_tensors
     grad_input = grad_weight = None
     grad_input, grad_weight = fused_rms_norm_affine_bwd(
@@ -194,7 +194,7 @@ def backward(ctx, grad_output, grad_invvar):
     return grad_input, grad_weight, None, None, None
 
 
-def setup_context(ctx, inputs, output):
+def _fused_rms_norm_affine_setup_context(ctx, inputs, output):
     input_, weight_, normalized_shape, eps, memory_efficient = inputs
     output_, invvar = output
     input_ = input_.contiguous()
@@ -208,7 +208,10 @@ def setup_context(ctx, inputs, output):
     ctx.memory_efficient = memory_efficient
 
 
-fused_rms_norm_affine_fwd.register_autograd(backward, setup_context=setup_context)
+fused_rms_norm_affine_fwd.register_autograd(
+    _fused_rms_norm_affine_backward,
+    setup_context=_fused_rms_norm_affine_setup_context
+)
 
 
 class FusedLayerNormAffineMixedDtypesFunction(FusedLayerNormAffineFunction):
@@ -283,32 +286,116 @@ class FusedLayerNormFunction(torch.autograd.Function):
         return grad_input, None, None, None
 
 
-class FusedRMSNormFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, input, normalized_shape, eps, memory_efficient=False):
-        global fused_layer_norm_cuda
-        if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
-        ctx.normalized_shape = normalized_shape
-        ctx.eps = eps
-        ctx.memory_efficient = memory_efficient
-        input_ = input.contiguous()
-        output, invvar = fused_layer_norm_cuda.rms_forward(input_, ctx.normalized_shape, ctx.eps)
-        if ctx.memory_efficient:
-            ctx.save_for_backward(output, invvar)
-        else:
-            ctx.save_for_backward(input_, invvar)
-        return output
+@torch.library.custom_op("apex::fused_rms_norm_fwd", mutates_args=())
+def fused_rms_norm_fwd(
+    input: torch.Tensor,
+    normalized_shape: List[int],
+    eps: float,
+    memory_efficient: bool = False,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    global fused_layer_norm_cuda
+    if fused_layer_norm_cuda is None:
+        fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
 
-    @staticmethod
-    def backward(ctx, grad_output):
-        input_or_output, invvar = ctx.saved_tensors
-        grad_input = None
-        grad_input = fused_layer_norm_cuda.rms_backward(
-            grad_output.contiguous(), invvar, input_or_output,
-            ctx.normalized_shape, ctx.eps, ctx.memory_efficient
-        )
-        return grad_input, None, None, None
+    input_ = input.contiguous()
+    output, invvar = fused_layer_norm_cuda.rms_forward(
+        input_, normalized_shape, eps
+    )
+    return output, invvar
+
+
+@fused_rms_norm_fwd.register_fake
+def fused_rms_norm_fwd_fake(
+    input: torch.Tensor,
+    normalized_shape: List[int],
+    eps: float,
+    memory_efficient: bool = False,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    input = input.contiguous()
+    idiff = input.ndim - len(normalized_shape)
+    n = 1
+    for i in range(idiff):
+        n *= input.shape[i]
+    if input.dtype in [torch.float16, torch.bfloat16]:
+        dtype = torch.float32
+    else:
+        dtype = input.dtype
+    return (
+        torch.empty_like(input),
+        torch.empty(
+            [n],
+            dtype=dtype,
+            device=input.device,
+            requires_grad=input.requires_grad,
+            memory_format=torch.contiguous_format,
+        ),
+    )
+
+
+@torch.library.custom_op("apex::fused_rms_norm_bwd", mutates_args=())
+def fused_rms_norm_bwd(
+    grad_output: torch.Tensor,
+    invvar: torch.Tensor,
+    input_or_output: torch.Tensor,
+    normalized_shape: List[int],
+    eps: float,
+    memory_efficient: bool = False,
+) -> torch.Tensor:
+    grad_input = fused_layer_norm_cuda.rms_backward(
+        grad_output.contiguous(),
+        invvar,
+        input_or_output,
+        normalized_shape,
+        eps,
+        memory_efficient,
+    )
+    return grad_input
+
+
+@fused_rms_norm_bwd.register_fake
+def fused_rms_norm_bwd_fake(
+    grad_output: torch.Tensor,
+    invvar: torch.Tensor,
+    input_or_output: torch.Tensor,
+    normalized_shape: List[int],
+    eps: float,
+    memory_efficient: bool = False,
+) -> torch.Tensor:
+    grad_input = torch.empty_like(input_or_output)
+    return grad_input
+
+
+def _fused_rms_norm_backward(ctx, grad_output, grad_invvar):
+    input_or_output, invvar = ctx.saved_tensors
+    grad_input = None
+    grad_input = fused_rms_norm_bwd(
+        grad_output,
+        invvar,
+        input_or_output,
+        ctx.normalized_shape,
+        ctx.eps,
+        ctx.memory_efficient,
+    )
+    return grad_input, None, None, None
+
+
+def _fused_rms_norm_setup_context(ctx, inputs, output):
+    input_, normalized_shape, eps, memory_efficient = inputs
+    output_, invvar = output
+    input_ = input_.contiguous()
+    if memory_efficient:
+        ctx.save_for_backward(output_, invvar)
+    else:
+        ctx.save_for_backward(input_, invvar)
+    ctx.normalized_shape = normalized_shape
+    ctx.eps = eps
+    ctx.memory_efficient = memory_efficient
+
+
+fused_rms_norm_fwd.register_autograd(
+    _fused_rms_norm_backward,
+    setup_context=_fused_rms_norm_setup_context
+)
 
 
 def fused_layer_norm_affine(input, weight, bias, normalized_shape, eps=1e-6, memory_efficient=False):
@@ -338,7 +425,7 @@ def fused_rms_norm_affine(input, weight, normalized_shape, eps=1e-6, memory_effi
 def fused_rms_norm(input, normalized_shape, eps=1e-6, memory_efficient=False):
     args = _cast_if_autocast_enabled(input, normalized_shape, eps, memory_efficient)
     with torch.amp.autocast('cuda', enabled=False):
-        return FusedRMSNormFunction.apply(*args)
+        return fused_rms_norm_fwd(*args)[0]
 
 
 def mixed_dtype_fused_rms_norm_affine(input, weight, normalized_shape, eps=1e-6, memory_efficient=False):
