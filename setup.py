@@ -830,9 +830,8 @@ if "--nccl_allocator" in sys.argv:
     if _available_nccl_version >= (2, 19):
         ext_modules.append(
             CUDAExtension(
-                name="nccl_allocator",
+                name="_apex_nccl_allocator",
                 sources=[
-                    "apex/contrib/csrc/nccl_allocator/python_bindings.cpp",
                     "apex/contrib/csrc/nccl_allocator/NCCLAllocator.cpp",
                 ],
                 include_dirs=[os.path.join(this_dir, "apex/apex/contrib/csrc/nccl_allocator")],
