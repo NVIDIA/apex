@@ -310,11 +310,12 @@ class TestFusedLayerNorm(common_utils.TestCase):
         self._verify_export(fused, fused_x)
         self._verify_export(fused_m, fused_x)
 
-    def test_compile_fused_rms_norm(self):
+    @common_utils.parametrize("elementwise_affine", (True, False))
+    def test_compile_fused_rms_norm(self, elementwise_affine):
         batch_size = 16
         normalized_shape = [32, 16]
         eager_mod = FusedRMSNorm(
-            normalized_shape=normalized_shape, elementwise_affine=True
+            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
         ).cuda()
         compiled_mod = torch.compile(fullgraph=True)(eager_mod)
         input_shape = [batch_size] + normalized_shape
