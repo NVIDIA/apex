@@ -24,7 +24,6 @@ from . import fp16_utils
 # load time) the error message is timely and visible.
 from . import optimizers
 from . import normalization
-from . import transformer
 
 
 # Logging utilities for apex.transformer module
