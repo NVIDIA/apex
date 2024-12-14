@@ -311,6 +311,30 @@ class TestFusedLayerNorm(common_utils.TestCase):
         self._verify_export(fused_m, fused_x)
 
     @common_utils.parametrize("elementwise_affine", (True, False))
+    def test_compile_fused_layer_norm(self, elementwise_affine):
+        batch_size = 16
+        normalized_shape = [32, 16]
+        eager_mod = FusedLayerNorm(
+            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+        ).cuda()
+        compiled_mod = torch.compile(fullgraph=True)(eager_mod)
+        input_shape = [batch_size] + normalized_shape
+        eager_x = torch.randn(input_shape, device="cuda").requires_grad_(True)
+        compiled_x = eager_x.detach().clone().requires_grad_(True)
+
+        expected = eager_mod(eager_x)
+        actual = compiled_mod(compiled_x)
+        torch.testing.assert_close(actual, expected.detach())
+
+        g_eager = torch.rand_like(expected)
+        with torch.no_grad():
+            g_compiled = g_eager.detach().clone()
+        expected.backward(g_eager)
+        actual.backward(g_compiled)
+
+        torch.testing.assert_close(eager_x.grad, compiled_x.grad)
+
+    @common_utils.parametrize("elementwise_affine", (True, False))
     def test_compile_fused_rms_norm(self, elementwise_affine):
         batch_size = 16
         normalized_shape = [32, 16]
