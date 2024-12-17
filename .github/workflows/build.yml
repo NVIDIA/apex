@@ -32,11 +32,10 @@ jobs:
         run: |
           DEPS=('ninja-build' "${PYTHON}-dev" "${PYTHON}-venv")
 
-          # 3.10 is default on Ubuntu 22, so we don't need to install from ppa
-          if [[ "${PYTHON}" != python3.10 ]]; then
-            apt update --yes && apt install --yes software-properties-common
-            add-apt-repository ppa:deadsnakes/ppa
-          fi
+          # Default on Ubuntu 20 is Python 3.8, so we need to grab the appropriate Python
+          # from ppa
+          apt update --yes && apt install --yes software-properties-common
+          add-apt-repository ppa:deadsnakes/ppa
 
           apt update --yes && apt install --yes "${DEPS[@]}"
 
