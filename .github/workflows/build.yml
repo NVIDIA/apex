@@ -35,6 +35,7 @@ jobs:
             DEPS+=("${PYTHON}-dev" "${PYTHON}-venv")
           fi
 
+          apt update --yes && apt install --yes software-properties-common
           add-apt-repository ppa:deadsnakes/ppa
           apt update --yes && apt install --yes "${DEPS[@]}"
 
