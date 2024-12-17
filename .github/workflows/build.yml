@@ -30,19 +30,19 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         shell: bash
         run: |
-          DEPS=('ninja-build')
-          # 3.10 is default on Ubuntu 22
+          DEPS=('ninja-build' "${PYTHON}-dev" "${PYTHON}-venv")
+
+          # 3.10 is default on Ubuntu 22, so we don't need to install from ppa
           if [[ "${PYTHON}" != python3.10 ]]; then
-            DEPS+=("${PYTHON}-dev" "${PYTHON}-venv")
+            apt update --yes && apt install --yes software-properties-common
+            add-apt-repository ppa:deadsnakes/ppa
           fi
 
-          apt update --yes && apt install --yes software-properties-common
-          add-apt-repository ppa:deadsnakes/ppa
           apt update --yes && apt install --yes "${DEPS[@]}"
 
           "${PYTHON}" -m venv venv
           . venv/bin/activate
-          python -m pip install build wheel setuptools
+          python -m pip install --upgrade build wheel setuptools
           python -m pip install --index-url ${{ matrix.cuda.torch-index }} torch~=2.5.0
       - run: |
           . venv/bin/activate
