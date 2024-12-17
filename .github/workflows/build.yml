@@ -25,17 +25,19 @@ jobs:
       # We need Python development headers which actions/setup-python does not provide.
       # Instead, grab from the deadsnakes ppa
       - name: Install build dependencies
+        env:
+          PYTHON: python${{ matrix.python-version }}
         run: |
           DEPS=('ninja-build')
           # 3.10 is default on Ubuntu 22
-          if [[ '${{ env.python-version }}' != 3.10 ]]; then
-            DEPS+=('python${{ env.python-version }}-dev' 'python-${{ env.python-version }}-venv')
+          if [[ "${PYTHON}" != python3.10 ]]; then
+            DEPS+=("${PYTHON}-dev" "${PYTHON}-venv")
           fi
 
           add-apt-repository ppa:deadsnakes/ppa
           apt update --yes && apt install --yes "${DEPS[@]}"
 
-          python -m venv venv
+          "${PYTHON}" -m venv venv
           . venv/bin/activate
           python -m pip install build wheel setuptools
           python -m pip install --index-url ${{ matrix.cuda.torch-index }} torch~=2.5.0
