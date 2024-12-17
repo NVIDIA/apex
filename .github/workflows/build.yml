@@ -6,7 +6,6 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - '3.8'
           - '3.9'
           - '3.10'
           - '3.11'
@@ -25,7 +24,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
       - name: Install build dependencies
         run: |
           apt update --yes && apt install --yes ninja-build
