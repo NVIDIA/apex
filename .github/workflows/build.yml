@@ -12,11 +12,11 @@ jobs:
           - '3.11'
           - '3.12'
         cuda:
-          - container: nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+          - container: nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
             torch-index: https://download.pytorch.org/whl/cu118
-          - container: nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+          - container: nvidia/cuda:12.1.1-cudnn8-devel-ubuntu20.04
             torch-index: https://download.pytorch.org/whl/cu121
-          - container: nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+          - container: nvidia/cuda:12.4.1-cudnn-devel-ubuntu20.04
             torch-index: https://pypi.org/simple
     runs-on: ubuntu-latest
     container: ${{ matrix.cuda.container }}
