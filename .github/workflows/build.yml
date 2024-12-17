@@ -4,6 +4,7 @@ on:
 jobs:
   main:
     strategy:
+      fail-fast: false
       matrix:
         python-version:
           - '3.9'
@@ -33,5 +34,5 @@ jobs:
       - name: Upload distributions
         uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-py${{ matrix.python-version }}-cu${{ env.CUDA_VERSION }}
           path: dist/
