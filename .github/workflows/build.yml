@@ -3,17 +3,34 @@ on:
   - push
 jobs:
   main:
+    strategy:
+      matrix:
+        python-version:
+          - '3.8'
+          - '3.9'
+          - '3.10'
+          - '3.11'
+          - '3.12'
+        cuda:
+          - container: nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+            torch-index: https://download.pytorch.org/whl/cu118
+          - container: nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+            torch-index: https://download.pytorch.org/whl/cu121
+          - container: nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+            torch-index: https://pypi.org/simple
     runs-on: ubuntu-latest
-    container: nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+    container: ${{ matrix.cuda.container }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
+          cache: pip
       - name: Install build dependencies
         run: |
           apt update --yes && apt install --yes ninja-build
-          python -m pip install torch build wheel setuptools
+          python -m pip install build wheel setuptools
+          python -m pip install --index-url ${{ matrix.cuda.torch-index }} torch~=2.5.0
       - run: python -m build --no-isolation --config-setting="--build-option=--cpp_ext" --config-setting="--build-option=--cuda_ext" ./
       - name: Upload distributions
         uses: actions/upload-artifact@v4
