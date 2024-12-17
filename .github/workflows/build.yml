@@ -27,6 +27,7 @@ jobs:
       - name: Install build dependencies
         env:
           PYTHON: python${{ matrix.python-version }}
+          DEBIAN_FRONTEND: noninteractive
         shell: bash
         run: |
           DEPS=('ninja-build')
