@@ -372,6 +372,8 @@ if "--cuda_ext" in sys.argv:
         if bare_metal_version >= Version("12.7"):
             cc_flag.append("-gencode")
             cc_flag.append("arch=compute_100,code=sm_100")
+            cc_flag.append("-gencode")
+            cc_flag.append("arch=compute_120,code=sm_120")
 
         ext_modules.append(
             CUDAExtension(
@@ -579,6 +581,8 @@ if "--fast_layer_norm" in sys.argv:
     if bare_metal_version >= Version("12.7"):
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_100,code=sm_100")
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_120,code=sm_120")
 
     ext_modules.append(
         CUDAExtension(
@@ -624,6 +628,8 @@ if "--fmha" in sys.argv:
     if bare_metal_version >= Version("12.7"):
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_100,code=sm_100")
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_120,code=sm_120")
 
     ext_modules.append(
         CUDAExtension(
@@ -680,6 +686,8 @@ if "--fast_multihead_attn" in sys.argv:
     if bare_metal_version >= Version("12.7"):
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_100,code=sm_100")
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_120,code=sm_120")
 
     subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
     ext_modules.append(
