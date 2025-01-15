@@ -277,10 +277,18 @@ class TestFusedLayerNorm(common_utils.TestCase):
 
     def _verify_export(self, fused, fused_x):
         # check that export() is working
-        onnx_str = torch.onnx.export_to_pretty_string(fused, (fused_x,),
-                                                      input_names=['x_in'],
-                                                      opset_version=18,
+        import io
+        f = io.BytesIO()
+        torch.onnx.export(fused, (fused_x,), f,
+                                 input_names=['x_in'],
+                                 opset_version=18,
         )
+        # Load the ONNX model
+        import onnx
+        model_onnx = onnx.load_from_string(f.getvalue())
+        # Get string representation
+        onnx_str = onnx.helper.printable_graph(model_onnx.graph)
+
         assert 'x_in' in onnx_str
         assert 'ReduceMean' in onnx_str or 'LayerNormalization' in onnx_str
 
