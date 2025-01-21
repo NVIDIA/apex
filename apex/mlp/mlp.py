@@ -1,9 +1,12 @@
 from copy import copy
 import math
+
 import torch
 from torch import nn
+
+from apex._autocast_utils import _cast_if_autocast_enabled
 import mlp_cuda
-from .. import amp
+
 
 class MlpFunction(torch.autograd.Function):
     @staticmethod
@@ -21,7 +24,11 @@ class MlpFunction(torch.autograd.Function):
         del ctx.outputs
         return (None, None, *grads)
 
-mlp_function = amp.half_function(MlpFunction.apply)
+
+def mlp_function(bias, activation, *args):
+    autocast_args = _cast_if_autocast_enabled(bias, activation, *args)
+    return MlpFunction.apply(*autocast_args)
+
 
 class MLP(torch.nn.Module):
     """Launch MLP in C++
