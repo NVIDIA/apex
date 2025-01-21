@@ -73,3 +73,6 @@ class TestFP16Model(unittest.TestCase):
         out_tensor = self.fp16_model(self.in_tensor)
         assert out_tensor.dtype == torch.half
 
+
+if __name__ == '__main__':
+    unittest.main()
