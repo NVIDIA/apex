@@ -120,7 +120,6 @@ hipDataType get_dtype(at::Tensor A)
   return dataType;
 }
 
-#ifdef HIPBLASLT
 
 /********************************************************************************************************************************************************
  *
@@ -146,6 +145,9 @@ int gemm_lt(
   hipblasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
   hipblasGetStream(handle, &stream);
 
+#if DEBUG
+  std::cout << "gemm_lt " << std::endl;
+#endif
   if ((trans_a == HIPBLAS_OP_T) && (trans_b == HIPBLAS_OP_T))
   {
     std::cout << "Both Transose is not supported";
@@ -360,7 +362,6 @@ int gemm_lt(
   return HIPBLAS_STATUS_SUCCESS;
 }
 
-#else
 
 template <hipblasComputeType_t ComputeType, typename TensorType, hipDataType DataType>
 hipblasStatus_t gemm_bias( hipblasOperation_t transa, hipblasOperation_t transb,
@@ -372,11 +373,13 @@ hipblasStatus_t gemm_bias( hipblasOperation_t transa, hipblasOperation_t transb,
   int64_t ldb = k;
   int64_t ldc = m;
 
+#if DEBUG
+  std::cout << "gemm_bias " << std::endl;
+#endif
   return hipblasGemmEx(handle, transa, transb, m,  n,   k,  alpha,  A,  DataType,   lda,  B,  DataType,  
                        ldb,  beta,  C,  DataType,  ldc,  ComputeType,  CUBLAS_GEMM_DEFAULT);
 }
 
-#endif // HIPBLASLT 
 
 /****************************************************************************
  * output[batch_size, out_features] = input[batch_size, in_features] * weight[out_features,in_features] + bias[out_features]
@@ -395,17 +398,19 @@ at::Tensor linear_bias_forward(at::Tensor input, at::Tensor weight, at::Tensor b
   // output[batch_size, out_features] = input[batch_size, in_features] * weight[out_features,in_features] + bias[out_features]
   // **********************************************************************************
   auto output = at::zeros({batch_size, out_features}, torch::device(torch::kCUDA).dtype(input.scalar_type()));
-#ifdef HIPBLASLT  
-  CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_T, HIPBLAS_OP_N, &alpha, &beta, weight, input, output, bias, dummy_gelu, true, false, false));
-
-#else 
-  DISPATCH_TYPES(input.scalar_type(), "linear_bias_forward", [&] {
+#if DEBUG
+  std::cout << "linear_bias_forward " << std::endl;
+#endif
+  if (at::globalContext().blasPreferredBackend() == at::BlasBackend::Cublaslt) {
+    CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_T, HIPBLAS_OP_N, &alpha, &beta, weight, input, output, bias, dummy_gelu, true, false, false));
+  } else {
+    DISPATCH_TYPES(input.scalar_type(), "linear_bias_forward", [&] {
     auto result = gemm_bias<compute_t, scalar_t, datatype_t>(
                             HIPBLAS_OP_T, HIPBLAS_OP_N, out_features, batch_size, in_features, 
                             &alpha, &beta, weight.data_ptr<scalar_t>(), input.data_ptr<scalar_t>(), output.data_ptr<scalar_t>());
     if (result != 0) { fprintf(stderr, "INVALID RESULT for linear_bias_forward\n"); }
-  });
-#endif // HIPBLASLT 
+    });
+  }
 
   return {output};
 }
@@ -429,41 +434,43 @@ std::vector<at::Tensor> linear_bias_backward(at::Tensor input, at::Tensor weight
   auto dummy_gelu = at::empty({0}, torch::device(torch::kCUDA).dtype(input.scalar_type()));
   auto grad_weight = at::zeros({out_features,in_features}, torch::device(torch::kCUDA).dtype(input.scalar_type()));
   auto grad_input = at::zeros({batch_size, in_features}, torch::device(torch::kCUDA).dtype(input.scalar_type()));
-
-#ifdef HIPBLASLT  
+  
+#if DEBUG
+  std::cout << "linear_bias_backward " << std::endl;
+#endif
+  if (at::globalContext().blasPreferredBackend() == at::BlasBackend::Cublaslt) {
   // **********************************************************************************
   // Gradient of Input  :
   // grad_input [batch_size, in_features] = output[batch_size, out_features] * Weight[out_features,in_features]
   // **********************************************************************************
-  CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_N, &alpha, &beta, weight, output, grad_input, grad_bias, dummy_gelu, false, false, false));
+    CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_N, &alpha, &beta, weight, output, grad_input, grad_bias, dummy_gelu, false, false, false));
 
   // **********************************************************************************
   // Gradient of Weights:
   // grad_weight[out_features,in_features] = input[batch_size, in_features](T)  * output[batch_size, out_features] 
   // **********************************************************************************
-  CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_T, &alpha, &beta, output, input, grad_weight, grad_bias, dummy_gelu, true, false, false));
+    CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_T, &alpha, &beta, output, input, grad_weight, grad_bias, dummy_gelu, true, false, false));
 
   // **********************************************************************************
   // ToDo: Check why HipBLASLt fail to get bgrad above so this step is not needed.
   // db=sum(dY)
   // **********************************************************************************
-  grad_bias = output.sum(0, false);
-#else
-
-  DISPATCH_TYPES(input.scalar_type(), "linear_bias_forward", [&] {
+    grad_bias = output.sum(0, false);
+  } else {
+    DISPATCH_TYPES(input.scalar_type(), "linear_bias_forward", [&] {
     auto result = gemm_bias<compute_t, scalar_t, datatype_t>(
                             HIPBLAS_OP_N, HIPBLAS_OP_T, in_features, out_features, batch_size, 
                             &alpha, &beta, input.data_ptr<scalar_t>(), output.data_ptr<scalar_t>(), grad_weight.data_ptr<scalar_t>());
     if (result != 0) { fprintf(stderr, "INVALID RESULT for linear_bias_forward\n"); }
-  });
+    });
 
     DISPATCH_TYPES(input.scalar_type(), "linear_bias_forward", [&] {
     auto result = gemm_bias<compute_t, scalar_t, datatype_t>(
                             HIPBLAS_OP_N, HIPBLAS_OP_N, in_features, batch_size, out_features,
                             &alpha, &beta, weight.data_ptr<scalar_t>(), output.data_ptr<scalar_t>(), grad_input.data_ptr<scalar_t>());
     if (result != 0) { fprintf(stderr, "INVALID RESULT for linear_bias_forward\n"); }
-  });
-#endif // HIPBLASLT
+    });
+  }
   return {grad_input, grad_weight, grad_bias};
 }
 
@@ -514,12 +521,15 @@ std::vector<at::Tensor> linear_gelu_linear_forward(at::Tensor input,   at::Tenso
   // **********************************************************************************
   at::Tensor output2 = at::zeros({batch_size,out_features}, torch::device(torch::kCUDA).dtype(input.scalar_type())); // output2[batch_size,out_features]
 
-#ifdef HIPBLASLT 
-  CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_T, HIPBLAS_OP_N, &alpha, &beta, weight, input, output, bias, gelu, true, false, true));
-  CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_T, HIPBLAS_OP_N, &alpha, &beta, weight2, output, output2, bias2, dummy_gelu, true, false, false));
-#else 
- std::cout << "linear_gelu_linear_forward not implimented for non-MI300 GPU" << std::endl;
+#if DEBUG
+  std::cout << "linear_gelu_linear_forward " << std::endl;
 #endif
+  if (at::globalContext().blasPreferredBackend() == at::BlasBackend::Cublaslt) {
+    CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_T, HIPBLAS_OP_N, &alpha, &beta, weight, input, output, bias, gelu, true, false, true));
+    CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_T, HIPBLAS_OP_N, &alpha, &beta, weight2, output, output2, bias2, dummy_gelu, true, false, false));
+  } else {
+    std::cout << "linear_gelu_linear_forward not implimented for non-MI300 GPU" << std::endl;
+  }
   return {output, output2, gelu};
 }
 
@@ -556,26 +566,29 @@ std::vector<at::Tensor> linear_gelu_linear_backward(at::Tensor input, at::Tensor
   at::Tensor grad_output  = at::zeros({batch_size, hidden_features},   torch::device(torch::kCUDA).dtype(input.scalar_type()));
 
   at::Tensor dummy_gelu = at::empty({0}, torch::device(torch::kCUDA).dtype(input.scalar_type()));
-#ifdef HIPBLASLT 
+#if DEBUG
+  std::cout << "linear_gelu_linear_backward " << std::endl;
+#endif
+  if (at::globalContext().blasPreferredBackend() == at::BlasBackend::Cublaslt) {
   // **********************************************************************************
   // Gradient For second gemm  :
   // grad_output[batch_size, hidden_features]  = output2[batch_size,out_features] ⋅ weight2[out_features, hidden_features]
   // grad_weight[out_features,in_features] = input[batch_size, in_features](T)  * output[batch_size, out_features] 
   // **********************************************************************************
-  CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_N, &alpha, &beta, weight2, output2, grad_output, grad_bias2, dummy_gelu, false, false, false));
-  CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_T, &alpha, &beta, output2, output, grad_weight2, grad_bias2, dummy_gelu, true, false, false));
-  grad_bias2 = output2.sum(0, false);   // ToDo: Check why HipBLASLt fail to get bgrad above so this step is not needed.
+    CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_N, &alpha, &beta, weight2, output2, grad_output, grad_bias2, dummy_gelu, false, false, false));
+    CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_T, &alpha, &beta, output2, output, grad_weight2, grad_bias2, dummy_gelu, true, false, false));
+    grad_bias2 = output2.sum(0, false);   // ToDo: Check why HipBLASLt fail to get bgrad above so this step is not needed.
 
   // **********************************************************************************
   // Gradient For First gemm  :
   // grad_input [batch_size, in_features] = output[batch_size, out_features] * Weight[out_features,in_features]
   // grad_weight[out_features,in_features] = input[batch_size, in_features](T)  * output[batch_size, out_features] 
   // **********************************************************************************
-  CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_N, &alpha, &beta, weight, output, grad_input, grad_bias2, dummy_gelu, false, false, false));
-  CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_T, &alpha, &beta, output, input, grad_weight, grad_bias2, dummy_gelu, true, false, false));
-  grad_bias = output.sum(0, false);   // ToDo: Check why HipBLASLt fail to get bgrad above so this step is not needed.
-#else
-  std::cout << "linear_gelu_linear_backward not implimented for non-MI300 GPU" << std::endl;
-#endif
+    CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_N, &alpha, &beta, weight, output, grad_input, grad_bias2, dummy_gelu, false, false, false));
+    CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_T, &alpha, &beta, output, input, grad_weight, grad_bias2, dummy_gelu, true, false, false));
+    grad_bias = output.sum(0, false);   // ToDo: Check why HipBLASLt fail to get bgrad above so this step is not needed.
+  } else {
+    std::cout << "linear_gelu_linear_backward not implimented for non-MI300 GPU" << std::endl;
+  }
   return {grad_input, grad_weight, grad_bias, grad_weight2, grad_bias2};
 }
