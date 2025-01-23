@@ -1,7 +1,8 @@
 import torch
 from torch import nn
 import fused_dense_cuda
-from .. import amp
+from apex._autocast_utils import _cast_if_autocast_enabled
+
 #implements fused GEMM+bias in forward pass using mlp_cuda from apex
 class FusedDenseFunc(torch.autograd.Function):
     @staticmethod
@@ -51,10 +52,20 @@ class FusedDenseGeluDenseFunc(torch.autograd.Function):
         grad_input, grad_weight, grad_bias, grad_weight2, grad_bias2 = fused_dense_cuda.linear_gelu_linear_backward(input, gelu, output, weight, weight2, grad_output)
         return grad_input, grad_weight, grad_bias, grad_weight2, grad_bias2
 
+def fused_dense_function(input, weight, bias):
+    args = _cast_if_autocast_enabled(input, weight, bias)
+    with torch.amp.autocast('cuda', enabled=False):
+        return FusedDenseFunc.apply(*args)
 
-fused_dense_function = amp.half_function(FusedDenseFunc.apply)
-dense_no_bias_function = amp.half_function(DenseNoBiasFunc.apply)
-fused_dense_gelu_dense_function = amp.half_function(FusedDenseGeluDenseFunc.apply)
+def dense_no_bias_function(input, weight):
+    args = _cast_if_autocast_enabled(input, weight)
+    with torch.amp.autocast('cuda', enabled=False):
+        return DenseNoBiasFunc.apply(*args)
+
+def fused_dense_gelu_dense_function(input, weight1, bias1, weight2, bias2):
+    args = _cast_if_autocast_enabled(input, weight1, bias1, weight2, bias2)
+    with torch.amp.autocast('cuda', enabled=False):
+        return FusedDenseGeluDenseFunc.apply(*args)
 
 class FusedDense(nn.Module):
     def __init__(self, in_features, out_features, bias=True):
