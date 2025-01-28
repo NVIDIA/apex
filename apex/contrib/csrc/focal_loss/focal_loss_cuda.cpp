@@ -21,9 +21,9 @@ at::Tensor focal_loss_backward_cuda(
 
 // C++ interface
 
-#define CHECK_CUDA(x) AT_ASSERTM(x.is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x)                                                    \
-  AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
+  TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x)                                                         \
   CHECK_CUDA(x);                                                               \
   CHECK_CONTIGUOUS(x)
@@ -64,7 +64,9 @@ at::Tensor focal_loss_backward(
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &focal_loss_forward,
-        "Focal loss calculation forward (CUDA)");
+        "Focal loss calculation forward (CUDA)",
+        py::call_guard<py::gil_scoped_release>());
   m.def("backward", &focal_loss_backward,
-        "Focal loss calculation backward (CUDA)");
+        "Focal loss calculation backward (CUDA)",
+        py::call_guard<py::gil_scoped_release>());
 }
