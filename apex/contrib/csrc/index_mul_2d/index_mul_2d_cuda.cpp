@@ -47,9 +47,9 @@ void index_mul_2d_half_backward_backward_cuda(at::Tensor &grad_grad_out,
                                            const at::Tensor &in2,
                                            const at::Tensor &idx1);
 
-#define CHECK_CUDA(x) AT_ASSERTM(x.is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x)                                                    \
-  AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
+  TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x)                                                         \
   CHECK_CUDA(x);                                                               \
   CHECK_CONTIGUOUS(x)
@@ -124,16 +124,22 @@ void index_mul_2d_half_backwrad_backward(
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("float_forward", &index_mul_2d_float_forward,
-        "index mul float calculation forward (CUDA)");
+        "index mul float calculation forward (CUDA)",
+        py::call_guard<py::gil_scoped_release>());
   m.def("float_backward", &index_mul_2d_float_backward,
-        "index mul float calculation backward (CUDA)");
+        "index mul float calculation backward (CUDA)",
+        py::call_guard<py::gil_scoped_release>());
   m.def("float_backward_backward", &index_mul_2d_float_backwrad_backward,
-        "index mul float calculation backward backward (CUDA)");
+        "index mul float calculation backward backward (CUDA)",
+        py::call_guard<py::gil_scoped_release>());
   m.def("half_forward", &index_mul_2d_half_forward,
-        "index mul half calculation forward (CUDA)");
+        "index mul half calculation forward (CUDA)",
+        py::call_guard<py::gil_scoped_release>());
   m.def("half_backward", &index_mul_2d_half_backward,
-        "index mul half calculation backward (CUDA)");
+        "index mul half calculation backward (CUDA)",
+        py::call_guard<py::gil_scoped_release>());
   m.def("half_backward_backward", &index_mul_2d_half_backwrad_backward,
-        "index mul half calculation backward backward (CUDA)");
+        "index mul half calculation backward backward (CUDA)",
+        py::call_guard<py::gil_scoped_release>());
 }
 
