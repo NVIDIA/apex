@@ -47,6 +47,15 @@ found_aten_atomic_header = False
 if os.path.exists(os.path.join(torch_dir, "include", "ATen", "Atomic.cuh")):
     found_aten_atomic_header = True
 
+def raise_if_cuda_home_none(global_option: str) -> None:
+    if CUDA_HOME is not None:
+        return
+    raise RuntimeError(
+        f"{global_option} was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  "
+        "If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, "
+        "only images whose names contain 'devel' will provide nvcc."
+    )
+
 def get_cuda_bare_metal_version(cuda_dir):
     raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)
     output = raw_output.split()

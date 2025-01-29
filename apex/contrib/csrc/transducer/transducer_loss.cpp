@@ -104,6 +104,6 @@ torch::Tensor transducer_loss_backward(
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &transducer_loss_forward, "transducer loss forward (CUDA)");
-  m.def("backward", &transducer_loss_backward, "transducer loss backward (CUDA)");
+  m.def("forward", &transducer_loss_forward, "transducer loss forward (CUDA)", py::call_guard<py::gil_scoped_release>());
+  m.def("backward", &transducer_loss_backward, "transducer loss backward (CUDA)", py::call_guard<py::gil_scoped_release>());
 }
