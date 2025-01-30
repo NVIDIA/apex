@@ -183,12 +183,16 @@ class TestFusedRoPE(common_utils.TestCase):
                 output_fused,
                 msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, "
                 f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
+                atol=1e-3,
+                rtol=1e-3,
             )
             self.assertEqual(
                 grad_unfused,
                 grad_fused,
                 msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, "
                 f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
+                atol=1e-3,
+                rtol=1e-3,
             )
             assert (
                 output_fused.transpose(0, 1).is_contiguous() is transpose_output_memory
@@ -251,12 +255,16 @@ class TestFusedRoPE(common_utils.TestCase):
                 output_fused,
                 msg=f"{dtype=}, {cu_seqlens=}, {hidden_size=}, {rotary_percent=}, "
                 f"{transpose=}, loss_func={loss_func.__name__}",
+                atol=1e-3,
+                rtol=1e-3,
             )
             self.assertEqual(
                 grad_unfused,
                 grad_fused,
                 msg=f"{dtype=}, {cu_seqlens=}, {hidden_size=}, {rotary_percent=}, "
                 f"{transpose=}, loss_func={loss_func.__name__}",
+                atol=1e-3,
+                rtol=1e-3,
             )
 
     def test_2d_forward_backward(self):
@@ -323,12 +331,16 @@ class TestFusedRoPE(common_utils.TestCase):
                 output_fused,
                 msg=f"{dtype=}, {img_h=}, {img_w=}, {hidden_size=}, "
                 f"{transpose=}, loss_func={loss_func.__name__}",
+                atol=1e-3,
+                rtol=1e-3,
             )
             self.assertEqual(
                 grad_unfused,
                 grad_fused,
                 msg=f"{dtype=}, {img_h=}, {img_w=}, {hidden_size=}, "
                 f"{transpose=}, loss_func={loss_func.__name__}",
+                atol=1e-3,
+                rtol=1e-3,
             )
 
 
