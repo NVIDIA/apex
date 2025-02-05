@@ -21,7 +21,8 @@ nvsmi = nvidia_smi.getInstance()
 
 print_used_mem("", nvsmi)
 
-with nccl_allocator.nccl_mem():
+pool = nccl_allocator.create_nccl_mem_pool()
+with nccl_allocator.nccl_mem(pool):
     for i in range(nrep):
       out = torch.randn(1024 * 1024 * 100).cuda() # >= 400 MB
       nccl_mem.append(out)
@@ -42,7 +43,7 @@ print_used_mem("release cudart mem (-1200)", nvsmi) # - 1200 MB
 
 del nccl_mem
 nccl_mem2 = []
-with nccl_allocator.nccl_mem():
+with nccl_allocator.nccl_mem(pool):
     for i in range(nrep):
       out = torch.randn(1024 * 1024 * 100).cuda() # >= 400 MB
       nccl_mem2.append(out)

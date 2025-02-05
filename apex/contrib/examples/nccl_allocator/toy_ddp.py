@@ -36,7 +36,8 @@ loss_fn = nn.MSELoss()
 optimizer = optim.SGD(ddp_model.parameters(), lr=0.001)
 
 data_ptrs = []
-with nccl_allocator.nccl_mem():
+pool = nccl_allocator.create_nccl_mem_pool()
+with nccl_allocator.nccl_mem(pool):
     for param in ddp_model.parameters():
         param.grad = torch.empty_like(param)
         data_ptrs.append(param.grad.data_ptr())

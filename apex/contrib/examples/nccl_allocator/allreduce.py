@@ -13,8 +13,8 @@ nccl_allocator.init()
 
 torch.cuda.set_device(local_rank)
 dist.init_process_group(backend="nccl")
-
-with nccl_allocator.nccl_mem():
+pool = nccl_allocator.create_nccl_mem_pool()
+with nccl_allocator.nccl_mem(pool):
     a = torch.ones(1024 * 1024 * 2, device="cuda")
 dist.all_reduce(a)
 

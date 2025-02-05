@@ -1191,12 +1191,13 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     [buffer_size], dtype=grad_sync_dtype, device=self.device,
                 )
             else:
-                with nccl_allocator.nccl_mem():
+                pool = nccl_allocator.create_nccl_mem_pool()
+                with nccl_allocator.nccl_mem(pool):
                     self._grad_buffers[dtypes] = torch.zeros(
                         [buffer_size], dtype=grad_sync_dtype, device=self.device,
                     )
                 shard_buffer_size = buffer_size // self.distributed_size
-                with nccl_allocator.nccl_mem():
+                with nccl_allocator.nccl_mem(pool):
                     self._shard_grad_buffers[dtypes] = torch.zeros(
                         [shard_buffer_size], dtype=grad_sync_dtype, device=self.device,
                     )
