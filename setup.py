@@ -377,6 +377,53 @@ if "--cuda_ext" in sys.argv:
                 }
             )
         )
+    
+    bare_metal_version = Version(bare_metal_version)
+    print("Bare Metal Version : ", bare_metal_version)
+    if True:
+
+        cc_flag = []
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_70,code=sm_70")
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_80,code=sm_80")
+        if bare_metal_version >= Version("11.1"):
+            cc_flag.append("-gencode")
+            cc_flag.append("arch=compute_86,code=sm_86")
+        if bare_metal_version >= Version("11.8"):
+            cc_flag.append("-gencode")
+            cc_flag.append("arch=compute_90,code=sm_90")
+
+        nvcc_args_fused_weight_gradient =  [
+                        "-O3",
+                        "-U__CUDA_NO_HALF_OPERATORS__",
+                        "-U__CUDA_NO_HALF_CONVERSIONS__",
+                        "--expt-relaxed-constexpr",
+                        "--expt-extended-lambda",
+                        "--use_fast_math",
+                    ] + version_dependent_macros + cc_flag
+
+        hipcc_args_fused_weight_gradient = [
+                        "-O3",
+                        "-U__CUDA_NO_HALF_OPERATORS__",
+                        "-U__CUDA_NO_HALF_CONVERSIONS__"
+                    ] + version_dependent_macros
+
+        ext_modules.append(
+            CUDAExtension(
+                name="fused_weight_gradient_mlp_cuda",
+                include_dirs=[os.path.join(this_dir, "csrc")],
+                sources=[
+                    "csrc/megatron/fused_weight_gradient_dense.cpp",
+                    "csrc/megatron/fused_weight_gradient_dense_cuda.cu",
+                    "csrc/megatron/fused_weight_gradient_dense_16bit_prec_cuda.cu",
+                ],
+                extra_compile_args={
+                    "cxx": ["-O3"] + version_dependent_macros,
+                    "nvcc": nvcc_args_fused_weight_gradient if not IS_ROCM_PYTORCH else hipcc_args_fused_weight_gradient,
+                },
+            )
+        )
 #**********  mlp_cuda  ****************
     hipcc_args_mlp = ['-O3'] + version_dependent_macros
     if found_Backward_Pass_Guard:
@@ -492,6 +539,7 @@ if "--cuda_ext" in sys.argv:
 
 
 if "--bnp" in sys.argv or "--cuda_ext" in sys.argv:
+
     if "--bnp" in sys.argv:
         sys.argv.remove("--bnp")
 

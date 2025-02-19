@@ -48,8 +48,14 @@ void gemmex_wrapper(
       C,
       CUDA_R_32F,
       ldc,
-      CUDA_R_32F,
-      CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+      #if defined(USE_ROCM)
+        HIPBLAS_COMPUTE_32F,
+        CUBLAS_GEMM_DEFAULT 
+      #else
+        CUDA_R_32F,
+        CUBLAS_GEMM_DEFAULT_TENSOR_OP
+      #endif
+    ));
 }
 
 // FP16 Tensor core wrapper around cublas GEMMEx
@@ -86,8 +92,14 @@ void gemmex_wrapper(
       C,
       CUDA_R_32F,
       ldc,
-      CUDA_R_32F,
-      CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+      #if defined(USE_ROCM)
+        HIPBLAS_COMPUTE_32F,
+        CUBLAS_GEMM_DEFAULT 
+      #else
+        CUDA_R_32F,
+        CUBLAS_GEMM_DEFAULT_TENSOR_OP
+      #endif
+    ));
 }
 
 // FP32 wrapper around cublas GEMMEx
@@ -124,8 +136,14 @@ void gemmex_wrapper(
       C,
       CUDA_R_32F,
       ldc,
-      CUDA_R_32F,
-      CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+      #if defined(USE_ROCM)
+        HIPBLAS_COMPUTE_32F,
+        CUBLAS_GEMM_DEFAULT 
+      #else
+        CUDA_R_32F,
+        CUBLAS_GEMM_DEFAULT_TENSOR_OP
+      #endif
+    ));
 }
 
 template <typename T>

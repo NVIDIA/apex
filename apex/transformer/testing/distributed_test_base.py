@@ -54,7 +54,7 @@ class DistributedTestBase(common_distributed.MultiProcessTestCase):
         return False
 
     @classmethod
-    def _run(cls, rank, test_name, file_name, pipe):
+    def _run(cls, rank, test_name, file_name, pipe, **kwargs):
         self = cls(test_name)
         self.assertTrue(torch.cuda.is_available())
         self.assertTrue(hasattr(self, "DISTRIBUTED_BACKEND"))

@@ -48,8 +48,14 @@ void gemmex_wrapper_fp16(
       C,
       CUDA_R_16BF,
       ldc,
-      CUDA_R_32F,
-      CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+      #if defined(USE_ROCM)
+        HIPBLAS_COMPUTE_32F,
+        CUBLAS_GEMM_DEFAULT 
+      #else
+        CUDA_R_32F,
+        CUBLAS_GEMM_DEFAULT_TENSOR_OP
+      #endif
+    ));
 }
 
 // FP16 inputs and FP16 accumulation
@@ -86,8 +92,14 @@ void gemmex_wrapper_fp16(
       C,
       CUDA_R_16F,
       ldc,
-      CUDA_R_32F,
-      CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+      #if defined(USE_ROCM)
+        HIPBLAS_COMPUTE_32F,
+        CUBLAS_GEMM_DEFAULT 
+      #else
+        CUDA_R_32F,
+        CUBLAS_GEMM_DEFAULT_TENSOR_OP
+      #endif
+    ));
 }
 
 template <typename T>
