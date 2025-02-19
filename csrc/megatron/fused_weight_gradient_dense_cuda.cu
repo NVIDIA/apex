@@ -49,7 +49,7 @@ void gemmex_wrapper(
       CUDA_R_32F,
       ldc,
       #if defined(USE_ROCM)
-        HIPBLAS_COMPUTE_32F,
+        CUBLAS_COMPUTE_32F,
         CUBLAS_GEMM_DEFAULT 
       #else
         CUDA_R_32F,
@@ -93,7 +93,7 @@ void gemmex_wrapper(
       CUDA_R_32F,
       ldc,
       #if defined(USE_ROCM)
-        HIPBLAS_COMPUTE_32F,
+        CUBLAS_COMPUTE_32F,
         CUBLAS_GEMM_DEFAULT 
       #else
         CUDA_R_32F,
@@ -137,7 +137,7 @@ void gemmex_wrapper(
       CUDA_R_32F,
       ldc,
       #if defined(USE_ROCM)
-        HIPBLAS_COMPUTE_32F,
+        CUBLAS_COMPUTE_32F,
         CUBLAS_GEMM_DEFAULT 
       #else
         CUDA_R_32F,
