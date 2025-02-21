@@ -860,7 +860,7 @@ if "--gpu_direct_storage" in sys.argv:
     )
 
 
-# Patch because `setup.py bdist_wheel` does not accept the `parallel` option
+# Patch because `setup.py bdist_wheel` and `setup.py develop` do not support the `parallel` option
 parallel = None
 if "--parallel" in sys.argv:
     idx = sys.argv.index("--parallel")
@@ -873,6 +873,11 @@ if "--parallel" in sys.argv:
 class BuildExtensionSeparateDir(BuildExtension):
     build_extension_patch_lock = threading.Lock()
     thread_ext_name_map = {}
+
+    def finalize_options(self):
+        if parallel is not None:
+            self.parallel = parallel
+        super().finalize_options()
 
     def build_extension(self, ext):
         with self.build_extension_patch_lock:
@@ -902,6 +907,6 @@ setup(
     install_requires=["packaging>20.6"],
     description="PyTorch Extensions written by NVIDIA",
     ext_modules=ext_modules,
-    cmdclass={"build_ext": BuildExtensionSeparateDir.with_options(parallel=parallel)} if ext_modules else {},
+    cmdclass={"build_ext": BuildExtensionSeparateDir} if ext_modules else {},
     extras_require=extras,
 )
