@@ -171,8 +171,8 @@ class GroupNorm(torch.nn.Module):
       of groups can also work but not guaranteed;
     * Supported number of channels C are:
 
-        128, 256, 320, 448, 512, 640, 768, 896, 960, 1024, 1280, 1344, 1536,
-        1792, 1920, 2048, 2240, 2560, 2688, 3072, 3136, 3584, 4096.
+        128, 256, 320, 384, 448, 512, 640, 768, 896, 960, 1024, 1280, 1344,
+        1536, 1792, 1920, 2048, 2240, 2560, 2688, 3072, 3136, 3584, 4096.
 
       One pass algorithm supports only channels mentioned above. Two pass
       algorithm might automatically support some other channels as well.
@@ -194,6 +194,7 @@ class GroupNorm(torch.nn.Module):
         128,
         256,
         320,
+        384,
         448,
         512,
         640,
