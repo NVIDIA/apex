@@ -1,6 +1,7 @@
 import sys
 import warnings
 import os
+import threading
 import glob
 from packaging.version import parse, Version
 
@@ -859,6 +860,44 @@ if "--gpu_direct_storage" in sys.argv:
     )
 
 
+# Patch because `setup.py bdist_wheel` and `setup.py develop` do not support the `parallel` option
+parallel = None
+if "--parallel" in sys.argv:
+    idx = sys.argv.index("--parallel")
+    parallel = int(sys.argv[idx + 1])
+    sys.argv.pop(idx + 1)
+    sys.argv.pop(idx)
+
+
+# Prevent file conflicts when multiple extensions are compiled simultaneously
+class BuildExtensionSeparateDir(BuildExtension):
+    build_extension_patch_lock = threading.Lock()
+    thread_ext_name_map = {}
+
+    def finalize_options(self):
+        if parallel is not None:
+            self.parallel = parallel
+        super().finalize_options()
+
+    def build_extension(self, ext):
+        with self.build_extension_patch_lock:
+            if not getattr(self.compiler, "_compile_separate_output_dir", False):
+                compile_orig = self.compiler.compile
+
+                def compile_new(*args, **kwargs):
+                    return compile_orig(*args, **{
+                        **kwargs,
+                        "output_dir": os.path.join(
+                            kwargs["output_dir"],
+                            self.thread_ext_name_map[threading.current_thread().ident]),
+                    })
+                self.compiler.compile = compile_new
+                self.compiler._compile_separate_output_dir = True
+        self.thread_ext_name_map[threading.current_thread().ident] = ext.name
+        objects = super().build_extension(ext)
+        return objects
+
+
 setup(
     name="apex",
     version="0.1",
@@ -868,6 +907,6 @@ setup(
     install_requires=["packaging>20.6"],
     description="PyTorch Extensions written by NVIDIA",
     ext_modules=ext_modules,
-    cmdclass={"build_ext": BuildExtension} if ext_modules else {},
+    cmdclass={"build_ext": BuildExtensionSeparateDir} if ext_modules else {},
     extras_require=extras,
 )
