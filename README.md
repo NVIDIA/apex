@@ -137,8 +137,7 @@ pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation -
 
 To reduce the build time of APEX, parallel building can be enhanced via
 ```bash
-export NVCC_APPEND_FLAGS="--threads 4"
-pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext --parallel 8" ./
+NVCC_APPEND_FLAGS="--threads 4" pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext --parallel 8" ./
 ```
 When CPU cores or memory are limited, the `--parallel` option is generally preferred over `--threads`. See [pull#1882](https://github.com/NVIDIA/apex/pull/1882) for more details.
 
