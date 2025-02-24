@@ -288,6 +288,16 @@ if "--distributed_lamb" in sys.argv or "--cuda_ext" in sys.argv:
             )
         )
 
+def get_amdgpu_target():
+    try:
+        output = subprocess.check_output(['rocminfo'], universal_newlines=True)
+        for line in output.split('\n'):
+            if 'Name:' in line and 'gfx' in line:
+                return line.split('gfx')[1].strip().split()[0]
+        raise RuntimeError("Unsupported AMD GPU model")
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError("Failed to run rocminfo: {}".format(e))
+    
 if "--cuda_ext" in sys.argv:
     raise_if_home_none("--cuda_ext")
     
@@ -537,6 +547,35 @@ if "--cuda_ext" in sys.argv:
             )
         )
 
+#***********  fused_bias_swiglu   ****************
+    nvcc_args_swiglu = ['-O3',
+                        '-U__CUDA_NO_HALF_OPERATORS__',
+                        '-U__CUDA_NO_HALF_CONVERSIONS__',
+                        '--expt-relaxed-constexpr',
+                        '--expt-extended-lambda'] + version_dependent_macros
+    hipcc_args_swiglu = ['-O3',
+                        '-U__CUDA_NO_HALF_OPERATORS__',
+                        '-U__CUDA_NO_HALF_CONVERSIONS__'] + version_dependent_macros
+
+    if IS_ROCM_PYTORCH:
+        amdgpu_target = get_amdgpu_target()
+        hipcc_args_swiglu += [f'--offload-arch=gfx{amdgpu_target}']
+
+
+    ext_modules.append(
+        CUDAExtension(
+            name="fused_bias_swiglu",
+            sources=[
+                "csrc/megatron/fused_bias_swiglu.cpp",
+                "csrc/megatron/fused_bias_swiglu_cuda.cu",
+            ],
+            include_dirs=[os.path.join(this_dir, "csrc")],
+            extra_compile_args={
+                "cxx": ["-O3"] + version_dependent_macros,
+                "nvcc": nvcc_args_swiglu if not IS_ROCM_PYTORCH else hipcc_args_swiglu,
+            }
+        )
+    )
 
 if "--bnp" in sys.argv or "--cuda_ext" in sys.argv:
 
