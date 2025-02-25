@@ -54,7 +54,7 @@ static bool initialized = false;
 static cudaDeviceProp props;
 
 const std::unordered_set<int> supported_c_values = {
-    128,  256,  320,  448,  512,  640,  768,  896,  960,  1024, 1280, 1344,
+    128,  256,  320,  384,  448,  512,  640,  768,  896,  960,  1024, 1280, 1344,
     1536, 1792, 1920, 2048, 2240, 2560, 2688, 3072, 3136, 3584, 4096};
 const std::unordered_set<int> supported_groups_values = {16, 32};
 
