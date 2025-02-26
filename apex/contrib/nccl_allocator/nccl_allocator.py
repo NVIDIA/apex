@@ -5,11 +5,13 @@ import _apex_nccl_allocator
 from contextlib import nullcontext
 
 
-__all__ = ["init", "nccl_mem"]
+__all__ = ["init", "nccl_mem", "create_nccl_mem_pool"]
 
 
-_allocator = _apex_nccl_allocator.get_nccl_allocator()
-_pool = torch.cuda.MemPool(_allocator)
+def create_nccl_mem_pool():
+    _allocator = _apex_nccl_allocator.get_nccl_allocator()
+    _pool = torch.cuda.MemPool(_allocator)
+    return _pool
 
 
 def init() -> None:
@@ -18,10 +20,11 @@ def init() -> None:
 
 
 class nccl_mem:
-    def __init__(self, enabled = True, device = None, group = None):
+    def __init__(self, pool, enabled = True, device = None, group = None):
         self.device = None
         self.group = None
         self.mem_context = None
+        self.pool = pool
 
         if enabled:
             if device is None:
@@ -37,7 +40,7 @@ class nccl_mem:
             else:
                 self.group = group
 
-            self.mem_context = torch.cuda.use_mem_pool(_pool)
+            self.mem_context = torch.cuda.use_mem_pool(self.pool)
         else:
             self.mem_context = nullcontext()
 
@@ -46,7 +49,7 @@ class nccl_mem:
         if self.group is not None:
             backend = self.group._get_backend(self.device)
             try:
-                backend.deregister_mem_pool(_pool)
+                backend.deregister_mem_pool(self.pool)
             except RuntimeError:
                 pass
 
@@ -54,7 +57,7 @@ class nccl_mem:
         if self.group is not None:
             backend = self.group._get_backend(self.device)
             try:
-                backend.register_mem_pool(_pool)
+                backend.register_mem_pool(self.pool)
             except RuntimeError:
                 pass
         self.mem_context.__exit__(*args)
