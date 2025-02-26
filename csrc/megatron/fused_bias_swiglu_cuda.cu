@@ -75,10 +75,12 @@ torch::Tensor fused_bias_swiglu_forward(torch::Tensor input, torch::Tensor bias)
     bias = bias.contiguous();
 
     auto output = torch::zeros({batch_size, hidden_dim / 2}, input.options());
-
-    int threads = 256;
+    // Get device properties
+    hipDeviceProp_t prop;
+    hipGetDeviceProperties(&prop, 0);
+    int threads = prop.maxThreadsPerBlock;
     int blocks = (batch_size * (hidden_dim / 2) + threads - 1) / threads;
-    blocks = min(blocks, 65535);
+    blocks = min(blocks, prop.maxGridSize[0]);
     int half_dim = hidden_dim / 2;
 
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "fused_bias_swiglu_forward", [&] {

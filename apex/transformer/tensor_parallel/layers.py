@@ -401,7 +401,7 @@ def linear_with_grad_accumulation_and_async_allreduce(
         sequence_parallel_enabled,
         False,  # use_16bit_in_wgrad_accum_fusion
     )
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda',enabled=False):
         return LinearWithGradAccumulationAndAsyncCommunication.apply(*args)
 
 
@@ -422,7 +422,7 @@ def linear_with_grad_accumulation_and_async_allreduce_in16bit(
         sequence_parallel_enabled,
         True,  # use_16bit_in_wgrad_accum_fusion
     )
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast('cuda',enabled=False):
         return LinearWithGradAccumulationAndAsyncCommunication.apply(*args)
 
 
