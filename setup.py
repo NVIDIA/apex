@@ -288,15 +288,6 @@ if "--distributed_lamb" in sys.argv or "--cuda_ext" in sys.argv:
             )
         )
 
-def get_amdgpu_target():
-    try:
-        output = subprocess.check_output(['rocminfo'], universal_newlines=True)
-        for line in output.split('\n'):
-            if 'Name:' in line and 'gfx' in line:
-                return line.split('gfx')[1].strip().split()[0]
-        raise RuntimeError("Unsupported AMD GPU model")
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError("Failed to run rocminfo: {}".format(e))
     
 if "--cuda_ext" in sys.argv:
     raise_if_home_none("--cuda_ext")
@@ -558,8 +549,22 @@ if "--cuda_ext" in sys.argv:
                         '-U__CUDA_NO_HALF_CONVERSIONS__'] + version_dependent_macros
 
     if IS_ROCM_PYTORCH:
-        amdgpu_target = get_amdgpu_target()
-        hipcc_args_swiglu += [f'--offload-arch=gfx{amdgpu_target}']
+        try:
+            amdgpu_targets = os.environ.get('PYTORCH_ROCM_ARCH', '')
+            if not amdgpu_targets:
+                print("Warning: PYTORCH_ROCM_ARCH environment variable is empty.")
+                print("Using default architecture. Set this variable for specific GPU targets.")
+                print("Example: export PYTORCH_ROCM_ARCH=gfx906")
+                amdgpu_targets = "gfx906"  # Default to a common architecture
+                
+            # Handle multiple architectures (separated by semicolons)
+            for amdgpu_target in amdgpu_targets.split(';'):
+                if amdgpu_target:  # Skip empty strings
+                    hipcc_args_swiglu += [f'--offload-arch={amdgpu_target}']
+        except Exception as e:
+            print(f"Warning: Error processing PYTORCH_ROCM_ARCH: {e}")
+            print("Falling back to default architecture gfx906")
+            hipcc_args_swiglu += ['--offload-arch=gfx906']
 
 
     ext_modules.append(
