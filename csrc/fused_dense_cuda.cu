@@ -449,7 +449,7 @@ std::vector<at::Tensor> linear_bias_backward(at::Tensor input, at::Tensor weight
   // Gradient of Weights:
   // grad_weight[out_features,in_features] = input[batch_size, in_features](T)  * output[batch_size, out_features] 
   // **********************************************************************************
-    CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_T, &alpha, &beta, output, input, grad_weight, grad_bias, dummy_gelu, true, false, false));
+    CHECK_HIPBLASLT_ERROR(gemm_lt(HIPBLAS_OP_N, HIPBLAS_OP_T, &alpha, &beta, input, output, grad_weight, grad_bias, dummy_gelu, true, false, false));
 
   // **********************************************************************************
   // ToDo: Check why HipBLASLt fail to get bgrad above so this step is not needed.

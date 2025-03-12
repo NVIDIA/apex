@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import fused_dense_cuda
 from apex._autocast_utils import _cast_if_autocast_enabled
+import math 
 
 #implements fused GEMM+bias in forward pass using mlp_cuda from apex
 class FusedDenseFunc(torch.autograd.Function):
@@ -78,12 +79,23 @@ class FusedDense(nn.Module):
         else:
             #assert False, "no-bias option not added yet"
             self.register_parameter('bias', None)
+        self.reset_parameters()
+
 
     def forward(self, input):
         if self.bias is not None:
             return fused_dense_function(input, self.weight, self.bias)
         else:
             return dense_no_bias_function(input, self.weight)
+        
+
+    def reset_parameters(self):
+        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        if self.bias is not None:
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            nn.init.uniform_(self.bias, -bound, bound)
+        
 #======================================================================================= 
 # 
 #======================================================================================= 
