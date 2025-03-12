@@ -8,11 +8,34 @@
 #include <ATen/cuda/CUDAContext.h>
 
 /* Includes, cuda */
-#include <cublas_v2.h>
 #include <cuda_runtime.h>
-
 #include "type_shim.h"
 
+/* Includes, blaslt */
+#include <cublasLt.h>
+
+#ifndef CHECK_CUDA_ERROR
+#define CHECK_CUDA_ERROR(error)                    \
+    if(error != cudaSuccess)                       \
+    {                                             \
+        fprintf(stderr,                           \
+                "Cuda error: '%s'(%d) at %s:%d\n", \
+                cudaGetErrorString(error),         \
+                error,                            \
+                __FILE__,                         \
+                __LINE__);                        \
+        exit(EXIT_FAILURE);                       \
+    }
+#endif
+#ifndef CHECK_CUBLASLT_ERROR
+#define CHECK_CUBLASLT_ERROR(error)                                                      \
+    if(error != CUBLAS_STATUS_SUCCESS)                                                   \
+    {                                                                                     \
+        fprintf(stderr, "cuBLASLt error(Err=%d) at %s:%d\n", error, __FILE__, __LINE__); \
+        fprintf(stderr, "\n");                                                            \
+        exit(EXIT_FAILURE);                                                               \
+    }
+#endif
 
 // BF16 inputs and BF16 accumulation
 void gemmex_wrapper_fp16(
@@ -22,113 +45,222 @@ void gemmex_wrapper_fp16(
     int m,
     int n,
     int k,
-    const float* alpha,
+    int batch_count,
+    float& alpha,
+    float& beta,
     at::BFloat16* A,
-    int lda,
     at::BFloat16* B,
-    int ldb,
-    const float* beta,
     at::BFloat16* C,
-    int ldc) {
-  TORCH_CUDABLAS_CHECK(cublasGemmEx(
-      handle,
-      transa,
-      transb,
-      m,
-      n,
-      k,
-      alpha,
-      A,
-      CUDA_R_16BF,
-      lda,
-      B,
-      CUDA_R_16BF,
-      ldb,
-      beta,
-      C,
-      CUDA_R_16BF,
-      ldc,
-      #if defined(USE_ROCM)
-        CUBLAS_COMPUTE_32F,
-        CUBLAS_GEMM_DEFAULT 
-      #else
-        CUDA_R_32F,
-        CUBLAS_GEMM_DEFAULT_TENSOR_OP
-      #endif
-    ));
+    at::BFloat16* D,
+    void*   d_workspace,
+    int64_t  max_workspace_size,
+    cudaStream_t   stream) 
+{
+    cublasLtMatrixLayout_t matA, matB, matC, matD;
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutCreate(&matA, CUDA_R_16BF, m, k, m));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutCreate(&matB, CUDA_R_16BF, n, k, n));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutCreate(&matC, CUDA_R_16BF, m, n, m));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutCreate(&matD, CUDA_R_16BF, m, n, m));
+
+    cublasLtMatmulDesc_t matmul;
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulDescCreate(&matmul, CUBLAS_COMPUTE_32F, CUDA_R_32F));
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulDescSetAttribute(
+        matmul, CUBLASLT_MATMUL_DESC_TRANSA, &transa, sizeof(transa)));
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulDescSetAttribute(
+        matmul, CUBLASLT_MATMUL_DESC_TRANSB, &transb, sizeof(transb)));
+
+    cublasLtEpilogue_t epilogue = CUBLASLT_EPILOGUE_DEFAULT;
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulDescSetAttribute(
+        matmul, CUBLASLT_MATMUL_DESC_EPILOGUE, &epilogue, sizeof(epilogue)));
+
+    // Set User Preference attributes
+    cublasLtMatmulPreference_t pref;
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulPreferenceCreate(&pref));
+    CHECK_CUBLASLT_ERROR(
+        cublasLtMatmulPreferenceSetAttribute(pref,
+                                              CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                              &max_workspace_size,
+                                              sizeof(max_workspace_size)));
+
+    const int                        request_solutions = 1;
+    cublasLtMatmulHeuristicResult_t heuristicResult[request_solutions];
+    int                              returnedAlgoCount = 0;
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulAlgoGetHeuristic(handle,
+                                                          matmul,
+                                                          matA,
+                                                          matB,
+                                                          matC,
+                                                          matD,
+                                                          pref,
+                                                          request_solutions,
+                                                          heuristicResult,
+                                                          &returnedAlgoCount));
+
+    if(returnedAlgoCount == 0)
+    {
+        std::cerr << "No valid solution found!" << std::endl;
+        return;
+    }
+
+    uint64_t workspace_size = 0;
+    for(int i = 0; i < returnedAlgoCount; i++)
+        workspace_size = max(workspace_size, heuristicResult[i].workspaceSize);
+
+    CHECK_CUBLASLT_ERROR(cublasLtMatmul(handle,
+                                          matmul,
+                                          &alpha,
+                                          A,
+                                          matA,
+                                          B,
+                                          matB,
+                                          &beta,
+                                          C,
+                                          matC,
+                                          D,
+                                          matD,
+                                          &heuristicResult[0].algo,
+                                          d_workspace,
+                                          workspace_size,
+                                          stream));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutDestroy(matA));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutDestroy(matB));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutDestroy(matC));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutDestroy(matD));
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulDescDestroy(matmul));
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulPreferenceDestroy(pref));
+    return;
 }
 
 // FP16 inputs and FP16 accumulation
 void gemmex_wrapper_fp16(
-    cublasHandle_t handle,
+    cublasLtHandle_t handle,
     cublasOperation_t transa,
     cublasOperation_t transb,
     int m,
     int n,
     int k,
-    const float* alpha,
+    int batch_count,
+    float& alpha,
+    float& beta,
     at::Half* A,
-    int lda,
     at::Half* B,
-    int ldb,
-    const float* beta,
     at::Half* C,
-    int ldc) {
-  TORCH_CUDABLAS_CHECK(cublasGemmEx(
-      handle,
-      transa,
-      transb,
-      m,
-      n,
-      k,
-      alpha,
-      A,
-      CUDA_R_16F,
-      lda,
-      B,
-      CUDA_R_16F,
-      ldb,
-      beta,
-      C,
-      CUDA_R_16F,
-      ldc,
-      #if defined(USE_ROCM)
-        CUBLAS_COMPUTE_32F,
-        CUBLAS_GEMM_DEFAULT 
-      #else
-        CUDA_R_32F,
-        CUBLAS_GEMM_DEFAULT_TENSOR_OP
-      #endif
-    ));
+    at::Half* D,
+    void*   d_workspace,
+    int64_t  max_workspace_size,
+    cudaStream_t   stream) 
+{
+    cublasLtMatrixLayout_t matA, matB, matC, matD;
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutCreate(&matA, CUDA_R_16F, m, k, m));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutCreate(&matB, CUDA_R_16F, n, k, n));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutCreate(&matC, CUDA_R_16F, m, n, m));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutCreate(&matD, CUDA_R_16F, m, n, m));
+
+    cublasLtMatmulDesc_t matmul;
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulDescCreate(&matmul, CUBLAS_COMPUTE_32F, CUDA_R_32F));
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulDescSetAttribute(
+        matmul, CUBLASLT_MATMUL_DESC_TRANSA, &transa, sizeof(transa)));
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulDescSetAttribute(
+        matmul, CUBLASLT_MATMUL_DESC_TRANSB, &transb, sizeof(transb)));
+
+    cublasLtEpilogue_t epilogue = CUBLASLT_EPILOGUE_DEFAULT;
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulDescSetAttribute(
+        matmul, CUBLASLT_MATMUL_DESC_EPILOGUE, &epilogue, sizeof(epilogue)));
+
+    // Set User Preference attributes
+    cublasLtMatmulPreference_t pref;
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulPreferenceCreate(&pref));
+    CHECK_CUBLASLT_ERROR(
+        cublasLtMatmulPreferenceSetAttribute(pref,
+                                              CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                              &max_workspace_size,
+                                              sizeof(max_workspace_size)));
+
+    const int                        request_solutions = 1;
+    cublasLtMatmulHeuristicResult_t heuristicResult[request_solutions];
+    int                              returnedAlgoCount = 0;
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulAlgoGetHeuristic(handle,
+                                                          matmul,
+                                                          matA,
+                                                          matB,
+                                                          matC,
+                                                          matD,
+                                                          pref,
+                                                          request_solutions,
+                                                          heuristicResult,
+                                                          &returnedAlgoCount));
+
+    if(returnedAlgoCount == 0)
+    {
+        std::cerr << "No valid solution found!" << std::endl;
+        return;
+    }
+
+    uint64_t workspace_size = 0;
+    for(int i = 0; i < returnedAlgoCount; i++)
+        workspace_size = max(workspace_size, heuristicResult[i].workspaceSize);
+
+    CHECK_CUBLASLT_ERROR(cublasLtMatmul(handle,
+                                          matmul,
+                                          &alpha,
+                                          A,
+                                          matA,
+                                          B,
+                                          matB,
+                                          &beta,
+                                          C,
+                                          matC,
+                                          D,
+                                          matD,
+                                          &heuristicResult[0].algo,
+                                          d_workspace,
+                                          workspace_size,
+                                          stream));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutDestroy(matA));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutDestroy(matB));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutDestroy(matC));
+    CHECK_CUBLASLT_ERROR(cublasLtMatrixLayoutDestroy(matD));
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulDescDestroy(matmul));
+    CHECK_CUBLASLT_ERROR(cublasLtMatmulPreferenceDestroy(pref));
+    return;
 }
 
 template <typename T>
-void wgrad_gemm_accum_fp16_cuda(T *input, T *d_output, T *d_weight, int in_dim, int hidden_dim, int out_dim) {
-    cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
-    cudaStream_t stream;
-    cublasGetStream(handle, &stream);
-    const float alpha = 1.0;
-    const float beta  = 1.0;
+void wgrad_gemm_accum_fp16_cuda(T *input, T *d_output, T *d_weight,int in_dim, int hidden_dim, int out_dim) {
 
+    cublasLtHandle_t handle = at::cuda::getCurrentCUDABlasLtHandle();
+    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+    float alpha = 1.0;
+    float beta  = 1.0;
+    const int batch_count = 1;
+    void*   d_workspace;
+    int64_t max_workspace_size = 32*1024*1024;
+    if(max_workspace_size > 0)
+        CHECK_CUDA_ERROR(cudaMalloc(&d_workspace, max_workspace_size));
     gemmex_wrapper_fp16(
         handle,
         CUBLAS_OP_N,
         CUBLAS_OP_T,
-        in_dim,
-        out_dim,
-        hidden_dim,
-        &alpha,
-        input,
-        in_dim,
-        d_output,
-        out_dim,
-        &beta,
-        d_weight,
-        in_dim);
+        in_dim,        //m
+        out_dim,       //n
+        hidden_dim,    //k
+        batch_count,
+        alpha,
+        beta,
+        input,         //da   
+        d_output,      //db
+        d_weight,      //dc
+        d_weight,      //dd
+        d_workspace,
+        max_workspace_size,
+        stream);
+    if(max_workspace_size > 0)
+        cudaFree(d_workspace);
+
 } 
 
 template void wgrad_gemm_accum_fp16_cuda<at::Half>(at::Half *input, at::Half *d_output, at::Half *d_weight, int in_dim, int hidden_dim, int out_dim);
-template void wgrad_gemm_accum_fp16_cuda<at::BFloat16>(at::BFloat16 *input, at::BFloat16 *d_output, at::BFloat16 *d_weight, int in_dim, int hidden_dim, int out_dim);
+template void wgrad_gemm_accum_fp16_cuda<at::BFloat16>(at::BFloat16 *input, at::BFloat16 *d_output, at::BFloat16 *d_weight,  int in_dim, int hidden_dim, int out_dim);
 
 void wgrad_gemm_accum_fp16_cuda_stub(
   at::Tensor &input,
@@ -151,9 +283,9 @@ void wgrad_gemm_accum_fp16_cuda_stub(
         d_output_2d = d_output;
     }
 
-    const int hidden_dim = input_2d.size(0);
-    const int in_dim = input_2d.size(1);
-    const int out_dim = d_weight.size(0);
+    const int hidden_dim = input_2d.size(0);  //k
+    const int in_dim = input_2d.size(1);      //m
+    const int out_dim = d_weight.size(0);     //n
 
     DISPATCH_HALF_AND_BFLOAT(input_2d.scalar_type(), "wgrad_gemm_accum_fp16",
         wgrad_gemm_accum_fp16_cuda<scalar_t>(
