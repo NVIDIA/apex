@@ -23,7 +23,7 @@ namespace group_norm_v2 {
     }()
 
 #define DISPATCH_CUDA_ARCH_AND_LOWER_BOUND_SM_COUNT(runtime_cuda_arch, sm_count, RUNTIME_CUDA_ARCH, LB_SM_COUNT, ...) [&] { \
-    if (runtime_cuda_arch == 1000 && sm_count >= 148 && sm_count == 148) { constexpr int RUNTIME_CUDA_ARCH = 1000, LB_SM_COUNT = 148; return __VA_ARGS__(); } \
+    if (runtime_cuda_arch == 1000 && sm_count >= 148) { constexpr int RUNTIME_CUDA_ARCH = 1000, LB_SM_COUNT = 148; return __VA_ARGS__(); } \
     throw std::invalid_argument("DISPATCH_CUDA_ARCH_AND_LOWER_BOUND_SM_COUNT " + std::to_string(runtime_cuda_arch) + " " + std::to_string(sm_count)); \
     }()
 
