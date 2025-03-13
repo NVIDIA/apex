@@ -552,6 +552,10 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel
     if constexpr (CompileCondition::matches()) {
         int step = 0;
         constexpr bool CONSTANT_C_LOOP = PERSISTENT && NUM_VIRTUAL_CLUSTERS % (C / C_PER_CLUSTER) == 0;
+        if constexpr (!CONSTANT_C_LOOP) {
+            static_assert(wgrad_sync_method != WGRAD_ARRIVE_AND_WAIT_GROUP && wgrad_sync_method != WGRAD_REUSE_SUM_SYNC_GROUP,
+                          "grid sync is required when each block is responsible for multiple channel ranges");
+        }
         NCScheduler<false, C, C_PER_CLUSTER, NUM_VIRTUAL_CLUSTERS, PERSISTENT> nc_scheduler(n);  // TODO: I don't know why the template specialization with CONSTANT_C_LOOP=true is slower.
 
         [[maybe_unused]] int virtual_cluster_idx_c = blockIdx.y % (C / C_PER_CLUSTER);
@@ -579,13 +583,11 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel
                 if constexpr (wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GRID) {
                     wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE, PERSISTENT>(barrier_wgrad, blockIdx.x + blockIdx.y == 0);
                 } else if constexpr (wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GROUP) {
-                    []<bool flag = CONSTANT_C_LOOP> { static_assert(flag, "requires CONSTANT_C_LOOP"); }();
                     wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE / (C / C_PER_CLUSTER), PERSISTENT>(barrier_wgrad + virtual_cluster_idx_c, blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
                 } else if constexpr (wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GRID) {
                     wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE, PERSISTENT>(barrier_wgrad, blockIdx.x + blockIdx.y == 0);
                     group_barrier_wait(barrier_wgrad, wgrad_sync_token);
                 } else if constexpr (wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GROUP) {
-                    []<bool flag = CONSTANT_C_LOOP> { static_assert(flag, "requires CONSTANT_C_LOOP"); }();
                     wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE / (C / C_PER_CLUSTER), PERSISTENT>(barrier_wgrad + virtual_cluster_idx_c, blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
                     group_barrier_wait(barrier_wgrad + virtual_cluster_idx_c, wgrad_sync_token);
                 }
@@ -843,14 +845,12 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel
                         virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT, HARDWARE_CLUSTER>(barrier);
                         wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE, PERSISTENT>(barrier_wgrad, blockIdx.x + blockIdx.y == 0);
                     } else if constexpr (wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GROUP) {
-                        []<bool flag = CONSTANT_C_LOOP> { static_assert(flag, "requires CONSTANT_C_LOOP"); }();
                         virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT, HARDWARE_CLUSTER>(barrier);
                         wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE / (C / C_PER_CLUSTER), PERSISTENT>(barrier_wgrad + virtual_cluster_idx_c, blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
                     } else if constexpr (wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GRID) {
                         wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE, PERSISTENT>(barrier_wgrad, blockIdx.x + blockIdx.y == 0);
                         group_barrier_wait(barrier_wgrad, wgrad_sync_token);
                     } else if constexpr (wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GROUP) {
-                        []<bool flag = CONSTANT_C_LOOP> { static_assert(flag, "requires CONSTANT_C_LOOP"); }();
                         wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE / (C / C_PER_CLUSTER), PERSISTENT>(barrier_wgrad + virtual_cluster_idx_c, blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
                         group_barrier_wait(barrier_wgrad + virtual_cluster_idx_c, wgrad_sync_token);
                     }
@@ -1001,7 +1001,6 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel
             if constexpr (wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GRID) {
                 group_barrier_wait(barrier_wgrad, wgrad_sync_token);
             } else if constexpr (wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GROUP) {
-                []<bool flag = CONSTANT_C_LOOP> { static_assert(flag, "requires CONSTANT_C_LOOP"); }();
                 group_barrier_wait(barrier_wgrad + virtual_cluster_idx_c, wgrad_sync_token);
             } else if constexpr (wgrad_sync_method == WGRAD_SYNC_AT_LAST) {
                 cg::this_grid().sync();
@@ -1053,4 +1052,4 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel
     }
 }
 
-}
+}  // namespace group_norm_v2

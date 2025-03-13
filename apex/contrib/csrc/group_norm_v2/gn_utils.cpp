@@ -20,4 +20,4 @@ cudaDeviceProp const &get_device_prop(int device_id) {
     return device_props.at(device_id);
 }
 
-}
+}  // namespace group_norm_v2

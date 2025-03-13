@@ -46,4 +46,4 @@ __host__ __device__ inline int print_rank_0(char const *fmt, Ts &&...args) {
 
 #endif
 
-}
+}  // namespace group_norm_v2

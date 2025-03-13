@@ -30,9 +30,12 @@ def run():
         with open(src_path / f"gn_cuda_inst_{hw}_{c}.cu", "w") as f:
             f.write(f"#include \"gn_cuda_host_template.cuh\"\n")
             f.write(f"\n")
+            f.write(f"\n")
             f.write(f"namespace group_norm_v2 {{\n")
+            f.write(f"\n")
             f.write(f"GN_CUDA_INST_DEFINE({hw}, {c})\n")
-            f.write(f"}}\n")
+            f.write(f"\n")
+            f.write(f"}}  // namespace group_norm_v2\n")
 
     with open(src_path / "gn_dispatch_hw_c.hpp", "w") as f:
         f.write(f"#pragma once\n")
