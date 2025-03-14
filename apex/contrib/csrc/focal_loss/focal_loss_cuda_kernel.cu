@@ -2,9 +2,11 @@
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 
+// Use 128-bit vectorization
+typedef uint4 vector_t;
 
-#define ASSERT_UINT4_ALIGNED(PTR)                                              \
-  TORCH_INTERNAL_ASSERT(is_aligned<uint4>(PTR), "Tensor " #PTR " is not uint4 aligned")
+#define ASSERT_ALIGNED(DTYPE, PTR)                                              \
+  TORCH_INTERNAL_ASSERT(is_aligned<DTYPE>(PTR), "Tensor " #PTR " is not " #DTYPE " aligned")
 
 template <class T> bool is_aligned(const void *ptr) noexcept {
   auto iptr = reinterpret_cast<std::uintptr_t>(ptr);
@@ -38,7 +40,7 @@ __global__ void focal_loss_forward_cuda_kernel(
     pp_norm = one - smoothing_factor + smoothing_factor / K;
   }
 
-  uint4 p_vec, grad_vec;
+  vector_t p_vec, grad_vec;
 
   // Accumulate loss on each thread
   for (int64_t i = (blockIdx.x * blockDim.x + threadIdx.x) * ILP;
@@ -48,7 +50,7 @@ __global__ void focal_loss_forward_cuda_kernel(
     int64_t base_yid = i % num_classes;
 
     int64_t pos_idx = idy * num_classes + y;
-    p_vec = *(uint4 *)&cls_output[i];
+    p_vec = *(vector_t *)&cls_output[i]; // Vectorized load
 
     // Skip ignored matches
     if (y == -2) {
@@ -56,7 +58,7 @@ __global__ void focal_loss_forward_cuda_kernel(
       for (int j = 0; j < ILP; j++) {
         *((scalar_t *)(&grad_vec) + j) = 0;
       }
-      *(uint4 *)&partial_grad[i] = grad_vec;
+      *(vector_t *)&partial_grad[i] = grad_vec;
       continue;
     }
 
@@ -108,8 +110,8 @@ __global__ void focal_loss_forward_cuda_kernel(
       *((scalar_t *)(&grad_vec) + j) = static_cast<scalar_t>(grad);
     }
 
-    // This can't ensure to generate stg.128 and may be two stg.64.
-    *(uint4 *)&partial_grad[i] = grad_vec;
+    // This may generate two vectorized stores instead of one
+    *(vector_t *)&partial_grad[i] = grad_vec;
   }
   loss_shm[threadIdx.x] = loss_acc;
 
@@ -144,15 +146,15 @@ __global__ void focal_loss_backward_cuda_kernel(
   if (idx >= numel)
     return;
 
-  uint4 grad_vec;
-  grad_vec = *(uint4 *)&partial_grad[idx];
+  vector_t grad_vec;
+  grad_vec = *(vector_t *)&partial_grad[idx];
 #pragma unroll(ILP)
   for (int i = 0; i < ILP; i++) {
     auto grad = static_cast<accscalar_t>(*((scalar_t *)(&grad_vec) + i));
     grad *= normalizer;
     *((scalar_t *)(&grad_vec) + i) = static_cast<scalar_t>(grad);
   }
-  *(uint4 *)&partial_grad[idx] = grad_vec;
+  *(vector_t *)&partial_grad[idx] = grad_vec;
 }
 
 std::vector<at::Tensor> focal_loss_forward_cuda(
@@ -175,10 +177,10 @@ std::vector<at::Tensor> focal_loss_forward_cuda(
                "Mis-matched shape between class output and label.");
 
   // Checks required for better performance
-  const int ILP = sizeof(uint4) / cls_output.element_size();
-  ASSERT_UINT4_ALIGNED(cls_output.data_ptr());
+  const int ILP = sizeof(vector_t) / cls_output.element_size();
+  ASSERT_ALIGNED(vector_t, cls_output.data_ptr());
   TORCH_INTERNAL_ASSERT(cls_output.size(-1) % ILP == 0,
-             "Pad number of classes first to take advantage of 128 bit load.");
+             "Pad number of classes first to take advantage of vectorized load.");
   TORCH_INTERNAL_ASSERT(num_real_classes >= ILP, "Too few classes.");
 
   int64_t num_classes = cls_output.size(-1);
@@ -190,12 +192,16 @@ std::vector<at::Tensor> focal_loss_forward_cuda(
   // helps with focal loss.
   at::Tensor partial_grad = at::empty_like(cls_output);
 
-  // The grid contains 2 CTA per SM, each CTA loop on input with stride till the
-  // last item.
+  // Set the number of CTAs per SM according to the compute capability.
+  // Each CTA loops on input with stride till the last item.
   cudaDeviceProp props;
   cudaGetDeviceProperties(&props, at::cuda::current_device());
+  int cta_per_sm = 2;
+  if (props.major >= 10) {
+    cta_per_sm = 8;
+  }
   dim3 block(512);
-  dim3 grid(2 * props.multiProcessorCount);
+  dim3 grid(cta_per_sm * props.multiProcessorCount);
 
   // Specialize on label smoothing or not to reduce redundant operations
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
@@ -205,7 +211,7 @@ std::vector<at::Tensor> focal_loss_forward_cuda(
           using accscalar_t = at::acc_type<scalar_t, true>;
           using labelscalar_t = int64_t;
           using outscalar_t = float;
-          const int ILP = sizeof(uint4) / sizeof(scalar_t);
+          const int ILP = sizeof(vector_t) / sizeof(scalar_t);
           focal_loss_forward_cuda_kernel<false, ILP, scalar_t, labelscalar_t,
                                          accscalar_t, outscalar_t>
               <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
@@ -223,7 +229,7 @@ std::vector<at::Tensor> focal_loss_forward_cuda(
           using accscalar_t = at::acc_type<scalar_t, true>;
           using labelscalar_t = int64_t;
           using outscalar_t = float;
-          const int ILP = sizeof(uint4) / sizeof(scalar_t);
+          const int ILP = sizeof(vector_t) / sizeof(scalar_t);
           focal_loss_forward_cuda_kernel<true, ILP, scalar_t, labelscalar_t,
                                          accscalar_t, outscalar_t>
               <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
@@ -245,7 +251,7 @@ at::Tensor focal_loss_backward_cuda(const at::Tensor &grad_output,
                                     const at::Tensor &partial_grad,
                                     const at::Tensor &num_positives_sum) {
   // Each thread process ILP elements
-  const int ILP = sizeof(uint4) / partial_grad.element_size();
+  const int ILP = sizeof(vector_t) / partial_grad.element_size();
   dim3 block(512);
   dim3 grid((partial_grad.numel() + block.x * ILP - 1) / (block.x * ILP));
 
@@ -254,7 +260,7 @@ at::Tensor focal_loss_backward_cuda(const at::Tensor &grad_output,
       partial_grad.scalar_type(), "focal_loss_bprop", [&] {
         using accscalar_t = at::acc_type<scalar_t, true>;
         using outscalar_t = float;
-        const int ILP = sizeof(uint4) / sizeof(scalar_t);
+        const int ILP = sizeof(vector_t) / sizeof(scalar_t);
         focal_loss_backward_cuda_kernel<ILP, scalar_t, accscalar_t, outscalar_t>
             <<<grid, block, 0, stream>>>(partial_grad.data_ptr<scalar_t>(),
                                          grad_output.data_ptr<outscalar_t>(),
