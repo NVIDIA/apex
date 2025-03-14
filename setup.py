@@ -77,15 +77,18 @@ if not torch.cuda.is_available():
     print(
         "\nWarning: Torch did not find available GPUs on this system.\n",
         "If your intention is to cross-compile, this is not an error.\n"
-        "By default, Apex will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2),\n"
+        "By default, Apex will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2) (until CUDA 12.8),\n"
         "Volta (compute capability 7.0), Turing (compute capability 7.5),\n"
-        "and, if the CUDA version is >= 11.0, Ampere (compute capability 8.0).\n"
+        "and, if the CUDA version is >= 11.0, Ampere (compute capability 8.0, 8.6), and,\n"
+        "if the CUDA version is >= 12.8, Blackwell (compute capability 10.0, 12.0).\n"
         "If you wish to cross-compile for a single specific architecture,\n"
         'export TORCH_CUDA_ARCH_LIST="compute capability" before running setup.py.\n',
     )
     if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None and CUDA_HOME is not None:
         _, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
-        if bare_metal_version >= Version("11.8"):
+        if bare_metal_version >= Version("12.8"):
+            os.environ["TORCH_CUDA_ARCH_LIST"] = "7.0;7.5;8.0;8.6;9.0;10.0;12.0"
+        elif bare_metal_version >= Version("11.8"):
             os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5;8.0;8.6;9.0"
         elif bare_metal_version >= Version("11.1"):
             os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5;8.0;8.6"
@@ -364,6 +367,11 @@ if "--cuda_ext" in sys.argv:
         if bare_metal_version >= Version("11.8"):
             cc_flag.append("-gencode")
             cc_flag.append("arch=compute_90,code=sm_90")
+        if bare_metal_version >= Version("12.8"):
+            cc_flag.append("-gencode")
+            cc_flag.append("arch=compute_100,code=sm_100")
+            cc_flag.append("-gencode")
+            cc_flag.append("arch=compute_120,code=sm_120")
 
         ext_modules.append(
             CUDAExtension(
@@ -469,10 +477,10 @@ if "--group_norm" in sys.argv:
 
     # CUDA group norm supports from SM70
     arch_flags = []
-    for arch in [70, 75, 80, 86, 90]:
+    # FIXME: this needs to be done more cleanly
+    for arch in [70, 75, 80, 86, 90, 100, 120]:
         arch_flag = f"-gencode=arch=compute_{arch},code=sm_{arch}"
         arch_flags.append(arch_flag)
-    arch_flag = f"-gencode=arch=compute_90,code=compute_90"
     arch_flags.append(arch_flag)
 
     ext_modules.append(
@@ -567,6 +575,11 @@ if "--fast_layer_norm" in sys.argv:
     if bare_metal_version >= Version("11.8"):
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_90,code=sm_90")
+    if bare_metal_version >= Version("12.8"):
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_100,code=sm_100")
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_120,code=sm_120")
 
     ext_modules.append(
         CUDAExtension(
@@ -609,6 +622,11 @@ if "--fmha" in sys.argv:
     if bare_metal_version >= Version("11.8"):
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_90,code=sm_90")
+    if bare_metal_version >= Version("12.8"):
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_100,code=sm_100")
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_120,code=sm_120")
 
     ext_modules.append(
         CUDAExtension(
@@ -662,6 +680,11 @@ if "--fast_multihead_attn" in sys.argv:
     if bare_metal_version >= Version("11.8"):
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_90,code=sm_90")
+    if bare_metal_version >= Version("12.8"):
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_100,code=sm_100")
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_120,code=sm_120")
 
     subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
     ext_modules.append(
