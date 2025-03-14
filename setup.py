@@ -481,7 +481,6 @@ if "--group_norm" in sys.argv:
     for arch in [70, 75, 80, 86, 90, 100, 120]:
         arch_flag = f"-gencode=arch=compute_{arch},code=sm_{arch}"
         arch_flags.append(arch_flag)
-    arch_flag = f"-gencode=arch=compute_120,code=compute_120"
     arch_flags.append(arch_flag)
 
     ext_modules.append(
