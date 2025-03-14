@@ -192,6 +192,10 @@ def cuda_group_norm_nhwc_two_pass(x, G, weight, bias, eps, act=None):
     y, _ = group_norm_nhwc_fprop(x, G, weight, bias, eps, act, passes=2)
     return y
 
+def cuda_group_norm_v2_nhwc(x, G, weight, bias, eps, act=None):
+    y, _ = group_norm_nhwc_fprop(x, G, weight, bias, eps, act, use_group_norm_v2=True)
+    return y
+
 # We do not direct inherit from torch.nn.GroupNorm since several fusers don't
 # support inheritance. Extends:
 # https://github.com/pytorch/pytorch/blob/main/torch/nn/modules/normalization.py
