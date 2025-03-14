@@ -97,7 +97,7 @@ auto gn_bwd(torch::Tensor grad_output, torch::Tensor x, torch::Tensor w, torch::
     return std::make_tuple(grad_input, grad_weight, grad_bias);
 }
 
-}
+}  // namespace group_norm_v2
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("gn", &group_norm_v2::gn, py::arg("x"), py::arg("w"), py::arg("b"), py::arg("eps"), py::arg("silu"), py::arg("num_groups"), py::arg("mean_var_out") = py::none(), py::arg("sm_margin") = 0, "");

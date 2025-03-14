@@ -492,7 +492,7 @@ if "--group_norm" in sys.argv:
     )
 
     # CUDA group norm V2 is tested on SM100
-    if bare_metal_version >= Version("12.7"):
+    if bare_metal_version >= Version("12.8"):
         arch_flags = ["-gencode=arch=compute_100,code=sm_100"]
     else:
         arch_flags = ["-gencode=arch=compute_90,code=compute_90"]
