@@ -56,8 +56,15 @@ constexpr auto compute_gn_params() {
     int BLOCKS_PER_SM;
     WgradSyncMethod wgrad_sync_method = WGRAD_SYNC_UNSPECIFIED;
 
+    // There are two tiling strategies:
+    //   - block sync: each block handles a whole group, i.e., a multiple of (G * HW) elements
+    //   - virtual cluster sync: each virtual cluster handles a group
+    // Block sync can avoid cross-block synchronization latency, but it may cause low occupancy.
+    //   Use block sync if the IO size is small, when latency rather than occupancy dominates the kernel running time.
+
+    // Elements to load for forward pass is `x`, elements to load for backward pass are `x` and `grad_output`, hence there is a factor of (1 + BWD)
     if (HW * CPG * (1 + BWD) * sizeof(T) <= 20480) {
-        // block sync
+        // Strategy 1: block sync
         C_PER_BLOCK = CPG;
         ROWS_PER_BLOCK = HW;
         BLOCK_DIM_X = lcm(32, C_PER_BLOCK);
@@ -65,15 +72,23 @@ constexpr auto compute_gn_params() {
             BLOCK_DIM_X *= 2;
         }
         BLOCKS_PER_SM = 1;
+        // The size of registers is 65536 registers * 4 bytes per register.
+        //   We have to leave some room for other variables and compiler optimizations,
+        //   so we use 36000 as the threshold.
         LOAD_TWICE = BLOCKS_PER_SM * ROWS_PER_BLOCK * C_PER_BLOCK * (1 + BWD) * sizeof(T) > 36000 * 4;
     } else {
-        // virtual cluster sync
+        // Strategy 2: virtual cluster sync
+        //   A virtual cluster is a group of blocks that are synchronized with each other.
+        //   Each group, i.e., a multiple of (G * HW) elements, should be handled on the same virtual cluster.
+        //   If the virtual cluster size is supported by the hardware, HARDWARE_CLUSTER is preferred;
+        //   otherwise, cooperative groups are used (i.e., PERSISTENT kernels).
         int c_per_cluster = lcm(128 / (int)sizeof(T), CPG);
 
         C_PER_BLOCK = c_per_cluster;
         BLOCK_DIM_X = C_PER_BLOCK == 320 ? 320 : 480;
-
-        int one_pass_max_rows = 36000 * 4 / (C_PER_BLOCK * (1 + BWD) * sizeof(T));
+\
+        // Maximum number of rows that should reside in registers
+        int register_max_rows = 36000 * 4 / (C_PER_BLOCK * (1 + BWD) * sizeof(T));
 
         std::tuple<bool, int, int, int, int, int> best_candidate{};
         BLOCKS_PER_SM = 0;
@@ -87,15 +102,22 @@ constexpr auto compute_gn_params() {
                 int num_clusters = blocks_per_sm * (LB_SM_COUNT - SM_MARGIN) / virtual_cluster_size;
                 int num_tasks = LB_N * (C / c_per_cluster);
                 int num_waves = up_div(num_tasks, num_clusters);
-                bool load_twice = rows_per_block > one_pass_max_rows / blocks_per_sm;
+                bool load_twice = rows_per_block > register_max_rows / blocks_per_sm;
+
+                // Wave utilization: the percent of SMs that are used for each wave
+                //   For example, SM_COUNT=100 and VIRTUAL_CLUSTER_SIZE=64,
+                //     if BLOCKS_PER_SM=1, num_clusters=1, wave_util=64%;
+                //     if BLOCKS_PER_SM=2, num_clusters=3, wave_util=96%.
+                //   This helps select a good number of BLOCKS_PER_SM
                 int wave_util = 10000 * std::min(num_tasks, num_clusters) * virtual_cluster_size / (blocks_per_sm * (LB_SM_COUNT - SM_MARGIN));
+
                 decltype(best_candidate) candidate = {
                     true,
-                    !load_twice,
-                    !(num_waves >= 2 && blocks_per_sm == 1),  // overlap
-                    -num_waves,
-                    std::min(9000, wave_util),
-                    -blocks_per_sm,
+                    !load_twice,                // Prefer no load twice
+                    !(num_waves >= 2 && blocks_per_sm == 1),  // When there are multiple waves, prefer multiple blocks per SM to ensure overlapping
+                    -num_waves,                 // Prefer fewer waves
+                    std::min(9000, wave_util),  // Prefer high wave utilization
+                    -blocks_per_sm,             // Prefer fewer blocks per SM in order to reduce threads overhead
                 };
                 if (candidate > best_candidate) {
                     best_candidate = candidate;
@@ -105,13 +127,21 @@ constexpr auto compute_gn_params() {
             }
         }
 
-        LOAD_TWICE = ROWS_PER_BLOCK > one_pass_max_rows / BLOCKS_PER_SM;
+        LOAD_TWICE = ROWS_PER_BLOCK > register_max_rows / BLOCKS_PER_SM;
     }
 
     int c_per_cluster = lcm(CPG, C_PER_BLOCK);
     int virtual_cluster_size = (c_per_cluster / C_PER_BLOCK) * (HW / ROWS_PER_BLOCK);
+
+    // The occupancy is affected if cluster size is large.
+    //   For example, on H100, when gridDim=128 and each block occupies the whole SM,
+    //     if cluster is not used, all blocks can be active simultaneously.
+    //     if cluster size is 16, not all blocks can be active simultaneously (which can be queried by cudaOccupancyMaxActiveClusters),
+    //       so there will be two waves which impacts efficiency.
+    // When SM_MARGIN is set, no cluster should be used because other kernels may occupy a part of the cluster.
     bool HARDWARE_CLUSTER = virtual_cluster_size <= 2 && virtual_cluster_size != 1 && SM_MARGIN == 0;
-    int MAX_VEC_BYTES = 8;
+
+    int MAX_VEC_BYTES = 8;  // Sometimes 4 or 16 is better, but there is no trivial way to select the best vectorization size.
     int VEC_ELEMS = std::min(gcd(MAX_VEC_BYTES / (int)sizeof(T), C_PER_BLOCK),
                              gcd(MAX_VEC_BYTES / (int)sizeof(T), ROWS_PER_BLOCK * C_PER_BLOCK / BLOCK_DIM_X));
 
@@ -127,10 +157,11 @@ constexpr auto compute_gn_params() {
     );
 }
 
+// Save compilation time for unused CUDA_ARCHs
+//   For each template argument from DISPATCH_CUDA_ARCH_AND_LOWER_BOUND_SM_COUNT, the kernel is only compiled for the corresponding CUDA_ARCH
 template<int EFFECTIVE_CUDA_ARCH>
 class CompileCondition {
 public:
-    // Save compilation time for unused CUDA_ARCHs
     __host__ __device__ static constexpr bool matches() {
 #if defined(__CUDA_ARCH__)
         return __CUDA_ARCH__ == EFFECTIVE_CUDA_ARCH;
@@ -177,7 +208,7 @@ void gn_cuda_single_shape(GN_CUDA_HOST_PARAMS(T)) {
             if (sm_margin != SM_MARGIN) {
                 throw std::invalid_argument("wrong SM_MARGIN");
             }
-            constexpr int EFFECTIVE_CUDA_ARCH = std::min(RUNTIME_CUDA_ARCH, get_max_cuda_arch());
+            constexpr int EFFECTIVE_CUDA_ARCH = std::min(RUNTIME_CUDA_ARCH, get_max_cuda_arch());  // Assume the max CUDA_ARCH is used to generate PTX
 
             constexpr int CPG = C / G;
 
@@ -193,7 +224,7 @@ void gn_cuda_single_shape(GN_CUDA_HOST_PARAMS(T)) {
             constexpr int C_PER_CLUSTER = lcm(CPG, C_PER_BLOCK);
             constexpr int VIRTUAL_CLUSTER_SIZE = (C_PER_CLUSTER / C_PER_BLOCK) * (HW / ROWS_PER_BLOCK);
             constexpr int NUM_VIRTUAL_CLUSTERS = ((LB_SM_COUNT - SM_MARGIN) * BLOCKS_PER_SM) / VIRTUAL_CLUSTER_SIZE;
-            constexpr bool PERSISTENT = !HARDWARE_CLUSTER && VIRTUAL_CLUSTER_SIZE >= 2;
+            constexpr bool PERSISTENT = !HARDWARE_CLUSTER && VIRTUAL_CLUSTER_SIZE >= 2;  // Only virtual cluster sync (not include hardware cluster sync) requires PERSISTENT kernels
 
             if (meta_ptr) {
                 constexpr int MAX_NUM_GROUPS_PER_BLOCK = C_PER_BLOCK % CPG == 0 ? C_PER_BLOCK / CPG : up_div(C_PER_BLOCK - gcd(C_PER_BLOCK, CPG), CPG) + 1;
@@ -213,9 +244,6 @@ void gn_cuda_single_shape(GN_CUDA_HOST_PARAMS(T)) {
             }
 
             cudaLaunchConfig_t config = {0};
-            // The grid dimension is not affected by cluster launch, and is still enumerated
-            // using number of blocks.
-            // The grid dimension should be a multiple of cluster size.
             config.gridDim = dim3(VIRTUAL_CLUSTER_SIZE, PERSISTENT ? std::min((int)n * (C / C_PER_CLUSTER), NUM_VIRTUAL_CLUSTERS) : n * (C / C_PER_CLUSTER), 1);
             config.blockDim = BLOCK_DIM_X;
             config.stream = stream;
@@ -251,6 +279,7 @@ void gn_cuda_single_shape(GN_CUDA_HOST_PARAMS(T)) {
                 if (VIRTUAL_CLUSTER_SIZE <= max_cluster_size && (!PERSISTENT || PERSISTENT && NUM_VIRTUAL_CLUSTERS <= active_clusters)) {
                     attribute[0].val.clusterDim.x = VIRTUAL_CLUSTER_SIZE;
                 } else {
+                    // Fallback to cooperative groups because hardware cluster cannot be active simultaneously
                     constexpr bool HARDWARE_CLUSTER_NEW = false;
                     constexpr bool PERSISTENT_NEW = !HARDWARE_CLUSTER_NEW && VIRTUAL_CLUSTER_SIZE >= 2;
                     config.gridDim = dim3(VIRTUAL_CLUSTER_SIZE, PERSISTENT_NEW ? std::min((int)n * (C / C_PER_CLUSTER), NUM_VIRTUAL_CLUSTERS) : n * (C / C_PER_CLUSTER), 1);
@@ -309,7 +338,7 @@ void gn_bwd_cuda_single_shape(GN_BWD_CUDA_HOST_PARAMS(T)) {
             if (sm_margin != SM_MARGIN) {
                 throw std::invalid_argument("wrong SM_MARGIN");
             }
-            constexpr int EFFECTIVE_CUDA_ARCH = std::min(RUNTIME_CUDA_ARCH, get_max_cuda_arch());
+            constexpr int EFFECTIVE_CUDA_ARCH = std::min(RUNTIME_CUDA_ARCH, get_max_cuda_arch());  // Assume the max CUDA_ARCH is used to generate PTX
 
             constexpr bool REQUIRES_WGRAD = true;
             constexpr int CPG = C / G;
@@ -328,8 +357,15 @@ void gn_bwd_cuda_single_shape(GN_BWD_CUDA_HOST_PARAMS(T)) {
             constexpr int VIRTUAL_CLUSTER_SIZE = (C_PER_CLUSTER / C_PER_BLOCK) * (HW / ROWS_PER_BLOCK);
             constexpr int NUM_VIRTUAL_CLUSTERS_NOT_ALIGNED = ((LB_SM_COUNT - SM_MARGIN) * BLOCKS_PER_SM) / VIRTUAL_CLUSTER_SIZE;
 
-            // TODO: specilize for the case that REQUIRES_WGRAD == false
+            // PERSISTENT is required because wgrad reduction requires synchronization.
+            //   TODO: specilize for the case that REQUIRES_WGRAD == false
             constexpr bool PERSISTENT = true;
+
+            // Determine whether to align each virtual cluster to a fixed range of channels
+            //   If aligned, WGRAD_REUSE_SUM_SYNC_GROUP can be used, then less local wgrad memory is used (leave more room for compiler
+            //     optimizations), and wgrad reduction is more efficient.
+            //   However, aligning can cause low occupancy.
+            //   There is a trade-off, and the condition to align is `NUM_VIRTUAL_CLUSTERS_NOT_ALIGNED > 2 * (C / C_PER_CLUSTER)`
             constexpr WgradSyncMethod wgrad_sync_method =
                 wgrad_sync_method_hint == WGRAD_SYNC_UNSPECIFIED ?
                     NUM_VIRTUAL_CLUSTERS_NOT_ALIGNED > 2 * (C / C_PER_CLUSTER) || NUM_VIRTUAL_CLUSTERS_NOT_ALIGNED % (C / C_PER_CLUSTER) == 0 ?
@@ -360,9 +396,6 @@ void gn_bwd_cuda_single_shape(GN_BWD_CUDA_HOST_PARAMS(T)) {
             }
 
             cudaLaunchConfig_t config = {0};
-            // The grid dimension is not affected by cluster launch, and is still enumerated
-            // using number of blocks.
-            // The grid dimension should be a multiple of cluster size.
             config.gridDim = dim3(VIRTUAL_CLUSTER_SIZE, PERSISTENT ? NUM_VIRTUAL_CLUSTERS : n * (C / C_PER_CLUSTER), 1);
             config.blockDim = BLOCK_DIM_X;
             config.stream = stream;
@@ -398,6 +431,7 @@ void gn_bwd_cuda_single_shape(GN_BWD_CUDA_HOST_PARAMS(T)) {
                 if (VIRTUAL_CLUSTER_SIZE <= max_cluster_size && (!PERSISTENT || PERSISTENT && NUM_VIRTUAL_CLUSTERS <= active_clusters)) {
                     attribute[0].val.clusterDim.x = VIRTUAL_CLUSTER_SIZE;
                 } else {
+                    // Fallback to cooperative groups for dgrad computation because hardware cluster cannot be active simultaneously
                     attribute[0].val.clusterDim.x = 1;
                     kernel = &gn_bwd_cuda_kernel<T, BLOCK_DIM_X, BLOCKS_PER_SM, G, CPG, HW, SILU, REQUIRES_WGRAD, ROWS_PER_BLOCK, C_PER_BLOCK, C_PER_CLUSTER, VEC_ELEMS, PERSISTENT, NUM_VIRTUAL_CLUSTERS, LOAD_TWICE, false, wgrad_sync_method, CompileCondition<EFFECTIVE_CUDA_ARCH> >;
                 }
