@@ -21,7 +21,7 @@ if torch.distributed.is_available():
 
 
 def to_type(dtype, t):
-    if isinstance(t, torch.Tensor):
+    if hasattr(t, "is_floating_point") and hasattr(t, "is_cuda") and hasattr(t, "to"):
         if not t.is_cuda:
             # This should not be a hard error, since it may be legitimate.
             warnings.warn("An input tensor was not cuda.")
