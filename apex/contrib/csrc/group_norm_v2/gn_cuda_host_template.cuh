@@ -49,11 +49,12 @@ template<typename T, bool BWD, bool REQUIRES_WGRAD, int HW, int G, int CPG, int 
 constexpr auto compute_gn_params() {
     constexpr int C = G * CPG;
 
-    int BLOCK_DIM_X;
-    int C_PER_BLOCK;
-    int ROWS_PER_BLOCK;
-    bool LOAD_TWICE;
-    int BLOCKS_PER_SM;
+    // Initialize each variable to comply with C++17
+    int BLOCK_DIM_X = 0;
+    int C_PER_BLOCK = 0;
+    int ROWS_PER_BLOCK = 0;
+    bool LOAD_TWICE = false;
+    int BLOCKS_PER_SM = 0;
     WgradSyncMethod wgrad_sync_method = WGRAD_SYNC_UNSPECIFIED;
 
     // There are two tiling strategies:
@@ -120,7 +121,15 @@ constexpr auto compute_gn_params() {
                     -blocks_per_sm,             // Prefer fewer blocks per SM in order to reduce threads overhead
                 };
                 if (candidate > best_candidate) {
-                    best_candidate = candidate;
+                    // Assign each element respectively to comply with C++17
+                    std::get<0>(best_candidate) = std::get<0>(candidate);
+                    std::get<1>(best_candidate) = std::get<1>(candidate);
+                    std::get<2>(best_candidate) = std::get<2>(candidate);
+                    std::get<3>(best_candidate) = std::get<3>(candidate);
+                    std::get<4>(best_candidate) = std::get<4>(candidate);
+                    std::get<5>(best_candidate) = std::get<5>(candidate);
+                    static_assert(std::tuple_size<decltype(best_candidate)>::value == 6, "missing assignments");
+
                     BLOCKS_PER_SM = blocks_per_sm;
                     ROWS_PER_BLOCK = rows_per_block;
                 }

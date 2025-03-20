@@ -506,9 +506,9 @@ if "--group_norm" in sys.argv:
                 "apex/contrib/csrc/group_norm_v2/gn_utils.cpp",
             ] + glob.glob("apex/contrib/csrc/group_norm_v2/gn_cuda_inst_*.cu"),
             extra_compile_args={
-                "cxx": ["-O2", "-std=c++20"] + version_dependent_macros,
+                "cxx": ["-O2"] + version_dependent_macros,
                 "nvcc": [
-                    "-O2", "-std=c++20", "--use_fast_math", "--ftz=false",
+                    "-O2", "--use_fast_math", "--ftz=false",
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
                     "-U__CUDA_NO_HALF_OPERATORS__",
                     "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
