@@ -48,7 +48,7 @@ if os.path.exists(os.path.join(torch_dir, "include", "ATen", "Atomic.cuh")):
     found_aten_atomic_header = True
 
 def raise_if_cuda_home_none(global_option: str) -> None:
-    if CUDA_HOME is not None:
+    if CUDA_HOME is not None or ROCM_HOME is not None:
         return
     raise RuntimeError(
         f"{global_option} was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  "
@@ -937,6 +937,36 @@ if "--fused_conv_bias_relu" in sys.argv:
             )
         )
 
+if "--nccl_allocator" in sys.argv or "--cuda_ext" in sys.argv:
+    sys.argv.remove("--nccl_allocator")
+    raise_if_cuda_home_none("--nccl_allocator")
+    _nccl_version_getter = load(
+        name="_nccl_version_getter",
+        sources=["apex/contrib/csrc/nccl_p2p/nccl_version.cpp", "apex/contrib/csrc/nccl_p2p/nccl_version_check.cu"],
+    )
+    ccl_library = ["nccl"]
+    if IS_ROCM_PYTORCH:
+        ccl_library = ["rccl"]
+    _available_nccl_version = _nccl_version_getter.get_nccl_version()
+    if _available_nccl_version >= (2, 19):
+        ext_modules.append(
+            CUDAExtension(
+                name="_apex_nccl_allocator",
+                sources=[
+                    "apex/contrib/csrc/nccl_allocator/NCCLAllocator.cpp",
+                ],
+                include_dirs=[os.path.join(this_dir, "apex/apex/contrib/csrc/nccl_allocator")],
+                libraries=ccl_library,
+                extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+            )
+        )
+    else:
+        warnings.warn(
+            f"Skip `--nccl_allocator` as it requires NCCL 2.19 or later, but {_available_nccl_version[0]}.{_available_nccl_version[1]}"
+        )
+
+
+
 if "--cuda_ext" in sys.argv:
     sys.argv.remove("--cuda_ext")
 
@@ -951,3 +981,4 @@ setup(
     cmdclass={'build_ext': BuildExtension} if ext_modules else {},
     extras_require=extras,
 )
+

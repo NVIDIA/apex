@@ -13,8 +13,8 @@
 
 
 // TODO:  Kernel arg size limit may be <4KB for some other cards (ie Jetson)
-constexpr int depth_to_max_tensors[5] = {110, 64, 48, 36, 30};
-constexpr int depth_to_max_blocks[5] = {2560, 2560, 2560, 2560, 2560};
+constexpr int depth_to_max_tensors[6] = {110, 64, 48, 36, 30, 24};
+constexpr int depth_to_max_blocks[6] = {2560, 2560, 2560, 2560, 2560, 2560};
 
 template<int n> struct TensorListMetadata
 {
@@ -31,7 +31,7 @@ template<typename T, typename U, typename... ArgTypes>
 __launch_bounds__(1024)
 #endif
 __global__ void multi_tensor_apply_kernel(
-    int chunk_size,
+    int64_t chunk_size,
     volatile int* noop_flag,
     T tl,
     U callable,
@@ -43,8 +43,8 @@ __global__ void multi_tensor_apply_kernel(
 
 template<int depth, typename T, typename... ArgTypes>
 void multi_tensor_apply(
-  int block_size,
-  int chunk_size,
+  int64_t block_size,
+  int64_t chunk_size,
   const at::Tensor& noop_flag,
   const std::vector<std::vector<at::Tensor>>& tensor_lists,
   T callable,
@@ -61,7 +61,7 @@ void multi_tensor_apply(
     for(int t = 0; t < tensor_lists[l].size(); t++)
     {
       // TODO:  Print which tensor fails.
-      bool contiguous_memory = (tensor_lists[l][t].is_sparse()) ? tensor_lists[l][t]._values().is_contiguous() : tensor_lists[l][t].is_contiguous();
+      bool contiguous_memory = tensor_lists[l][t].is_contiguous();
 #ifdef VERSION_GE_1_5
       contiguous_memory = (contiguous_memory || tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast) || tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast3d));
 #endif
@@ -84,24 +84,13 @@ void multi_tensor_apply(
   for(int t = 0; t < ntensors; t++)
   {
     tl.sizes[loc_tensor_info] = tensor_lists[0][t].numel();
-    // skip empty tensors
-    if (tl.sizes[loc_tensor_info] == 0) {
-      continue;
-    }
-    for(int d = 0; d < depth; d++) {
-      if (tensor_lists[d][t].is_sparse()) {
-        at::Tensor dst = at::zeros(tensor_lists[d][t].sizes(), tensor_lists[d][t].options().layout(at::kStrided));
-        dst.add_(tensor_lists[d][t]);
-        tl.addresses[d][loc_tensor_info] = dst.data_ptr();
-      } else {
-        tl.addresses[d][loc_tensor_info] = tensor_lists[d][t].data_ptr();
-      }
-    }
+    for(int d = 0; d < depth; d++)
+      tl.addresses[d][loc_tensor_info] = tensor_lists[d][t].data_ptr();
     loc_tensor_info++;
 
-    int chunks_this_tensor = (tensor_lists[0][t].numel() + chunk_size - 1)/chunk_size;
+    auto chunks_this_tensor = (tensor_lists[0][t].numel() + chunk_size - 1)/chunk_size;
 
-    for(int chunk = 0; chunk < chunks_this_tensor; chunk++)
+    for(auto chunk = 0; chunk < chunks_this_tensor; chunk++)
     {
       // std::cout << chunks_this_tensor << std::endl;
       tl.block_to_tensor[loc_block_info] = loc_tensor_info - 1;
