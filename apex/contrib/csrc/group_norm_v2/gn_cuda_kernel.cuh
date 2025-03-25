@@ -890,9 +890,11 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel
                         virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT, HARDWARE_CLUSTER>(barrier);
                         wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE / (C / C_PER_CLUSTER), PERSISTENT>(barrier_wgrad + virtual_cluster_idx_c, blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
                     } else if constexpr (wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GRID) {
+                        static_assert(!HARDWARE_CLUSTER, "Distributed smem sync cannot reuse gmem sync. Use WGRAD_ARRIVE_AND_WAIT_GRID instead.");
                         wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE, PERSISTENT>(barrier_wgrad, blockIdx.x + blockIdx.y == 0);
                         group_barrier_wait(barrier_wgrad, wgrad_sync_token);
                     } else if constexpr (wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GROUP) {
+                        static_assert(!HARDWARE_CLUSTER, "Distributed smem sync cannot reuse gmem sync. Use WGRAD_ARRIVE_AND_WAIT_GROUP instead.");
                         wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE / (C / C_PER_CLUSTER), PERSISTENT>(barrier_wgrad + virtual_cluster_idx_c, blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
                         group_barrier_wait(barrier_wgrad + virtual_cluster_idx_c, wgrad_sync_token);
                     }

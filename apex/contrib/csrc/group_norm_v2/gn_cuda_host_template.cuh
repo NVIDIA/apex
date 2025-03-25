@@ -378,7 +378,7 @@ void gn_bwd_cuda_single_shape(GN_BWD_CUDA_HOST_PARAMS(T)) {
             constexpr WgradSyncMethod wgrad_sync_method =
                 wgrad_sync_method_hint == WGRAD_SYNC_UNSPECIFIED ?
                     NUM_VIRTUAL_CLUSTERS_NOT_ALIGNED > 2 * (C / C_PER_CLUSTER) || NUM_VIRTUAL_CLUSTERS_NOT_ALIGNED % (C / C_PER_CLUSTER) == 0 ?
-                        WGRAD_REUSE_SUM_SYNC_GROUP :
+                        (HARDWARE_CLUSTER ? WGRAD_ARRIVE_AND_WAIT_GROUP : WGRAD_REUSE_SUM_SYNC_GROUP) :
                         WGRAD_REUSE_SUM_SYNC_GRID :
                     wgrad_sync_method_hint;
             constexpr int NUM_VIRTUAL_CLUSTERS =
