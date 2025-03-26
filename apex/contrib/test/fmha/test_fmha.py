@@ -61,7 +61,7 @@ def py_mha(qkv, amask, b, s, h, d):
 
 
 @unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
-@unittest.skipIf(not _get_device_properties() == (8, 0), "FMHA only supports sm80")
+@unittest.skipIf(_get_device_properties() not in [(8, 0), (9, 0), (10, 0), (12, 0)], "FMHA only supports sm80")
 class TestFMHA(unittest.TestCase):
 
     def run_test(self, s: int, b: int, zero_tensors: bool):
