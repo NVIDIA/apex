@@ -15,14 +15,16 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import functools
+import os
 import torch
 import torch.nn.functional as F
 import torch.nn.init as init
 import group_norm_cuda
+import group_norm_v2_cuda
 
 from torch import Tensor
 from torch.nn.parameter import Parameter
-from functools import partial
 
 __all__ = ['GroupNorm']
 
@@ -30,6 +32,15 @@ def one_time_warning(msg: str):
     if not hasattr(one_time_warning, 'has_been_called'):
         one_time_warning.has_been_called = True
         print(f'\033[93m{msg}\033[0m')  # hightlight with yellow color
+
+
+@functools.cache
+def get_cc_and_sm_count(device_index: int):
+    props = torch.cuda.get_device_properties(device_index)
+    CC = (props.major, props.minor)
+    SM_COUNT = props.multi_processor_count
+    return CC, SM_COUNT
+
 
 # pytorch group norm requires same input type
 def torch_group_norm(x, g, w, b, eps, act=""):
@@ -52,6 +63,7 @@ def group_norm_nhwc_fprop(
     eps: float,
     act: str | None=None,
     passes: int=1,
+    use_group_norm_v2: bool=False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     # sanity check
     act = act.lower() if act else act
@@ -64,14 +76,25 @@ def group_norm_nhwc_fprop(
     assert passes in [1, 2], "Invalid number of passes for algorithm."
 
     with_swish = act in ("silu", "swish")
+    sm_margin = int(os.environ.get("APEX_GROUP_NORM_FPROP_SM_MARGIN", "0"))
 
     # enqueue fprop kernel
-    y, sums = group_norm_cuda.forward(x, G, weight, bias, eps, passes,
+    if use_group_norm_v2:
+        sums = torch.empty(x.shape[0] * G * 2, device=x.device)
+        y = group_norm_v2_cuda.gn(x, weight, bias,
+                                  eps, with_swish, G, mean_var_out=sums,
+                                  sm_margin=sm_margin)
+    else:
+        if sm_margin:
+            raise NotImplementedError(
+                "sm_margin is not supported for GroupNorm v1"
+            )
+        y, sums = group_norm_cuda.forward(x, G, weight, bias, eps, passes,
                                           with_swish)
     return y, sums
 
 @group_norm_nhwc_fprop.register_fake
-def fake_group_norm_nhwc_fprop(x, G, weight, bias, eps, act=None, passes=1):
+def fake_group_norm_nhwc_fprop(x, G, weight, bias, eps, act=None, passes=1, use_group_norm_v2=False):
     # sanity check
     act = act.lower() if act else act
     assert x.is_contiguous(memory_format=torch.channels_last), \
@@ -97,6 +120,7 @@ def group_norm_nhwc_bprop(
     eps: float,
     act: str | None=None,
     passes: int=1,
+    use_group_norm_v2: bool=False,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     # sanity check
     if not grad_output.is_contiguous(memory_format=torch.channels_last):
@@ -111,14 +135,24 @@ def group_norm_nhwc_bprop(
 
     act = act.lower() if act else act
     with_swish = (act in ["silu", "swish"])
+    sm_margin = int(os.environ.get("APEX_GROUP_NORM_BPROP_SM_MARGIN", "0"))
 
-    dx, dw, db = group_norm_cuda.backward(grad_output, sums, x, G,
-                                          weight, bias, eps,
-                                          passes, with_swish)
+    if use_group_norm_v2:
+        dx, dw, db = group_norm_v2_cuda.gn_bwd(grad_output, x, weight, bias,
+                                               sums, eps, with_swish, G,
+                                               sm_margin=sm_margin)
+    else:
+        if sm_margin:
+            raise NotImplementedError(
+                "sm_margin is not supported for GroupNorm v1"
+            )
+        dx, dw, db = group_norm_cuda.backward(grad_output, sums, x, G,
+                                              weight, bias, eps,
+                                              passes, with_swish)
     return dx, dw, db
 
 @group_norm_nhwc_bprop.register_fake
-def fake_group_norm_nhwc_bprop(grad_output, sums, x, G, weight, bias, eps, act=None, passes=1):
+def fake_group_norm_nhwc_bprop(grad_output, sums, x, G, weight, bias, eps, act=None, passes=1, use_group_norm_v2=False):
     dx = torch.empty_like(x)
     dw = torch.empty_like(weight)
     db = torch.empty_like(bias)
@@ -131,13 +165,14 @@ def backward(ctx, grad_output, grad_sums):
     eps = ctx.eps
     passes = ctx.passes
     act = ctx.act
+    use_group_norm_v2 = ctx.use_group_norm_v2
 
     dx, dw, db = group_norm_nhwc_bprop(grad_output, sums, x, G, w, b, eps,
-                                       act, passes)
-    return dx, None, dw, db, None, None, None
+                                       act, passes, use_group_norm_v2)
+    return dx, None, dw, db, None, None, None, None
 
 def setup_context(ctx, inputs, output):
-    x, G, weight, bias, eps, act, passes = inputs
+    x, G, weight, bias, eps, act, passes, use_group_norm_v2 = inputs
     y, sums = output
     # save for backward
     ctx.save_for_backward(x, weight, bias, sums)
@@ -145,6 +180,7 @@ def setup_context(ctx, inputs, output):
     ctx.eps = eps
     ctx.passes = passes
     ctx.act = act
+    ctx.use_group_norm_v2 = use_group_norm_v2
 
 group_norm_nhwc_fprop.register_autograd(backward, setup_context=setup_context)
 
@@ -154,6 +190,10 @@ def cuda_group_norm_nhwc_one_pass(x, G, weight, bias, eps, act=None):
 
 def cuda_group_norm_nhwc_two_pass(x, G, weight, bias, eps, act=None):
     y, _ = group_norm_nhwc_fprop(x, G, weight, bias, eps, act, passes=2)
+    return y
+
+def cuda_group_norm_v2_nhwc(x, G, weight, bias, eps, act=None):
+    y, _ = group_norm_nhwc_fprop(x, G, weight, bias, eps, act, use_group_norm_v2=True)
     return y
 
 # We do not direct inherit from torch.nn.GroupNorm since several fusers don't
@@ -229,6 +269,36 @@ class GroupNorm(torch.nn.Module):
         (torch.bfloat16, torch.float16),
         (torch.bfloat16, torch.float32),
         ])
+    GN_V2_SUPPORTED_CHANNELS = frozenset([
+        # (HW, C)
+        (8 * 8, 1280),
+        (8 * 8, 2560),
+        (16 * 16, 640),
+        (16 * 16, 1280),
+        (16 * 16, 1920),
+        (16 * 16, 2560),
+        (32 * 32, 320),
+        (32 * 32, 640),
+        (32 * 32, 960),
+        (32 * 32, 1280),
+        (32 * 32, 1920),
+        (64 * 64, 320),
+        (64 * 64, 640),
+        (64 * 64, 960),
+        ])
+    GN_V2_SUPPORTED_DTYPES = frozenset([
+        # (input dtype, parameter dtype)
+        (torch.float16, torch.float16),
+        (torch.bfloat16, torch.bfloat16),
+        ])
+    GN_V2_SUPPORTED_GROUPS_SWISH = frozenset([
+        # (num_groups, with_swish)
+        (16, True),
+        (32, False),
+        ])
+    GN_V2_SUPPORTED_LOWER_BOUND_SM_COUNT = {
+        (10, 0): 148,
+        }
 
     def __init__(self,
                  num_groups: int,
@@ -283,6 +353,26 @@ class GroupNorm(torch.nn.Module):
         else:
             return False
 
+    def _check_v2_legality(self, input: Tensor) -> bool:
+        is_legal_channels = (
+            (input.shape[2] * input.shape[3], self.num_channels)
+            in self.GN_V2_SUPPORTED_CHANNELS)
+        is_supported_groups_swish_combination = (
+            (self.num_groups, self.act in ['silu', 'swish'])
+            in self.GN_V2_SUPPORTED_GROUPS_SWISH)
+        is_supported_dtype_combination = self.affine and \
+            (input.dtype, self.weight.dtype) in self.GN_V2_SUPPORTED_DTYPES
+        cc, sm_count = get_cc_and_sm_count(input.device.index)
+        is_supported_sm_count = (
+            cc in self.GN_V2_SUPPORTED_LOWER_BOUND_SM_COUNT
+            and sm_count >= self.GN_V2_SUPPORTED_LOWER_BOUND_SM_COUNT[cc])
+
+        if is_legal_channels and is_supported_groups_swish_combination and \
+                is_supported_dtype_combination and is_supported_sm_count:
+            return True
+        else:
+            return False
+
     def forward(self, input: Tensor) -> Tensor:
         can_use_nhwc_group_norm = self._check_legality(input)
 
@@ -297,8 +387,10 @@ class GroupNorm(torch.nn.Module):
                 passes = 2
             else:
                 passes = 1
+            use_group_norm_v2 = self._check_v2_legality(input)
             y, _ = group_norm_nhwc_fprop(input, self.num_groups, self.weight,
-                                         self.bias, self.eps, self.act, passes)
+                                         self.bias, self.eps, self.act,
+                                         passes, use_group_norm_v2)
             return y
         else:
             return torch_group_norm(input, self.num_groups, self.weight,

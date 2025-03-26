@@ -499,6 +499,33 @@ if "--group_norm" in sys.argv:
         )
     )
 
+    # CUDA group norm V2 is tested on SM100
+    if bare_metal_version >= Version("12.8"):
+        arch_flags = ["-gencode=arch=compute_100,code=sm_100"]
+    else:
+        arch_flags = ["-gencode=arch=compute_90,code=compute_90"]
+
+    ext_modules.append(
+        CUDAExtension(
+            name="group_norm_v2_cuda",
+            sources=[
+                "apex/contrib/csrc/group_norm_v2/gn.cpp",
+                "apex/contrib/csrc/group_norm_v2/gn_cuda.cu",
+                "apex/contrib/csrc/group_norm_v2/gn_utils.cpp",
+            ] + glob.glob("apex/contrib/csrc/group_norm_v2/gn_cuda_inst_*.cu"),
+            extra_compile_args={
+                "cxx": ["-O2"] + version_dependent_macros,
+                "nvcc": [
+                    "-O2", "--use_fast_math", "--ftz=false",
+                    "-U__CUDA_NO_HALF_CONVERSIONS__",
+                    "-U__CUDA_NO_HALF_OPERATORS__",
+                    "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
+                    "-U__CUDA_NO_BFLOAT16_OPERATORS__",
+                ] + arch_flags + version_dependent_macros,
+            },
+        )
+    )
+
 if "--index_mul_2d" in sys.argv:
     sys.argv.remove("--index_mul_2d")
     raise_if_cuda_home_none("--index_mul_2d")
