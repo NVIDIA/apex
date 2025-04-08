@@ -1162,12 +1162,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             # Preserve memory format for param here, i.e. NHWC tensors
             # `param.data.set_()` failed to change storage.
             # `param.set_()` invalidates bprop hook.
-            param.data = torch.as_strided(
-                buffer_view,
-                param.size(),
-                param.stride(),
-                storage_offset=buffer_view.storage_offset(),
-            )
+            param.data = buffer_view.as_strided(param.size(), param.stride())
 
     def _init_grad_buffer(self) -> None:
         """Allocate contiguous buffer for grad buckets"""
@@ -1827,14 +1822,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Construct view into grad buffer
         # Preserve memory format for gradient here
         flat_buffer = self._grad_buffers[bucket.dtypes()]
-        grad = torch.empty(1, dtype=param.dtype, device=param.device)
-        grad.set_(
-            source=flat_buffer,
-            storage_offset=buffer_start,
-            size=param.size(),
-            stride=param.stride(),
-        )
-        return grad
+        flat_buffer = flat_buffer[buffer_start:buffer_end]
+        return flat_buffer.detach().as_strided(param.size(), param.stride())
 
     def _force_bucket_grad_sync(self) -> None:
         """Ensure that all gradient buckets are synchronized"""
