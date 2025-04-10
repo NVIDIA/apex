@@ -15,6 +15,7 @@ import dataclasses
 from typing import TYPE_CHECKING
 
 from torch._inductor.codegen.wrapper import EnterDeviceContextManagerLine
+from torch._inductor.codegen.wrapper import ExitDeviceContextManagerLine
 from torch._inductor.codegen.wrapper import IndentedBuffer
 from torch._inductor.codegen.wrapper import PythonWrapperCodegen
 from torch._inductor.codegen.wrapper import SubgraphPythonWrapperCodegen
@@ -30,6 +31,7 @@ from apex.contrib.torchsched.inductor._utils import get_stream_name
 
 if TYPE_CHECKING:
     from torch._inductor.graph import GraphLowering
+    from torch._inductor.ir import GraphPartitionSignature
 
     from apex.contrib.torchsched.inductor.event import CudaEventSym
 
@@ -51,11 +53,30 @@ class EnterDeviceContextManagerWithStreamInfoLine(EnterDeviceContextManagerLine)
             code.writeline(f"{DEFAULT_STREAM} = torch.cuda.current_stream()")
             code.writeline(f"{ENTRANCE_EVENT} = {DEFAULT_STREAM}.record_event()")
 
+            code.writeline("from apex.contrib.torchsched.inductor._utils import get_cuda_stream_pool")
+            code.writeline(
+                f"cuda_stream_pool = get_cuda_stream_pool(device={self.device_idx}, "
+                f"pool_size={config.num_streams})",
+            )
+
             for i in range(1, config.num_streams):
                 code.writeline(
                     f"{STREAM_NAME_TEMPLATE.format(stream_idx=i)} "
-                    f"= torch.cuda.Stream(device={self.device_idx})",
+                    f"= cuda_stream_pool.acquire()",
                 )
+
+@dataclasses.dataclass
+class ExitDeviceContextManagerWithStreamInfoLine(ExitDeviceContextManagerLine):
+    """Exit a CUDA device context and release allocated streams."""
+
+    def codegen(self, code: IndentedBuffer) -> None:
+        """Generate context switching and stream release code."""
+        for i in range(1, config.num_streams):
+            code.writeline(
+                f"cuda_stream_pool.release({STREAM_NAME_TEMPLATE.format(stream_idx=i)})",
+            )
+        if not V.graph.cpp_wrapper:
+            code.do_unindent()
 
 
 @dataclasses.dataclass
@@ -166,10 +187,17 @@ class MultiStreamWrapperCodegen(PythonWrapperCodegen):
         is_subgraph: bool,
         subgraph_name: str,
         parent_wrapper: MultiStreamWrapperCodegen,
+        partition_signatures: GraphPartitionSignature | None = None,
     ) -> MultiStreamWrapperCodegen | SubgraphPythonWrapperCodegen:
         """Instantiate a wrapper codegen for an Inductor graph or a subgraph."""
         if is_subgraph:
-            return SubgraphPythonWrapperCodegen(subgraph_name, parent_wrapper)
+            assert subgraph_name is not None
+            assert parent_wrapper is not None
+            return SubgraphPythonWrapperCodegen(
+                subgraph_name,
+                parent_wrapper,
+                partition_signatures,
+            )
         return MultiStreamWrapperCodegen()
 
     def _write_get_raw_stream(self, device_idx: int, graph: GraphLowering | None = None) -> str:
@@ -195,6 +223,10 @@ class MultiStreamWrapperCodegen(PythonWrapperCodegen):
             ),
         )
         self.last_seen_device_guard_index: int = device_idx
+
+    def codegen_device_guard_exit(self) -> None:
+        """Generate data structure for exiting device guard context."""
+        self.writeline(ExitDeviceContextManagerWithStreamInfoLine())
 
     def codegen_cuda_stream_enter(
         self,
