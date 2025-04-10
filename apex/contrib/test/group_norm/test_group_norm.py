@@ -18,6 +18,7 @@
 import functools
 import importlib
 import pathlib
+import sys
 import torch
 import unittest
 
@@ -202,7 +203,12 @@ class GroupNormTest(unittest.TestCase):
             y.backward(dy)
 
         from torch._dynamo.utils import counters
-        self.assertNotIn('graph_break', counters, "Shouldn't see any graph breaks.")
+        # TODO: Remove this when 3.9 is no longer supported
+        if sys.version_info < (3, 10):
+            num_graph_breaks = sum(counters["graph_break"].values())
+        else:
+            num_graph_breaks = counters["graph_break"].total()
+        self.assertEqual(num_graph_breaks, 0, "Shouldn't see any graph breaks.")
         self.assertEqual(counters['stats']['unique_graphs'], 1, "Expect only one graph.")
 
     def test_16_groups(self):
