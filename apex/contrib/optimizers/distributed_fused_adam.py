@@ -774,10 +774,15 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     Tuple[torch.dtype, torch.dtype, torch.dtype], torch.Tensor
                 ] = {}
 
-        # Side streams for optimizer step and communication
+        # Side streams for state dict communication
         self._pipeline_streams: List[torch.cuda.Stream] = [
-            torch.cuda.Stream() for _ in range(self.pipeline_size + 1)
+            torch.cuda.Stream() for _ in range(self.pipeline_size)
         ]
+        # Side streams for gradients and parameters communication
+        self._comm_streams: List[torch.cuda.Stream] = [
+            torch.cuda.Stream() for _ in range(self.pipeline_size)
+        ]
+        self._last_comm_stream_id: int = -1
 
         # Scale by factor before optimizer step. Used for grad
         # clipping and gradient scaler.
@@ -1951,8 +1956,11 @@ class DistributedFusedAdam(torch.optim.Optimizer):
                     bucket.grads_shard = bucket.grads_shard.clone()
 
         # Side stream for communication
+        # If new bucket is ready before last bucket communication finishes, use multiple
+        # communication streams could help pipeline reduce-scatter and all-reduce.
         main_stream = torch.cuda.current_stream()
-        comm_stream = self._pipeline_streams[-1]
+        self._last_comm_stream_id = (self._last_comm_stream_id + 1) % len(self._comm_streams)
+        comm_stream = self._comm_streams[self._last_comm_stream_id]
         comm_stream.wait_stream(main_stream)
 
         # Reduce-scatter over distributed process group
@@ -1995,8 +2003,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def _finish_bucket_grad_sync(self) -> None:
         """Wait for any gradient synchronizations that are in progress"""
         main_stream = torch.cuda.current_stream()
-        comm_stream = self._pipeline_streams[-1]
-        main_stream.wait_stream(comm_stream)
+        for comm_stream in self._comm_streams:
+            main_stream.wait_stream(comm_stream)
         for bucket_id, bucket in sorted(self._grads_buckets.items()):
             if bucket.status == self.GradientStatus.SYNCING:
                 # Accumulate gradient in local shard
@@ -2103,7 +2111,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
 
         # Side stream for communication
         main_stream = torch.cuda.current_stream()
-        comm_stream = self._pipeline_streams[-1]
+        self._last_comm_stream_id = (self._last_comm_stream_id + 1) % len(self._comm_streams)
+        comm_stream = self._comm_streams[self._last_comm_stream_id]
         comm_stream.wait_stream(main_stream)
 
         # All-gather over distributed process group
@@ -2126,8 +2135,8 @@ class DistributedFusedAdam(torch.optim.Optimizer):
     def _finish_bucket_param_sync(self) -> None:
         """Wait for any param synchronizations that are in progress"""
         main_stream = torch.cuda.current_stream()
-        comm_stream = self._pipeline_streams[-1]
-        main_stream.wait_stream(comm_stream)
+        for comm_stream in self._comm_streams:
+            main_stream.wait_stream(comm_stream)
         for bucket_id, bucket in self._params_buckets.items():
             if bucket.status == self.ParameterStatus.SYNCING:
                 bucket.params_shard = None
