@@ -26,7 +26,7 @@ TEST_DIRS = [
     "run_fused_layer_norm",
     "run_mlp",
     "run_fused_dense",
-    "run_transformer",       # not fully supported on ROCm
+    "run_transformer",       
 ]
 
 #the tests that are run by default
@@ -37,6 +37,7 @@ DEFAULT_TEST_DIRS = [
     "run_fused_layer_norm",
     "run_mlp",
     "run_fused_dense",
+    "run_transformer",
 ]
 
 

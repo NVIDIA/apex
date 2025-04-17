@@ -1,6 +1,7 @@
 cxxfilt>=0.2.0
 tqdm>=4.28.1
-numpy>=1.15.3
+numpy
 PyYAML>=5.1
 pytest>=3.5.1
 packaging>=14.0
+matplotlib==3.5.1

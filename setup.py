@@ -973,6 +973,9 @@ if TORCH_MAJOR == 2 and TORCH_MINOR == 6:
 if "--cuda_ext" in sys.argv:
     sys.argv.remove("--cuda_ext")
 
+with open('requirements.txt') as f:
+    required = f.read().splitlines()
+
 setup(
     name="apex",
     version=get_apex_version(),
@@ -983,5 +986,6 @@ setup(
     ext_modules=ext_modules,
     cmdclass={'build_ext': BuildExtension} if ext_modules else {},
     extras_require=extras,
+    install_requires=required
 )
 
