@@ -17,18 +17,6 @@ Some other useful material, including GTC 2019 and Pytorch DevCon 2019 Slides, c
 
 .. toctree::
    :maxdepth: 1
-   :caption: AMP:  Automatic Mixed Precision
-
-   amp
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Distributed Training
-
-   parallel
-
-.. toctree::
-   :maxdepth: 1
    :caption: Fused Optimizers
 
    optimizers
