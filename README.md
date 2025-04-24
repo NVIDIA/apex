@@ -183,3 +183,42 @@ A Python-only build omits:
 `pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .` may work if you were able to build Pytorch from source
 on your system. A Python-only build via `pip install -v --no-cache-dir .` is more likely to work.  
 If you installed Pytorch in a Conda environment, make sure to install Apex in that same environment.
+
+
+# Release notes
+
+## release/1.7.0
+
+Unit test related
+- Include running transformer tests in L0/run_test.py
+- Fix transformer unit tests
+
+## release/1.6.0
+
+Upgraded extensions
+- Support unscale_grads in transformer Grad scaler
+- Support amp function in fused dense, mlp
+- Support blas backend flag in fused dense 
+- Support not destroying process group for distributed tests
+- Upgrade fused adam to support parameters - capturable, master weights, grad scaler
+- Upgrade distributed fused adam to support bias_correction, adam_w_mode, overlap_param_sync, store_params, store_param_remainders, with_scaled_states, nccl_ub
+- Upgrade distributed fused lamb to support parameters fused_norm, full_ar, set_param_views_to_flat_buffer, skip_allgather, fuse_scale, param_order, nccl_allgather_channels
+
+Unit test related
+- Fix fused dense, fused rope, mlp unit tests
+- Add test fused adam unit test
+- Include running fused dense tests in L0/run_test.py
+
+
+## release/1.5.0
+
+Added extensions
+- fused bias swiglu
+- fused gradient accumulator
+- fused rope
+  
+Upgraded extensions
+- Support blaslt backend in fused weight gradient dense module
+
+
+
