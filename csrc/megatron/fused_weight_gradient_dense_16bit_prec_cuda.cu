@@ -233,10 +233,12 @@ void wgrad_gemm_accum_fp16_cuda(T *input, T *d_output, T *d_weight,int in_dim, i
     float alpha = 1.0;
     float beta  = 1.0;
     const int batch_count = 1;
-    void*   d_workspace;
+    void* d_workspace = nullptr;
     int64_t max_workspace_size = 32*1024*1024;
-    if(max_workspace_size > 0)
-        CHECK_CUDA_ERROR(cudaMalloc(&d_workspace, max_workspace_size));
+    if (max_workspace_size > 0) {
+        at::Tensor workspace = at::empty({max_workspace_size}, at::TensorOptions().dtype(at::kByte).device(at::kCUDA));
+        d_workspace = workspace.data_ptr();
+    }
     gemmex_wrapper_fp16(
         handle,
         CUBLAS_OP_N,
@@ -254,9 +256,6 @@ void wgrad_gemm_accum_fp16_cuda(T *input, T *d_output, T *d_weight,int in_dim, i
         d_workspace,
         max_workspace_size,
         stream);
-    if(max_workspace_size > 0)
-        cudaFree(d_workspace);
-
 } 
 
 template void wgrad_gemm_accum_fp16_cuda<at::Half>(at::Half *input, at::Half *d_output, at::Half *d_weight, int in_dim, int hidden_dim, int out_dim);
