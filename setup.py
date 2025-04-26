@@ -937,8 +937,8 @@ if "--fused_conv_bias_relu" in sys.argv:
             )
         )
 
-#NCCL allocator is supported for apex 1.6 version only
-if TORCH_MAJOR == 2 and TORCH_MINOR == 6:
+#NCCL allocator is supported for apex 1.6 version and onwards
+if TORCH_MAJOR == 2 and TORCH_MINOR >= 6:
     if "--nccl_allocator" in sys.argv or "--cuda_ext" in sys.argv:
         if "--nccl_allocator" in sys.argv:
             sys.argv.remove("--nccl_allocator")
