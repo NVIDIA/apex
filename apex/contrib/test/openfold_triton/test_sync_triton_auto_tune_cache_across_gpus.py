@@ -36,7 +36,6 @@ class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
     def _setup_pre_spawn(self):
         pass
 
-
     def _create_process_group_nccl(self):
         def maybe_export(env, val):
             assert(type(env) == str)
