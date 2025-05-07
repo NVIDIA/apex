@@ -81,12 +81,12 @@ class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
             l = torch.sum(y)
             l.backward()
 
-        sync_triton_auto_tune_cache_across_gpus(strict = False)
+        sync_triton_auto_tune_cache_across_gpus(strict=False, verbose=True)
 
-        caches_were_synced = False
+        caches_synced = 0
         for func_name, func in _tuneable_triton_kernels.items():
             if len(func.cache) > 0:
+                caches_synced = caches_synced + 1
                 print(f"caches were synchronized for {func_name} at rank = {self.rank}:", func.cache)
-                caches_were_synced = True
 
-        self.assertTrue(caches_were_synced)
+        self.assertTrue(caches_synced > 0)

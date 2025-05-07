@@ -59,7 +59,7 @@ _tuneable_triton_kernels = OrderedDict(
 )
 
 
-def _save_triton_auto_tune_cache(verbose: bool = False, strict: bool = True) -> BytesIO:
+def _save_triton_auto_tune_cache(strict: bool = True, verbose: bool = False) -> BytesIO:
     caches = OrderedDict()
     for func_name, func in _tuneable_triton_kernels.items():
         if len(func.cache) < 1:
@@ -103,12 +103,12 @@ def _load_triton_auto_tune_cache(
         print(f"Triton kernel auto-tuning caches loaded from {f}")
 
 
-def sync_triton_auto_tune_cache_across_gpus(strict: bool = True) -> None:
+def sync_triton_auto_tune_cache_across_gpus(strict: bool = True, verbose: bool = False) -> None:
     if not torch.distributed.is_initialized():
         return
     if torch.distributed.get_rank() == 0:
         print("Broadcasting Triton auto-tuning cache from rank 0 to other ranks...")
-        cache = _save_triton_auto_tune_cache(strict=strict)
+        cache = _save_triton_auto_tune_cache(strict=strict, verbose=verbose)
         cache.seek(0)
         cache_list = [
             cache,
@@ -121,5 +121,5 @@ def sync_triton_auto_tune_cache_across_gpus(strict: bool = True) -> None:
             None,
         ]
     torch.distributed.broadcast_object_list(cache_list)
-    _load_triton_auto_tune_cache(cache_list[0], strict=strict)
+    _load_triton_auto_tune_cache(cache_list[0], strict=strict, verbose=verbose)
     print("Succeed!")
