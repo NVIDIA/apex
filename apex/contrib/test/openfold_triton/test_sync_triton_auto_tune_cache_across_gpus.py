@@ -12,6 +12,7 @@ from torch.testing._internal.common_distributed import (
     MultiProcessTestCase,
     requires_nccl,
     skip_if_lt_x_gpu,
+    run_tests,
 )
 
 class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
@@ -90,3 +91,7 @@ class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
                 print(f"caches were synchronized for {func_name} at rank = {self.rank}:", func.cache)
 
         self.assertTrue(caches_synced > 0)
+
+
+if __name__ == '__main__':
+    run_tests()
