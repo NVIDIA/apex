@@ -1,10 +1,18 @@
 import os
-from apex.contrib.openfold_triton import LayerNormSmallShapeOptImpl, sync_triton_auto_tune_cache_across_gpus, _tuneable_triton_kernels
+from apex.contrib.openfold_triton import (
+    LayerNormSmallShapeOptImpl,
+    sync_triton_auto_tune_cache_across_gpus,
+    _tuneable_triton_kernels,
+)
 
 
 import torch
 import torch.distributed as dist
-from torch.testing._internal.common_distributed import MultiProcessTestCase, requires_nccl, skip_if_lt_x_gpu
+from torch.testing._internal.common_distributed import (
+    MultiProcessTestCase,
+    requires_nccl,
+    skip_if_lt_x_gpu,
+)
 
 class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
     device_type = "cuda"
@@ -13,10 +21,10 @@ class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        self._setup_pre_spawn()
         self._spawn_processes()
 
     def tearDown(self) -> None:
+        torch.cuda.synchronize()
         torch.cuda.empty_cache()
         super().tearDown()
 
@@ -30,11 +38,7 @@ class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
 
     @property
     def destroy_pg_upon_exit(self) -> bool:
-        # Overriding base test class: do not auto destroy PG upon exit.
         return True
-
-    def _setup_pre_spawn(self):
-        pass
 
     def _create_process_group_nccl(self):
         def maybe_export(env, val):
@@ -67,21 +71,22 @@ class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
             eps = 1e-5
             normalized_shape = (128, 64,)
 
-            weight = torch.ones(normalized_shape, device=device)
-            bias= torch.zeros(normalized_shape, device=device)
+            weight = torch.ones(normalized_shape, device=device, requires_grad=True)
+            bias= torch.zeros(normalized_shape, device=device, requires_grad=True)
 
             x = torch.randn((2, 2,) + normalized_shape, device=device)
             y = LayerNormSmallShapeOptImpl.apply(
                 x, normalized_shape, weight, bias, eps
             )
+            l = torch.sum(y)
+            l.backward()
 
         sync_triton_auto_tune_cache_across_gpus(strict = False)
 
         caches_were_synced = False
         for func_name, func in _tuneable_triton_kernels.items():
             if len(func.cache) > 0:
-                print(f"caches were synced for {func_name} at rank = {self.rank}:", func.cache)
+                print(f"caches were synchronized for {func_name} at rank = {self.rank}:", func.cache)
                 caches_were_synced = True
 
         self.assertTrue(caches_were_synced)
-
