@@ -74,12 +74,28 @@ _MODEL_PARALLEL_ATTRIBUTE_DEFAULTS = {
 }
 
 def param_is_not_tensor_parallel_duplicate(param: torch.Tensor) -> bool:
+    from apex import deprecated_warning
+
+    deprecated_warning(
+        "`apex.transformer` is deprecated and will be removed in September 2025. "
+        "We encourage you to migrate to Megatron Core. "
+        "It is available on PyPI at https://pypi.org/project/megatron-core/ "
+        "and its documentation can be found at https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html."
+    )
     return (
         hasattr(param, "tensor_model_parallel") and param.tensor_model_parallel
     ) or (get_tensor_model_parallel_rank() == 0)
 
 
 def set_tensor_model_parallel_attributes(tensor: torch.Tensor, is_parallel: bool, dim: int, stride: int) -> None:
+    from apex import deprecated_warning
+
+    deprecated_warning(
+        "`apex.transformer` is deprecated and will be removed in September 2025. "
+        "We encourage you to migrate to Megatron Core. "
+        "It is available on PyPI at https://pypi.org/project/megatron-core/ "
+        "and its documentation can be found at https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html."
+    )
     # Make sure the attributes are not set.
     for attribute in _MODEL_PARALLEL_ATTRIBUTE_DEFAULTS:
         assert not hasattr(tensor, attribute)
@@ -90,6 +106,15 @@ def set_tensor_model_parallel_attributes(tensor: torch.Tensor, is_parallel: bool
 
 
 def set_defaults_if_not_set_tensor_model_parallel_attributes(tensor: torch.Tensor) -> None:
+    from apex import deprecated_warning
+
+    deprecated_warning(
+        "`apex.transformer` is deprecated and will be removed in September 2025. "
+        "We encourage you to migrate to Megatron Core. "
+        "It is available on PyPI at https://pypi.org/project/megatron-core/ "
+        "and its documentation can be found at https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html."
+    )
+
     def maybe_set(attribute, value):
         if not hasattr(tensor, attribute):
             setattr(tensor, attribute, value)
@@ -99,6 +124,15 @@ def set_defaults_if_not_set_tensor_model_parallel_attributes(tensor: torch.Tenso
 
 
 def copy_tensor_model_parallel_attributes(destination_tensor: torch.Tensor, source_tensor: torch.Tensor) -> None:
+    from apex import deprecated_warning
+
+    deprecated_warning(
+        "`apex.transformer` is deprecated and will be removed in September 2025. "
+        "We encourage you to migrate to Megatron Core. "
+        "It is available on PyPI at https://pypi.org/project/megatron-core/ "
+        "and its documentation can be found at https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html."
+    )
+
     def maybe_copy(attribute):
         if hasattr(source_tensor, attribute):
             setattr(destination_tensor, attribute, getattr(source_tensor, attribute))
@@ -191,6 +225,14 @@ class VocabParallelEmbedding(torch.nn.Module):
         params_dtype: torch.dtype=torch.float32,
         use_cpu_initialization: bool = False,
     ):
+        from apex import deprecated_warning
+
+        deprecated_warning(
+            "`apex.transformer` is deprecated and will be removed in September 2025. "
+            "We encourage you to migrate to Megatron Core. "
+            "It is available on PyPI at https://pypi.org/project/megatron-core/ "
+            "and its documentation can be found at https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html."
+        )
         super().__init__()
         # Keep the input dimensions.
         self.num_embeddings = num_embeddings
@@ -511,6 +553,14 @@ class ColumnParallelLinear(torch.nn.Module):
         sequence_parallel_enabled: bool = False,
         accumulation_in_fp16: Optional[bool] = None,
     ):
+        from apex import deprecated_warning
+
+        deprecated_warning(
+            "`apex.transformer` is deprecated and will be removed in September 2025. "
+            "We encourage you to migrate to Megatron Core. "
+            "It is available on PyPI at https://pypi.org/project/megatron-core/ "
+            "and its documentation can be found at https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html."
+        )
         super().__init__()
 
         # Keep input parameters
@@ -700,6 +750,14 @@ class RowParallelLinear(torch.nn.Module):
         sequence_parallel_enabled: bool = False,
         accumulation_in_fp16: Optional[bool] = None,
     ):
+        from apex import deprecated_warning
+
+        deprecated_warning(
+            "`apex.transformer` is deprecated and will be removed in September 2025. "
+            "We encourage you to migrate to Megatron Core. "
+            "It is available on PyPI at https://pypi.org/project/megatron-core/ "
+            "and its documentation can be found at https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html."
+        )
         super().__init__()
 
         # Keep input parameters
