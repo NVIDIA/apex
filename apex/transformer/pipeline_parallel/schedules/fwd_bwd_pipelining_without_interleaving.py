@@ -307,6 +307,14 @@ def forward_backward_pipelining_without_interleaving(
 
     """
     # timers = get_timers()
+    from apex import deprecated_warning
+
+    deprecated_warning(
+        "`apex.transformer` is deprecated and will be removed in September 2025. "
+        "We encourage you to migrate to Megatron Core. "
+        "It is available on PyPI at https://pypi.org/project/megatron-core/ "
+        "and its documentation can be found at https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html."
+    )
 
     if deallocate_pipeline_outputs:
         warnings.warn(

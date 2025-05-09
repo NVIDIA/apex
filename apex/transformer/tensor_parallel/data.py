@@ -87,6 +87,14 @@ def broadcast_data(keys, data, datatype):
         datatype: torch data type of all tensors in data associated
                   with keys.
     """
+    from apex import deprecated_warning
+
+    deprecated_warning(
+        "`apex.transformer` is deprecated and will be removed in September 2025. "
+        "We encourage you to migrate to Megatron Core. "
+        "It is available on PyPI at https://pypi.org/project/megatron-core/ "
+        "and its documentation can be found at https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html."
+    )
     # Build (key, size) and (key, number of elements) dictionaries along
     # with the total number of elements on all ranks.
     key_size, key_numel, total_numel = _build_key_size_numel_dictionaries(keys, data)
