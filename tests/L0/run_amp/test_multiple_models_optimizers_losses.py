@@ -164,7 +164,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                           self.assertTrue(torch.allclose(model, reference))
                           self.assertTrue(torch.allclose(model, master.to(model.dtype)))
 
-                      if opt_level == "O1":
+                      if opt_level != "O0":
                           _amp_state.handle._deactivate()
 
     def test_3models2losses1optimizer(self):
@@ -320,7 +320,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                             self.assertTrue(torch.allclose(model, reference))
                             self.assertTrue(torch.allclose(model, master.to(model.dtype)))
 
-                        if opt_level == "O1":
+                        if opt_level != "O0":
                             _amp_state.handle._deactivate()
 
     def test_2models2losses2optimizers(self):
@@ -510,7 +510,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                           self.assertTrue(torch.allclose(model, reference))
                           self.assertTrue(torch.allclose(model, master.to(model.dtype)))
 
-                      if opt_level == "O1":
+                      if opt_level != "O0":
                           _amp_state.handle._deactivate()
 
     def test_3models2losses2optimizers(self):
@@ -755,7 +755,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                             self.assertTrue(torch.allclose(model, reference))
                             self.assertTrue(torch.allclose(model, master.to(model.dtype)))
 
-                        if opt_level == "O1":
+                        if opt_level != "O0":
                             _amp_state.handle._deactivate()
 
 if __name__ == '__main__':

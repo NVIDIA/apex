@@ -35,7 +35,7 @@ class TestMultiTensorAxpby(unittest.TestCase):
         self.b = 8.0
         self.xval = 4.0
         self.yval = 16.0
-        self.overflow_buf = torch.cuda.IntTensor(1).zero_()
+        self.overflow_buf = torch.tensor(1, dtype=torch.int, device='cuda').zero_()
         self.ref = torch.full((1,), 136.0, device="cuda", dtype=torch.float32)
 
     def tearDown(self):

@@ -7,6 +7,9 @@ from torch.utils.data import RandomSampler
 from torch.utils.data import BatchSampler
 from torch.utils.data import DataLoader
 
+#reset the default device to cpu so that the generator, as run_amp tests set its to cuda
+torch.set_default_device('cpu')
+
 from apex.transformer.pipeline_parallel.utils import _split_batch_into_microbatch as split_batch_into_microbatch
 
 

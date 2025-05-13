@@ -9,6 +9,7 @@ from apex import amp
 
 from utils import common_init, FLOAT
 from apex.testing.common_utils import skipFlakyTest
+from apex.amp import _amp_state
 
 class MyModel(torch.nn.Module):
     def __init__(self):
@@ -68,7 +69,7 @@ class TestCheckpointing(unittest.TestCase):
                 msg='Parameters in state_dices not equal.' +
                     'key: {}\nparam: {}\nrestored: {}\ndiff: {} for {}'.format(
                         key, paramA, paramB, paramA - paramB, test_setup))
-
+    
     def test_restoring(self):
         nb_epochs = 10
         nb_epochs_restore = nb_epochs // 2
@@ -125,6 +126,7 @@ class TestCheckpointing(unittest.TestCase):
                                         lr=self.initial_lr)
 
                                     if amp_before_load:
+                                        _amp_state.handle._deactivate()
                                         restore_model, restore_optimizer = amp.initialize(
                                             restore_model,
                                             restore_optimizer,
@@ -138,6 +140,7 @@ class TestCheckpointing(unittest.TestCase):
                                     # amp.load_state_dict(checkpoint['amp'])
 
                                     if not amp_before_load:
+                                        _amp_state.handle._deactivate()
                                         restore_model, restore_optimizer = amp.initialize(
                                             restore_model,
                                             restore_optimizer,
@@ -155,9 +158,11 @@ class TestCheckpointing(unittest.TestCase):
                                         torch.allclose(output.float(), restore_output.float()),
                                         'Output of reference and restored models differ for ' + test_setup)
                                     self.compare_models(model, restore_model, test_setup)
+                            _amp_state.handle._deactivate()
                         # if opt_level != res_opt_level
                         else:
                             # skip tests for different opt_levels
+                            _amp_state.handle._deactivate()
                             continue
 
     @skipFlakyTest
@@ -220,6 +225,11 @@ class TestCheckpointing(unittest.TestCase):
                 self.assertEqual(scaler['loss_scale'], init_ls / 2**factor)
                 unskipped_target = 0
                 self.assertEqual(scaler['unskipped'], unskipped_target)
+            
+            if opt_level != "O0":
+                _amp_state.handle._deactivate()
+
+            
 
     def test_state_dict(self):
         for opt_level in self.test_opt_levels:
@@ -262,6 +272,10 @@ class TestCheckpointing(unittest.TestCase):
                 optimizer.step()
                 self.assertTrue(loss.item() < last_loss)
                 last_loss = loss.item()
+
+            if opt_level != "O0":
+                _amp_state.handle._deactivate()
+
 
 if __name__=='__main__':
     unittest.main()

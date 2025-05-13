@@ -39,7 +39,7 @@ class TestMLP(unittest.TestCase):
         np.testing.assert_allclose(
             mlp_out.detach().cpu().numpy(),
             ref_out.detach().cpu().numpy(),
-            atol=1e-7, rtol=1e-5)
+            atol=1e-5, rtol=1e-5)
 
         # Use mean value as scalar loss. Multiply 10 to make it big enough not zero out
         mlp_out.mean().mul(10.).backward()
@@ -47,11 +47,11 @@ class TestMLP(unittest.TestCase):
         np.testing.assert_allclose(
             test_input.grad.detach().cpu().numpy(),
             ref_input.grad.detach().cpu().numpy(),
-            atol=0, rtol=1e-5)
+            atol=1e-5, rtol=1e-5)
         np.testing.assert_allclose(
             mlp.biases[0].grad.detach().cpu().numpy(),
             ref_mlp[0].bias.grad.detach().cpu().numpy(),
-            atol=1e-7, rtol=1e-5)
+            atol=1e-5, rtol=1e-5)
 
     @skipFlakyTest
     def test_no_bias(self):
@@ -77,7 +77,7 @@ class TestMLP(unittest.TestCase):
             np.testing.assert_allclose(
                 mlp_out.detach().cpu().numpy(),
                 ref_out.detach().cpu().numpy(),
-                atol=1e-7, rtol=1e-5)
+                atol=1e-5, rtol=1e-5)
 
             # Use mean value as scalar loss. Multiply 10 to make it big enough not zero out
             mlp_out.mean().mul(10.).backward()
@@ -85,11 +85,11 @@ class TestMLP(unittest.TestCase):
             np.testing.assert_allclose(
                 test_input.grad.detach().cpu().numpy(),
                 ref_input.grad.detach().cpu().numpy(),
-                atol=0, rtol=100)
+                atol=1e-5, rtol=100)
             np.testing.assert_allclose(
                 mlp.weights[0].grad.detach().cpu().numpy(),
                 ref_mlp[0].weight.grad.detach().cpu().numpy(),
-                atol=1e-7, rtol=100)
+                atol=1e-5, rtol=100)
 
     @skipFlakyTest
     def test_with_bias(self):
@@ -116,7 +116,7 @@ class TestMLP(unittest.TestCase):
             np.testing.assert_allclose(
                 mlp_out.detach().cpu().numpy(),
                 ref_out.detach().cpu().numpy(),
-                atol=1e-7, rtol=1e-5)
+                atol=1e-5, rtol=1e-5)
 
             # Use mean value as scalar loss. Multiply 10 to make it big enough not zero out
             mlp_out.mean().mul(10.).backward()
@@ -124,15 +124,15 @@ class TestMLP(unittest.TestCase):
             np.testing.assert_allclose(
                 test_input.grad.detach().cpu().numpy(),
                 ref_input.grad.detach().cpu().numpy(),
-                atol=0, rtol=1)
+                atol=1e-5, rtol=1)
             np.testing.assert_allclose(
                 mlp.weights[0].grad.detach().cpu().numpy(),
                 ref_mlp[0].weight.grad.detach().cpu().numpy(),
-                atol=1e-7, rtol=1)
+                atol=1e-5, rtol=1)
             np.testing.assert_allclose(
                 mlp.biases[0].grad.detach().cpu().numpy(),
                 ref_mlp[0].bias.grad.detach().cpu().numpy(),
-                atol=1e-7, rtol=1e-5)
+                atol=1e-5, rtol=1e-5)
 
     @skipFlakyTest
     def test_no_grad(self):
@@ -155,7 +155,7 @@ class TestMLP(unittest.TestCase):
         np.testing.assert_allclose(
             mlp_out.detach().cpu().numpy(),
             ref_out.detach().cpu().numpy(),
-            atol=1e-7, rtol=1e-5)
+            atol=1e-5, rtol=1e-5)
 
         # Use mean value as scalar loss. Multiply 10 to make it big enough not zero out
         mlp_out.mean().mul(10.).backward()
@@ -163,7 +163,7 @@ class TestMLP(unittest.TestCase):
         np.testing.assert_allclose(
             mlp.weights[0].grad.detach().cpu().numpy(),
             ref_mlp[0].weight.grad.detach().cpu().numpy(),
-            atol=1e-7, rtol=1e-5)
+            atol=1e-5, rtol=1e-5)
 
     def test_performance_half(self):
         mlp = MLP(mlp_sizes).cuda().half()

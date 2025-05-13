@@ -26,7 +26,7 @@ class TestMultiTensorL2Norm(unittest.TestCase):
     def setUp(self):
         common_init(self)
         self.val = 4.0
-        self.overflow_buf = torch.cuda.IntTensor(1).zero_()
+        self.overflow_buf = torch.tensor(1, dtype=torch.int, device='cuda').zero_()
 
     def tearDown(self):
         pass

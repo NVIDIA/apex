@@ -180,7 +180,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                             self.assertTrue(torch.allclose(model, reference))
                             self.assertTrue(torch.allclose(model, master.to(model.dtype)))
 
-                        if opt_level == "O1":
+                        if opt_level != "O0":
                             _amp_state.handle._deactivate()
 
     @unittest.skipIf(disabled, "amp_C is unavailable")
@@ -341,7 +341,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                               self.assertTrue(torch.allclose(model, reference))
                               self.assertTrue(torch.allclose(model, master.to(model.dtype)))
 
-                          if opt_level == "O1":
+                          if opt_level != "O0":
                               _amp_state.handle._deactivate()
 
     @unittest.skipIf(disabled, "amp_C is unavailable")
@@ -536,7 +536,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                             self.assertTrue(torch.allclose(model, reference))
                             self.assertTrue(torch.allclose(model, master.to(model.dtype)))
 
-                        if opt_level == "O1":
+                        if opt_level != "O0":
                             _amp_state.handle._deactivate()
 
     @unittest.skipIf(disabled, "amp_C is unavailable")
@@ -786,7 +786,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
                               self.assertTrue(torch.allclose(model, reference))
                               self.assertTrue(torch.allclose(model, master.to(model.dtype)))
 
-                          if opt_level == "O1":
+                          if opt_level != "O0":
                               _amp_state.handle._deactivate()
 
 if __name__ == '__main__':

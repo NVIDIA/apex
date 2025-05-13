@@ -7,6 +7,7 @@ from torch.nn import Parameter
 from apex import amp
 from apex.parallel.LARC import LARC
 from utils import common_init
+from apex.amp import _amp_state
 
 
 class MyModel(torch.nn.Module):
@@ -47,6 +48,10 @@ class TestLARC(unittest.TestCase):
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
             optimizer.step()
+
+            if opt_level != "O0":
+                _amp_state.handle._deactivate()
+
 
 
 if __name__ == "__main__":

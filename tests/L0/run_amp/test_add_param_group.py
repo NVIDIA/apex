@@ -154,6 +154,8 @@ class TestAddParamGroup(unittest.TestCase):
                                       "opt_level = {}, how_to_zero = {}, zero_before_add = {}".format(
                                       opt_level, how_to_zero, zero_before_add))
 
+                  if opt_level != "O0":
+                    _amp_state.handle._deactivate()
 
 if __name__ == '__main__':
     unittest.main()
