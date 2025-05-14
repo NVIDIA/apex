@@ -63,14 +63,11 @@ def _save_triton_auto_tune_cache(strict: bool = True, verbose: bool = False) -> 
     caches = OrderedDict()
     for func_name, func in _tuneable_triton_kernels.items():
         if len(func.cache) < 1:
+            msg = f"Triton JIT kernel {func_name} didn't have tuning cache"
             if strict:
-                raise ValueError(
-                    f"Triton JIT kernel {func_name} didn't have tuning cache"
-                )
+                raise ValueError(msg)
             else:
-                warnings.warn(
-                    f"Triton JIT kernel {func_name} didn't have tuning cache"
-                )
+                warnings.warn(msg)
         else:
             caches[func_name] = [(keys, vals.all_kwargs()) for keys, vals in zip(func.cache.keys(), func.cache.values())]
     f = BytesIO(json.dumps(caches).encode('utf-8'))
