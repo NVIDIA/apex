@@ -26,3 +26,7 @@ def common_init(test_case):
     test_case.t = 10
     torch.set_default_device('cuda')
     torch.set_default_dtype(torch.float)
+
+
+def common_reset(test_case):
+    torch.set_default_device('cpu')

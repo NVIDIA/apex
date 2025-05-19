@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from math import floor
 
 from utils import common_init, HALF, FLOAT,\
-    ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
+    ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT, common_reset
 
 try:
   import amp_C
@@ -39,7 +39,7 @@ class TestMultiTensorAxpby(unittest.TestCase):
         self.ref = torch.full((1,), 136.0, device="cuda", dtype=torch.float32)
 
     def tearDown(self):
-        pass
+        common_reset(self)
 
     # The tensor creation here is written for convenience, not speed.
     def axpby(self, sizea, sizeb, applier, repeat_tensors,

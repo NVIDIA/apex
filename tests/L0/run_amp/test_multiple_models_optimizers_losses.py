@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from torch.nn import Parameter
 
 from utils import common_init, HALF, FLOAT,\
-    ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
+    ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT, common_reset
 
 class MyModel(torch.nn.Module):
     def __init__(self, unique):
@@ -40,7 +40,7 @@ class TestMultipleModelsOptimizersLosses(unittest.TestCase):
         common_init(self)
 
     def tearDown(self):
-        pass
+        common_reset(self)
 
     def test_2models2losses1optimizer(self):
         model0 = MyModel(1)

@@ -5,7 +5,7 @@ import random
 import torch
 from torch import nn
 
-from utils import common_init, HALF
+from utils import common_init, HALF, common_reset
 from apex.testing.common_utils import skipIfRocm
 
 class TestRnnCells(unittest.TestCase):
@@ -15,6 +15,7 @@ class TestRnnCells(unittest.TestCase):
 
     def tearDown(self):
         self.handle._deactivate()
+        common_reset(self)
 
     def run_cell_test(self, cell, state_tuple=False):
         shape = (self.b, self.h)
@@ -59,6 +60,7 @@ class TestRnns(unittest.TestCase):
 
     def tearDown(self):
         self.handle._deactivate()
+        common_reset(self)
 
     def run_rnn_test(self, rnn, layers, bidir, state_tuple=False):
         for typ in [torch.float, torch.half]:

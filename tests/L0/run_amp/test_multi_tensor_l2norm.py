@@ -9,7 +9,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from utils import common_init, HALF, FLOAT,\
-    ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
+    ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT, common_reset
 
 try:
   import amp_C
@@ -29,7 +29,7 @@ class TestMultiTensorL2Norm(unittest.TestCase):
         self.overflow_buf = torch.tensor(1, dtype=torch.int, device='cuda').zero_()
 
     def tearDown(self):
-        pass
+        common_reset(self)
 
     # The tensor creation here is written for convenience, not speed.
     def l2norm(self, sizea, sizeb, applier, repeat_tensors, in_type, per_tensor):

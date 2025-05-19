@@ -7,7 +7,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from utils import common_init, HALF, FLOAT, DTYPES, DTYPES2, MATCH_INPUT
+from utils import common_init, HALF, FLOAT, DTYPES, DTYPES2, MATCH_INPUT, common_reset
 
 class _TestPromotion(unittest.TestCase):
     def run_binary_promote_test(self, fns, input_shape, lp_type, x_inplace=False):
@@ -64,6 +64,7 @@ class TestPromotionHalf(_TestPromotion):
 
     def tearDown(self):
         self.handle._deactivate()
+        common_reset(self)
 
     def test_atan2_matches_widest(self):
         fns = [lambda x, y : torch.atan2(x, y),
@@ -92,6 +93,7 @@ class TestPromotionBFloat16(_TestPromotion):
 
     def tearDown(self):
         self.handle._deactivate()
+        common_reset(self)
 
     def test_mul_matches_widest(self):
         fns = [lambda x, y : torch.mul(x, y),

@@ -10,7 +10,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from utils import common_init, HALF, FLOAT,\
-    ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
+    ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT, common_reset
 
 def get_reference_grad(i, w, ops):
     # Creating new tensors ensures, among other things, that the new tensors are not in the cache.
@@ -65,7 +65,7 @@ class TestCache(unittest.TestCase):
         common_init(self)
 
     def tearDown(self):
-        pass
+        common_reset(self)
 
     def train_eval_train_test(self, module, t, opt_level):
         model = module(t).cuda()

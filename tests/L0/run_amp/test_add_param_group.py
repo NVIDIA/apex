@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from torch.nn import Parameter
 
 from utils import common_init, HALF, FLOAT,\
-    ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT
+    ALWAYS_HALF, ALWAYS_FLOAT, MATCH_INPUT, common_reset
 
 class MyModel(torch.nn.Module):
     def __init__(self, unique, dtype=torch.float16):
@@ -37,7 +37,7 @@ class TestAddParamGroup(unittest.TestCase):
         common_init(self)
 
     def tearDown(self):
-        pass
+        common_reset(self)
 
     def zero_grad(self, models, optimizer, how_to_zero):
         if how_to_zero == "none":

@@ -6,7 +6,7 @@ from torch.nn import Parameter
 
 from apex import amp
 from apex.parallel.LARC import LARC
-from utils import common_init
+from utils import common_init, common_reset
 from apex.amp import _amp_state
 
 
@@ -27,7 +27,7 @@ class TestLARC(unittest.TestCase):
         common_init(self)
 
     def tearDown(self):
-        pass
+        common_reset(self)
 
     def test_larc_mixed_precision(self):
         for opt_level in ["O0", "O1", "O2", "O3"]:

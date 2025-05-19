@@ -9,7 +9,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from utils import common_init, HALF, FLOAT,\
-    ALWAYS_HALF, ALWAYS_BFLOAT16, ALWAYS_FLOAT, MATCH_INPUT
+    ALWAYS_HALF, ALWAYS_BFLOAT16, ALWAYS_FLOAT, MATCH_INPUT, common_reset
 
 from apex.testing.common_utils import skipIfRocm
 
@@ -73,6 +73,7 @@ class TestBasicCastsHalf(_TestBasicCasts):
 
     def tearDown(self):
         self.handle._deactivate()
+        common_reset(self)
     
     def test_linear_is_half(self):
         self._test_linear(ALWAYS_HALF)
@@ -102,6 +103,7 @@ class TestBasicCastsBFloat16(_TestBasicCasts):
 
     def tearDown(self):
         self.handle._deactivate()
+        common_reset(self)
 
     @skipIfRocm
     def test_linear_is_bfloat16(self):
@@ -133,6 +135,7 @@ class TestBannedMethods(unittest.TestCase):
 
     def tearDown(self):
         self.handle._deactivate()
+        common_reset(self)
 
     def bce_common(self, assertion, dtype=torch.half):
         shape = (self.b, self.h)
@@ -202,6 +205,7 @@ class TestTensorCastsHalf(_TestTensorCasts):
 
     def tearDown(self):
         self.handle._deactivate()
+        common_reset(self)
 
     def test_matmul_method_is_half(self):
         self._test_matmul_method(ALWAYS_HALF)
@@ -230,6 +234,7 @@ class TestTensorCastsBFloat16(_TestTensorCasts):
 
     def tearDown(self):
         self.handle._deactivate()
+        common_reset(self)
 
     @skipIfRocm
     def test_matmul_method_is_bfloat16(self):
