@@ -921,7 +921,7 @@ if "--parallel" in sys.argv:
     sys.argv.pop(idx)
 
 if "--disable-cuda-check" in sys.argv:
-    CUDA_DISABLE_CHECK = False    
+    CUDA_DISABLE_CHECK = True    
 
 # Prevent file conflicts when multiple extensions are compiled simultaneously
 class BuildExtensionSeparateDir(BuildExtension):
