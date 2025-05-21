@@ -19,7 +19,8 @@ from torch.utils.cpp_extension import (
 
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
-
+CUDA_DISABLE_CHECK = False
+# Variable to disable cuda torch binary/bare metal version checking with --disable-cuda-check option in pip install
 
 def get_cuda_bare_metal_version(cuda_dir):
     raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)
@@ -30,13 +31,14 @@ def get_cuda_bare_metal_version(cuda_dir):
     return raw_output, bare_metal_version
 
 
-def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
+def check_cuda_torch_binary_vs_bare_metal(cuda_dir): 
     raw_output, bare_metal_version = get_cuda_bare_metal_version(cuda_dir)
     torch_binary_version = parse(torch.version.cuda)
 
     print("\nCompiling cuda extensions with")
     print(raw_output + "from " + cuda_dir + "/bin\n")
-
+    if CUDA_DISABLE_CHECK:
+        return
     if (bare_metal_version != torch_binary_version):
         raise RuntimeError(
             "Cuda extensions are being compiled with a version of Cuda that does "
@@ -918,6 +920,8 @@ if "--parallel" in sys.argv:
     sys.argv.pop(idx + 1)
     sys.argv.pop(idx)
 
+if "--disable-cuda-check" in sys.argv:
+    CUDA_DISABLE_CHECK = False    
 
 # Prevent file conflicts when multiple extensions are compiled simultaneously
 class BuildExtensionSeparateDir(BuildExtension):
