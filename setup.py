@@ -46,7 +46,7 @@ def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
             "Pytorch binaries were compiled with Cuda {}.\n".format(torch.version.cuda)
             + "In some cases, a minor-version mismatch will not cause later errors:  "
             "https://github.com/NVIDIA/apex/pull/323#discussion_r287021798.  "
-            "You can try commenting out this check (at your own risk)."
+            "You can try commenting out this check (at your own risk). Or use the convenient sys arg --disable-cuda-check with your pip install command!"
         )
 
 
