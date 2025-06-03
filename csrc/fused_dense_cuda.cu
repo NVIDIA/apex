@@ -244,7 +244,7 @@ int gemm_lt(
     }
     else
     {
-      epilogue = HIPBLASLT_EPILOGUE_GELU_AUX_BIAS;
+      epilogue = HIPBLASLT_EPILOGUE_GELU_BIAS;
     }
     CHECK_HIPBLASLT_ERROR(hipblasLtMatmulDescSetAttribute(matmulDesc, HIPBLASLT_MATMUL_DESC_BIAS_POINTER, 
                                                           &d_bias, sizeof(d_bias)));
