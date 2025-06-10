@@ -20,6 +20,75 @@ from torch.utils.cpp_extension import (
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
+# Allow environment variables to specify build flags for PEP 517 compatibility
+ENV_TO_FLAG = {
+    "APEX_CPP_EXT": "--cpp_ext",
+    "APEX_CUDA_EXT": "--cuda_ext",
+    "APEX_XENTROPY": "--xentropy",
+    "APEX_FAST_LAYER_NORM": "--fast_layer_norm",
+    "APEX_DISTRIBUTED_ADAM": "--distributed_adam",
+    "APEX_DISTRIBUTED_LAMB": "--distributed_lamb",
+    "APEX_BNP": "--bnp",
+    "APEX_GROUP_NORM": "--group_norm",
+    "APEX_INDEX_MUL_2D": "--index_mul_2d",
+    "APEX_DEPRECATED_FUSED_ADAM": "--deprecated_fused_adam",
+    "APEX_DEPRECATED_FUSED_LAMB": "--deprecated_fused_lamb",
+    "APEX_FAST_MULTIHEAD_ATTN": "--fast_multihead_attn",
+    "APEX_FMHA": "--fmha",
+    "APEX_PERMUTATION_SEARCH": "--permutation_search",
+    "APEX_FOCAL_LOSS": "--focal_loss",
+    "APEX_TRANSDUCER": "--transducer",
+    "APEX_CUDNN_GBN": "--cudnn_gbn",
+    "APEX_PEER_MEMORY": "--peer_memory",
+    "APEX_NCCL_P2P": "--nccl_p2p",
+    "APEX_FAST_BOTTLENECK": "--fast_bottleneck",
+    "APEX_FUSED_CONV_BIAS_RELU": "--fused_conv_bias_relu",
+    "APEX_NCCL_ALLOCATOR": "--nccl_allocator",
+    "APEX_GPU_DIRECT_STORAGE": "--gpu_direct_storage",
+}
+for env_var, flag in ENV_TO_FLAG.items():
+    if os.environ.get(env_var, "0") == "1" and flag not in sys.argv:
+        print(f"[apex] Detected {env_var}=1, adding {flag} to build flags.")
+        sys.argv.append(flag)
+
+
+# Mapping from flags to their environment variables
+FLAG_TO_ENV = {
+    "--cpp_ext": "APEX_CPP_EXT",
+    "--cuda_ext": "APEX_CUDA_EXT",
+    "--distributed_adam": "APEX_DISTRIBUTED_ADAM",
+    "--distributed_lamb": "APEX_DISTRIBUTED_LAMB",
+    "--xentropy": "APEX_XENTROPY",
+    "--fast_layer_norm": "APEX_FAST_LAYER_NORM",
+    "--bnp": "APEX_BNP",
+    "--group_norm": "APEX_GROUP_NORM",
+    "--index_mul_2d": "APEX_INDEX_MUL_2D",
+    "--deprecated_fused_adam": "APEX_DEPRECATED_FUSED_ADAM",
+    "--deprecated_fused_lamb": "APEX_DEPRECATED_FUSED_LAMB",
+    "--fast_multihead_attn": "APEX_FAST_MULTIHEAD_ATTN",
+    "--fmha": "APEX_FMHA",
+    "--permutation_search": "APEX_PERMUTATION_SEARCH",
+    "--focal_loss": "APEX_FOCAL_LOSS",
+    "--transducer": "APEX_TRANSDUCER",
+    "--cudnn_gbn": "APEX_CUDNN_GBN",
+    "--peer_memory": "APEX_PEER_MEMORY",
+    "--nccl_p2p": "APEX_NCCL_P2P",
+    "--fast_bottleneck": "APEX_FAST_BOTTLENECK",
+    "--fused_conv_bias_relu": "APEX_FUSED_CONV_BIAS_RELU",
+    "--nccl_allocator": "APEX_NCCL_ALLOCATOR",
+    "--gpu_direct_storage": "APEX_GPU_DIRECT_STORAGE",
+}
+# Contrib flags: all except --cpp_ext and --cuda_ext
+CONTRIB_FLAGS = set(FLAG_TO_ENV.keys()) - {"--cpp_ext", "--cuda_ext"}
+
+
+def has_flag(flag, env_var):
+    if flag in sys.argv or os.environ.get(env_var, "0") == "1":
+        return True
+    if flag in CONTRIB_FLAGS and os.environ.get("APEX_ALL_CONTRIB_EXT", "0") == "1":
+        return True
+    return False
+
 
 def get_cuda_bare_metal_version(cuda_dir):
     raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)
@@ -117,8 +186,9 @@ if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
             "--cpp_ext requires Pytorch 1.0 or later, " "found torch.__version__ = {}".format(torch.__version__)
         )
 
-if "--cpp_ext" in sys.argv:
-    sys.argv.remove("--cpp_ext")
+if has_flag("--cpp_ext", "APEX_CPP_EXT"):
+    if "--cpp_ext" in sys.argv:
+        sys.argv.remove("--cpp_ext")
     ext_modules.append(CppExtension("apex_C", ["csrc/flatten_unflatten.cpp"]))
 
 
@@ -140,8 +210,9 @@ version_dependent_macros = version_ge_1_1 + version_ge_1_3 + version_ge_1_5
 
 _, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
 
-if "--distributed_adam" in sys.argv:
-    sys.argv.remove("--distributed_adam")
+if has_flag("--distributed_adam", "APEX_DISTRIBUTED_ADAM"):
+    if "--distributed_adam" in sys.argv:
+        sys.argv.remove("--distributed_adam")
     raise_if_cuda_home_none("--distributed_adam")
     ext_modules.append(
         CUDAExtension(
@@ -158,8 +229,9 @@ if "--distributed_adam" in sys.argv:
         )
     )
 
-if "--distributed_lamb" in sys.argv:
-    sys.argv.remove("--distributed_lamb")
+if has_flag("--distributed_lamb", "APEX_DISTRIBUTED_LAMB"):
+    if "--distributed_lamb" in sys.argv:
+        sys.argv.remove("--distributed_lamb")
     raise_if_cuda_home_none("--distributed_lamb")
     ext_modules.append(
         CUDAExtension(
@@ -176,8 +248,9 @@ if "--distributed_lamb" in sys.argv:
         )
     )
 
-if "--cuda_ext" in sys.argv:
-    sys.argv.remove("--cuda_ext")
+if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
+    if "--cuda_ext" in sys.argv:
+        sys.argv.remove("--cuda_ext")
     raise_if_cuda_home_none("--cuda_ext")
     check_cuda_torch_binary_vs_bare_metal(CUDA_HOME)
 
@@ -396,8 +469,9 @@ if "--cuda_ext" in sys.argv:
             )
         )
 
-if "--permutation_search" in sys.argv:
-    sys.argv.remove("--permutation_search")
+if has_flag("--permutation_search", "APEX_PERMUTATION_SEARCH"):
+    if "--permutation_search" in sys.argv:
+        sys.argv.remove("--permutation_search")
 
     if CUDA_HOME is None:
         raise RuntimeError("--permutation_search was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
@@ -410,8 +484,9 @@ if "--permutation_search" in sys.argv:
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros + cc_flag}))
 
-if "--bnp" in sys.argv:
-    sys.argv.remove("--bnp")
+if has_flag("--bnp", "APEX_BNP"):
+    if "--bnp" in sys.argv:
+        sys.argv.remove("--bnp")
     raise_if_cuda_home_none("--bnp")
     ext_modules.append(
         CUDAExtension(
@@ -435,9 +510,10 @@ if "--bnp" in sys.argv:
         )
     )
 
-if "--xentropy" in sys.argv:
+if has_flag("--xentropy", "APEX_XENTROPY"):
     from datetime import datetime
-    sys.argv.remove("--xentropy")
+    if "--xentropy" in sys.argv:
+        sys.argv.remove("--xentropy")
     raise_if_cuda_home_none("--xentropy")
     xentropy_ver = datetime.today().strftime("%y.%m.%d")
     print(f"`--xentropy` setting version of {xentropy_ver}")
@@ -453,8 +529,9 @@ if "--xentropy" in sys.argv:
         )
     )
 
-if "--focal_loss" in sys.argv:
-    sys.argv.remove("--focal_loss")
+if has_flag("--focal_loss", "APEX_FOCAL_LOSS"):
+    if "--focal_loss" in sys.argv:
+        sys.argv.remove("--focal_loss")
     raise_if_cuda_home_none("--focal_loss")
     ext_modules.append(
         CUDAExtension(
@@ -471,8 +548,9 @@ if "--focal_loss" in sys.argv:
         )
     )
 
-if "--group_norm" in sys.argv:
-    sys.argv.remove("--group_norm")
+if has_flag("--group_norm", "APEX_GROUP_NORM"):
+    if "--group_norm" in sys.argv:
+        sys.argv.remove("--group_norm")
     raise_if_cuda_home_none("--group_norm")
 
     # CUDA group norm supports from SM70
@@ -526,8 +604,9 @@ if "--group_norm" in sys.argv:
         )
     )
 
-if "--index_mul_2d" in sys.argv:
-    sys.argv.remove("--index_mul_2d")
+if has_flag("--index_mul_2d", "APEX_INDEX_MUL_2D"):
+    if "--index_mul_2d" in sys.argv:
+        sys.argv.remove("--index_mul_2d")
     raise_if_cuda_home_none("--index_mul_2d")
     ext_modules.append(
         CUDAExtension(
@@ -544,8 +623,9 @@ if "--index_mul_2d" in sys.argv:
         )
     )
 
-if "--deprecated_fused_adam" in sys.argv:
-    sys.argv.remove("--deprecated_fused_adam")
+if has_flag("--deprecated_fused_adam", "APEX_DEPRECATED_FUSED_ADAM"):
+    if "--deprecated_fused_adam" in sys.argv:
+        sys.argv.remove("--deprecated_fused_adam")
     raise_if_cuda_home_none("--deprecated_fused_adam")
     ext_modules.append(
         CUDAExtension(
@@ -562,8 +642,9 @@ if "--deprecated_fused_adam" in sys.argv:
         )
     )
 
-if "--deprecated_fused_lamb" in sys.argv:
-    sys.argv.remove("--deprecated_fused_lamb")
+if has_flag("--deprecated_fused_lamb", "APEX_DEPRECATED_FUSED_LAMB"):
+    if "--deprecated_fused_lamb" in sys.argv:
+        sys.argv.remove("--deprecated_fused_lamb")
     raise_if_cuda_home_none("--deprecated_fused_lamb")
     ext_modules.append(
         CUDAExtension(
@@ -588,8 +669,9 @@ torch_dir = torch.__path__[0]
 if os.path.exists(os.path.join(torch_dir, "include", "ATen", "CUDAGeneratorImpl.h")):
     generator_flag = ["-DOLD_GENERATOR_PATH"]
 
-if "--fast_layer_norm" in sys.argv:
-    sys.argv.remove("--fast_layer_norm")
+if has_flag("--fast_layer_norm", "APEX_FAST_LAYER_NORM"):
+    if "--fast_layer_norm" in sys.argv:
+        sys.argv.remove("--fast_layer_norm")
     raise_if_cuda_home_none("--fast_layer_norm")
 
     cc_flag = []
@@ -636,8 +718,9 @@ if "--fast_layer_norm" in sys.argv:
         )
     )
 
-if "--fmha" in sys.argv:
-    sys.argv.remove("--fmha")
+if has_flag("--fmha", "APEX_FMHA"):
+    if "--fmha" in sys.argv:
+        sys.argv.remove("--fmha")
     raise_if_cuda_home_none("--fmha")
 
     if bare_metal_version < Version("11.0"):
@@ -690,8 +773,9 @@ if "--fmha" in sys.argv:
     )
 
 
-if "--fast_multihead_attn" in sys.argv:
-    sys.argv.remove("--fast_multihead_attn")
+if has_flag("--fast_multihead_attn", "APEX_FAST_MULTIHEAD_ATTN"):
+    if "--fast_multihead_attn" in sys.argv:
+        sys.argv.remove("--fast_multihead_attn")
     raise_if_cuda_home_none("--fast_multihead_attn")
 
     cc_flag = []
@@ -749,8 +833,9 @@ if "--fast_multihead_attn" in sys.argv:
         )
     )
 
-if "--transducer" in sys.argv:
-    sys.argv.remove("--transducer")
+if has_flag("--transducer", "APEX_TRANSDUCER"):
+    if "--transducer" in sys.argv:
+        sys.argv.remove("--transducer")
     raise_if_cuda_home_none("--transducer")
     ext_modules.append(
         CUDAExtension(
@@ -781,8 +866,9 @@ if "--transducer" in sys.argv:
         )
     )
 
-if "--cudnn_gbn" in sys.argv:
-    sys.argv.remove("--cudnn_gbn")
+if has_flag("--cudnn_gbn", "APEX_CUDNN_GBN"):
+    if "--cudnn_gbn" in sys.argv:
+        sys.argv.remove("--cudnn_gbn")
     raise_if_cuda_home_none("--cudnn_gbn")
     if check_cudnn_version_and_warn("--cudnn_gbn", 8500):
         subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
@@ -798,8 +884,9 @@ if "--cudnn_gbn" in sys.argv:
             )
         )
 
-if "--peer_memory" in sys.argv:
-    sys.argv.remove("--peer_memory")
+if has_flag("--peer_memory", "APEX_PEER_MEMORY"):
+    if "--peer_memory" in sys.argv:
+        sys.argv.remove("--peer_memory")
     raise_if_cuda_home_none("--peer_memory")
     ext_modules.append(
         CUDAExtension(
@@ -813,8 +900,9 @@ if "--peer_memory" in sys.argv:
     )
 
 # NOTE: Requires NCCL >= 2.10.3
-if "--nccl_p2p" in sys.argv:
-    sys.argv.remove("--nccl_p2p")
+if has_flag("--nccl_p2p", "APEX_NCCL_P2P"):
+    if "--nccl_p2p" in sys.argv:
+        sys.argv.remove("--nccl_p2p")
     raise_if_cuda_home_none("--nccl_p2p")
     # Check NCCL version.
     _nccl_version_getter = load(
@@ -840,8 +928,9 @@ if "--nccl_p2p" in sys.argv:
         )
 
 # note (mkozuki): Now `--fast_bottleneck` option (i.e. apex/contrib/bottleneck) depends on `--peer_memory` and `--nccl_p2p`.
-if "--fast_bottleneck" in sys.argv:
-    sys.argv.remove("--fast_bottleneck")
+if has_flag("--fast_bottleneck", "APEX_FAST_BOTTLENECK"):
+    if "--fast_bottleneck" in sys.argv:
+        sys.argv.remove("--fast_bottleneck")
     raise_if_cuda_home_none("--fast_bottleneck")
     if check_cudnn_version_and_warn("--fast_bottleneck", 8400):
         subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
@@ -855,8 +944,9 @@ if "--fast_bottleneck" in sys.argv:
         )
 
 
-if "--fused_conv_bias_relu" in sys.argv:
-    sys.argv.remove("--fused_conv_bias_relu")
+if has_flag("--fused_conv_bias_relu", "APEX_FUSED_CONV_BIAS_RELU"):
+    if "--fused_conv_bias_relu" in sys.argv:
+        sys.argv.remove("--fused_conv_bias_relu")
     raise_if_cuda_home_none("--fused_conv_bias_relu")
     if check_cudnn_version_and_warn("--fused_conv_bias_relu", 8400):
         subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
@@ -870,8 +960,9 @@ if "--fused_conv_bias_relu" in sys.argv:
         )
 
 
-if "--nccl_allocator" in sys.argv:
-    sys.argv.remove("--nccl_allocator")
+if has_flag("--nccl_allocator", "APEX_NCCL_ALLOCATOR"):
+    if "--nccl_allocator" in sys.argv:
+        sys.argv.remove("--nccl_allocator")
     raise_if_cuda_home_none("--nccl_allocator")
     _nccl_version_getter = load(
         name="_nccl_version_getter",
@@ -896,8 +987,9 @@ if "--nccl_allocator" in sys.argv:
         )
 
 
-if "--gpu_direct_storage" in sys.argv:
-    sys.argv.remove("--gpu_direct_storage")
+if has_flag("--gpu_direct_storage", "APEX_GPU_DIRECT_STORAGE"):
+    if "--gpu_direct_storage" in sys.argv:
+        sys.argv.remove("--gpu_direct_storage")
     raise_if_cuda_home_none("--gpu_direct_storage")
     ext_modules.append(
         CUDAExtension(
@@ -911,12 +1003,21 @@ if "--gpu_direct_storage" in sys.argv:
 
 
 # Patch because `setup.py bdist_wheel` and `setup.py develop` do not support the `parallel` option
-parallel = None
+parallel: int | None = None
 if "--parallel" in sys.argv:
     idx = sys.argv.index("--parallel")
     parallel = int(sys.argv[idx + 1])
     sys.argv.pop(idx + 1)
     sys.argv.pop(idx)
+else:
+    # Check if APEX_PARALLEL environment variable is set
+    apex_parallel = os.environ.get("APEX_PARALLEL", None)
+    if apex_parallel is not None:
+        try:
+            parallel = int(apex_parallel)
+            print(f"[apex] Using parallel build with {parallel} jobs from APEX_PARALLEL environment variable")
+        except ValueError:
+            print(f"[apex] Warning: APEX_PARALLEL environment variable '{apex_parallel}' is not a valid integer, ignoring")
 
 
 # Prevent file conflicts when multiple extensions are compiled simultaneously
