@@ -52,34 +52,9 @@ for env_var, flag in ENV_TO_FLAG.items():
         sys.argv.append(flag)
 
 
-# Mapping from flags to their environment variables
-FLAG_TO_ENV = {
-    "--cpp_ext": "APEX_CPP_EXT",
-    "--cuda_ext": "APEX_CUDA_EXT",
-    "--distributed_adam": "APEX_DISTRIBUTED_ADAM",
-    "--distributed_lamb": "APEX_DISTRIBUTED_LAMB",
-    "--xentropy": "APEX_XENTROPY",
-    "--fast_layer_norm": "APEX_FAST_LAYER_NORM",
-    "--bnp": "APEX_BNP",
-    "--group_norm": "APEX_GROUP_NORM",
-    "--index_mul_2d": "APEX_INDEX_MUL_2D",
-    "--deprecated_fused_adam": "APEX_DEPRECATED_FUSED_ADAM",
-    "--deprecated_fused_lamb": "APEX_DEPRECATED_FUSED_LAMB",
-    "--fast_multihead_attn": "APEX_FAST_MULTIHEAD_ATTN",
-    "--fmha": "APEX_FMHA",
-    "--permutation_search": "APEX_PERMUTATION_SEARCH",
-    "--focal_loss": "APEX_FOCAL_LOSS",
-    "--transducer": "APEX_TRANSDUCER",
-    "--cudnn_gbn": "APEX_CUDNN_GBN",
-    "--peer_memory": "APEX_PEER_MEMORY",
-    "--nccl_p2p": "APEX_NCCL_P2P",
-    "--fast_bottleneck": "APEX_FAST_BOTTLENECK",
-    "--fused_conv_bias_relu": "APEX_FUSED_CONV_BIAS_RELU",
-    "--nccl_allocator": "APEX_NCCL_ALLOCATOR",
-    "--gpu_direct_storage": "APEX_GPU_DIRECT_STORAGE",
-}
-# Contrib flags: all except --cpp_ext and --cuda_ext
-CONTRIB_FLAGS = set(FLAG_TO_ENV.keys()) - {"--cpp_ext", "--cuda_ext"}
+FLAG_TO_ENV = {v: k for k, v in ENV_TO_FLAG.items()}
+CORE_FLAGS = {"--cpp_ext", "--cuda_ext"}
+CONTRIB_FLAGS = set(FLAG_TO_ENV.keys()) - CORE_FLAGS
 
 
 def has_flag(flag, env_var):
