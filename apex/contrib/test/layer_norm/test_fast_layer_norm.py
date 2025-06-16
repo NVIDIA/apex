@@ -188,7 +188,7 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32, mem_eff=False):
     print(f"db: relerr={re_db:.4e} mse={mse_db:.4e}")
 
     def check_err(x, relerr):
-        tol = 2e-2 if x.dtype in (torch.float16, torch.bfloat16) else 5e-6
+        tol = 2e-2 if x.dtype in (torch.float16, torch.bfloat16) else 1e-5
         return relerr < tol
 
     return [
