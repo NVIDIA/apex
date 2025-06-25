@@ -1,6 +1,7 @@
 import sys
 import warnings
 import os
+import threading
 import glob
 from packaging.version import parse, Version
 
@@ -76,15 +77,18 @@ if not torch.cuda.is_available():
     print(
         "\nWarning: Torch did not find available GPUs on this system.\n",
         "If your intention is to cross-compile, this is not an error.\n"
-        "By default, Apex will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2),\n"
+        "By default, Apex will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2) (until CUDA 12.8),\n"
         "Volta (compute capability 7.0), Turing (compute capability 7.5),\n"
-        "and, if the CUDA version is >= 11.0, Ampere (compute capability 8.0).\n"
+        "and, if the CUDA version is >= 11.0, Ampere (compute capability 8.0, 8.6), and,\n"
+        "if the CUDA version is >= 12.8, Blackwell (compute capability 10.0, 12.0).\n"
         "If you wish to cross-compile for a single specific architecture,\n"
         'export TORCH_CUDA_ARCH_LIST="compute capability" before running setup.py.\n',
     )
     if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None and CUDA_HOME is not None:
         _, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
-        if bare_metal_version >= Version("11.8"):
+        if bare_metal_version >= Version("12.8"):
+            os.environ["TORCH_CUDA_ARCH_LIST"] = "7.0;7.5;8.0;8.6;9.0;10.0;12.0"
+        elif bare_metal_version >= Version("11.8"):
             os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5;8.0;8.6;9.0"
         elif bare_metal_version >= Version("11.1"):
             os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5;8.0;8.6"
@@ -363,6 +367,11 @@ if "--cuda_ext" in sys.argv:
         if bare_metal_version >= Version("11.8"):
             cc_flag.append("-gencode")
             cc_flag.append("arch=compute_90,code=sm_90")
+        if bare_metal_version >= Version("12.8"):
+            cc_flag.append("-gencode")
+            cc_flag.append("arch=compute_100,code=sm_100")
+            cc_flag.append("-gencode")
+            cc_flag.append("arch=compute_120,code=sm_120")
 
         ext_modules.append(
             CUDAExtension(
@@ -468,10 +477,10 @@ if "--group_norm" in sys.argv:
 
     # CUDA group norm supports from SM70
     arch_flags = []
-    for arch in [70, 75, 80, 86, 90]:
+    # FIXME: this needs to be done more cleanly
+    for arch in [70, 75, 80, 86, 90, 100, 120]:
         arch_flag = f"-gencode=arch=compute_{arch},code=sm_{arch}"
         arch_flags.append(arch_flag)
-    arch_flag = f"-gencode=arch=compute_90,code=compute_90"
     arch_flags.append(arch_flag)
 
     ext_modules.append(
@@ -485,6 +494,33 @@ if "--group_norm" in sys.argv:
                 "cxx": ["-O3", "-std=c++17"] + version_dependent_macros,
                 "nvcc": [
                     "-O3", "-std=c++17", "--use_fast_math", "--ftz=false",
+                ] + arch_flags + version_dependent_macros,
+            },
+        )
+    )
+
+    # CUDA group norm V2 is tested on SM100
+    if bare_metal_version >= Version("12.8"):
+        arch_flags = ["-gencode=arch=compute_100,code=sm_100"]
+    else:
+        arch_flags = ["-gencode=arch=compute_90,code=compute_90"]
+
+    ext_modules.append(
+        CUDAExtension(
+            name="group_norm_v2_cuda",
+            sources=[
+                "apex/contrib/csrc/group_norm_v2/gn.cpp",
+                "apex/contrib/csrc/group_norm_v2/gn_cuda.cu",
+                "apex/contrib/csrc/group_norm_v2/gn_utils.cpp",
+            ] + glob.glob("apex/contrib/csrc/group_norm_v2/gn_cuda_inst_*.cu"),
+            extra_compile_args={
+                "cxx": ["-O2"] + version_dependent_macros,
+                "nvcc": [
+                    "-O2", "--use_fast_math", "--ftz=false",
+                    "-U__CUDA_NO_HALF_CONVERSIONS__",
+                    "-U__CUDA_NO_HALF_OPERATORS__",
+                    "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
+                    "-U__CUDA_NO_BFLOAT16_OPERATORS__",
                 ] + arch_flags + version_dependent_macros,
             },
         )
@@ -566,6 +602,11 @@ if "--fast_layer_norm" in sys.argv:
     if bare_metal_version >= Version("11.8"):
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_90,code=sm_90")
+    if bare_metal_version >= Version("12.8"):
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_100,code=sm_100")
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_120,code=sm_120")
 
     ext_modules.append(
         CUDAExtension(
@@ -608,6 +649,11 @@ if "--fmha" in sys.argv:
     if bare_metal_version >= Version("11.8"):
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_90,code=sm_90")
+    if bare_metal_version >= Version("12.8"):
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_100,code=sm_100")
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_120,code=sm_120")
 
     ext_modules.append(
         CUDAExtension(
@@ -661,6 +707,11 @@ if "--fast_multihead_attn" in sys.argv:
     if bare_metal_version >= Version("11.8"):
         cc_flag.append("-gencode")
         cc_flag.append("arch=compute_90,code=sm_90")
+    if bare_metal_version >= Version("12.8"):
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_100,code=sm_100")
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_120,code=sm_120")
 
     subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
     ext_modules.append(
@@ -830,9 +881,8 @@ if "--nccl_allocator" in sys.argv:
     if _available_nccl_version >= (2, 19):
         ext_modules.append(
             CUDAExtension(
-                name="nccl_allocator",
+                name="_apex_nccl_allocator",
                 sources=[
-                    "apex/contrib/csrc/nccl_allocator/python_bindings.cpp",
                     "apex/contrib/csrc/nccl_allocator/NCCLAllocator.cpp",
                 ],
                 include_dirs=[os.path.join(this_dir, "apex/apex/contrib/csrc/nccl_allocator")],
@@ -860,6 +910,44 @@ if "--gpu_direct_storage" in sys.argv:
     )
 
 
+# Patch because `setup.py bdist_wheel` and `setup.py develop` do not support the `parallel` option
+parallel = None
+if "--parallel" in sys.argv:
+    idx = sys.argv.index("--parallel")
+    parallel = int(sys.argv[idx + 1])
+    sys.argv.pop(idx + 1)
+    sys.argv.pop(idx)
+
+
+# Prevent file conflicts when multiple extensions are compiled simultaneously
+class BuildExtensionSeparateDir(BuildExtension):
+    build_extension_patch_lock = threading.Lock()
+    thread_ext_name_map = {}
+
+    def finalize_options(self):
+        if parallel is not None:
+            self.parallel = parallel
+        super().finalize_options()
+
+    def build_extension(self, ext):
+        with self.build_extension_patch_lock:
+            if not getattr(self.compiler, "_compile_separate_output_dir", False):
+                compile_orig = self.compiler.compile
+
+                def compile_new(*args, **kwargs):
+                    return compile_orig(*args, **{
+                        **kwargs,
+                        "output_dir": os.path.join(
+                            kwargs["output_dir"],
+                            self.thread_ext_name_map[threading.current_thread().ident]),
+                    })
+                self.compiler.compile = compile_new
+                self.compiler._compile_separate_output_dir = True
+        self.thread_ext_name_map[threading.current_thread().ident] = ext.name
+        objects = super().build_extension(ext)
+        return objects
+
+
 setup(
     name="apex",
     version="0.1",
@@ -869,6 +957,6 @@ setup(
     install_requires=["packaging>20.6"],
     description="PyTorch Extensions written by NVIDIA",
     ext_modules=ext_modules,
-    cmdclass={"build_ext": BuildExtension} if ext_modules else {},
+    cmdclass={"build_ext": BuildExtensionSeparateDir} if ext_modules else {},
     extras_require=extras,
 )

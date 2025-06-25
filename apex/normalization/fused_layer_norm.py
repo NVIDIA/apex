@@ -5,11 +5,17 @@ import torch
 from torch.nn.parameter import Parameter
 from torch.nn import init
 from torch.nn import functional as F
+from typing import List, Tuple
 
 from apex._autocast_utils import _cast_if_autocast_enabled
 
 global fused_layer_norm_cuda
 fused_layer_norm_cuda = None
+
+
+# PyTorch supports `torch.library.custom_op` since 2.4.0.
+def supports_custom_op() -> bool:
+    return hasattr(torch.library, "custom_op")
 
 
 # Reference implementation from Huggingface
@@ -61,6 +67,131 @@ class FusedLayerNormAffineFunction(torch.autograd.Function):
         return grad_input, grad_weight, grad_bias, None, None, None
 
 
+if supports_custom_op():
+
+    @torch.library.custom_op("apex::fused_layer_norm_affine_fwd", mutates_args=())
+    def fused_layer_norm_affine_fwd(
+        input: torch.Tensor,
+        weight: torch.Tensor,
+        bias: torch.Tensor,
+        normalized_shape: List[int],
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        global fused_layer_norm_cuda
+        if fused_layer_norm_cuda is None:
+            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+
+        input_ = input.contiguous()
+        weight_ = weight.contiguous()
+        bias_ = bias.contiguous()
+        output, mean, invvar = fused_layer_norm_cuda.forward_affine(
+            input_, normalized_shape, weight_, bias_, eps
+        )
+        return output, mean, invvar
+
+    @fused_layer_norm_affine_fwd.register_fake
+    def fused_layer_norm_affine_fwd_fake(
+        input: torch.Tensor,
+        weight: torch.Tensor,
+        bias: torch.Tensor,
+        normalized_shape: List[int],
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        input = input.contiguous()
+        weight = weight.contiguous()
+        bias = bias.contiguous()
+        idiff = input.ndim - len(normalized_shape)
+        n = 1
+        for i in range(idiff):
+            n *= input.shape[i]
+        if input.dtype in [torch.float16, torch.bfloat16]:
+            dtype = torch.float32
+        else:
+            dtype = input.dtype
+        mean = torch.empty([n], dtype=dtype, device=input.device)
+        invvar = torch.empty_like(mean)
+        return torch.empty_like(input), mean, invvar
+
+    @torch.library.custom_op("apex::fused_layer_norm_affine_bwd", mutates_args=())
+    def fused_layer_norm_affine_bwd(
+        grad_output: torch.Tensor,
+        mean: torch.Tensor,
+        invvar: torch.Tensor,
+        input_or_output: torch.Tensor,
+        normalized_shape: List[int],
+        weight: torch.Tensor,
+        bias: torch.Tensor,
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        grad_input, grad_weight, grad_bias = fused_layer_norm_cuda.backward_affine(
+            grad_output.contiguous(),
+            mean,
+            invvar,
+            input_or_output,
+            normalized_shape,
+            weight,
+            bias,
+            eps,
+            memory_efficient,
+        )
+        return grad_input, grad_weight, grad_bias
+
+    @fused_layer_norm_affine_bwd.register_fake
+    def fused_layer_norm_affine_bwd_fake(
+        grad_output: torch.Tensor,
+        mean: torch.Tensor,
+        invvar: torch.Tensor,
+        input_or_output: torch.Tensor,
+        normalized_shape: List[int],
+        weight: torch.Tensor,
+        bias: torch.Tensor,
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        grad_input = torch.empty_like(input_or_output)
+        grad_weight = torch.empty_like(weight)
+        grad_bias = torch.empty_like(bias)
+        return grad_input, grad_weight, grad_bias
+
+    def _fused_layer_norm_affine_backward(ctx, grad_output, grad_mean, grad_invvar):
+        input_or_output, weight_, bias_, mean, invvar = ctx.saved_tensors
+        grad_input = grad_weight = grad_bias = None
+        grad_input, grad_weight, grad_bias = fused_layer_norm_affine_bwd(
+            grad_output,
+            mean,
+            invvar,
+            input_or_output,
+            ctx.normalized_shape,
+            weight_,
+            bias_,
+            ctx.eps,
+            ctx.memory_efficient,
+        )
+        return grad_input, grad_weight, grad_bias, None, None, None
+
+    def _fused_layer_norm_affine_setup_context(ctx, inputs, output):
+        input, weight, bias, normalized_shape, eps, memory_efficient = inputs
+        output, mean, invvar = output
+        input_ = input.contiguous()
+        weight_ = weight.contiguous()
+        bias_ = bias.contiguous()
+        if memory_efficient:
+            ctx.save_for_backward(output, weight_, bias_, None, invvar)
+        else:
+            ctx.save_for_backward(input_, weight_, bias_, mean, invvar)
+        ctx.normalized_shape = normalized_shape
+        ctx.eps = eps
+        ctx.memory_efficient = memory_efficient
+
+    fused_layer_norm_affine_fwd.register_autograd(
+        _fused_layer_norm_affine_backward,
+        setup_context=_fused_layer_norm_affine_setup_context,
+    )
+
+
 class FusedRMSNormAffineFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, weight, normalized_shape, eps, memory_efficient=False):
@@ -89,6 +220,128 @@ class FusedRMSNormAffineFunction(torch.autograd.Function):
            ctx.normalized_shape, weight_, ctx.eps, ctx.memory_efficient
         )
         return grad_input, grad_weight, None, None, None
+
+if supports_custom_op():
+    @torch.library.custom_op("apex::fused_rms_norm_affine_fwd", mutates_args=())
+    def fused_rms_norm_affine_fwd(
+        input: torch.Tensor,
+        weight: torch.Tensor,
+        normalized_shape: List[int],
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        global fused_layer_norm_cuda
+        if fused_layer_norm_cuda is None:
+            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+
+        input_ = input.contiguous()
+        weight_ = weight.contiguous()
+        output, invvar = fused_layer_norm_cuda.rms_forward_affine(
+            input_, normalized_shape, weight_, eps
+        )
+        return output, invvar
+
+
+    @fused_rms_norm_affine_fwd.register_fake
+    def fused_rms_norm_affine_fwd_fake(
+        input: torch.Tensor,
+        weight: torch.Tensor,
+        normalized_shape: List[int],
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        input = input.contiguous()
+        weight = weight.contiguous()
+        idiff = input.ndim - len(normalized_shape)
+        n = 1
+        for i in range(idiff):
+            n *= input.shape[i]
+        if input.dtype in [torch.float16, torch.bfloat16]:
+            dtype = torch.float32
+        else:
+            dtype = input.dtype
+        return (
+            torch.empty_like(input),
+            torch.empty(
+                [n],
+                dtype=dtype,
+                device=input.device,
+                requires_grad=input.requires_grad,
+                memory_format=torch.contiguous_format,
+            ),
+        )
+
+
+    @torch.library.custom_op("apex::fused_rms_norm_affine_bwd", mutates_args=())
+    def fused_rms_norm_affine_bwd(
+        grad_output: torch.Tensor,
+        invvar: torch.Tensor,
+        input_or_output: torch.Tensor,
+        normalized_shape: List[int],
+        weight: torch.Tensor,
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        grad_input, grad_weight = fused_layer_norm_cuda.rms_backward_affine(
+            grad_output.contiguous(),
+            invvar,
+            input_or_output,
+            normalized_shape,
+            weight,
+            eps,
+            memory_efficient,
+        )
+        return grad_input, grad_weight
+
+
+    @fused_rms_norm_affine_bwd.register_fake
+    def fused_rms_norm_affine_bwd_fake(
+        grad_output: torch.Tensor,
+        invvar: torch.Tensor,
+        input_or_output: torch.Tensor,
+        normalized_shape: List[int],
+        weight: torch.Tensor,
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        grad_input = torch.empty_like(input_or_output)
+        grad_weight = torch.empty_like(weight)
+        return grad_input, grad_weight
+
+
+    def _fused_rms_norm_affine_backward(ctx, grad_output, grad_invvar):
+        input_or_output, weight_, invvar = ctx.saved_tensors
+        grad_input = grad_weight = None
+        grad_input, grad_weight = fused_rms_norm_affine_bwd(
+            grad_output,
+            invvar,
+            input_or_output,
+            ctx.normalized_shape,
+            weight_,
+            ctx.eps,
+            ctx.memory_efficient,
+        )
+        return grad_input, grad_weight, None, None, None
+
+
+    def _fused_rms_norm_affine_setup_context(ctx, inputs, output):
+        input_, weight_, normalized_shape, eps, memory_efficient = inputs
+        output_, invvar = output
+        input_ = input_.contiguous()
+        weight_ = weight_.contiguous()
+        if memory_efficient:
+            ctx.save_for_backward(output_, weight_, invvar)
+        else:
+            ctx.save_for_backward(input_, weight_, invvar)
+        ctx.normalized_shape = normalized_shape
+        ctx.eps = eps
+        ctx.memory_efficient = memory_efficient
+
+
+    fused_rms_norm_affine_fwd.register_autograd(
+        _fused_rms_norm_affine_backward,
+        setup_context=_fused_rms_norm_affine_setup_context
+    )
 
 
 class FusedLayerNormAffineMixedDtypesFunction(FusedLayerNormAffineFunction):
@@ -163,6 +416,110 @@ class FusedLayerNormFunction(torch.autograd.Function):
         return grad_input, None, None, None
 
 
+if supports_custom_op():
+
+    @torch.library.custom_op("apex::fused_layer_norm_fwd", mutates_args=())
+    def fused_layer_norm_fwd(
+        input: torch.Tensor,
+        normalized_shape: List[int],
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        global fused_layer_norm_cuda
+        if fused_layer_norm_cuda is None:
+            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+
+        input_ = input.contiguous()
+        output, mean, invvar = fused_layer_norm_cuda.forward(
+            input_, normalized_shape, eps
+        )
+        return output, mean, invvar
+
+    @fused_layer_norm_fwd.register_fake
+    def fused_layer_norm_fwd_fake(
+        input: torch.Tensor,
+        normalized_shape: List[int],
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        input = input.contiguous()
+        idiff = input.ndim - len(normalized_shape)
+        n = 1
+        for i in range(idiff):
+            n *= input.shape[i]
+        if input.dtype in [torch.float16, torch.bfloat16]:
+            dtype = torch.float32
+        else:
+            dtype = input.dtype
+        mean = torch.empty([n], dtype=dtype, device=input.device)
+        invvar = torch.empty_like(mean)
+        return torch.empty_like(input), mean, invvar
+
+    @torch.library.custom_op("apex::fused_layer_norm_bwd", mutates_args=())
+    def fused_layer_norm_bwd(
+        grad_output: torch.Tensor,
+        mean: torch.Tensor,
+        invvar: torch.Tensor,
+        input_or_output: torch.Tensor,
+        normalized_shape: List[int],
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> torch.Tensor:
+        grad_input = fused_layer_norm_cuda.backward(
+            grad_output.contiguous(),
+            mean,
+            invvar,
+            input_or_output,
+            normalized_shape,
+            eps,
+            memory_efficient,
+        )
+        return grad_input
+
+    @fused_layer_norm_bwd.register_fake
+    def fused_layer_norm_bwd_fake(
+        grad_output: torch.Tensor,
+        mean: torch.Tensor,
+        invvar: torch.Tensor,
+        input_or_output: torch.Tensor,
+        normalized_shape: List[int],
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> torch.Tensor:
+        grad_input = torch.empty_like(input_or_output)
+        return grad_input
+
+    def _fused_layer_norm_backward(ctx, grad_output, grad_mean, grad_invvar):
+        input_or_output, mean, invvar = ctx.saved_tensors
+        grad_input = fused_layer_norm_bwd(
+            grad_output,
+            mean,
+            invvar,
+            input_or_output,
+            ctx.normalized_shape,
+            ctx.eps,
+            ctx.memory_efficient,
+        )
+        return grad_input, None, None, None
+
+    def _fused_layer_norm_setup_context(ctx, inputs, output):
+        input, normalized_shape, eps, memory_efficient = inputs
+        output, mean, invvar = output
+        input_ = input.contiguous()
+        if memory_efficient:
+            ctx.save_for_backward(output, None, invvar)
+        else:
+            ctx.save_for_backward(input_, mean, invvar)
+        ctx.normalized_shape = normalized_shape
+        ctx.eps = eps
+        ctx.memory_efficient = memory_efficient
+
+    fused_layer_norm_fwd.register_autograd(
+        _fused_layer_norm_backward,
+        setup_context=_fused_layer_norm_setup_context,
+    )
+
+
 class FusedRMSNormFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, normalized_shape, eps, memory_efficient=False):
@@ -191,16 +548,135 @@ class FusedRMSNormFunction(torch.autograd.Function):
         return grad_input, None, None, None
 
 
+if supports_custom_op():
+    @torch.library.custom_op("apex::fused_rms_norm_fwd", mutates_args=())
+    def fused_rms_norm_fwd(
+        input: torch.Tensor,
+        normalized_shape: List[int],
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        global fused_layer_norm_cuda
+        if fused_layer_norm_cuda is None:
+            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+
+        input_ = input.contiguous()
+        output, invvar = fused_layer_norm_cuda.rms_forward(
+            input_, normalized_shape, eps
+        )
+        return output, invvar
+
+
+    @fused_rms_norm_fwd.register_fake
+    def fused_rms_norm_fwd_fake(
+        input: torch.Tensor,
+        normalized_shape: List[int],
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        input = input.contiguous()
+        idiff = input.ndim - len(normalized_shape)
+        n = 1
+        for i in range(idiff):
+            n *= input.shape[i]
+        if input.dtype in [torch.float16, torch.bfloat16]:
+            dtype = torch.float32
+        else:
+            dtype = input.dtype
+        return (
+            torch.empty_like(input),
+            torch.empty(
+                [n],
+                dtype=dtype,
+                device=input.device,
+                requires_grad=input.requires_grad,
+                memory_format=torch.contiguous_format,
+            ),
+        )
+
+
+    @torch.library.custom_op("apex::fused_rms_norm_bwd", mutates_args=())
+    def fused_rms_norm_bwd(
+        grad_output: torch.Tensor,
+        invvar: torch.Tensor,
+        input_or_output: torch.Tensor,
+        normalized_shape: List[int],
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> torch.Tensor:
+        grad_input = fused_layer_norm_cuda.rms_backward(
+            grad_output.contiguous(),
+            invvar,
+            input_or_output,
+            normalized_shape,
+            eps,
+            memory_efficient,
+        )
+        return grad_input
+
+
+    @fused_rms_norm_bwd.register_fake
+    def fused_rms_norm_bwd_fake(
+        grad_output: torch.Tensor,
+        invvar: torch.Tensor,
+        input_or_output: torch.Tensor,
+        normalized_shape: List[int],
+        eps: float,
+        memory_efficient: bool = False,
+    ) -> torch.Tensor:
+        grad_input = torch.empty_like(input_or_output)
+        return grad_input
+
+
+    def _fused_rms_norm_backward(ctx, grad_output, grad_invvar):
+        input_or_output, invvar = ctx.saved_tensors
+        grad_input = None
+        grad_input = fused_rms_norm_bwd(
+            grad_output,
+            invvar,
+            input_or_output,
+            ctx.normalized_shape,
+            ctx.eps,
+            ctx.memory_efficient,
+        )
+        return grad_input, None, None, None
+
+
+    def _fused_rms_norm_setup_context(ctx, inputs, output):
+        input_, normalized_shape, eps, memory_efficient = inputs
+        output_, invvar = output
+        input_ = input_.contiguous()
+        if memory_efficient:
+            ctx.save_for_backward(output_, invvar)
+        else:
+            ctx.save_for_backward(input_, invvar)
+        ctx.normalized_shape = normalized_shape
+        ctx.eps = eps
+        ctx.memory_efficient = memory_efficient
+
+
+    fused_rms_norm_fwd.register_autograd(
+        _fused_rms_norm_backward,
+        setup_context=_fused_rms_norm_setup_context
+    )
+
+
 def fused_layer_norm_affine(input, weight, bias, normalized_shape, eps=1e-6, memory_efficient=False):
     args = _cast_if_autocast_enabled(input, weight, bias, normalized_shape, eps, memory_efficient)
     with torch.amp.autocast('cuda', enabled=False):
-        return FusedLayerNormAffineFunction.apply(*args)
+        if supports_custom_op():
+            return fused_layer_norm_affine_fwd(*args)[0]
+        else:
+            return FusedLayerNormAffineFunction.apply(*args)
 
 
 def fused_layer_norm(input, normalized_shape, eps=1e-6, memory_efficient=False):
     args = _cast_if_autocast_enabled(input, normalized_shape, eps, memory_efficient)
     with torch.amp.autocast('cuda', enabled=False):
-        return FusedLayerNormFunction.apply(*args)
+        if supports_custom_op():
+            return fused_layer_norm_fwd(*args)[0]
+        else:
+            return FusedLayerNormFunction.apply(*args)
 
 
 def mixed_dtype_fused_layer_norm_affine(input, weight, bias, normalized_shape, eps=1e-6, memory_efficient=False):
@@ -212,13 +688,19 @@ def mixed_dtype_fused_layer_norm_affine(input, weight, bias, normalized_shape, e
 def fused_rms_norm_affine(input, weight, normalized_shape, eps=1e-6, memory_efficient=False):
     args = _cast_if_autocast_enabled(input, weight, normalized_shape, eps, memory_efficient)
     with torch.amp.autocast('cuda', enabled=False):
-        return FusedRMSNormAffineFunction.apply(*args)
+        if supports_custom_op():
+            return fused_rms_norm_affine_fwd(*args)[0]
+        else:
+            return FusedRMSNormAffineFunction.apply(*args)
 
 
 def fused_rms_norm(input, normalized_shape, eps=1e-6, memory_efficient=False):
     args = _cast_if_autocast_enabled(input, normalized_shape, eps, memory_efficient)
     with torch.amp.autocast('cuda', enabled=False):
-        return FusedRMSNormFunction.apply(*args)
+        if supports_custom_op():
+            return fused_rms_norm_fwd(*args)[0]
+        else:
+            return FusedRMSNormFunction.apply(*args)
 
 
 def mixed_dtype_fused_rms_norm_affine(input, weight, normalized_shape, eps=1e-6, memory_efficient=False):
@@ -313,7 +795,7 @@ class FusedLayerNorm(torch.nn.Module):
             init.zeros_(self.bias)
 
     def forward(self, input):
-        if torch.jit.is_tracing() or torch.jit.is_scripting() or not input.is_cuda:
+        if torch.jit.is_tracing() or torch.jit.is_scripting() or torch.compiler.is_compiling() or not input.is_cuda:
             return F.layer_norm(input, self.normalized_shape, self.weight, self.bias, self.eps)
         if self.elementwise_affine:
             return fused_layer_norm_affine(
@@ -409,7 +891,7 @@ class FusedRMSNorm(torch.nn.Module):
             init.ones_(self.weight)
 
     def forward(self, input):
-        if torch.jit.is_tracing() or torch.jit.is_scripting() or not input.is_cuda:
+        if torch.jit.is_tracing() or torch.jit.is_scripting() or torch.compiler.is_compiling() or not input.is_cuda:
             return manual_rms_norm(input, self.normalized_shape, self.weight, self.eps)
 
         if self.elementwise_affine:

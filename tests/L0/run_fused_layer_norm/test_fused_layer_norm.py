@@ -277,10 +277,18 @@ class TestFusedLayerNorm(common_utils.TestCase):
 
     def _verify_export(self, fused, fused_x):
         # check that export() is working
-        onnx_str = torch.onnx.export_to_pretty_string(fused, (fused_x,),
-                                                      input_names=['x_in'],
-                                                      opset_version=18,
+        import io
+        f = io.BytesIO()
+        torch.onnx.export(fused, (fused_x,), f,
+                                 input_names=['x_in'],
+                                 opset_version=18,
         )
+        # Load the ONNX model
+        import onnx
+        model_onnx = onnx.load_from_string(f.getvalue())
+        # Get string representation
+        onnx_str = onnx.helper.printable_graph(model_onnx.graph)
+
         assert 'x_in' in onnx_str
         assert 'ReduceMean' in onnx_str or 'LayerNormalization' in onnx_str
 
@@ -309,6 +317,54 @@ class TestFusedLayerNorm(common_utils.TestCase):
         native_x, fused_x = _prep_inputs(batch_size, normalized_shape, torch.float32)
         self._verify_export(fused, fused_x)
         self._verify_export(fused_m, fused_x)
+
+    @common_utils.parametrize("elementwise_affine", (True, False))
+    def test_compile_fused_layer_norm(self, elementwise_affine):
+        batch_size = 16
+        normalized_shape = [32, 16]
+        eager_mod = FusedLayerNorm(
+            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+        ).cuda()
+        compiled_mod = torch.compile(fullgraph=True)(eager_mod)
+        input_shape = [batch_size] + normalized_shape
+        eager_x = torch.randn(input_shape, device="cuda").requires_grad_(True)
+        compiled_x = eager_x.detach().clone().requires_grad_(True)
+
+        expected = eager_mod(eager_x)
+        actual = compiled_mod(compiled_x)
+        torch.testing.assert_close(actual, expected.detach())
+
+        g_eager = torch.rand_like(expected)
+        with torch.no_grad():
+            g_compiled = g_eager.detach().clone()
+        expected.backward(g_eager)
+        actual.backward(g_compiled)
+
+        torch.testing.assert_close(eager_x.grad, compiled_x.grad)
+
+    @common_utils.parametrize("elementwise_affine", (True, False))
+    def test_compile_fused_rms_norm(self, elementwise_affine):
+        batch_size = 16
+        normalized_shape = [32, 16]
+        eager_mod = FusedRMSNorm(
+            normalized_shape=normalized_shape, elementwise_affine=elementwise_affine
+        ).cuda()
+        compiled_mod = torch.compile(fullgraph=True)(eager_mod)
+        input_shape = [batch_size] + normalized_shape
+        eager_x = torch.randn(input_shape, device="cuda").requires_grad_(True)
+        compiled_x = eager_x.detach().clone().requires_grad_(True)
+
+        expected = eager_mod(eager_x)
+        actual = compiled_mod(compiled_x)
+        torch.testing.assert_close(actual, expected.detach())
+
+        g_eager = torch.rand_like(expected)
+        with torch.no_grad():
+            g_compiled = g_eager.detach().clone()
+        expected.backward(g_eager)
+        actual.backward(g_compiled)
+
+        torch.testing.assert_close(eager_x.grad, compiled_x.grad)
         
 instantiate_device_type_tests(TestFusedLayerNorm, globals(), only_for=("cuda",))
 if __name__ == "__main__":

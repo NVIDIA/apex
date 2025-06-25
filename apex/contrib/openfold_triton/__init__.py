@@ -1,13 +1,14 @@
 # © 2023 NVIDIA CORPORATION & AFFILIATES
 
-import pickle
+import json
+import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from io import BytesIO
 from typing import BinaryIO, Union
 
 import torch
-from triton.runtime.autotuner import Autotuner, Heuristics
+from triton.runtime.autotuner import Autotuner, Config, Heuristics
 from triton.runtime.jit import JITFunction
 
 from apex.contrib.openfold_triton._layer_norm_backward_kernels import (
@@ -58,23 +59,27 @@ _tuneable_triton_kernels = OrderedDict(
 )
 
 
-def _save_triton_auto_tune_cache(f: BinaryIO, verbose: bool = False) -> None:
+def _save_triton_auto_tune_cache(strict: bool = True, verbose: bool = False) -> BytesIO:
     caches = OrderedDict()
     for func_name, func in _tuneable_triton_kernels.items():
         if len(func.cache) < 1:
-            raise ValueError(
-                f"Triton JIT kernel {func.__name__} didn't have tuning cache"
-            )
-        caches[func_name] = deepcopy(func.cache)
-    pickle.dump(caches, f)
+            msg = f"Triton JIT kernel {func_name} didn't have tuning cache"
+            if strict:
+                raise ValueError(msg)
+            else:
+                warnings.warn(msg)
+        else:
+            caches[func_name] = [(keys, vals.all_kwargs()) for keys, vals in zip(func.cache.keys(), func.cache.values())]
+    f = BytesIO(json.dumps(caches).encode('utf-8'))
     if verbose:
         print(f"Triton kernel auto-tuning caches written to {f}")
+    return f
 
 
 def _load_triton_auto_tune_cache(
     f: BinaryIO, strict: bool = True, verbose: bool = False
 ) -> None:
-    caches = pickle.load(f)
+    caches = json.load(f)
     if strict:
         loaded_func_name = set(caches.keys())
         tuneable_func_name = set(_tuneable_triton_kernels.keys())
@@ -84,23 +89,23 @@ def _load_triton_auto_tune_cache(
                 f"Missing kernel caches: {tuneable_func_name - loaded_func_name}\n"
                 f"Unexpected kernel caches: {loaded_func_name - tuneable_func_name}"
             )
-    for func_name, cache in caches.items():
+    for func_name, func_cache in caches.items():
         if func_name not in _tuneable_triton_kernels:
             raise ValueError(
                 f"{func_name} from {f} doesn't match any tuneable Triton kernels"
             )
-        _tuneable_triton_kernels[func_name].cache = cache
+        for key, val in func_cache:
+            _tuneable_triton_kernels[func_name].cache[tuple(key)] = Config(val)
     if verbose:
         print(f"Triton kernel auto-tuning caches loaded from {f}")
 
 
-def sync_triton_auto_tune_cache_across_gpus() -> None:
+def sync_triton_auto_tune_cache_across_gpus(strict: bool = True, verbose: bool = False) -> None:
     if not torch.distributed.is_initialized():
         return
     if torch.distributed.get_rank() == 0:
         print("Broadcasting Triton auto-tuning cache from rank 0 to other ranks...")
-        cache = BytesIO()
-        _save_triton_auto_tune_cache(cache)
+        cache = _save_triton_auto_tune_cache(strict=strict, verbose=verbose)
         cache.seek(0)
         cache_list = [
             cache,
@@ -113,6 +118,5 @@ def sync_triton_auto_tune_cache_across_gpus() -> None:
             None,
         ]
     torch.distributed.broadcast_object_list(cache_list)
-    cache = cache_list[0]
-    _load_triton_auto_tune_cache(cache)
+    _load_triton_auto_tune_cache(cache_list[0], strict=strict, verbose=verbose)
     print("Succeed!")

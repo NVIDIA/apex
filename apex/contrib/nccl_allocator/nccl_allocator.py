@@ -1,27 +1,63 @@
 import os
 import torch
-from torch.cuda.memory import _CUDAAllocator
-import nccl_allocator
+import _apex_nccl_allocator
 
-from contextlib import contextmanager
+from contextlib import nullcontext
 
-__all__ = ["init", "nccl_mem"]
 
-class NCCLAllocator(_CUDAAllocator):
-    def __init__(self):
-        self._allocator = nccl_allocator._cuda_create_managed_allocator()
+__all__ = ["init", "nccl_mem", "create_nccl_mem_pool"]
 
-def init():
+
+def create_nccl_mem_pool():
+    _allocator = _apex_nccl_allocator.get_nccl_allocator()
+    _pool = torch.cuda.MemPool(_allocator)
+    return _pool
+
+
+def init() -> None:
     os.environ["NCCL_NVLS_ENABLE"] = "1"
-    os.environ["TORCH_NCCL_USE_TENSOR_REGISTER_ALLOCATOR_HOOK"] = "1"
-    allocator = NCCLAllocator()
-    nccl_allocator._cuda_change_current_allocator(allocator.allocator())
+    os.environ["TORCH_NCCL_USE_TENSOR_REGISTER_ALLOCATOR_HOOK"] = "0"
 
-def use_nccl_mem(flag: bool) -> None:
-    nccl_allocator._use_nccl_mem(flag)
 
-@contextmanager
-def nccl_mem(flag: bool = True) -> None:
-    use_nccl_mem(flag)
-    yield
-    use_nccl_mem(False)
+class nccl_mem:
+    def __init__(self, pool, enabled = True, device = None, group = None):
+        self.device = None
+        self.group = None
+        self.mem_context = None
+        self.pool = pool
+
+        if enabled:
+            if device is None:
+                self.device = torch.device("cuda", torch.cuda.current_device())
+            elif isinstance(device, int):
+                self.device = torch.device("cuda", device)
+            elif isinstance(device, str):
+                assert "cuda" in device, "only cuda devices are supported"
+                self.device = torch.device(device)
+
+            if group is None:
+                self.group = torch.distributed.distributed_c10d._get_default_group()
+            else:
+                self.group = group
+
+            self.mem_context = torch.cuda.use_mem_pool(self.pool)
+        else:
+            self.mem_context = nullcontext()
+
+    def __enter__(self):
+        self.mem_context.__enter__()
+        if self.group is not None:
+            backend = self.group._get_backend(self.device)
+            try:
+                backend.deregister_mem_pool(self.pool)
+            except RuntimeError:
+                pass
+
+    def __exit__(self, *args):
+        if self.group is not None:
+            backend = self.group._get_backend(self.device)
+            try:
+                backend.register_mem_pool(self.pool)
+            except RuntimeError:
+                pass
+        self.mem_context.__exit__(*args)

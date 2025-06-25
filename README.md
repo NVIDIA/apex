@@ -4,107 +4,9 @@ This repository holds NVIDIA-maintained utilities to streamline mixed precision 
 Some of the code here will be included in upstream Pytorch eventually.
 The intent of Apex is to make up-to-date utilities available to users as quickly as possible.
 
-## Full API Documentation: [https://nvidia.github.io/apex](https://nvidia.github.io/apex)
-
-## [GTC 2019](https://github.com/mcarilli/mixed_precision_references/tree/master/GTC_2019) and [Pytorch DevCon 2019](https://github.com/mcarilli/mixed_precision_references/tree/master/Pytorch_Devcon_2019) Slides
-
-# Contents
-
-## 1. Amp:  Automatic Mixed Precision
-
-**Deprecated. Use [PyTorch AMP](https://pytorch.org/docs/stable/amp.html)**
-
-`apex.amp` is a tool to enable mixed precision training by changing only 3 lines of your script.
-Users can easily experiment with different pure and mixed precision training modes by supplying
-different flags to `amp.initialize`.
-
-[Webinar introducing Amp](https://info.nvidia.com/webinar-mixed-precision-with-pytorch-reg-page.html)
-(The flag `cast_batchnorm` has been renamed to `keep_batchnorm_fp32`).
-
-[API Documentation](https://nvidia.github.io/apex/amp.html)
-
-[Comprehensive Imagenet example](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
-
-[DCGAN example coming soon...](https://github.com/NVIDIA/apex/tree/master/examples/dcgan)
-
-[Moving to the new Amp API](https://nvidia.github.io/apex/amp.html#transition-guide-for-old-api-users) (for users of the deprecated "Amp" and "FP16_Optimizer" APIs)
-
-## 2. Distributed Training
-
-**`apex.parallel.DistributedDataParallel` is deprecated. Use [`torch.nn.parallel.DistributedDataParallel`](https://pytorch.org/docs/stable/generated/torch.nn.parallel.DistributedDataParallel.html?highlight=distributeddataparallel#torch.nn.parallel.DistributedDataParallel)**
-
-`apex.parallel.DistributedDataParallel` is a module wrapper, similar to
-`torch.nn.parallel.DistributedDataParallel`.  It enables convenient multiprocess distributed training,
-optimized for NVIDIA's NCCL communication library.
-
-[API Documentation](https://nvidia.github.io/apex/parallel.html)
-
-[Python Source](https://github.com/NVIDIA/apex/tree/master/apex/parallel)
-
-[Example/Walkthrough](https://github.com/NVIDIA/apex/tree/master/examples/simple/distributed)
-
-The [Imagenet example](https://github.com/NVIDIA/apex/tree/master/examples/imagenet)
-shows use of `apex.parallel.DistributedDataParallel` along with `apex.amp`.
-
-### Synchronized Batch Normalization
-
-**Deprecated. Use [`torch.nn.SyncBatchNorm`](https://pytorch.org/docs/stable/generated/torch.nn.SyncBatchNorm.html)**
-
-`apex.parallel.SyncBatchNorm` extends `torch.nn.modules.batchnorm._BatchNorm` to
-support synchronized BN.
-It allreduces stats across processes during multiprocess (DistributedDataParallel) training.
-Synchronous BN has been used in cases where only a small
-local minibatch can fit on each GPU.
-Allreduced stats increase the effective batch size for the BN layer to the
-global batch size across all processes (which, technically, is the correct
-formulation).
-Synchronous BN has been observed to improve converged accuracy in some of our research models.
-
-### Checkpointing
-
-To properly save and load your `amp` training, we introduce the `amp.state_dict()`, which contains all `loss_scalers` and their corresponding unskipped steps,
-as well as `amp.load_state_dict()` to restore these attributes.
-
-In order to get bitwise accuracy, we recommend the following workflow:
-```python
-# Initialization
-opt_level = 'O1'
-model, optimizer = amp.initialize(model, optimizer, opt_level=opt_level)
-
-# Train your model
-...
-with amp.scale_loss(loss, optimizer) as scaled_loss:
-    scaled_loss.backward()
-...
-
-# Save checkpoint
-checkpoint = {
-    'model': model.state_dict(),
-    'optimizer': optimizer.state_dict(),
-    'amp': amp.state_dict()
-}
-torch.save(checkpoint, 'amp_checkpoint.pt')
-...
-
-# Restore
-model = ...
-optimizer = ...
-checkpoint = torch.load('amp_checkpoint.pt')
-
-model, optimizer = amp.initialize(model, optimizer, opt_level=opt_level)
-model.load_state_dict(checkpoint['model'])
-optimizer.load_state_dict(checkpoint['optimizer'])
-amp.load_state_dict(checkpoint['amp'])
-
-# Continue training
-...
-```
-
-Note that we recommend restoring the model using the same `opt_level`. Also note that we recommend calling the `load_state_dict` methods after `amp.initialize`.
-
 # Installation
 Each [`apex.contrib`](./apex/contrib) module requires one or more install options other than `--cpp_ext` and `--cuda_ext`.
-Note that contrib modules do not necessarily support stable PyTorch releases.
+Note that contrib modules do not necessarily support stable PyTorch releases, some of them might only be compatible with nightlies.
 
 ## Containers
 NVIDIA PyTorch Containers are available on NGC: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch.
@@ -134,6 +36,12 @@ pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation -
 # otherwise
 pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 ```
+
+To reduce the build time of APEX, parallel building can be enhanced via
+```bash
+NVCC_APPEND_FLAGS="--threads 4" pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext --parallel 8" ./
+```
+When CPU cores or memory are limited, the `--parallel` option is generally preferred over `--threads`. See [pull#1882](https://github.com/NVIDIA/apex/pull/1882) for more details.
 
 APEX also supports a Python-only build via
 ```bash

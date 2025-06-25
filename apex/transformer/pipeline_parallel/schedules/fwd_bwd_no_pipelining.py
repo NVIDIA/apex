@@ -57,6 +57,14 @@ def forward_backward_no_pipelining(
     Returns:
         a list of dictionaries of loss `torch.Tensor`s if the last stage, empty list otherwise.
     """
+    from apex import deprecated_warning
+
+    deprecated_warning(
+        "`apex.transformer` is deprecated and will be removed in September 2025. "
+        "We encourage you to migrate to Megatron Core. "
+        "It is available on PyPI at https://pypi.org/project/megatron-core/ "
+        "and its documentation can be found at https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html."
+    )
     model = listify_model(model)
     if len(model) != 1:
         msg = f"`model` is expected be a `nn.Module`, but {type(model)}"
