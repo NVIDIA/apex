@@ -23,6 +23,16 @@
 #include <stdint.h>
 #include <cuda_fp16.h>
 #include <c10/macros/Macros.h>
+#include <ATen/cuda/CUDAContext.h>
+#ifdef USE_ROCM
+    #if defined(__GFX9__)
+        #define WARP_SIZE_VALUE 64
+    #else
+        #define WARP_SIZE_VALUE 32
+    #endif
+#else
+#define WARP_SIZE_VALUE at::cuda::warp_size()
+#endif
 
 namespace {
 
@@ -437,7 +447,7 @@ int get_batch_per_block(int query_seq_len, int key_seq_len, int batches, int att
     int log2_elements = log2_ceil(key_seq_len);
     const int next_power_of_two = 1 << log2_elements;
 
-    int warp_size = (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
+    int warp_size = (next_power_of_two < WARP_SIZE_VALUE) ? next_power_of_two : WARP_SIZE_VALUE;
     int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
 
     constexpr int threads_per_block = 128;
@@ -466,7 +476,7 @@ void dispatch_scaled_softmax_forward(
         int batch_count = batches * attn_heads * query_seq_len;
 
         // This value must match the WARP_SIZE constexpr value computed inside softmax_warp_forward.
-        int warp_size = (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
+        int warp_size = (next_power_of_two < WARP_SIZE_VALUE) ? next_power_of_two : WARP_SIZE_VALUE;
 
         // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_forward.
         int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
@@ -568,7 +578,7 @@ void dispatch_scaled_masked_softmax_forward(
         int batch_count = batches * attn_heads * query_seq_len;
 
         // This value must match the WARP_SIZE constexpr value computed inside softmax_warp_forward.
-        int warp_size = (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
+        int warp_size = (next_power_of_two < WARP_SIZE_VALUE) ? next_power_of_two : WARP_SIZE_VALUE;
 
         // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_forward.
         int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
