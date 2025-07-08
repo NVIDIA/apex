@@ -1,3 +1,6 @@
 [submodule "apex/contrib/csrc/cudnn-frontend"]
 	path = apex/contrib/csrc/cudnn-frontend
 	url = https://github.com/NVIDIA/cudnn-frontend.git
+[submodule "third_party/aiter"]
+	path = third_party/aiter
+	url = https://github.com/ROCm/aiter

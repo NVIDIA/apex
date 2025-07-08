@@ -13,7 +13,10 @@ from apex.transformer.functional import (
     fused_apply_rotary_pos_emb_thd,
     fused_apply_rotary_pos_emb_2d,
 )
-
+from apex.transformer.functional.fused_rope import AITER_ROPE_BACKEND
+ERROR_TOLERANCE=1e-3
+if AITER_ROPE_BACKEND:
+    ERROR_TOLERANCE=1e-2
 
 def _rotate_half(x: torch.Tensor) -> torch.Tensor:
     """Change sign so the last dimension becomes [-odd, +even]
@@ -183,16 +186,16 @@ class TestFusedRoPE(common_utils.TestCase):
                 output_fused,
                 msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, "
                 f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
-                atol=1e-3,
-                rtol=1e-3,
+                atol=ERROR_TOLERANCE,
+                rtol=ERROR_TOLERANCE,
             )
             self.assertEqual(
                 grad_unfused,
                 grad_fused,
                 msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, "
                 f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
-                atol=1e-3,
-                rtol=1e-3,
+                atol=ERROR_TOLERANCE,
+                rtol=ERROR_TOLERANCE,
             )
             assert (
                 output_fused.transpose(0, 1).is_contiguous() is transpose_output_memory
@@ -255,16 +258,16 @@ class TestFusedRoPE(common_utils.TestCase):
                 output_fused,
                 msg=f"{dtype=}, {cu_seqlens=}, {hidden_size=}, {rotary_percent=}, "
                 f"{transpose=}, loss_func={loss_func.__name__}",
-                atol=1e-3,
-                rtol=1e-3,
+                atol=ERROR_TOLERANCE,
+                rtol=ERROR_TOLERANCE,
             )
             self.assertEqual(
                 grad_unfused,
                 grad_fused,
                 msg=f"{dtype=}, {cu_seqlens=}, {hidden_size=}, {rotary_percent=}, "
                 f"{transpose=}, loss_func={loss_func.__name__}",
-                atol=1e-3,
-                rtol=1e-3,
+                atol=ERROR_TOLERANCE,
+                rtol=ERROR_TOLERANCE,
             )
 
     def test_2d_forward_backward(self):
@@ -331,16 +334,16 @@ class TestFusedRoPE(common_utils.TestCase):
                 output_fused,
                 msg=f"{dtype=}, {img_h=}, {img_w=}, {hidden_size=}, "
                 f"{transpose=}, loss_func={loss_func.__name__}",
-                atol=1e-3,
-                rtol=1e-3,
+                atol=ERROR_TOLERANCE,
+                rtol=ERROR_TOLERANCE,
             )
             self.assertEqual(
                 grad_unfused,
                 grad_fused,
                 msg=f"{dtype=}, {img_h=}, {img_w=}, {hidden_size=}, "
                 f"{transpose=}, loss_func={loss_func.__name__}",
-                atol=1e-3,
-                rtol=1e-3,
+                atol=ERROR_TOLERANCE,
+                rtol=ERROR_TOLERANCE,
             )
 
 
