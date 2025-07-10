@@ -8,9 +8,13 @@ from contextlib import nullcontext
 __all__ = ["init", "nccl_mem", "create_nccl_mem_pool"]
 
 
-def create_nccl_mem_pool():
+def create_nccl_mem_pool(symmetric=False):
     _allocator = _apex_nccl_allocator.get_nccl_allocator()
-    _pool = torch.cuda.MemPool(_allocator)
+    _pool = (
+        torch.cuda.MemPool(_allocator, symmetric=True) 
+        if symmetric 
+        else torch.cuda.MemPool(_allocator)
+    )
     return _pool
 
 
