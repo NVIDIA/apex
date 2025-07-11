@@ -12,7 +12,7 @@ def get_func_args(func):
     sig = inspect.signature(func)
     return [arg.name for arg in sig.parameters.values()]
 
-def create_nccl_mem_pool(symmetric=None):
+def create_nccl_mem_pool(symmetric: bool | None = None) -> torch.cuda.MemPool:
     _allocator = _apex_nccl_allocator.get_nccl_allocator()
     if symmetric is None:
         _pool = torch.cuda.MemPool(_allocator)
