@@ -7,14 +7,19 @@ from contextlib import nullcontext
 
 __all__ = ["init", "nccl_mem", "create_nccl_mem_pool"]
 
+def get_func_args(func):
+    import inspect
+    sig = inspect.signature(func)
+    return [arg.name for arg in sig.parameters.values()]
 
-def create_nccl_mem_pool(symmetric=False):
+def create_nccl_mem_pool(symmetric=None):
     _allocator = _apex_nccl_allocator.get_nccl_allocator()
-    _pool = (
-        torch.cuda.MemPool(_allocator, symmetric=True) 
-        if symmetric 
-        else torch.cuda.MemPool(_allocator)
-    )
+    if symmetric is None:
+        _pool = torch.cuda.MemPool(_allocator)
+    else:
+        assert 'symmetric' in get_func_args(torch.cuda.MemPool), \
+            "symmetric setting with torch.cuda.MemPool requires higher PyTorch version"
+        _pool = torch.cuda.MemPool(_allocator, symmetric=symmetric)
     return _pool
 
 
