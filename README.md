@@ -148,6 +148,16 @@ python setup.py install --cpp_ext --cuda_ext
 ```
 Note that using --cuda_ext flag to install Apex will also enable all the extensions supported on ROCm including "--distributed_adam", "--distributed_lamb", "--bnp", "--xentropy", "--deprecated_fused_adam", "--deprecated_fused_lamb", and "--fast_multihead_attn".
 
+In addition, aiter backend can be built during apex installation by providing --aiter flag
+```
+# if pip >= 23.1 (ref: https://pip.pypa.io/en/stable/news/#v23-1) which supports multiple `--config-settings` with the same key...
+pip install -v --no-build-isolation --config-settings "--build-option=--cpp_ext" --config-settings "--build-option=--cuda_ext" --config-settings "--build-option=--aiter" ./
+# otherwise
+python setup.py install --cpp_ext --cuda_ext --aiter
+```
+
+To use aiter in fused rope, you can use the flag ```USE_ROCM_AITER_ROPE_BACKEND=1```.
+
 ### Enable hipblasLT on ROCm
 hipblasLT is supported only on mi300 (gfx942) only.  
 python setup.py automatically builds apex with hipblasLT support only if GPU device id is gfx942  

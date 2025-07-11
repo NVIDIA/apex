@@ -523,7 +523,8 @@ if "--cuda_ext" in sys.argv:
         )
 
 #***********  fused_rotary_positional_embedding   ****************
-    if IS_ROCM_PYTORCH:
+    if IS_ROCM_PYTORCH and "--aiter" in sys.argv:
+        sys.argv.remove("--aiter")
         subprocess.run(["pip", "install", "."], cwd = "third_party/aiter")
 
     ext_modules.append(

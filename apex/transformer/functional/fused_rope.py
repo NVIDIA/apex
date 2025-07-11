@@ -46,7 +46,7 @@ if IS_ROCM_PYTORCH and USE_ROCM_AITER_ROPE_BACKEND:
     try:
         import aiter
         AITER_ROPE_BACKEND = True
-        warnings.warn("Aiter backend is selected for fused RoPE. This has lower precision. To disable aiter, export AITER_ROPE_BACKEND_ENABLE=0", UserWarning)
+        warnings.warn("Aiter backend is selected for fused RoPE. This has lower precision. To disable aiter, export USE_ROCM_AITER_ROPE_BACKEND=0", UserWarning)
     except ImportError:
         AITER_ROPE_BACKEND = False
 if not AITER_ROPE_BACKEND:
