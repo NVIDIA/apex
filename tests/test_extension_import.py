@@ -16,9 +16,9 @@ class TestExtensionImport(unittest.TestCase):
         current_file_path = os.path.abspath(__file__)
 
         #get the absolute path of the parent folder of this file
+        #tests folder
         parent_folder_path = os.path.dirname(current_file_path)
-        parent_folder_path = os.path.dirname(parent_folder_path)
-        parent_folder_path = os.path.dirname(parent_folder_path)
+        #apex folder
         parent_folder_path = os.path.dirname(parent_folder_path)
         self.parent_folder_path = parent_folder_path
         
