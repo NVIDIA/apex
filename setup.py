@@ -985,14 +985,14 @@ if "--parallel" in sys.argv:
     sys.argv.pop(idx + 1)
     sys.argv.pop(idx)
 else:
-    # Check if APEX_PARALLEL environment variable is set
-    apex_parallel = os.environ.get("APEX_PARALLEL", None)
-    if apex_parallel is not None:
+    # Check if APEX_PARALLEL_BUILD environment variable is set
+    apex_parallel_build = os.environ.get("APEX_PARALLEL_BUILD", None)
+    if apex_parallel_build is not None:
         try:
-            parallel = int(apex_parallel)
-            print(f"[apex] Using parallel build with {parallel} jobs from APEX_PARALLEL environment variable")
+            parallel = int(apex_parallel_build)
+            print(f"[apex] Using parallel build with {parallel} jobs from APEX_PARALLEL_BUILD environment variable")
         except ValueError:
-            print(f"[apex] Warning: APEX_PARALLEL environment variable '{apex_parallel}' is not a valid integer, ignoring")
+            print(f"[apex] Warning: APEX_PARALLEL_BUILD environment variable '{apex_parallel_build}' is not a valid integer, ignoring")
 
 
 # Prevent file conflicts when multiple extensions are compiled simultaneously
