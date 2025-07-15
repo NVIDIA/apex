@@ -2,6 +2,7 @@
 #include <ATen/ATen.h>
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
+#include <c10/macros/Macros.h>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -44,17 +45,11 @@ __host__ __forceinline__ int h_last_pow2(unsigned int n) {
     return n - (n >> 1);
 }
 
-#ifdef USE_ROCM
-#define WARP_SIZE 64
-#else
-#define WARP_SIZE 32
-#endif
-
 template<typename T>
 __device__ __forceinline__ T warp_reduce_sum(T val)
 {
   #pragma unroll
-  for(int i = WARP_SIZE/2; i > 0; i >>= 1)
+  for(int i = C10_WARP_SIZE/2; i > 0; i >>= 1)
     val = val + SHFL_DOWN(0xffffffff, val, i);
   return val;
 }
@@ -64,17 +59,17 @@ __device__ __forceinline__ T reduce_block(T *x, T val)
 {
   int tid = threadIdx.y*blockDim.x + threadIdx.x;
   int blockSize = blockDim.x * blockDim.y;
-  int lane = tid % WARP_SIZE;
-  int wid = tid / WARP_SIZE;
+  int lane = tid % C10_WARP_SIZE;
+  int wid = tid / C10_WARP_SIZE;
 
-  if (blockSize > WARP_SIZE) {
+  if (blockSize > C10_WARP_SIZE) {
     val = warp_reduce_sum(val);
     if (lane == 0)
       x[wid] = val;
 
     __syncthreads();
 
-    val = (tid < blockSize / WARP_SIZE? x[lane] : T(0));
+    val = (tid < blockSize / C10_WARP_SIZE? x[lane] : T(0));
   }
 
   if(wid==0) val = warp_reduce_sum(val);
@@ -84,7 +79,6 @@ __device__ __forceinline__ T reduce_block(T *x, T val)
 
 #define ELEMENTS_PER_ITER 4 // enables concurrency within each thread to hide latency
 #define ELEMENTS_PER_THREAD 16
-#define OPTIMAL_TILE_W WARP_SIZE
 #define MAX_H_BLOCK 128
 #define MAX_BLOCK_SIZE 512
 
@@ -98,7 +92,7 @@ __host__ void flexible_launch_configs(
       dim3 &block,
       dim3 &grid,
       const bool coop_flag = false) {
-  int block_x = std::min(h_last_pow2(stride), OPTIMAL_TILE_W);
+  int block_x = std::min(h_last_pow2(stride), at::cuda::warp_size());
   int block_y = std::min(h_last_pow2(div_ru(reduction , ELEMENTS_PER_THREAD)),
                          MAX_BLOCK_SIZE / block_x);
   if (block_x * block_y != MAX_BLOCK_SIZE) {
@@ -138,7 +132,7 @@ template<typename T>
 __device__ __forceinline__ void warp_reduce_mean_m2n(T &mean, T &m2n, int &num)
 {
   #pragma unroll
-  for(int i = WARP_SIZE/2; i > 0; i >>= 1) {
+  for(int i = C10_WARP_SIZE/2; i > 0; i >>= 1) {
     auto num_new = SHFL_DOWN(0xffffffff, num, i);
     auto mean_new = SHFL_DOWN(0xffffffff, mean, i);
     auto m2n_new = SHFL_DOWN(0xffffffff, m2n, i);
@@ -156,10 +150,10 @@ __device__ void welford_reduce_mean_m2n(
       int block_size,
       int thread_id)
 {
-  int lane = thread_id % WARP_SIZE;
-  int wid = thread_id / WARP_SIZE;
+  int lane = thread_id % C10_WARP_SIZE;
+  int wid = thread_id / C10_WARP_SIZE;
 
-  if (block_size > WARP_SIZE) {
+  if (block_size > C10_WARP_SIZE) {
     warp_reduce_mean_m2n(mean, m2n, num);
     if (lane == 0) {
       x[wid*2] = mean;
@@ -169,9 +163,9 @@ __device__ void welford_reduce_mean_m2n(
     __syncthreads();
 
     if (wid == 0) {
-      mean = (thread_id < block_size / WARP_SIZE)? x[lane*2] : T(0);
-      m2n = (thread_id < block_size / WARP_SIZE)? x[lane*2+1] : T(0);
-      num = (thread_id < block_size / WARP_SIZE)? count[lane] : int(0);
+      mean = (thread_id < block_size / C10_WARP_SIZE)? x[lane*2] : T(0);
+      m2n = (thread_id < block_size / C10_WARP_SIZE)? x[lane*2+1] : T(0);
+      num = (thread_id < block_size / C10_WARP_SIZE)? count[lane] : int(0);
     }
   }
 
@@ -295,8 +289,8 @@ __global__ void welford_kernel(
     }
   }
 
-  static __shared__ int s_mem[WARP_SIZE];
-  static __shared__ accscalar_t s_mem_ac[WARP_SIZE*2];
+  static __shared__ int s_mem[C10_WARP_SIZE];
+  static __shared__ accscalar_t s_mem_ac[C10_WARP_SIZE*2];
 
   welford_reduce_mean_m2n<accscalar_t>(s_mem_ac, s_mem, x_mean, m_2_n, count, block_size, thread_id);
 
@@ -353,7 +347,7 @@ __global__ void reduce_bn_kernel(
       const int bs,
       const int fs,
       const int ss) {
-  static __shared__ int s_mem[WARP_SIZE];
+  static __shared__ int s_mem[C10_WARP_SIZE];
   //int total_item_num = bs * ss;
 
   int thread_id = threadIdx.y*blockDim.x + threadIdx.x;
@@ -952,7 +946,7 @@ std::vector<at::Tensor> welford_mean_var_CUDA(const at::Tensor input) {
   at::Tensor out_var_biased = at::empty({feature_size}, input.options().dtype(scalar_type));
   at::Tensor out_mean = at::empty({feature_size}, input.options().dtype(scalar_type));
 
-  int block_y = min(h_last_pow2(batch_size), int(MAX_BLOCK_SIZE / WARP_SIZE));
+  int block_y = min(h_last_pow2(batch_size), int(MAX_BLOCK_SIZE / at::cuda::warp_size()));
   int block_x = max(1, min(MAX_BLOCK_SIZE / block_y, h_last_pow2(space_size)));
   const dim3 block(block_x, block_y);
   const dim3 grid(feature_size);
@@ -988,7 +982,7 @@ at::Tensor batchnorm_forward_CUDA(
 
   auto space_size = get_tensor_spatial_size(input);
 
-  int block_x = max(WARP_SIZE, min(MAX_BLOCK_SIZE, h_last_pow2(space_size)/4));
+  int block_x = max(at::cuda::warp_size(), min(MAX_BLOCK_SIZE, h_last_pow2(space_size)/4));
   int block_y = max(1, min(MAX_BLOCK_SIZE/block_x, h_last_pow2(batch_size)/4));
   const dim3 block(block_x, block_y);
   int grid_z = max(1, min(65535, h_last_pow2(space_size)/4/block_x));
@@ -1061,7 +1055,7 @@ std::vector<at::Tensor> reduce_bn_CUDA(
 
   auto space_size = get_tensor_spatial_size(input);
 
-  int block_y = min(h_last_pow2(batch_size), int(MAX_BLOCK_SIZE/ WARP_SIZE));
+  int block_y = min(h_last_pow2(batch_size), int(MAX_BLOCK_SIZE/ at::cuda::warp_size()));
   int block_x = max(1, min(MAX_BLOCK_SIZE/ block_y, h_last_pow2(space_size)));
   const dim3 block(block_x, block_y);
   const dim3 grid(feature_size);
@@ -1128,7 +1122,7 @@ at::Tensor batchnorm_backward_CUDA(
 
   auto space_size = get_tensor_spatial_size(input);
 
-  int block_x = max(WARP_SIZE, min(MAX_BLOCK_SIZE, h_last_pow2(space_size)/4));
+  int block_x = max(at::cuda::warp_size(), min(MAX_BLOCK_SIZE, h_last_pow2(space_size)/4));
   int block_y = max(1, min(MAX_BLOCK_SIZE/block_x, h_last_pow2(batch_size)/4));
   const dim3 block(block_x, block_y);
   int grid_z = max(1, min(65535, h_last_pow2(space_size)/4/block_x));

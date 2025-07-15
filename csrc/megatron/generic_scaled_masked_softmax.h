@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <cuda_fp16.h>
 #include <c10/macros/Macros.h>
+#include <ATen/cuda/CUDAContext.h>
 
 namespace {
 
@@ -172,7 +173,7 @@ void dispatch_scaled_masked_softmax_backward_new(
         int batch_count = batches * attn_heads * query_seq_len;
         // use 128 threads per block to maximize gpu utilization
         constexpr int threads_per_block = 128;
-        int num_warps = (key_seq_len - 1) / C10_WARP_SIZE + 1;
+        int num_warps = (key_seq_len - 1) / at::cuda::warp_size() + 1;
         dim3 blocks(batch_count, 1, 1);
         dim3 threads(threads_per_block, 1, 1);
 
@@ -374,7 +375,7 @@ void dispatch_scaled_masked_softmax_forward_new(
         constexpr int threads_per_block = 128;
 
         // calculate the needed shared memory
-        int num_warps = (key_seq_len - 1) / C10_WARP_SIZE + 1;
+        int num_warps = (key_seq_len - 1) / at::cuda::warp_size() + 1;
 
         dim3 blocks(batch_count, 1, 1);
         dim3 threads(threads_per_block, 1, 1);

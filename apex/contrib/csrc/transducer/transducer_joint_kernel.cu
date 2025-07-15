@@ -729,8 +729,8 @@ std::vector<torch::Tensor> transducer_joint_cuda_forward(
 
     TORCH_CHECK(opt == 0 or opt == 1, "Got an invalid optimization level ", opt);
     // Simple heuristics
-    const int numThread = std::min(128, (static_cast<int>(hiddenSize)+C10_WARP_SIZE-1)
-                                        / C10_WARP_SIZE * C10_WARP_SIZE);
+    const int numThread = std::min(128, (static_cast<int>(hiddenSize)+at::cuda::warp_size()-1)
+                                        / at::cuda::warp_size() * at::cuda::warp_size());
     
     if (opt == 0){
         // vanilla kernel
@@ -862,7 +862,7 @@ std::vector<torch::Tensor> transducer_joint_cuda_backward(
     const int hiddenSize = grad.size(-1);
 
     const auto deviceProperties = at::cuda::getCurrentDeviceProperties();
-    const int maxNumWarp = deviceProperties->maxThreadsPerBlock / C10_WARP_SIZE;
+    const int maxNumWarp = deviceProperties->maxThreadsPerBlock / at::cuda::warp_size();
 
     torch::Tensor fGrad = torch::empty({batchSize, maxFLen, hiddenSize}, tensorOpt);
     torch::Tensor gGrad = torch::empty({batchSize, maxGLen, hiddenSize}, tensorOpt);
@@ -880,8 +880,8 @@ std::vector<torch::Tensor> transducer_joint_cuda_backward(
 
     // Need smem for transposing the partial sum. The partial sum is in a matrix of the shape
     // numWarp x warpSize
-    const int smemSize = numWarp * C10_WARP_SIZE;
-    const dim3 threads(C10_WARP_SIZE, numWarp, 1);
+    const int smemSize = numWarp * at::cuda::warp_size();
+    const dim3 threads(at::cuda::warp_size(), numWarp, 1);
 
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(dtype, "transducer_joint_cuda_backward_kernel", ([&] {
         auto gradPtr = grad.data_ptr<scalar_t>();
@@ -905,7 +905,7 @@ std::vector<torch::Tensor> transducer_joint_cuda_backward(
         if (vectFactor > 1 and hiddenSize%vectFactor == 0 and memAlign){
             // If vectorization helps and the alignment requirement is met, use the vectorized 
             // kernel. For simplicity, hiddenSize needs to be a multiple vecFactor.
-            const dim3 blocks(  (hiddenSize+C10_WARP_SIZE*vectFactor-1)/(C10_WARP_SIZE*vectFactor), 
+            const dim3 blocks(  (hiddenSize+at::cuda::warp_size()*vectFactor-1)/(at::cuda::warp_size()*vectFactor),
                                 maxFLen+maxGLen, 
                                 batchSize);
             if (masked){
@@ -944,7 +944,7 @@ std::vector<torch::Tensor> transducer_joint_cuda_backward(
             }
         }
         else{
-            const dim3 blocks((hiddenSize+C10_WARP_SIZE-1)/C10_WARP_SIZE, 
+            const dim3 blocks((hiddenSize+at::cuda::warp_size()-1)/at::cuda::warp_size(),
                                 maxFLen + maxGLen, batchSize);
             if (masked){
                 transducer_joint_combined_backward<scalar_t, acc_t, OffsetCalBwd, true>

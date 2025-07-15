@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <cuda_fp16.h>
 #include <cmath>
+#include <ATen/cuda/CUDAContext.h>
  
 #ifdef USE_ROCM
 #define APEX_WARP_SHFL_XOR(mask, value, offset, width) __shfl_xor(value, offset, width)
@@ -235,7 +236,7 @@ bool warp_softmax_kernel(int log2_elements, int &warp_size,
                          softmax_forward_func<input_t, output_t> &kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
-  warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
+  warp_size = (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
 
   // determine how many batches a warp should process.
   batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
@@ -654,7 +655,7 @@ bool warp_additive_masked_softmax_dropout_kernel(
         &kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
-  warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
+  warp_size = (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
 
   // determine how many batches a warp should process.
   batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
@@ -948,7 +949,7 @@ bool warp_additive_masked_softmax_kernel(
     additive_masked_softmax_forward_func<input_t, output_t> &kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
-  warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
+  warp_size = (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
 
   // determine how many batches a warp should process.
   batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
@@ -1240,7 +1241,7 @@ bool warp_masked_softmax_kernel(
     masked_softmax_forward_func<input_t, output_t> &kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
-  warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
+  warp_size = (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
 
   // determine how many batches a warp should process.
   batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
@@ -1488,7 +1489,7 @@ bool warp_time_masked_softmax_kernel(
     time_masked_softmax_forward_func<input_t, output_t> &kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
-  warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
+  warp_size = (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
 
   // determine how many batches a warp should process.
   batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
@@ -1741,7 +1742,7 @@ void dispatch_masked_scale_softmax_backward_masked_out(
     // This value must match the WARP_SIZE constexpr value computed inside
     // softmax_warp_backward.
     int warp_size =
-        (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
+        (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
 
     // This value must match the WARP_BATCH constexpr value computed inside
     // softmax_warp_backward.
@@ -1855,7 +1856,8 @@ void dispatch_masked_scale_softmax_backward_masked_out_stream(
     // This value must match the WARP_SIZE constexpr value computed inside
     // softmax_warp_backward.
     int warp_size =
-        (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
+        (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
+
     // This value must match the WARP_BATCH constexpr value computed inside
     // softmax_warp_backward.
     int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
@@ -2254,7 +2256,7 @@ bool masked_scale_softmax_warp_backward_recompute_kernel(
                                                       is_log_softmax> &kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
-  warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
+  warp_size = (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
 
   // determine how many batches a warp should process.
   batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
@@ -2392,7 +2394,8 @@ void dispatch_masked_scale_softmax_backward_stream(
     // This value must match the WARP_SIZE constexpr value computed inside
     // softmax_warp_backward.
     int warp_size =
-        (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
+        (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
+
     // This value must match the WARP_BATCH constexpr value computed inside
     // softmax_warp_backward.
     int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
@@ -2593,7 +2596,7 @@ void dispatch_softmax_backward_fused_native(
     // This value must match the WARP_SIZE constexpr value computed inside
     // softmax_warp_backward.
     int warp_size =
-        (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
+        (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
 
     // This value must match the WARP_BATCH constexpr value computed inside
     // softmax_warp_backward.
@@ -2805,7 +2808,7 @@ bool warp_softmax_backward_kernel(
     softmax_backward_func<input_t, output_t> &kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
-  warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
+  warp_size = (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
 
   // determine how many batches a warp should process.
   batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
@@ -3048,7 +3051,7 @@ bool warp_masked_softmax_backward_kernel(
     masked_softmax_backward_func<input_t, output_t> &kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
-  warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
+  warp_size = (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
 
   // determine how many batches a warp should process.
   batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;

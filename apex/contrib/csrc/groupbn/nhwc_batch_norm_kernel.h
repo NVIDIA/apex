@@ -546,14 +546,8 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw,
                                         void* params_my_data, void** params_pair_datas, int off,
                                         const int magic,
                                         const int sync_iters) {
-    // The size of a warp.
-#ifdef USE_ROCM
-    const int THREADS_PER_WARP = 64;
-#else
-    const int THREADS_PER_WARP = 32;
-#endif
     // The number of warps in a CTA.
-    const int WARPS_PER_CTA = THREADS_PER_CTA / THREADS_PER_WARP;
+    const int WARPS_PER_CTA = THREADS_PER_CTA / C10_WARP_SIZE;
     // The number of threads per pixel.
     const int THREADS_PER_PIXEL = 16;
     // The number of elements per ldg.
@@ -564,13 +558,13 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw,
     const int MAX_BLOCK_Y = 256;
     const int MAX_OFFSET = REDUCE_OPS*MAX_BLOCK_Y;
     // The warp decomposition.
-    const int warp_id = threadIdx.x / THREADS_PER_WARP;
-    const int lane_id = threadIdx.x % THREADS_PER_WARP;
+    const int warp_id = threadIdx.x / C10_WARP_SIZE;
+    const int lane_id = threadIdx.x % C10_WARP_SIZE;
     // total size of data per sync iter
     const int data_total = MAX_OFFSET*THREADS_PER_PIXEL*ELEMENTS_PER_LDG*2;
 
 #ifdef USE_ROCM
-    for (int offset = THREADS_PER_PIXEL; offset <= THREADS_PER_WARP >> 1; offset <<= 1) {
+    for (int offset = THREADS_PER_PIXEL; offset <= C10_WARP_SIZE >> 1; offset <<= 1) {
         for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
             x[i] += shfl_sync(x[i], offset + lane_id);
         }
@@ -598,16 +592,16 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw,
 
         #pragma unroll
         for (int offset = 1;
-             offset < WARPS_PER_CTA/(THREADS_PER_WARP / THREADS_PER_PIXEL); ++offset) {
+             offset < WARPS_PER_CTA/(C10_WARP_SIZE / THREADS_PER_PIXEL); ++offset) {
             float y[ELEMENTS_PER_LDG];
             // Read the mean and variance from the other pixel.
-            read_from_smem(y, smem, threadIdx.x + offset*THREADS_PER_WARP);
+            read_from_smem(y, smem, threadIdx.x + offset*C10_WARP_SIZE);
             // Compute the updated sum.
             add(x, y);
         }
 
 #ifdef USE_ROCM
-        for (int offset = THREADS_PER_WARP >> 1; offset >= THREADS_PER_PIXEL; offset >>= 1) {            for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
+        for (int offset = C10_WARP_SIZE >> 1; offset >= THREADS_PER_PIXEL; offset >>= 1) {            for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
                 x[i] += shfl_sync(x[i], offset + lane_id);
             }
         }
@@ -681,21 +675,15 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw,
 
 template< int THREADS_PER_CTA >
 DEVICE_FUNCTION void parallel_sums_8x4(float *smem, float (&x)[4], int nhw) {
-    // The size of a warp.
-#ifdef USE_ROCM
-    const int THREADS_PER_WARP = 64;
-#else
-    const int THREADS_PER_WARP = 32;
-#endif
     // The number of warps in a CTA.
-    const int WARPS_PER_CTA = THREADS_PER_CTA / THREADS_PER_WARP;
+    const int WARPS_PER_CTA = THREADS_PER_CTA / C10_WARP_SIZE;
     // The number of threads per pixel.
     const int THREADS_PER_PIXEL = 8;
     // The number of elements per ldg.
     const int ELEMENTS_PER_LDG = 4;
     // The warp decomposition.
-    const int warp_id = threadIdx.x / THREADS_PER_WARP;
-    const int lane_id = threadIdx.x % THREADS_PER_WARP;
+    const int warp_id = threadIdx.x / C10_WARP_SIZE;
+    const int lane_id = threadIdx.x % C10_WARP_SIZE;
 
     #pragma unroll
     for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
@@ -718,10 +706,10 @@ DEVICE_FUNCTION void parallel_sums_8x4(float *smem, float (&x)[4], int nhw) {
 
         #pragma unroll
         for (int offset = 1;
-             offset < WARPS_PER_CTA/(THREADS_PER_WARP / THREADS_PER_PIXEL); ++offset) {
+             offset < WARPS_PER_CTA/(C10_WARP_SIZE / THREADS_PER_PIXEL); ++offset) {
             float y[ELEMENTS_PER_LDG];
             // Read the mean and variance from the other pixel.
-            read_from_smem(y, smem, threadIdx.x + offset*THREADS_PER_WARP);
+            read_from_smem(y, smem, threadIdx.x + offset*C10_WARP_SIZE);
             // Compute the updated sum.
             add(x, y);
         }
@@ -745,20 +733,14 @@ DEVICE_FUNCTION void parallel_sums_8x4(float *smem, float (&x)[4], int nhw) {
 
 template< int THREADS_PER_CTA, int THREADS_PER_PIXEL, int ELEMENTS_PER_LDG >
 DEVICE_FUNCTION void parallel_sums(float *smem, float (&x)[ELEMENTS_PER_LDG], int nhw) {
-    // The size of a warp.
-#ifdef USE_ROCM
-    const int THREADS_PER_WARP = 64;
-#else
-    const int THREADS_PER_WARP = 32;
-#endif
-    const int WARPS_PER_CTA = THREADS_PER_CTA / THREADS_PER_WARP;
+    const int WARPS_PER_CTA = THREADS_PER_CTA / C10_WARP_SIZE;
     // The warp decomposition.
-    const int warp_id = threadIdx.x / THREADS_PER_WARP;
-    const int lane_id = threadIdx.x % THREADS_PER_WARP;
+    const int warp_id = threadIdx.x / C10_WARP_SIZE;
+    const int lane_id = threadIdx.x % C10_WARP_SIZE;
     // total size of data per sync iter
 
 #ifdef USE_ROCM
-    for (int offset = THREADS_PER_PIXEL; offset <= THREADS_PER_WARP >> 1; offset <<= 1) {
+    for (int offset = THREADS_PER_PIXEL; offset <= C10_WARP_SIZE >> 1; offset <<= 1) {
         for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
             x[i] += shfl_sync(x[i], offset + lane_id);
         }
@@ -786,16 +768,16 @@ DEVICE_FUNCTION void parallel_sums(float *smem, float (&x)[ELEMENTS_PER_LDG], in
 
         #pragma unroll
         for (int offset = 1;
-             offset < WARPS_PER_CTA/(THREADS_PER_WARP / THREADS_PER_PIXEL); ++offset) {
+             offset < WARPS_PER_CTA/(C10_WARP_SIZE / THREADS_PER_PIXEL); ++offset) {
             float y[ELEMENTS_PER_LDG];
             // Read the mean and variance from the other pixel.
-            read_from_smem(y, smem, threadIdx.x + offset*THREADS_PER_WARP);
+            read_from_smem(y, smem, threadIdx.x + offset*C10_WARP_SIZE);
             // Compute the updated sum.
             add(x, y);
         }
 
 #ifdef USE_ROCM
-        for (int offset = THREADS_PER_WARP >> 1; offset >= THREADS_PER_PIXEL; offset >>= 1) {
+        for (int offset = C10_WARP_SIZE >> 1; offset >= THREADS_PER_PIXEL; offset >>= 1) {
             for (int i = 0; i < ELEMENTS_PER_LDG; ++i) {
                 x[i] += shfl_sync(x[i], offset + lane_id);
             }

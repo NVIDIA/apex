@@ -72,6 +72,7 @@
  */
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
+#include <c10/macros/Macros.h>
 
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/NumericLimits.cuh>
@@ -82,10 +83,8 @@
 #define ALIGN_BYTES 16
 
 #ifdef USE_ROCM
-#define WARP_SIZE 64
 #define SYNCWARP(mask)
 #else
-#define WARP_SIZE 32
 #define SYNCWARP(mask) __syncwarp(mask)
 #endif
 
@@ -130,7 +129,7 @@ inline dim3 SoftMax_getBlockSize(int ILP, uint64_t dim_size) {
   uint64_t max_block_size = std::min(dim_size / ILP, static_cast<uint64_t>(max_threads));
   while (block_size < (max_block_size/2)) block_size *= 2;
   // Launch at least a single warp - the kernel assumes that.
-  block_size = std::max(block_size, static_cast<uint64_t>(WARP_SIZE));
+  block_size = std::max(block_size, static_cast<uint64_t>(at::cuda::warp_size()));
   return dim3(block_size);
 }
 
@@ -199,13 +198,13 @@ blockReduce(AccumT* smem, AccumT val,
   AccumT warpVal = defaultVal;
 
   // First warp will perform per-warp reductions for the remaining warps
-  uint32_t mask = (((uint64_t)1) << (blockDim.x / WARP_SIZE)) - 1;
-  if (threadIdx.x < WARP_SIZE) {
-    int lane = threadIdx.x % WARP_SIZE;
-    if (lane < blockDim.x / WARP_SIZE) {
+  uint32_t mask = (((uint64_t)1) << (blockDim.x / C10_WARP_SIZE)) - 1;
+  if (threadIdx.x < C10_WARP_SIZE) {
+    int lane = threadIdx.x % C10_WARP_SIZE;
+    if (lane < blockDim.x / C10_WARP_SIZE) {
 #pragma unroll
-      for (int i = 0; i < WARP_SIZE; ++i) {
-        warpVal = r(warpVal, smem[lane * WARP_SIZE + i]);
+      for (int i = 0; i < C10_WARP_SIZE; ++i) {
+        warpVal = r(warpVal, smem[lane * C10_WARP_SIZE + i]);
       }
       SYNCWARP(mask);
       smem[lane] = warpVal;
@@ -218,7 +217,7 @@ blockReduce(AccumT* smem, AccumT val,
   AccumT blockVal = defaultVal;
 
   if (threadIdx.x == 0) {
-    for (int i = 0; i < blockDim.x / WARP_SIZE; ++i) {
+    for (int i = 0; i < blockDim.x / C10_WARP_SIZE; ++i) {
       blockVal = r(blockVal, smem[i]);
     }
     smem[0] = blockVal;
@@ -253,14 +252,14 @@ blockReduce(AccumT* smem,
   AccumT warpVal2 = defaultVal2;
 
   // First warp will perform per-warp reductions for the remaining warps
-  uint32_t mask = (((uint64_t)1) << (blockDim.x / WARP_SIZE)) - 1;
-  if (threadIdx.x < WARP_SIZE) {
-    int lane = threadIdx.x % WARP_SIZE;
-    if (lane < blockDim.x / WARP_SIZE) {
+  uint32_t mask = (((uint64_t)1) << (blockDim.x / C10_WARP_SIZE)) - 1;
+  if (threadIdx.x < C10_WARP_SIZE) {
+    int lane = threadIdx.x % C10_WARP_SIZE;
+    if (lane < blockDim.x / C10_WARP_SIZE) {
 #pragma unroll
-      for (int i = 0; i < WARP_SIZE; ++i) {
-        warpVal1 = r1(warpVal1, smem[lane * WARP_SIZE + i]);
-        warpVal2 = r2(warpVal2, smem[lane * WARP_SIZE + i + blockDim.x]);
+      for (int i = 0; i < C10_WARP_SIZE; ++i) {
+        warpVal1 = r1(warpVal1, smem[lane * C10_WARP_SIZE + i]);
+        warpVal2 = r2(warpVal2, smem[lane * C10_WARP_SIZE + i + blockDim.x]);
       }
       SYNCWARP(mask);
       smem[lane] = warpVal1;
@@ -275,7 +274,7 @@ blockReduce(AccumT* smem,
   AccumT blockVal2 = defaultVal2;
 
   if (threadIdx.x == 0) {
-    for (int i = 0; i < blockDim.x / WARP_SIZE; ++i) {
+    for (int i = 0; i < blockDim.x / C10_WARP_SIZE; ++i) {
       blockVal1 = r1(blockVal1, smem[i]);
       blockVal2 = r2(blockVal2, smem[i + blockDim.x]);
     }

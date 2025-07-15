@@ -335,7 +335,7 @@ void dispatch_fused_rope_forward(const int s, const int b, const int h,
 
   int warps_per_block = h < 16 ? 4 : 8;
   dim3 blocks(s, b);
-  dim3 threads(C10_WARP_SIZE, warps_per_block);
+  dim3 threads(at::cuda::warp_size(), warps_per_block);
 
   fused_rope_forward<<<blocks, threads, 0, stream>>>(
       h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s, o_stride_b,
@@ -356,7 +356,7 @@ void dispatch_fused_rope_backward(const int s, const int b, const int h,
 
   int warps_per_block = h < 16 ? 4 : 8;
   dim3 blocks(s, b);
-  dim3 threads(C10_WARP_SIZE, warps_per_block);
+  dim3 threads(at::cuda::warp_size(), warps_per_block);
 
   fused_rope_backward<<<blocks, threads, 0, stream>>>(
       h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s, o_stride_b,
@@ -375,7 +375,7 @@ void dispatch_fused_rope_cached_forward(
 
   int warps_per_block = h < 16 ? 4 : 8;
   dim3 blocks(s, b);
-  dim3 threads(C10_WARP_SIZE, warps_per_block);
+  dim3 threads(at::cuda::warp_size(), warps_per_block);
 
   fused_rope_cached_forward<<<blocks, threads, 0, stream>>>(
       h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s, o_stride_b,
@@ -394,7 +394,7 @@ void dispatch_fused_rope_cached_backward(
 
   int warps_per_block = h < 16 ? 4 : 8;
   dim3 blocks(s, b);
-  dim3 threads(C10_WARP_SIZE, warps_per_block);
+  dim3 threads(at::cuda::warp_size(), warps_per_block);
 
   fused_rope_cached_backward<<<blocks, threads, 0, stream>>>(
       h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s, o_stride_b,
@@ -415,7 +415,7 @@ void dispatch_fused_rope_thd_forward(const int max_s, const int b, const int h,
 
   int warps_per_block = h < 16 ? 4 : 8;
   dim3 blocks(max_s, b);
-  dim3 threads(C10_WARP_SIZE, warps_per_block);
+  dim3 threads(at::cuda::warp_size(), warps_per_block);
 
   fused_rope_thd_forward<<<blocks, threads, 0, stream>>>(
       h, d, d2, stride_t, stride_h, stride_d, o_stride_t, o_stride_h,
@@ -434,7 +434,7 @@ void dispatch_fused_rope_thd_backward(
 
   int warps_per_block = h < 16 ? 4 : 8;
   dim3 blocks(max_s, b);
-  dim3 threads(C10_WARP_SIZE, warps_per_block);
+  dim3 threads(at::cuda::warp_size(), warps_per_block);
 
   fused_rope_thd_backward<<<blocks, threads, 0, stream>>>(
       h, d, d2, stride_t, stride_h, stride_d, o_stride_t, o_stride_h,
@@ -454,7 +454,7 @@ void dispatch_fused_rope_2d_forward(
 
   int warps_per_block = h < 16 ? 4 : 8;
   dim3 blocks(ih, iw, b);
-  dim3 threads(C10_WARP_SIZE, warps_per_block);
+  dim3 threads(at::cuda::warp_size(), warps_per_block);
 
   fused_rope_2d_forward<<<blocks, threads, 0, stream>>>(
       ih, iw, h, d, stride_b, stride_ih, stride_iw, stride_h, stride_d,
@@ -476,7 +476,7 @@ void dispatch_fused_rope_2d_backward(
 
   int warps_per_block = h < 16 ? 4 : 8;
   dim3 blocks(ih, iw, b);
-  dim3 threads(C10_WARP_SIZE, warps_per_block);
+  dim3 threads(at::cuda::warp_size(), warps_per_block);
 
   fused_rope_2d_backward<<<blocks, threads, 0, stream>>>(
       ih, iw, h, d, stride_b, stride_ih, stride_iw, stride_h, stride_d,

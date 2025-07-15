@@ -663,7 +663,7 @@ void dispatch_scaled_masked_softmax_backward(
         int batch_count = batches *  attn_heads * query_seq_len;
 
         // This value must match the WARP_SIZE constexpr value computed inside softmax_warp_backward.
-        int warp_size = (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
+        int warp_size = (next_power_of_two < at::cuda::warp_size()) ? next_power_of_two : at::cuda::warp_size();
 
         // This value must match the WARP_BATCH constexpr value computed inside softmax_warp_backward.
         int batches_per_warp = (next_power_of_two <= 128) ? 2 : 1;
