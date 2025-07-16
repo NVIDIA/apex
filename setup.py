@@ -122,23 +122,8 @@ if "--cpp_ext" in sys.argv:
     ext_modules.append(CppExtension("apex_C", ["csrc/flatten_unflatten.cpp"]))
 
 
-# Set up macros for forward/backward compatibility hack around
-# https://github.com/pytorch/pytorch/commit/4404762d7dd955383acee92e6f06b48144a0742e
-# and
-# https://github.com/NVIDIA/apex/issues/456
-# https://github.com/pytorch/pytorch/commit/eb7b39e02f7d75c26d8a795ea8c7fd911334da7e#diff-4632522f237f1e4e728cb824300403ac
-version_ge_1_1 = []
-if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 0):
-    version_ge_1_1 = ["-DVERSION_GE_1_1"]
-version_ge_1_3 = []
-if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 2):
-    version_ge_1_3 = ["-DVERSION_GE_1_3"]
-version_ge_1_5 = []
-if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR > 4):
-    version_ge_1_5 = ["-DVERSION_GE_1_5"]
-version_dependent_macros = version_ge_1_1 + version_ge_1_3 + version_ge_1_5
-
 _, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
+
 
 if "--distributed_adam" in sys.argv:
     sys.argv.remove("--distributed_adam")
@@ -152,8 +137,8 @@ if "--distributed_adam" in sys.argv:
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3", "--use_fast_math"] + version_dependent_macros,
+                "cxx": ["-O3"],
+                "nvcc": ["-O3", "--use_fast_math"],
             },
         )
     )
@@ -170,8 +155,8 @@ if "--distributed_lamb" in sys.argv:
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3", "--use_fast_math"] + version_dependent_macros,
+                "cxx": ["-O3"],
+                "nvcc": ["-O3", "--use_fast_math"],
             },
         )
     )
@@ -202,13 +187,13 @@ if "--cuda_ext" in sys.argv:
                 "csrc/update_scale_hysteresis.cu",
             ],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"],
                 "nvcc": [
                     "-lineinfo",
                     "-O3",
                     # '--resource-usage',
                     "--use_fast_math",
-                ] + version_dependent_macros,
+                ],
             },
         )
     )
@@ -217,8 +202,8 @@ if "--cuda_ext" in sys.argv:
             name="syncbn",
             sources=["csrc/syncbn.cpp", "csrc/welford.cu"],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"],
+                "nvcc": ["-O3"],
             },
         )
     )
@@ -228,8 +213,8 @@ if "--cuda_ext" in sys.argv:
             name="fused_layer_norm_cuda",
             sources=["csrc/layer_norm_cuda.cpp", "csrc/layer_norm_cuda_kernel.cu"],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-maxrregcount=50", "-O3", "--use_fast_math"] + version_dependent_macros,
+                "cxx": ["-O3"],
+                "nvcc": ["-maxrregcount=50", "-O3", "--use_fast_math"],
             },
         )
     )
@@ -239,8 +224,8 @@ if "--cuda_ext" in sys.argv:
             name="mlp_cuda",
             sources=["csrc/mlp.cpp", "csrc/mlp_cuda.cu"],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"],
+                "nvcc": ["-O3"],
             },
         )
     )
@@ -249,8 +234,8 @@ if "--cuda_ext" in sys.argv:
             name="fused_dense_cuda",
             sources=["csrc/fused_dense.cpp", "csrc/fused_dense_cuda.cu"],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"],
+                "nvcc": ["-O3"],
             },
         )
     )
@@ -264,14 +249,14 @@ if "--cuda_ext" in sys.argv:
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"],
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
-                ] + version_dependent_macros,
+                ],
             },
         )
     )
@@ -285,14 +270,14 @@ if "--cuda_ext" in sys.argv:
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"],
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
-                ] + version_dependent_macros,
+                ],
             },
         )
     )
@@ -303,14 +288,14 @@ if "--cuda_ext" in sys.argv:
             sources=["csrc/megatron/scaled_masked_softmax.cpp", "csrc/megatron/scaled_masked_softmax_cuda.cu"],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"],
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
-                ] + version_dependent_macros,
+                ],
             },
         )
     )
@@ -321,14 +306,14 @@ if "--cuda_ext" in sys.argv:
             sources=["csrc/megatron/scaled_softmax.cpp", "csrc/megatron/scaled_softmax_cuda.cu"],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"],
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
-                ] + version_dependent_macros,
+                ],
             },
         )
     )
@@ -342,59 +327,42 @@ if "--cuda_ext" in sys.argv:
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"],
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
-                ] + version_dependent_macros,
+                ],
             },
         )
     )
 
     if bare_metal_version >= Version("11.0"):
 
-        cc_flag = []
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_70,code=sm_70")
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_80,code=sm_80")
-        if bare_metal_version >= Version("11.1"):
-            cc_flag.append("-gencode")
-            cc_flag.append("arch=compute_86,code=sm_86")
-        if bare_metal_version >= Version("11.8"):
-            cc_flag.append("-gencode")
-            cc_flag.append("arch=compute_90,code=sm_90")
-        if bare_metal_version >= Version("12.8"):
-            cc_flag.append("-gencode")
-            cc_flag.append("arch=compute_100,code=sm_100")
-            cc_flag.append("-gencode")
-            cc_flag.append("arch=compute_120,code=sm_120")
-
-        ext_modules.append(
-            CUDAExtension(
-                name="fused_weight_gradient_mlp_cuda",
-                include_dirs=[os.path.join(this_dir, "csrc")],
-                sources=[
-                    "csrc/megatron/fused_weight_gradient_dense.cpp",
-                    "csrc/megatron/fused_weight_gradient_dense_cuda.cu",
-                    "csrc/megatron/fused_weight_gradient_dense_16bit_prec_cuda.cu",
+    ext_modules.append(
+        CUDAExtension(
+            name="fused_weight_gradient_mlp_cuda",
+            include_dirs=[os.path.join(this_dir, "csrc")],
+            sources=[
+                "csrc/megatron/fused_weight_gradient_dense.cpp",
+                "csrc/megatron/fused_weight_gradient_dense_cuda.cu",
+                "csrc/megatron/fused_weight_gradient_dense_16bit_prec_cuda.cu",
+            ],
+            extra_compile_args={
+                "cxx": ["-O3"],
+                "nvcc": [
+                    "-O3",
+                    "-U__CUDA_NO_HALF_OPERATORS__",
+                    "-U__CUDA_NO_HALF_CONVERSIONS__",
+                    "--expt-relaxed-constexpr",
+                    "--expt-extended-lambda",
+                    "--use_fast_math",
                 ],
-                extra_compile_args={
-                    "cxx": ["-O3"] + version_dependent_macros,
-                    "nvcc": [
-                        "-O3",
-                        "-U__CUDA_NO_HALF_OPERATORS__",
-                        "-U__CUDA_NO_HALF_CONVERSIONS__",
-                        "--expt-relaxed-constexpr",
-                        "--expt-extended-lambda",
-                        "--use_fast_math",
-                    ] + version_dependent_macros + cc_flag,
-                },
-            )
+            },
         )
+    )
 
 if "--permutation_search" in sys.argv:
     sys.argv.remove("--permutation_search")
@@ -407,8 +375,8 @@ if "--permutation_search" in sys.argv:
             CUDAExtension(name='permutation_search_cuda',
                           sources=['apex/contrib/sparsity/permutation_search_kernels/CUDA_kernels/permutation_search_kernels.cu'],
                           include_dirs=[os.path.join(this_dir, 'apex', 'contrib', 'sparsity', 'permutation_search_kernels', 'CUDA_kernels')],
-                          extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
-                                              'nvcc':['-O3'] + version_dependent_macros + cc_flag}))
+                          extra_compile_args={'cxx': ['-O3'],
+                                              'nvcc':['-O3'] + cc_flag}))
 
 if "--bnp" in sys.argv:
     sys.argv.remove("--bnp")
@@ -424,13 +392,13 @@ if "--bnp" in sys.argv:
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": [] + version_dependent_macros,
+                "cxx": [],
                 "nvcc": [
                     "-DCUDA_HAS_FP16=1",
                     "-D__CUDA_NO_HALF_OPERATORS__",
                     "-D__CUDA_NO_HALF_CONVERSIONS__",
                     "-D__CUDA_NO_HALF2_OPERATORS__",
-                ] + version_dependent_macros,
+                ],
             },
         )
     )
@@ -447,8 +415,8 @@ if "--xentropy" in sys.argv:
             sources=["apex/contrib/csrc/xentropy/interface.cpp", "apex/contrib/csrc/xentropy/xentropy_kernel.cu"],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros + [f'-DXENTROPY_VER="{xentropy_ver}"'],
-                "nvcc": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"] + [f'-DXENTROPY_VER="{xentropy_ver}"'],
+                "nvcc": ["-O3"],
             },
         )
     )
@@ -465,8 +433,8 @@ if "--focal_loss" in sys.argv:
             ],
             include_dirs=[os.path.join(this_dir, 'csrc')],
             extra_compile_args={
-                'cxx': ['-O3'] + version_dependent_macros,
-                'nvcc':['-O3', '--use_fast_math', '--ftz=false'] + version_dependent_macros,
+                'cxx': ['-O3'],
+                'nvcc':['-O3', '--use_fast_math', '--ftz=false'],
             },
         )
     )
@@ -474,14 +442,6 @@ if "--focal_loss" in sys.argv:
 if "--group_norm" in sys.argv:
     sys.argv.remove("--group_norm")
     raise_if_cuda_home_none("--group_norm")
-
-    # CUDA group norm supports from SM70
-    arch_flags = []
-    # FIXME: this needs to be done more cleanly
-    for arch in [70, 75, 80, 86, 90, 100, 120]:
-        arch_flag = f"-gencode=arch=compute_{arch},code=sm_{arch}"
-        arch_flags.append(arch_flag)
-    arch_flags.append(arch_flag)
 
     ext_modules.append(
         CUDAExtension(
@@ -491,10 +451,10 @@ if "--group_norm" in sys.argv:
             ] + glob.glob("apex/contrib/csrc/group_norm/*.cu"),
             include_dirs=[os.path.join(this_dir, 'csrc')],
             extra_compile_args={
-                "cxx": ["-O3", "-std=c++17"] + version_dependent_macros,
+                "cxx": ["-O3", "-std=c++17"],
                 "nvcc": [
                     "-O3", "-std=c++17", "--use_fast_math", "--ftz=false",
-                ] + arch_flags + version_dependent_macros,
+                ],
             },
         )
     )
@@ -538,8 +498,8 @@ if "--index_mul_2d" in sys.argv:
             ],
             include_dirs=[os.path.join(this_dir, 'csrc')],
             extra_compile_args={
-                'cxx': ['-O3'] + version_dependent_macros,
-                'nvcc':['-O3', '--use_fast_math', '--ftz=false'] + version_dependent_macros,
+                'cxx': ['-O3'],
+                'nvcc':['-O3', '--use_fast_math', '--ftz=false'],
             },
         )
     )
@@ -556,8 +516,8 @@ if "--deprecated_fused_adam" in sys.argv:
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3", "--use_fast_math"] + version_dependent_macros,
+                "cxx": ["-O3"],
+                "nvcc": ["-O3", "--use_fast_math"],
             },
         )
     )
@@ -575,8 +535,8 @@ if "--deprecated_fused_lamb" in sys.argv:
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3", "--use_fast_math"] + version_dependent_macros,
+                "cxx": ["-O3"],
+                "nvcc": ["-O3", "--use_fast_math"],
             },
         )
     )
@@ -592,22 +552,6 @@ if "--fast_layer_norm" in sys.argv:
     sys.argv.remove("--fast_layer_norm")
     raise_if_cuda_home_none("--fast_layer_norm")
 
-    cc_flag = []
-    cc_flag.append("-gencode")
-    cc_flag.append("arch=compute_70,code=sm_70")
-
-    if bare_metal_version >= Version("11.0"):
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_80,code=sm_80")
-    if bare_metal_version >= Version("11.8"):
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_90,code=sm_90")
-    if bare_metal_version >= Version("12.8"):
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_100,code=sm_100")
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_120,code=sm_120")
-
     ext_modules.append(
         CUDAExtension(
             name="fast_layer_norm",
@@ -617,7 +561,7 @@ if "--fast_layer_norm" in sys.argv:
                 "apex/contrib/csrc/layer_norm/ln_bwd_semi_cuda_kernel.cu",
             ],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros + generator_flag,
+                "cxx": ["-O3"] + generator_flag,
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
@@ -630,7 +574,7 @@ if "--fast_layer_norm" in sys.argv:
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
                     "--use_fast_math",
-                ] + version_dependent_macros + generator_flag + cc_flag,
+                ] + generator_flag,
             },
             include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/layer_norm")],
         )
@@ -642,18 +586,6 @@ if "--fmha" in sys.argv:
 
     if bare_metal_version < Version("11.0"):
         raise RuntimeError("--fmha only supported on sm_80 and sm_90 GPUs")
-
-    cc_flag = []
-    cc_flag.append("-gencode")
-    cc_flag.append("arch=compute_80,code=sm_80")
-    if bare_metal_version >= Version("11.8"):
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_90,code=sm_90")
-    if bare_metal_version >= Version("12.8"):
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_100,code=sm_100")
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_120,code=sm_120")
 
     ext_modules.append(
         CUDAExtension(
@@ -672,7 +604,7 @@ if "--fmha" in sys.argv:
                 "apex/contrib/csrc/fmha/src/fmha_dgrad_fp16_512_64_kernel.sm80.cu",
             ],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros + generator_flag,
+                "cxx": ["-O3"] + generator_flag,
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
@@ -680,7 +612,7 @@ if "--fmha" in sys.argv:
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
                     "--use_fast_math",
-                ] + version_dependent_macros + generator_flag + cc_flag,
+                ] + generator_flag,
             },
             include_dirs=[
                 os.path.join(this_dir, "apex/contrib/csrc"),
@@ -693,25 +625,6 @@ if "--fmha" in sys.argv:
 if "--fast_multihead_attn" in sys.argv:
     sys.argv.remove("--fast_multihead_attn")
     raise_if_cuda_home_none("--fast_multihead_attn")
-
-    cc_flag = []
-    cc_flag.append("-gencode")
-    cc_flag.append("arch=compute_70,code=sm_70")
-
-    if bare_metal_version >= Version("11.0"):
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_80,code=sm_80")
-    if bare_metal_version >= Version("11.1"):
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_86,code=sm_86")
-    if bare_metal_version >= Version("11.8"):
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_90,code=sm_90")
-    if bare_metal_version >= Version("12.8"):
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_100,code=sm_100")
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_120,code=sm_120")
 
     subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
     ext_modules.append(
@@ -729,7 +642,7 @@ if "--fast_multihead_attn" in sys.argv:
                 "apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add_cuda.cu",
             ],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros + generator_flag,
+                "cxx": ["-O3"] + generator_flag,
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
@@ -737,10 +650,7 @@ if "--fast_multihead_attn" in sys.argv:
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
                     "--use_fast_math",
-                ]
-                + version_dependent_macros
-                + generator_flag
-                + cc_flag,
+                ] + generator_flag,
             },
             include_dirs=[
                 os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass/include/"),
@@ -760,8 +670,8 @@ if "--transducer" in sys.argv:
                 "apex/contrib/csrc/transducer/transducer_joint_kernel.cu",
             ],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros + generator_flag,
-                "nvcc": ["-O3"] + version_dependent_macros + generator_flag,
+                "cxx": ["-O3"] + generator_flag,
+                "nvcc": ["-O3"] + generator_flag,
             },
             include_dirs=[os.path.join(this_dir, "csrc"), os.path.join(this_dir, "apex/contrib/csrc/multihead_attn")],
         )
@@ -775,8 +685,8 @@ if "--transducer" in sys.argv:
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + version_dependent_macros,
-                "nvcc": ["-O3"] + version_dependent_macros,
+                "cxx": ["-O3"],
+                "nvcc": ["-O3"],
             },
         )
     )
@@ -794,7 +704,7 @@ if "--cudnn_gbn" in sys.argv:
                     "apex/contrib/csrc/cudnn_gbn/cudnn_gbn.cpp",
                 ],
                 include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
-                extra_compile_args={"cxx": ["-O3", "-g"] + version_dependent_macros + generator_flag},
+                extra_compile_args={"cxx": ["-O3", "-g"] + generator_flag},
             )
         )
 
@@ -808,7 +718,7 @@ if "--peer_memory" in sys.argv:
                 "apex/contrib/csrc/peer_memory/peer_memory_cuda.cu",
                 "apex/contrib/csrc/peer_memory/peer_memory.cpp",
             ],
-            extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+            extra_compile_args={"cxx": ["-O3"] + generator_flag},
         )
     )
 
@@ -831,7 +741,7 @@ if "--nccl_p2p" in sys.argv:
                     "apex/contrib/csrc/nccl_p2p/nccl_p2p_cuda.cu",
                     "apex/contrib/csrc/nccl_p2p/nccl_p2p.cpp",
                 ],
-                extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+                extra_compile_args={"cxx": ["-O3"] + generator_flag},
             )
         )
     else:
@@ -850,7 +760,7 @@ if "--fast_bottleneck" in sys.argv:
                 name="fast_bottleneck",
                 sources=["apex/contrib/csrc/bottleneck/bottleneck.cpp"],
                 include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
-                extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+                extra_compile_args={"cxx": ["-O3"] + generator_flag},
             )
         )
 
@@ -865,7 +775,7 @@ if "--fused_conv_bias_relu" in sys.argv:
                 name="fused_conv_bias_relu",
                 sources=["apex/contrib/csrc/conv_bias_relu/conv_bias_relu.cpp"],
                 include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
-                extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+                extra_compile_args={"cxx": ["-O3"] + generator_flag},
             )
         )
 
@@ -887,7 +797,7 @@ if "--nccl_allocator" in sys.argv:
                 ],
                 include_dirs=[os.path.join(this_dir, "apex/apex/contrib/csrc/nccl_allocator")],
                 libraries=["nccl"],
-                extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+                extra_compile_args={"cxx": ["-O3"] + generator_flag},
             )
         )
     else:
@@ -905,7 +815,7 @@ if "--gpu_direct_storage" in sys.argv:
             sources=["apex/contrib/csrc/gpu_direct_storage/gds.cpp", "apex/contrib/csrc/gpu_direct_storage/gds_pybind.cpp"],
             include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/gpu_direct_storage")],
             libraries=["cufile"],
-            extra_compile_args={"cxx": ["-O3"] + version_dependent_macros + generator_flag},
+            extra_compile_args={"cxx": ["-O3"] + generator_flag},
         )
     )
 
