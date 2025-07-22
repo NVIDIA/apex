@@ -1,3 +1,4 @@
+#include <cstring>
 #include <cuda.h>
 #include <curand_kernel.h>
 #include <cuda_runtime.h>
