@@ -17,9 +17,15 @@ def create_nccl_mem_pool(symmetric: bool | None = None) -> torch.cuda.MemPool:
     if symmetric is None:
         _pool = torch.cuda.MemPool(_allocator)
     else:
-        assert 'symmetric' in get_func_args(torch.cuda.MemPool), \
-            "symmetric setting with torch.cuda.MemPool requires higher PyTorch version"
-        _pool = torch.cuda.MemPool(_allocator, symmetric=symmetric)
+        if 'symmetric' in get_func_args(torch.cuda.MemPool):
+            _pool = torch.cuda.MemPool(_allocator, symmetric=symmetric)
+        elif 'symm_mem' in get_func_args(torch.cuda.MemPool):
+            # This path handles argument name divergence between 
+            # nvidia pytorch and the official pytorch.
+            _pool = torch.cuda.MemPool(_allocator, symm_mem=symmetric)
+        else:
+            raise ValueError("symmetric setting with torch.cuda.MemPool requires "
+                             "higher PyTorch version")
     return _pool
 
 
