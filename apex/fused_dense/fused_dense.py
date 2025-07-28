@@ -128,6 +128,21 @@ class FusedDenseGeluDense(nn.Module):
         self.bias1 = nn.Parameter(torch.randn(intermediate_features))
         self.weight2 = nn.Parameter(torch.randn(out_features, intermediate_features))
         self.bias2 = nn.Parameter(torch.randn(out_features))
+        self.reset_parameters()
+
+
+    def reset_parameters(self):
+        nn.init.kaiming_uniform_(self.weight1, a=math.sqrt(5))
+        nn.init.kaiming_uniform_(self.weight2, a=math.sqrt(5))
+        if self.bias1 is not None:
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight1)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            nn.init.uniform_(self.bias1, -bound, bound)
+        if self.bias2 is not None:
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight2)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            nn.init.uniform_(self.bias2, -bound, bound)
+
 
     def forward(self, input):
         return fused_dense_gelu_dense_function(input, self.weight1, self.bias1, self.weight2, self.bias2)
