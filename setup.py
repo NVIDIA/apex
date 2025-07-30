@@ -130,7 +130,9 @@ if not torch.cuda.is_available():
     )
     if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None and CUDA_HOME is not None:
         _, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
-        if bare_metal_version >= Version("12.8"):
+        if bare_metal_version >= Version("13.0"):
+            os.environ["TORCH_CUDA_ARCH_LIST"] = "7.5;8.0;8.6;9.0;10.0;11.012.0"
+        elif bare_metal_version >= Version("12.8"):
             os.environ["TORCH_CUDA_ARCH_LIST"] = "7.0;7.5;8.0;8.6;9.0;10.0;12.0"
         elif bare_metal_version >= Version("11.8"):
             os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5;8.0;8.6;9.0"
