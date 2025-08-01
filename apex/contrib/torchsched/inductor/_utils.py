@@ -26,7 +26,7 @@ EVENT_NAME_TEMPLATE: str = "event{event_idx:d}"
 STREAM_NAME_TEMPLATE: str = "stream{stream_idx:d}"
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_stream_name(stream_idx: int) -> str:
     """Generate CUDA Stream name from stream index number.
 

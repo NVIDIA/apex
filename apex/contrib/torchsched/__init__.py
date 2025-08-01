@@ -13,8 +13,8 @@ from torch._inductor.compile_fx import compile_fx_inner
 from .backend import get_backend
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from typing import Any
-    from typing import Callable
 
     from torch._ops import OpOverload
 
@@ -50,7 +50,7 @@ def set_default_backend(backend: str) -> None:
     Parameters:
         backend (str): The backend to use as the default for torch.compile.
     """
-    global _SUPPORTED_BACKENDS, _DEFAULT_BACKEND
+    global _DEFAULT_BACKEND
     assert backend in _SUPPORTED_BACKENDS, f"Unknown backend {backend}"
     _DEFAULT_BACKEND = backend
 

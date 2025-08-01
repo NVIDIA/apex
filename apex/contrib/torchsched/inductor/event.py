@@ -18,6 +18,8 @@ import itertools
 from torch._inductor.codegen.wrapper import IndentedBuffer
 from torch._inductor.codegen.wrapper import WrapperLine
 
+import apex.contrib.torchsched.config as torchsched_config
+from apex.contrib.torchsched.inductor._utils import DEFAULT_STREAM_IDX
 from apex.contrib.torchsched.inductor._utils import ENTRANCE_EVENT
 from apex.contrib.torchsched.inductor._utils import EVENT_NAME_TEMPLATE
 from apex.contrib.torchsched.inductor._utils import get_stream_name
@@ -31,6 +33,7 @@ class CudaEventSym:
     Args:
         factory: The CUDAEventFactory that generate this event.
         idx: Indexing number assigned in chronological order during scheduling.
+        originate_stream_idx: The index of the CUDA stream that this event originated from.
         ref_count: Reference count of this event instance.
         materialized_event: The actual CUDA Event name that will be used in the final PyTorch
             program. Only symbolic event with reference count larger than one will be materialized.
@@ -42,22 +45,32 @@ class CudaEventSym:
 
     factory: CudaEventFactory
     idx: int
+    originate_stream_idx: int
     ref_count: int = 0
     materialized_event: str | None = None
 
     def __lt__(self, rhs: CudaEventSym) -> bool:
         """Whether the current event is generated before the rhs event."""
-        return self.idx < rhs.idx and self.factory is rhs.factory
+        return (
+            self.idx < rhs.idx
+            and self.originate_stream_idx == rhs.originate_stream_idx
+            and self.factory is rhs.factory
+        )
 
     def __eq__(self, rhs: object) -> bool:
         """Whether the current event is identical to the rhs event."""
         if not isinstance(rhs, CudaEventSym):
             return NotImplemented
-        return self.idx == rhs.idx and self.factory is rhs.factory
+        return (
+            self.idx == rhs.idx
+            and self.originate_stream_idx == rhs.originate_stream_idx
+            and self.factory is rhs.factory
+        )
 
     def __str__(self) -> str:
         """Represent this symbolic event in string."""
         ret = f"{self.__class__.__name__} (idx={self.idx}"
+        ret += f", originate_stream_idx={self.originate_stream_idx}"
         if self.ref_count:
             ret += f", ref_count={self.ref_count}"
         if self.materialized_event:
@@ -67,7 +80,7 @@ class CudaEventSym:
 
     def __hash__(self) -> int:
         """Hash this symbolic event."""
-        return hash(f"{id(self.factory)=},{self.idx=}")
+        return hash((id(self.factory), self.idx, self.originate_stream_idx))
 
     def record(self, stream_idx: int) -> _CudaEventRecordLine:
         """Record this event on a given stream.
@@ -103,6 +116,7 @@ class CudaEventSym:
             the reference count of this event. If an event object has called this method, it is
             guaranteed to be generated in the final program.
         """
+        assert stream_idx != self.originate_stream_idx
         self.ref_count += 1
         stream = get_stream_name(stream_idx)
         return _CudaEventWaitLine(self, stream)
@@ -113,11 +127,12 @@ class _CudaEventRecordLine(WrapperLine):
 
     event: CudaEventSym
     stream: str
+    _reuse_cuda_event: bool = torchsched_config.reuse_cuda_event
 
     def codegen(self, code: IndentedBuffer) -> None:
         assert 0 <= self.event.ref_count
         assert self.event.materialized_event is None
-        if self.event.ref_count:
+        if self.event.ref_count or not self._reuse_cuda_event:
             self.event.materialized_event = self.event.factory.get_materialized_event(code)
             code.writeline(f"{self.event.materialized_event}.record({self.stream})")
 
@@ -131,12 +146,13 @@ class _CudaEventWaitLine(WrapperLine):
     def codegen(self, code: IndentedBuffer) -> None:
         assert 0 < self.event.ref_count
         assert self.event.materialized_event is not None
-        code.writeline(f"{self.event.materialized_event}.wait({self.stream})")
+        code_line = f"{self.event.materialized_event}.wait({self.stream})"
         self.event.ref_count -= 1
         if self.event.ref_count == 0:
             self.event.factory.deposit_materialized_event(self.event.materialized_event)
             self.event.materialized_event = None
-            code.writeline(f"# End lifecycle of {self.event}")
+            code_line += f"  # End lifecycle of {self.event}"
+        code.writeline(code_line)
 
 
 class CudaEventFactory:
@@ -153,23 +169,32 @@ class CudaEventFactory:
         self.materialized_event_idx: itertools.count = itertools.count(start=1)
         self.available_materialized_events: set[str] = set()
         self._entrance_event: CudaEventSym | None = None
+        self._reuse_cuda_event: bool = torchsched_config.reuse_cuda_event
 
     def get_entrance_event(self) -> CudaEventSym:
         """Return the cuda event that corresponding to compute graph entering."""
         if self._entrance_event is None:
-            self._entrance_event = CudaEventSym(factory=self, idx=0)
+            self._entrance_event = CudaEventSym(
+                factory=self,
+                idx=0,
+                originate_stream_idx=DEFAULT_STREAM_IDX,
+            )
             # Code-gen for entrance event is almost hard-coded in device guard enter so the
             # materialization is slightly different here.
             self._entrance_event.materialized_event = ENTRANCE_EVENT
         return self._entrance_event
 
-    def get_sym_event(self) -> CudaEventSym:
+    def get_sym_event(self, originate_stream_idx: int) -> CudaEventSym:
         """Allocate a symbolic cuda event."""
-        return CudaEventSym(factory=self, idx=next(self.symbolic_event_idx))
+        return CudaEventSym(
+            factory=self,
+            idx=next(self.symbolic_event_idx),
+            originate_stream_idx=originate_stream_idx,
+        )
 
     def get_materialized_event(self, code: IndentedBuffer) -> str:
         """Allocate or reuse a materialized cuda event."""
-        if self.available_materialized_events:
+        if self._reuse_cuda_event and self.available_materialized_events:
             return self.available_materialized_events.pop()
         else:
             event = EVENT_NAME_TEMPLATE.format(event_idx=next(self.materialized_event_idx))

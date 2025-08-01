@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable
-from typing import Sequence
+from typing import TYPE_CHECKING
 
 import torch
 from torch._dynamo.utils import counters
 from torch.fx import replace_pattern
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from collections.abc import Sequence
 
 from apex.contrib.torchsched import config
 
@@ -95,7 +98,6 @@ def pre_grad_custom_pass(graph: torch.fx.Graph) -> None:
     Args:
         graph (torch.fx.Graph): The FX graph to be optimized.
     """
-    global PRE_GRAD_PASS_PATTERNS
     passes = config.pre_grad_pass_options
     for pass_name in passes:
         assert pass_name in PRE_GRAD_PASS_PATTERNS, f"Unknown pre_grad pass: {pass_name}"
