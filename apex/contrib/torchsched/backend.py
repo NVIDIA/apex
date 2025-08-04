@@ -288,9 +288,9 @@ def get_backend(
 
     # [NOTE] Disable buffer reuse and inplace buffers to avoid inter-stream conflicts.
     #
-    # In Inductor, the safety of buffer reuse and inplace buffer update is backed by the single-
-    # stream serial execution of the program. That is, if op2 is launched only if op1 has finished
-    # execution, then these cases are safe:
+    # In PyTorch Inductor, the safety of buffer reuse and in-place buffer update is ensured by the
+    # program's single-stream, serial execution. That is, if op2 is launched only after op1 has
+    # completed execution, then these cases are safe:
     #
     #   Case 1: Safe to reuse buffer `workspace1` as `op2`'s workspace.
     #

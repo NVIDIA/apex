@@ -51,11 +51,9 @@ class CudaEventSym:
 
     def __lt__(self, rhs: CudaEventSym) -> bool:
         """Whether the current event is generated before the rhs event."""
-        return (
-            self.idx < rhs.idx
-            and self.originate_stream_idx == rhs.originate_stream_idx
-            and self.factory is rhs.factory
-        )
+        if self.factory is not rhs.factory:
+            return NotImplemented
+        return (self.idx, self.originate_stream_idx) < (rhs.idx, rhs.originate_stream_idx)
 
     def __eq__(self, rhs: object) -> bool:
         """Whether the current event is identical to the rhs event."""

@@ -49,7 +49,7 @@ reuse_cuda_event: bool = os.getenv("TORCH_SCHED_REUSE_CUDA_EVENT", "1") == "1"
 
 @functools.lru_cache
 def __get_dump_code_backends_and_dir(dump_code: str | None) -> tuple[list[str], str | None]:
-    pattern = r"(?:\+(?P<backend>\w+),)?(?P<dir>[\w\/\.]+)"
+    pattern = r"(?:\+(?P<backend>\w+),)?(?P<dir>[\w\/\.\-\s@#~]+)"
     backends, dir = ["torchsched"], None
     if dump_code and (match := re.match(pattern, dump_code)):
         if backend := match.group("backend"):
