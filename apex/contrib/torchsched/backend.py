@@ -5,27 +5,23 @@ from __future__ import annotations
 import functools
 from copy import copy
 from typing import TYPE_CHECKING
-from typing import Callable
 from typing import ParamSpec
 from typing import TypeVar
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from types import NotImplementedType
 
 import torch
 from torch import Tensor
 from torch import _TorchCompileInductorWrapper
 from torch._dynamo import lookup_backend
-from torch._inductor.codegen.common import register_backend_for_device
-from torch._inductor.codegen.cuda_combined_scheduling import CUDACombinedScheduling
-from torch._inductor.codegen.wrapper import PythonWrapperCodegen
 from torch._inductor.compile_fx import compile_fx
 from torch._inductor.compile_fx import compile_fx_inner
 from torch._inductor.decomposition import select_decomp_table
 
 import apex.contrib.torchsched.config as config
 from apex.contrib.torchsched.inductor import patch_graph_lowering
-from apex.contrib.torchsched.inductor.wrapper import MultiStreamWrapperCodegen
 from apex.contrib.torchsched.passes import pre_grad_custom_pass
 
 aten = torch.ops.aten
@@ -43,21 +39,9 @@ def enable_multi_stream_scheduling(compile_fn: Callable[P, R]) -> Callable[P, R]
 
     @functools.wraps(compile_fn)
     def _compile_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-        register_backend_for_device("cuda", CUDACombinedScheduling, MultiStreamWrapperCodegen)
         patch_graph_lowering(patch=True)
-
-        # torch.compile explicitly calls `write_get_raw_stream` via wrapper's class method in its
-        # lowering process to walk around the wrapper-stream LRU cache mechanism. To be compatible
-        # with this, we got to patch wrapper's class method as well.
-        _origin_write_get_raw_stream = PythonWrapperCodegen.write_get_raw_stream
-        PythonWrapperCodegen.write_get_raw_stream = MultiStreamWrapperCodegen._write_get_raw_stream
-
         compile_results = compile_fn(*args, **kwargs)
-
-        register_backend_for_device("cuda", CUDACombinedScheduling, PythonWrapperCodegen)
         patch_graph_lowering(patch=False)
-        PythonWrapperCodegen.write_get_raw_stream = _origin_write_get_raw_stream
-
         return compile_results
 
     return _compile_wrapper
@@ -302,11 +286,49 @@ def get_backend(
     if backend == "torch":
         return lookup_backend("inductor")
 
+    # [NOTE] Disable buffer reuse and inplace buffers to avoid inter-stream conflicts.
+    #
+    # In PyTorch Inductor, the safety of buffer reuse and in-place buffer update is ensured by the
+    # program's single-stream, serial execution. That is, if op2 is launched only after op1 has
+    # completed execution, then these cases are safe:
+    #
+    #   Case 1: Safe to reuse buffer `workspace1` as `op2`'s workspace.
+    #
+    #         op1   ->   op2              op1   ->   op2
+    #          ↕          ↕       ⇒        ↕          ↑
+    #     workspace1 workspace2       workspace1 ←----┘
+    #
+    #   Case 2: Safe to inpalace `op1`'s output to `buf1` then send to `op2` as input.
+    #
+    #     buf1 -> op1 -> buf2 -> op2  ⇒  buf1 ↔	op1
+    #                                     └-------> op2
+    #
+    # However, if operators are dispatched to distinct CUDA Streams and execute in parallel, above
+    # cases are not safe any more:
+    #
+    #   Counter example 1: Case 1 is not safe if op1 and op2 are in parallel.
+    #
+    #        op1
+    #         ↕
+    #     workspace1 (Buffer modified concurrently by op1 and op2.)
+    #         ↕
+    #        op2
+    #
+    #   Counter example 2: Case 2 is not safe if op1 and op2 are in parallel.
+    #
+    #     buf1 <-->	op1
+    #      └------> op2 (Op2 could read op1's input data.)
+    #
+    # Thus currently we disable both buffer reuse and inplace buffer update to ensure multi-stream
+    # correctness.
+    #
+    # TODO(@davidli): Add cross-stream dependency to Inductor scheduling's dependency system so we
+    # can safely reuse and inplace update buffers even in multi-stream scenario.
+
     if scheme == "dwb":
         return DecompositionsWrapper(
             mode="default",
-            # TODO(@davidli): Elegantly solve cross-stream buffer reusing conflicts.
-            options={"allow_buffer_reuse": False},
+            options={"allow_buffer_reuse": False, "inplace_buffers": False},
             dynamic=False,
             decompositions={
                 aten.convolution_backward.default: convolution_backward_decomp_dwb,
@@ -315,7 +337,7 @@ def get_backend(
     elif scheme == "wbd":
         return DecompositionsWrapper(
             mode="default",
-            options={"allow_buffer_reuse": False},
+            options={"allow_buffer_reuse": False, "inplace_buffers": False},
             dynamic=False,
             decompositions={
                 aten.convolution_backward.default: convolution_backward_decomp_wbd,

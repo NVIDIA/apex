@@ -8,7 +8,6 @@ Please refer to:
 from __future__ import annotations
 
 import math
-from typing import Sequence
 
 import cudnn
 import torch
@@ -269,7 +268,7 @@ class LayerNormGraphFactory:
 @torch.library.custom_op("cudnn::layer_norm", mutates_args=(), device_types="cuda")
 def layer_norm(
     x: torch.Tensor,
-    normalized_shape: Sequence[int],
+    normalized_shape: list[int],
     weight: torch.Tensor,
     bias: torch.Tensor,
     eps: float = 1e-05,
@@ -336,7 +335,7 @@ def layer_norm(
 @layer_norm.register_fake
 def layer_norm_fake(
     x: torch.Tensor,
-    normalized_shape: Sequence[int],
+    normalized_shape: list[int],
     weight: torch.Tensor,
     bias: torch.Tensor,
     eps: float = 1e-05,
@@ -359,7 +358,7 @@ def layer_norm_backward(
     x_mean: torch.Tensor,
     x_invstd: torch.Tensor,
     x: torch.Tensor,
-    normalized_shape: Sequence[int],
+    normalized_shape: list[int],
     weight: torch.Tensor,
     bias: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -414,7 +413,7 @@ def layer_norm_backward_fake(
     x_mean: torch.Tensor,
     x_invstd: torch.Tensor,
     x: torch.Tensor,
-    normalized_shape: Sequence[int],
+    normalized_shape: list[int],
     weight: torch.Tensor,
     bias: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
