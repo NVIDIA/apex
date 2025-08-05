@@ -59,35 +59,34 @@ def generate_unique_combinations(built_permutation, remaining_columns, full_perm
                 # remove the most recent column and put it back on the remaining column list where we found it (sorted)
                 remaining_columns.insert(c, built_permutation.pop(-1))
 
-import pickle
 import os
 from os import environ, path
-master_unique_permutation_list = {}
+unique_permutation_list = {}
 def generate_all_unique_combinations(C, M, must_use_all_groups = False):
 
     cache_dir_path = ASP_CACHE_DIR_DEFAULT
     # The user is allowed to set the cache directory via an environment variable.
     if environ.get(ASP_CACHE_DIR_ENV_VAR) is not None:
         cache_dir_path = environ.get(ASP_CACHE_DIR_ENV_VAR)
-    cache_file_path = path.join(cache_dir_path, "master_list.pkl")
+    cache_file_path = path.join(cache_dir_path, f"permutations_{C}_{M}.npy")
 
-    global master_unique_permutation_list
-    if len(master_unique_permutation_list) == 0 and path.exists(cache_file_path):
-        with open(cache_file_path,"rb") as cache:
-            master_unique_permutation_list = pickle.load(cache)
+    global unique_permutation_list
+    if (C,M) not in unique_permutation_list:
+        if path.exists(cache_file_path):
+            unique_permutation_list[(C,M)] = np.load(cache_file_path, allow_pickle=False)
 
-    if (C,M) not in master_unique_permutation_list:
-        full_permutation_list = []
-        generate_unique_combinations([0], [c for c in range(1,C)], full_permutation_list, M)
-        master_unique_permutation_list[(C,M)] = full_permutation_list
-        if not path.exists(cache_dir_path):
-            os.makedirs(cache_dir_path)
-        with open(cache_file_path, "wb") as cache:
-            pickle.dump(master_unique_permutation_list, cache)
+        else:
+            full_permutation_list = []
+            generate_unique_combinations([0], [c for c in range(1,C)], full_permutation_list, M)
+            unique_permutation_list[(C,M)] = full_permutation_list
+            if not path.exists(cache_dir_path):
+                os.makedirs(cache_dir_path)
+            np.save(cache_file_path, full_permutation_list, allow_pickle=False)
 
-    unique_permutations = master_unique_permutation_list[(C,M)]
+    unique_permutations = unique_permutation_list[(C,M)]
 
     return unique_permutations
+
 
 # analytical solution
 import math
