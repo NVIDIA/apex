@@ -388,28 +388,28 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
 
     if bare_metal_version >= Version("11.0"):
 
-    ext_modules.append(
-        CUDAExtension(
-            name="fused_weight_gradient_mlp_cuda",
-            include_dirs=[os.path.join(this_dir, "csrc")],
-            sources=[
-                "csrc/megatron/fused_weight_gradient_dense.cpp",
-                "csrc/megatron/fused_weight_gradient_dense_cuda.cu",
-                "csrc/megatron/fused_weight_gradient_dense_16bit_prec_cuda.cu",
-            ],
-            extra_compile_args={
-                "cxx": ["-O3"],
-                "nvcc": [
-                    "-O3",
-                    "-U__CUDA_NO_HALF_OPERATORS__",
-                    "-U__CUDA_NO_HALF_CONVERSIONS__",
-                    "--expt-relaxed-constexpr",
-                    "--expt-extended-lambda",
-                    "--use_fast_math",
+        ext_modules.append(
+            CUDAExtension(
+                name="fused_weight_gradient_mlp_cuda",
+                include_dirs=[os.path.join(this_dir, "csrc")],
+                sources=[
+                    "csrc/megatron/fused_weight_gradient_dense.cpp",
+                    "csrc/megatron/fused_weight_gradient_dense_cuda.cu",
+                    "csrc/megatron/fused_weight_gradient_dense_16bit_prec_cuda.cu",
                 ],
-            },
+                extra_compile_args={
+                    "cxx": ["-O3"],
+                    "nvcc": [
+                        "-O3",
+                        "-U__CUDA_NO_HALF_OPERATORS__",
+                        "-U__CUDA_NO_HALF_CONVERSIONS__",
+                        "--expt-relaxed-constexpr",
+                        "--expt-extended-lambda",
+                        "--use_fast_math",
+                    ],
+                },
+            )
         )
-    )
 
 if has_flag("--permutation_search", "APEX_PERMUTATION_SEARCH"):
     if "--permutation_search" in sys.argv:
