@@ -7,9 +7,6 @@
 #include <ATen/ArrayRef.h>
 #include <ATen/ScalarType.h>
 #include "ATen/Scalar.h"
-#ifndef VERSION_GE_1_1
-#include "ATen/Type.h"
-#endif
 #include "ATen/Tensor.h"
 #include "ATen/Storage.h"
 #include "ATen/Generator.h"
