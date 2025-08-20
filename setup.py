@@ -388,8 +388,6 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
         )
     )
 
-    if bare_metal_version >= Version("11.0"):
-
     ext_modules.append(
         CUDAExtension(
             name="fused_weight_gradient_mlp_cuda",
