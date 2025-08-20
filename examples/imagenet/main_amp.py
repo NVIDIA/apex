@@ -17,13 +17,10 @@ import torchvision.models as models
 
 import numpy as np
 
-try:
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.fp16_utils import *
-    from apex import amp, optimizers
-    from apex.multi_tensor_apply import multi_tensor_applier
-except ImportError:
-    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+def to_python_float(scalar_tensor: torch.Tensor):
+    return scalar_tensor.float().item()
 
 def fast_collate(batch, memory_format):
 
@@ -152,24 +149,9 @@ def main():
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
 
-    # Initialize Amp.  Amp accepts either values or strings for the optional override arguments,
-    # for convenient interoperation with argparse.
-    model, optimizer = amp.initialize(model, optimizer,
-                                      opt_level=args.opt_level,
-                                      keep_batchnorm_fp32=args.keep_batchnorm_fp32,
-                                      loss_scale=args.loss_scale
-                                      )
-
-    # For distributed training, wrap the model with apex.parallel.DistributedDataParallel.
-    # This must be done AFTER the call to amp.initialize.  If model = DDP(model) is called
-    # before model, ... = amp.initialize(model, ...), the call to amp.initialize may alter
-    # the types of model's parameters in a way that disrupts or destroys DDP's allreduce hooks.
     if args.distributed:
-        # By default, apex.parallel.DistributedDataParallel overlaps communication with
-        # computation in the backward pass.
-        # model = DDP(model)
-        # delay_allreduce delays all communication to the end of the backward pass.
-        model = DDP(model, delay_allreduce=True)
+        model = DDP(model)
+    scaler = torch.amp.GradScaler("cuda")
 
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
@@ -245,7 +227,7 @@ def main():
             train_sampler.set_epoch(epoch)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch)
+        train(train_loader, model, criterion, optimizer, scaler, epoch)
 
         # evaluate on validation set
         prec1 = validate(val_loader, model, criterion)
@@ -317,7 +299,7 @@ class data_prefetcher():
         return input, target
 
 
-def train(train_loader, model, criterion, optimizer, epoch):
+def train(train_loader, model, criterion, optimizer, scaler, epoch):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -341,24 +323,25 @@ def train(train_loader, model, criterion, optimizer, epoch):
         adjust_learning_rate(optimizer, epoch, i, len(train_loader))
 
         # compute output
-        if args.prof >= 0: torch.cuda.nvtx.range_push("forward")
-        output = model(input)
-        if args.prof >= 0: torch.cuda.nvtx.range_pop()
-        loss = criterion(output, target)
+        with torch.autocast(device_type="cuda"):
+            if args.prof >= 0: torch.cuda.nvtx.range_push("forward")
+            output = model(input)
+            if args.prof >= 0: torch.cuda.nvtx.range_pop()
+            loss = criterion(output, target)
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
 
         if args.prof >= 0: torch.cuda.nvtx.range_push("backward")
-        with amp.scale_loss(loss, optimizer) as scaled_loss:
-            scaled_loss.backward()
+        scaler.scale(loss).backward()
         if args.prof >= 0: torch.cuda.nvtx.range_pop()
 
         # for param in model.parameters():
         #     print(param.data.double().sum().item(), param.grad.data.double().sum().item())
 
         if args.prof >= 0: torch.cuda.nvtx.range_push("optimizer.step()")
-        optimizer.step()
+        scaler.step(optimizer)
+        scaler.update()
         if args.prof >= 0: torch.cuda.nvtx.range_pop()
 
         if i%args.print_freq == 0:
