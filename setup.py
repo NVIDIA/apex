@@ -644,6 +644,21 @@ if has_flag("--fmha", "APEX_FMHA"):
     if bare_metal_version < Version("11.0"):
         raise RuntimeError("--fmha only supported on sm_80 and sm_90 GPUs")
 
+    cc_flag = []
+    cc_flag.append("-gencode")
+    cc_flag.append("arch=compute_80,code=sm_80")
+    if bare_metal_version >= Version("11.8"):
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_90,code=sm_90")
+    if bare_metal_version >= Version("12.8"):
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_100,code=sm_100")
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_120,code=sm_120")
+    if bare_metal_version >= Version("13.0"):
+        cc_flag.append("-gencode")
+        cc_flag.append("arch=compute_110,code=sm_110")
+
     ext_modules.append(
         CUDAExtension(
             name="fmhalib",
@@ -669,7 +684,7 @@ if has_flag("--fmha", "APEX_FMHA"):
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
                     "--use_fast_math",
-                ] + generator_flag,
+                ] + generator_flag + cc_flag,
             },
             include_dirs=[
                 os.path.join(this_dir, "apex/contrib/csrc"),
