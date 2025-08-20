@@ -526,14 +526,14 @@ if has_flag("--group_norm", "APEX_GROUP_NORM"):
                 "apex/contrib/csrc/group_norm_v2/gn_utils.cpp",
             ] + glob.glob("apex/contrib/csrc/group_norm_v2/gn_cuda_inst_*.cu"),
             extra_compile_args={
-                "cxx": ["-O2"] + version_dependent_macros,
+                "cxx": ["-O2"],
                 "nvcc": [
                     "-O2", "--use_fast_math", "--ftz=false",
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
                     "-U__CUDA_NO_HALF_OPERATORS__",
                     "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
                     "-U__CUDA_NO_BFLOAT16_OPERATORS__",
-                ] + arch_flags + version_dependent_macros,
+                ] + arch_flags,
             },
         )
     )
