@@ -55,7 +55,7 @@ __global__ void group_norm_nhwc_fwd_sum_kernel(Group_norm_nhwc_fwd_params params
   // The first activation loaded by that block.
   int hw_begin = blockIdx.y * params.acts_per_block;
   // The last activation loaded by that block.
-  int hw_end = min(hw_begin + params.acts_per_block, params.hw);
+  int hw_end = min((int64_t) hw_begin + params.acts_per_block, params.hw);
 
   // The sums.
   float sum = 0.f, sum_sq = 0.f;
@@ -132,7 +132,7 @@ void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &params,
 
   // Define the number of blocks per activation map. That's a simple heuristic.
   int blocks_per_act_slice = 0;
-         if( params.c >= 1280 ) { 
+         if( params.c >= 1280 ) {
     blocks_per_act_slice = 128 / params.n;
   } else if( params.c >= 640 ) {
     blocks_per_act_slice = 256 / params.n;
@@ -186,13 +186,13 @@ void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &params,
   // Make sure a group does not span multiple blocks.
   assert(params.channels_per_block % params.channels_per_group == 0);
 
-  // The number of elements in the reduction buffer (for the sums and sums of squared). 
+  // The number of elements in the reduction buffer (for the sums and sums of squared).
   zeroed_red_buffer_elts = params.n * params.groups * 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params &params, 
+void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params &params,
                                         cudaStream_t stream) {
 
   // The dimension of the grid.
@@ -285,7 +285,7 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
   // The first activation loaded by that block.
   int hw_begin = blockIdx.y * params.acts_per_block;
   // The last activation loaded by that block.
-  int hw_end = min(hw_begin + params.acts_per_block, params.hw);
+  int hw_end = min((int64_t) hw_begin + params.acts_per_block, params.hw);
 
   // Iterate over the activations to compute the sums.
   for( int hwi = hw_begin; hwi < hw_end; ++hwi ) {
