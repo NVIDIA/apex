@@ -13,7 +13,6 @@ import torch
 # load time) the error message is timely and visible.
 from . import optimizers
 from . import normalization
-from . import transformer
 
 
 __all__ = ["optimizers", "normalization", "transformer"]
