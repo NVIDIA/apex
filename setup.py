@@ -184,7 +184,7 @@ if has_flag("--distributed_adam", "APEX_DISTRIBUTED_ADAM"):
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": ["-O3", "--use_fast_math"],
             },
         )
@@ -203,7 +203,7 @@ if has_flag("--distributed_lamb", "APEX_DISTRIBUTED_LAMB"):
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": ["-O3", "--use_fast_math"],
             },
         )
@@ -236,10 +236,11 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
                 "csrc/update_scale_hysteresis.cu",
             ],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": [
                     "-lineinfo",
                     "-O3",
+                    "-D_ENABLE_EXTENDED_ALIGNED_STORAGE",
                     # '--resource-usage',
                     "--use_fast_math",
                 ],
@@ -251,7 +252,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
             name="syncbn",
             sources=["csrc/syncbn.cpp", "csrc/welford.cu"],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": ["-O3"],
             },
         )
@@ -262,7 +263,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
             name="fused_layer_norm_cuda",
             sources=["csrc/layer_norm_cuda.cpp", "csrc/layer_norm_cuda_kernel.cu"],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": ["-maxrregcount=50", "-O3", "--use_fast_math"],
             },
         )
@@ -272,9 +273,10 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
         CUDAExtension(
             name="mlp_cuda",
             sources=["csrc/mlp.cpp", "csrc/mlp_cuda.cu"],
+            libraries=["cublas", "cublasLt"],
             extra_compile_args={
-                "cxx": ["-O3"],
-                "nvcc": ["-O3"],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
+                "nvcc": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
             },
         )
     )
@@ -283,9 +285,10 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
             name="fused_dense_cuda",
             sources=["csrc/fused_dense.cpp", "csrc/fused_dense_cuda.cu"],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": ["-O3"],
             },
+            libraries=["cublas", "cublasLt"],
         )
     )
 
@@ -298,7 +301,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
@@ -397,8 +400,9 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
                 "csrc/megatron/fused_weight_gradient_dense_cuda.cu",
                 "csrc/megatron/fused_weight_gradient_dense_16bit_prec_cuda.cu",
             ],
+            libraries=["cublas", "cublasLt"],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
@@ -423,7 +427,7 @@ if has_flag("--permutation_search", "APEX_PERMUTATION_SEARCH"):
             CUDAExtension(name='permutation_search_cuda',
                           sources=['apex/contrib/sparsity/permutation_search_kernels/CUDA_kernels/permutation_search_kernels.cu'],
                           include_dirs=[os.path.join(this_dir, 'apex', 'contrib', 'sparsity', 'permutation_search_kernels', 'CUDA_kernels')],
-                          extra_compile_args={'cxx': ['-O3'],
+                          extra_compile_args={'cxx': ['-O3', '-D_ENABLE_EXTENDED_ALIGNED_STORAGE'],
                                               'nvcc':['-O3'] + cc_flag}))
 
 if has_flag("--bnp", "APEX_BNP"):
@@ -441,7 +445,7 @@ if has_flag("--bnp", "APEX_BNP"):
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": [],
+                "cxx": ["-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": [
                     "-DCUDA_HAS_FP16=1",
                     "-D__CUDA_NO_HALF_OPERATORS__",
@@ -465,7 +469,7 @@ if has_flag("--xentropy", "APEX_XENTROPY"):
             sources=["apex/contrib/csrc/xentropy/interface.cpp", "apex/contrib/csrc/xentropy/xentropy_kernel.cu"],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"] + [f'-DXENTROPY_VER="{xentropy_ver}"'],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"] + [f'-DXENTROPY_VER="{xentropy_ver}"'],
                 "nvcc": ["-O3"],
             },
         )
@@ -484,7 +488,7 @@ if has_flag("--focal_loss", "APEX_FOCAL_LOSS"):
             ],
             include_dirs=[os.path.join(this_dir, 'csrc')],
             extra_compile_args={
-                'cxx': ['-O3'],
+                'cxx': ['-O3', '-D_ENABLE_EXTENDED_ALIGNED_STORAGE'],
                 'nvcc':['-O3', '--use_fast_math', '--ftz=false'],
             },
         )
@@ -503,7 +507,7 @@ if has_flag("--group_norm", "APEX_GROUP_NORM"):
             ] + glob.glob("apex/contrib/csrc/group_norm/*.cu"),
             include_dirs=[os.path.join(this_dir, 'csrc')],
             extra_compile_args={
-                "cxx": ["-O3", "-std=c++17"],
+                "cxx": ["-O3", "-std=c++17", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": [
                     "-O3", "-std=c++17", "--use_fast_math", "--ftz=false",
                 ],
@@ -526,7 +530,7 @@ if has_flag("--group_norm", "APEX_GROUP_NORM"):
                 "apex/contrib/csrc/group_norm_v2/gn_utils.cpp",
             ] + glob.glob("apex/contrib/csrc/group_norm_v2/gn_cuda_inst_*.cu"),
             extra_compile_args={
-                "cxx": ["-O2"],
+                "cxx": ["-O2", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": [
                     "-O2", "--use_fast_math", "--ftz=false",
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
@@ -551,7 +555,7 @@ if has_flag("--index_mul_2d", "APEX_INDEX_MUL_2D"):
             ],
             include_dirs=[os.path.join(this_dir, 'csrc')],
             extra_compile_args={
-                'cxx': ['-O3'],
+                'cxx': ['-O3', '-D_ENABLE_EXTENDED_ALIGNED_STORAGE'],
                 'nvcc':['-O3', '--use_fast_math', '--ftz=false'],
             },
         )
@@ -570,7 +574,7 @@ if has_flag("--deprecated_fused_adam", "APEX_DEPRECATED_FUSED_ADAM"):
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": ["-O3", "--use_fast_math"],
             },
         )
@@ -590,7 +594,7 @@ if has_flag("--deprecated_fused_lamb", "APEX_DEPRECATED_FUSED_LAMB"):
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": ["-O3", "--use_fast_math"],
             },
         )
@@ -617,7 +621,7 @@ if has_flag("--fast_layer_norm", "APEX_FAST_LAYER_NORM"):
                 "apex/contrib/csrc/layer_norm/ln_bwd_semi_cuda_kernel.cu",
             ],
             extra_compile_args={
-                "cxx": ["-O3"] + generator_flag,
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"] + generator_flag,
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
@@ -676,7 +680,7 @@ if has_flag("--fmha", "APEX_FMHA"):
                 "apex/contrib/csrc/fmha/src/fmha_dgrad_fp16_512_64_kernel.sm80.cu",
             ],
             extra_compile_args={
-                "cxx": ["-O3"] + generator_flag,
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"] + generator_flag,
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
@@ -715,7 +719,7 @@ if has_flag("--fast_multihead_attn", "APEX_FAST_MULTIHEAD_ATTN"):
                 "apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add_cuda.cu",
             ],
             extra_compile_args={
-                "cxx": ["-O3"] + generator_flag,
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"] + generator_flag,
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
@@ -729,6 +733,7 @@ if has_flag("--fast_multihead_attn", "APEX_FAST_MULTIHEAD_ATTN"):
                 os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass/include/"),
                 os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass/tools/util/include")
             ],
+            libraries=["cublas", "cublasLt"],
         )
     )
 
@@ -744,7 +749,7 @@ if has_flag("--transducer", "APEX_TRANSDUCER"):
                 "apex/contrib/csrc/transducer/transducer_joint_kernel.cu",
             ],
             extra_compile_args={
-                "cxx": ["-O3"] + generator_flag,
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"] + generator_flag,
                 "nvcc": ["-O3"] + generator_flag,
             },
             include_dirs=[os.path.join(this_dir, "csrc"), os.path.join(this_dir, "apex/contrib/csrc/multihead_attn")],
@@ -759,7 +764,7 @@ if has_flag("--transducer", "APEX_TRANSDUCER"):
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": ["-O3"],
             },
         )
@@ -779,7 +784,7 @@ if has_flag("--cudnn_gbn", "APEX_CUDNN_GBN"):
                     "apex/contrib/csrc/cudnn_gbn/cudnn_gbn.cpp",
                 ],
                 include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
-                extra_compile_args={"cxx": ["-O3", "-g"] + generator_flag},
+                extra_compile_args={"cxx": ["-O3", "-g", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"] + generator_flag},
             )
         )
 
@@ -794,7 +799,7 @@ if has_flag("--peer_memory", "APEX_PEER_MEMORY"):
                 "apex/contrib/csrc/peer_memory/peer_memory_cuda.cu",
                 "apex/contrib/csrc/peer_memory/peer_memory.cpp",
             ],
-            extra_compile_args={"cxx": ["-O3"] + generator_flag},
+            extra_compile_args={"cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"] + generator_flag},
         )
     )
 
@@ -818,7 +823,7 @@ if has_flag("--nccl_p2p", "APEX_NCCL_P2P"):
                     "apex/contrib/csrc/nccl_p2p/nccl_p2p_cuda.cu",
                     "apex/contrib/csrc/nccl_p2p/nccl_p2p.cpp",
                 ],
-                extra_compile_args={"cxx": ["-O3"] + generator_flag},
+                extra_compile_args={"cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"] + generator_flag},
             )
         )
     else:
@@ -838,7 +843,7 @@ if has_flag("--fast_bottleneck", "APEX_FAST_BOTTLENECK"):
                 name="fast_bottleneck",
                 sources=["apex/contrib/csrc/bottleneck/bottleneck.cpp"],
                 include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
-                extra_compile_args={"cxx": ["-O3"] + generator_flag},
+                extra_compile_args={"cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"] + generator_flag},
             )
         )
 
@@ -854,7 +859,7 @@ if has_flag("--fused_conv_bias_relu", "APEX_FUSED_CONV_BIAS_RELU"):
                 name="fused_conv_bias_relu",
                 sources=["apex/contrib/csrc/conv_bias_relu/conv_bias_relu.cpp"],
                 include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
-                extra_compile_args={"cxx": ["-O3"] + generator_flag},
+                extra_compile_args={"cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"] + generator_flag},
             )
         )
 
@@ -877,7 +882,7 @@ if has_flag("--nccl_allocator", "APEX_NCCL_ALLOCATOR"):
                 ],
                 include_dirs=[os.path.join(this_dir, "apex/apex/contrib/csrc/nccl_allocator")],
                 libraries=["nccl"],
-                extra_compile_args={"cxx": ["-O3"] + generator_flag},
+                extra_compile_args={"cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"] + generator_flag},
             )
         )
     else:
@@ -896,7 +901,7 @@ if has_flag("--gpu_direct_storage", "APEX_GPU_DIRECT_STORAGE"):
             sources=["apex/contrib/csrc/gpu_direct_storage/gds.cpp", "apex/contrib/csrc/gpu_direct_storage/gds_pybind.cpp"],
             include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/gpu_direct_storage")],
             libraries=["cufile"],
-            extra_compile_args={"cxx": ["-O3"] + generator_flag},
+            extra_compile_args={"cxx": ["-O3", "-D_ENABLE_EXTENDED_ALIGNED_STORAGE"] + generator_flag},
         )
     )
 
