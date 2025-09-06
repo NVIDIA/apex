@@ -495,17 +495,6 @@ if has_flag("--group_norm", "APEX_GROUP_NORM"):
         sys.argv.remove("--group_norm")
     raise_if_cuda_home_none("--group_norm")
 
-    # CUDA group norm supports from SM70
-    arch_flags = []
-    arch_flags.append("-gencode=arch=compute_70,code=sm_70")
-    if bare_metal_version >= Version("11.0"):
-        arch_flags.append("-gencode=arch=compute_75,code=sm_75")
-        arch_flags.append("-gencode=arch=compute_80,code=sm_80")
-    if bare_metal_version >= Version("11.8"):
-        arch_flags.append("-gencode=arch=compute_90,code=sm_90")
-    if bare_metal_version >= Version("12.8"):
-        arch_flags.append("-gencode=arch=compute_100,code=sm_100")
-        arch_flags.append("-gencode=arch=compute_120,code=sm_120")
     ext_modules.append(
         CUDAExtension(
             name="group_norm_cuda",
