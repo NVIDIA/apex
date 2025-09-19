@@ -60,14 +60,11 @@ def generate_unique_combinations(built_permutation, remaining_columns, full_perm
                 remaining_columns.insert(c, built_permutation.pop(-1))
 
 import os
-from os import environ, path
+from os import path
 unique_permutation_list = {}
 def generate_all_unique_combinations(C, M, must_use_all_groups = False):
 
-    cache_dir_path = ASP_CACHE_DIR_DEFAULT
-    # The user is allowed to set the cache directory via an environment variable.
-    if environ.get(ASP_CACHE_DIR_ENV_VAR) is not None:
-        cache_dir_path = environ.get(ASP_CACHE_DIR_ENV_VAR)
+    cache_dir_path = os.getenv(ASP_CACHE_DIR_ENV_VAR, ASP_CACHE_DIR_DEFAULT)
     cache_file_path = path.join(cache_dir_path, f"permutations_{C}_{M}.npy")
 
     global unique_permutation_list
