@@ -1,19 +1,7 @@
-/***************************************************************************************************
- * Copyright (c) 2011-2023, NVIDIA CORPORATION.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification, are not permit-
- * ted.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR 
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND 
- * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NVIDIA CORPORATION BE LIABLE 
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- **************************************************************************************************/
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 #pragma once
 
 #include <math.h>
@@ -138,7 +126,7 @@ struct Group_norm_nhwc_fwd_params {
   // The number of groups in each block.
   int groups_per_block;
   // The number of channels per group = c / groups.
-  int channels_per_group; 
+  int channels_per_group;
   // The number of channels per block = groups_per_block * channels_per_group.
   int channels_per_block;
   // The inverse of hwc in floats (to compute mean/var).
@@ -149,7 +137,7 @@ struct Group_norm_nhwc_fwd_params {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params&, 
+void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params&,
                                           size_t &red_buffer_elts);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -205,7 +193,7 @@ struct Group_norm_nhwc_bwd_params {
   // The number of groups in each block.
   int groups_per_block;
   // The number of channels per group = c / groups.
-  int channels_per_group; 
+  int channels_per_group;
   // The number of channels per block = groups_per_block * channels_per_group.
   int channels_per_block;
   // The inverse of hwc in floats (to compute mean/var).
@@ -216,7 +204,7 @@ struct Group_norm_nhwc_bwd_params {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params&, 
+void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params&,
                                           size_t &red_buffer_elts);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -228,4 +216,3 @@ void group_norm_nhwc_bwd_two_passes_sum  (const Group_norm_nhwc_bwd_params&, cud
 void group_norm_nhwc_bwd_two_passes_scale(const Group_norm_nhwc_bwd_params&, cudaStream_t);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-

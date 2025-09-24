@@ -1,19 +1,7 @@
-/***************************************************************************************************
- * Copyright (c) 2011-2023, NVIDIA CORPORATION.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification, are not permit-
- * ted.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR 
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND 
- * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NVIDIA CORPORATION BE LIABLE 
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- **************************************************************************************************/
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 #pragma once
 
 #include <math.h>
@@ -64,7 +52,7 @@ struct Fp16
   static inline __device__ float2 unpack(const __half2& h2)
   {
     // FIXME(nkorobov): __half22float2 makes compilation error in container
-    return {__half2float(h2.x), 
+    return {__half2float(h2.x),
             __half2float(h2.y)};
   }
 
@@ -95,7 +83,7 @@ struct Bf16
   static inline __device__ float2 unpack(const __nv_bfloat162& h2)
   {
     // FIXME(nkorobov): __half22float2 makes compilation error in container
-    return {__bfloat162float(h2.x), 
+    return {__bfloat162float(h2.x),
             __bfloat162float(h2.y)};
   }
 
@@ -191,5 +179,3 @@ struct Bf16IOFp32W
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-
-

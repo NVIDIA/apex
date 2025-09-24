@@ -1,19 +1,7 @@
-/***************************************************************************************************
- * Copyright (c) 2011-2023, NVIDIA CORPORATION.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification, are not permit-
- * ted.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR 
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND 
- * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NVIDIA CORPORATION BE LIABLE 
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- **************************************************************************************************/
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 #include "group_norm_nhwc.h"
 #include "macros.h"
 #include "traits.h"
@@ -132,7 +120,7 @@ void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &params,
 
   // Define the number of blocks per activation map. That's a simple heuristic.
   int blocks_per_act_slice = 0;
-         if( params.c >= 1280 ) { 
+         if( params.c >= 1280 ) {
     blocks_per_act_slice = 128 / params.n;
   } else if( params.c >= 640 ) {
     blocks_per_act_slice = 256 / params.n;
@@ -186,13 +174,13 @@ void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &params,
   // Make sure a group does not span multiple blocks.
   assert(params.channels_per_block % params.channels_per_group == 0);
 
-  // The number of elements in the reduction buffer (for the sums and sums of squared). 
+  // The number of elements in the reduction buffer (for the sums and sums of squared).
   zeroed_red_buffer_elts = params.n * params.groups * 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params &params, 
+void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params &params,
                                         cudaStream_t stream) {
 
   // The dimension of the grid.
@@ -333,7 +321,7 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_scale(const Group_norm_nhwc_fwd_params &params, 
+void group_norm_nhwc_fwd_two_passes_scale(const Group_norm_nhwc_fwd_params &params,
                                           cudaStream_t stream) {
 
   // The dimension of the grid.
@@ -371,4 +359,3 @@ void group_norm_nhwc_fwd_two_passes_scale(const Group_norm_nhwc_fwd_params &para
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-

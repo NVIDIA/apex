@@ -1,19 +1,7 @@
-/***************************************************************************************************
- * Copyright (c) 2011-2023, NVIDIA CORPORATION.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification, are not permit-
- * ted.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR 
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND 
- * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NVIDIA CORPORATION BE LIABLE 
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- **************************************************************************************************/
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 #include "group_norm_nhwc.h"
 #include "macros.h"
 #include "traits.h"
@@ -98,7 +86,7 @@ GN_FWD_ONE_PASS_DECLARATION(/* CHANNELS_PER_GROUP */ 160)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline void group_norm_nhwc_fwd_one_pass_setup(Group_norm_nhwc_fwd_params &params, 
+inline void group_norm_nhwc_fwd_one_pass_setup(Group_norm_nhwc_fwd_params &params,
                                         size_t &barriers_elts,
                                         size_t &red_buffer_elts,
                                         dim3 &grid,
@@ -114,14 +102,14 @@ inline void group_norm_nhwc_fwd_one_pass_setup(Group_norm_nhwc_fwd_params &param
   params.inv_hwc_per_group = 1.f / (float) (params.hw * params.channels_per_group);
 
   // Select the kernel.
-  using Function_t = int (*)(); 
+  using Function_t = int (*)();
 
   Function_t blocks_per_sm_function;
   GN_FWD_BLOCKS_PER_SM_SELECT(blocks_per_sm_function);
 
   // Define how many activations are computed per block.
   if( params.hw >= 1024 && params.channels_per_group >= 80 ||
-      (params.hw >= 256 && params.channels_per_group >= 160) ) 
+      (params.hw >= 256 && params.channels_per_group >= 160) )
   {
     params.acts_per_block = 8 * 16;
   } else if( params.hw >= 512 ) {
@@ -157,7 +145,7 @@ inline void group_norm_nhwc_fwd_one_pass_setup(Group_norm_nhwc_fwd_params &param
   // The number of barriers.
   barriers_elts = blocks_per_slice > 1 ? grid.y * 2 : 0;
 
-  // The number of elements in the reduction buffer (for the sums and sums of squared). 
+  // The number of elements in the reduction buffer (for the sums and sums of squared).
   if( blocks_per_slice == 1 ) {
     red_buffer_elts = 0;
   } else {
@@ -166,13 +154,13 @@ inline void group_norm_nhwc_fwd_one_pass_setup(Group_norm_nhwc_fwd_params &param
   }
 }
 
-inline void group_norm_nhwc_fwd_one_pass_run(const Group_norm_nhwc_fwd_params &params, 
-                                      const dim3 &grid, 
+inline void group_norm_nhwc_fwd_one_pass_run(const Group_norm_nhwc_fwd_params &params,
+                                      const dim3 &grid,
                                       cudaStream_t stream) {
 
-  using Function_t = void (*)(const Group_norm_nhwc_fwd_params &, 
-                              const dim3 &, 
-                              cudaStream_t); 
+  using Function_t = void (*)(const Group_norm_nhwc_fwd_params &,
+                              const dim3 &,
+                              cudaStream_t);
 
   Function_t runner;
   GN_FWD_RUNNER_SELECT(runner);

@@ -1,19 +1,7 @@
-/***************************************************************************************************
- * Copyright (c) 2011-2023, NVIDIA CORPORATION.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification, are not permit-
- * ted.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR 
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND 
- * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NVIDIA CORPORATION BE LIABLE 
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- **************************************************************************************************/
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 #include "group_norm_nhwc.h"
 #include "traits.h"
 #include <assert.h>
@@ -26,7 +14,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template< typename Traits_, int ACTS_PER_BLOCK_, int CHANNELS_PER_GROUP_, int THREADS_PER_BLOCK_ >
-__global__ __launch_bounds__(THREADS_PER_BLOCK_) 
+__global__ __launch_bounds__(THREADS_PER_BLOCK_)
   void group_norm_nhwc_bwd_one_pass_kernel(Group_norm_nhwc_bwd_params params) {
 
   // The IO traits.
@@ -72,7 +60,7 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
   // Allocate shared memory to store the sums.
   __shared__ float2 smem_sums;
   // Allocate shared memory to store the gamma/beta gradients.
-  __shared__ float4 smem_dgamma_dbeta[THREADS_PER_BLOCK]; 
+  __shared__ float4 smem_dgamma_dbeta[THREADS_PER_BLOCK];
 
   // Shared memory to store the gradients for gamma and beta.
 
@@ -276,7 +264,7 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
 
     mean_1 *= params.inv_hwc_per_group;
     mean_2 *= params.inv_hwc_per_group;
-    
+
     // The pointer to the first activation stored by that thread.
     IOType *dx_ptr = &reinterpret_cast<IOType*>(params.dx)[offset];
 
@@ -289,8 +277,8 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
 
       // X - X_mean.
       float2 x_minus_x_mean_f2;
-      x_minus_x_mean_f2.x = x_f2.x - x_mean; 
-      x_minus_x_mean_f2.y = x_f2.y - x_mean; 
+      x_minus_x_mean_f2.x = x_f2.x - x_mean;
+      x_minus_x_mean_f2.y = x_f2.y - x_mean;
       // Normalize X.
       float2 x_norm_f2;
       x_norm_f2.x = x_minus_x_mean_f2.x * rcp_x_stddev;
@@ -306,7 +294,7 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
       }
 
       // The gradient that enters the x_norm node.
-      float2 dx_norm; 
+      float2 dx_norm;
       dx_norm.x = dy_f2.x * gamma_f2.x;
       dx_norm.y = dy_f2.y * gamma_f2.y;
 
