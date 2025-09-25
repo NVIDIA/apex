@@ -1,19 +1,7 @@
-/***************************************************************************************************
- * Copyright (c) 2011-2023, NVIDIA CORPORATION.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification, are not permit-
- * ted.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR 
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND 
- * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NVIDIA CORPORATION BE LIABLE 
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- **************************************************************************************************/
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 #include "group_norm_nhwc.h"
 #include "macros.h"
 #include "traits.h"
@@ -98,7 +86,7 @@ GN_BWD_ONE_PASS_DECLARATION(/* CHANNELS_PER_GROUP */ 160)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_one_pass_setup(Group_norm_nhwc_bwd_params &params, 
+void group_norm_nhwc_bwd_one_pass_setup(Group_norm_nhwc_bwd_params &params,
                                         size_t &barriers_elts,
                                         size_t &red_buffer_elts,
                                         size_t &zeroed_red_buffer_elts,
@@ -115,8 +103,8 @@ void group_norm_nhwc_bwd_one_pass_setup(Group_norm_nhwc_bwd_params &params,
   params.inv_hwc_per_group = 1.f / (float) (params.hw * params.channels_per_group);
 
   // Define how many activations are computed per block.
-  if( (params.hw >= 1024 && params.channels_per_group >= 80) || 
-      (params.hw >= 256 && params.channels_per_group >= 160) ) 
+  if( (params.hw >= 1024 && params.channels_per_group >= 80) ||
+      (params.hw >= 256 && params.channels_per_group >= 160) )
   {
     params.acts_per_block = 8 * 16;
   } else if( params.hw >= 512 ) {
@@ -136,7 +124,7 @@ void group_norm_nhwc_bwd_one_pass_setup(Group_norm_nhwc_bwd_params &params,
   int blocks_per_slice = div_up(params.hw, params.acts_per_block);
 
   // Select the kernel.
-  using Function_t = int (*)(); 
+  using Function_t = int (*)();
 
   Function_t blocks_per_sm_function;
   GN_BWD_BLOCKS_PER_SM_SELECT(blocks_per_sm_function);
@@ -154,13 +142,13 @@ void group_norm_nhwc_bwd_one_pass_setup(Group_norm_nhwc_bwd_params &params,
   // The number of groups *  is the X dimension of the grid.
   grid.y = std::min(max_blocks_per_grid / blocks_per_slice, params.groups * params.n);
 
-  // The number of barriers. 
+  // The number of barriers.
   barriers_elts = blocks_per_slice > 1 ? grid.y * 2 : 0;
 
   // Add 1 for the final conversion for dgamma/dbeta.
   barriers_elts += 1;
 
-  // The number of elements in the reduction buffer (for the sums and sums of squared). 
+  // The number of elements in the reduction buffer (for the sums and sums of squared).
   if( blocks_per_slice == 1 ) {
     red_buffer_elts = 0;
   } else {
@@ -175,13 +163,13 @@ void group_norm_nhwc_bwd_one_pass_setup(Group_norm_nhwc_bwd_params &params,
   assert(params.channels_per_block % params.channels_per_group == 0);
 }
 
-inline void group_norm_nhwc_bwd_one_pass_run(const Group_norm_nhwc_bwd_params &params, 
-                                      const dim3 &grid, 
+inline void group_norm_nhwc_bwd_one_pass_run(const Group_norm_nhwc_bwd_params &params,
+                                      const dim3 &grid,
                                       cudaStream_t stream) {
 
-  using Function_t = void (*)(const Group_norm_nhwc_bwd_params &, 
-                              const dim3 &, 
-                              cudaStream_t); 
+  using Function_t = void (*)(const Group_norm_nhwc_bwd_params &,
+                              const dim3 &,
+                              cudaStream_t);
 
   Function_t runner;
   GN_BWD_RUNNER_SELECT(runner);

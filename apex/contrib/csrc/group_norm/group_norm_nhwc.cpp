@@ -1,19 +1,7 @@
-/***************************************************************************************************
- * Copyright (c) 2011-2023, NVIDIA CORPORATION.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification, are not permit-
- * ted.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR 
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND 
- * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NVIDIA CORPORATION BE LIABLE 
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- **************************************************************************************************/
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 #include <traits.h>
 #include <group_norm_nhwc.h>
 #include <group_norm_nhwc_fwd_one_pass.h>
@@ -48,9 +36,9 @@ float inline unpack(const float& x) {
 
 template <typename T>
 void check_results(const char *name,
-                   const T *out, 
-                   const T *ref, 
-                   size_t elts, 
+                   const T *out,
+                   const T *ref,
+                   size_t elts,
                    float tol) {
 
   // The number of errors.
@@ -76,14 +64,14 @@ void check_results(const char *name,
     float abs_b = fabsf(b);
 
     // Compute the error.
-    float den = abs_a + abs_b; 
+    float den = abs_a + abs_b;
     // Is one of the quantities very small?
     bool is_small = abs_a <= tol || abs_b <= tol || den <= tol;
     // The error.
     float err = is_small ? fabsf(a-b) : fabsf(a-b) / den;
     // Is the result ok?
     bool ok = !isnan(a) && !isnan(b) && err <= tol;
-    
+
     // Print the error.
     if( !ok && (failed < 10 || err > max_err) ) {
 
@@ -146,19 +134,19 @@ template void check_results(const char *name, const float *out, const float *ref
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static void group_norm_nhwc_bwd_(void *dx_h, 
+static void group_norm_nhwc_bwd_(void *dx_h,
                                  float *dgamma_h,
                                  float *dbeta_h,
-                                 const void *dy_h, 
-                                 const void *x_h, 
+                                 const void *dy_h,
+                                 const void *x_h,
                                  const float *gamma_h,
                                  const float *beta_h,
-                                 const float2 *sums_h, 
+                                 const float2 *sums_h,
                                  float epsilon,
-                                 int n, 
-                                 int h, 
-                                 int w, 
-                                 int c, 
+                                 int n,
+                                 int h,
+                                 int w,
+                                 int c,
                                  int groups,
                                  bool with_swish,
                                  bool use_fp32,
@@ -259,7 +247,7 @@ static void group_norm_nhwc_bwd_(void *dx_h,
           } // ii
         } // wi
       } // hi
-      
+
       mean_1 *= rcp_hwc_per_group;
       mean_2 *= rcp_hwc_per_group;
 
@@ -342,15 +330,15 @@ static void group_norm_nhwc_bwd_(void *dx_h,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static void group_norm_nhwc_fwd_(void *y_h, 
-                                 const void *x_h, 
-                                 const float *gamma_h, 
-                                 const float *beta_h, 
+static void group_norm_nhwc_fwd_(void *y_h,
+                                 const void *x_h,
+                                 const float *gamma_h,
+                                 const float *beta_h,
                                  float epsilon,
-                                 int n, 
-                                 int h, 
-                                 int w, 
-                                 int c, 
+                                 int n,
+                                 int h,
+                                 int w,
+                                 int c,
                                  int groups,
                                  bool with_swish,
                                  bool use_fp32,
@@ -602,7 +590,7 @@ int main(int argc, char **argv) {
       printf("mode.........................: bwd\n");
     } else if( mode == Mode::FWD_INFERENCE ) {
       printf("mode.........................: fwd inference\n");
-    } else if( mode == Mode::FWD_TRAINING ) { 
+    } else if( mode == Mode::FWD_TRAINING ) {
       printf("mode.........................: fwd training\n");
     } else {
       assert(false);
@@ -672,7 +660,7 @@ int main(int argc, char **argv) {
   }
 
   // Allocate the src/dst on the host for the gradients (bwd).
-  void *dx_h = nullptr, *dy_h = nullptr; 
+  void *dx_h = nullptr, *dy_h = nullptr;
   if( mode == Mode::BWD ) {
     dx_h = malloc(x_sz);
     dy_h = malloc(x_sz);
@@ -798,20 +786,20 @@ int main(int argc, char **argv) {
 
   // Compute the golden reference on the host.
   if (!skip_checks) {
-    if( mode == Mode::BWD ) { 
-      group_norm_nhwc_bwd_(dx_ref_h, 
+    if( mode == Mode::BWD ) {
+      group_norm_nhwc_bwd_(dx_ref_h,
                           dgamma_ref_h,
                           dbeta_ref_h,
                           dy_h,
-                          x_h, 
-                          gamma_h, 
+                          x_h,
+                          gamma_h,
                           beta_h,
                           sums_h,
-                          epsilon, 
-                          n, 
-                          h, 
-                          w, 
-                          c, 
+                          epsilon,
+                          n,
+                          h,
+                          w,
+                          c,
                           groups,
                           with_swish,
                           use_fp32,
@@ -823,32 +811,32 @@ int main(int argc, char **argv) {
 
   // Copy to the device.
   CHECK_CUDA(cudaMemcpyAsync(x_d, x_h, x_sz, cudaMemcpyHostToDevice, cudaStreamDefault));
-  CHECK_CUDA(cudaMemcpyAsync(gamma_d, 
-                             gamma_h, 
-                             gamma_sz, 
-                             cudaMemcpyHostToDevice, 
+  CHECK_CUDA(cudaMemcpyAsync(gamma_d,
+                             gamma_h,
+                             gamma_sz,
+                             cudaMemcpyHostToDevice,
                              cudaStreamDefault));
-  CHECK_CUDA(cudaMemcpyAsync(beta_d, 
-                             beta_h, 
-                             gamma_sz, 
-                             cudaMemcpyHostToDevice, 
+  CHECK_CUDA(cudaMemcpyAsync(beta_d,
+                             beta_h,
+                             gamma_sz,
+                             cudaMemcpyHostToDevice,
                              cudaStreamDefault));
 
   if( mode == Mode::BWD ) {
-    CHECK_CUDA(cudaMemcpyAsync(dy_d, 
-                               dy_h, 
-                               x_sz, 
-                               cudaMemcpyHostToDevice, 
+    CHECK_CUDA(cudaMemcpyAsync(dy_d,
+                               dy_h,
+                               x_sz,
+                               cudaMemcpyHostToDevice,
                                cudaStreamDefault));
 
     // // DEBUG.
     // printf("sums_h[0] = %8.3f, %8.3f\n", sums_h[0].x, sums_h[0].y);
     // // END OF DEBUG.
 
-    CHECK_CUDA(cudaMemcpyAsync(sums_d, 
-                               sums_h, 
-                               sums_sz, 
-                               cudaMemcpyHostToDevice, 
+    CHECK_CUDA(cudaMemcpyAsync(sums_d,
+                               sums_h,
+                               sums_sz,
+                               cudaMemcpyHostToDevice,
                                cudaStreamDefault));
   }
 
@@ -878,7 +866,7 @@ int main(int argc, char **argv) {
   }();
 
   // Initialize the parameters.
-  if( mode == Mode::BWD ) { 
+  if( mode == Mode::BWD ) {
     params_bwd.dx = dx_d;
     params_bwd.dgamma = dgamma_d;
     params_bwd.dbeta = dbeta_d;
@@ -914,30 +902,30 @@ int main(int argc, char **argv) {
   // The number of barriers.
   size_t barriers_elts = 0;
   // The number of elements in the reduction buffer.
-  size_t red_buffer_elts = 0; 
+  size_t red_buffer_elts = 0;
   // The number of elements in the reduction buffer that must be zeroed.
-  size_t zeroed_red_buffer_elts = 0; 
+  size_t zeroed_red_buffer_elts = 0;
 
   // Finalize the parameters.
   dim3 grid;
          if( mode == Mode::BWD && use_one_pass ) {
-    group_norm_nhwc_bwd_one_pass_setup(params_bwd, 
-                                       barriers_elts, 
-                                       red_buffer_elts, 
+    group_norm_nhwc_bwd_one_pass_setup(params_bwd,
+                                       barriers_elts,
+                                       red_buffer_elts,
                                        zeroed_red_buffer_elts,
-                                       grid, 
+                                       grid,
                                        props);
   } else if( mode == Mode::BWD ) {
-    group_norm_nhwc_bwd_two_passes_setup(params_bwd, 
+    group_norm_nhwc_bwd_two_passes_setup(params_bwd,
                                          zeroed_red_buffer_elts);
   } else if( use_one_pass ) {
-    group_norm_nhwc_fwd_one_pass_setup(params_fwd, 
+    group_norm_nhwc_fwd_one_pass_setup(params_fwd,
                                        barriers_elts,
-                                       red_buffer_elts, 
-                                       grid, 
+                                       red_buffer_elts,
+                                       grid,
                                        props);
   } else {
-    group_norm_nhwc_fwd_two_passes_setup(params_fwd, 
+    group_norm_nhwc_fwd_two_passes_setup(params_fwd,
                                          zeroed_red_buffer_elts);
   }
 
@@ -987,9 +975,9 @@ int main(int argc, char **argv) {
 
     // Clear the zeroed buffer if needed.
     if( zeroed_red_buffer_sz > 0 ) {
-      CHECK_CUDA(cudaMemsetAsync(zeroed_red_buffer_d_, 
-                                 0, 
-                                 zeroed_red_buffer_sz, 
+      CHECK_CUDA(cudaMemsetAsync(zeroed_red_buffer_d_,
+                                 0,
+                                 zeroed_red_buffer_sz,
                                  cudaStreamDefault));
     }
     if( use_one_pass && mode == Mode::BWD ) {
@@ -1020,15 +1008,15 @@ int main(int argc, char **argv) {
   // Copy the results to the host.
   if( mode == Mode::BWD ) {
     CHECK_CUDA(cudaMemcpyAsync(dx_h, dx_d, x_sz, cudaMemcpyDeviceToHost, cudaStreamDefault));
-    CHECK_CUDA(cudaMemcpyAsync(dgamma_h, 
-                               dgamma_d, 
-                               gamma_sz, 
-                               cudaMemcpyDeviceToHost, 
+    CHECK_CUDA(cudaMemcpyAsync(dgamma_h,
+                               dgamma_d,
+                               gamma_sz,
+                               cudaMemcpyDeviceToHost,
                                cudaStreamDefault));
-    CHECK_CUDA(cudaMemcpyAsync(dbeta_h, 
-                               dbeta_d, 
-                               gamma_sz, 
-                               cudaMemcpyDeviceToHost, 
+    CHECK_CUDA(cudaMemcpyAsync(dbeta_h,
+                               dbeta_d,
+                               gamma_sz,
+                               cudaMemcpyDeviceToHost,
                                cudaStreamDefault));
   } else {
     CHECK_CUDA(cudaMemcpyAsync(y_h, y_d, x_sz, cudaMemcpyDeviceToHost, cudaStreamDefault));
@@ -1041,7 +1029,7 @@ int main(int argc, char **argv) {
   if (!csv_output) {
     if( mode == Mode::BWD && !skip_checks ) {
       if (use_fp32) {
-        check_results<float>("dx", reinterpret_cast<float*>(dx_h), 
+        check_results<float>("dx", reinterpret_cast<float*>(dx_h),
                              reinterpret_cast<float*>(dx_ref_h), x_elts, tol);
       } else if (use_bf16) {
         check_results<__nv_bfloat16>("dx", reinterpret_cast<__nv_bfloat16*>(dx_h),
@@ -1054,7 +1042,7 @@ int main(int argc, char **argv) {
       check_results<float> ("dbeta",  dbeta_h,  dbeta_ref_h,  gamma_elts, tol);
     } else if( !skip_checks ) {
       if (use_fp32) {
-        check_results<float>("y", reinterpret_cast<float*>(y_h), 
+        check_results<float>("y", reinterpret_cast<float*>(y_h),
                              reinterpret_cast<float*>(y_ref_h), x_elts, tol);
       } else if (use_bf16) {
         check_results<__nv_bfloat16>("y", reinterpret_cast<__nv_bfloat16*>(y_h),
@@ -1107,4 +1095,3 @@ int main(int argc, char **argv) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-
