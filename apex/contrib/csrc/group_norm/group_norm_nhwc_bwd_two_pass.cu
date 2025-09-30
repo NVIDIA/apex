@@ -79,7 +79,7 @@ __global__ void group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params
   // The first activation loaded by that block.
   int hw_begin = blockIdx.y * params.acts_per_block;
   // The last activation loaded by that block.
-  int hw_end = min(hw_begin + params.acts_per_block, params.hw);
+  int hw_end = min((int64_t) hw_begin + params.acts_per_block, params.hw);
 
   // The gradients for gamma/beta.
   float2 dgamma = make_float2(0.f, 0.f), dbeta = make_float2(0.f, 0.f);
@@ -364,7 +364,7 @@ __global__ void group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params para
   // The first activation loaded by that block.
   int hw_begin = blockIdx.y * params.acts_per_block;
   // The last activation loaded by that block.
-  int hw_end = min(hw_begin + params.acts_per_block, params.hw);
+  int hw_end = min((int64_t) hw_begin + params.acts_per_block, params.hw);
 
   // Iterate over the activations to compute the sums.
   for( int hwi = hw_begin; hwi < hw_end; ++hwi ) {
