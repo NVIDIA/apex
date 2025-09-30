@@ -61,10 +61,10 @@ std::vector<at::Tensor> mlp_forward(int use_bias, int activation, std::vector<at
   auto reserved_size = get_mlp_reserved_space(batch_size, num_layers, output_features.data());
 
   // create output/workspace tensor
-  auto out = at::empty({batch_size, output_features.back()}, inputs[0].type());
-  auto reserved_space = at::empty({static_cast<long>(reserved_size)}, inputs[0].type());
+  auto out = at::empty({batch_size, output_features.back()}, inputs[0].options());
+  auto reserved_space = at::empty({static_cast<long>(reserved_size)}, inputs[0].options());
   // allocate fixed 4MB workspace for cublaslt for now, and this gets at least 4 MB
-  auto lt_workspace = at::empty({1 << 22}, inputs[0].type());
+  auto lt_workspace = at::empty({1 << 22}, inputs[0].options());
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(inputs[0].scalar_type(), "mlp_forward", [&] {
     std::vector<scalar_t*> w_ptr;
@@ -118,7 +118,7 @@ std::vector<at::Tensor> mlp_backward(
   // create outputs, length of inputs
   std::vector<at::Tensor> outputs;
   for (int i = 0; i < inputs.size(); i++) {
-    outputs.push_back(at::empty(inputs[i].sizes(), inputs[i].type()));  // clone for testing now
+    outputs.push_back(at::empty(inputs[i].sizes(), inputs[i].options()));  // clone for testing now
   }
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(inputs[0].scalar_type(), "mlp_backward", [&] {
@@ -135,7 +135,7 @@ std::vector<at::Tensor> mlp_backward(
         get_mlp_bp_workspace_in_bytes<scalar_t>(batch_size, num_layers, output_features.data());
 
     // auto work_space = at::empty({work_size*4}, at::kByte);
-    auto work_space = at::empty({static_cast<long>(work_size / sizeof(scalar_t))}, inputs[0].type());
+    auto work_space = at::empty({static_cast<long>(work_size / sizeof(scalar_t))}, inputs[0].options());
 
     auto result = mlp_bp<scalar_t>(
         inputs[0].data_ptr<scalar_t>(),
