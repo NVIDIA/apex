@@ -6,11 +6,7 @@
 namespace {
 void compute_n1_n2(
     at::Tensor input,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     int& n1,
     int& n2)
 {
@@ -27,11 +23,7 @@ void compute_n1_n2(
 }
 
 void check_args(
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor gamma,
     at::Tensor beta
     )
@@ -41,11 +33,7 @@ void check_args(
 }
 
 void check_args(
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor gamma
     )
 {
@@ -55,11 +43,7 @@ void check_args(
 
 void check_args(
     at::Tensor input,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     int& n1,
     int& n2
     )
@@ -94,11 +78,7 @@ void check_args(
 
 void check_args(
     at::Tensor input,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor gamma,
     at::Tensor beta,
     int& n1,
@@ -111,11 +91,7 @@ void check_args(
 
 void check_args(
     at::Tensor input,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor gamma,
     int& n1,
     int& n2
@@ -133,11 +109,7 @@ void cuda_layer_norm(
     at::Tensor* input,
     int n1,
     int n2,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor* gamma,
     at::Tensor* beta,
     double epsilon);
@@ -148,11 +120,7 @@ void cuda_layer_norm(
 
 std::vector<at::Tensor> layer_norm(
     at::Tensor input,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     double epsilon) {
   CHECK_INPUT(input);
   int n1,n2;
@@ -167,11 +135,7 @@ std::vector<at::Tensor> layer_norm(
 
 std::vector<at::Tensor> layer_norm_affine(
     at::Tensor input,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor gamma,
     at::Tensor beta,
     double epsilon) {
@@ -191,11 +155,7 @@ std::vector<at::Tensor> layer_norm_affine(
 
 std::vector<at::Tensor> layer_norm_affine_mixed_dtypes(
     at::Tensor input,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor gamma,
     at::Tensor beta,
     double epsilon) {
@@ -217,11 +177,7 @@ void cuda_layer_norm_gradient(
     at::Tensor* input_or_output,
     int n1,
     int n2,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor* gamma,
     at::Tensor* beta,
     double epsilon,
@@ -236,11 +192,7 @@ at::Tensor layer_norm_gradient(
     c10::optional<at::Tensor> mean_,
     at::Tensor invvar,
     at::Tensor input_or_output,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     double epsilon,
     bool memory_efficient) {
   CHECK_INPUT(dout);
@@ -266,11 +218,7 @@ std::vector<at::Tensor> layer_norm_gradient_affine(
     c10::optional<at::Tensor> mean_,
     at::Tensor invvar,
     at::Tensor input_or_output,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor gamma,
     at::Tensor beta,
     double epsilon,
@@ -304,11 +252,7 @@ void cuda_rms_norm(
     at::Tensor* input,
     int n1,
     int n2,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor* gamma,
     double epsilon);
 
@@ -318,11 +262,7 @@ void cuda_rms_norm(
 
 std::vector<at::Tensor> rms_norm(
     at::Tensor input,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     double epsilon) {
   CHECK_INPUT(input);
   int n1,n2;
@@ -336,11 +276,7 @@ std::vector<at::Tensor> rms_norm(
 
 std::vector<at::Tensor> rms_norm_affine(
     at::Tensor input,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor gamma,
     double epsilon) {
   CHECK_INPUT(input);
@@ -357,11 +293,7 @@ std::vector<at::Tensor> rms_norm_affine(
 
 std::vector<at::Tensor> rms_norm_affine_mixed_dtypes(
     at::Tensor input,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor gamma,
     double epsilon) {
   CHECK_INPUT(input);
@@ -381,11 +313,7 @@ void cuda_rms_norm_gradient(
     at::Tensor* input_or_output,
     int n1,
     int n2,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor* gamma,
     double epsilon,
     at::Tensor* grad_input,
@@ -396,11 +324,7 @@ at::Tensor rms_norm_gradient(
     at::Tensor dout,
     at::Tensor invvar,
     at::Tensor input_or_output,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     double epsilon,
     bool memory_efficient) {
   CHECK_INPUT(dout);
@@ -419,11 +343,7 @@ std::vector<at::Tensor> rms_norm_gradient_affine(
     at::Tensor dout,
     at::Tensor invvar,
     at::Tensor input_or_output,
-    #ifdef VERSION_GE_1_1
     at::IntArrayRef normalized_shape,
-    #else
-    at::IntList normalized_shape,
-    #endif
     at::Tensor gamma,
     double epsilon,
     bool memory_efficient) {
