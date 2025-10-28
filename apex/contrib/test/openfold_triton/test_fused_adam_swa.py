@@ -88,9 +88,12 @@ class FusedAdamSWATestCase(unittest.TestCase):
         self._seed = 19260817
         random.seed(self._seed)
         torch.manual_seed(self._seed)
-        torch.backends.cudnn.deterministic = True
 
     def test_fused_update_on_random_data(self):
+        with torch.backends.cudnn.flags(deterministic=True):
+            self._run_fused_update_on_random_data()
+
+    def _run_fused_update_on_random_data(self):
         device = torch.device("cuda:0")
         compute_dtype = torch.float32
         state_dtype = torch.float64
