@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 from itertools import chain
 import random
 import unittest
@@ -88,9 +88,20 @@ class FusedAdamSWATestCase(unittest.TestCase):
         self._seed = 19260817
         random.seed(self._seed)
         torch.manual_seed(self._seed)
-        torch.backends.cudnn.deterministic = True
+        # FIXME: correctly fix: """NameError("Cannot access global variable _DTYPE2TRITON from within @jit'ed function.
+        # Triton kernels can only access global variables that are instanstiated as constexpr (`x = triton.language.constexpr(42)`).
+        # Note that this is different from annotating a variable as constexpr (`x: triton.language.constexpr = 42`), which is not supported.
+        # Alternatively, set the envvar TRITON_ALLOW_NON_CONSTEXPR_GLOBALS=1, but we do not promise to support this forever.")"""
+        os.environ["TRITON_ALLOW_NON_CONSTEXPR_GLOBALS"] = "1"
+
+    def tearDown(self):
+        os.environ.pop("TRITON_ALLOW_NON_CONSTEXPR_GLOBALS", None)
 
     def test_fused_update_on_random_data(self):
+        with torch.backends.cudnn.flags(deterministic=True):
+            self._run_fused_update_on_random_data()
+
+    def _run_fused_update_on_random_data(self):
         device = torch.device("cuda:0")
         compute_dtype = torch.float32
         state_dtype = torch.float64
