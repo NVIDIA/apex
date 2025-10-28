@@ -95,7 +95,7 @@ class FusedAdamSWATestCase(unittest.TestCase):
         os.environ["TRITON_ALLOW_NON_CONSTEXPR_GLOBALS"] = "1"
 
     def tearDown(self):
-        del os.environ["TRITON_ALLOW_NON_CONSTEXPR_GLOBALS"]
+        os.environ.pop("TRITON_ALLOW_NON_CONSTEXPR_GLOBALS", None)
 
     def test_fused_update_on_random_data(self):
         with torch.backends.cudnn.flags(deterministic=True):
