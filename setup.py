@@ -143,6 +143,9 @@ if not torch.cuda.is_available():
         else:
             os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5"
 
+if "TORCH_CUDA_ARCH_LIST" in os.environ:
+    print("\n\nBuilding Apex for archs {}\n\n".format(os.environ["TORCH_CUDA_ARCH_LIST"]))
+
 print("\n\ntorch.__version__  = {}\n\n".format(torch.__version__))
 TORCH_MAJOR = int(torch.__version__.split(".")[0])
 TORCH_MINOR = int(torch.__version__.split(".")[1])
