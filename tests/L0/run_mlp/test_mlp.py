@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from torch.testing._internal import common_utils
 from torch.testing._internal.common_device_type import instantiate_device_type_tests
-from torch.testing._internal.common_device_type import onlyCUDA
+from torch.testing._internal.common_cuda import tf32_off
 
 from apex.mlp import MLP
 
@@ -93,6 +93,7 @@ class TestMLP(common_utils.TestCase):
             self.assertEqual(test_input.grad, ref_input.grad)
             self.assertEqual(mlp.weights[0].grad, ref_mlp[0].weight.grad)
 
+    @tf32_off()
     @common_utils.parametrize(
         "use_activation,bias",
         list(product(("none", "relu", "sigmoid"), (True, False))),
