@@ -3,7 +3,6 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
 #include "multi_tensor_apply.cuh"
-#include "compat.h"
 
 #include <assert.h>
 #include <cuda_runtime.h>

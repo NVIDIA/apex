@@ -3,7 +3,6 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
 #include <c10/cuda/CUDAGuard.h>
-#include "compat.h"
 
 #include <assert.h>
 
@@ -101,7 +100,7 @@ void multi_tensor_apply(
         // using accscalar_t = acc_type<scalar_t, true>;
         multi_tensor_apply_kernel<<<loc_block_info, block_size, 0, stream>>>(
           chunk_size,
-          noop_flag.DATA_PTR<int>(),
+          noop_flag.data_ptr<int>(),
           tl,
           callable,
           args...);

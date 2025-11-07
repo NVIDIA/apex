@@ -77,7 +77,6 @@
 #include <ATen/cuda/NumericLimits.cuh>
 
 #include "type_shim.h"
-#include "compat.h"
 
 #define ALIGN_BYTES 16
 

@@ -243,11 +243,11 @@ void fused_adam_cuda(
             DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
                 using accscalar_t = at::acc_type<scalar_t_0, true>;
                 adam_cuda_kernel<accscalar_t, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
-                        p.DATA_PTR<accscalar_t>(),
-                        p_copy.numel() ? p_copy.DATA_PTR<scalar_t_0>() : NULL,
-                        m.DATA_PTR<accscalar_t>(),
-                        v.DATA_PTR<accscalar_t>(),
-                        g.DATA_PTR<scalar_t_0>(),
+                        p.data_ptr<accscalar_t>(),
+                        p_copy.numel() ? p_copy.data_ptr<scalar_t_0>() : NULL,
+                        m.data_ptr<accscalar_t>(),
+                        v.data_ptr<accscalar_t>(),
+                        g.data_ptr<scalar_t_0>(),
                         beta1,
                         beta2,
                         eps,
@@ -261,10 +261,10 @@ void fused_adam_cuda(
             using namespace at;
             DISPATCH_DOUBLE_AND_FLOAT(g.scalar_type(), 0, "adam_cuda_kernel",
                 adam_cuda_kernel<scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
-                        p.DATA_PTR<scalar_t_0>(),
+                        p.data_ptr<scalar_t_0>(),
                         NULL, //don't output p_copy for fp32, it's wasted write
-                        m.DATA_PTR<scalar_t_0>(),
-                        v.DATA_PTR<scalar_t_0>(),
+                        m.data_ptr<scalar_t_0>(),
+                        v.data_ptr<scalar_t_0>(),
                         g.DATA_PTR<scalar_t_0>(),
                         beta1,
                         beta2,
