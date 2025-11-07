@@ -611,15 +611,15 @@ std::vector<Tensor> host_softmax_xentropy(
     if (!half_to_float) {
       cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, scalar_t_0, Epilogue>
         <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
-          losses.DATA_PTR<accscalar_t>(), max_log_sum_exp.DATA_PTR<scalar_t_0>(),
-          input.DATA_PTR<scalar_t_0>(), labels_.DATA_PTR<int64_t>(),
+          losses.data_ptr<accscalar_t>(), max_log_sum_exp.data_ptr<scalar_t_0>(),
+          input.data_ptr<scalar_t_0>(), labels_.data_ptr<int64_t>(),
           dim_size, smoothing
       );
     } else {
       cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, accscalar_t, Epilogue>
         <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
-          losses.DATA_PTR<accscalar_t>(), max_log_sum_exp.DATA_PTR<accscalar_t>(),
-          input.DATA_PTR<scalar_t_0>(), labels_.DATA_PTR<int64_t>(),
+          losses.data_ptr<accscalar_t>(), max_log_sum_exp.data_ptr<accscalar_t>(),
+          input.data_ptr<scalar_t_0>(), labels_.data_ptr<int64_t>(),
           dim_size, smoothing
       );
     }
@@ -679,17 +679,17 @@ Tensor host_softmax_xentropy_backward(
     if (!half_to_float) {
       cunn_SoftMaxXEntropyBackward<ILP, scalar_t_0, accscalar_t, scalar_t_0, Epilogue>
        <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
-          gI.DATA_PTR<scalar_t_0>(), logits.DATA_PTR<scalar_t_0>(),
-          max_log_sum_exp.DATA_PTR<scalar_t_0>(),
-          grad.DATA_PTR<scalar_t_0>(), labels.DATA_PTR<int64_t>(),
+          gI.data_ptr<scalar_t_0>(), logits.data_ptr<scalar_t_0>(),
+          max_log_sum_exp.data_ptr<scalar_t_0>(),
+          grad.data_ptr<scalar_t_0>(), labels.data_ptr<int64_t>(),
           smoothing, dim_size
       );
     } else {
       cunn_SoftMaxXEntropyBackward<ILP, scalar_t_0, accscalar_t, accscalar_t, Epilogue>
        <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
-          gI.DATA_PTR<scalar_t_0>(), logits.DATA_PTR<scalar_t_0>(),
-          max_log_sum_exp.DATA_PTR<accscalar_t>(),
-          grad.DATA_PTR<accscalar_t>(), labels.DATA_PTR<int64_t>(),
+          gI.data_ptr<scalar_t_0>(), logits.data_ptr<scalar_t_0>(),
+          max_log_sum_exp.data_ptr<accscalar_t>(),
+          grad.data_ptr<accscalar_t>(), labels.data_ptr<int64_t>(),
           smoothing, dim_size
       );
     }
