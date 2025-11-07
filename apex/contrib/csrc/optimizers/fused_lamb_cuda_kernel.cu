@@ -284,8 +284,8 @@ void multi_tensor_lamb_cuda(
        	noop_flag,
         grad_param_list,
         LAMBStage2Functor<scalar_t_0>(),
-        std::get<1>(param_norm_tuple).DATA_PTR<float>(),
-        std::get<1>(update_norm_tuple).DATA_PTR<float>(),
+        std::get<1>(param_norm_tuple).data_ptr<float>(),
+        std::get<1>(update_norm_tuple).data_ptr<float>(),
         lr,
 	weight_decay); )
 
