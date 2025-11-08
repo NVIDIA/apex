@@ -1,7 +1,6 @@
 #include <torch/extension.h>
 #include <vector>
 #include <cassert>
-#include "compat.h"
 
 namespace {
 void compute_n1_n2(

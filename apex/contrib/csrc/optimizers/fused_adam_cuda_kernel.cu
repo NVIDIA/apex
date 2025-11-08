@@ -243,11 +243,11 @@ void fused_adam_cuda(
             DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
                 using accscalar_t = at::acc_type<scalar_t_0, true>;
                 adam_cuda_kernel<accscalar_t, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
-                        p.DATA_PTR<accscalar_t>(),
-                        p_copy.numel() ? p_copy.DATA_PTR<scalar_t_0>() : NULL,
-                        m.DATA_PTR<accscalar_t>(),
-                        v.DATA_PTR<accscalar_t>(),
-                        g.DATA_PTR<scalar_t_0>(),
+                        p.data_ptr<accscalar_t>(),
+                        p_copy.numel() ? p_copy.data_ptr<scalar_t_0>() : NULL,
+                        m.data_ptr<accscalar_t>(),
+                        v.data_ptr<accscalar_t>(),
+                        g.data_ptr<scalar_t_0>(),
                         beta1,
                         beta2,
                         eps,
@@ -261,11 +261,11 @@ void fused_adam_cuda(
             using namespace at;
             DISPATCH_DOUBLE_AND_FLOAT(g.scalar_type(), 0, "adam_cuda_kernel",
                 adam_cuda_kernel<scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
-                        p.DATA_PTR<scalar_t_0>(),
+                        p.data_ptr<scalar_t_0>(),
                         NULL, //don't output p_copy for fp32, it's wasted write
-                        m.DATA_PTR<scalar_t_0>(),
-                        v.DATA_PTR<scalar_t_0>(),
-                        g.DATA_PTR<scalar_t_0>(),
+                        m.data_ptr<scalar_t_0>(),
+                        v.data_ptr<scalar_t_0>(),
+                        g.data_ptr<scalar_t_0>(),
                         beta1,
                         beta2,
                         eps,
@@ -802,8 +802,8 @@ void fused_strided_check_finite(
         using namespace at; // prevents "toString is undefined" errors
         DISPATCH_FLOAT_HALF_AND_BYTE(p_copy.scalar_type(), 0, "check_finite_cuda_kernel",
                 strided_check_finite_cuda_kernel<scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
-                    overflow_flag.DATA_PTR<int>(),
-                    p_copy.DATA_PTR<scalar_t_0>(),
+                    overflow_flag.data_ptr<int>(),
+                    p_copy.data_ptr<scalar_t_0>(),
                     tsize,
                     stride,
                     clear_overflow_first);
@@ -856,11 +856,11 @@ void fused_reversible_adam_cuda(
               DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
                       using accscalar_t = at::acc_type<scalar_t_0, true>;
                       reversible_adam_cuda_kernel<accscalar_t, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
-                          p.DATA_PTR<accscalar_t>(),
-                          p_copy.numel() ? p_copy.DATA_PTR<scalar_t_0>() : NULL,
-                          m.DATA_PTR<accscalar_t>(),
-                          v.DATA_PTR<accscalar_t>(),
-                          g.DATA_PTR<scalar_t_0>(),
+                          p.data_ptr<accscalar_t>(),
+                          p_copy.numel() ? p_copy.data_ptr<scalar_t_0>() : NULL,
+                          m.data_ptr<accscalar_t>(),
+                          v.data_ptr<accscalar_t>(),
+                          g.data_ptr<scalar_t_0>(),
                           beta1,
                           beta2,
                           eps,
@@ -875,11 +875,11 @@ void fused_reversible_adam_cuda(
               DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
                       using accscalar_t = at::acc_type<scalar_t_0, true>;
                       reversible_adam_cuda_kernel<accscalar_t, scalar_t_0, uint8_t><<<blocks,threadsPerBlock, 0, stream>>>(
-                          p.DATA_PTR<accscalar_t>(),
-                          p_copy.DATA_PTR<uint8_t>(),
-                          m.DATA_PTR<accscalar_t>(),
-                          v.DATA_PTR<accscalar_t>(),
-                          g.DATA_PTR<scalar_t_0>(),
+                          p.data_ptr<accscalar_t>(),
+                          p_copy.data_ptr<uint8_t>(),
+                          m.data_ptr<accscalar_t>(),
+                          v.data_ptr<accscalar_t>(),
+                          g.data_ptr<scalar_t_0>(),
                           beta1,
                           beta2,
                           eps,
@@ -894,11 +894,11 @@ void fused_reversible_adam_cuda(
           using namespace at;
           DISPATCH_DOUBLE_AND_FLOAT(g.scalar_type(), 0, "adam_cuda_kernel",
                   reversible_adam_cuda_kernel<scalar_t_0, scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
-                      p.DATA_PTR<scalar_t_0>(),
+                      p.data_ptr<scalar_t_0>(),
                       NULL, //don't output p_copy for fp32, it's wasted write
-                      m.DATA_PTR<scalar_t_0>(),
-                      v.DATA_PTR<scalar_t_0>(),
-                      g.DATA_PTR<scalar_t_0>(),
+                      m.data_ptr<scalar_t_0>(),
+                      v.data_ptr<scalar_t_0>(),
+                      g.data_ptr<scalar_t_0>(),
                       beta1,
                       beta2,
                       eps,
@@ -929,9 +929,9 @@ void maybe_cast_cuda(
       DISPATCH_FLOAT_HALF_AND_BYTE(p_in.scalar_type(), 0, "maybe_cast_cuda"
               DISPATCH_FLOAT_HALF_AND_BYTE(p_out.scalar_type(), 1, "maybe_cast_cuda",
                   maybe_cast_kernel<scalar_t_0,scalar_t_1><<<blocks,threadsPerBlock, 0, stream>>>(
-                      overflow_flag.numel() ? overflow_flag.DATA_PTR<int>() : NULL,
-                      p_in.DATA_PTR<scalar_t_0>(),
-                      p_out.DATA_PTR<scalar_t_1>(),
+                      overflow_flag.numel() ? overflow_flag.data_ptr<int>() : NULL,
+                      p_in.data_ptr<scalar_t_0>(),
+                      p_out.data_ptr<scalar_t_1>(),
                       tsize); ))
       C10_CUDA_CHECK(cudaGetLastError());
 }
@@ -1000,11 +1000,11 @@ void fused_maybe_adam_undo_cuda(
         DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel",
                 using accscalar_t = at::acc_type<scalar_t_0, true>;
                 maybe_adam_undo_cuda_kernel<accscalar_t, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
-                    overflow_flag.numel() ? overflow_flag.DATA_PTR<int>() : NULL,
-                    p.DATA_PTR<accscalar_t>(),
-                    m.DATA_PTR<accscalar_t>(),
-                    v.DATA_PTR<accscalar_t>(),
-                    g.DATA_PTR<scalar_t_0>(),
+                    overflow_flag.numel() ? overflow_flag.data_ptr<int>() : NULL,
+                    p.data_ptr<accscalar_t>(),
+                    m.data_ptr<accscalar_t>(),
+                    v.data_ptr<accscalar_t>(),
+                    g.data_ptr<scalar_t_0>(),
                     beta1,
                     beta2,
                     eps,
@@ -1018,11 +1018,11 @@ void fused_maybe_adam_undo_cuda(
         using namespace at;
         DISPATCH_DOUBLE_AND_FLOAT(g.scalar_type(), 0, "adam_cuda_kernel",
                 maybe_adam_undo_cuda_kernel<scalar_t_0, scalar_t_0><<<blocks,threadsPerBlock, 0, stream>>>(
-                    overflow_flag.numel() ? overflow_flag.DATA_PTR<int>() : NULL,
-                    p.DATA_PTR<scalar_t_0>(),
-                    m.DATA_PTR<scalar_t_0>(),
-                    v.DATA_PTR<scalar_t_0>(),
-                    g.DATA_PTR<scalar_t_0>(),
+                    overflow_flag.numel() ? overflow_flag.data_ptr<int>() : NULL,
+                    p.data_ptr<scalar_t_0>(),
+                    m.data_ptr<scalar_t_0>(),
+                    v.data_ptr<scalar_t_0>(),
+                    g.data_ptr<scalar_t_0>(),
                     beta1,
                     beta2,
                     eps,

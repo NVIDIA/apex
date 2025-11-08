@@ -387,7 +387,7 @@ void multi_tensor_lamb_cuda(
         epsilon,
         (adamMode_t) mode,
         weight_decay,
-        global_grad_norm.DATA_PTR<float>(),
+        global_grad_norm.data_ptr<float>(),
         max_grad_norm); )
 
   // Compute update norms
@@ -402,8 +402,8 @@ void multi_tensor_lamb_cuda(
        	noop_flag,
         grad_param_list,
         LAMBStage2Functor<scalar_t_0>(),
-        std::get<1>(param_norm_tuple).DATA_PTR<float>(),
-        std::get<1>(update_norm_tuple).DATA_PTR<float>(),
+        std::get<1>(param_norm_tuple).data_ptr<float>(),
+        std::get<1>(update_norm_tuple).data_ptr<float>(),
         lr,
 	weight_decay,
 	use_nvlamb); )

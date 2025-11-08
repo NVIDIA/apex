@@ -297,8 +297,8 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_scale_cuda(
       noop_flag,
       tensor_lists,
       L2NormScaleFunctor<scalar_t_0, scalar_t_1>(),
-      output.DATA_PTR<float>(),
-      per_tensor ? output_per_tensor.DATA_PTR<float>() : nullptr,
+      output.data_ptr<float>(),
+      per_tensor ? output_per_tensor.data_ptr<float>() : nullptr,
       scale,
       per_tensor,
       max_chunks_per_tensor);))
@@ -313,10 +313,10 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_scale_cuda(
   const at::cuda::OptionalCUDAGuard device_guard(device_of(output));
   auto stream = at::cuda::getCurrentCUDAStream();
   cleanup_v3<<<per_tensor ? ntensors : 1, 512, 0, stream>>>(
-    output.DATA_PTR<float>(),
-    per_tensor ? output_per_tensor.DATA_PTR<float>() : nullptr,
-    ret.DATA_PTR<float>(),
-    per_tensor ? ret_per_tensor.DATA_PTR<float>() : nullptr,
+    output.data_ptr<float>(),
+    per_tensor ? output_per_tensor.data_ptr<float>() : nullptr,
+    ret.data_ptr<float>(),
+    per_tensor ? ret_per_tensor.data_ptr<float>() : nullptr,
     per_tensor,
     max_chunks_per_tensor);
 

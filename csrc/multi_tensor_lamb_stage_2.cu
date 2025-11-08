@@ -113,8 +113,8 @@ void multi_tensor_lamb_stage2_cuda(
         noop_flag,
         tensor_lists,
         LAMBStage2Functor<scalar_t_0, scalar_t_1>(),
-        per_tensor_param_norm.DATA_PTR<float>(),
-        per_tensor_update_norm.DATA_PTR<float>(),
+        per_tensor_param_norm.data_ptr<float>(),
+        per_tensor_update_norm.data_ptr<float>(),
         lr,
 	weight_decay,
 	use_nvlamb); ))

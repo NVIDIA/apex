@@ -3,8 +3,6 @@
 
 #include <cuda.h>
 
-#include "compat.h"
-
 
 #define cudaCheckErrors(msg) \
     do { \
@@ -113,17 +111,17 @@ int64_t get_buffer_size(const int bn_sync_steps) {
 
 void* get_remote_data_ptr(const at::Tensor& handle, const int64_t offset) {
   cudaIpcMemHandle_t my_handle;
-  memcpy((unsigned char *)(&my_handle), handle.DATA_PTR<uint8_t>(), sizeof(my_handle));
+  memcpy((unsigned char *)(&my_handle), handle.data_ptr<uint8_t>(), sizeof(my_handle));
   return ipc_mem_registry.getPtr(my_handle, offset);
 }
 
 void close_remote_data(const at::Tensor& handle) {
     cudaIpcMemHandle_t my_handle;
-    memcpy((unsigned char *)(&my_handle), handle.DATA_PTR<uint8_t>(), sizeof(my_handle));
+    memcpy((unsigned char *)(&my_handle), handle.data_ptr<uint8_t>(), sizeof(my_handle));
   ipc_mem_registry.releasePtr(my_handle);
 }
 
 void* get_data_ptr(
                    const at::Tensor& data) {
-  return data.DATA_PTR<uint8_t>();
+  return data.data_ptr<uint8_t>();
 }
