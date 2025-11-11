@@ -324,7 +324,7 @@ namespace {
 //      {
 //          extern __device__ void error(void);
 //          error();
-//          return NULL;
+//          return nullptr;
 //      }
 //  };
 // https://github.com/NVIDIA/apex/issues/246
@@ -1225,8 +1225,8 @@ void cuda_layer_norm_gradient(
         invvar.data_ptr<accscalar_t>(),
         input_or_output,
         n1,n2,
-            // TMJ pass NULL argument for gamma, beta, grad_gamma and grad_beta
-            // if gamma Tensor is NULL on input.
+            // TMJ pass nullptr argument for gamma, beta, grad_gamma and grad_beta
+            // if gamma Tensor is nullptr on input.
         gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : nullptr,
         gamma.has_value() ? beta->data_ptr<scalar_t_out>() : nullptr,
         epsilon,
@@ -1261,8 +1261,8 @@ void cuda_rms_norm_gradient(
         invvar.data_ptr<accscalar_t>(),
         input_or_output,
         n1,n2,
-            // TMJ pass NULL argument for gamma, beta, grad_gamma and grad_beta
-            // if gamma Tensor is NULL on input.
+            // TMJ pass nullptr argument for gamma, beta, grad_gamma and grad_beta
+            // if gamma Tensor is nullptr on input.
         gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : nullptr,
         epsilon,
         grad_input.data_ptr<scalar_t_in>(),
