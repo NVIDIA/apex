@@ -1217,7 +1217,7 @@ void cuda_layer_norm_gradient(
     using namespace at;
     // we can do away with `accscalar_t` as there're only three dtypes: fp32, fp16, bf16
     DISPATCH_FLOAT_HALF_AND_BFLOAT_INOUT_TYPES(
-      input_or_output.scalar_type(), gamma.has_value() ? input_or_output.scalar_type() :  gamma->scalar_type(), "cuComputeGradInput",
+      input_or_output.scalar_type(), gamma.has_value() ? gamma->scalar_type() : input_or_output.scalar_type(), "cuComputeGradInput",
       using accscalar_t = at::acc_type<scalar_t_in, true>;
       HostLayerNormGradient(
         dout.data_ptr<scalar_t_out>(),
@@ -1254,7 +1254,7 @@ void cuda_rms_norm_gradient(
     // we can do away with `accscalar_t` as there're only three dtypes: fp32, fp16, bf16
     // DISPATCH_FLOAT_HALF_AND_BFLOAT_INOUT_TYPES(
     DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT_INOUT_TYPES(
-      input_or_output.scalar_type(), gamma.has_value() ? input_or_output.scalar_type() :  gamma->scalar_type(), "cuComputeGradInputRMS",
+      input_or_output.scalar_type(), gamma.has_value() ? gamma->scalar_type() : input_or_output.scalar_type(), "cuComputeGradInputRMS",
       using accscalar_t = at::acc_type<scalar_t_in, true>;
       HostRMSNormGradient(
         dout.data_ptr<scalar_t_out>(),

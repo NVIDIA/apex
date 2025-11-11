@@ -186,7 +186,7 @@ void cuda_layer_norm_gradient(
 
 at::Tensor layer_norm_gradient(
     at::Tensor& dout,
-    const std::optional<at::Tensor> mean_,
+    const std::optional<at::Tensor>& mean_,
     at::Tensor& invvar,
     at::Tensor& input_or_output,
     at::IntArrayRef normalized_shape,
@@ -205,7 +205,7 @@ at::Tensor layer_norm_gradient(
 
 std::vector<at::Tensor> layer_norm_gradient_affine(
     at::Tensor& dout,
-    const c10::optional<at::Tensor>& mean_,
+    const std::optional<at::Tensor>& mean_,
     at::Tensor& invvar,
     at::Tensor& input_or_output,
     at::IntArrayRef normalized_shape,
@@ -281,7 +281,7 @@ std::vector<at::Tensor> rms_norm_affine_mixed_dtypes(
   at::Tensor output = at::empty_like(input, gamma.options().dtype(gamma.scalar_type()));
   at::Tensor invvar = at::empty({n1}, input.options().dtype(input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16 ? at::ScalarType::Float : input.scalar_type()));
 
-   cuda_rms_norm(output, invvar, input, n1, n2, normalized_shape, gamma, epsilon);
+  cuda_rms_norm(output, invvar, input, n1, n2, normalized_shape, gamma, epsilon);
   return {output,invvar};
 }
 
