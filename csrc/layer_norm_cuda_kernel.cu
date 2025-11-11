@@ -381,7 +381,7 @@ void cuApplyLayerNorm_(
     U c_invvar = rsqrt(sigma2 + epsilon);
     const int numx = blockDim.x * blockDim.y;
     const int thrx = threadIdx.x + threadIdx.y * blockDim.x;
-    if (gamma != NULL && (beta != NULL || rms_only)) {
+    if (gamma != nullptr && (beta != nullptr || rms_only)) {
       for (int i = thrx;  i < n2;  i+=numx) {
         U curr = static_cast<U>(lvals[i]);
         if (!rms_only) {
@@ -437,7 +437,7 @@ void cuApplyRMSNorm(
   const U epsilon,
   const V* __restrict__ gamma)
 {
-  cuApplyLayerNorm_<T, U, V>(output_vals, NULL, invvar, vals, n1, n2, epsilon, gamma, NULL, true);
+  cuApplyLayerNorm_<T, U, V>(output_vals, nullptr, invvar, vals, n1, n2, epsilon, gamma, nullptr, true);
 }
 
 
@@ -740,7 +740,7 @@ void cuComputeGradInput(
     const U c_mean = !MemoryEfficient ? mean[i1] : 0.;
     const int numx = blockDim.x * blockDim.y;
     const int thrx = threadIdx.x + threadIdx.y * blockDim.x;
-    if (gamma != NULL) {
+    if (gamma != nullptr) {
       int l = 4*thrx;
       for (;  l+3 < n2;  l+=4*numx) {
         for (int k = 0;  k < 4;  ++k) {
@@ -870,7 +870,7 @@ void cuComputeGradInput(
     U fH = (U)n2;
     U term1 = (U(1) / fH) * c_invvar;
     T* k_grad_input = grad_input + i1*n2;
-    if (gamma != NULL) {
+    if (gamma != nullptr) {
       for (int l = thrx;  l < n2;  l+=numx) {
         const U c_h = static_cast<U>(k_h[l]);
         const U c_loss = static_cast<U>(k_dout[l]);
@@ -993,8 +993,8 @@ void cuda_layer_norm(
           input.data_ptr<scalar_t_in>(),
           n1,n2,
           epsilon,
-          gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : NULL,
-          beta.has_value() ? beta->data_ptr<scalar_t_out>() : NULL);
+          gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : nullptr,
+          beta.has_value() ? beta->data_ptr<scalar_t_out>() : nullptr);
       )
 }
 
@@ -1018,7 +1018,7 @@ void cuda_rms_norm(
           input.data_ptr<scalar_t_in>(),
           n1,n2,
           epsilon,
-          gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : NULL);
+          gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : nullptr);
       )
 }
 
@@ -1042,7 +1042,7 @@ void HostLayerNormGradient(
 {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
 
-    if (gamma != NULL && beta != NULL) {
+    if (gamma != nullptr && beta != nullptr) {
       // compute grad_gamma(j) and grad_beta(j)
       const int part_size = 16;
       const dim3 threads2(32,4,1);
@@ -1128,7 +1128,7 @@ void HostRMSNormGradient(
 {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
 
-    if (gamma != NULL) {
+    if (gamma != nullptr) {
       const int part_size = 16;
       const dim3 threads2(32,4,1);
       const dim3 blocks2((n2+threads2.x-1)/threads2.x,part_size,1);
@@ -1221,18 +1221,18 @@ void cuda_layer_norm_gradient(
       using accscalar_t = at::acc_type<scalar_t_in, true>;
       HostLayerNormGradient(
         dout.data_ptr<scalar_t_out>(),
-        mean.has_value() ? mean->data_ptr<accscalar_t>() : NULL,
+        mean.has_value() ? mean->data_ptr<accscalar_t>() : nullptr,
         invvar.data_ptr<accscalar_t>(),
         input_or_output,
         n1,n2,
             // TMJ pass NULL argument for gamma, beta, grad_gamma and grad_beta
             // if gamma Tensor is NULL on input.
-        gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : NULL,
-        gamma.has_value() ? beta->data_ptr<scalar_t_out>() : NULL,
+        gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : nullptr,
+        gamma.has_value() ? beta->data_ptr<scalar_t_out>() : nullptr,
         epsilon,
         grad_input.data_ptr<scalar_t_in>(),
-        gamma.has_value() ? grad_gamma->data_ptr<scalar_t_out>() : NULL,
-        gamma.has_value() ? grad_beta->data_ptr<scalar_t_out>() : NULL,
+        gamma.has_value() ? grad_gamma->data_ptr<scalar_t_out>() : nullptr,
+        gamma.has_value() ? grad_beta->data_ptr<scalar_t_out>() : nullptr,
         memory_efficient);
     )
 }
@@ -1263,10 +1263,10 @@ void cuda_rms_norm_gradient(
         n1,n2,
             // TMJ pass NULL argument for gamma, beta, grad_gamma and grad_beta
             // if gamma Tensor is NULL on input.
-        gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : NULL,
+        gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : nullptr,
         epsilon,
         grad_input.data_ptr<scalar_t_in>(),
-        gamma.has_value() ? grad_gamma->data_ptr<scalar_t_out>() : NULL,
+        gamma.has_value() ? grad_gamma->data_ptr<scalar_t_out>() : nullptr,
         memory_efficient);
     )
 }
