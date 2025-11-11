@@ -1,6 +1,7 @@
 #include <torch/extension.h>
 #include <vector>
 #include <cassert>
+#include <optional>
 
 namespace {
 void compute_n1_n2(
@@ -102,15 +103,15 @@ void check_args(
 }
 
 void cuda_layer_norm(
-    at::Tensor* output,
-    at::Tensor* mean,
-    at::Tensor* invvar,
-    at::Tensor* input,
+    at::Tensor& output,
+    at::Tensor& mean,
+    at::Tensor& invvar,
+    const at::Tensor& input,
     int n1,
     int n2,
     at::IntArrayRef normalized_shape,
-    at::Tensor* gamma,
-    at::Tensor* beta,
+    const std::optional<at::Tensor>& gamma,
+    const std::optional<at::Tensor>& beta,
     double epsilon);
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
@@ -118,7 +119,7 @@ void cuda_layer_norm(
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 std::vector<at::Tensor> layer_norm(
-    at::Tensor input,
+    const at::Tensor& input,
     at::IntArrayRef normalized_shape,
     double epsilon) {
   CHECK_INPUT(input);
@@ -127,16 +128,15 @@ std::vector<at::Tensor> layer_norm(
   at::Tensor output = at::empty_like(input);
   at::Tensor mean = at::empty({n1}, input.options().dtype(input.scalar_type()==at::ScalarType::Half || input.scalar_type()==at::ScalarType::BFloat16 ? at::ScalarType::Float : input.scalar_type()));
   at::Tensor invvar = at::empty_like(mean);
-  cuda_layer_norm(&output,&mean,&invvar,&input,n1,n2,
-      normalized_shape,NULL,NULL,epsilon);
+  cuda_layer_norm(output, mean, invvar, input, n1, n2, normalized_shape, std::nullopt, std::nullopt, epsilon);
   return {output, mean, invvar};
 }
 
 std::vector<at::Tensor> layer_norm_affine(
-    at::Tensor input,
+    const at::Tensor& input,
     at::IntArrayRef normalized_shape,
-    at::Tensor gamma,
-    at::Tensor beta,
+    const at::Tensor& gamma,
+    const at::Tensor& beta,
     double epsilon) {
   CHECK_INPUT(input);
   CHECK_INPUT(gamma);
@@ -147,16 +147,15 @@ std::vector<at::Tensor> layer_norm_affine(
   const auto stats_dtype = (input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16) ? at::ScalarType::Float : input.scalar_type();
   at::Tensor mean = at::empty({n1}, input.options().dtype(stats_dtype));
   at::Tensor invvar = at::empty_like(mean);
-  cuda_layer_norm(&output,&mean,&invvar,&input,n1,n2,
-      normalized_shape,&gamma,&beta,epsilon);
+  cuda_layer_norm(output, mean, invvar, input,n1,n2, normalized_shape, gamma, beta, epsilon);
   return {output, mean, invvar};
 }
 
 std::vector<at::Tensor> layer_norm_affine_mixed_dtypes(
-    at::Tensor input,
+    const at::Tensor& input,
     at::IntArrayRef normalized_shape,
-    at::Tensor gamma,
-    at::Tensor beta,
+    const at::Tensor& gamma,
+    const at::Tensor& beta,
     double epsilon) {
   CHECK_INPUT(input);
   int n1, n2;
@@ -164,33 +163,32 @@ std::vector<at::Tensor> layer_norm_affine_mixed_dtypes(
   at::Tensor output = at::empty_like(input, gamma.options().dtype(gamma.scalar_type()));
   at::Tensor mean = at::empty({n1}, input.options().dtype(input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16 ? at::ScalarType::Float : input.scalar_type()));
   at::Tensor invvar = at::empty_like(mean);
-   cuda_layer_norm(&output, &mean, &invvar, &input, n1, n2,
-      normalized_shape, &gamma, &beta, epsilon);
+   cuda_layer_norm(output, mean, invvar, input, n1, n2, normalized_shape, gamma, beta, epsilon);
   return {output, mean, invvar};
 }
 
 void cuda_layer_norm_gradient(
-    at::Tensor* dout,
-    at::Tensor* mean,
-    at::Tensor* invvar,
-    at::Tensor* input_or_output,
+    at::Tensor& dout,
+    const std::optional<at::Tensor>& mean,
+    at::Tensor& invvar,
+    at::Tensor& input_or_output,
     int n1,
     int n2,
     at::IntArrayRef normalized_shape,
-    at::Tensor* gamma,
-    at::Tensor* beta,
+    const std::optional<at::Tensor>& gamma,
+    const std::optional<at::Tensor>& beta,
     double epsilon,
-    at::Tensor* grad_input,
-    at::Tensor* grad_gamma,
-    at::Tensor* grad_beta,
+    at::Tensor& grad_input,
+    const std::optional<at::Tensor>& grad_gamma,
+    const std::optional<at::Tensor>& grad_beta,
     bool memory_efficient
     );
 
 at::Tensor layer_norm_gradient(
-    at::Tensor dout,
-    c10::optional<at::Tensor> mean_,
-    at::Tensor invvar,
-    at::Tensor input_or_output,
+    at::Tensor& dout,
+    const std::optional<at::Tensor> mean_,
+    at::Tensor& invvar,
+    at::Tensor& input_or_output,
     at::IntArrayRef normalized_shape,
     double epsilon,
     bool memory_efficient) {
@@ -200,26 +198,23 @@ at::Tensor layer_norm_gradient(
   int n1,n2;
   check_args(input_or_output,normalized_shape,n1,n2);
   at::Tensor grad_input = at::empty_like(input_or_output);
+
   if (mean_.has_value()) {
-    cuda_layer_norm_gradient(&dout,&mean_.value(),&invvar,&input_or_output,n1,n2,
-        normalized_shape,NULL,NULL,epsilon,
-        &grad_input,NULL,NULL,memory_efficient);
+    cuda_layer_norm_gradient(dout, mean_, invvar, input_or_output, n1, n2, normalized_shape, std::nullopt, std::nullopt, epsilon, grad_input, std::nullopt, std::nullopt, memory_efficient);
   } else {
-    cuda_layer_norm_gradient(&dout,NULL,&invvar,&input_or_output,n1,n2,
-        normalized_shape,NULL,NULL,epsilon,
-        &grad_input,NULL,NULL,memory_efficient);
+    cuda_layer_norm_gradient(dout, mean_, invvar, input_or_output, n1, n2, normalized_shape, std::nullopt, std::nullopt, epsilon, grad_input, std::nullopt, std::nullopt, memory_efficient);
   }
   return grad_input;
 }
 
 std::vector<at::Tensor> layer_norm_gradient_affine(
-    at::Tensor dout,
-    c10::optional<at::Tensor> mean_,
-    at::Tensor invvar,
-    at::Tensor input_or_output,
+    at::Tensor& dout,
+    const c10::optional<at::Tensor>& mean_,
+    at::Tensor& invvar,
+    at::Tensor& input_or_output,
     at::IntArrayRef normalized_shape,
-    at::Tensor gamma,
-    at::Tensor beta,
+    at::Tensor& gamma,
+    at::Tensor& beta,
     double epsilon,
     bool memory_efficient) {
   CHECK_INPUT(dout);
@@ -234,25 +229,21 @@ std::vector<at::Tensor> layer_norm_gradient_affine(
   at::Tensor grad_beta = at::empty_like(beta);
 //   at::Tensor *mean = mean_.has_value() ? &mean_.value() : NULL;
   if (mean_.has_value()) {
-    cuda_layer_norm_gradient(&dout,&mean_.value(),&invvar,&input_or_output,n1,n2,
-        normalized_shape,&gamma,&beta,epsilon,
-        &grad_input,&grad_gamma,&grad_beta,memory_efficient);
+    cuda_layer_norm_gradient(dout, mean_, invvar, input_or_output, n1, n2, normalized_shape, gamma, beta, epsilon, grad_input, grad_gamma, grad_beta, memory_efficient);
   } else {
-    cuda_layer_norm_gradient(&dout,NULL,&invvar,&input_or_output,n1,n2,
-        normalized_shape,&gamma,&beta,epsilon,
-        &grad_input,&grad_gamma,&grad_beta,memory_efficient);
+    cuda_layer_norm_gradient(dout, mean_, invvar, input_or_output, n1, n2, normalized_shape, gamma, beta, epsilon, grad_input, grad_gamma, grad_beta, memory_efficient);
   }
   return {grad_input, grad_gamma, grad_beta};
 }
 
 void cuda_rms_norm(
-    at::Tensor* output,
-    at::Tensor* invvar,
-    at::Tensor* input,
+    at::Tensor& output,
+    at::Tensor& invvar,
+    const at::Tensor& input,
     int n1,
     int n2,
     at::IntArrayRef normalized_shape,
-    at::Tensor* gamma,
+    const std::optional<at::Tensor>& gamma,
     double epsilon);
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
@@ -260,7 +251,7 @@ void cuda_rms_norm(
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 std::vector<at::Tensor> rms_norm(
-    at::Tensor input,
+    const at::Tensor& input,
     at::IntArrayRef normalized_shape,
     double epsilon) {
   CHECK_INPUT(input);
@@ -268,15 +259,14 @@ std::vector<at::Tensor> rms_norm(
   check_args(input,normalized_shape,n1,n2);
   at::Tensor output = at::empty_like(input);
   at::Tensor invvar = at::empty({n1}, input.options().dtype(input.scalar_type()==at::ScalarType::Half || input.scalar_type()==at::ScalarType::BFloat16 ? at::ScalarType::Float : input.scalar_type()));
-  cuda_rms_norm(&output,&invvar,&input,n1,n2,
-      normalized_shape,NULL,epsilon);
+  cuda_rms_norm(output, invvar, input, n1, n2, normalized_shape, std::nullopt, epsilon);
   return {output, invvar};
 }
 
 std::vector<at::Tensor> rms_norm_affine(
-    at::Tensor input,
+    const at::Tensor& input,
     at::IntArrayRef normalized_shape,
-    at::Tensor gamma,
+    const at::Tensor& gamma,
     double epsilon) {
   CHECK_INPUT(input);
   CHECK_INPUT(gamma);
@@ -285,15 +275,14 @@ std::vector<at::Tensor> rms_norm_affine(
   at::Tensor output = at::empty_like(input);
   const auto stats_dtype = (input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16) ? at::ScalarType::Float : input.scalar_type();
   at::Tensor invvar = at::empty({n1}, input.options().dtype(stats_dtype));
-  cuda_rms_norm(&output,&invvar,&input,n1,n2,
-      normalized_shape,&gamma,epsilon);
+  cuda_rms_norm(output, invvar, input, n1, n2, normalized_shape, gamma, epsilon);
   return {output, invvar};
 }
 
 std::vector<at::Tensor> rms_norm_affine_mixed_dtypes(
-    at::Tensor input,
+    const at::Tensor& input,
     at::IntArrayRef normalized_shape,
-    at::Tensor gamma,
+    const at::Tensor& gamma,
     double epsilon) {
   CHECK_INPUT(input);
   int n1, n2;
@@ -301,28 +290,27 @@ std::vector<at::Tensor> rms_norm_affine_mixed_dtypes(
   at::Tensor output = at::empty_like(input, gamma.options().dtype(gamma.scalar_type()));
   at::Tensor invvar = at::empty({n1}, input.options().dtype(input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16 ? at::ScalarType::Float : input.scalar_type()));
 
-   cuda_rms_norm(&output,&invvar, &input, n1, n2,
-      normalized_shape, &gamma,epsilon);
+   cuda_rms_norm(output, invvar, input, n1, n2, normalized_shape, gamma, epsilon);
   return {output,invvar};
 }
 
 void cuda_rms_norm_gradient(
-    at::Tensor* dout,
-    at::Tensor* invvar,
-    at::Tensor* input_or_output,
+    at::Tensor& dout,
+    at::Tensor& invvar,
+    at::Tensor& input_or_output,
     int n1,
     int n2,
     at::IntArrayRef normalized_shape,
-    at::Tensor* gamma,
+    const std::optional<at::Tensor>& gamma,
     double epsilon,
-    at::Tensor* grad_input,
-    at::Tensor* grad_gamma,
+    at::Tensor& grad_input,
+    const std::optional<at::Tensor>& grad_gamma,
     bool memory_efficient);
 
 at::Tensor rms_norm_gradient(
-    at::Tensor dout,
-    at::Tensor invvar,
-    at::Tensor input_or_output,
+    at::Tensor& dout,
+    at::Tensor& invvar,
+    at::Tensor& input_or_output,
     at::IntArrayRef normalized_shape,
     double epsilon,
     bool memory_efficient) {
@@ -332,18 +320,16 @@ at::Tensor rms_norm_gradient(
   int n1,n2;
   check_args(input_or_output,normalized_shape,n1,n2);
   at::Tensor grad_input = at::empty_like(input_or_output);
-  cuda_rms_norm_gradient(&dout,&invvar,&input_or_output,n1,n2,
-      normalized_shape,NULL,epsilon,
-      &grad_input,NULL,memory_efficient);
+  cuda_rms_norm_gradient(dout, invvar, input_or_output, n1, n2, normalized_shape, std::nullopt, epsilon, grad_input, std::nullopt, memory_efficient);
   return grad_input;
 }
 
 std::vector<at::Tensor> rms_norm_gradient_affine(
-    at::Tensor dout,
-    at::Tensor invvar,
-    at::Tensor input_or_output,
+    at::Tensor& dout,
+    at::Tensor& invvar,
+    at::Tensor& input_or_output,
     at::IntArrayRef normalized_shape,
-    at::Tensor gamma,
+    at::Tensor& gamma,
     double epsilon,
     bool memory_efficient) {
   CHECK_INPUT(dout);
@@ -354,9 +340,7 @@ std::vector<at::Tensor> rms_norm_gradient_affine(
   check_args(input_or_output,normalized_shape,gamma,n1,n2);
   at::Tensor grad_input = at::empty_like(input_or_output);
   at::Tensor grad_gamma = at::empty_like(gamma);
-  cuda_rms_norm_gradient(&dout,&invvar,&input_or_output,n1,n2,
-      normalized_shape,&gamma,epsilon,
-      &grad_input,&grad_gamma,memory_efficient);
+  cuda_rms_norm_gradient(dout, invvar, input_or_output, n1, n2, normalized_shape, gamma, epsilon, grad_input, grad_gamma, memory_efficient);
   return {grad_input, grad_gamma};
 }
 
