@@ -199,11 +199,7 @@ at::Tensor layer_norm_gradient(
   check_args(input_or_output,normalized_shape,n1,n2);
   at::Tensor grad_input = at::empty_like(input_or_output);
 
-  if (mean_.has_value()) {
-    cuda_layer_norm_gradient(dout, mean_, invvar, input_or_output, n1, n2, normalized_shape, std::nullopt, std::nullopt, epsilon, grad_input, std::nullopt, std::nullopt, memory_efficient);
-  } else {
-    cuda_layer_norm_gradient(dout, mean_, invvar, input_or_output, n1, n2, normalized_shape, std::nullopt, std::nullopt, epsilon, grad_input, std::nullopt, std::nullopt, memory_efficient);
-  }
+  cuda_layer_norm_gradient(dout, mean_, invvar, input_or_output, n1, n2, normalized_shape, std::nullopt, std::nullopt, epsilon, grad_input, std::nullopt, std::nullopt, memory_efficient);
   return grad_input;
 }
 
@@ -227,12 +223,7 @@ std::vector<at::Tensor> layer_norm_gradient_affine(
   at::Tensor grad_input = at::empty_like(input_or_output);
   at::Tensor grad_gamma = at::empty_like(gamma);
   at::Tensor grad_beta = at::empty_like(beta);
-//   at::Tensor *mean = mean_.has_value() ? &mean_.value() : NULL;
-  if (mean_.has_value()) {
-    cuda_layer_norm_gradient(dout, mean_, invvar, input_or_output, n1, n2, normalized_shape, gamma, beta, epsilon, grad_input, grad_gamma, grad_beta, memory_efficient);
-  } else {
-    cuda_layer_norm_gradient(dout, mean_, invvar, input_or_output, n1, n2, normalized_shape, gamma, beta, epsilon, grad_input, grad_gamma, grad_beta, memory_efficient);
-  }
+  cuda_layer_norm_gradient(dout, mean_, invvar, input_or_output, n1, n2, normalized_shape, gamma, beta, epsilon, grad_input, grad_gamma, grad_beta, memory_efficient);
   return {grad_input, grad_gamma, grad_beta};
 }
 
