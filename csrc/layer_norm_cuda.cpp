@@ -163,7 +163,7 @@ std::vector<at::Tensor> layer_norm_affine_mixed_dtypes(
   at::Tensor output = at::empty_like(input, gamma.options().dtype(gamma.scalar_type()));
   at::Tensor mean = at::empty({n1}, input.options().dtype(input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16 ? at::ScalarType::Float : input.scalar_type()));
   at::Tensor invvar = at::empty_like(mean);
-   cuda_layer_norm(output, mean, invvar, input, n1, n2, normalized_shape, gamma, beta, epsilon);
+  cuda_layer_norm(output, mean, invvar, input, n1, n2, normalized_shape, gamma, beta, epsilon);
   return {output, mean, invvar};
 }
 
