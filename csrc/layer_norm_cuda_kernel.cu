@@ -9,6 +9,8 @@
 #include "type_shim.h"
 #include "static_switch.h"
 
+#include <optional>
+
 template<typename U> __device__
 void cuWelfordOnlineSum(
   const U curr,
@@ -322,7 +324,7 @@ namespace {
 //      {
 //          extern __device__ void error(void);
 //          error();
-//          return NULL;
+//          return nullptr;
 //      }
 //  };
 // https://github.com/NVIDIA/apex/issues/246
@@ -379,7 +381,7 @@ void cuApplyLayerNorm_(
     U c_invvar = rsqrt(sigma2 + epsilon);
     const int numx = blockDim.x * blockDim.y;
     const int thrx = threadIdx.x + threadIdx.y * blockDim.x;
-    if (gamma != NULL && (beta != NULL || rms_only)) {
+    if (gamma != nullptr && (beta != nullptr || rms_only)) {
       for (int i = thrx;  i < n2;  i+=numx) {
         U curr = static_cast<U>(lvals[i]);
         if (!rms_only) {
@@ -435,7 +437,7 @@ void cuApplyRMSNorm(
   const U epsilon,
   const V* __restrict__ gamma)
 {
-  cuApplyLayerNorm_<T, U, V>(output_vals, NULL, invvar, vals, n1, n2, epsilon, gamma, NULL, true);
+  cuApplyLayerNorm_<T, U, V>(output_vals, nullptr, invvar, vals, n1, n2, epsilon, gamma, nullptr, true);
 }
 
 
@@ -738,7 +740,7 @@ void cuComputeGradInput(
     const U c_mean = !MemoryEfficient ? mean[i1] : 0.;
     const int numx = blockDim.x * blockDim.y;
     const int thrx = threadIdx.x + threadIdx.y * blockDim.x;
-    if (gamma != NULL) {
+    if (gamma != nullptr) {
       int l = 4*thrx;
       for (;  l+3 < n2;  l+=4*numx) {
         for (int k = 0;  k < 4;  ++k) {
@@ -868,7 +870,7 @@ void cuComputeGradInput(
     U fH = (U)n2;
     U term1 = (U(1) / fH) * c_invvar;
     T* k_grad_input = grad_input + i1*n2;
-    if (gamma != NULL) {
+    if (gamma != nullptr) {
       for (int l = thrx;  l < n2;  l+=numx) {
         const U c_h = static_cast<U>(k_h[l]);
         const U c_loss = static_cast<U>(k_dout[l]);
@@ -969,54 +971,54 @@ void HostApplyRMSNorm(
 }
 
 void cuda_layer_norm(
-    at::Tensor* output,
-    at::Tensor* mean,
-    at::Tensor* invvar,
-    at::Tensor* input,
+    at::Tensor& output,
+    at::Tensor& mean,
+    at::Tensor& invvar,
+    const at::Tensor& input,
     int n1,
     int n2,
     at::IntArrayRef normalized_shape,
-    at::Tensor* gamma,
-    at::Tensor* beta,
+    const std::optional<at::Tensor>& gamma,
+    const std::optional<at::Tensor>& beta,
     double epsilon)
 {
     using namespace at;
     DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT_INOUT_TYPES(
-        input->scalar_type(), output->scalar_type(), "layer_norm_cuda_kernel",
+        input.scalar_type(), output.scalar_type(), "layer_norm_cuda_kernel",
         using accscalar_t = at::acc_type<scalar_t_in, true>;
         HostApplyLayerNorm<scalar_t_in, accscalar_t, scalar_t_out>(
-          output->data_ptr<scalar_t_out>(),
-              mean->data_ptr<accscalar_t>(),
-          invvar->data_ptr<accscalar_t>(),
-          input->data_ptr<scalar_t_in>(),
+          output.data_ptr<scalar_t_out>(),
+          mean.data_ptr<accscalar_t>(),
+          invvar.data_ptr<accscalar_t>(),
+          input.data_ptr<scalar_t_in>(),
           n1,n2,
           epsilon,
-          gamma != NULL ? gamma->data_ptr<scalar_t_out>() : NULL,
-          beta != NULL ? beta->data_ptr<scalar_t_out>() : NULL);
+          gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : nullptr,
+          beta.has_value() ? beta->data_ptr<scalar_t_out>() : nullptr);
       )
 }
 
 void cuda_rms_norm(
-    at::Tensor* output,
-    at::Tensor* invvar,
-    at::Tensor* input,
+    at::Tensor& output,
+    at::Tensor& invvar,
+    const at::Tensor& input,
     int n1,
     int n2,
     at::IntArrayRef normalized_shape,
-    at::Tensor* gamma,
+    const std::optional<at::Tensor>& gamma,
     double epsilon)
 {
     using namespace at;
     DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT_INOUT_TYPES(
-        input->scalar_type(), output->scalar_type(), "rms_norm_cuda_kernel",
+        input.scalar_type(), output.scalar_type(), "rms_norm_cuda_kernel",
         using accscalar_t = at::acc_type<scalar_t_in, true>;
         HostApplyRMSNorm<scalar_t_in, accscalar_t, scalar_t_out>(
-          output->data_ptr<scalar_t_out>(),
-          invvar->data_ptr<accscalar_t>(),
-          input->data_ptr<scalar_t_in>(),
+          output.data_ptr<scalar_t_out>(),
+          invvar.data_ptr<accscalar_t>(),
+          input.data_ptr<scalar_t_in>(),
           n1,n2,
           epsilon,
-          gamma != NULL ? gamma->data_ptr<scalar_t_out>() : NULL);
+          gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : nullptr);
       )
 }
 
@@ -1026,7 +1028,7 @@ void HostLayerNormGradient(
     const V* dout,
     const U* mean,
     const U* invvar,
-    at::Tensor* input_or_output,
+    at::Tensor& input_or_output,
     int n1,
     int n2,
     const V* gamma,
@@ -1040,7 +1042,7 @@ void HostLayerNormGradient(
 {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
 
-    if (gamma != NULL && beta != NULL) {
+    if (gamma != nullptr && beta != nullptr) {
       // compute grad_gamma(j) and grad_beta(j)
       const int part_size = 16;
       const dim3 threads2(32,4,1);
@@ -1051,16 +1053,16 @@ void HostLayerNormGradient(
       // note (mkozuki): I can hard code part_grad_gamma's dtype as float given that
       // the `cuda_layer_norm_gradient` doesn't support double.
       const auto part_grad_dtype =
-        (input_or_output->scalar_type() == at::ScalarType::Half || input_or_output->scalar_type() == at::ScalarType::BFloat16) ?
+        (input_or_output.scalar_type() == at::ScalarType::Half || input_or_output.scalar_type() == at::ScalarType::BFloat16) ?
         at::ScalarType::Float :
-        input_or_output->scalar_type();
-      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input_or_output->options().dtype(part_grad_dtype));
+        input_or_output.scalar_type();
+      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input_or_output.options().dtype(part_grad_dtype));
       at::Tensor part_grad_beta = at::empty_like(part_grad_gamma);
       BOOL_SWITCH(memory_efficient, MemoryEfficient, [&]{
         auto kernel = &cuComputePartGradGammaBeta<T, U, V, MemoryEfficient>;
         kernel<<<blocks2, threads2, nshared2, stream>>>(
                         dout,
-                        input_or_output->data_ptr<T>(),
+                        input_or_output.data_ptr<T>(),
                         n1,n2,
                         mean,
                         invvar,
@@ -1098,7 +1100,7 @@ void HostLayerNormGradient(
       auto kernel = cuComputeGradInput<T, U, V, MemoryEfficient>;
       kernel<<<blocks1, threads1, nshared, stream>>>(
               dout,
-              input_or_output->data_ptr<T>(),
+              input_or_output.data_ptr<T>(),
               n1,n2,
               mean,
               invvar,
@@ -1115,7 +1117,7 @@ template<typename T, typename U=float, typename V=T>
 void HostRMSNormGradient(
     const V* dout,
     const U* invvar,
-    at::Tensor* input_or_output,
+    at::Tensor& input_or_output,
     int n1,
     int n2,
     const V* gamma,
@@ -1126,7 +1128,7 @@ void HostRMSNormGradient(
 {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
 
-    if (gamma != NULL) {
+    if (gamma != nullptr) {
       const int part_size = 16;
       const dim3 threads2(32,4,1);
       const dim3 blocks2((n2+threads2.x-1)/threads2.x,part_size,1);
@@ -1136,15 +1138,15 @@ void HostRMSNormGradient(
       // note (mkozuki): I can hard code part_grad_gamma's dtype as float given that
       // the `cuda_layer_norm_gradient` doesn't support double.
       const auto part_grad_dtype =
-        (input_or_output->scalar_type() == at::ScalarType::Half || input_or_output->scalar_type() == at::ScalarType::BFloat16) ?
+        (input_or_output.scalar_type() == at::ScalarType::Half || input_or_output.scalar_type() == at::ScalarType::BFloat16) ?
         at::ScalarType::Float :
-        input_or_output->scalar_type();
-      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input_or_output->options().dtype(part_grad_dtype));
+        input_or_output.scalar_type();
+      at::Tensor part_grad_gamma = at::empty({part_size,n2}, input_or_output.options().dtype(part_grad_dtype));
       BOOL_SWITCH(memory_efficient, MemoryEfficient, [&]{
         auto kernel = &cuComputePartGradGammaBeta<T, U, V, MemoryEfficient>;
         kernel<<<blocks2, threads2, nshared2, stream>>>(
                         dout,
-                        input_or_output->data_ptr<T>(),
+                        input_or_output.data_ptr<T>(),
                         n1,n2,
                         invvar, /* unused */
                         invvar,
@@ -1183,7 +1185,7 @@ void HostRMSNormGradient(
       auto kernel = cuComputeGradInput<T, U, V, MemoryEfficient>;
       kernel<<<blocks1, threads1, nshared, stream>>>(
               dout,
-              input_or_output->data_ptr<T>(),
+              input_or_output.data_ptr<T>(),
               n1,n2,
               invvar, /* unused */
               invvar,
@@ -1197,74 +1199,74 @@ void HostRMSNormGradient(
 }
 
 void cuda_layer_norm_gradient(
-    at::Tensor* dout,
-    at::Tensor* mean,
-    at::Tensor* invvar,
-    at::Tensor* input_or_output,
+    at::Tensor& dout,
+    const std::optional<at::Tensor>& mean,
+    at::Tensor& invvar,
+    at::Tensor& input_or_output,
     int n1,
     int n2,
     at::IntArrayRef normalized_shape,
-    at::Tensor* gamma,
-    at::Tensor* beta,
+    const std::optional<at::Tensor>& gamma,
+    const std::optional<at::Tensor>& beta,
     double epsilon,
-    at::Tensor* grad_input,
-    at::Tensor* grad_gamma,
-    at::Tensor* grad_beta,
+    at::Tensor& grad_input,
+    const std::optional<at::Tensor>& grad_gamma,
+    const std::optional<at::Tensor>& grad_beta,
     bool memory_efficient)
 {
     using namespace at;
     // we can do away with `accscalar_t` as there're only three dtypes: fp32, fp16, bf16
     DISPATCH_FLOAT_HALF_AND_BFLOAT_INOUT_TYPES(
-      input_or_output->scalar_type(), gamma == NULL ? input_or_output->scalar_type() :  gamma->scalar_type(), "cuComputeGradInput",
+      input_or_output.scalar_type(), gamma.has_value() ? gamma->scalar_type() : input_or_output.scalar_type(), "cuComputeGradInput",
       using accscalar_t = at::acc_type<scalar_t_in, true>;
       HostLayerNormGradient(
-        dout->data_ptr<scalar_t_out>(),
-        mean != NULL ? mean->data_ptr<accscalar_t>() : NULL,
-        invvar->data_ptr<accscalar_t>(),
+        dout.data_ptr<scalar_t_out>(),
+        mean.has_value() ? mean->data_ptr<accscalar_t>() : nullptr,
+        invvar.data_ptr<accscalar_t>(),
         input_or_output,
         n1,n2,
-            // TMJ pass NULL argument for gamma, beta, grad_gamma and grad_beta
-            // if gamma Tensor is NULL on input.
-        gamma != NULL ? gamma->data_ptr<scalar_t_out>() : NULL,
-        gamma != NULL ? beta->data_ptr<scalar_t_out>() : NULL,
+            // TMJ pass nullptr argument for gamma, beta, grad_gamma and grad_beta
+            // if gamma Tensor is nullptr on input.
+        gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : nullptr,
+        gamma.has_value() ? beta->data_ptr<scalar_t_out>() : nullptr,
         epsilon,
-        grad_input->data_ptr<scalar_t_in>(),
-        gamma != NULL ? grad_gamma->data_ptr<scalar_t_out>() : NULL,
-        gamma != NULL ? grad_beta->data_ptr<scalar_t_out>() : NULL,
+        grad_input.data_ptr<scalar_t_in>(),
+        gamma.has_value() ? grad_gamma->data_ptr<scalar_t_out>() : nullptr,
+        gamma.has_value() ? grad_beta->data_ptr<scalar_t_out>() : nullptr,
         memory_efficient);
     )
 }
 
 void cuda_rms_norm_gradient(
-    at::Tensor* dout,
-    at::Tensor* invvar,
-    at::Tensor* input_or_output,
+    at::Tensor& dout,
+    at::Tensor& invvar,
+    at::Tensor& input_or_output,
     int n1,
     int n2,
     at::IntArrayRef normalized_shape,
-    at::Tensor* gamma,
+    const std::optional<at::Tensor>& gamma,
     double epsilon,
-    at::Tensor* grad_input,
-    at::Tensor* grad_gamma,
+    at::Tensor& grad_input,
+    const std::optional<at::Tensor>& grad_gamma,
     bool memory_efficient)
 {
     using namespace at;
     // we can do away with `accscalar_t` as there're only three dtypes: fp32, fp16, bf16
     // DISPATCH_FLOAT_HALF_AND_BFLOAT_INOUT_TYPES(
     DISPATCH_DOUBLE_FLOAT_HALF_AND_BFLOAT_INOUT_TYPES(
-      input_or_output->scalar_type(), gamma == NULL ? input_or_output->scalar_type() :  gamma->scalar_type(), "cuComputeGradInputRMS",
+      input_or_output.scalar_type(), gamma.has_value() ? gamma->scalar_type() : input_or_output.scalar_type(), "cuComputeGradInputRMS",
       using accscalar_t = at::acc_type<scalar_t_in, true>;
       HostRMSNormGradient(
-        dout->data_ptr<scalar_t_out>(),
-        invvar->data_ptr<accscalar_t>(),
+        dout.data_ptr<scalar_t_out>(),
+        invvar.data_ptr<accscalar_t>(),
         input_or_output,
         n1,n2,
-            // TMJ pass NULL argument for gamma, beta, grad_gamma and grad_beta
-            // if gamma Tensor is NULL on input.
-        gamma != NULL ? gamma->data_ptr<scalar_t_out>() : NULL,
+            // TMJ pass nullptr argument for gamma, beta, grad_gamma and grad_beta
+            // if gamma Tensor is nullptr on input.
+        gamma.has_value() ? gamma->data_ptr<scalar_t_out>() : nullptr,
         epsilon,
-        grad_input->data_ptr<scalar_t_in>(),
-        gamma != NULL ? grad_gamma->data_ptr<scalar_t_out>() : NULL,
+        grad_input.data_ptr<scalar_t_in>(),
+        gamma.has_value() ? grad_gamma->data_ptr<scalar_t_out>() : nullptr,
         memory_efficient);
     )
 }
