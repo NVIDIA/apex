@@ -27,8 +27,6 @@
 
 #pragma once
 
-#include <multihead_attn/philox.cuh>
-
 #include <fmha.h>
 #include <fmha/gmem_tile.h>
 #include <fmha/mask.h>
@@ -36,17 +34,17 @@
 #include <fmha/softmax.h>
 #include <fmha/utils.h>
 
+#include <multihead_attn/philox.cuh>
+
 namespace fmha {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int THREADS_PER_CTA> struct BlockInfoPadded {
-
+template <int THREADS_PER_CTA>
+struct BlockInfoPadded {
   template <typename Params>
-  __device__ BlockInfoPadded(const Params &params, const int bidb,
-                             const int bidh, const int tidx)
+  __device__ BlockInfoPadded(const Params &params, const int bidb, const int bidh, const int tidx)
       : bidb(bidb), bidh(bidh), h(params.h) {
-
     // The block index.
     sum_s = params.cu_seqlens[bidb];
     actual_seqlen = params.cu_seqlens[bidb + 1] - sum_s;
@@ -68,14 +66,14 @@ template <int THREADS_PER_CTA> struct BlockInfoPadded {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int CHUNKS, typename Cta_tile> struct Noloop_traits {
+template <int CHUNKS, typename Cta_tile>
+struct Noloop_traits {
   // Interpretation of Cta_tile dims, i.e. Cta_tile_p:
   enum { STEP = Cta_tile::M };
   enum { SEQLEN = Cta_tile::N };
 
   template <typename Block_info>
-  inline __device__ Noloop_traits(const int bidc, const Block_info &binfo)
-      : bidc_(bidc) {
+  inline __device__ Noloop_traits(const int bidc, const Block_info &binfo) : bidc_(bidc) {
     const int seqlen = binfo.actual_seqlen;
     const int steps = (seqlen + STEP - 1) / STEP;
     const int steps_per_chunk = (steps + CHUNKS - 1) / CHUNKS;
@@ -118,11 +116,8 @@ template <int CHUNKS, typename Cta_tile> struct Noloop_traits {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Kernel_traits>
-std::tuple<int, int, int, int, int, int> work_dist(const int total_ctas,
-                                                   const int heads_total) {
-
-  constexpr int STEPS_PER_HEAD =
-      Kernel_traits::Cta_tile_p::N / Kernel_traits::Cta_tile_p::M;
+std::tuple<int, int, int, int, int, int> work_dist(const int total_ctas, const int heads_total) {
+  constexpr int STEPS_PER_HEAD = Kernel_traits::Cta_tile_p::N / Kernel_traits::Cta_tile_p::M;
 
   const int num_full_heads = heads_total / total_ctas;
   const int heads_last_wave = heads_total % total_ctas;
@@ -139,13 +134,12 @@ std::tuple<int, int, int, int, int, int> work_dist(const int total_ctas,
       // We have exactly "num_main_groups" CTAs to process each of the remaining
       // heads.
       main_steps = (STEPS_PER_HEAD + num_main_groups - 1) / num_main_groups;
-      num_main_groups = STEPS_PER_HEAD / main_steps; // Here: main_step > 0
+      num_main_groups = STEPS_PER_HEAD / main_steps;  // Here: main_step > 0
       rest_steps = STEPS_PER_HEAD % main_steps;
 
     } else {
       // Ideal number of steps if we could load-balance as evenly as possible.
-      const int steps_ideal =
-          (heads_last_wave * STEPS_PER_HEAD + total_ctas - 1) / total_ctas;
+      const int steps_ideal = (heads_last_wave * STEPS_PER_HEAD + total_ctas - 1) / total_ctas;
       // Iterations that a "rest" CTA has to do at most.
       const int max_rest_iters = (heads_last_wave + rest_ctas - 1) / rest_ctas;
       // Find the first step distribution, s.t. the maximum work of the "rest"
@@ -155,8 +149,7 @@ std::tuple<int, int, int, int, int, int> work_dist(const int total_ctas,
       for (; main_steps * num_main_groups < STEPS_PER_HEAD; main_steps++) {
         rest_steps = STEPS_PER_HEAD - main_steps * num_main_groups;
         const int max_rest_total_steps = rest_steps * max_rest_iters;
-        if (max_rest_total_steps < main_steps)
-          break;
+        if (max_rest_total_steps < main_steps) break;
       }
       rest_steps = STEPS_PER_HEAD - main_steps * num_main_groups;
     }
@@ -165,16 +158,13 @@ std::tuple<int, int, int, int, int, int> work_dist(const int total_ctas,
   using Cta_tile_p = typename Kernel_traits::Cta_tile_p;
   using Mma_tile_p = fmha::Hmma_tile<Cta_tile_p>;
 
-  const int max_steps =
-      STEPS_PER_HEAD * num_full_heads + std::max(main_steps, rest_steps);
-  const int elts_per_thread_per_step =
-      Mma_tile_p::MMAS_M * Mma_tile_p::MMAS_N * 8;
+  const int max_steps = STEPS_PER_HEAD * num_full_heads + std::max(main_steps, rest_steps);
+  const int elts_per_thread_per_step = Mma_tile_p::MMAS_M * Mma_tile_p::MMAS_N * 8;
   const int elts_per_thread = max_steps * elts_per_thread_per_step;
 
-  return {num_full_heads, num_main_groups, heads_last_wave,
-          main_steps,     rest_steps,      elts_per_thread};
+  return {num_full_heads, num_main_groups, heads_last_wave, main_steps, rest_steps, elts_per_thread};
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace fmha
+}  // namespace fmha

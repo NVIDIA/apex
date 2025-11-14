@@ -3,12 +3,13 @@
 #pragma once
 
 #include <cufile.h>
-#include <string>
 #include <torch/torch.h>
+
+#include <string>
 
 namespace apex::contrib::gds {
 class File {
-public:
+ public:
   File();
   File(const std::string &filename, const std::string &mode);
   ~File();
@@ -21,7 +22,7 @@ public:
   void load_data_no_gds(const torch::Tensor &tensor);
   void save_data_no_gds(const torch::Tensor &tensor);
 
-private:
+ private:
   std::string filename;
   std::string mode;
 
@@ -33,4 +34,4 @@ private:
   bool is_open = false;
   bool maybe_register = true;
 };
-} // namespace apex::contrib::gds
+}  // namespace apex::contrib::gds

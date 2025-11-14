@@ -58,7 +58,6 @@ template <
     // Use or not predicates
     bool USE_PREDICATES_ = true>
 struct Smem_tile_without_skews {
-
   // The size in bits of each element.
   enum { BITS_PER_ELEMENT = BITS_PER_ELEMENT_ };
   // The size in bytes of a single STS.
@@ -78,10 +77,7 @@ struct Smem_tile_without_skews {
   // The number of threads per row.
   enum { THREADS_PER_ROW_UNBOUNDED = BYTES_PER_ROW / BYTES_PER_STS };
   // The number of threads per row.
-  enum {
-    THREADS_PER_ROW =
-        Min<Cta_tile::THREADS_PER_CTA, THREADS_PER_ROW_UNBOUNDED>::VALUE
-  };
+  enum { THREADS_PER_ROW = Min<Cta_tile::THREADS_PER_CTA, THREADS_PER_ROW_UNBOUNDED>::VALUE };
 
   // The number of STS per row.
   enum { STS_PER_ROW = BYTES_PER_ROW / THREADS_PER_ROW / BYTES_PER_STS };
@@ -121,21 +117,17 @@ struct Smem_tile_without_skews {
   using Store_type = typename Uint_from_size_in_bytes<BYTES_PER_STS>::Type;
 
   // Ctor.
-  inline __device__ Smem_tile_without_skews(void *smem, int tidx)
-      : smem_(__nvvm_get_smem_pointer(smem)) {
-
+  inline __device__ Smem_tile_without_skews(void *smem, int tidx) : smem_(__nvvm_get_smem_pointer(smem)) {
     // The row written by a thread. See doc/mma_smem_layout.xlsx.
     int smem_write_row = tidx / THREADS_PER_ROW;
 
     // The XOR pattern.
-    int smem_write_xor =
-        smem_write_row % ROWS_PER_XOR_PATTERN * COLS_PER_XOR_PATTERN;
+    int smem_write_xor = smem_write_row % ROWS_PER_XOR_PATTERN * COLS_PER_XOR_PATTERN;
     // Compute the column and apply the XOR pattern.
     int smem_write_col = (tidx % THREADS_PER_ROW) ^ smem_write_xor;
 
     // The offset.
-    this->smem_write_offset_ =
-        smem_write_row * BYTES_PER_ROW + smem_write_col * BYTES_PER_STS;
+    this->smem_write_offset_ = smem_write_row * BYTES_PER_ROW + smem_write_col * BYTES_PER_STS;
 
     // TODO: Why not merge it with the read offset?
     this->smem_read_buffer_ = __shfl_sync(0xffffffff, 0, 0);
@@ -191,10 +183,10 @@ struct Smem_tile_without_skews {
           if (threadIdx.x == 0) {
             uint32_t val;
             lds(val, smem_ + row * BYTES_PER_ROW + col + buffer);
-            printf("block=(x=%2d, y=%2d, z=%2d) (smem_=%2d, buffer=%2d, "
-                   "row=%2d, byte=%4d)=0x%08x\n",
-                   blockIdx.x, blockIdx.y, blockIdx.z, smem_, buffer, row, col,
-                   val);
+            printf(
+                "block=(x=%2d, y=%2d, z=%2d) (smem_=%2d, buffer=%2d, "
+                "row=%2d, byte=%4d)=0x%08x\n",
+                blockIdx.x, blockIdx.y, blockIdx.z, smem_, buffer, row, col, val);
           }
         }
       }
@@ -203,8 +195,7 @@ struct Smem_tile_without_skews {
 
   // Move the read offset to next buffer.
   inline __device__ void move_to_next_read_buffer() {
-    if (BUFFERS_PER_TILE > 1 &&
-        smem_read_buffer_ >= BYTES_PER_TILE_INC_BOUNDARY) {
+    if (BUFFERS_PER_TILE > 1 && smem_read_buffer_ >= BYTES_PER_TILE_INC_BOUNDARY) {
       this->smem_read_buffer_ -= BYTES_PER_TILE_INC_BOUNDARY;
     } else if (BUFFERS_PER_TILE > 1) {
       this->smem_read_buffer_ += BYTES_PER_BUFFER;
@@ -212,29 +203,23 @@ struct Smem_tile_without_skews {
   }
 
   // Move the read offset to next buffer. TODO: Remove this member function!!!
-  inline __device__ void move_next_read_buffer() {
-    this->move_to_next_read_buffer();
-  }
+  inline __device__ void move_next_read_buffer() { this->move_to_next_read_buffer(); }
 
   // Move the read offset to next N buffer (circular-buffer).
   inline __device__ void move_to_next_read_buffer(int N) {
     if (BUFFERS_PER_TILE > 1) {
       this->smem_read_buffer_ += N * BYTES_PER_BUFFER;
-      this->smem_read_buffer_ -=
-          smem_read_buffer_ >= BYTES_PER_TILE ? BYTES_PER_TILE : 0;
+      this->smem_read_buffer_ -= smem_read_buffer_ >= BYTES_PER_TILE ? BYTES_PER_TILE : 0;
     }
   }
 
   // Move the read offset to next N buffer (circular-buffer). TODO: Remove this
   // member function!!!
-  inline __device__ void move_next_read_buffer(int N) {
-    this->move_to_next_read_buffer(N);
-  }
+  inline __device__ void move_next_read_buffer(int N) { this->move_to_next_read_buffer(N); }
 
   // Move the write offset to next buffer.
   inline __device__ void move_to_next_write_buffer() {
-    if (BUFFERS_PER_TILE > 1 &&
-        smem_write_buffer_ >= BYTES_PER_TILE_INC_BOUNDARY) {
+    if (BUFFERS_PER_TILE > 1 && smem_write_buffer_ >= BYTES_PER_TILE_INC_BOUNDARY) {
       this->smem_write_buffer_ -= BYTES_PER_TILE_INC_BOUNDARY;
     } else if (BUFFERS_PER_TILE > 1) {
       this->smem_write_buffer_ += BYTES_PER_BUFFER;
@@ -242,19 +227,13 @@ struct Smem_tile_without_skews {
   }
 
   // Move the write offset to next buffer. TODO: Remove that member function!
-  inline __device__ void move_next_write_buffer() {
-    this->move_to_next_write_buffer();
-  }
+  inline __device__ void move_next_write_buffer() { this->move_to_next_write_buffer(); }
 
   // Move the read offset.
-  inline __device__ void move_read_offset(int delta) {
-    this->smem_read_offset_ += delta;
-  }
+  inline __device__ void move_read_offset(int delta) { this->smem_read_offset_ += delta; }
 
   // Move the write offset.
-  inline __device__ void move_write_offset(int delta) {
-    this->smem_write_offset_ += delta;
-  }
+  inline __device__ void move_write_offset(int delta) { this->smem_write_offset_ += delta; }
 
   // Store to the tile in shared memory.
   template <int N>
@@ -266,8 +245,7 @@ struct Smem_tile_without_skews {
 
   // Store to the tile in shared memory.
   template <int N, int M>
-  inline __device__ void store(const Store_type (&data)[N],
-                               uint32_t (&preds)[M], uint64_t = 0) {
+  inline __device__ void store(const Store_type (&data)[N], uint32_t (&preds)[M], uint64_t = 0) {
     uint32_t smem_ptrs[N];
     this->compute_store_pointers(smem_ptrs);
     sts(smem_ptrs, data, preds);
@@ -275,15 +253,13 @@ struct Smem_tile_without_skews {
 
   // Store to the tile in shared memory.
   template <int N>
-  inline __device__ void store(const Store_type (&data)[N], uint32_t preds,
-                               uint64_t = 0) {
+  inline __device__ void store(const Store_type (&data)[N], uint32_t preds, uint64_t = 0) {
     this->store(data, preds);
   }
 
   // Store to the tile in shared memory.
   template <int N>
-  inline __device__ void store(const void *(&gmem_ptrs)[N], uint32_t preds,
-                               uint64_t = 0) {
+  inline __device__ void store(const void *(&gmem_ptrs)[N], uint32_t preds, uint64_t = 0) {
     uint32_t tmp[1] = {preds};
     this->store(gmem_ptrs, tmp);
   }
@@ -317,15 +293,14 @@ struct Smem_tile_a {};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int MMAS_K, int MMAS_K_WITH_PADDING> struct Compute_reset_mask {
+template <int MMAS_K, int MMAS_K_WITH_PADDING>
+struct Compute_reset_mask {
   // The potential mask.
   enum { HALF = MMAS_K_WITH_PADDING / 2 };
   // The remainder.
   enum { MOD = MMAS_K % HALF };
   // The final value.
-  enum {
-    VALUE = (MMAS_K == MOD ? 0 : HALF) | Compute_reset_mask<MOD, HALF>::VALUE
-  };
+  enum { VALUE = (MMAS_K == MOD ? 0 : HALF) | Compute_reset_mask<MOD, HALF>::VALUE };
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -337,13 +312,15 @@ struct Compute_reset_mask<0, MMAS_K_WITH_PADDING> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int MMAS_K> struct Compute_reset_mask<MMAS_K, MMAS_K> {
+template <int MMAS_K>
+struct Compute_reset_mask<MMAS_K, MMAS_K> {
   enum { VALUE = MMAS_K - 1 };
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int N> struct Rows_per_xor_pattern_a {
+template <int N>
+struct Rows_per_xor_pattern_a {
   // The size in bits.
   enum { N_IN_BITS = N * fmha::BITS_PER_ELEMENT_A };
   // The number of rows.
@@ -366,17 +343,13 @@ template <
     int BUFFERS_PER_TILE,
     // How many rows to use for the XOR pattern to avoid bank conflicts?
     int ROWS_PER_XOR_PATTERN_ = Rows_per_xor_pattern_row_a<Cta_tile::K>::VALUE>
-struct Smem_tile_row_a
-    : public Smem_tile_without_skews<
-          Cta_tile, Cta_tile::M, Cta_tile::K, fmha::BITS_PER_ELEMENT_A,
-          BYTES_PER_STS, BUFFERS_PER_TILE, 0, ROWS_PER_XOR_PATTERN_, 1> {
+struct Smem_tile_row_a : public Smem_tile_without_skews<Cta_tile, Cta_tile::M, Cta_tile::K, fmha::BITS_PER_ELEMENT_A,
+                                                        BYTES_PER_STS, BUFFERS_PER_TILE, 0, ROWS_PER_XOR_PATTERN_, 1> {
   // The MMA tile.
   using Mma_tile = fmha::Hmma_tile<Cta_tile>;
   // The base class.
-  using Base =
-      Smem_tile_without_skews<Cta_tile, Cta_tile::M, Cta_tile::K,
-                              fmha::BITS_PER_ELEMENT_A, BYTES_PER_STS,
-                              BUFFERS_PER_TILE, 0, ROWS_PER_XOR_PATTERN_, 1>;
+  using Base = Smem_tile_without_skews<Cta_tile, Cta_tile::M, Cta_tile::K, fmha::BITS_PER_ELEMENT_A, BYTES_PER_STS,
+                                       BUFFERS_PER_TILE, 0, ROWS_PER_XOR_PATTERN_, 1>;
   // The fragment.
   using Fragment = Fragment_a<Row>;
 
@@ -390,7 +363,6 @@ struct Smem_tile_row_a
 
   // Ctor.
   inline __device__ Smem_tile_row_a(void *smem, int tidx) : Base(smem, tidx) {
-
     // For documentation on the layout, see doc/mma_smem_layout.xlsx.
 
     // The number of warps.
@@ -409,8 +381,7 @@ struct Smem_tile_row_a
     smem_read_col ^= (tidx & 0x10) / 16;
 
     // The shared memory offset.
-    this->smem_read_offset_ =
-        smem_read_row * Base::BYTES_PER_ROW + smem_read_col * BYTES_PER_LDS;
+    this->smem_read_offset_ = smem_read_row * Base::BYTES_PER_ROW + smem_read_col * BYTES_PER_LDS;
   }
 
   // Rewind smem_read_offset for last LDS phase in main loop.
@@ -428,13 +399,11 @@ struct Smem_tile_row_a
     for (int mi = 0; mi < Mma_tile::MMAS_M; ++mi) {
       // Jump by as many matrix rows as needed (a row in smem may pack multiple
       // matrix rows).
-      int offset =
-          mi * Mma_tile::M_PER_MMA_PER_CTA * Base::BYTES_PER_ROW_BEFORE_PACKING;
+      int offset = mi * Mma_tile::M_PER_MMA_PER_CTA * Base::BYTES_PER_ROW_BEFORE_PACKING;
 
       // Load using LDSM.M88.4.
       uint4 tmp;
-      ldsm(tmp, this->smem_ + this->smem_read_offset_ +
-                    this->smem_read_buffer_ + offset);
+      ldsm(tmp, this->smem_ + this->smem_read_offset_ + this->smem_read_buffer_ + offset);
 
       // Store the value into the fragment.
       a[mi].reg(0) = tmp.x;
@@ -507,7 +476,8 @@ struct Smem_tile_b {};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int N> struct Rows_per_xor_pattern_b {
+template <int N>
+struct Rows_per_xor_pattern_b {
   // The size in bits.
   enum { N_IN_BITS = N * fmha::BITS_PER_ELEMENT_B };
   // The number of rows.
@@ -530,17 +500,13 @@ template <
     int BUFFERS_PER_TILE,
     // How many rows to use for the XOR pattern to avoid bank conflicts?
     int ROWS_PER_XOR_PATTERN_ = Rows_per_xor_pattern_col_b<Cta_tile::K>::VALUE>
-struct Smem_tile_col_b
-    : public Smem_tile_without_skews<
-          Cta_tile, Cta_tile::N, Cta_tile::K, fmha::BITS_PER_ELEMENT_B,
-          BYTES_PER_STS, BUFFERS_PER_TILE, 0, ROWS_PER_XOR_PATTERN_, 1> {
+struct Smem_tile_col_b : public Smem_tile_without_skews<Cta_tile, Cta_tile::N, Cta_tile::K, fmha::BITS_PER_ELEMENT_B,
+                                                        BYTES_PER_STS, BUFFERS_PER_TILE, 0, ROWS_PER_XOR_PATTERN_, 1> {
   // The MMA tile.
   using Mma_tile = fmha::Hmma_tile<Cta_tile>;
   // The base class.
-  using Base =
-      Smem_tile_without_skews<Cta_tile, Cta_tile::N, Cta_tile::K,
-                              fmha::BITS_PER_ELEMENT_B, BYTES_PER_STS,
-                              BUFFERS_PER_TILE, 0, ROWS_PER_XOR_PATTERN_, 1>;
+  using Base = Smem_tile_without_skews<Cta_tile, Cta_tile::N, Cta_tile::K, fmha::BITS_PER_ELEMENT_B, BYTES_PER_STS,
+                                       BUFFERS_PER_TILE, 0, ROWS_PER_XOR_PATTERN_, 1>;
   // The fragment.
   using Fragment = Fragment_b<Col>;
 
@@ -553,16 +519,12 @@ struct Smem_tile_col_b
   enum { BYTES_PER_LDS = 16 };
 
   // The number of STS per thread
-  enum {
-    STS_PER_THREAD_ =
-        Base::ROWS * Base::THREADS_PER_ROW / Cta_tile::THREADS_PER_CTA
-  };
+  enum { STS_PER_THREAD_ = Base::ROWS * Base::THREADS_PER_ROW / Cta_tile::THREADS_PER_CTA };
   // The number of STS per thread must be at least 1.
   enum { STS_PER_THREAD = Max<1, STS_PER_THREAD_>::VALUE };
 
   // Ctor.
   inline __device__ Smem_tile_col_b(void *smem, int tidx) : Base(smem, tidx) {
-
     // For documentation on the layout, see doc/mma_smem_layout.xlsx.
 
     // The number of warps.
@@ -581,14 +543,11 @@ struct Smem_tile_col_b
     const int WARP_DIV_N = WARPS_M * 1 * Cta_tile::THREADS_PER_WARP;
 
     // The row and column read by the thread.
-    int smem_read_row =
-        (tidx & WARP_MASK_N) / WARP_DIV_N * Mma_tile::N_PER_MMA +
-        (tidx & 0x07) + (tidx & 0x10) / 2;
+    int smem_read_row = (tidx & WARP_MASK_N) / WARP_DIV_N * Mma_tile::N_PER_MMA + (tidx & 0x07) + (tidx & 0x10) / 2;
     int smem_read_col = (tidx & 0x07);
     smem_read_col ^= (tidx & 0x08) / 8;
     // The shared memory offset.
-    this->smem_read_offset_ =
-        smem_read_row * Base::BYTES_PER_ROW + smem_read_col * BYTES_PER_LDS;
+    this->smem_read_offset_ = smem_read_row * Base::BYTES_PER_ROW + smem_read_col * BYTES_PER_LDS;
   }
 
   // Rewind smem_read_offset for last LDS phase in main loop.
@@ -606,13 +565,11 @@ struct Smem_tile_col_b
     for (int ni = 0; ni < Mma_tile::MMAS_N; ++ni) {
       // Jump by as many matrix rows as needed (a row in smem may pack multiple
       // matrix rows).
-      int offset =
-          ni * Mma_tile::N_PER_MMA_PER_CTA * Base::BYTES_PER_ROW_BEFORE_PACKING;
+      int offset = ni * Mma_tile::N_PER_MMA_PER_CTA * Base::BYTES_PER_ROW_BEFORE_PACKING;
 
       // Load using LDSM.M88.4.
       uint4 tmp;
-      ldsm(tmp, this->smem_ + this->smem_read_offset_ +
-                    this->smem_read_buffer_ + offset);
+      ldsm(tmp, this->smem_ + this->smem_read_offset_ + this->smem_read_buffer_ + offset);
 
       // Store the value into the fragment.
       b[ni].reg(0) = tmp.x;
@@ -661,7 +618,6 @@ template <
     int BUFFERS_PER_TILE>
 struct Smem_tile_b<Cta_tile, Col, BYTES_PER_STS, BUFFERS_PER_TILE>
     : public Smem_tile_col_b<Cta_tile, BYTES_PER_STS, BUFFERS_PER_TILE> {
-
   // The base class.
   using Base = Smem_tile_col_b<Cta_tile, BYTES_PER_STS, BUFFERS_PER_TILE>;
 
@@ -688,19 +644,13 @@ template <
     // How many cols to use for the XOR pattern to avoid bank conflicts?
     int COLS_PER_XOR_PATTERN_ = 1>
 struct Smem_tile_row_b
-    : public Smem_tile_without_skews<Cta_tile, Cta_tile::K, Cta_tile::N,
-                                     fmha::BITS_PER_ELEMENT_B, BYTES_PER_STS,
-                                     BUFFERS_PER_TILE, 0, ROWS_PER_XOR_PATTERN_,
-                                     COLS_PER_XOR_PATTERN_> {
-
+    : public Smem_tile_without_skews<Cta_tile, Cta_tile::K, Cta_tile::N, fmha::BITS_PER_ELEMENT_B, BYTES_PER_STS,
+                                     BUFFERS_PER_TILE, 0, ROWS_PER_XOR_PATTERN_, COLS_PER_XOR_PATTERN_> {
   // The MMA tile.
   using Mma_tile = fmha::Hmma_tile<Cta_tile>;
   // The base class.
-  using Base =
-      Smem_tile_without_skews<Cta_tile, Cta_tile::K, Cta_tile::N,
-                              fmha::BITS_PER_ELEMENT_B, BYTES_PER_STS,
-                              BUFFERS_PER_TILE, 0, ROWS_PER_XOR_PATTERN_,
-                              COLS_PER_XOR_PATTERN_>;
+  using Base = Smem_tile_without_skews<Cta_tile, Cta_tile::K, Cta_tile::N, fmha::BITS_PER_ELEMENT_B, BYTES_PER_STS,
+                                       BUFFERS_PER_TILE, 0, ROWS_PER_XOR_PATTERN_, COLS_PER_XOR_PATTERN_>;
   // The fragment.
   using Fragment = Fragment_b<Row>;
 
@@ -712,16 +662,12 @@ struct Smem_tile_row_b
   enum { ELEMENTS_PER_LDS = BYTES_PER_LDS * 8 / fmha::BITS_PER_ELEMENT_B };
 
   // The number of STS per thread
-  enum {
-    STS_PER_THREAD_ =
-        Base::ROWS * Base::THREADS_PER_ROW / Cta_tile::THREADS_PER_CTA
-  };
+  enum { STS_PER_THREAD_ = Base::ROWS * Base::THREADS_PER_ROW / Cta_tile::THREADS_PER_CTA };
   // The number of STS per thread must be at least 1.
   enum { STS_PER_THREAD = Max<1, STS_PER_THREAD_>::VALUE };
 
   // Ctor.
   inline __device__ Smem_tile_row_b(void *smem, int tidx) : Base(smem, tidx) {
-
     // The number of warps.
     const int WARPS_M = Cta_tile::WARPS_M;
     const int WARPS_N = Cta_tile::WARPS_N;
@@ -744,14 +690,12 @@ struct Smem_tile_row_b
     static_assert(USE_LDSMT);
     static_assert(Base::ROWS_PER_XOR_PATTERN == 8);
 
-    smem_read_row = (tidx & WARP_MASK_K) / WARP_DIV_K * Mma_tile::MMAS_K * 16 +
-                    (tidx & 0x07) + (tidx & 0x08);
+    smem_read_row = (tidx & WARP_MASK_K) / WARP_DIV_K * Mma_tile::MMAS_K * 16 + (tidx & 0x07) + (tidx & 0x08);
     smem_read_col = (tidx & 0x07);
     smem_read_col ^= (tidx & WARP_MASK_N) / WARP_DIV_N * 2 + (tidx & 0x10) / 16;
 
     // The shared memory offset.
-    this->smem_read_offset_ =
-        smem_read_row * Base::BYTES_PER_ROW + smem_read_col * BYTES_PER_LDS;
+    this->smem_read_offset_ = smem_read_row * Base::BYTES_PER_ROW + smem_read_col * BYTES_PER_LDS;
 
     // Fill zeroes for group conv
   }
@@ -761,8 +705,7 @@ struct Smem_tile_row_b
     // The size of each element in bits.
     const int BITS_PER_ELT = fmha::BITS_PER_ELEMENT_B;
     // The size in bytes of the data needed to compute an MMA per CTA.
-    const int BYTES_PER_MMA_PER_CTA =
-        Mma_tile::N_PER_MMA_PER_CTA * BITS_PER_ELT / 8;
+    const int BYTES_PER_MMA_PER_CTA = Mma_tile::N_PER_MMA_PER_CTA * BITS_PER_ELT / 8;
 
 #pragma unroll
     for (int ni = 0; ni < Mma_tile::MMAS_N; ++ni) {
@@ -782,8 +725,7 @@ struct Smem_tile_row_b
     }
 
     // Reset smem_read_offset for odd MMAS_N > 1 (npo2 kernels)
-    if (BYTES_PER_MMA_PER_CTA == 64 && Mma_tile::MMAS_N > 1 &&
-        Mma_tile::MMAS_N % 2 == 1) {
+    if (BYTES_PER_MMA_PER_CTA == 64 && Mma_tile::MMAS_N > 1 && Mma_tile::MMAS_N % 2 == 1) {
       this->smem_read_offset_ ^= BYTES_PER_MMA_PER_CTA;
     }
   }
@@ -793,8 +735,7 @@ struct Smem_tile_row_b
     // The size of each element in bits.
     const int BITS_PER_ELT = fmha::BITS_PER_ELEMENT_B;
     // The size in bytes of the data needed to compute an MMA per CTA.
-    const int BYTES_PER_MMA_PER_CTA =
-        Mma_tile::N_PER_MMA_PER_CTA * BITS_PER_ELT / 8;
+    const int BYTES_PER_MMA_PER_CTA = Mma_tile::N_PER_MMA_PER_CTA * BITS_PER_ELT / 8;
 
 #pragma unroll
     for (int ni = 0; ni < Mma_tile::MMAS_N; ++ni) {
@@ -803,8 +744,7 @@ struct Smem_tile_row_b
       if (BYTES_PER_MMA_PER_CTA == 32) {
         offset += this->smem_read_offset_;
       } else if (BYTES_PER_MMA_PER_CTA == 64) {
-        offset +=
-            this->smem_read_offset_ + (ni / 2) * BYTES_PER_MMA_PER_CTA * 2;
+        offset += this->smem_read_offset_ + (ni / 2) * BYTES_PER_MMA_PER_CTA * 2;
       } else {
         offset += this->smem_read_offset_ + (ni)*BYTES_PER_MMA_PER_CTA;
       }
@@ -843,8 +783,7 @@ struct Smem_tile_row_b
     }
 
     // Reset smem_read_offset for odd MMAS_N > 1 (npo2 kernels)
-    if (BYTES_PER_MMA_PER_CTA == 64 && Mma_tile::MMAS_N > 1 &&
-        Mma_tile::MMAS_N % 2 == 1) {
+    if (BYTES_PER_MMA_PER_CTA == 64 && Mma_tile::MMAS_N > 1 && Mma_tile::MMAS_N % 2 == 1) {
       this->smem_read_offset_ ^= BYTES_PER_MMA_PER_CTA;
     }
   }
@@ -861,7 +800,6 @@ template <
     int BUFFERS_PER_TILE>
 struct Smem_tile_b<Cta_tile, Row, BYTES_PER_STS, BUFFERS_PER_TILE>
     : public Smem_tile_row_b<Cta_tile, BYTES_PER_STS, BUFFERS_PER_TILE> {
-
   // The base class.
   using Base = Smem_tile_row_b<Cta_tile, BYTES_PER_STS, BUFFERS_PER_TILE>;
 
@@ -872,13 +810,9 @@ struct Smem_tile_b<Cta_tile, Row, BYTES_PER_STS, BUFFERS_PER_TILE>
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Cta_tile>
-struct Smem_tile_v
-    : public fmha::Smem_tile_without_skews<Cta_tile, Cta_tile::K, Cta_tile::N,
-                                           16, 16, 1, 0, 8, 1> {
-
+struct Smem_tile_v : public fmha::Smem_tile_without_skews<Cta_tile, Cta_tile::K, Cta_tile::N, 16, 16, 1, 0, 8, 1> {
   // The base class.
-  using Base = Smem_tile_without_skews<Cta_tile, Cta_tile::K, Cta_tile::N, 16,
-                                       16, 1, 0, 8, 1>;
+  using Base = Smem_tile_without_skews<Cta_tile, Cta_tile::K, Cta_tile::N, 16, 16, 1, 0, 8, 1>;
   // The MMA tile.
   using Mma_tile = fmha::Hmma_tile<Cta_tile>;
   // The fragment.
@@ -889,7 +823,6 @@ struct Smem_tile_v
 
   // Ctor.
   inline __device__ Smem_tile_v(void *smem, int tidx) : Base(smem, tidx) {
-
     // The row/col read by the thread.
     int read_row, read_col;
 
@@ -901,8 +834,7 @@ struct Smem_tile_v
     read_col ^= (tidx & 0x10) / 16;
 
     // The shared memory offset.
-    this->smem_read_offset_ =
-        read_row * Base::BYTES_PER_ROW + read_col * BYTES_PER_LDS;
+    this->smem_read_offset_ = read_row * Base::BYTES_PER_ROW + read_col * BYTES_PER_LDS;
   }
 
   // Load from shared memory.
@@ -914,8 +846,7 @@ struct Smem_tile_v
 
       // Load the data using LDSM.MT88.2.
       uint4 tmp;
-      fmha::ldsmt(tmp, this->smem_ + this->smem_read_offset_ +
-                           row * Base::BYTES_PER_ROW);
+      fmha::ldsmt(tmp, this->smem_ + this->smem_read_offset_ + row * Base::BYTES_PER_ROW);
       b[ni].reg(0) = tmp.x;
       b[ni].reg(1) = tmp.y;
       b[ni].reg(2) = tmp.z;
@@ -926,7 +857,7 @@ struct Smem_tile_v
       if (Mma_tile::MMAS_N == 4) {
         this->smem_read_offset_ ^= BYTES_PER_LDS * (ni % 2 == 0 ? 2 : 6);
       } else {
-        assert(false); // Not implemented!
+        assert(false);  // Not implemented!
       }
     }
   }
@@ -934,8 +865,8 @@ struct Smem_tile_v
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Cta_tile> struct Smem_tile_o {
-
+template <typename Cta_tile>
+struct Smem_tile_o {
   // The MMA tile.
   using Mma_tile = fmha::Hmma_tile<Cta_tile>;
   // The accumulators.
@@ -983,7 +914,6 @@ template <typename Cta_tile> struct Smem_tile_o {
 
   // Ctor.
   inline __device__ Smem_tile_o(void *smem, int tidx) {
-
     // Get a 32-bit value for the shared memory address.
     uint32_t smem_ = __nvvm_get_smem_pointer(smem);
 
@@ -1004,13 +934,11 @@ template <typename Cta_tile> struct Smem_tile_o {
     read_col ^= 2 * (read_row & 0x7);
 
     // Assemble the read pointer.
-    this->smem_read_ =
-        smem_ + read_row * BYTES_PER_ROW + read_col * BYTES_PER_LDS;
+    this->smem_read_ = smem_ + read_row * BYTES_PER_ROW + read_col * BYTES_PER_LDS;
 
     // Is that thread active on the last LDS?
     if (HAS_INCOMPLETE_LDS) {
-      this->is_active_for_last_lds_ =
-          read_row + (LDS_PER_LOOP - 1) * ROWS_PER_LDS < Cta_tile::M;
+      this->is_active_for_last_lds_ = read_row + (LDS_PER_LOOP - 1) * ROWS_PER_LDS < Cta_tile::M;
     }
   }
 
@@ -1018,15 +946,12 @@ template <typename Cta_tile> struct Smem_tile_o {
   inline __device__ void load(uint4 (&out)[LDS_PER_LOOP]) const {
 #pragma unroll
     for (int ii = 0; ii < LDS_PER_LOOP; ++ii) {
-
       // Load the elements before the reduction (split-K).
       uint4 tmp[Cta_tile::WARPS_K];
 #pragma unroll
       for (int jj = 0; jj < Cta_tile::WARPS_K; ++jj) {
-        int imm = ii * ROWS_PER_LDS * BYTES_PER_ROW +
-                  jj * Cta_tile::N * BYTES_PER_ELEMENT;
-        if (!HAS_INCOMPLETE_LDS ||
-            (ii < LDS_PER_LOOP - 1 || this->is_active_for_last_lds_)) {
+        int imm = ii * ROWS_PER_LDS * BYTES_PER_ROW + jj * Cta_tile::N * BYTES_PER_ELEMENT;
+        if (!HAS_INCOMPLETE_LDS || (ii < LDS_PER_LOOP - 1 || this->is_active_for_last_lds_)) {
           fmha::lds(tmp[jj], this->smem_read_ + imm);
         }
       }
@@ -1045,7 +970,6 @@ template <typename Cta_tile> struct Smem_tile_o {
     enum { M_PER_MMA = Mma_tile::M_PER_MMA_PER_CTA };
 #pragma unroll
     for (int ni = 0; ni < Mma_tile::MMAS_N; ++ni) {
-
       // The number of MMAs that are stored per loop iteration.
       enum { MMAS_M_PER_LOOP = Mma_tile::MMAS_M / LOOPS };
 
@@ -1097,15 +1021,15 @@ template <typename Cta_tile> struct Smem_tile_o {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Cta_tile> struct Smem_tile_mma {
-
+template <typename Cta_tile>
+struct Smem_tile_mma {
   using Mma_tile = fmha::Hmma_tile<Cta_tile>;
   using Fragment = fmha::Fragment_a<fmha::Col>;
 
   enum { COLS = Cta_tile::N };
   enum { BYTES_PER_ELT = 2 };
   enum { BYTES_PER_STS = 4 };
-  enum { BYTES_PER_ROW = COLS * BYTES_PER_ELT }; // TODO
+  enum { BYTES_PER_ROW = COLS * BYTES_PER_ELT };  // TODO
   enum { BYTES_PER_TILE = Cta_tile::M * BYTES_PER_ROW };
 
   enum { WARPS_M = Cta_tile::WARPS_M };
@@ -1117,8 +1041,7 @@ template <typename Cta_tile> struct Smem_tile_mma {
     smem_ = __nvvm_get_smem_pointer(smem);
 
     int write_col, write_row;
-    static_assert(WARPS_M == 1 && (WARPS_N == 4 || WARPS_N == 8) ||
-                  (WARPS_M == 4 || WARPS_N == 8) || WARPS_N == 1);
+    static_assert(WARPS_M == 1 && (WARPS_N == 4 || WARPS_N == 8) || (WARPS_M == 4 || WARPS_N == 8) || WARPS_N == 1);
     if (WARPS_M == 1 && (WARPS_N == 4 || WARPS_N == 8)) {
       write_row = (tidx & 0x1c) / 4;
       write_col = (tidx & 0xe0) / 4 + (tidx & 0x03);
@@ -1136,8 +1059,7 @@ template <typename Cta_tile> struct Smem_tile_mma {
     static_assert(COLS == Cta_tile::N);
     for (int mi = 0; mi < M; mi++) {
       for (int ni = 0; ni < N; ni++) {
-        size_t offset = write_offset_ + mi * WARPS_M * 16 * BYTES_PER_ROW +
-                        ni * WARPS_N * 16 * BYTES_PER_ELT;
+        size_t offset = write_offset_ + mi * WARPS_M * 16 * BYTES_PER_ROW + ni * WARPS_N * 16 * BYTES_PER_ELT;
         fmha::sts(smem_ + offset + 0 * BYTES_PER_ROW, regs[mi][ni].x);
         fmha::sts(smem_ + offset + 8 * BYTES_PER_ROW, regs[mi][ni].z);
         offset ^= 4 * BYTES_PER_STS;
@@ -1163,9 +1085,7 @@ struct Smem_tile_mma_transposed : public Base {
   enum { WARPS_N = Base::WARPS_N };
   static_assert(WARPS_M == 1 && (WARPS_N == 4 || WARPS_N == 8));
   using Fragment = typename Base::Fragment;
-  inline __device__ Smem_tile_mma_transposed(char *smem, int tidx)
-      : Base(smem, tidx) {
-
+  inline __device__ Smem_tile_mma_transposed(char *smem, int tidx) : Base(smem, tidx) {
     static_assert(WARPS_M == 1 && (WARPS_N == 4 || WARPS_N == 8));
     int read_row, read_col;
     read_row = (tidx & 0x0f);
@@ -1175,16 +1095,16 @@ struct Smem_tile_mma_transposed : public Base {
     read_offset_ = read_row * BYTES_PER_ROW + read_col * BYTES_PER_LDS;
   }
 
-  template <int M, int N> inline __device__ void load(Fragment (&frag)[M][N]) {
+  template <int M, int N>
+  inline __device__ void load(Fragment (&frag)[M][N]) {
     static_assert(Base::COLS == Cta_tile::N);
     for (int mi = 0; mi < M; mi++) {
       for (int ni = 0; ni < N; ni++) {
-        size_t offset = read_offset_ + mi * WARPS_M * 16 * BYTES_PER_ROW +
-                        ni * WARPS_N * 16 * BYTES_PER_ELT;
+        size_t offset = read_offset_ + mi * WARPS_M * 16 * BYTES_PER_ROW + ni * WARPS_N * 16 * BYTES_PER_ELT;
         uint4 dst;
         fmha::ldsmt(dst, this->smem_ + offset);
         frag[mi][ni].reg(0) = dst.x;
-        frag[mi][ni].reg(1) = dst.z; // Fragment A regs col major!
+        frag[mi][ni].reg(1) = dst.z;  // Fragment A regs col major!
         frag[mi][ni].reg(2) = dst.y;
         frag[mi][ni].reg(3) = dst.w;
       }
@@ -1210,8 +1130,7 @@ struct Smem_tile_mma_epilogue : public Base {
 
   using Acc = fmha::Fragment_accumulator;
 
-  inline __device__ Smem_tile_mma_epilogue(char *smem, int tidx)
-      : Base(smem, tidx) {
+  inline __device__ Smem_tile_mma_epilogue(char *smem, int tidx) : Base(smem, tidx) {
     const int read_row = tidx / THREADS_PER_ROW;
     int read_col = tidx % THREADS_PER_ROW;
     read_col ^= (read_row & 0x07);
@@ -1225,7 +1144,8 @@ struct Smem_tile_mma_epilogue : public Base {
     }
   }
 
-  template <int M, int N> inline __device__ void store(const Acc (&acc)[M][N]) {
+  template <int M, int N>
+  inline __device__ void store(const Acc (&acc)[M][N]) {
 #pragma unroll
     for (int mi = 0; mi < M; mi++) {
 #pragma unroll
@@ -1246,8 +1166,7 @@ struct Smem_tile_mma_epilogue : public Base {
         uint32_t z = fmha::float2_to_half2(tmp10, tmp11);
         uint32_t w = fmha::float2_to_half2(tmp12, tmp13);
 
-        size_t offset = (this->write_offset_ ^ (ni * 32)) +
-                        mi * WARPS_M * 16 * BYTES_PER_ROW;
+        size_t offset = (this->write_offset_ ^ (ni * 32)) + mi * WARPS_M * 16 * BYTES_PER_ROW;
         fmha::sts(this->smem_ + offset + 0 * BYTES_PER_ROW, x);
         fmha::sts(this->smem_ + offset + 8 * BYTES_PER_ROW, z);
         offset ^= 4 * Base::BYTES_PER_STS;
@@ -1261,8 +1180,7 @@ struct Smem_tile_mma_epilogue : public Base {
   inline __device__ void store(const uint4 (&regs)[M][N]) {
     for (int mi = 0; mi < M; mi++) {
       for (int ni = 0; ni < N; ni++) {
-        size_t offset = (this->write_offset_ ^ (ni * 32)) +
-                        mi * WARPS_M * 16 * BYTES_PER_ROW;
+        size_t offset = (this->write_offset_ ^ (ni * 32)) + mi * WARPS_M * 16 * BYTES_PER_ROW;
         fmha::sts(this->smem_ + offset + 0 * BYTES_PER_ROW, regs[mi][ni].x);
         fmha::sts(this->smem_ + offset + 8 * BYTES_PER_ROW, regs[mi][ni].z);
         offset ^= 4 * Base::BYTES_PER_STS;
@@ -1275,4 +1193,4 @@ struct Smem_tile_mma_epilogue : public Base {
   uint32_t read_offset_;
 };
 
-} // namespace fmha
+}  // namespace fmha

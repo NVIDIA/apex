@@ -15,15 +15,14 @@
 #define BLOCK_SIZE 512
 #define ILP 4
 
-template <typename T> __device__ __forceinline__ bool is_aligned(const T *p) {
+template <typename T>
+__device__ __forceinline__ bool is_aligned(const T *p) {
   return ((uint64_t)p) % (ILP * sizeof(T)) == 0;
 }
 
 template <typename T>
-__device__ __forceinline__ void
-load_store(T *dst, const T *src, int dst_offset = 0, int src_offset = 0) {
-  typedef
-      typename std::aligned_storage<ILP * sizeof(T), ILP * alignof(T)>::type LT;
+__device__ __forceinline__ void load_store(T *dst, const T *src, int dst_offset = 0, int src_offset = 0) {
+  typedef typename std::aligned_storage<ILP * sizeof(T), ILP * alignof(T)>::type LT;
   ((LT *)dst)[dst_offset] = ((const LT *)src)[src_offset];
 }
 
@@ -34,8 +33,8 @@ __device__ __forceinline__ float lerp(float t, float x, float y) {
 }
 
 typedef enum {
-  ADAM_MODE_0 = 0, // L2 regularization mode
-  ADAM_MODE_1 = 1  // Decoupled weight decay mode(AdamW)
+  ADAM_MODE_0 = 0,  // L2 regularization mode
+  ADAM_MODE_1 = 1   // Decoupled weight decay mode(AdamW)
 } adamMode_t;
 
 /* Multi-tensor Adam
@@ -45,13 +44,12 @@ typedef enum {
 template <typename T, typename GRAD_T, typename PARAM_OUT_T>
 struct DistAdamFunctor {
   // Vectorized local compute
-  __device__ __forceinline__ static void
-  local_step(T p[ILP], T m[ILP], T v[ILP], const GRAD_T g[ILP],
-             const float grad_scale, const float beta1, const float beta2,
-             const float beta1_correction, const float beta2_correction,
-             const float eps, const float lr, adamMode_t mode,
-             const float weight_decay) {
-    if (mode == ADAM_MODE_0) { // L2
+  __device__ __forceinline__ static void local_step(T p[ILP], T m[ILP], T v[ILP], const GRAD_T g[ILP],
+                                                    const float grad_scale, const float beta1, const float beta2,
+                                                    const float beta1_correction, const float beta2_correction,
+                                                    const float eps, const float lr, adamMode_t mode,
+                                                    const float weight_decay) {
+    if (mode == ADAM_MODE_0) {  // L2
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
         float scaled_grad = (g[ii] * grad_scale) + (weight_decay * p[ii]);
@@ -65,7 +63,7 @@ struct DistAdamFunctor {
         v[ii] = next_v;
         p[ii] -= lr * update;
       }
-    } else { // weight decay
+    } else {  // weight decay
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
         float scaled_grad = g[ii] * grad_scale;
@@ -82,12 +80,11 @@ struct DistAdamFunctor {
     }
   }
 
-  __device__ __forceinline__ void
-  operator()(int chunk_size, volatile int *noop_gmem, TensorListMetadata<5> &tl,
-             const float *grad_scale_ptr, const float beta1, const float beta2,
-             const float beta1_correction, const float beta2_correction,
-             const float eps, const float lr, adamMode_t mode,
-             const float weight_decay) const {
+  __device__ __forceinline__ void operator()(int chunk_size, volatile int *noop_gmem, TensorListMetadata<5> &tl,
+                                             const float *grad_scale_ptr, const float beta1, const float beta2,
+                                             const float beta1_correction, const float beta2_correction,
+                                             const float eps, const float lr, adamMode_t mode,
+                                             const float weight_decay) const {
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
@@ -108,11 +105,10 @@ struct DistAdamFunctor {
     n -= chunk_idx * chunk_size;
     n = chunk_size < n ? chunk_size : n;
 
-    const bool aligned = (n % ILP == 0 && is_aligned(p_in) && is_aligned(m) &&
-                          is_aligned(v) && is_aligned(g) && is_aligned(p_out));
+    const bool aligned =
+        (n % ILP == 0 && is_aligned(p_in) && is_aligned(m) && is_aligned(v) && is_aligned(g) && is_aligned(p_out));
 
-    for (int i_start = threadIdx.x * ILP; i_start < n;
-         i_start += blockDim.x * ILP) {
+    for (int i_start = threadIdx.x * ILP; i_start < n; i_start += blockDim.x * ILP) {
       T local_p[ILP];
       T local_m[ILP];
       T local_v[ILP];
@@ -143,9 +139,8 @@ struct DistAdamFunctor {
       }
 
       // Local compute
-      local_step(local_p, local_m, local_v, local_g, grad_scale, beta1, beta2,
-                 beta1_correction, beta2_correction, eps, lr, mode,
-                 weight_decay);
+      local_step(local_p, local_m, local_v, local_g, grad_scale, beta1, beta2, beta1_correction, beta2_correction, eps,
+                 lr, mode, weight_decay);
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
         local_p_out[ii] = static_cast<PARAM_OUT_T>(local_p[ii]);
@@ -179,13 +174,12 @@ struct DistAdamFunctor {
 template <typename T, typename GRAD_T, typename PARAM_OUT_T>
 struct DistAdamCapturableFunctor {
   // Vectorized local compute
-  __device__ __forceinline__ static void
-  local_step(T p[ILP], T m[ILP], T v[ILP], const GRAD_T g[ILP],
-             const float grad_scale, const float beta1, const float beta2,
-             const float beta1_correction, const float beta2_correction,
-             const float eps, const float lr, adamMode_t mode,
-             const float weight_decay) {
-    if (mode == ADAM_MODE_0) { // L2
+  __device__ __forceinline__ static void local_step(T p[ILP], T m[ILP], T v[ILP], const GRAD_T g[ILP],
+                                                    const float grad_scale, const float beta1, const float beta2,
+                                                    const float beta1_correction, const float beta2_correction,
+                                                    const float eps, const float lr, adamMode_t mode,
+                                                    const float weight_decay) {
+    if (mode == ADAM_MODE_0) {  // L2
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
         float scaled_grad = (g[ii] * grad_scale) + (weight_decay * p[ii]);
@@ -199,7 +193,7 @@ struct DistAdamCapturableFunctor {
         v[ii] = next_v;
         p[ii] -= lr * update;
       }
-    } else { // weight decay
+    } else {  // weight decay
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
         float scaled_grad = g[ii] * grad_scale;
@@ -216,18 +210,16 @@ struct DistAdamCapturableFunctor {
     }
   }
 
-  __device__ __forceinline__ void
-  operator()(int chunk_size, volatile int *noop_gmem, TensorListMetadata<5> &tl,
-             const float *grad_scale_ptr, const float beta1, const float beta2,
-             const int *step, const int bias_correction, const float eps,
-             const float *lr, adamMode_t mode, const float weight_decay) const {
+  __device__ __forceinline__ void operator()(int chunk_size, volatile int *noop_gmem, TensorListMetadata<5> &tl,
+                                             const float *grad_scale_ptr, const float beta1, const float beta2,
+                                             const int *step, const int bias_correction, const float eps,
+                                             const float *lr, adamMode_t mode, const float weight_decay) const {
     assert(noop_gmem);
     assert(grad_scale_ptr);
     assert(step);
     assert(lr);
 
-    if (*noop_gmem == 1)
-      return;
+    if (*noop_gmem == 1) return;
 
     float beta1_correction = 1.0f, beta2_correction = 1.0f;
     if (bias_correction == 1) {
@@ -255,11 +247,10 @@ struct DistAdamCapturableFunctor {
     n -= chunk_idx * chunk_size;
     n = chunk_size < n ? chunk_size : n;
 
-    const bool aligned = (n % ILP == 0 && is_aligned(p_in) && is_aligned(m) &&
-                          is_aligned(v) && is_aligned(g) && is_aligned(p_out));
+    const bool aligned =
+        (n % ILP == 0 && is_aligned(p_in) && is_aligned(m) && is_aligned(v) && is_aligned(g) && is_aligned(p_out));
 
-    for (int i_start = threadIdx.x * ILP; i_start < n;
-         i_start += blockDim.x * ILP) {
+    for (int i_start = threadIdx.x * ILP; i_start < n; i_start += blockDim.x * ILP) {
       T local_p[ILP];
       T local_m[ILP];
       T local_v[ILP];
@@ -290,9 +281,8 @@ struct DistAdamCapturableFunctor {
       }
 
       // Local compute
-      local_step(local_p, local_m, local_v, local_g, grad_scale, beta1, beta2,
-                 beta1_correction, beta2_correction, eps, *lr, mode,
-                 weight_decay);
+      local_step(local_p, local_m, local_v, local_g, grad_scale, beta1, beta2, beta1_correction, beta2_correction, eps,
+                 *lr, mode, weight_decay);
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
         local_p_out[ii] = static_cast<PARAM_OUT_T>(local_p[ii]);
@@ -325,13 +315,13 @@ struct DistAdamCapturableFunctor {
  * to store FP32 main params. Instead, store 16-bit param remainder
  * and combine with BF16 param to reconstruct the FP32 main param.
  */
-template <typename GRAD_T> struct DistAdamWithParamRemaindersFunctor {
-  __device__ __forceinline__ void
-  operator()(int chunk_size, volatile int *noop_gmem, TensorListMetadata<6> &tl,
-             const float *grad_scale_ptr, const float beta1, const float beta2,
-             const float beta1_correction, const float beta2_correction,
-             const float eps, const float lr, adamMode_t mode,
-             const float weight_decay) const {
+template <typename GRAD_T>
+struct DistAdamWithParamRemaindersFunctor {
+  __device__ __forceinline__ void operator()(int chunk_size, volatile int *noop_gmem, TensorListMetadata<6> &tl,
+                                             const float *grad_scale_ptr, const float beta1, const float beta2,
+                                             const float beta1_correction, const float beta2_correction,
+                                             const float eps, const float lr, adamMode_t mode,
+                                             const float weight_decay) const {
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
@@ -354,12 +344,10 @@ template <typename GRAD_T> struct DistAdamWithParamRemaindersFunctor {
     n -= chunk_idx * chunk_size;
     n = chunk_size < n ? chunk_size : n;
 
-    const bool aligned =
-        (n % ILP == 0 && is_aligned(p_in) && is_aligned(p_rem) &&
-         is_aligned(m) && is_aligned(v) && is_aligned(g) && is_aligned(p_out));
+    const bool aligned = (n % ILP == 0 && is_aligned(p_in) && is_aligned(p_rem) && is_aligned(m) && is_aligned(v) &&
+                          is_aligned(g) && is_aligned(p_out));
 
-    for (int i_start = threadIdx.x * ILP; i_start < n;
-         i_start += blockDim.x * ILP) {
+    for (int i_start = threadIdx.x * ILP; i_start < n; i_start += blockDim.x * ILP) {
       union fp32_or_int162 {
         float fp32;
         int16_t int16[2];
@@ -400,26 +388,22 @@ template <typename GRAD_T> struct DistAdamWithParamRemaindersFunctor {
       // Reconstruct FP32 params
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
-        if (local_p_rem[ii] < 0)
-          local_p_bf16[ii]--; // Undo rounding
+        if (local_p_rem[ii] < 0) local_p_bf16[ii]--;  // Undo rounding
         local_p[ii].int16[1] = local_p_bf16[ii];
         local_p[ii].int16[0] = local_p_rem[ii];
       }
 
       // Local compute
       using LocalFunctor = DistAdamFunctor<float, GRAD_T, void>;
-      LocalFunctor::local_step(reinterpret_cast<float *>(local_p), local_m,
-                               local_v, local_g, grad_scale, beta1, beta2,
-                               beta1_correction, beta2_correction, eps, lr,
-                               mode, weight_decay);
+      LocalFunctor::local_step(reinterpret_cast<float *>(local_p), local_m, local_v, local_g, grad_scale, beta1, beta2,
+                               beta1_correction, beta2_correction, eps, lr, mode, weight_decay);
 
       // Split into BF16 params (rounded-to-nearest) and remainders
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
         local_p_bf16[ii] = local_p[ii].int16[1];
         local_p_rem[ii] = local_p[ii].int16[0];
-        if (local_p_rem[ii] < 0)
-          local_p_bf16[ii]++; // Round up
+        if (local_p_rem[ii] < 0) local_p_bf16[ii]++;  // Round up
       }
 
       // Store
@@ -443,11 +427,10 @@ template <typename GRAD_T> struct DistAdamWithParamRemaindersFunctor {
   }
 };
 
-void multi_tensor_fused_adam_cuda(
-    int chunk_size, at::Tensor noop_flag,
-    std::vector<std::vector<at::Tensor>> tensor_lists, // p_in, m, v, g, p_out
-    at::Tensor grad_scale, float lr, float beta1, float beta2, float eps,
-    int step, int mode, int bias_correction, float weight_decay) {
+void multi_tensor_fused_adam_cuda(int chunk_size, at::Tensor noop_flag,
+                                  std::vector<std::vector<at::Tensor>> tensor_lists,  // p_in, m, v, g, p_out
+                                  at::Tensor grad_scale, float lr, float beta1, float beta2, float eps, int step,
+                                  int mode, int bias_correction, float weight_decay) {
   using namespace at;
 
   // Expect p_in, m, v, g, p_out
@@ -469,20 +452,17 @@ void multi_tensor_fused_adam_cuda(
           g_type, 1, "dist_adam_cuda_kernel",
           DISPATCH_FLOAT_HALF_AND_BFLOAT(
               p_out_type, 2, "dist_adam_cuda_kernel",
-              multi_tensor_apply<5>(
-                  BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                  DistAdamFunctor<scalar_t_0, scalar_t_1, scalar_t_2>(),
-                  grad_scale.data_ptr<float>(), beta1, beta2, beta1_correction,
-                  beta2_correction, eps, lr, (adamMode_t)mode,
-                  weight_decay);)));
+              multi_tensor_apply<5>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
+                                    DistAdamFunctor<scalar_t_0, scalar_t_1, scalar_t_2>(), grad_scale.data_ptr<float>(),
+                                    beta1, beta2, beta1_correction, beta2_correction, eps, lr, (adamMode_t)mode,
+                                    weight_decay);)));
   C10_CUDA_CHECK(cudaGetLastError());
 }
 
-void multi_tensor_fused_adam_capturable_cuda(
-    int chunk_size, at::Tensor noop_flag,
-    std::vector<std::vector<at::Tensor>> tensor_lists, // p_in, m, v, g, p_out
-    at::Tensor grad_scale, at::Tensor lr, float beta1, float beta2, float eps,
-    at::Tensor step, int mode, int bias_correction, float weight_decay) {
+void multi_tensor_fused_adam_capturable_cuda(int chunk_size, at::Tensor noop_flag,
+                                             std::vector<std::vector<at::Tensor>> tensor_lists,  // p_in, m, v, g, p_out
+                                             at::Tensor grad_scale, at::Tensor lr, float beta1, float beta2, float eps,
+                                             at::Tensor step, int mode, int bias_correction, float weight_decay) {
   using namespace at;
 
   // Expect p_in, m, v, g, p_out
@@ -498,22 +478,18 @@ void multi_tensor_fused_adam_capturable_cuda(
           g_type, 1, "dist_adam_capturable_cuda_kernel",
           DISPATCH_FLOAT_HALF_AND_BFLOAT(
               p_out_type, 2, "dist_adam_capturable_cuda_kernel",
-              multi_tensor_apply<5>(
-                  BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                  DistAdamCapturableFunctor<scalar_t_0, scalar_t_1,
-                                            scalar_t_2>(),
-                  grad_scale.data_ptr<float>(), beta1, beta2,
-                  step.data_ptr<int>(), bias_correction, eps,
-                  lr.data_ptr<float>(), (adamMode_t)mode, weight_decay);)));
+              multi_tensor_apply<5>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
+                                    DistAdamCapturableFunctor<scalar_t_0, scalar_t_1, scalar_t_2>(),
+                                    grad_scale.data_ptr<float>(), beta1, beta2, step.data_ptr<int>(), bias_correction,
+                                    eps, lr.data_ptr<float>(), (adamMode_t)mode, weight_decay);)));
   C10_CUDA_CHECK(cudaGetLastError());
 }
 
 void multi_tensor_fused_adam_with_param_remainders_cuda(
     int chunk_size, at::Tensor noop_flag,
-    std::vector<std::vector<at::Tensor>>
-        tensor_lists, // p_in, p_rem, m, v, g, p_out
-    at::Tensor grad_scale, float lr, float beta1, float beta2, float eps,
-    int step, int mode, int bias_correction, float weight_decay) {
+    std::vector<std::vector<at::Tensor>> tensor_lists,  // p_in, p_rem, m, v, g, p_out
+    at::Tensor grad_scale, float lr, float beta1, float beta2, float eps, int step, int mode, int bias_correction,
+    float weight_decay) {
   using namespace at;
 
   // Expect p_in, p_rem, m, v, g, p_out
@@ -530,9 +506,7 @@ void multi_tensor_fused_adam_with_param_remainders_cuda(
   DISPATCH_FLOAT_HALF_AND_BFLOAT(
       g_type, 0, "dist_adam_with_param_remainders_cuda_kernel",
       multi_tensor_apply<6>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                            DistAdamWithParamRemaindersFunctor<scalar_t_0>(),
-                            grad_scale.data_ptr<float>(), beta1, beta2,
-                            beta1_correction, beta2_correction, eps, lr,
-                            (adamMode_t)mode, weight_decay););
+                            DistAdamWithParamRemaindersFunctor<scalar_t_0>(), grad_scale.data_ptr<float>(), beta1,
+                            beta2, beta1_correction, beta2_correction, eps, lr, (adamMode_t)mode, weight_decay););
   C10_CUDA_CHECK(cudaGetLastError());
 }

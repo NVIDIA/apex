@@ -11,8 +11,8 @@ static inline int MaxSharedMemoryPerMultiprocessor(int device_id) {
   return getDeviceProperties(device_id)->sharedMemPerMultiprocessor;
 }
 
-} // namespace utils
-} // namespace cuda
-} // namespace at
+}  // namespace utils
+}  // namespace cuda
+}  // namespace at
 
 #endif

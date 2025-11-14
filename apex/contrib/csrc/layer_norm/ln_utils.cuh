@@ -1,9 +1,9 @@
 #pragma once
 
-#include <cassert>
-
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
+
+#include <cassert>
 
 #include "ln.h"
 
@@ -15,15 +15,14 @@ constexpr uint32_t THREADS_PER_WARP = 32;
 
 inline void check_cuda_(cudaError_t status, const char *file, int line) {
   if (status != cudaSuccess) {
-    fprintf(stderr, "CUDA Error: %s %s %d\n", cudaGetErrorString(status), file,
-            line);
+    fprintf(stderr, "CUDA Error: %s %s %d\n", cudaGetErrorString(status), file, line);
     exit(status);
   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define CHECK_CUDA(ans)                                                        \
+#define CHECK_CUDA(ans) \
   { check_cuda_((ans), __FILE__, __LINE__); }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -32,37 +31,32 @@ inline void check_cuda_(cudaError_t status, const char *file, int line) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define REGISTER_FWD_LAUNCHER(HIDDEN_SIZE, WTYPE, ITYPE, OTYPE, CTYPE,         \
-                              CTAS_PER_ROW, WARPS_M, WARPS_N, BYTES_PER_LDG)   \
-  void ln_fwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(           \
-      LaunchParams<FwdParams> &launch_params, const bool configure_params) {   \
-    launch_<WTYPE, ITYPE, OTYPE, CTYPE, uint32_t, HIDDEN_SIZE, CTAS_PER_ROW,   \
-            WARPS_M, WARPS_N, BYTES_PER_LDG>(launch_params, configure_params); \
-  }                                                                            \
-  static FwdRegistrar<WTYPE, ITYPE, OTYPE, CTYPE, HIDDEN_SIZE>                 \
-      reg_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(               \
+#define REGISTER_FWD_LAUNCHER(HIDDEN_SIZE, WTYPE, ITYPE, OTYPE, CTYPE, CTAS_PER_ROW, WARPS_M, WARPS_N, BYTES_PER_LDG) \
+  void ln_fwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(LaunchParams<FwdParams> &launch_params,           \
+                                                                    const bool configure_params) {                    \
+    launch_<WTYPE, ITYPE, OTYPE, CTYPE, uint32_t, HIDDEN_SIZE, CTAS_PER_ROW, WARPS_M, WARPS_N, BYTES_PER_LDG>(        \
+        launch_params, configure_params);                                                                             \
+  }                                                                                                                   \
+  static FwdRegistrar<WTYPE, ITYPE, OTYPE, CTYPE, HIDDEN_SIZE>                                                        \
+      reg_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(                                                      \
           ln_fwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define REGISTER_BWD_LAUNCHER(HIDDEN_SIZE, WTYPE, ITYPE, OTYPE, CTYPE,         \
-                              CTAS_PER_ROW, WARPS_M, WARPS_N, BYTES_PER_LDG,   \
-                              BYTES_PER_LDG_FINALIZE)                          \
-  void ln_bwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(           \
-      LaunchParams<BwdParams> &launch_params, const bool configure_params) {   \
-    launch_<WTYPE, ITYPE, OTYPE, CTYPE, uint32_t, HIDDEN_SIZE, CTAS_PER_ROW,   \
-            WARPS_M, WARPS_N, BYTES_PER_LDG, BYTES_PER_LDG_FINALIZE>(          \
-        launch_params, configure_params);                                      \
-  }                                                                            \
-  static BwdRegistrar<WTYPE, ITYPE, OTYPE, CTYPE, HIDDEN_SIZE>                 \
-      reg_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(               \
+#define REGISTER_BWD_LAUNCHER(HIDDEN_SIZE, WTYPE, ITYPE, OTYPE, CTYPE, CTAS_PER_ROW, WARPS_M, WARPS_N, BYTES_PER_LDG, \
+                              BYTES_PER_LDG_FINALIZE)                                                                 \
+  void ln_bwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(LaunchParams<BwdParams> &launch_params,           \
+                                                                    const bool configure_params) {                    \
+    launch_<WTYPE, ITYPE, OTYPE, CTYPE, uint32_t, HIDDEN_SIZE, CTAS_PER_ROW, WARPS_M, WARPS_N, BYTES_PER_LDG,         \
+            BYTES_PER_LDG_FINALIZE>(launch_params, configure_params);                                                 \
+  }                                                                                                                   \
+  static BwdRegistrar<WTYPE, ITYPE, OTYPE, CTYPE, HIDDEN_SIZE>                                                        \
+      reg_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(                                                      \
           ln_bwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ float2 operator+(const float2 &a, const float2 &b) {
-  return {a.x + b.x, a.y + b.y};
-}
+inline __device__ float2 operator+(const float2 &a, const float2 &b) { return {a.x + b.x, a.y + b.y}; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +67,8 @@ inline __device__ void operator+=(float2 &a, const float2 &b) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename T> struct Sum {
+template <typename T>
+struct Sum {
   inline __device__ Sum() {}
   inline __device__ T operator()(const T &a, const T &b) { return a + b; }
 };
@@ -86,8 +81,7 @@ inline __device__ T warp_shuffle_xor(const T &x, uint32_t idx) {
 }
 
 template <>
-inline __device__ float2 warp_shuffle_xor<float2>(const float2 &x,
-                                                  uint32_t idx) {
+inline __device__ float2 warp_shuffle_xor<float2>(const float2 &x, uint32_t idx) {
   return {warp_shuffle_xor(x.x, idx), warp_shuffle_xor(x.y, idx)};
 }
 
@@ -97,8 +91,7 @@ inline __device__ T warp_shuffle_down(const T &x, uint32_t idx) {
 }
 
 template <>
-inline __device__ float2 warp_shuffle_down<float2>(const float2 &x,
-                                                   uint32_t idx) {
+inline __device__ float2 warp_shuffle_down<float2>(const float2 &x, uint32_t idx) {
   return {warp_shuffle_down(x.x, idx), warp_shuffle_down(x.y, idx)};
 }
 
@@ -124,63 +117,77 @@ struct uint8 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int BYTES> struct BytesToType {};
+template <int BYTES>
+struct BytesToType {};
 
-template <> struct BytesToType<64> {
+template <>
+struct BytesToType<64> {
   using Type = uint16;
   static_assert(sizeof(Type) == 64);
 };
 
-template <> struct BytesToType<32> {
+template <>
+struct BytesToType<32> {
   using Type = uint8;
   static_assert(sizeof(Type) == 32);
 };
 
-template <> struct BytesToType<16> {
+template <>
+struct BytesToType<16> {
   using Type = uint4;
   static_assert(sizeof(Type) == 16);
 };
 
-template <> struct BytesToType<8> {
+template <>
+struct BytesToType<8> {
   using Type = uint64_t;
   static_assert(sizeof(Type) == 8);
 };
 
-template <> struct BytesToType<4> {
+template <>
+struct BytesToType<4> {
   using Type = uint32_t;
   static_assert(sizeof(Type) == 4);
 };
 
-template <> struct BytesToType<2> {
+template <>
+struct BytesToType<2> {
   using Type = uint16_t;
   static_assert(sizeof(Type) == 2);
 };
 
-template <> struct BytesToType<1> {
+template <>
+struct BytesToType<1> {
   using Type = uint8_t;
   static_assert(sizeof(Type) == 1);
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename T> struct TypeToVec2 {};
+template <typename T>
+struct TypeToVec2 {};
 
-template <> struct TypeToVec2<float> {
+template <>
+struct TypeToVec2<float> {
   using Type = float2;
 };
 
-template <> struct TypeToVec2<half> {
+template <>
+struct TypeToVec2<half> {
   using Type = half2;
 };
 
-template <> struct TypeToVec2<nv_bfloat16> {
+template <>
+struct TypeToVec2<nv_bfloat16> {
   using Type = nv_bfloat162;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int INDEX> struct Get {
-  template <typename T, typename R> static inline __device__ R of(const T &vec);
+template <int INDEX>
+struct Get {
+  template <typename T, typename R>
+  static inline __device__ R of(const T &vec);
 };
 
 template <>
@@ -209,17 +216,18 @@ inline __device__ R Get<3>::of(const T &vec) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Src, typename Dst> struct Converter {
+template <typename Src, typename Dst>
+struct Converter {
   static inline __device__ Dst convert(const Src &from) { return Dst(from); }
 };
 
-template <> struct Converter<float2, half2> {
-  static inline __device__ half2 convert(const float2 &x) {
-    return __float22half2_rn(x);
-  }
+template <>
+struct Converter<float2, half2> {
+  static inline __device__ half2 convert(const float2 &x) { return __float22half2_rn(x); }
 };
 
-template <> struct Converter<float2, nv_bfloat162> {
+template <>
+struct Converter<float2, nv_bfloat162> {
   static inline __device__ nv_bfloat162 convert(const float2 &x) {
 #if __CUDA_ARCH__ >= 800
     return __float22bfloat162_rn(x);
@@ -238,18 +246,20 @@ template <> struct Converter<float2, nv_bfloat162> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename T> struct Zeros {
+template <typename T>
+struct Zeros {
   static inline __device__ T get() { return T(0.f); }
 };
 
-template <> struct Zeros<float2> {
+template <>
+struct Zeros<float2> {
   static inline __device__ float2 get() { return make_float2(0.f, 0.f); }
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Elt_type, uint32_t NUM_ELT> struct Vec {
-
+template <typename Elt_type, uint32_t NUM_ELT>
+struct Vec {
   enum { BYTES = NUM_ELT * sizeof(Elt_type) };
 
   using Vec_type = typename BytesToType<BYTES>::Type;
@@ -261,14 +271,16 @@ template <typename Elt_type, uint32_t NUM_ELT> struct Vec {
 
   Alias_type data;
 
-  template <typename S> inline __device__ void to(Vec<S, NUM_ELT> &other) {
+  template <typename S>
+  inline __device__ void to(Vec<S, NUM_ELT> &other) {
 #pragma unroll
     for (int it = 0; it < NUM_ELT; it++) {
       other.data.elt[it] = S(this->data.elt[it]);
     }
   }
 
-  template <typename Op> inline __device__ void assign(const Op &op) {
+  template <typename Op>
+  inline __device__ void assign(const Op &op) {
 #pragma unroll
     for (int it = 0; it < NUM_ELT; it++) {
       this->data.elt[it] = op(it);
@@ -286,26 +298,22 @@ template <typename Elt_type, uint32_t NUM_ELT> struct Vec {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <uint32_t CTAS_PER_ROW> struct InterCTASync {
-
+template <uint32_t CTAS_PER_ROW>
+struct InterCTASync {
   template <typename Params>
   inline __device__ InterCTASync(Params &params, uint32_t bidm, uint32_t bidn)
       : phase_counter_(0),
-        b0_(params.barrier + bidm) // The barrier for this group of CTAs.
+        b0_(params.barrier + bidm)  // The barrier for this group of CTAs.
         ,
-        b1_(params.barrier + bidm +
-            params.ctas_per_col) // The barrier for this group of CTAs.
+        b1_(params.barrier + bidm + params.ctas_per_col)  // The barrier for this group of CTAs.
   {
     // BARRIERS ARE ASSUMED TO BE INITIALIZED TO 0!
   }
 
   inline __device__ void spin_wait_(int *barrier, int step, int expected) {
-    asm volatile("red.release.gpu.global.add.s32 [%0], %1;" ::"l"(barrier),
-                 "r"(step));
+    asm volatile("red.release.gpu.global.add.s32 [%0], %1;" ::"l"(barrier), "r"(step));
     for (int found = -1; found != expected;) {
-      asm volatile("ld.global.acquire.gpu.b32 %0, [%1];"
-                   : "=r"(found)
-                   : "l"(barrier));
+      asm volatile("ld.global.acquire.gpu.b32 %0, [%1];" : "=r"(found) : "l"(barrier));
     }
   }
 
@@ -337,7 +345,6 @@ template <uint32_t CTAS_PER_ROW> struct InterCTASync {
 
 template <typename T, uint32_t CTAS_PER_ROW, uint32_t WARPS_M, uint32_t WARPS_N>
 struct Reducer : public Reducer<T, 1, WARPS_M, WARPS_N> {
-
   using InterCTASync = InterCTASync<CTAS_PER_ROW>;
   using Base = Reducer<T, 1, WARPS_M, WARPS_N>;
   using Type = typename Base::Type;
@@ -349,23 +356,20 @@ struct Reducer : public Reducer<T, 1, WARPS_M, WARPS_N> {
 
   // size of the barriers + temporary result per CTA (multiply with CTAS_PER_ROW
   // to get total)
-  enum {
-    WORKSPACE_BYTES_PER_GROUP =
-        Base::WORKSPACE_BYTES_PER_GROUP + WS_BARRIER_BYTES + WS_DATA_BYTES
-  };
+  enum { WORKSPACE_BYTES_PER_GROUP = Base::WORKSPACE_BYTES_PER_GROUP + WS_BARRIER_BYTES + WS_DATA_BYTES };
 
   template <typename Params>
-  inline __device__ Reducer(Params &params, uint32_t bidm, uint32_t bidn,
-                            uint32_t warp_m, uint32_t warp_n, uint32_t lane,
-                            void *smem)
+  inline __device__ Reducer(Params &params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n,
+                            uint32_t lane, void *smem)
       : Base(params, bidm, bidn, warp_m, warp_n, lane, smem),
-        inter_cta_(params, bidm, bidn), bidn_(bidn) // CTA id within the group.
+        inter_cta_(params, bidm, bidn),
+        bidn_(bidn)  // CTA id within the group.
         ,
-        w0_(static_cast<T *>(params.workspace) +
-            (bidm * WARPS_M + warp_m) * CTAS_PER_ROW),
+        w0_(static_cast<T *>(params.workspace) + (bidm * WARPS_M + warp_m) * CTAS_PER_ROW),
         w1_(w0_ + params.ctas_per_col * WARPS_M * CTAS_PER_ROW) {}
 
-  template <typename Op> inline __device__ T allreduce(T data, Op &op) {
+  template <typename Op>
+  inline __device__ T allreduce(T data, Op &op) {
     data = Base::reduce(data, op);
     // We switch workspace every iteration.
     T *workspace = inter_cta_.phase_counter_ & 0x1 ? w1_ : w0_;
@@ -394,8 +398,8 @@ struct Reducer : public Reducer<T, 1, WARPS_M, WARPS_N> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename T, uint32_t WARPS_M> struct Reducer<T, 1, WARPS_M, 1> {
-
+template <typename T, uint32_t WARPS_M>
+struct Reducer<T, 1, WARPS_M, 1> {
   using Type = T;
   enum { SMEM_BYTES = 0 };
   enum { WORKSPACE_BYTES_PER_GROUP = 0 };
@@ -403,12 +407,12 @@ template <typename T, uint32_t WARPS_M> struct Reducer<T, 1, WARPS_M, 1> {
   enum { THREADS_PER_WARP = 32 };
 
   template <typename Params>
-  inline __device__ Reducer(Params &params, uint32_t bidm, uint32_t bidn,
-                            uint32_t warp_m, uint32_t warp_n, uint32_t lane,
-                            void *smem)
+  inline __device__ Reducer(Params &params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n,
+                            uint32_t lane, void *smem)
       : warp_n_(warp_n), lane_(lane) {}
 
-  template <typename Op> static inline __device__ T allreduce_(T data, Op &op) {
+  template <typename Op>
+  static inline __device__ T allreduce_(T data, Op &op) {
 #pragma unroll
     for (int it = 1; it < THREADS_PER_WARP; it *= 2) {
       data = op(data, warp_shuffle_xor(data, it));
@@ -416,11 +420,13 @@ template <typename T, uint32_t WARPS_M> struct Reducer<T, 1, WARPS_M, 1> {
     return data;
   }
 
-  template <typename Op> inline __device__ T allreduce(T data, Op &op) {
+  template <typename Op>
+  inline __device__ T allreduce(T data, Op &op) {
     return allreduce_(data, op);
   }
 
-  template <typename Op> inline __device__ T reduce(T data, Op &op) {
+  template <typename Op>
+  inline __device__ T reduce(T data, Op &op) {
 // only lane 0 holds the result!
 #pragma unroll
     for (int it = THREADS_PER_WARP / 2; it > 0; it /= 2) {
@@ -436,7 +442,6 @@ template <typename T, uint32_t WARPS_M> struct Reducer<T, 1, WARPS_M, 1> {
 
 template <typename T, uint32_t WARPS_M, uint32_t WARPS_N>
 struct Reducer<T, 1, WARPS_M, WARPS_N> : public Reducer<T, 1, WARPS_M, 1> {
-
   using Base = Reducer<T, 1, WARPS_M, 1>;
 
   using Type = T;
@@ -447,15 +452,15 @@ struct Reducer<T, 1, WARPS_M, WARPS_N> : public Reducer<T, 1, WARPS_M, 1> {
   enum { THREADS_PER_WARP = 32 };
 
   template <typename Params>
-  inline __device__ Reducer(Params &params, uint32_t bidm, uint32_t bidn,
-                            uint32_t warp_m, uint32_t warp_n, uint32_t lane,
-                            void *smem)
+  inline __device__ Reducer(Params &params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n,
+                            uint32_t lane, void *smem)
       : Base(params, bidm, bidn, warp_m, warp_n, lane, smem), use0_(true) {
     smem0_ = &static_cast<T *>(smem)[warp_m * WARPS_N];
     smem1_ = smem0_ + WARPS_M * WARPS_N;
   }
 
-  template <typename Op> inline __device__ T allreduce(T data, Op &op) {
+  template <typename Op>
+  inline __device__ T allreduce(T data, Op &op) {
     T *smem = use0_ ? smem0_ : smem1_;
     use0_ = !use0_;
     data = Base::reduce(data, op);
@@ -471,7 +476,8 @@ struct Reducer<T, 1, WARPS_M, WARPS_N> : public Reducer<T, 1, WARPS_M, 1> {
     return out;
   }
 
-  template <typename Op> inline __device__ T reduce(T data, Op &op) {
+  template <typename Op>
+  inline __device__ T reduce(T data, Op &op) {
     T *smem = use0_ ? smem0_ : smem1_;
     use0_ = !use0_;
     // only intra-CTA group leader holds the result!
@@ -498,8 +504,7 @@ struct Reducer<T, 1, WARPS_M, WARPS_N> : public Reducer<T, 1, WARPS_M, 1> {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-inline __device__ void warp_chan_upd_dynamic(T &m_a, T &m2_a, T &n_a,
-                                             int num_active) {
+inline __device__ void warp_chan_upd_dynamic(T &m_a, T &m2_a, T &n_a, int num_active) {
   // Assume at least leftmost is valid and init: step = next_pow2(num_active) /
   // 2 (might get NaN otherwise)
   int highest_bit_set = (8 * sizeof(num_active)) - __clz(num_active - 1);
@@ -512,9 +517,9 @@ inline __device__ void warp_chan_upd_dynamic(T &m_a, T &m2_a, T &n_a,
     T m2_b = warp_shuffle_down(m2_a, step);
 
     // Update
-    const T n_ab = n_a + n_b;   // We can handle one of them being 0, not both.
-    const T rn_ab = 1.f / n_ab; // Might have different n per thread, otherwise
-                                // this would simplify :(
+    const T n_ab = n_a + n_b;    // We can handle one of them being 0, not both.
+    const T rn_ab = 1.f / n_ab;  // Might have different n per thread, otherwise
+                                 // this would simplify :(
     const T delta = m_a - m_b;
     const float m2_ab = m2_a + m2_b + delta * delta * n_a * n_b * rn_ab;
     const float m_ab = (n_a * m_a + n_b * m_b) * rn_ab;
@@ -542,17 +547,16 @@ struct Stats {
   enum { SMEM_BYTES = BlockStats::SMEM_BYTES };
 
   template <typename Params>
-  inline __device__ Stats(Params &params, uint32_t bidm, uint32_t bidn,
-                          uint32_t warp_m, uint32_t warp_n, uint32_t lane,
+  inline __device__ Stats(Params &params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n, uint32_t lane,
                           void *smem)
       : inter_cta_(params, bidm, bidn),
         block_stats_(params, bidm, bidn, warp_m, warp_n, lane, smem),
-        bidn_(bidn) // CTA id within the group.
+        bidn_(bidn)  // CTA id within the group.
         ,
-        w0_(static_cast<stats_t *>(params.workspace) +
-            (bidm * WARPS_M + warp_m) * CTAS_PER_ROW),
+        w0_(static_cast<stats_t *>(params.workspace) + (bidm * WARPS_M + warp_m) * CTAS_PER_ROW),
         w1_(w0_ + params.ctas_per_col * WARPS_M * CTAS_PER_ROW),
-        warp_n_(warp_n), lane_(lane) {}
+        warp_n_(warp_n),
+        lane_(lane) {}
 
   template <uint32_t N>
   inline __device__ stats_t compute(const T (&elts)[N], const T rn) {
@@ -605,18 +609,15 @@ struct Stats {
 
 template <typename T, uint32_t WARPS_M, uint32_t WARPS_N>
 struct Stats<T, 1, WARPS_M, WARPS_N> {
-
   using WarpStats = Stats<T, 1, WARPS_M, 1>;
   using stats_t = typename WarpStats::stats_t;
 
   enum { SMEM_BYTES = WARPS_M * WARPS_N * sizeof(stats_t) * 2 };
 
   template <typename Params>
-  inline __device__ Stats(Params &params, uint32_t bidm, uint32_t bidn,
-                          uint32_t warp_m, uint32_t warp_n, uint32_t lane,
+  inline __device__ Stats(Params &params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n, uint32_t lane,
                           void *smem)
-      : warp_stats_(params, bidm, bidn, warp_m, warp_n, lane, smem),
-        use0_(true) {
+      : warp_stats_(params, bidm, bidn, warp_m, warp_n, lane, smem), use0_(true) {
     smem0_ = static_cast<stats_t *>(smem) + warp_m * WARPS_N;
     smem1_ = smem0_ + WARPS_M * WARPS_N;
   }
@@ -663,8 +664,8 @@ struct Stats<T, 1, WARPS_M, WARPS_N> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename T, uint32_t WARPS_M> struct Stats<T, 1, WARPS_M, 1> {
-
+template <typename T, uint32_t WARPS_M>
+struct Stats<T, 1, WARPS_M, 1> {
   using stats_t = typename TypeToVec2<T>::Type;
   // The simple Warp reducer.
   using Reducer = Reducer<T, 1, WARPS_M, 1>;
@@ -672,14 +673,12 @@ template <typename T, uint32_t WARPS_M> struct Stats<T, 1, WARPS_M, 1> {
   enum { SMEM_BYTES = 0 };
 
   template <typename Params>
-  inline __device__ Stats(Params &params, uint32_t bidm, uint32_t bidn,
-                          uint32_t warp_m, uint32_t warp_n, uint32_t lane,
+  inline __device__ Stats(Params &params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n, uint32_t lane,
                           void *smem)
       : reducer_(params, bidm, bidn, warp_m, warp_n, lane, smem) {}
 
   template <uint32_t N>
   inline __device__ stats_t compute(const T (&elts)[N], const T rn) {
-
     auto sum = Sum<T>();
 
     T m = Zeros<T>::get();
@@ -705,4 +704,4 @@ template <typename T, uint32_t WARPS_M> struct Stats<T, 1, WARPS_M, 1> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace layer_norm
+}  // namespace layer_norm

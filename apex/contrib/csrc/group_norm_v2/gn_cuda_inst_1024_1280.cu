@@ -4,4 +4,4 @@ namespace group_norm_v2 {
 
 GN_CUDA_INST_DEFINE(1024, 1280)
 
-} // namespace group_norm_v2
+}  // namespace group_norm_v2

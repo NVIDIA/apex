@@ -29,12 +29,12 @@
 
 namespace fmha {
 
-template <typename Cta_tile> struct Mask {
+template <typename Cta_tile>
+struct Mask {
   using Mma_tile = fmha::Hmma_tile<Cta_tile>;
 
   template <typename Params, typename BInfo>
   __device__ Mask(const Params &params, const BInfo &blockInfo, int tidx) {
-
     actual_seqlen = blockInfo.actual_seqlen;
 
     const int warp = tidx / Cta_tile::THREADS_PER_WARP;
@@ -52,21 +52,16 @@ template <typename Cta_tile> struct Mask {
     col = warp_n * 16 + tid;
   }
 
-  inline __device__ bool is_valid(const int mi, const int ni, const int ii,
-                                  const int jj) const {
-
+  inline __device__ bool is_valid(const int mi, const int ni, const int ii, const int jj) const {
     // ii and jj iterate over the 2x4 fragment
-    const bool col_valid = (ni * Mma_tile::N_PER_MMA_PER_CTA + col +
-                            (jj & 2) * 4 + (jj & 1)) < actual_seqlen;
+    const bool col_valid = (ni * Mma_tile::N_PER_MMA_PER_CTA + col + (jj & 2) * 4 + (jj & 1)) < actual_seqlen;
     //&& (row + mi * Mma_tile::M_PER_MMA_PER_CTA + ii * 8) < actual_seqlen;
     return col_valid;
     // return row_valid && col_valid;
   }
 
   // BERT Mask: if upper left is invalid, none are valid
-  inline __device__ bool any_valid(int mi, int ni) const {
-    return is_valid(mi, ni, 0, 0);
-  }
+  inline __device__ bool any_valid(int mi, int ni) const { return is_valid(mi, ni, 0, 0); }
 
   inline __device__ void load(int it) { row_offset = it * Cta_tile::M + row; }
   int row_offset;
@@ -76,4 +71,4 @@ template <typename Cta_tile> struct Mask {
   int actual_seqlen;
 };
 
-} // namespace fmha
+}  // namespace fmha

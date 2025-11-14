@@ -4,10 +4,8 @@
 namespace {
 
 class Philox {
-public:
-  __device__ inline Philox(unsigned long long seed,
-                           unsigned long long subsequence,
-                           unsigned long long offset)
+ public:
+  __device__ inline Philox(unsigned long long seed, unsigned long long subsequence, unsigned long long offset)
       : STATE(0) {
     // key.x = (unsigned int)seed;
     // key.y = (unsigned int)(seed >> 32);
@@ -47,7 +45,7 @@ public:
     return output;
   }
 
-private:
+ private:
   struct ull2 {
     uint64_t x;
     uint64_t y;
@@ -60,13 +58,10 @@ private:
     unsigned int nlo = (unsigned int)(n);
     unsigned int nhi = (unsigned int)(n >> 32);
     counter.x += nlo;
-    if (counter.x < nlo)
-      nhi++;
+    if (counter.x < nlo) nhi++;
     counter.y += nhi;
-    if (nhi <= counter.y)
-      return;
-    if (++counter.z)
-      return;
+    if (nhi <= counter.y) return;
+    if (++counter.z) return;
     ++counter.w;
   }
 
@@ -77,14 +72,12 @@ private:
         "addc.cc.u32     %2, %6, %10;\n\t"
         "addc.u32        %3, %7, %11;\n\t"
         : "=r"(res.x), "=r"(res.y), "=r"(res.z), "=r"(res.w)
-        : "r"(ctr.x), "r"(ctr.y), "r"(ctr.z), "r"(ctr.w), "n"(1), "n"(0),
-          "n"(0), "n"(0));
+        : "r"(ctr.x), "r"(ctr.y), "r"(ctr.z), "r"(ctr.w), "n"(1), "n"(0), "n"(0), "n"(0));
     return res;
   }
 
   __device__ inline void incr() { counter = incr128(counter); }
-  __device__ unsigned int mulhilo32(unsigned int a, unsigned int b,
-                                    unsigned int *result_high) {
+  __device__ unsigned int mulhilo32(unsigned int a, unsigned int b, unsigned int *result_high) {
     *result_high = __umulhi(a, b);
     return a * b;
   }
@@ -103,8 +96,7 @@ private:
     // uint4 ret = {hi1 ^ ctr.y ^ key.x, lo1, hi0 ^ ctr.w ^ key.y, lo0};
     uint2 res0 = mulhilo32_v2(kPhiloxSA, ctr.x);
     uint2 res1 = mulhilo32_v2(kPhiloxSB, ctr.z);
-    uint4 ret = {res1.y ^ ctr.y ^ key.x, res1.x, res0.y ^ ctr.w ^ key.y,
-                 res0.x};
+    uint4 ret = {res1.y ^ ctr.y ^ key.x, res1.x, res0.y ^ ctr.w ^ key.y, res0.x};
     return ret;
   }
   static const unsigned long kPhilox10A = 0x9E3779B9;
@@ -115,8 +107,7 @@ private:
 // Inverse of 2^32.
 constexpr float M_RAN_INVM32 = 2.3283064e-10f;
 __device__ __inline__ float4 uniform4(uint4 x) {
-  return make_float4(x.x * M_RAN_INVM32, x.y * M_RAN_INVM32, x.z * M_RAN_INVM32,
-                     x.w * M_RAN_INVM32);
+  return make_float4(x.x * M_RAN_INVM32, x.y * M_RAN_INVM32, x.z * M_RAN_INVM32, x.w * M_RAN_INVM32);
 }
 
-} // namespace
+}  // namespace

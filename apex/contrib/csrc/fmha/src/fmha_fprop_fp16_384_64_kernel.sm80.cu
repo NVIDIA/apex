@@ -31,39 +31,32 @@
 using Kernel_traits = FMHA_kernel_traits<384, 64, 16, 1, 4, 0x18u>;
 
 template <bool Is_training>
-__global__ void fmha_fprop_fp16_384_64_sm80_kernel(
-    Fused_multihead_attention_fprop_params params, const int total_heads) {
-
+__global__ void fmha_fprop_fp16_384_64_sm80_kernel(Fused_multihead_attention_fprop_params params,
+                                                   const int total_heads) {
   fmha::device_1xN<Kernel_traits, Is_training>(params, total_heads);
 }
 
-void run_fmha_fp16_384_64_sm80(
-    Launch_params<Fused_multihead_attention_fprop_params> &launch_params,
-    const bool configure) {
-
-  auto kernel = launch_params.is_training
-                    ? &fmha_fprop_fp16_384_64_sm80_kernel<true>
-                    : &fmha_fprop_fp16_384_64_sm80_kernel<false>;
+void run_fmha_fp16_384_64_sm80(Launch_params<Fused_multihead_attention_fprop_params> &launch_params,
+                               const bool configure) {
+  auto kernel = launch_params.is_training ? &fmha_fprop_fp16_384_64_sm80_kernel<true>
+                                          : &fmha_fprop_fp16_384_64_sm80_kernel<false>;
 
   constexpr int smem_size = fmha::get_dynamic_smem_size<Kernel_traits>();
 
   if (smem_size >= 48 * 1024) {
-    FMHA_CHECK_CUDA(cudaFuncSetAttribute(
-        kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size));
+    FMHA_CHECK_CUDA(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size));
   }
 
   const int sm_count = launch_params.props->multiProcessorCount;
   int ctas_per_sm;
-  FMHA_CHECK_CUDA(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-      &ctas_per_sm, kernel, Kernel_traits::THREADS, smem_size));
+  FMHA_CHECK_CUDA(
+      cudaOccupancyMaxActiveBlocksPerMultiprocessor(&ctas_per_sm, kernel, Kernel_traits::THREADS, smem_size));
   int total_ctas = sm_count * ctas_per_sm;
 
   const int heads_total = launch_params.params.b * launch_params.params.h;
   if (configure) {
-
     using Mma_tile_p = fmha::Hmma_tile<typename Kernel_traits::Cta_tile_p>;
-    constexpr size_t STEPS =
-        Kernel_traits::Cta_tile_p::N / Kernel_traits::Cta_tile_p::M;
+    constexpr size_t STEPS = Kernel_traits::Cta_tile_p::N / Kernel_traits::Cta_tile_p::M;
     constexpr size_t MMAS_M = Mma_tile_p::MMAS_M;
     constexpr size_t MMAS_N = Mma_tile_p::MMAS_N;
 
@@ -74,8 +67,7 @@ void run_fmha_fp16_384_64_sm80(
   }
 
   dim3 grid(total_ctas);
-  kernel<<<grid, Kernel_traits::THREADS, smem_size, launch_params.stream>>>(
-      launch_params.params, heads_total);
+  kernel<<<grid, Kernel_traits::THREADS, smem_size, launch_params.stream>>>(launch_params.params, heads_total);
 
   FMHA_CHECK_CUDA(cudaPeekAtLastError());
 }

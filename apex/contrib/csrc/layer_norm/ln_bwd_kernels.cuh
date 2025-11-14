@@ -3,9 +3,7 @@
 namespace layer_norm {
 
 template <typename Ktraits>
-__global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(
-    layer_norm::BwdParams params) {
-
+__global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(layer_norm::BwdParams params) {
   enum { ROWS_PER_CTA = Ktraits::ROWS_PER_CTA };
   enum { WARPS_M = Ktraits::WARPS_M };
   enum { WARPS_N = Ktraits::WARPS_N };
@@ -71,11 +69,8 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(
 // last blocks with syncthreads!
 // grid stride over rows
 #pragma unroll 1
-  for (int row = r; row < params.rows;
-       row += params.ctas_per_col * ROWS_PER_CTA) {
-    const compute_t mu_r = params.z == nullptr
-                               ? static_cast<const compute_t *>(params.mu)[row]
-                               : 0.f;
+  for (int row = r; row < params.rows; row += params.ctas_per_col * ROWS_PER_CTA) {
+    const compute_t mu_r = params.z == nullptr ? static_cast<const compute_t *>(params.mu)[row] : 0.f;
     const compute_t rs_r = static_cast<const compute_t *>(params.rs)[row];
     Ivec x_or_z[LDGS];
     Ovec dz[LDGS];
@@ -103,9 +98,7 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(
         compute_t gamma_tmp = compute_t(gamma[it].data.elt[jt]);
         compute_t beta_tmp = compute_t(beta[it].data.elt[jt]);
         compute_t x_or_z_tmp = compute_t(x_or_z[it].data.elt[jt]);
-        compute_t y_tmp = params.z != nullptr
-                              ? (x_or_z_tmp - beta_tmp) / gamma_tmp
-                              : rs_r * (x_or_z_tmp - mu_r);
+        compute_t y_tmp = params.z != nullptr ? (x_or_z_tmp - beta_tmp) / gamma_tmp : rs_r * (x_or_z_tmp - mu_r);
         compute_t dy_tmp = compute_t(dz[it].data.elt[jt]) * gamma_tmp;
         compute_t dz_tmp = dz[it].data.elt[jt];
 
@@ -139,7 +132,7 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(
       idx += Ktraits::VEC_COLS_PER_LDG;
     }
 
-  } // end: grid stride loop
+  }  // end: grid stride loop
 
   if (WARPS_M == 1) {
     idx = r * Ktraits::VEC_COLS + c;
@@ -150,8 +143,7 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(
       idx += Ktraits::VEC_COLS_PER_LDG;
     }
   } else {
-    static_assert(WARPS_M == 1 || Ktraits::CTAS_PER_ROW == 1,
-                  "Multiple rows per CTA not supported for Multi-CTA.");
+    static_assert(WARPS_M == 1 || Ktraits::CTAS_PER_ROW == 1, "Multiple rows per CTA not supported for Multi-CTA.");
     // Finalize reduction of part dgamma and dbeta for this CTA
     // by reducing over the rows held across the WARPS_M warps
 
@@ -170,8 +162,7 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(
     memset(cta_dz_sum, 0, sizeof(compute_t) * NUM_RES);
     for (int it = 0; it < ROWS_PER_CTA; it++) {
       for (int jt = 0; jt < NUM_RES; jt++) {
-        cta_dz_sum[jt] +=
-            smem_wgrad[it * COLS + tidx + jt * Ktraits::THREADS_PER_CTA];
+        cta_dz_sum[jt] += smem_wgrad[it * COLS + tidx + jt * Ktraits::THREADS_PER_CTA];
       }
     }
     __syncthreads();
@@ -187,20 +178,17 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(
     memset(cta_dzy_sum, 0, sizeof(compute_t) * NUM_RES);
     for (int it = 0; it < ROWS_PER_CTA; it++) {
       for (int jt = 0; jt < NUM_RES; jt++) {
-        cta_dzy_sum[jt] +=
-            smem_wgrad[it * COLS + tidx + jt * Ktraits::THREADS_PER_CTA];
+        cta_dzy_sum[jt] += smem_wgrad[it * COLS + tidx + jt * Ktraits::THREADS_PER_CTA];
       }
     }
 
-    compute_t *dgamma_part =
-        static_cast<compute_t *>(params.dgamma_part) + bidm * COLS + tidx;
+    compute_t *dgamma_part = static_cast<compute_t *>(params.dgamma_part) + bidm * COLS + tidx;
     for (int jt = 0; jt < NUM_RES; jt++) {
       *dgamma_part = cta_dzy_sum[jt];
       dgamma_part += Ktraits::THREADS_PER_CTA;
     }
 
-    compute_t *dbeta_part =
-        static_cast<compute_t *>(params.dbeta_part) + bidm * COLS + tidx;
+    compute_t *dbeta_part = static_cast<compute_t *>(params.dbeta_part) + bidm * COLS + tidx;
     for (int jt = 0; jt < NUM_RES; jt++) {
       *dbeta_part = cta_dz_sum[jt];
       dbeta_part += Ktraits::THREADS_PER_CTA;
@@ -209,10 +197,7 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(
 }
 
 template <typename Kernel_traits>
-__global__
-__launch_bounds__(Kernel_traits::THREADS_PER_CTA) void ln_bwd_finalize_kernel(
-    BwdParams params) {
-
+__global__ __launch_bounds__(Kernel_traits::THREADS_PER_CTA) void ln_bwd_finalize_kernel(BwdParams params) {
   using compute_t = typename Kernel_traits::compute_t;
   using weight_t = typename Kernel_traits::weight_t;
   using index_t = typename Kernel_traits::index_t;
@@ -237,14 +222,12 @@ __launch_bounds__(Kernel_traits::THREADS_PER_CTA) void ln_bwd_finalize_kernel(
   const uint32_t c = bidn * THREADS_PER_WARP + lane;
   const uint32_t c_out = bidn * THREADS_PER_WARP / 2 + lane;
   constexpr uint32_t COL_STRIDE = Kernel_traits::CTAS * THREADS_PER_WARP;
-  for (uint32_t col = c, col_out = c_out; col < Kernel_traits::COLS;
-       col += COL_STRIDE, col_out += COL_STRIDE / 2) {
+  for (uint32_t col = c, col_out = c_out; col < Kernel_traits::COLS; col += COL_STRIDE, col_out += COL_STRIDE / 2) {
     // Each thread sums over NUM_ELT columns.
     Vec<compute_t, NUM_ELT> dbeta_local, dgamma_local;
     memset(&dgamma_local, 0, sizeof(dgamma_local));
     memset(&dbeta_local, 0, sizeof(dbeta_local));
-    for (uint32_t row = warp; row < params.ctas_per_col;
-         row += Kernel_traits::ROWS_PER_CTA) {
+    for (uint32_t row = warp; row < params.ctas_per_col; row += Kernel_traits::ROWS_PER_CTA) {
       index_t idx = row * Kernel_traits::COLS + col;
 
       Vec<compute_t, NUM_ELT> dbeta_part, dgamma_part;
@@ -272,8 +255,7 @@ __launch_bounds__(Kernel_traits::THREADS_PER_CTA) void ln_bwd_finalize_kernel(
     // It would be probably safe to reuse the first row of smem_beta and
     // smem_gamma
     void *smem_gamma_out = &smem_[2 * Kernel_traits::SMEM_BYTES_TRANSPOSE];
-    void *smem_beta_out = &smem_[2 * Kernel_traits::SMEM_BYTES_TRANSPOSE +
-                                 Kernel_traits::SMEM_BYTES_OUTPUT];
+    void *smem_beta_out = &smem_[2 * Kernel_traits::SMEM_BYTES_TRANSPOSE + Kernel_traits::SMEM_BYTES_OUTPUT];
 
     // More than one iter iff ROWS_PER_CTA < 32.
     for (int w = warp; w < THREADS_PER_WARP; w += Kernel_traits::ROWS_PER_CTA) {
@@ -313,9 +295,7 @@ __launch_bounds__(Kernel_traits::THREADS_PER_CTA) void ln_bwd_finalize_kernel(
     __syncthreads();
 
     // Pack and store: 2-wide stores with half the threads.
-    if (warp == Kernel_traits::ROWS_PER_CTA - 1 &&
-        lane < THREADS_PER_WARP / 2) {
-
+    if (warp == Kernel_traits::ROWS_PER_CTA - 1 && lane < THREADS_PER_WARP / 2) {
       using src_t = typename TypeToVec2<compute_t>::Type;
       using dst_t = typename TypeToVec2<weight_t>::Type;
       Vec<src_t, NUM_ELT> dbeta_vec2, dgamma_vec2;
@@ -325,14 +305,12 @@ __launch_bounds__(Kernel_traits::THREADS_PER_CTA) void ln_bwd_finalize_kernel(
       dbeta_vec2.load_from(smem_beta_out, lane);
 #pragma unroll
       for (int it = 0; it < NUM_ELT; it++) {
-        dgamma_out2.data.elt[it] =
-            Converter<src_t, dst_t>::convert(dgamma_vec2.data.elt[it]);
-        dbeta_out2.data.elt[it] =
-            Converter<src_t, dst_t>::convert(dbeta_vec2.data.elt[it]);
+        dgamma_out2.data.elt[it] = Converter<src_t, dst_t>::convert(dgamma_vec2.data.elt[it]);
+        dbeta_out2.data.elt[it] = Converter<src_t, dst_t>::convert(dbeta_vec2.data.elt[it]);
       }
       dgamma_out2.store_to(params.dgamma, col_out);
       dbeta_out2.store_to(params.dbeta, col_out);
     }
   }
 }
-} // namespace layer_norm
+}  // namespace layer_norm

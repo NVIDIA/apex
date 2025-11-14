@@ -16,29 +16,23 @@
 namespace apex::contrib::gds {
 
 // POSIX
-template <class T, typename std::enable_if<std::is_integral<T>::value,
-                                           std::nullptr_t>::type = nullptr>
+template <class T, typename std::enable_if<std::is_integral<T>::value, std::nullptr_t>::type = nullptr>
 std::string cuFileGetErrorString(T status) {
   status = std::abs(status);
-  return IS_CUFILE_ERR(status) ? std::string(CUFILE_ERRSTR(status))
-                               : std::string(std::strerror(errno));
+  return IS_CUFILE_ERR(status) ? std::string(CUFILE_ERRSTR(status)) : std::string(std::strerror(errno));
 }
 
 // CUfileError_t
-template <class T, typename std::enable_if<!std::is_integral<T>::value,
-                                           std::nullptr_t>::type = nullptr>
+template <class T, typename std::enable_if<!std::is_integral<T>::value, std::nullptr_t>::type = nullptr>
 std::string cuFileGetErrorString(T status) {
   std::string errStr = cuFileGetErrorString(static_cast<int>(status.err));
-  if (IS_CUDA_ERR(status))
-    errStr.append(".").append(
-        cudaGetErrorString(static_cast<cudaError_t>(status.cu_err)));
+  if (IS_CUDA_ERR(status)) errStr.append(".").append(cudaGetErrorString(static_cast<cudaError_t>(status.cu_err)));
   return errStr;
 }
 
 File::File() : is_open(false){};
 
-File::File(const std::string &filename, const std::string &mode)
-    : filename(filename), mode(mode), is_open(false) {
+File::File(const std::string &filename, const std::string &mode) : filename(filename), mode(mode), is_open(false) {
   open(filename, mode);
 }
 
@@ -48,16 +42,13 @@ File::~File() {
   }
 }
 
-void File::open(const std::string &other_filename,
-                const std::string &other_mode) {
+void File::open(const std::string &other_filename, const std::string &other_mode) {
   TORCH_CHECK(is_open == false, "file", filename, "is already open");
   if (!filename.empty()) {
-    TORCH_CHECK(other_filename == filename, "file", filename,
-                "is already open with mode", mode);
+    TORCH_CHECK(other_filename == filename, "file", filename, "is already open with mode", mode);
   }
   if (!mode.empty()) {
-    TORCH_CHECK(other_mode == mode, "file", filename,
-                "is already open with mode", mode);
+    TORCH_CHECK(other_mode == mode, "file", filename, "is already open with mode", mode);
   }
 
   maybe_register = true;
@@ -77,8 +68,7 @@ void File::open(const std::string &other_filename,
     fd = ::open(filename.c_str(), O_CREAT | O_WRONLY, 0664);
     maybe_register = false;
   } else {
-    TORCH_CHECK(false,
-                "only r and w modes are currently supported, but got:", mode);
+    TORCH_CHECK(false, "only r and w modes are currently supported, but got:", mode);
   }
   TORCH_CHECK(fd >= 0, "fcntl cannot open file: ", filename);
 
@@ -89,8 +79,7 @@ void File::open(const std::string &other_filename,
     cf_descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
     status = cuFileHandleRegister(&cf_handle, &cf_descr);
     if (status.err != CU_FILE_SUCCESS) {
-      TORCH_CHECK(
-          false, "cuFileHandleRegister failed: ", cuFileGetErrorString(status));
+      TORCH_CHECK(false, "cuFileHandleRegister failed: ", cuFileGetErrorString(status));
     }
   }
   is_open = true;
@@ -129,16 +118,14 @@ void File::save_data(const torch::Tensor &tensor) {
 
   // Register device memory
   status = cuFileBufRegister(dataPtr, nbytes, 0);
-  TORCH_CHECK(status.err == CU_FILE_SUCCESS,
-              "cuFileBufRegister failed: ", cuFileGetErrorString(status));
+  TORCH_CHECK(status.err == CU_FILE_SUCCESS, "cuFileBufRegister failed: ", cuFileGetErrorString(status));
 
   // Write device memory contents to the file
   ssize_t ret = cuFileWrite(cf_handle, dataPtr, nbytes, 0, 0);
   status = cuFileBufDeregister(dataPtr);
 
   TORCH_CHECK(ret >= 0, "cuFileWrite failed: ", cuFileGetErrorString(ret));
-  TORCH_CHECK(status.err == CU_FILE_SUCCESS,
-              "cuFileBufDeregister failed:", cuFileGetErrorString(status));
+  TORCH_CHECK(status.err == CU_FILE_SUCCESS, "cuFileBufDeregister failed:", cuFileGetErrorString(status));
 }
 
 // Just for benchmarking purposes
@@ -155,8 +142,7 @@ void File::load_data_no_gds(const torch::Tensor &tensor) {
 
   const ssize_t nbytes_read = pread(fd, dataPtrCPU, nbytes, 0);
   TORCH_CHECK(nbytes_read == nbytes || nbytes_read == 0, "fcntl pread failed");
-  C10_CUDA_CHECK(
-      cudaMemcpy(dataPtr, dataPtrCPU, nbytes, cudaMemcpyHostToDevice));
+  C10_CUDA_CHECK(cudaMemcpy(dataPtr, dataPtrCPU, nbytes, cudaMemcpyHostToDevice));
   free(dataPtrCPU);
 }
 
@@ -169,12 +155,11 @@ void File::save_data_no_gds(const torch::Tensor &tensor) {
   const size_t nbytes = tensor.nbytes();
   dataPtrCPU = malloc(nbytes);
   TORCH_CHECK(dataPtrCPU != nullptr, "malloc failed");
-  C10_CUDA_CHECK(
-      cudaMemcpy(dataPtrCPU, dataPtr, nbytes, cudaMemcpyDeviceToHost));
+  C10_CUDA_CHECK(cudaMemcpy(dataPtrCPU, dataPtr, nbytes, cudaMemcpyDeviceToHost));
 
   const ssize_t nbytes_written = pwrite(fd, dataPtrCPU, nbytes, 0);
   TORCH_CHECK(nbytes_written == nbytes, "fcntl pwrite failed");
   free(dataPtrCPU);
 }
 
-} // namespace apex::contrib::gds
+}  // namespace apex::contrib::gds

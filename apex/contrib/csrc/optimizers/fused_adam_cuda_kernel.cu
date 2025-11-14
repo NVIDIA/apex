@@ -1,7 +1,8 @@
-#include <cmath>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
+
+#include <cmath>
 
 #include "ATen/ATen.h"
 #include "ATen/TensorUtils.h"
@@ -9,40 +10,36 @@
 #include "ATen/cuda/detail/IndexUtils.cuh"
 // #include "ATen/Type.h"
 #include "ATen/AccumulateType.h"
-
 #include "multi_tensor_apply.cuh"
 
 #define BLOCK_SIZE 512
 #define ILP 4
 
-template <typename T> __device__ __forceinline__ bool is_aligned(T *p) {
+template <typename T>
+__device__ __forceinline__ bool is_aligned(T *p) {
   return ((uint64_t)p) % (ILP * sizeof(T)) == 0;
 }
 
 template <typename T>
-__device__ __forceinline__ void load_store(T *dst, T *src, int dst_offset,
-                                           int src_offset) {
-  typedef
-      typename std::aligned_storage<ILP * sizeof(T), ILP * alignof(T)>::type LT;
+__device__ __forceinline__ void load_store(T *dst, T *src, int dst_offset, int src_offset) {
+  typedef typename std::aligned_storage<ILP * sizeof(T), ILP * alignof(T)>::type LT;
   ((LT *)dst)[dst_offset] = ((LT *)src)[src_offset];
 }
 
 #include "type_shim.h"
 
 typedef enum {
-  ADAM_MODE_0 = 0, // eps under square root
-  ADAM_MODE_1 = 1  // eps outside square root
+  ADAM_MODE_0 = 0,  // eps under square root
+  ADAM_MODE_1 = 1   // eps outside square root
 } adamMode_t;
 
 template <typename T, typename GRAD_T>
-__global__ void
-adam_cuda_kernel(T *__restrict__ p,
-                 GRAD_T *__restrict__ p_copy, // For mixed precision training,
-                                              // pass NULL if not needed
-                 T *__restrict__ m, T *__restrict__ v,
-                 const GRAD_T *__restrict__ g, const float b1, const float b2,
-                 const float eps, const float grad_scale, const float step_size,
-                 const size_t tsize, adamMode_t mode, const float decay) {
+__global__ void adam_cuda_kernel(T *__restrict__ p,
+                                 GRAD_T *__restrict__ p_copy,  // For mixed precision training,
+                                                               // pass NULL if not needed
+                                 T *__restrict__ m, T *__restrict__ v, const GRAD_T *__restrict__ g, const float b1,
+                                 const float b2, const float eps, const float grad_scale, const float step_size,
+                                 const size_t tsize, adamMode_t mode, const float decay) {
   // Assuming 2D grids and 2D blocks
   const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
   const int threadsPerBlock = blockDim.x * blockDim.y;
@@ -57,21 +54,19 @@ adam_cuda_kernel(T *__restrict__ p,
     float denom;
     if (mode == ADAM_MODE_0)
       denom = sqrtf(v[j] + eps);
-    else // Mode 1
+    else  // Mode 1
       denom = sqrtf(v[j]) + eps;
     float update = (m[j] / denom) + (decay * p[j]);
     p[j] = p[j] - (step_size * update);
-    if (p_copy != NULL)
-      p_copy[j] = (GRAD_T)p[j];
+    if (p_copy != NULL) p_copy[j] = (GRAD_T)p[j];
   }
 }
 
-template <int DEPTH, typename T, typename GRAD_T> struct AdamFunctor {
-  __device__ __forceinline__ void
-  operator()(int chunk_size, volatile int *noop_gmem,
-             TensorListMetadata<DEPTH> &tl, const float b1, const float b2,
-             const float eps, const float grad_scale, const float step_size,
-             adamMode_t mode, const float decay) {
+template <int DEPTH, typename T, typename GRAD_T>
+struct AdamFunctor {
+  __device__ __forceinline__ void operator()(int chunk_size, volatile int *noop_gmem, TensorListMetadata<DEPTH> &tl,
+                                             const float b1, const float b2, const float eps, const float grad_scale,
+                                             const float step_size, adamMode_t mode, const float decay) {
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
     int n = tl.sizes[tensor_loc];
@@ -98,11 +93,9 @@ template <int DEPTH, typename T, typename GRAD_T> struct AdamFunctor {
     T incoming_g[ILP];
 
     // to make things simple, we put aligned case in a different code path
-    if (n % ILP == 0 && chunk_size % ILP == 0 && is_aligned(p) &&
-        is_aligned(m) && is_aligned(v) && is_aligned(g) && is_aligned(p_copy)) {
-      for (int i_start = threadIdx.x;
-           i_start * ILP < n && i_start * ILP < chunk_size;
-           i_start += blockDim.x) {
+    if (n % ILP == 0 && chunk_size % ILP == 0 && is_aligned(p) && is_aligned(m) && is_aligned(v) && is_aligned(g) &&
+        is_aligned(p_copy)) {
+      for (int i_start = threadIdx.x; i_start * ILP < n && i_start * ILP < chunk_size; i_start += blockDim.x) {
         // load
         GRAD_T tmp_g[ILP];
         load_store(incoming_p, p, 0, i_start);
@@ -114,28 +107,23 @@ template <int DEPTH, typename T, typename GRAD_T> struct AdamFunctor {
           incoming_g[ii] = static_cast<T>(tmp_g[ii]);
           T scaled_grad = incoming_g[ii] / grad_scale;
           incoming_m[ii] = b1 * incoming_m[ii] + (1 - b1) * scaled_grad;
-          incoming_v[ii] =
-              b2 * incoming_v[ii] + (1 - b2) * scaled_grad * scaled_grad;
+          incoming_v[ii] = b2 * incoming_v[ii] + (1 - b2) * scaled_grad * scaled_grad;
           float denom;
           if (mode == ADAM_MODE_0)
             denom = sqrtf(incoming_v[ii] + eps);
-          else // Mode 1
+          else  // Mode 1
             denom = sqrtf(incoming_v[ii]) + eps;
           float update = (incoming_m[ii] / denom) + (decay * incoming_p[ii]);
           incoming_p[ii] = incoming_p[ii] - (step_size * update);
-          if (DEPTH == 5)
-            tmp_g[ii] = static_cast<GRAD_T>(incoming_p[ii]);
+          if (DEPTH == 5) tmp_g[ii] = static_cast<GRAD_T>(incoming_p[ii]);
         }
         load_store(p, incoming_p, i_start, 0);
         load_store(m, incoming_m, i_start, 0);
         load_store(v, incoming_v, i_start, 0);
-        if (DEPTH == 5)
-          load_store(p_copy, tmp_g, i_start, 0);
+        if (DEPTH == 5) load_store(p_copy, tmp_g, i_start, 0);
       }
     } else {
-      for (int i_start = 0; i_start < n && i_start < chunk_size;
-           i_start += blockDim.x * ILP) {
-
+      for (int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
 #pragma unroll
         for (int ii = 0; ii < ILP; ii++) {
           incoming_p[ii] = 0;
@@ -169,12 +157,11 @@ template <int DEPTH, typename T, typename GRAD_T> struct AdamFunctor {
             float denom;
             if (mode == ADAM_MODE_0)
               denom = sqrtf(v[j] + eps);
-            else // Mode 1
+            else  // Mode 1
               denom = sqrtf(v[j]) + eps;
             float update = (m[j] / denom) + (decay * incoming_p[ii]);
             p[j] = incoming_p[ii] - (step_size * update);
-            if (DEPTH == 5)
-              p_copy[j] = (GRAD_T)p[j];
+            if (DEPTH == 5) p_copy[j] = (GRAD_T)p[j];
           }
         }
       }
@@ -182,10 +169,9 @@ template <int DEPTH, typename T, typename GRAD_T> struct AdamFunctor {
   }
 };
 
-void fused_adam_cuda(at::Tensor &p, at::Tensor &p_copy, at::Tensor &m,
-                     at::Tensor &v, at::Tensor &g, float lr, float beta1,
-                     float beta2, float eps, float grad_scale, int step,
-                     int mode, int bias_correction, float decay) {
+void fused_adam_cuda(at::Tensor &p, at::Tensor &p_copy, at::Tensor &m, at::Tensor &v, at::Tensor &g, float lr,
+                     float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction,
+                     float decay) {
   //        using namespace at;
 
   // Get tensor size
@@ -193,8 +179,7 @@ void fused_adam_cuda(at::Tensor &p, at::Tensor &p_copy, at::Tensor &m,
   // Determine #threads and #blocks
   const int threadsPerBlock = 512;
   const dim3 blocks((tsize + threadsPerBlock - 1) / threadsPerBlock);
-  TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p),
-              "parameter tensor is too large to be indexed with int32");
+  TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p), "parameter tensor is too large to be indexed with int32");
   // Constants
   float step_size = 0;
   if (bias_correction == 1) {
@@ -208,41 +193,30 @@ void fused_adam_cuda(at::Tensor &p, at::Tensor &p_copy, at::Tensor &m,
 
   if (g.scalar_type() == at::ScalarType::Half) {
     // all other values should be fp32 for half gradients
-    TORCH_CHECK(p.scalar_type() == at::ScalarType::Float,
-                "expected parameter to be of float type");
+    TORCH_CHECK(p.scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
     // dispatch is done on the gradient type
-    using namespace at; // prevents "toString is undefined" errors
-    DISPATCH_FLOAT_AND_HALF(
-        g.scalar_type(), 0, "adam_cuda_kernel",
-        using accscalar_t = at::acc_type<scalar_t_0, true>;
-        adam_cuda_kernel<accscalar_t, scalar_t_0>
-        <<<blocks, threadsPerBlock, 0, stream>>>(
-            p.data_ptr<accscalar_t>(),
-            p_copy.numel() ? p_copy.data_ptr<scalar_t_0>() : NULL,
-            m.data_ptr<accscalar_t>(), v.data_ptr<accscalar_t>(),
-            g.data_ptr<scalar_t_0>(), beta1, beta2, eps, grad_scale, step_size,
-            tsize, (adamMode_t)mode, decay););
+    using namespace at;  // prevents "toString is undefined" errors
+    DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel", using accscalar_t = at::acc_type<scalar_t_0, true>;
+                            adam_cuda_kernel<accscalar_t, scalar_t_0><<<blocks, threadsPerBlock, 0, stream>>>(
+                                p.data_ptr<accscalar_t>(), p_copy.numel() ? p_copy.data_ptr<scalar_t_0>() : NULL,
+                                m.data_ptr<accscalar_t>(), v.data_ptr<accscalar_t>(), g.data_ptr<scalar_t_0>(), beta1,
+                                beta2, eps, grad_scale, step_size, tsize, (adamMode_t)mode, decay););
   } else {
     using namespace at;
-    DISPATCH_DOUBLE_AND_FLOAT(
-        g.scalar_type(), 0, "adam_cuda_kernel",
-        adam_cuda_kernel<scalar_t_0, scalar_t_0>
-        <<<blocks, threadsPerBlock, 0, stream>>>(
-            p.data_ptr<scalar_t_0>(),
-            NULL, // don't output p_copy for fp32, it's wasted write
-            m.data_ptr<scalar_t_0>(), v.data_ptr<scalar_t_0>(),
-            g.data_ptr<scalar_t_0>(), beta1, beta2, eps, grad_scale, step_size,
-            tsize, (adamMode_t)mode, decay););
+    DISPATCH_DOUBLE_AND_FLOAT(g.scalar_type(), 0, "adam_cuda_kernel",
+                              adam_cuda_kernel<scalar_t_0, scalar_t_0><<<blocks, threadsPerBlock, 0, stream>>>(
+                                  p.data_ptr<scalar_t_0>(),
+                                  NULL,  // don't output p_copy for fp32, it's wasted write
+                                  m.data_ptr<scalar_t_0>(), v.data_ptr<scalar_t_0>(), g.data_ptr<scalar_t_0>(), beta1,
+                                  beta2, eps, grad_scale, step_size, tsize, (adamMode_t)mode, decay););
   }
   C10_CUDA_CHECK(cudaGetLastError());
 }
 
-void fused_adam_cuda_mt(
-    int chunk_size, at::Tensor noop_flag,
-    std::vector<std::vector<at::Tensor>> tensor_lists, // p, m, v, g, p_copy
-    float lr, float beta1, float beta2, float eps, float grad_scale, int step,
-    int mode, int bias_correction, float decay) {
-
+void fused_adam_cuda_mt(int chunk_size, at::Tensor noop_flag,
+                        std::vector<std::vector<at::Tensor>> tensor_lists,  // p, m, v, g, p_copy
+                        float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode,
+                        int bias_correction, float decay) {
   // Constants
   float step_size = 0;
   if (bias_correction == 1) {
@@ -259,41 +233,32 @@ void fused_adam_cuda_mt(
 
   if (tensor_lists[3][0].scalar_type() == at::ScalarType::Half) {
     // alher values should be fp32 for half gradients
-    TORCH_CHECK(tensor_lists[0][0].scalar_type() == at::ScalarType::Float,
-                "expected parameter to be of float type");
+    TORCH_CHECK(tensor_lists[0][0].scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
     // dich is done on the gradient type
     if (tl_sz == 5) {
-      DISPATCH_FLOAT_AND_HALF(
-          tensor_lists[3][0].scalar_type(), 0, "adam_cuda_mt_kernel",
-          using accscalar_t = at::acc_type<scalar_t_0, true>;
-          multi_tensor_apply<5>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                                AdamFunctor<5, accscalar_t, scalar_t_0>(),
-                                beta1, beta2, eps, grad_scale, step_size,
-                                (adamMode_t)mode, decay););
+      DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 0, "adam_cuda_mt_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              multi_tensor_apply<5>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
+                                                    AdamFunctor<5, accscalar_t, scalar_t_0>(), beta1, beta2, eps,
+                                                    grad_scale, step_size, (adamMode_t)mode, decay););
     } else {
-      DISPATCH_FLOAT_AND_HALF(
-          tensor_lists[3][0].scalar_type(), 0, "adam_cuda_mt_kernel",
-          using accscalar_t = at::acc_type<scalar_t_0, true>;
-          multi_tensor_apply<4>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                                AdamFunctor<4, accscalar_t, scalar_t_0>(),
-                                beta1, beta2, eps, grad_scale, step_size,
-                                (adamMode_t)mode, decay););
+      DISPATCH_FLOAT_AND_HALF(tensor_lists[3][0].scalar_type(), 0, "adam_cuda_mt_kernel",
+                              using accscalar_t = at::acc_type<scalar_t_0, true>;
+                              multi_tensor_apply<4>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
+                                                    AdamFunctor<4, accscalar_t, scalar_t_0>(), beta1, beta2, eps,
+                                                    grad_scale, step_size, (adamMode_t)mode, decay););
     }
   } else {
     if (tl_sz == 5) {
-      DISPATCH_DOUBLE_AND_FLOAT(
-          tensor_lists[3][0].scalar_type(), 0, "adam_cuda_mt_kernel",
-          multi_tensor_apply<5>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                                AdamFunctor<5, scalar_t_0, scalar_t_0>(), beta1,
-                                beta2, eps, grad_scale, step_size,
-                                (adamMode_t)mode, decay););
+      DISPATCH_DOUBLE_AND_FLOAT(tensor_lists[3][0].scalar_type(), 0, "adam_cuda_mt_kernel",
+                                multi_tensor_apply<5>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
+                                                      AdamFunctor<5, scalar_t_0, scalar_t_0>(), beta1, beta2, eps,
+                                                      grad_scale, step_size, (adamMode_t)mode, decay););
     } else {
-      DISPATCH_DOUBLE_AND_FLOAT(
-          tensor_lists[3][0].scalar_type(), 0, "adam_cuda_mt_kernel",
-          multi_tensor_apply<4>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                                AdamFunctor<4, scalar_t_0, scalar_t_0>(), beta1,
-                                beta2, eps, grad_scale, step_size,
-                                (adamMode_t)mode, decay););
+      DISPATCH_DOUBLE_AND_FLOAT(tensor_lists[3][0].scalar_type(), 0, "adam_cuda_mt_kernel",
+                                multi_tensor_apply<4>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
+                                                      AdamFunctor<4, scalar_t_0, scalar_t_0>(), beta1, beta2, eps,
+                                                      grad_scale, step_size, (adamMode_t)mode, decay););
     }
   }
   C10_CUDA_CHECK(cudaGetLastError());
@@ -304,7 +269,8 @@ __device__ void convert(const FROM_T vi, TO_T &vo) {
   vo = static_cast<TO_T>(vi);
 }
 
-template <> __device__ void convert(const float vi, uint8_t &vo) {
+template <>
+__device__ void convert(const float vi, uint8_t &vo) {
   union S {
     float as_float;
     int as_int;
@@ -321,7 +287,8 @@ template <> __device__ void convert(const float vi, uint8_t &vo) {
   vo = t.as_byte[1];
 }
 
-template <> __device__ void convert(const uint8_t vi, float &vo) {
+template <>
+__device__ void convert(const uint8_t vi, float &vo) {
   union T {
     at::Half as_half;
     uint8_t as_byte[2];
@@ -332,7 +299,8 @@ template <> __device__ void convert(const uint8_t vi, float &vo) {
   vo = static_cast<float>(t.as_half);
 }
 
-template <> __device__ void convert(const at::Half vi, uint8_t &vo) {
+template <>
+__device__ void convert(const at::Half vi, uint8_t &vo) {
   union S {
     float as_float;
     int as_int;
@@ -349,7 +317,8 @@ template <> __device__ void convert(const at::Half vi, uint8_t &vo) {
   vo = t.as_byte[1];
 }
 
-template <> __device__ void convert(const uint8_t vi, at::Half &vo) {
+template <>
+__device__ void convert(const uint8_t vi, at::Half &vo) {
   union T {
     at::Half as_half;
     uint8_t as_byte[2];
@@ -361,10 +330,8 @@ template <> __device__ void convert(const uint8_t vi, at::Half &vo) {
 }
 
 template <typename GRAD_T>
-__global__ void strided_check_finite_cuda_kernel(volatile int *noop_gmem,
-                                                 GRAD_T *__restrict__ p_copy,
-                                                 const size_t tsize, int stride,
-                                                 int clear_overflow_first) {
+__global__ void strided_check_finite_cuda_kernel(volatile int *noop_gmem, GRAD_T *__restrict__ p_copy,
+                                                 const size_t tsize, int stride, int clear_overflow_first) {
   // Assuming 2D grids and 2D blocks
   const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
   const int threadsPerBlock = blockDim.x * blockDim.y;
@@ -387,10 +354,8 @@ __global__ void strided_check_finite_cuda_kernel(volatile int *noop_gmem,
   }
 }
 template <>
-__global__ void strided_check_finite_cuda_kernel(volatile int *noop_gmem,
-                                                 uint8_t *__restrict__ p_copy,
-                                                 const size_t tsize, int stride,
-                                                 int clear_overflow_first) {
+__global__ void strided_check_finite_cuda_kernel(volatile int *noop_gmem, uint8_t *__restrict__ p_copy,
+                                                 const size_t tsize, int stride, int clear_overflow_first) {
   // Assuming 2D grids and 2D blocks
   const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
   const int threadsPerBlock = blockDim.x * blockDim.y;
@@ -415,11 +380,8 @@ __global__ void strided_check_finite_cuda_kernel(volatile int *noop_gmem,
 }
 
 template <typename FROM_T, typename TO_T>
-__global__ void maybe_cast_kernel(volatile int *overflow_flag,
-                                  const FROM_T *p_in, TO_T *p_out,
-                                  const size_t tsize) {
-  if (overflow_flag && *overflow_flag != 0)
-    return;
+__global__ void maybe_cast_kernel(volatile int *overflow_flag, const FROM_T *p_in, TO_T *p_out, const size_t tsize) {
+  if (overflow_flag && *overflow_flag != 0) return;
 
   // Assuming 2D grids and 2D blocks
   const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
@@ -458,14 +420,13 @@ __global__ void maybe_cast_kernel(volatile int *overflow_flag,
 }
 
 template <typename T, typename GRAD_T, typename REDU_T>
-__global__ void reversible_adam_cuda_kernel(
-    T *__restrict__ p,
-    REDU_T *__restrict__ p_copy, // For mixed precision training, pass NULL if
-                                 // not needed
-    T *__restrict__ m, T *__restrict__ v, const GRAD_T *__restrict__ g,
-    const float b1, const float b2, const float eps, const float grad_scale,
-    const float step_size, const size_t tsize, adamMode_t mode,
-    const float decay) {
+__global__ void reversible_adam_cuda_kernel(T *__restrict__ p,
+                                            REDU_T *__restrict__ p_copy,  // For mixed precision training, pass NULL if
+                                                                          // not needed
+                                            T *__restrict__ m, T *__restrict__ v, const GRAD_T *__restrict__ g,
+                                            const float b1, const float b2, const float eps, const float grad_scale,
+                                            const float step_size, const size_t tsize, adamMode_t mode,
+                                            const float decay) {
   // Assuming 2D grids and 2D blocks
   const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
   const int threadsPerBlock = blockDim.x * blockDim.y;
@@ -505,7 +466,7 @@ __global__ void reversible_adam_cuda_kernel(
         float denom;
         if (mode == ADAM_MODE_0)
           denom = sqrtf(vi[ii] + eps);
-        else // Mode 1
+        else  // Mode 1
           denom = sqrtf(vi[ii]) + eps;
         float update = (mi[ii] / denom) + (decay * pi[ii]);
         pi[ii] = pi[ii] - (step_size * update);
@@ -537,15 +498,13 @@ __global__ void reversible_adam_cuda_kernel(
 }
 
 template <typename T, typename GRAD_T>
-__global__ void maybe_adam_undo_cuda_kernel(
-    volatile int *overflow_flag, T *__restrict__ p, T *__restrict__ m,
-    T *__restrict__ v, const GRAD_T *__restrict__ g, const float b1,
-    const float b2, const float eps, const float grad_scale,
-    const float step_size, const size_t tsize, adamMode_t mode,
-    const float decay) {
+__global__ void maybe_adam_undo_cuda_kernel(volatile int *overflow_flag, T *__restrict__ p, T *__restrict__ m,
+                                            T *__restrict__ v, const GRAD_T *__restrict__ g, const float b1,
+                                            const float b2, const float eps, const float grad_scale,
+                                            const float step_size, const size_t tsize, adamMode_t mode,
+                                            const float decay) {
   // NB! Skip undo kernel when overflow flag is NOT set
-  if (overflow_flag && *overflow_flag == 0)
-    return;
+  if (overflow_flag && *overflow_flag == 0) return;
 
   // Assuming 2D grids and 2D blocks
   const int blockId = gridDim.x * blockIdx.y + blockIdx.x;
@@ -583,10 +542,9 @@ __global__ void maybe_adam_undo_cuda_kernel(
         float denom;
         if (mode == ADAM_MODE_0)
           denom = sqrtf(vi[ii] + eps);
-        else // Mode 1
+        else  // Mode 1
           denom = sqrtf(vi[ii]) + eps;
-        pi[ii] = (pi[ii] + step_size * (mi[ii] / denom)) /
-                 (1.0f - step_size * decay);
+        pi[ii] = (pi[ii] + step_size * (mi[ii] / denom)) / (1.0f - step_size * decay);
         mi[ii] = (mi[ii] - (1 - b1) * scaled_grad) / b1;
         vi[ii] = (vi[ii] - (1 - b2) * scaled_grad * scaled_grad) / b2;
         // Make sure round off errors don't create (small) negative value.
@@ -607,12 +565,11 @@ __global__ void maybe_adam_undo_cuda_kernel(
   }
 }
 
-template <int DEPTH, typename FROM_T, typename TO_T> struct MaybeCastFunctor {
-  __device__ __forceinline__ void operator()(int chunk_size,
-                                             volatile int *overflow_flag,
+template <int DEPTH, typename FROM_T, typename TO_T>
+struct MaybeCastFunctor {
+  __device__ __forceinline__ void operator()(int chunk_size, volatile int *overflow_flag,
                                              TensorListMetadata<DEPTH> &tl) {
-    if (overflow_flag && *overflow_flag != 0)
-      return;
+    if (overflow_flag && *overflow_flag != 0) return;
 
     int tensor_loc = tl.block_to_tensor[blockIdx.x];
     int chunk_idx = tl.block_to_chunk[blockIdx.x];
@@ -655,8 +612,7 @@ template <int DEPTH, typename FROM_T, typename TO_T> struct MaybeCastFunctor {
   }
 };
 
-void fused_strided_check_finite(at::Tensor &overflow_flag, at::Tensor &p_copy,
-                                int stride, int clear_overflow_first) {
+void fused_strided_check_finite(at::Tensor &overflow_flag, at::Tensor &p_copy, int stride, int clear_overflow_first) {
   // Get tensor size
   int tsize = p_copy.numel();
   int niter = (tsize + stride - 1) / stride;
@@ -665,27 +621,20 @@ void fused_strided_check_finite(at::Tensor &overflow_flag, at::Tensor &p_copy,
   const int threadsPerBlock = 512;
   // In order to avoid race condition, blocks must be 1 when
   // clear_overflow_first flag is set.
-  const dim3 blocks(clear_overflow_first
-                        ? 1
-                        : (niter + threadsPerBlock - 1) / threadsPerBlock);
-  TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p_copy),
-              "parameter tensor is too large to be indexed with int32");
+  const dim3 blocks(clear_overflow_first ? 1 : (niter + threadsPerBlock - 1) / threadsPerBlock);
+  TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p_copy), "parameter tensor is too large to be indexed with int32");
 
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-  using namespace at; // prevents "toString is undefined" errors
+  using namespace at;  // prevents "toString is undefined" errors
   DISPATCH_FLOAT_HALF_AND_BYTE(
       p_copy.scalar_type(), 0, "check_finite_cuda_kernel",
-      strided_check_finite_cuda_kernel<scalar_t_0>
-      <<<blocks, threadsPerBlock, 0, stream>>>(
-          overflow_flag.data_ptr<int>(), p_copy.data_ptr<scalar_t_0>(), tsize,
-          stride, clear_overflow_first););
+      strided_check_finite_cuda_kernel<scalar_t_0><<<blocks, threadsPerBlock, 0, stream>>>(
+          overflow_flag.data_ptr<int>(), p_copy.data_ptr<scalar_t_0>(), tsize, stride, clear_overflow_first););
   C10_CUDA_CHECK(cudaGetLastError());
 }
 
-void fused_reversible_adam_cuda(at::Tensor &p, at::Tensor &p_copy,
-                                at::Tensor &m, at::Tensor &v, at::Tensor &g,
-                                float lr, float beta1, float beta2, float eps,
-                                float grad_scale, int step, int mode,
+void fused_reversible_adam_cuda(at::Tensor &p, at::Tensor &p_copy, at::Tensor &m, at::Tensor &v, at::Tensor &g,
+                                float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode,
                                 int bias_correction, float decay) {
   //      using namespace at;
 
@@ -694,8 +643,7 @@ void fused_reversible_adam_cuda(at::Tensor &p, at::Tensor &p_copy,
   // Determine #threads and #blocks
   const int threadsPerBlock = 512;
   const dim3 blocks((tsize + threadsPerBlock - 1) / threadsPerBlock);
-  TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p),
-              "parameter tensor is too large to be indexed with int32");
+  TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p), "parameter tensor is too large to be indexed with int32");
   // Constants
   float step_size = 0;
   if (bias_correction == 1) {
@@ -709,76 +657,59 @@ void fused_reversible_adam_cuda(at::Tensor &p, at::Tensor &p_copy,
 
   if (g.scalar_type() == at::ScalarType::Half) {
     // all other values should be fp32 for half gradients
-    TORCH_CHECK(p.scalar_type() == at::ScalarType::Float,
-                "expected parameter to be of float type");
+    TORCH_CHECK(p.scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
     // dispatch is done on the gradient type
-    using namespace at; // prevents "toString is undefined" errors
+    using namespace at;  // prevents "toString is undefined" errors
     if (p_copy.numel() == 0 || p_copy.scalar_type() == g.scalar_type()) {
       DISPATCH_FLOAT_AND_HALF(
-          g.scalar_type(), 0, "adam_cuda_kernel",
-          using accscalar_t = at::acc_type<scalar_t_0, true>;
-          reversible_adam_cuda_kernel<accscalar_t, scalar_t_0, scalar_t_0>
-          <<<blocks, threadsPerBlock, 0, stream>>>(
-              p.data_ptr<accscalar_t>(),
-              p_copy.numel() ? p_copy.data_ptr<scalar_t_0>() : NULL,
-              m.data_ptr<accscalar_t>(), v.data_ptr<accscalar_t>(),
-              g.data_ptr<scalar_t_0>(), beta1, beta2, eps, grad_scale,
-              step_size, tsize, (adamMode_t)mode, decay););
+          g.scalar_type(), 0, "adam_cuda_kernel", using accscalar_t = at::acc_type<scalar_t_0, true>;
+          reversible_adam_cuda_kernel<accscalar_t, scalar_t_0, scalar_t_0><<<blocks, threadsPerBlock, 0, stream>>>(
+              p.data_ptr<accscalar_t>(), p_copy.numel() ? p_copy.data_ptr<scalar_t_0>() : NULL,
+              m.data_ptr<accscalar_t>(), v.data_ptr<accscalar_t>(), g.data_ptr<scalar_t_0>(), beta1, beta2, eps,
+              grad_scale, step_size, tsize, (adamMode_t)mode, decay););
     } else {
-      TORCH_CHECK(p_copy.scalar_type() == at::ScalarType::Byte,
-                  "expected parameter to be of byte type");
+      TORCH_CHECK(p_copy.scalar_type() == at::ScalarType::Byte, "expected parameter to be of byte type");
       DISPATCH_FLOAT_AND_HALF(
-          g.scalar_type(), 0, "adam_cuda_e5m2_kernel",
-          using accscalar_t = at::acc_type<scalar_t_0, true>;
-          reversible_adam_cuda_kernel<accscalar_t, scalar_t_0, uint8_t>
-          <<<blocks, threadsPerBlock, 0, stream>>>(
-              p.data_ptr<accscalar_t>(), p_copy.data_ptr<uint8_t>(),
-              m.data_ptr<accscalar_t>(), v.data_ptr<accscalar_t>(),
-              g.data_ptr<scalar_t_0>(), beta1, beta2, eps, grad_scale,
-              step_size, tsize, (adamMode_t)mode, decay););
+          g.scalar_type(), 0, "adam_cuda_e5m2_kernel", using accscalar_t = at::acc_type<scalar_t_0, true>;
+          reversible_adam_cuda_kernel<accscalar_t, scalar_t_0, uint8_t><<<blocks, threadsPerBlock, 0, stream>>>(
+              p.data_ptr<accscalar_t>(), p_copy.data_ptr<uint8_t>(), m.data_ptr<accscalar_t>(),
+              v.data_ptr<accscalar_t>(), g.data_ptr<scalar_t_0>(), beta1, beta2, eps, grad_scale, step_size, tsize,
+              (adamMode_t)mode, decay););
     }
   } else {
     using namespace at;
-    DISPATCH_DOUBLE_AND_FLOAT(
-        g.scalar_type(), 0, "adam_cuda_kernel",
-        reversible_adam_cuda_kernel<scalar_t_0, scalar_t_0, scalar_t_0>
-        <<<blocks, threadsPerBlock, 0, stream>>>(
-            p.data_ptr<scalar_t_0>(),
-            NULL, // don't output p_copy for fp32, it's wasted write
-            m.data_ptr<scalar_t_0>(), v.data_ptr<scalar_t_0>(),
-            g.data_ptr<scalar_t_0>(), beta1, beta2, eps, grad_scale, step_size,
-            tsize, (adamMode_t)mode, decay););
+    DISPATCH_DOUBLE_AND_FLOAT(g.scalar_type(), 0, "adam_cuda_kernel",
+                              reversible_adam_cuda_kernel<scalar_t_0, scalar_t_0, scalar_t_0>
+                              <<<blocks, threadsPerBlock, 0, stream>>>(
+                                  p.data_ptr<scalar_t_0>(),
+                                  NULL,  // don't output p_copy for fp32, it's wasted write
+                                  m.data_ptr<scalar_t_0>(), v.data_ptr<scalar_t_0>(), g.data_ptr<scalar_t_0>(), beta1,
+                                  beta2, eps, grad_scale, step_size, tsize, (adamMode_t)mode, decay););
   }
   C10_CUDA_CHECK(cudaGetLastError());
 }
 
-void maybe_cast_cuda(at::Tensor &overflow_flag, at::Tensor &p_in,
-                     at::Tensor &p_out) {
+void maybe_cast_cuda(at::Tensor &overflow_flag, at::Tensor &p_in, at::Tensor &p_out) {
   // Get tensor size
   int tsize = p_in.numel();
   TORCH_CHECK(tsize == p_out.numel(), "p_in.numel() must equal p_out.numel()");
   // Determine #threads and #blocks
   const int threadsPerBlock = 512;
   const dim3 blocks((tsize + threadsPerBlock - 1) / threadsPerBlock);
-  TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p_in),
-              "parameter tensor is too large to be indexed with int32");
+  TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p_in), "parameter tensor is too large to be indexed with int32");
   // Constants
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-  DISPATCH_FLOAT_HALF_AND_BYTE(
-      p_in.scalar_type(), 0,
-      "maybe_cast_cuda" DISPATCH_FLOAT_HALF_AND_BYTE(
-          p_out.scalar_type(), 1, "maybe_cast_cuda",
-          maybe_cast_kernel<scalar_t_0, scalar_t_1>
-          <<<blocks, threadsPerBlock, 0, stream>>>(
-              overflow_flag.numel() ? overflow_flag.data_ptr<int>() : NULL,
-              p_in.data_ptr<scalar_t_0>(), p_out.data_ptr<scalar_t_1>(),
-              tsize);))
+  DISPATCH_FLOAT_HALF_AND_BYTE(p_in.scalar_type(), 0,
+                               "maybe_cast_cuda" DISPATCH_FLOAT_HALF_AND_BYTE(
+                                   p_out.scalar_type(), 1, "maybe_cast_cuda",
+                                   maybe_cast_kernel<scalar_t_0, scalar_t_1><<<blocks, threadsPerBlock, 0, stream>>>(
+                                       overflow_flag.numel() ? overflow_flag.data_ptr<int>() : NULL,
+                                       p_in.data_ptr<scalar_t_0>(), p_out.data_ptr<scalar_t_1>(), tsize);))
   C10_CUDA_CHECK(cudaGetLastError());
 }
 
-void maybe_cast_cuda_mt(
-    int chunk_size, at::Tensor overflow_flag,
-    std::vector<std::vector<at::Tensor>> tensor_lists) // p_in, p_out
+void maybe_cast_cuda_mt(int chunk_size, at::Tensor overflow_flag,
+                        std::vector<std::vector<at::Tensor>> tensor_lists)  // p_in, p_out
 {
   // Constants
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
@@ -788,26 +719,21 @@ void maybe_cast_cuda_mt(
 
   DISPATCH_FLOAT_HALF_AND_BYTE(
       tensor_lists[0][0].scalar_type(), 0, "maybe_cast_cuda_mt_kernel",
-      DISPATCH_FLOAT_HALF_AND_BYTE(
-          tensor_lists[1][0].scalar_type(), 1, "maybe_cast_cuda_mt_kernel",
-          multi_tensor_apply<2>(
-              BLOCK_SIZE, chunk_size, overflow_flag, tensor_lists,
-              MaybeCastFunctor<2, scalar_t_0, scalar_t_1>());))
+      DISPATCH_FLOAT_HALF_AND_BYTE(tensor_lists[1][0].scalar_type(), 1, "maybe_cast_cuda_mt_kernel",
+                                   multi_tensor_apply<2>(BLOCK_SIZE, chunk_size, overflow_flag, tensor_lists,
+                                                         MaybeCastFunctor<2, scalar_t_0, scalar_t_1>());))
   C10_CUDA_CHECK(cudaGetLastError());
 }
 
-void fused_maybe_adam_undo_cuda(at::Tensor &overflow_flag, at::Tensor &p,
-                                at::Tensor &m, at::Tensor &v, at::Tensor &g,
-                                float lr, float beta1, float beta2, float eps,
-                                float grad_scale, int step, int mode,
+void fused_maybe_adam_undo_cuda(at::Tensor &overflow_flag, at::Tensor &p, at::Tensor &m, at::Tensor &v, at::Tensor &g,
+                                float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode,
                                 int bias_correction, float decay) {
   // Get tensor size
   int tsize = p.numel();
   // Determine #threads and #blocks
   const int threadsPerBlock = 512;
   const dim3 blocks((tsize + threadsPerBlock - 1) / threadsPerBlock);
-  TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p),
-              "parameter tensor is too large to be indexed with int32");
+  TORCH_CHECK(at::cuda::detail::canUse32BitIndexMath(p), "parameter tensor is too large to be indexed with int32");
   // Constants
   float step_size = 0;
   if (bias_correction == 1) {
@@ -821,29 +747,23 @@ void fused_maybe_adam_undo_cuda(at::Tensor &overflow_flag, at::Tensor &p,
 
   if (g.scalar_type() == at::ScalarType::Half) {
     // all other values should be fp32 for half gradients
-    TORCH_CHECK(p.scalar_type() == at::ScalarType::Float,
-                "expected parameter to be of float type");
+    TORCH_CHECK(p.scalar_type() == at::ScalarType::Float, "expected parameter to be of float type");
     // dispatch is done on the gradient type
-    using namespace at; // prevents "toString is undefined" errors
-    DISPATCH_FLOAT_AND_HALF(
-        g.scalar_type(), 0, "adam_cuda_kernel",
-        using accscalar_t = at::acc_type<scalar_t_0, true>;
-        maybe_adam_undo_cuda_kernel<accscalar_t, scalar_t_0>
-        <<<blocks, threadsPerBlock, 0, stream>>>(
-            overflow_flag.numel() ? overflow_flag.data_ptr<int>() : NULL,
-            p.data_ptr<accscalar_t>(), m.data_ptr<accscalar_t>(),
-            v.data_ptr<accscalar_t>(), g.data_ptr<scalar_t_0>(), beta1, beta2,
-            eps, grad_scale, step_size, tsize, (adamMode_t)mode, decay););
+    using namespace at;  // prevents "toString is undefined" errors
+    DISPATCH_FLOAT_AND_HALF(g.scalar_type(), 0, "adam_cuda_kernel", using accscalar_t = at::acc_type<scalar_t_0, true>;
+                            maybe_adam_undo_cuda_kernel<accscalar_t, scalar_t_0>
+                            <<<blocks, threadsPerBlock, 0, stream>>>(
+                                overflow_flag.numel() ? overflow_flag.data_ptr<int>() : NULL, p.data_ptr<accscalar_t>(),
+                                m.data_ptr<accscalar_t>(), v.data_ptr<accscalar_t>(), g.data_ptr<scalar_t_0>(), beta1,
+                                beta2, eps, grad_scale, step_size, tsize, (adamMode_t)mode, decay););
   } else {
     using namespace at;
     DISPATCH_DOUBLE_AND_FLOAT(
         g.scalar_type(), 0, "adam_cuda_kernel",
-        maybe_adam_undo_cuda_kernel<scalar_t_0, scalar_t_0>
-        <<<blocks, threadsPerBlock, 0, stream>>>(
-            overflow_flag.numel() ? overflow_flag.data_ptr<int>() : NULL,
-            p.data_ptr<scalar_t_0>(), m.data_ptr<scalar_t_0>(),
-            v.data_ptr<scalar_t_0>(), g.data_ptr<scalar_t_0>(), beta1, beta2,
-            eps, grad_scale, step_size, tsize, (adamMode_t)mode, decay););
+        maybe_adam_undo_cuda_kernel<scalar_t_0, scalar_t_0><<<blocks, threadsPerBlock, 0, stream>>>(
+            overflow_flag.numel() ? overflow_flag.data_ptr<int>() : NULL, p.data_ptr<scalar_t_0>(),
+            m.data_ptr<scalar_t_0>(), v.data_ptr<scalar_t_0>(), g.data_ptr<scalar_t_0>(), beta1, beta2, eps, grad_scale,
+            step_size, tsize, (adamMode_t)mode, decay););
   }
   C10_CUDA_CHECK(cudaGetLastError());
 }

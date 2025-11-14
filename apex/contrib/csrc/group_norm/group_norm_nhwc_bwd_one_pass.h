@@ -2,11 +2,13 @@
  * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES.
  * All rights reserved. SPDX-License-Identifier: BSD-3-Clause
  */
+#include <assert.h>
+
+#include <algorithm>
+
 #include "group_norm_nhwc.h"
 #include "macros.h"
 #include "traits.h"
-#include <algorithm>
-#include <assert.h>
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -14,70 +16,42 @@
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define GN_BWD_SELECT(FUNC_POSTFIX, function)                                  \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      4, FUNC_POSTFIX, function)                                               \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      8, FUNC_POSTFIX, function)                                               \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      10, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      12, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      14, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      16, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      20, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      26, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      24, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      28, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      30, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      32, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      40, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      42, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      48, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      56, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      60, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      64, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      70, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      80, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      84, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      96, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      98, FUNC_POSTFIX, function)                                              \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      112, FUNC_POSTFIX, function)                                             \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      120, FUNC_POSTFIX, function)                                             \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      128, FUNC_POSTFIX, function)                                             \
-  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(             \
-      160, FUNC_POSTFIX, function) {                                           \
-    assert(false && "Not implemented");                                        \
+#define GN_BWD_SELECT(FUNC_POSTFIX, function)                                                    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(4, FUNC_POSTFIX, function)     \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(8, FUNC_POSTFIX, function)     \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(10, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(12, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(14, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(16, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(20, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(26, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(24, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(28, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(30, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(32, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(40, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(42, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(48, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(56, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(60, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(64, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(70, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(80, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(84, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(96, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(98, FUNC_POSTFIX, function)    \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(112, FUNC_POSTFIX, function)   \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(120, FUNC_POSTFIX, function)   \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(128, FUNC_POSTFIX, function)   \
+  GN_BWD_SELECTION_STATEMENT_HW_THRESHOLD_ACTS_PER_BLOCK_DISPATCH(160, FUNC_POSTFIX, function) { \
+    assert(false && "Not implemented");                                                          \
   }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define GN_BWD_RUNNER_SELECT(function) GN_BWD_SELECT(_run, function)
 
-#define GN_BWD_BLOCKS_PER_SM_SELECT(function)                                  \
-  GN_BWD_SELECT(_blocks_per_sm, function)
+#define GN_BWD_BLOCKS_PER_SM_SELECT(function) GN_BWD_SELECT(_blocks_per_sm, function)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -111,13 +85,9 @@ GN_BWD_ONE_PASS_DECLARATION(/* CHANNELS_PER_GROUP */ 160)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_one_pass_setup(Group_norm_nhwc_bwd_params &params,
-                                        size_t &barriers_elts,
-                                        size_t &red_buffer_elts,
-                                        size_t &zeroed_red_buffer_elts,
-                                        dim3 &grid,
+void group_norm_nhwc_bwd_one_pass_setup(Group_norm_nhwc_bwd_params &params, size_t &barriers_elts,
+                                        size_t &red_buffer_elts, size_t &zeroed_red_buffer_elts, dim3 &grid,
                                         const cudaDeviceProp &props) {
-
   // The pre-computed dimensions.
   params.hw = params.h * params.w;
   params.hwc = params.c * params.hw;
@@ -125,8 +95,7 @@ void group_norm_nhwc_bwd_one_pass_setup(Group_norm_nhwc_bwd_params &params,
   // The number of channels per group.
   params.channels_per_group = params.c / params.groups;
   // The inverse to compute the mean/variance.
-  params.inv_hwc_per_group =
-      1.f / (float)(params.hw * params.channels_per_group);
+  params.inv_hwc_per_group = 1.f / (float)(params.hw * params.channels_per_group);
 
   // Define how many activations are computed per block.
   if ((params.hw >= 1024 && params.channels_per_group >= 80) ||
@@ -166,8 +135,7 @@ void group_norm_nhwc_bwd_one_pass_setup(Group_norm_nhwc_bwd_params &params,
   // The number of blocks per slice is the X dimension of the grid.
   grid.x = blocks_per_slice;
   // The number of groups *  is the X dimension of the grid.
-  grid.y = std::min(max_blocks_per_grid / blocks_per_slice,
-                    params.groups * params.n);
+  grid.y = std::min(max_blocks_per_grid / blocks_per_slice, params.groups * params.n);
 
   // The number of barriers.
   barriers_elts = blocks_per_slice > 1 ? grid.y * 2 : 0;
@@ -192,12 +160,9 @@ void group_norm_nhwc_bwd_one_pass_setup(Group_norm_nhwc_bwd_params &params,
   assert(params.channels_per_block % params.channels_per_group == 0);
 }
 
-inline void
-group_norm_nhwc_bwd_one_pass_run(const Group_norm_nhwc_bwd_params &params,
-                                 const dim3 &grid, cudaStream_t stream) {
-
-  using Function_t =
-      void (*)(const Group_norm_nhwc_bwd_params &, const dim3 &, cudaStream_t);
+inline void group_norm_nhwc_bwd_one_pass_run(const Group_norm_nhwc_bwd_params &params, const dim3 &grid,
+                                             cudaStream_t stream) {
+  using Function_t = void (*)(const Group_norm_nhwc_bwd_params &, const dim3 &, cudaStream_t);
 
   Function_t runner;
   GN_BWD_RUNNER_SELECT(runner);

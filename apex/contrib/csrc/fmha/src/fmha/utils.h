@@ -44,202 +44,256 @@ struct Col {};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int M, bool = (M & (M - 1)) == 0> struct Next_power_of_two {};
+template <int M, bool = (M & (M - 1)) == 0>
+struct Next_power_of_two {};
 
-template <int M> struct Next_power_of_two<M, true> {
+template <int M>
+struct Next_power_of_two<M, true> {
   enum { VALUE = M };
 };
-template <> struct Next_power_of_two<3, false> {
+template <>
+struct Next_power_of_two<3, false> {
   enum { VALUE = 4 };
 };
-template <> struct Next_power_of_two<5, false> {
+template <>
+struct Next_power_of_two<5, false> {
   enum { VALUE = 8 };
 };
-template <> struct Next_power_of_two<6, false> {
+template <>
+struct Next_power_of_two<6, false> {
   enum { VALUE = 8 };
 };
-template <> struct Next_power_of_two<7, false> {
+template <>
+struct Next_power_of_two<7, false> {
   enum { VALUE = 8 };
 };
-template <> struct Next_power_of_two<9, false> {
+template <>
+struct Next_power_of_two<9, false> {
   enum { VALUE = 16 };
 };
-template <> struct Next_power_of_two<10, false> {
+template <>
+struct Next_power_of_two<10, false> {
   enum { VALUE = 16 };
 };
-template <> struct Next_power_of_two<11, false> {
+template <>
+struct Next_power_of_two<11, false> {
   enum { VALUE = 16 };
 };
-template <> struct Next_power_of_two<12, false> {
+template <>
+struct Next_power_of_two<12, false> {
   enum { VALUE = 16 };
 };
-template <> struct Next_power_of_two<13, false> {
+template <>
+struct Next_power_of_two<13, false> {
   enum { VALUE = 16 };
 };
-template <> struct Next_power_of_two<14, false> {
+template <>
+struct Next_power_of_two<14, false> {
   enum { VALUE = 16 };
 };
-template <> struct Next_power_of_two<15, false> {
+template <>
+struct Next_power_of_two<15, false> {
   enum { VALUE = 16 };
 };
-template <> struct Next_power_of_two<24, false> {
+template <>
+struct Next_power_of_two<24, false> {
   enum { VALUE = 32 };
 };
-template <> struct Next_power_of_two<48, false> {
+template <>
+struct Next_power_of_two<48, false> {
   enum { VALUE = 64 };
 };
-template <> struct Next_power_of_two<80, false> {
+template <>
+struct Next_power_of_two<80, false> {
   enum { VALUE = 128 };
 };
-template <> struct Next_power_of_two<96, false> {
+template <>
+struct Next_power_of_two<96, false> {
   enum { VALUE = 128 };
 };
-template <> struct Next_power_of_two<112, false> {
+template <>
+struct Next_power_of_two<112, false> {
   enum { VALUE = 128 };
 };
-template <> struct Next_power_of_two<144, false> {
+template <>
+struct Next_power_of_two<144, false> {
   enum { VALUE = 256 };
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int N, bool = (N & (N - 1)) == 0> struct Prev_power_of_two {};
+template <int N, bool = (N & (N - 1)) == 0>
+struct Prev_power_of_two {};
 
-template <int N> struct Prev_power_of_two<N, true> {
+template <int N>
+struct Prev_power_of_two<N, true> {
   enum { VALUE = N };
 };
-template <> struct Prev_power_of_two<3, false> {
+template <>
+struct Prev_power_of_two<3, false> {
   enum { VALUE = 2 };
 };
-template <> struct Prev_power_of_two<5, false> {
+template <>
+struct Prev_power_of_two<5, false> {
   enum { VALUE = 4 };
 };
-template <> struct Prev_power_of_two<6, false> {
+template <>
+struct Prev_power_of_two<6, false> {
   enum { VALUE = 4 };
 };
-template <> struct Prev_power_of_two<7, false> {
+template <>
+struct Prev_power_of_two<7, false> {
   enum { VALUE = 4 };
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int M, int N> struct Div_up {
+template <int M, int N>
+struct Div_up {
   enum { VALUE = (M + N - 1) / N };
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int A, int B> struct Max {
+template <int A, int B>
+struct Max {
   enum { VALUE = A >= B ? A : B };
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int A, int B, int C> struct Max_3 {
+template <int A, int B, int C>
+struct Max_3 {
   enum { VALUE = Max<Max<A, B>::VALUE, C>::VALUE };
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int A, int B> struct Min {
+template <int A, int B>
+struct Min {
   enum { VALUE = A <= B ? A : B };
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int SIZE_IN_BYTES> struct Uint_from_size_in_bytes {};
+template <int SIZE_IN_BYTES>
+struct Uint_from_size_in_bytes {};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <> struct Uint_from_size_in_bytes<1> {
+template <>
+struct Uint_from_size_in_bytes<1> {
   using Type = uint8_t;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <> struct Uint_from_size_in_bytes<2> {
+template <>
+struct Uint_from_size_in_bytes<2> {
   using Type = uint16_t;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <> struct Uint_from_size_in_bytes<4> {
+template <>
+struct Uint_from_size_in_bytes<4> {
   using Type = uint32_t;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <> struct Uint_from_size_in_bytes<8> {
+template <>
+struct Uint_from_size_in_bytes<8> {
   using Type = uint2;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <> struct Uint_from_size_in_bytes<16> {
+template <>
+struct Uint_from_size_in_bytes<16> {
   using Type = uint4;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int WARPS_M, int WARPS_N, int WARPS_K> struct Warp_masks {};
+template <int WARPS_M, int WARPS_N, int WARPS_K>
+struct Warp_masks {};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <> struct Warp_masks<8, 1, 1> {
+template <>
+struct Warp_masks<8, 1, 1> {
   enum { M = 0xe0, N = 0x00, K = 0x00 };
 };
-template <> struct Warp_masks<4, 2, 1> {
+template <>
+struct Warp_masks<4, 2, 1> {
   enum { M = 0x60, N = 0x80, K = 0x00 };
 };
-template <> struct Warp_masks<4, 1, 2> {
+template <>
+struct Warp_masks<4, 1, 2> {
   enum { M = 0x60, N = 0x00, K = 0x80 };
 };
-template <> struct Warp_masks<4, 1, 1> {
+template <>
+struct Warp_masks<4, 1, 1> {
   enum { M = 0x60, N = 0x00, K = 0x00 };
 };
-template <> struct Warp_masks<2, 4, 1> {
+template <>
+struct Warp_masks<2, 4, 1> {
   enum { M = 0x20, N = 0xc0, K = 0x00 };
 };
-template <> struct Warp_masks<2, 2, 2> {
+template <>
+struct Warp_masks<2, 2, 2> {
   enum { M = 0x20, N = 0x40, K = 0x80 };
 };
-template <> struct Warp_masks<2, 2, 1> {
+template <>
+struct Warp_masks<2, 2, 1> {
   enum { M = 0x20, N = 0x40, K = 0x00 };
 };
-template <> struct Warp_masks<2, 1, 2> {
+template <>
+struct Warp_masks<2, 1, 2> {
   enum { M = 0x20, N = 0x00, K = 0x40 };
 };
-template <> struct Warp_masks<2, 1, 1> {
+template <>
+struct Warp_masks<2, 1, 1> {
   enum { M = 0x20, N = 0x00, K = 0x00 };
 };
-template <> struct Warp_masks<1, 8, 1> {
+template <>
+struct Warp_masks<1, 8, 1> {
   enum { M = 0x00, N = 0xe0, K = 0x00 };
 };
-template <> struct Warp_masks<1, 4, 2> {
+template <>
+struct Warp_masks<1, 4, 2> {
   enum { M = 0x00, N = 0x60, K = 0x80 };
 };
-template <> struct Warp_masks<1, 4, 1> {
+template <>
+struct Warp_masks<1, 4, 1> {
   enum { M = 0x00, N = 0x60, K = 0x00 };
 };
-template <> struct Warp_masks<1, 2, 2> {
+template <>
+struct Warp_masks<1, 2, 2> {
   enum { M = 0x00, N = 0x20, K = 0x40 };
 };
-template <> struct Warp_masks<1, 2, 1> {
+template <>
+struct Warp_masks<1, 2, 1> {
   enum { M = 0x00, N = 0x20, K = 0x00 };
 };
-template <> struct Warp_masks<1, 1, 4> {
+template <>
+struct Warp_masks<1, 1, 4> {
   enum { M = 0x00, N = 0x00, K = 0x60 };
 };
-template <> struct Warp_masks<1, 1, 2> {
+template <>
+struct Warp_masks<1, 1, 2> {
   enum { M = 0x00, N = 0x00, K = 0x20 };
 };
-template <> struct Warp_masks<1, 1, 1> {
+template <>
+struct Warp_masks<1, 1, 1> {
   enum { M = 0x00, N = 0x00, K = 0x00 };
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename T> inline __device__ __host__ T div_up(T m, T n) {
+template <typename T>
+inline __device__ __host__ T div_up(T m, T n) {
   return (m + n - 1) / n;
 }
 
@@ -327,13 +381,14 @@ static inline __device__ uint32_t hrelu2(uint32_t x, uint32_t lb = 0) {
   asm volatile("max.f16x2 %0, %1, %2;\n" : "=r"(res) : "r"(x), "r"(lb));
 #else
   const uint32_t zero = 0u;
-  asm volatile("{\n"
-               "\t .reg .f16x2 sela;\n"
-               "\t set.gtu.u32.f16x2 sela, %1, %2;\n"
-               "\t and.b32 %0, sela, %1;\n"
-               "}\n"
-               : "=r"(res)
-               : "r"(x), "r"(zero));
+  asm volatile(
+      "{\n"
+      "\t .reg .f16x2 sela;\n"
+      "\t set.gtu.u32.f16x2 sela, %1, %2;\n"
+      "\t and.b32 %0, sela, %1;\n"
+      "}\n"
+      : "=r"(res)
+      : "r"(x), "r"(zero));
 #endif
   return res;
 }
@@ -345,7 +400,8 @@ static inline __device__ uint32_t habs2(uint32_t x) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-template <typename T> static inline __device__ T clamp(T x, T lb, T ub) {
+template <typename T>
+static inline __device__ T clamp(T x, T lb, T ub) {
   return x < lb ? lb : (x > ub ? ub : x);
 }
 
@@ -381,20 +437,15 @@ static inline __device__ uint32_t float2_to_half2(float a, float b) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint32_t float_to_half2(float a) {
-  return float2_to_half2(a, a);
-}
+static inline __device__ uint32_t float_to_half2(float a) { return float2_to_half2(a, a); }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint32_t float2_to_half2(const float2 &f) {
-  return float2_to_half2(f.x, f.y);
-}
+static inline __device__ uint32_t float2_to_half2(const float2 &f) { return float2_to_half2(f.x, f.y); }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint2 float4_to_half4(float x, float y, float z,
-                                               float w) {
+static inline __device__ uint2 float4_to_half4(float x, float y, float z, float w) {
   uint2 d;
   d.x = float2_to_half2(x, y);
   d.y = float2_to_half2(z, w);
@@ -405,21 +456,16 @@ static inline __device__ uint2 float4_to_half4(float x, float y, float z,
 
 static inline __device__ uint32_t hfma2(uint32_t a, uint32_t b, uint32_t c) {
   uint32_t d;
-  asm volatile("fma.rn.f16x2 %0, %1, %2, %3;\n"
-               : "=r"(d)
-               : "r"(a), "r"(b), "r"(c));
+  asm volatile("fma.rn.f16x2 %0, %1, %2, %3;\n" : "=r"(d) : "r"(a), "r"(b), "r"(c));
   return d;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint32_t hfma2_relu(uint32_t a, uint32_t b,
-                                             uint32_t c) {
+static inline __device__ uint32_t hfma2_relu(uint32_t a, uint32_t b, uint32_t c) {
   uint32_t d;
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
-  asm volatile("fma.rn.f16x2.relu %0, %1, %2, %3;"
-               : "=r"(d)
-               : "r"(a), "r"(b), "r"(c));
+  asm volatile("fma.rn.f16x2.relu %0, %1, %2, %3;" : "=r"(d) : "r"(a), "r"(b), "r"(c));
 #else
   d = hrelu2(hfma2(a, b, c));
 #endif
@@ -430,10 +476,7 @@ static inline __device__ uint32_t hfma2_relu(uint32_t a, uint32_t b,
 
 static inline __device__ uint32_t h0_h0(uint32_t x) {
   uint32_t y;
-  asm volatile(
-      "{.reg .f16 lo, hi; mov.b32 {lo, hi}, %1; mov.b32 %0, {lo, lo};}\n"
-      : "=r"(y)
-      : "r"(x));
+  asm volatile("{.reg .f16 lo, hi; mov.b32 {lo, hi}, %1; mov.b32 %0, {lo, lo};}\n" : "=r"(y) : "r"(x));
   return y;
 }
 
@@ -441,13 +484,14 @@ static inline __device__ uint32_t h0_h0(uint32_t x) {
 
 static inline __device__ float h0_to_float(uint32_t h2) {
   float f;
-  asm volatile("{\n"
-               ".reg .f16 lo, hi;\n"
-               "mov.b32 {lo, hi}, %1;\n"
-               "cvt.f32.f16 %0, lo;\n"
-               "}\n"
-               : "=f"(f)
-               : "r"(h2));
+  asm volatile(
+      "{\n"
+      ".reg .f16 lo, hi;\n"
+      "mov.b32 {lo, hi}, %1;\n"
+      "cvt.f32.f16 %0, lo;\n"
+      "}\n"
+      : "=f"(f)
+      : "r"(h2));
   return f;
 }
 
@@ -455,10 +499,7 @@ static inline __device__ float h0_to_float(uint32_t h2) {
 
 static inline __device__ uint32_t h1_h1(uint32_t x) {
   uint32_t y;
-  asm volatile(
-      "{.reg .f16 lo, hi; mov.b32 {lo, hi}, %1; mov.b32 %0, {hi, hi};}\n"
-      : "=r"(y)
-      : "r"(x));
+  asm volatile("{.reg .f16 lo, hi; mov.b32 {lo, hi}, %1; mov.b32 %0, {hi, hi};}\n" : "=r"(y) : "r"(x));
   return y;
 }
 
@@ -472,9 +513,7 @@ static inline __device__ uint16_t hadd(uint16_t a, uint16_t b) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint32_t hadd(uint32_t a, uint32_t b) {
-  return hadd2(a, b);
-}
+static inline __device__ uint32_t hadd(uint32_t a, uint32_t b) { return hadd2(a, b); }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -504,14 +543,10 @@ static inline __device__ uint4 hadd8(uint4 a, uint4 b) {
 
 static inline __device__ uint4 fadd4(uint4 a, uint4 b) {
   float4 c;
-  c.x = reinterpret_cast<const float &>(a.x) +
-        reinterpret_cast<const float &>(b.x);
-  c.y = reinterpret_cast<const float &>(a.y) +
-        reinterpret_cast<const float &>(b.y);
-  c.z = reinterpret_cast<const float &>(a.z) +
-        reinterpret_cast<const float &>(b.z);
-  c.w = reinterpret_cast<const float &>(a.w) +
-        reinterpret_cast<const float &>(b.w);
+  c.x = reinterpret_cast<const float &>(a.x) + reinterpret_cast<const float &>(b.x);
+  c.y = reinterpret_cast<const float &>(a.y) + reinterpret_cast<const float &>(b.y);
+  c.z = reinterpret_cast<const float &>(a.z) + reinterpret_cast<const float &>(b.z);
+  c.w = reinterpret_cast<const float &>(a.w) + reinterpret_cast<const float &>(b.w);
   return reinterpret_cast<const uint4 &>(c);
 }
 
@@ -561,9 +596,7 @@ static inline __device__ uint16_t hmul(uint16_t a, uint16_t b) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ float sigmoid(float x) {
-  return 1.f / (1.f + expf(-x));
-}
+static inline __device__ float sigmoid(float x) { return 1.f / (1.f + expf(-x)); }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -586,11 +619,7 @@ inline __device__ void clear(uint4 &dst) { dst = make_uint4(0u, 0u, 0u, 0u); }
 // P R E D I C A T E   P A C K I N G
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-enum {
-  BYTES_PER_REG = 4,
-  PREDS_PER_BYTE = 4,
-  PREDS_PER_REG = BYTES_PER_REG * PREDS_PER_BYTE
-};
+enum { BYTES_PER_REG = 4, PREDS_PER_BYTE = 4, PREDS_PER_REG = BYTES_PER_REG * PREDS_PER_BYTE };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -600,7 +629,6 @@ enum {
 
 template <int N, int M, typename Functor>
 inline __device__ void load_(Functor &fct, const uint32_t (&preds)[M]) {
-
   // The number of complete bytes (where we use all the predicates in a byte).
   enum { COMPLETE = N / PREDS_PER_BYTE };
   // Make sure we did allocate enough predicates.
@@ -622,7 +650,6 @@ inline __device__ void load_(Functor &fct, const uint32_t (&preds)[M]) {
   bool p[PREDS_PER_BYTE];
 #pragma unroll
   for (int ii = 0; ii < COMPLETE; ++ii) {
-
     // The predicate.
     uint32_t reg = preds[ii / BYTES_PER_REG];
 
@@ -642,7 +669,6 @@ inline __device__ void load_(Functor &fct, const uint32_t (&preds)[M]) {
 
   // Skip the rest of the code if we do not have a remainder.
   if (REMAINDER > 0) {
-
     // The mask to extract the predicates.
     enum { REMAINDER_MASK = (1 << REMAINDER) - 1 };
 
@@ -678,40 +704,30 @@ inline __device__ void load_(Functor &fct, uint32_t preds) {
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ void ldg(uint8_t &dst, const void *ptr) {
-  dst = *reinterpret_cast<const uint8_t *>(ptr);
-}
+inline __device__ void ldg(uint8_t &dst, const void *ptr) { dst = *reinterpret_cast<const uint8_t *>(ptr); }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ void ldg(uint16_t &dst, const void *ptr) {
-  dst = *reinterpret_cast<const uint16_t *>(ptr);
-}
+inline __device__ void ldg(uint16_t &dst, const void *ptr) { dst = *reinterpret_cast<const uint16_t *>(ptr); }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ void ldg(uint32_t &dst, const void *ptr) {
-  dst = *reinterpret_cast<const uint32_t *>(ptr);
-}
+inline __device__ void ldg(uint32_t &dst, const void *ptr) { dst = *reinterpret_cast<const uint32_t *>(ptr); }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ void ldg(uint2 &dst, const void *ptr) {
-  dst = *reinterpret_cast<const uint2 *>(ptr);
-}
+inline __device__ void ldg(uint2 &dst, const void *ptr) { dst = *reinterpret_cast<const uint2 *>(ptr); }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ void ldg(uint4 &dst, const void *ptr) {
-  dst = *reinterpret_cast<const uint4 *>(ptr);
-}
+inline __device__ void ldg(uint4 &dst, const void *ptr) { dst = *reinterpret_cast<const uint4 *>(ptr); }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Data_type, int N> struct Ldg_functor {
+template <typename Data_type, int N>
+struct Ldg_functor {
   // Ctor.
-  inline __device__ Ldg_functor(Data_type (&fetch)[N], const void *(&ptrs)[N])
-      : fetch_(fetch), ptrs_(ptrs) {}
+  inline __device__ Ldg_functor(Data_type (&fetch)[N], const void *(&ptrs)[N]) : fetch_(fetch), ptrs_(ptrs) {}
 
   // Clear the element.
   inline __device__ void clear(int ii) { fmha::clear(fetch_[ii]); }
@@ -732,8 +748,7 @@ template <typename Data_type, int N> struct Ldg_functor {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Data_type, int N, int M>
-inline __device__ void ldg_(Data_type (&fetch)[N], const void *(&ptrs)[N],
-                            uint32_t (&preds)[M]) {
+inline __device__ void ldg_(Data_type (&fetch)[N], const void *(&ptrs)[N], uint32_t (&preds)[M]) {
   Ldg_functor<Data_type, N> fct(fetch, ptrs);
   load_<N>(fct, preds);
 }
@@ -741,40 +756,35 @@ inline __device__ void ldg_(Data_type (&fetch)[N], const void *(&ptrs)[N],
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <int N, int M>
-inline __device__ void ldg(uint8_t (&fetch)[N], const void *(&ptrs)[N],
-                           uint32_t (&preds)[M]) {
+inline __device__ void ldg(uint8_t (&fetch)[N], const void *(&ptrs)[N], uint32_t (&preds)[M]) {
   ldg_<uint8_t, N>(fetch, ptrs, preds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <int N, int M>
-inline __device__ void ldg(uint16_t (&fetch)[N], const void *(&ptrs)[N],
-                           uint32_t (&preds)[M]) {
+inline __device__ void ldg(uint16_t (&fetch)[N], const void *(&ptrs)[N], uint32_t (&preds)[M]) {
   ldg_<uint16_t, N>(fetch, ptrs, preds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <int N, int M>
-inline __device__ void ldg(uint32_t (&fetch)[N], const void *(&ptrs)[N],
-                           uint32_t (&preds)[M]) {
+inline __device__ void ldg(uint32_t (&fetch)[N], const void *(&ptrs)[N], uint32_t (&preds)[M]) {
   ldg_<uint32_t, N>(fetch, ptrs, preds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <int N, int M>
-inline __device__ void ldg(uint2 (&fetch)[N], const void *(&ptrs)[N],
-                           uint32_t (&preds)[M]) {
+inline __device__ void ldg(uint2 (&fetch)[N], const void *(&ptrs)[N], uint32_t (&preds)[M]) {
   ldg_<uint2, N>(fetch, ptrs, preds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <int N, int M>
-inline __device__ void ldg(uint4 (&fetch)[N], const void *(&ptrs)[N],
-                           uint32_t (&preds)[M]) {
+inline __device__ void ldg(uint4 (&fetch)[N], const void *(&ptrs)[N], uint32_t (&preds)[M]) {
   ldg_<uint4, N>(fetch, ptrs, preds);
 }
 
@@ -797,9 +807,7 @@ inline __device__ void lds(uint32_t &dst, uint32_t ptr) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 inline __device__ void lds(uint2 &dst, uint32_t ptr) {
-  asm volatile("ld.shared.v2.b32 {%0, %1}, [%2];\n"
-               : "=r"(dst.x), "=r"(dst.y)
-               : "r"(ptr));
+  asm volatile("ld.shared.v2.b32 {%0, %1}, [%2];\n" : "=r"(dst.x), "=r"(dst.y) : "r"(ptr));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -818,9 +826,7 @@ inline __device__ void lds(uint4 &dst, uint32_t ptr) {
 
 inline __device__ void ldsm(uint32_t &dst, uint32_t ptr) {
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 730
-  asm volatile("ldmatrix.sync.aligned.m8n8.x1.shared.b16 {%0}, [%1];\n"
-               : "=r"(dst)
-               : "r"(ptr));
+  asm volatile("ldmatrix.sync.aligned.m8n8.x1.shared.b16 {%0}, [%1];\n" : "=r"(dst) : "r"(ptr));
 #endif
 }
 
@@ -828,9 +834,7 @@ inline __device__ void ldsm(uint32_t &dst, uint32_t ptr) {
 
 inline __device__ void ldsmt(uint32_t &dst, uint32_t ptr) {
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 730
-  asm volatile("ldmatrix.sync.aligned.m8n8.x1.trans.shared.b16 {%0}, [%1];\n"
-               : "=r"(dst)
-               : "r"(ptr));
+  asm volatile("ldmatrix.sync.aligned.m8n8.x1.trans.shared.b16 {%0}, [%1];\n" : "=r"(dst) : "r"(ptr));
 #endif
 }
 
@@ -838,9 +842,7 @@ inline __device__ void ldsmt(uint32_t &dst, uint32_t ptr) {
 
 inline __device__ void ldsm(uint2 &dst, uint32_t ptr) {
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 730
-  asm volatile("ldmatrix.sync.aligned.m8n8.x2.shared.b16 {%0, %1}, [%2];\n"
-               : "=r"(dst.x), "=r"(dst.y)
-               : "r"(ptr));
+  asm volatile("ldmatrix.sync.aligned.m8n8.x2.shared.b16 {%0, %1}, [%2];\n" : "=r"(dst.x), "=r"(dst.y) : "r"(ptr));
 #endif
 }
 
@@ -848,10 +850,9 @@ inline __device__ void ldsm(uint2 &dst, uint32_t ptr) {
 
 inline __device__ void ldsmt(uint2 &dst, uint32_t ptr) {
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 730
-  asm volatile(
-      "ldmatrix.sync.aligned.m8n8.x2.trans.shared.b16 {%0, %1}, [%2];\n"
-      : "=r"(dst.x), "=r"(dst.y)
-      : "r"(ptr));
+  asm volatile("ldmatrix.sync.aligned.m8n8.x2.trans.shared.b16 {%0, %1}, [%2];\n"
+               : "=r"(dst.x), "=r"(dst.y)
+               : "r"(ptr));
 #endif
 }
 
@@ -859,10 +860,9 @@ inline __device__ void ldsmt(uint2 &dst, uint32_t ptr) {
 
 inline __device__ void ldsm(uint4 &dst, uint32_t ptr) {
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 730
-  asm volatile(
-      "ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%0, %1, %2, %3}, [%4];\n"
-      : "=r"(dst.x), "=r"(dst.y), "=r"(dst.z), "=r"(dst.w)
-      : "r"(ptr));
+  asm volatile("ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%0, %1, %2, %3}, [%4];\n"
+               : "=r"(dst.x), "=r"(dst.y), "=r"(dst.z), "=r"(dst.w)
+               : "r"(ptr));
 #endif
 }
 
@@ -870,10 +870,9 @@ inline __device__ void ldsm(uint4 &dst, uint32_t ptr) {
 
 inline __device__ void ldsmt(uint4 &dst, uint32_t ptr) {
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 730
-  asm volatile(
-      "ldmatrix.sync.aligned.m8n8.x4.trans.shared.b16 {%0, %1, %2, %3}, [%4];\n"
-      : "=r"(dst.x), "=r"(dst.y), "=r"(dst.z), "=r"(dst.w)
-      : "r"(ptr));
+  asm volatile("ldmatrix.sync.aligned.m8n8.x4.trans.shared.b16 {%0, %1, %2, %3}, [%4];\n"
+               : "=r"(dst.x), "=r"(dst.y), "=r"(dst.z), "=r"(dst.w)
+               : "r"(ptr));
 #endif
 }
 
@@ -883,33 +882,23 @@ inline __device__ void ldsmt(uint4 &dst, uint32_t ptr) {
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ void stg(void *ptr, uint8_t val) {
-  *reinterpret_cast<uint8_t *>(ptr) = val;
-}
+inline __device__ void stg(void *ptr, uint8_t val) { *reinterpret_cast<uint8_t *>(ptr) = val; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ void stg(void *ptr, uint16_t val) {
-  *reinterpret_cast<uint16_t *>(ptr) = val;
-}
+inline __device__ void stg(void *ptr, uint16_t val) { *reinterpret_cast<uint16_t *>(ptr) = val; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ void stg(void *ptr, uint32_t val) {
-  *reinterpret_cast<uint32_t *>(ptr) = val;
-}
+inline __device__ void stg(void *ptr, uint32_t val) { *reinterpret_cast<uint32_t *>(ptr) = val; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ void stg(void *ptr, uint2 val) {
-  *reinterpret_cast<uint2 *>(ptr) = val;
-}
+inline __device__ void stg(void *ptr, uint2 val) { *reinterpret_cast<uint2 *>(ptr) = val; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ void stg(void *ptr, uint4 val) {
-  *reinterpret_cast<uint4 *>(ptr) = val;
-}
+inline __device__ void stg(void *ptr, uint4 val) { *reinterpret_cast<uint4 *>(ptr) = val; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -930,9 +919,7 @@ inline __device__ void sts(uint32_t ptr, uint32_t val) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 inline __device__ void sts(uint32_t ptr, uint2 val) {
-  asm volatile("st.shared.v2.b32 [%0], {%1, %2};\n"
-               :
-               : "r"(ptr), "r"(val.x), "r"(val.y));
+  asm volatile("st.shared.v2.b32 [%0], {%1, %2};\n" : : "r"(ptr), "r"(val.x), "r"(val.y));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -983,21 +970,22 @@ inline __device__ void sts(uint32_t (&ptrs)[N], const uint4 (&data)[N]) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename T> struct MaxOp {
-  __device__ inline T operator()(T const &x, T const &y) {
-    return x > y ? x : y;
-  }
+template <typename T>
+struct MaxOp {
+  __device__ inline T operator()(T const &x, T const &y) { return x > y ? x : y; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename T> struct SumOp {
+template <typename T>
+struct SumOp {
   __device__ inline T operator()(T const &x, T const &y) { return x + y; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int THREADS> struct Allreduce {
+template <int THREADS>
+struct Allreduce {
   static_assert(THREADS == 32 || THREADS == 16 || THREADS == 8 || THREADS == 4);
   template <typename T, typename Operator>
   static __device__ inline T run(T x, Operator &op) {
@@ -1009,7 +997,8 @@ template <int THREADS> struct Allreduce {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <> struct Allreduce<2> {
+template <>
+struct Allreduce<2> {
   template <typename T, typename Operator>
   static __device__ inline T run(T x, Operator &op) {
     x = op(x, __shfl_xor_sync(uint32_t(-1), x, 1));
@@ -1020,8 +1009,7 @@ template <> struct Allreduce<2> {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Operator, int M>
-__device__ inline void quad_reduce(float (&dst)[M], float (&src)[M],
-                                   Operator &op) {
+__device__ inline void quad_reduce(float (&dst)[M], float (&src)[M], Operator &op) {
 #pragma unroll
   for (int mi = 0; mi < M; mi++) {
     dst[mi] = src[mi];
@@ -1033,8 +1021,7 @@ __device__ inline void quad_reduce(float (&dst)[M], float (&src)[M],
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Operator, int M>
-__device__ inline void quad_reduce(float (&dst)[M], float2 (&src)[M],
-                                   Operator &op) {
+__device__ inline void quad_reduce(float (&dst)[M], float2 (&src)[M], Operator &op) {
   float tmp[M];
 #pragma unroll
   for (int mi = 0; mi < M; mi++) {
@@ -1046,8 +1033,7 @@ __device__ inline void quad_reduce(float (&dst)[M], float2 (&src)[M],
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Operator, int M>
-__device__ inline void quad_allreduce(float (&dst)[M], float (&src)[M],
-                                      Operator &op) {
+__device__ inline void quad_allreduce(float (&dst)[M], float (&src)[M], Operator &op) {
 #pragma unroll
   for (int mi = 0; mi < M; mi++) {
     dst[mi] = src[mi];
@@ -1058,8 +1044,7 @@ __device__ inline void quad_allreduce(float (&dst)[M], float (&src)[M],
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Operator, int M>
-__device__ inline void quad_allreduce(float (&dst)[M], float2 (&src)[M],
-                                      Operator &op) {
+__device__ inline void quad_allreduce(float (&dst)[M], float2 (&src)[M], Operator &op) {
   float tmp[M];
 #pragma unroll
   for (int mi = 0; mi < M; mi++) {
@@ -1070,4 +1055,4 @@ __device__ inline void quad_allreduce(float (&dst)[M], float2 (&src)[M],
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace fmha
+}  // namespace fmha

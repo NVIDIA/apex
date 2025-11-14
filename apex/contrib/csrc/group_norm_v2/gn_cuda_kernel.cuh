@@ -8,11 +8,13 @@ namespace group_norm_v2 {
 
 namespace cg = cooperative_groups;
 
-template <typename T> inline constexpr T up_div(T a, T b) {
+template <typename T>
+inline constexpr T up_div(T a, T b) {
   return (a + b - 1) / b;
 }
 
-template <typename T> inline constexpr T round_up(T a, T b) {
+template <typename T>
+inline constexpr T round_up(T a, T b) {
   return up_div(a, b) * b;
 }
 
@@ -26,11 +28,10 @@ inline constexpr unsigned round_up_pow2(unsigned x) {
   return 1U << log;
 }
 
-inline constexpr unsigned round_down_pow2(unsigned x) {
-  return round_up_pow2(x + 1) / 2;
-}
+inline constexpr unsigned round_down_pow2(unsigned x) { return round_up_pow2(x + 1) / 2; }
 
-template <typename T> inline constexpr T gcd(T a, T b) {
+template <typename T>
+inline constexpr T gcd(T a, T b) {
   while (b != 0) {
     int t = b;
     b = a % b;
@@ -39,11 +40,13 @@ template <typename T> inline constexpr T gcd(T a, T b) {
   return a;
 }
 
-template <typename T> inline constexpr T lcm(T a, T b) {
+template <typename T>
+inline constexpr T lcm(T a, T b) {
   return (a * b) / gcd(a, b);
 }
 
-template <typename T> inline constexpr T relative_prime(T x, T min) {
+template <typename T>
+inline constexpr T relative_prime(T x, T min) {
   int p = min;
   while (gcd(p, x) != 1) {
     p++;
@@ -51,7 +54,8 @@ template <typename T> inline constexpr T relative_prime(T x, T min) {
   return p;
 }
 
-template <typename T> inline constexpr T max_divisor(T x, T max) {
+template <typename T>
+inline constexpr T max_divisor(T x, T max) {
   int p = max;
   while (x % p != 0) {
     p--;
@@ -89,16 +93,14 @@ __device__ void virtual_cluster_sync(unsigned int *barrier) {
                      : "=r"(current_arrive)
                      : _CG_ASM_PTR_CONSTRAINT((unsigned int *)arrived)
                      : "memory");
-      } while (!cooperative_groups::details::bar_has_flipped(oldArrive,
-                                                             current_arrive));
+      } while (!cooperative_groups::details::bar_has_flipped(oldArrive, current_arrive));
     }
     __syncthreads();
   }
 }
 
 template <int NUM_BLOCKS, bool PERSISTENT>
-__device__ unsigned int group_barrier_arrive(unsigned int *barrier,
-                                             bool gpu_master) {
+__device__ unsigned int group_barrier_arrive(unsigned int *barrier, bool gpu_master) {
   static_assert(PERSISTENT, "potential deadlock");
   volatile unsigned int *arrived = &barrier[0];
   __syncthreads();
@@ -119,8 +121,7 @@ __device__ unsigned int group_barrier_arrive(unsigned int *barrier,
   }
 }
 
-__device__ inline void group_barrier_wait(unsigned int *barrier,
-                                          unsigned int oldArrive) {
+__device__ inline void group_barrier_wait(unsigned int *barrier, unsigned int oldArrive) {
   volatile unsigned int *arrived = &barrier[0];
   if (threadIdx.x == 0) {
     unsigned int current_arrive;
@@ -129,20 +130,18 @@ __device__ inline void group_barrier_wait(unsigned int *barrier,
                    : "=r"(current_arrive)
                    : _CG_ASM_PTR_CONSTRAINT((unsigned int *)arrived)
                    : "memory");
-    } while (!cooperative_groups::details::bar_has_flipped(oldArrive,
-                                                           current_arrive));
+    } while (!cooperative_groups::details::bar_has_flipped(oldArrive, current_arrive));
   }
   __syncthreads();
 }
 
 // Calculate `n` (batch id) and `c` (channel range id) for each loop
-template <bool CONSTANT_C_LOOP, int C, int C_PER_CLUSTER,
-          int NUM_VIRTUAL_CLUSTERS, bool PERSISTENT>
+template <bool CONSTANT_C_LOOP, int C, int C_PER_CLUSTER, int NUM_VIRTUAL_CLUSTERS, bool PERSISTENT>
 class NCScheduler;
 
 template <int C, int C_PER_CLUSTER, int NUM_VIRTUAL_CLUSTERS, bool PERSISTENT>
 class NCScheduler<false, C, C_PER_CLUSTER, NUM_VIRTUAL_CLUSTERS, PERSISTENT> {
-public:
+ public:
   __device__ NCScheduler(int64_t n) {
     nc_loop_ = blockIdx.y;
     at_end_ = nc_loop_ >= n * (C / C_PER_CLUSTER);
@@ -160,14 +159,14 @@ public:
   }
   __device__ bool at_end(int64_t n) { return !PERSISTENT || at_end_; }
 
-private:
+ private:
   int64_t nc_loop_;
   bool at_end_;
 };
 
 template <int C, int C_PER_CLUSTER, int NUM_VIRTUAL_CLUSTERS, bool PERSISTENT>
 class NCScheduler<true, C, C_PER_CLUSTER, NUM_VIRTUAL_CLUSTERS, PERSISTENT> {
-public:
+ public:
   __device__ NCScheduler(int64_t n) {
     n_loop_ = blockIdx.y / (C / C_PER_CLUSTER);
     c_loop_ = blockIdx.y % (C / C_PER_CLUSTER);
@@ -180,26 +179,22 @@ public:
   }
   __device__ bool at_end(int64_t n) { return !PERSISTENT || n_loop_ >= n; }
 
-private:
+ private:
   int64_t n_loop_;
   int c_loop_;
 };
 
 class CompileConditionAlwaysTrue {
-public:
+ public:
   __device__ static constexpr bool matches() { return true; }
 };
 
-template <typename T, int BLOCK_DIM_X, int BLOCKS_PER_SM, int G, int CPG,
-          int HW, bool SILU, int ROWS_PER_BLOCK, int C_PER_BLOCK,
-          int C_PER_CLUSTER, int VEC_ELEMS, bool PERSISTENT,
-          int NUM_VIRTUAL_CLUSTERS, bool LOAD_TWICE, bool HARDWARE_CLUSTER,
-          class CompileCondition = CompileConditionAlwaysTrue>
+template <typename T, int BLOCK_DIM_X, int BLOCKS_PER_SM, int G, int CPG, int HW, bool SILU, int ROWS_PER_BLOCK,
+          int C_PER_BLOCK, int C_PER_CLUSTER, int VEC_ELEMS, bool PERSISTENT, int NUM_VIRTUAL_CLUSTERS, bool LOAD_TWICE,
+          bool HARDWARE_CLUSTER, class CompileCondition = CompileConditionAlwaysTrue>
 __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
-    T *__restrict__ out, T const *__restrict__ x, T const *__restrict__ w,
-    T const *__restrict__ b, float eps, int64_t n,
-    float *__restrict__ mean_var_out, float *__restrict__ red_buffer,
-    unsigned *__restrict__ barrier) {
+    T *__restrict__ out, T const *__restrict__ x, T const *__restrict__ w, T const *__restrict__ b, float eps,
+    int64_t n, float *__restrict__ mean_var_out, float *__restrict__ red_buffer, unsigned *__restrict__ barrier) {
   // Procedure Overview
   //   1. Thread sum: read from gmem, write partial sum to smem, store input in
   //   registers (if no LOAD_TWICE)
@@ -213,15 +208,12 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
 
   constexpr int C = G * CPG;
   static_assert(C % C_PER_CLUSTER == 0, "cannot divide channels into clusters");
-  static_assert(C_PER_CLUSTER % C_PER_BLOCK == 0,
-                "cannot divide a cluster into blocks");
-  static_assert(C_PER_CLUSTER % CPG == 0,
-                "no reduce between clusters, would produce incorrect results");
+  static_assert(C_PER_CLUSTER % C_PER_BLOCK == 0, "cannot divide a cluster into blocks");
+  static_assert(C_PER_CLUSTER % CPG == 0, "no reduce between clusters, would produce incorrect results");
   static_assert(!(C_PER_BLOCK % CPG == 0 && C_PER_CLUSTER != C_PER_BLOCK),
                 "inefficient configuration, please reduce C_PER_CLUSTER");
 
-  static_assert(ROWS_PER_BLOCK * C_PER_BLOCK % BLOCK_DIM_X == 0,
-                "cannot divide tile into threads");
+  static_assert(ROWS_PER_BLOCK * C_PER_BLOCK % BLOCK_DIM_X == 0, "cannot divide tile into threads");
   struct alignas(VEC_ELEMS * sizeof(T)) U {
     T data[VEC_ELEMS];
   };
@@ -236,26 +228,18 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
                 "HW must be divisible by ROWS_PER_BLOCK to determine the "
                 "number of blocks on the HW axis");
   constexpr int MAX_NUM_GROUPS_PER_BLOCK =
-      C_PER_BLOCK % CPG == 0
-          ? C_PER_BLOCK / CPG
-          : up_div(C_PER_BLOCK - gcd(C_PER_BLOCK, CPG), CPG) + 1;
-  constexpr int VIRTUAL_CLUSTER_SIZE =
-      (C_PER_CLUSTER / C_PER_BLOCK) * (HW / ROWS_PER_BLOCK);
+      C_PER_BLOCK % CPG == 0 ? C_PER_BLOCK / CPG : up_div(C_PER_BLOCK - gcd(C_PER_BLOCK, CPG), CPG) + 1;
+  constexpr int VIRTUAL_CLUSTER_SIZE = (C_PER_CLUSTER / C_PER_BLOCK) * (HW / ROWS_PER_BLOCK);
   constexpr int virtual_cluster_dim_x = C_PER_CLUSTER / C_PER_BLOCK;
   constexpr int virtual_cluster_dim_y = HW / ROWS_PER_BLOCK;
-  int virtual_block_idx_x =
-      (blockIdx.x % VIRTUAL_CLUSTER_SIZE) % virtual_cluster_dim_x;
-  int virtual_block_idx_y =
-      (blockIdx.x % VIRTUAL_CLUSTER_SIZE) / virtual_cluster_dim_x;
+  int virtual_block_idx_x = (blockIdx.x % VIRTUAL_CLUSTER_SIZE) % virtual_cluster_dim_x;
+  int virtual_block_idx_y = (blockIdx.x % VIRTUAL_CLUSTER_SIZE) / virtual_cluster_dim_x;
 
   if constexpr (CompileCondition::matches()) {
     int step = 0;
-    constexpr bool CONSTANT_C_LOOP =
-        PERSISTENT && NUM_VIRTUAL_CLUSTERS % (C / C_PER_CLUSTER) == 0;
-    NCScheduler<CONSTANT_C_LOOP, C, C_PER_CLUSTER, NUM_VIRTUAL_CLUSTERS,
-                PERSISTENT>
-        nc_scheduler(n);
-    while (true) { // TODO: unroll the loop
+    constexpr bool CONSTANT_C_LOOP = PERSISTENT && NUM_VIRTUAL_CLUSTERS % (C / C_PER_CLUSTER) == 0;
+    NCScheduler<CONSTANT_C_LOOP, C, C_PER_CLUSTER, NUM_VIRTUAL_CLUSTERS, PERSISTENT> nc_scheduler(n);
+    while (true) {  // TODO: unroll the loop
       if constexpr (PERSISTENT) {
         if (nc_scheduler.at_end(n)) {
           break;
@@ -269,14 +253,10 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
       static_assert((BLOCK_DIM_X * VEC_ELEMS) % C_PER_BLOCK == 0,
                     "each block should load one or more C_PER_BLOCK at once");
       constexpr int ROWS_PER_IO = BLOCK_DIM_X * VEC_ELEMS / C_PER_BLOCK;
-      static_assert(ROWS_PER_BLOCK % ROWS_PER_IO == 0,
-                    "cannot determine the IO times per batch");
-      int block_channel_start =
-          virtual_block_idx_x * C_PER_BLOCK + c_loop * C_PER_CLUSTER;
+      static_assert(ROWS_PER_BLOCK % ROWS_PER_IO == 0, "cannot determine the IO times per batch");
+      int block_channel_start = virtual_block_idx_x * C_PER_BLOCK + c_loop * C_PER_CLUSTER;
       int block_group_start = block_channel_start / CPG;
-      int thread_channel_start =
-          block_channel_start +
-          threadIdx.x % (C_PER_BLOCK / VEC_ELEMS) * VEC_ELEMS;
+      int thread_channel_start = block_channel_start + threadIdx.x % (C_PER_BLOCK / VEC_ELEMS) * VEC_ELEMS;
       U frag[ROWS_PER_BLOCK / ROWS_PER_IO];
 
       // GCD_VEC_CPG is an important constant that determines how many channels
@@ -291,28 +271,23 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
       // GCD_VEC_CPG) sums to `sum_per_channel_multi_group`, where
       // `relative_prime` is used for swizzle.
       constexpr bool SINGLE_GROUP_PER_BLOCK = CPG % C_PER_BLOCK == 0;
-      [[maybe_unused]] __shared__ float2
-          sum_per_channel_single_group[BLOCK_DIM_X / 32];
-      [[maybe_unused]] __shared__ float2
-          sum_per_channel_multi_group[C_PER_BLOCK / GCD_VEC_CPG][relative_prime(
-              128 / (int)sizeof(float2), ROWS_PER_IO)];
+      [[maybe_unused]] __shared__ float2 sum_per_channel_single_group[BLOCK_DIM_X / 32];
+      [[maybe_unused]] __shared__ float2 sum_per_channel_multi_group[C_PER_BLOCK / GCD_VEC_CPG][relative_prime(
+          128 / (int)sizeof(float2), ROWS_PER_IO)];
 
       if constexpr (LOAD_TWICE) {
         float2 frag_sum_per_channel[VEC_ELEMS / GCD_VEC_CPG]{};
         for (int j = 0; j < ROWS_PER_BLOCK / ROWS_PER_IO; j++) {
           int64_t input_idx =
               n_loop * HW * C +
-              (virtual_block_idx_y * ROWS_PER_BLOCK + j * ROWS_PER_IO +
-               threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)) *
-                  C +
+              (virtual_block_idx_y * ROWS_PER_BLOCK + j * ROWS_PER_IO + threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)) * C +
               thread_channel_start;
           U val = *reinterpret_cast<U const *>(&x[input_idx]);
           for (int i = 0; i < VEC_ELEMS / GCD_VEC_CPG; i++) {
             float2 sum = frag_sum_per_channel[i];
             for (int k = 0; k < GCD_VEC_CPG; k++) {
               sum.x += (float)val.data[i * GCD_VEC_CPG + k];
-              sum.y += (float)val.data[i * GCD_VEC_CPG + k] *
-                       (float)val.data[i * GCD_VEC_CPG + k];
+              sum.y += (float)val.data[i * GCD_VEC_CPG + k] * (float)val.data[i * GCD_VEC_CPG + k];
             }
             frag_sum_per_channel[i] = sum;
           }
@@ -320,23 +295,16 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
         for (int i = 0; i < VEC_ELEMS / GCD_VEC_CPG; i++) {
           if constexpr (SINGLE_GROUP_PER_BLOCK) {
             for (int mask = 16; mask > 0; mask >>= 1) {
-              frag_sum_per_channel[i].x += __shfl_xor_sync(
-                  FINAL_MASK, frag_sum_per_channel[i].x, mask, 32);
-              frag_sum_per_channel[i].y += __shfl_xor_sync(
-                  FINAL_MASK, frag_sum_per_channel[i].y, mask, 32);
+              frag_sum_per_channel[i].x += __shfl_xor_sync(FINAL_MASK, frag_sum_per_channel[i].x, mask, 32);
+              frag_sum_per_channel[i].y += __shfl_xor_sync(FINAL_MASK, frag_sum_per_channel[i].y, mask, 32);
             }
-            static_assert(VEC_ELEMS / GCD_VEC_CPG == 1,
-                          "process only one element for each warp");
+            static_assert(VEC_ELEMS / GCD_VEC_CPG == 1, "process only one element for each warp");
             if (threadIdx.x % 32 == 0) {
-              sum_per_channel_single_group[threadIdx.x / 32] =
-                  frag_sum_per_channel[i];
+              sum_per_channel_single_group[threadIdx.x / 32] = frag_sum_per_channel[i];
             }
           } else {
-            sum_per_channel_multi_group[i * (C_PER_BLOCK / VEC_ELEMS) +
-                                        threadIdx.x % (C_PER_BLOCK / VEC_ELEMS)]
-                                       [threadIdx.x /
-                                        (C_PER_BLOCK / VEC_ELEMS)] =
-                                           frag_sum_per_channel[i];
+            sum_per_channel_multi_group[i * (C_PER_BLOCK / VEC_ELEMS) + threadIdx.x % (C_PER_BLOCK / VEC_ELEMS)]
+                                       [threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)] = frag_sum_per_channel[i];
           }
         }
         __syncthreads();
@@ -344,9 +312,7 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
         for (int j = 0; j < ROWS_PER_BLOCK / ROWS_PER_IO; j++) {
           int64_t input_idx =
               n_loop * HW * C +
-              (virtual_block_idx_y * ROWS_PER_BLOCK + j * ROWS_PER_IO +
-               threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)) *
-                  C +
+              (virtual_block_idx_y * ROWS_PER_BLOCK + j * ROWS_PER_IO + threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)) * C +
               thread_channel_start;
           frag[j] = *reinterpret_cast<U const *>(&x[input_idx]);
         }
@@ -356,8 +322,7 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
           for (int j = 0; j < ROWS_PER_BLOCK / ROWS_PER_IO; j++) {
             for (int k = 0; k < GCD_VEC_CPG; k++) {
               sum.x += (float)frag[j].data[i * GCD_VEC_CPG + k];
-              sum.y += (float)frag[j].data[i * GCD_VEC_CPG + k] *
-                       (float)frag[j].data[i * GCD_VEC_CPG + k];
+              sum.y += (float)frag[j].data[i * GCD_VEC_CPG + k] * (float)frag[j].data[i * GCD_VEC_CPG + k];
             }
           }
           if constexpr (SINGLE_GROUP_PER_BLOCK) {
@@ -365,16 +330,13 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
               sum.x += __shfl_xor_sync(FINAL_MASK, sum.x, mask, 32);
               sum.y += __shfl_xor_sync(FINAL_MASK, sum.y, mask, 32);
             }
-            static_assert(VEC_ELEMS / GCD_VEC_CPG == 1,
-                          "process only one element for each warp");
+            static_assert(VEC_ELEMS / GCD_VEC_CPG == 1, "process only one element for each warp");
             if (threadIdx.x % 32 == 0) {
               sum_per_channel_single_group[threadIdx.x / 32] = sum;
             }
           } else {
-            sum_per_channel_multi_group[i * (C_PER_BLOCK / VEC_ELEMS) +
-                                        threadIdx.x % (C_PER_BLOCK / VEC_ELEMS)]
-                                       [threadIdx.x /
-                                        (C_PER_BLOCK / VEC_ELEMS)] = sum;
+            sum_per_channel_multi_group[i * (C_PER_BLOCK / VEC_ELEMS) + threadIdx.x % (C_PER_BLOCK / VEC_ELEMS)]
+                                       [threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)] = sum;
           }
         }
         __syncthreads();
@@ -389,52 +351,41 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
       //   memory
       //   - Virtual cluster sync without HARDWARE_CLUSTER: use global memory,
       //   i.e., `red_buffer`
-      constexpr bool USE_SHARED_RED_BUFFER =
-          HARDWARE_CLUSTER || VIRTUAL_CLUSTER_SIZE == 1;
+      constexpr bool USE_SHARED_RED_BUFFER = HARDWARE_CLUSTER || VIRTUAL_CLUSTER_SIZE == 1;
 
       // Specialize for the case that each group is handled by only one block
       //   For common cases, blockSum produces partial sum and stores it to the
       //   red_buffer, and groupSum produces mean&var For the special case,
       //   blockSum produces mean&var directly
       constexpr bool STORE_MEAN_VAR_IN_SHARED_RED_BUFFER =
-          VIRTUAL_CLUSTER_SIZE == 1 &&
-          MAX_NUM_GROUPS_PER_BLOCK ==
-              1; // MAX_NUM_GROUPS_PER_BLOCK > 1 is possible but not implemented
+          VIRTUAL_CLUSTER_SIZE == 1 && MAX_NUM_GROUPS_PER_BLOCK == 1;  // MAX_NUM_GROUPS_PER_BLOCK > 1 is
+                                                                       // possible but not implemented
 
-      [[maybe_unused]] __align__(16) __shared__ float2
-          shared_red_buffer[MAX_NUM_GROUPS_PER_BLOCK *
-                            (STORE_MEAN_VAR_IN_SHARED_RED_BUFFER ? 1 : 2)];
+      [[maybe_unused]] __align__(16)
+          __shared__ float2 shared_red_buffer[MAX_NUM_GROUPS_PER_BLOCK * (STORE_MEAN_VAR_IN_SHARED_RED_BUFFER ? 1 : 2)];
 
       // Block sum
       if constexpr (SINGLE_GROUP_PER_BLOCK) {
         // block reduce
         if (threadIdx.x < 32) {
           float2 sum_local_group =
-              threadIdx.x < BLOCK_DIM_X / 32
-                  ? sum_per_channel_single_group[threadIdx.x]
-                  : float2{0.f, 0.f};
+              threadIdx.x < BLOCK_DIM_X / 32 ? sum_per_channel_single_group[threadIdx.x] : float2{0.f, 0.f};
           constexpr int warp_num_pow2 = round_up_pow2(BLOCK_DIM_X / 32);
           for (int mask = warp_num_pow2 / 2; mask > 0; mask >>= 1) {
-            sum_local_group.x +=
-                __shfl_xor_sync(FINAL_MASK, sum_local_group.x, mask, 32);
-            sum_local_group.y +=
-                __shfl_xor_sync(FINAL_MASK, sum_local_group.y, mask, 32);
+            sum_local_group.x += __shfl_xor_sync(FINAL_MASK, sum_local_group.x, mask, 32);
+            sum_local_group.y += __shfl_xor_sync(FINAL_MASK, sum_local_group.y, mask, 32);
           }
           if (threadIdx.x == 0) {
             if constexpr (USE_SHARED_RED_BUFFER) {
               if constexpr (STORE_MEAN_VAR_IN_SHARED_RED_BUFFER) {
                 shared_red_buffer[0] = compute_mean_var(sum_local_group);
               } else {
-                shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK + 0] =
-                    sum_local_group;
+                shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK + 0] = sum_local_group;
               }
             } else {
               *reinterpret_cast<float2 *>(
-                  &red_buffer[((step * gridDim.y + blockIdx.y) *
-                                   VIRTUAL_CLUSTER_SIZE *
-                                   MAX_NUM_GROUPS_PER_BLOCK +
-                               virtual_block_idx_x * virtual_cluster_dim_y *
-                                   MAX_NUM_GROUPS_PER_BLOCK +
+                  &red_buffer[((step * gridDim.y + blockIdx.y) * VIRTUAL_CLUSTER_SIZE * MAX_NUM_GROUPS_PER_BLOCK +
+                               virtual_block_idx_x * virtual_cluster_dim_y * MAX_NUM_GROUPS_PER_BLOCK +
                                // (threadIdx.x / THREADS_PER_GROUP) *
                                // virtual_cluster_dim_y +
                                virtual_block_idx_y) *
@@ -445,166 +396,112 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
       } else {
         // The number of threads to calculate the sum of each group (should be a
         // power of 2 for warp reduce)
-        constexpr int THREADS_PER_GROUP = std::min(
-            std::min(32U, round_up_pow2(ROWS_PER_IO)),
-            round_up_pow2(BLOCK_DIM_X / MAX_NUM_GROUPS_PER_BLOCK / 2 + 1));
-        static_assert(BLOCK_DIM_X >=
-                          MAX_NUM_GROUPS_PER_BLOCK * THREADS_PER_GROUP,
-                      "not enough threads");
+        constexpr int THREADS_PER_GROUP = std::min(std::min(32U, round_up_pow2(ROWS_PER_IO)),
+                                                   round_up_pow2(BLOCK_DIM_X / MAX_NUM_GROUPS_PER_BLOCK / 2 + 1));
+        static_assert(BLOCK_DIM_X >= MAX_NUM_GROUPS_PER_BLOCK * THREADS_PER_GROUP, "not enough threads");
         float2 sum_local_group = {0.f, 0.f};
         if (threadIdx.x / THREADS_PER_GROUP < MAX_NUM_GROUPS_PER_BLOCK) {
-          int local_group_idx =
-              block_group_start + threadIdx.x / THREADS_PER_GROUP;
+          int local_group_idx = block_group_start + threadIdx.x / THREADS_PER_GROUP;
           // TODO: map threads to both the CPG loop and the ROWS loop
-          for (int local_c_loop = 0; local_c_loop < CPG;
-               local_c_loop += GCD_VEC_CPG) {
+          for (int local_c_loop = 0; local_c_loop < CPG; local_c_loop += GCD_VEC_CPG) {
             int c = local_group_idx * CPG + local_c_loop;
-            if (C_PER_BLOCK % CPG == 0 ||
-                (c >= block_channel_start &&
-                 c < block_channel_start + C_PER_BLOCK)) {
-              for (int src_thread_tile_y = threadIdx.x % THREADS_PER_GROUP;
-                   src_thread_tile_y < ROWS_PER_IO;
+            if (C_PER_BLOCK % CPG == 0 || (c >= block_channel_start && c < block_channel_start + C_PER_BLOCK)) {
+              for (int src_thread_tile_y = threadIdx.x % THREADS_PER_GROUP; src_thread_tile_y < ROWS_PER_IO;
                    src_thread_tile_y += THREADS_PER_GROUP) {
                 int channel_idx = (c - block_channel_start) / GCD_VEC_CPG;
-                channel_idx = channel_idx % (VEC_ELEMS / GCD_VEC_CPG) *
-                                  (C_PER_BLOCK / VEC_ELEMS) +
+                channel_idx = channel_idx % (VEC_ELEMS / GCD_VEC_CPG) * (C_PER_BLOCK / VEC_ELEMS) +
                               channel_idx / (VEC_ELEMS / GCD_VEC_CPG);
-                sum_local_group.x +=
-                    sum_per_channel_multi_group[channel_idx][src_thread_tile_y]
-                        .x;
-                sum_local_group.y +=
-                    sum_per_channel_multi_group[channel_idx][src_thread_tile_y]
-                        .y;
+                sum_local_group.x += sum_per_channel_multi_group[channel_idx][src_thread_tile_y].x;
+                sum_local_group.y += sum_per_channel_multi_group[channel_idx][src_thread_tile_y].y;
               }
             }
           }
         }
         static_assert(32 % THREADS_PER_GROUP == 0, "cannot shuffle");
         for (int mask = THREADS_PER_GROUP / 2; mask > 0; mask >>= 1) {
-          sum_local_group.x +=
-              __shfl_xor_sync(FINAL_MASK, sum_local_group.x, mask, 32);
-          sum_local_group.y +=
-              __shfl_xor_sync(FINAL_MASK, sum_local_group.y, mask, 32);
+          sum_local_group.x += __shfl_xor_sync(FINAL_MASK, sum_local_group.x, mask, 32);
+          sum_local_group.y += __shfl_xor_sync(FINAL_MASK, sum_local_group.y, mask, 32);
         }
-        if (threadIdx.x % THREADS_PER_GROUP == 0 &&
-            threadIdx.x / THREADS_PER_GROUP < MAX_NUM_GROUPS_PER_BLOCK) {
+        if (threadIdx.x % THREADS_PER_GROUP == 0 && threadIdx.x / THREADS_PER_GROUP < MAX_NUM_GROUPS_PER_BLOCK) {
           if constexpr (USE_SHARED_RED_BUFFER) {
-            static_assert(HARDWARE_CLUSTER || VIRTUAL_CLUSTER_SIZE == 1,
-                          "no distributed shared memory");
+            static_assert(HARDWARE_CLUSTER || VIRTUAL_CLUSTER_SIZE == 1, "no distributed shared memory");
             if constexpr (STORE_MEAN_VAR_IN_SHARED_RED_BUFFER) {
-              shared_red_buffer[threadIdx.x / THREADS_PER_GROUP] =
-                  compute_mean_var(sum_local_group);
+              shared_red_buffer[threadIdx.x / THREADS_PER_GROUP] = compute_mean_var(sum_local_group);
             } else {
-              shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK +
-                                threadIdx.x / THREADS_PER_GROUP] =
-                  sum_local_group;
+              shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK + threadIdx.x / THREADS_PER_GROUP] = sum_local_group;
             }
           } else {
             *reinterpret_cast<float2 *>(
-                &red_buffer[((step * gridDim.y + blockIdx.y) *
-                                 VIRTUAL_CLUSTER_SIZE *
-                                 MAX_NUM_GROUPS_PER_BLOCK +
-                             virtual_block_idx_x * virtual_cluster_dim_y *
-                                 MAX_NUM_GROUPS_PER_BLOCK +
-                             (threadIdx.x / THREADS_PER_GROUP) *
-                                 virtual_cluster_dim_y +
-                             virtual_block_idx_y) *
+                &red_buffer[((step * gridDim.y + blockIdx.y) * VIRTUAL_CLUSTER_SIZE * MAX_NUM_GROUPS_PER_BLOCK +
+                             virtual_block_idx_x * virtual_cluster_dim_y * MAX_NUM_GROUPS_PER_BLOCK +
+                             (threadIdx.x / THREADS_PER_GROUP) * virtual_cluster_dim_y + virtual_block_idx_y) *
                             2]) = sum_local_group;
           }
         }
       }
 
-      virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT, HARDWARE_CLUSTER>(
-          barrier);
+      virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT, HARDWARE_CLUSTER>(barrier);
 
       // Group sum
       __shared__ float2 mean_var[MAX_NUM_GROUPS_PER_BLOCK];
       if constexpr (!STORE_MEAN_VAR_IN_SHARED_RED_BUFFER) {
         // The number of threads to calculate the sum of each group (should be a
         // power of 2 for warp reduce)
-        constexpr int THREADS_PER_GROUP = std::min(
-            std::min(32U, round_up_pow2(virtual_cluster_dim_y)),
-            round_up_pow2(BLOCK_DIM_X / MAX_NUM_GROUPS_PER_BLOCK / 2 + 1));
-        static_assert(BLOCK_DIM_X >=
-                          MAX_NUM_GROUPS_PER_BLOCK * THREADS_PER_GROUP,
-                      "not enough threads");
+        constexpr int THREADS_PER_GROUP = std::min(std::min(32U, round_up_pow2(virtual_cluster_dim_y)),
+                                                   round_up_pow2(BLOCK_DIM_X / MAX_NUM_GROUPS_PER_BLOCK / 2 + 1));
+        static_assert(BLOCK_DIM_X >= MAX_NUM_GROUPS_PER_BLOCK * THREADS_PER_GROUP, "not enough threads");
         float2 sum_global_group = {0.f, 0.f};
         if (threadIdx.x / THREADS_PER_GROUP < MAX_NUM_GROUPS_PER_BLOCK) {
           if constexpr (C_PER_BLOCK % CPG == 0) {
             // Special case: no cross-virtual_cluster_dim_x reduction
             float2 buffer[up_div(virtual_cluster_dim_y, THREADS_PER_GROUP)];
-            for (int i = threadIdx.x % THREADS_PER_GROUP;
-                 i < virtual_cluster_dim_y; i += THREADS_PER_GROUP) {
+            for (int i = threadIdx.x % THREADS_PER_GROUP; i < virtual_cluster_dim_y; i += THREADS_PER_GROUP) {
               float2 val;
               if constexpr (USE_SHARED_RED_BUFFER) {
                 if constexpr (VIRTUAL_CLUSTER_SIZE == 1) {
-                  val = shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK +
-                                          threadIdx.x / THREADS_PER_GROUP];
+                  val = shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK + threadIdx.x / THREADS_PER_GROUP];
                 } else {
-                  static_assert(HARDWARE_CLUSTER,
-                                "no distributed shared memory");
-                  float2 const *src_shared_red_buffer =
-                      cg::this_cluster().map_shared_rank(
-                          shared_red_buffer,
-                          i * virtual_cluster_dim_x + virtual_block_idx_x);
-                  val = src_shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK +
-                                              threadIdx.x / THREADS_PER_GROUP];
+                  static_assert(HARDWARE_CLUSTER, "no distributed shared memory");
+                  float2 const *src_shared_red_buffer = cg::this_cluster().map_shared_rank(
+                      shared_red_buffer, i * virtual_cluster_dim_x + virtual_block_idx_x);
+                  val = src_shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK + threadIdx.x / THREADS_PER_GROUP];
                 }
               } else {
                 val = *reinterpret_cast<float2 const *>(
-                    &red_buffer[((step * gridDim.y + blockIdx.y) *
-                                     VIRTUAL_CLUSTER_SIZE *
-                                     MAX_NUM_GROUPS_PER_BLOCK +
-                                 virtual_block_idx_x * virtual_cluster_dim_y *
-                                     MAX_NUM_GROUPS_PER_BLOCK +
-                                 (threadIdx.x / THREADS_PER_GROUP) *
-                                     virtual_cluster_dim_y +
-                                 i) *
+                    &red_buffer[((step * gridDim.y + blockIdx.y) * VIRTUAL_CLUSTER_SIZE * MAX_NUM_GROUPS_PER_BLOCK +
+                                 virtual_block_idx_x * virtual_cluster_dim_y * MAX_NUM_GROUPS_PER_BLOCK +
+                                 (threadIdx.x / THREADS_PER_GROUP) * virtual_cluster_dim_y + i) *
                                 2]);
               }
               buffer[i / THREADS_PER_GROUP] = val;
             }
-            for (int i = threadIdx.x % THREADS_PER_GROUP;
-                 i < virtual_cluster_dim_y; i += THREADS_PER_GROUP) {
+            for (int i = threadIdx.x % THREADS_PER_GROUP; i < virtual_cluster_dim_y; i += THREADS_PER_GROUP) {
               float2 val = buffer[i / THREADS_PER_GROUP];
               sum_global_group.x += val.x;
               sum_global_group.y += val.y;
             }
           } else {
             // Common case: cross-virtual_cluster_dim_x reduction
-            int local_group_idx =
-                block_group_start + threadIdx.x / THREADS_PER_GROUP;
-            for (int i = threadIdx.x % THREADS_PER_GROUP;
-                 i < VIRTUAL_CLUSTER_SIZE; i += THREADS_PER_GROUP) {
+            int local_group_idx = block_group_start + threadIdx.x / THREADS_PER_GROUP;
+            for (int i = threadIdx.x % THREADS_PER_GROUP; i < VIRTUAL_CLUSTER_SIZE; i += THREADS_PER_GROUP) {
               int src_virtual_block_idx_x = i % virtual_cluster_dim_x;
-              int src_block_channel_start =
-                  src_virtual_block_idx_x * C_PER_BLOCK +
-                  c_loop * C_PER_CLUSTER;
+              int src_block_channel_start = src_virtual_block_idx_x * C_PER_BLOCK + c_loop * C_PER_CLUSTER;
               int src_block_group_start = src_block_channel_start / CPG;
               int relative_group_idx = local_group_idx - src_block_group_start;
-              if (0 <= relative_group_idx &&
-                  relative_group_idx < MAX_NUM_GROUPS_PER_BLOCK) {
+              if (0 <= relative_group_idx && relative_group_idx < MAX_NUM_GROUPS_PER_BLOCK) {
                 float2 val;
                 if constexpr (USE_SHARED_RED_BUFFER) {
-                  static_assert(HARDWARE_CLUSTER,
-                                "no distributed shared memory");
+                  static_assert(HARDWARE_CLUSTER, "no distributed shared memory");
                   static_assert(VIRTUAL_CLUSTER_SIZE != 1,
                                 "layout error: should not add (step * "
                                 "MAX_NUM_GROUPS_PER_BLOCK)");
-                  float2 const *src_shared_red_buffer =
-                      cg::this_cluster().map_shared_rank(shared_red_buffer, i);
-                  val = src_shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK +
-                                              relative_group_idx];
+                  float2 const *src_shared_red_buffer = cg::this_cluster().map_shared_rank(shared_red_buffer, i);
+                  val = src_shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK + relative_group_idx];
                 } else {
                   val = *reinterpret_cast<float2 const *>(
-                      &red_buffer[((step * gridDim.y + blockIdx.y) *
-                                       VIRTUAL_CLUSTER_SIZE *
-                                       MAX_NUM_GROUPS_PER_BLOCK +
-                                   src_virtual_block_idx_x *
-                                       virtual_cluster_dim_y *
-                                       MAX_NUM_GROUPS_PER_BLOCK +
-                                   relative_group_idx * virtual_cluster_dim_y +
-                                   i / virtual_cluster_dim_x) *
+                      &red_buffer[((step * gridDim.y + blockIdx.y) * VIRTUAL_CLUSTER_SIZE * MAX_NUM_GROUPS_PER_BLOCK +
+                                   src_virtual_block_idx_x * virtual_cluster_dim_y * MAX_NUM_GROUPS_PER_BLOCK +
+                                   relative_group_idx * virtual_cluster_dim_y + i / virtual_cluster_dim_x) *
                                   2]);
                 }
                 sum_global_group.x += val.x;
@@ -626,33 +523,26 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
         }
         static_assert(32 % THREADS_PER_GROUP == 0, "cannot shuffle");
         for (int mask = THREADS_PER_GROUP / 2; mask > 0; mask >>= 1) {
-          sum_global_group.x +=
-              __shfl_xor_sync(FINAL_MASK, sum_global_group.x, mask, 32);
-          sum_global_group.y +=
-              __shfl_xor_sync(FINAL_MASK, sum_global_group.y, mask, 32);
+          sum_global_group.x += __shfl_xor_sync(FINAL_MASK, sum_global_group.x, mask, 32);
+          sum_global_group.y += __shfl_xor_sync(FINAL_MASK, sum_global_group.y, mask, 32);
         }
-        if (threadIdx.x % THREADS_PER_GROUP == 0 &&
-            threadIdx.x / THREADS_PER_GROUP < MAX_NUM_GROUPS_PER_BLOCK) {
-          mean_var[threadIdx.x / THREADS_PER_GROUP] =
-              compute_mean_var(sum_global_group);
+        if (threadIdx.x % THREADS_PER_GROUP == 0 && threadIdx.x / THREADS_PER_GROUP < MAX_NUM_GROUPS_PER_BLOCK) {
+          mean_var[threadIdx.x / THREADS_PER_GROUP] = compute_mean_var(sum_global_group);
         }
         __syncthreads();
       }
 
       auto get_mean_var = [&](int relative_group_idx) {
-        return STORE_MEAN_VAR_IN_SHARED_RED_BUFFER
-                   ? shared_red_buffer[relative_group_idx]
-                   : mean_var[relative_group_idx];
+        return STORE_MEAN_VAR_IN_SHARED_RED_BUFFER ? shared_red_buffer[relative_group_idx]
+                                                   : mean_var[relative_group_idx];
       };
 
       if (mean_var_out) {
         static_assert(MAX_NUM_GROUPS_PER_BLOCK <= BLOCK_DIM_X, "need loop");
-        if (virtual_block_idx_y == 0 &&
-            threadIdx.x < MAX_NUM_GROUPS_PER_BLOCK) {
+        if (virtual_block_idx_y == 0 && threadIdx.x < MAX_NUM_GROUPS_PER_BLOCK) {
           int g = block_group_start + threadIdx.x;
           if (C_PER_BLOCK % CPG == 0 || g < G) {
-            *reinterpret_cast<float2 *>(&mean_var_out[(n_loop * G + g) * 2]) =
-                get_mean_var(threadIdx.x);
+            *reinterpret_cast<float2 *>(&mean_var_out[(n_loop * G + g) * 2]) = get_mean_var(threadIdx.x);
           }
         }
       }
@@ -660,20 +550,14 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
       float frag_mean[VEC_ELEMS / GCD_VEC_CPG];
       float frag_var[VEC_ELEMS / GCD_VEC_CPG];
       for (int k = 0; k < VEC_ELEMS; k += GCD_VEC_CPG) {
-        frag_mean[k / GCD_VEC_CPG] =
-            get_mean_var((thread_channel_start + k) / CPG - block_group_start)
-                .x;
-        frag_var[k / GCD_VEC_CPG] =
-            get_mean_var((thread_channel_start + k) / CPG - block_group_start)
-                .y;
+        frag_mean[k / GCD_VEC_CPG] = get_mean_var((thread_channel_start + k) / CPG - block_group_start).x;
+        frag_var[k / GCD_VEC_CPG] = get_mean_var((thread_channel_start + k) / CPG - block_group_start).y;
       }
 
       for (int j = 0; j < ROWS_PER_BLOCK / ROWS_PER_IO; j++) {
         int64_t input_idx =
             n_loop * HW * C +
-            (virtual_block_idx_y * ROWS_PER_BLOCK + j * ROWS_PER_IO +
-             threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)) *
-                C +
+            (virtual_block_idx_y * ROWS_PER_BLOCK + j * ROWS_PER_IO + threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)) * C +
             thread_channel_start;
         U val;
         if constexpr (LOAD_TWICE) {
@@ -682,19 +566,16 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
           val = frag[j];
         }
         for (int k = 0; k < VEC_ELEMS; k++) {
-          float f = ((float)val.data[k] - frag_mean[k / GCD_VEC_CPG]) *
-                        rsqrtf(frag_var[k / GCD_VEC_CPG] + eps) *
+          float f = ((float)val.data[k] - frag_mean[k / GCD_VEC_CPG]) * rsqrtf(frag_var[k / GCD_VEC_CPG] + eps) *
                         (float)uw.data[k] +
                     (float)ub.data[k];
-          if constexpr (SILU)
-            f = f / (1.f + expf(-f));
+          if constexpr (SILU) f = f / (1.f + expf(-f));
           val.data[k] = f;
         }
         *reinterpret_cast<U *>(&out[input_idx]) = val;
       }
 
-      if constexpr (!STORE_MEAN_VAR_IN_SHARED_RED_BUFFER &&
-                    USE_SHARED_RED_BUFFER && VIRTUAL_CLUSTER_SIZE > 1) {
+      if constexpr (!STORE_MEAN_VAR_IN_SHARED_RED_BUFFER && USE_SHARED_RED_BUFFER && VIRTUAL_CLUSTER_SIZE > 1) {
         if constexpr (PERSISTENT) {
           if (nc_scheduler.at_end(n)) {
             cg::this_cluster().barrier_wait();
@@ -713,32 +594,27 @@ __global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_cuda_kernel(
 }
 
 enum WgradSyncMethod {
-  WGRAD_ARRIVE_AND_WAIT_GRID =
-      0, // grid arrive after the last virtual cluster sync
-  WGRAD_ARRIVE_AND_WAIT_GROUP, // group arrive after the last virtual cluster
-                               // sync (a group sync means synchronizing all
-                               // clusters cooperating on the same groups)
-  WGRAD_REUSE_SUM_SYNC_GRID, // grid sync together with the last virtual cluster
-                             // sync
-  WGRAD_REUSE_SUM_SYNC_GROUP, // group sync together with the last virtual
-                              // cluster sync
-  WGRAD_SYNC_AT_LAST,         // add a sync at the end of NC loops
+  WGRAD_ARRIVE_AND_WAIT_GRID = 0,  // grid arrive after the last virtual cluster sync
+  WGRAD_ARRIVE_AND_WAIT_GROUP,     // group arrive after the last virtual cluster
+                                   // sync (a group sync means synchronizing all
+                                   // clusters cooperating on the same groups)
+  WGRAD_REUSE_SUM_SYNC_GRID,       // grid sync together with the last virtual
+                                   // cluster sync
+  WGRAD_REUSE_SUM_SYNC_GROUP,      // group sync together with the last virtual
+                                   // cluster sync
+  WGRAD_SYNC_AT_LAST,              // add a sync at the end of NC loops
   WGRAD_SYNC_UNSPECIFIED,
 };
 
-template <typename T, int BLOCK_DIM_X, int BLOCKS_PER_SM, int G, int CPG,
-          int HW, bool SILU, bool REQUIRES_WGRAD, int ROWS_PER_BLOCK,
-          int C_PER_BLOCK, int C_PER_CLUSTER, int VEC_ELEMS, bool PERSISTENT,
-          int NUM_VIRTUAL_CLUSTERS, bool LOAD_TWICE, bool HARDWARE_CLUSTER,
-          WgradSyncMethod wgrad_sync_method,
+template <typename T, int BLOCK_DIM_X, int BLOCKS_PER_SM, int G, int CPG, int HW, bool SILU, bool REQUIRES_WGRAD,
+          int ROWS_PER_BLOCK, int C_PER_BLOCK, int C_PER_CLUSTER, int VEC_ELEMS, bool PERSISTENT,
+          int NUM_VIRTUAL_CLUSTERS, bool LOAD_TWICE, bool HARDWARE_CLUSTER, WgradSyncMethod wgrad_sync_method,
           class CompileCondition = CompileConditionAlwaysTrue>
-__global__
-__launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
-    T *__restrict__ grad_input, T *__restrict__ grad_weight,
-    T *__restrict__ grad_bias, T const *__restrict__ grad_output,
-    T const *__restrict__ x, T const *__restrict__ w, T const *__restrict__ b,
-    float const *__restrict__ mean_var, float eps, int64_t n,
-    float *__restrict__ red_buffer, unsigned *__restrict__ barrier) {
+__global__ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
+    T *__restrict__ grad_input, T *__restrict__ grad_weight, T *__restrict__ grad_bias,
+    T const *__restrict__ grad_output, T const *__restrict__ x, T const *__restrict__ w, T const *__restrict__ b,
+    float const *__restrict__ mean_var, float eps, int64_t n, float *__restrict__ red_buffer,
+    unsigned *__restrict__ barrier) {
   // Procedure Overview
   //   1. Thread sum: read from gmem, write partial sum to smem, store input in
   //   registers (if no LOAD_TWICE)
@@ -755,15 +631,12 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
 
   constexpr int C = G * CPG;
   static_assert(C % C_PER_CLUSTER == 0, "cannot divide channels into clusters");
-  static_assert(C_PER_CLUSTER % C_PER_BLOCK == 0,
-                "cannot divide a cluster into blocks");
-  static_assert(C_PER_CLUSTER % CPG == 0,
-                "no reduce between clusters, would produce incorrect results");
+  static_assert(C_PER_CLUSTER % C_PER_BLOCK == 0, "cannot divide a cluster into blocks");
+  static_assert(C_PER_CLUSTER % CPG == 0, "no reduce between clusters, would produce incorrect results");
   static_assert(!(C_PER_BLOCK % CPG == 0 && C_PER_CLUSTER != C_PER_BLOCK),
                 "inefficient configuration, please reduce C_PER_CLUSTER");
 
-  static_assert(ROWS_PER_BLOCK * C_PER_BLOCK % BLOCK_DIM_X == 0,
-                "cannot divide tile into threads");
+  static_assert(ROWS_PER_BLOCK * C_PER_BLOCK % BLOCK_DIM_X == 0, "cannot divide tile into threads");
   struct alignas(VEC_ELEMS * sizeof(T)) U {
     T data[VEC_ELEMS];
   };
@@ -781,34 +654,26 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
                 "HW must be divisible by ROWS_PER_BLOCK to determine the "
                 "number of blocks on the HW axis");
   constexpr int MAX_NUM_GROUPS_PER_BLOCK =
-      C_PER_BLOCK % CPG == 0
-          ? C_PER_BLOCK / CPG
-          : up_div(C_PER_BLOCK - gcd(C_PER_BLOCK, CPG), CPG) + 1;
-  constexpr int VIRTUAL_CLUSTER_SIZE =
-      (C_PER_CLUSTER / C_PER_BLOCK) * (HW / ROWS_PER_BLOCK);
+      C_PER_BLOCK % CPG == 0 ? C_PER_BLOCK / CPG : up_div(C_PER_BLOCK - gcd(C_PER_BLOCK, CPG), CPG) + 1;
+  constexpr int VIRTUAL_CLUSTER_SIZE = (C_PER_CLUSTER / C_PER_BLOCK) * (HW / ROWS_PER_BLOCK);
   constexpr int virtual_cluster_dim_x = C_PER_CLUSTER / C_PER_BLOCK;
   constexpr int virtual_cluster_dim_y = HW / ROWS_PER_BLOCK;
-  int virtual_block_idx_x =
-      (blockIdx.x % VIRTUAL_CLUSTER_SIZE) % virtual_cluster_dim_x;
-  int virtual_block_idx_y =
-      (blockIdx.x % VIRTUAL_CLUSTER_SIZE) / virtual_cluster_dim_x;
+  int virtual_block_idx_x = (blockIdx.x % VIRTUAL_CLUSTER_SIZE) % virtual_cluster_dim_x;
+  int virtual_block_idx_y = (blockIdx.x % VIRTUAL_CLUSTER_SIZE) / virtual_cluster_dim_x;
 
   if constexpr (CompileCondition::matches()) {
     int step = 0;
-    constexpr bool CONSTANT_C_LOOP =
-        PERSISTENT && NUM_VIRTUAL_CLUSTERS % (C / C_PER_CLUSTER) == 0;
+    constexpr bool CONSTANT_C_LOOP = PERSISTENT && NUM_VIRTUAL_CLUSTERS % (C / C_PER_CLUSTER) == 0;
     if constexpr (!CONSTANT_C_LOOP) {
-      static_assert(wgrad_sync_method != WGRAD_ARRIVE_AND_WAIT_GROUP &&
-                        wgrad_sync_method != WGRAD_REUSE_SUM_SYNC_GROUP,
+      static_assert(wgrad_sync_method != WGRAD_ARRIVE_AND_WAIT_GROUP && wgrad_sync_method != WGRAD_REUSE_SUM_SYNC_GROUP,
                     "grid sync is required when each block is responsible for "
                     "multiple channel ranges");
     }
-    NCScheduler<false, C, C_PER_CLUSTER, NUM_VIRTUAL_CLUSTERS, PERSISTENT>
-        nc_scheduler(n); // TODO: I don't know why the template specialization
-                         // with CONSTANT_C_LOOP=true is slower.
+    NCScheduler<false, C, C_PER_CLUSTER, NUM_VIRTUAL_CLUSTERS, PERSISTENT> nc_scheduler(
+        n);  // TODO: I don't know why the template specialization
+             // with CONSTANT_C_LOOP=true is slower.
 
-    [[maybe_unused]] int virtual_cluster_idx_c =
-        blockIdx.y % (C / C_PER_CLUSTER);
+    [[maybe_unused]] int virtual_cluster_idx_c = blockIdx.y % (C / C_PER_CLUSTER);
     [[maybe_unused]] cg::grid_group::arrival_token wgrad_sync_token;
     [[maybe_unused]] float dw_thread[VEC_ELEMS];
     [[maybe_unused]] float db_thread[VEC_ELEMS];
@@ -826,41 +691,32 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
       }
     }
     float *red_buffer_wgrad =
-        &red_buffer[(2 * NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE *
-                     MAX_NUM_GROUPS_PER_BLOCK) *
-                    2];
+        &red_buffer[(2 * NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE * MAX_NUM_GROUPS_PER_BLOCK) * 2];
     unsigned *barrier_wgrad = barrier + NUM_VIRTUAL_CLUSTERS;
     if constexpr (REQUIRES_WGRAD && wgrad_sync_method != WGRAD_SYNC_AT_LAST) {
       if (nc_scheduler.at_end(n)) {
         static_assert(PERSISTENT, "persistent is a must for reducing wgrad");
         if constexpr (wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GRID) {
-          wgrad_sync_token =
-              group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE,
-                                   PERSISTENT>(barrier_wgrad,
-                                               blockIdx.x + blockIdx.y == 0);
+          wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE, PERSISTENT>(
+              barrier_wgrad, blockIdx.x + blockIdx.y == 0);
         } else if constexpr (wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GROUP) {
-          wgrad_sync_token = group_barrier_arrive<
-              NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE / (C / C_PER_CLUSTER),
-              PERSISTENT>(barrier_wgrad + virtual_cluster_idx_c,
-                          blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
-        } else if constexpr (wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GRID) {
           wgrad_sync_token =
-              group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE,
-                                   PERSISTENT>(barrier_wgrad,
-                                               blockIdx.x + blockIdx.y == 0);
+              group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE / (C / C_PER_CLUSTER), PERSISTENT>(
+                  barrier_wgrad + virtual_cluster_idx_c, blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
+        } else if constexpr (wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GRID) {
+          wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE, PERSISTENT>(
+              barrier_wgrad, blockIdx.x + blockIdx.y == 0);
           group_barrier_wait(barrier_wgrad, wgrad_sync_token);
         } else if constexpr (wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GROUP) {
-          wgrad_sync_token = group_barrier_arrive<
-              NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE / (C / C_PER_CLUSTER),
-              PERSISTENT>(barrier_wgrad + virtual_cluster_idx_c,
-                          blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
-          group_barrier_wait(barrier_wgrad + virtual_cluster_idx_c,
-                             wgrad_sync_token);
+          wgrad_sync_token =
+              group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE / (C / C_PER_CLUSTER), PERSISTENT>(
+                  barrier_wgrad + virtual_cluster_idx_c, blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
+          group_barrier_wait(barrier_wgrad + virtual_cluster_idx_c, wgrad_sync_token);
         }
       }
     }
 
-    while (true) { // TODO: unroll the loop
+    while (true) {  // TODO: unroll the loop
       if constexpr (PERSISTENT) {
         if (nc_scheduler.at_end(n)) {
           break;
@@ -874,31 +730,25 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
       static_assert((BLOCK_DIM_X * VEC_ELEMS) % C_PER_BLOCK == 0,
                     "each block should load one or more C_PER_BLOCK at once");
       constexpr int ROWS_PER_IO = BLOCK_DIM_X * VEC_ELEMS / C_PER_BLOCK;
-      static_assert(ROWS_PER_BLOCK % ROWS_PER_IO == 0,
-                    "cannot determine the IO times per batch");
-      int block_channel_start =
-          virtual_block_idx_x * C_PER_BLOCK + c_loop * C_PER_CLUSTER;
+      static_assert(ROWS_PER_BLOCK % ROWS_PER_IO == 0, "cannot determine the IO times per batch");
+      int block_channel_start = virtual_block_idx_x * C_PER_BLOCK + c_loop * C_PER_CLUSTER;
       int block_group_start = block_channel_start / CPG;
-      int thread_channel_start =
-          block_channel_start +
-          threadIdx.x % (C_PER_BLOCK / VEC_ELEMS) * VEC_ELEMS;
+      int thread_channel_start = block_channel_start + threadIdx.x % (C_PER_BLOCK / VEC_ELEMS) * VEC_ELEMS;
       U frag_x[ROWS_PER_BLOCK / ROWS_PER_IO];
       U frag_dy[ROWS_PER_BLOCK / ROWS_PER_IO];
 
       constexpr int GCD_VEC_CPG = gcd(VEC_ELEMS, CPG);
 
       constexpr bool SINGLE_GROUP_PER_BLOCK = CPG % C_PER_BLOCK == 0;
-      [[maybe_unused]] __shared__ float2
-          sum_per_channel_multi_group[C_PER_BLOCK / GCD_VEC_CPG][relative_prime(
-              128 / (int)sizeof(float2), ROWS_PER_IO)];
-      [[maybe_unused]] __shared__ float2
-          sum_per_channel_single_group[BLOCK_DIM_X / 32];
+      [[maybe_unused]] __shared__ float2 sum_per_channel_multi_group[C_PER_BLOCK / GCD_VEC_CPG][relative_prime(
+          128 / (int)sizeof(float2), ROWS_PER_IO)];
+      [[maybe_unused]] __shared__ float2 sum_per_channel_single_group[BLOCK_DIM_X / 32];
 
       float frag_mean[VEC_ELEMS / GCD_VEC_CPG];
       float frag_var[VEC_ELEMS / GCD_VEC_CPG];
       for (int k = 0; k < VEC_ELEMS; k += GCD_VEC_CPG) {
-        float2 value = *reinterpret_cast<float2 const *>(
-            &mean_var[(n_loop * G + (thread_channel_start + k) / CPG) * 2]);
+        float2 value =
+            *reinterpret_cast<float2 const *>(&mean_var[(n_loop * G + (thread_channel_start + k) / CPG) * 2]);
         frag_mean[k / GCD_VEC_CPG] = value.x;
         frag_var[k / GCD_VEC_CPG] = value.y;
       }
@@ -920,9 +770,7 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
         for (int j = 0; j < ROWS_PER_BLOCK / ROWS_PER_IO; j++) {
           int64_t input_idx =
               n_loop * HW * C +
-              (virtual_block_idx_y * ROWS_PER_BLOCK + j * ROWS_PER_IO +
-               threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)) *
-                  C +
+              (virtual_block_idx_y * ROWS_PER_BLOCK + j * ROWS_PER_IO + threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)) * C +
               thread_channel_start;
           U ux = *reinterpret_cast<U const *>(&x[input_idx]);
           U udy = *reinterpret_cast<U const *>(&grad_output[input_idx]);
@@ -931,12 +779,10 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
             for (int k = 0; k < GCD_VEC_CPG; k++) {
               float rnorm = rsqrtf(frag_var[i] + eps);
               float x_norm =
-                  ((float)ux.data[i * GCD_VEC_CPG + k] - frag_mean[i]) *
-                  rnorm; // TODO: store rsqrtf in mean_var
+                  ((float)ux.data[i * GCD_VEC_CPG + k] - frag_mean[i]) * rnorm;  // TODO: store rsqrtf in mean_var
               float grad_gn = udy.data[i * GCD_VEC_CPG + k];
               if constexpr (SILU) {
-                float x_gn = x_norm * (float)uw.data[i * GCD_VEC_CPG + k] +
-                             (float)ub.data[i * GCD_VEC_CPG + k];
+                float x_gn = x_norm * (float)uw.data[i * GCD_VEC_CPG + k] + (float)ub.data[i * GCD_VEC_CPG + k];
                 float s = 1.f / (1.f + expf(-x_gn));
                 grad_gn *= s * (1.f + x_gn * (1.f - s));
               }
@@ -953,23 +799,16 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
         for (int i = 0; i < VEC_ELEMS / GCD_VEC_CPG; i++) {
           if constexpr (SINGLE_GROUP_PER_BLOCK) {
             for (int mask = 16; mask > 0; mask >>= 1) {
-              frag_sum_per_channel[i].x += __shfl_xor_sync(
-                  FINAL_MASK, frag_sum_per_channel[i].x, mask, 32);
-              frag_sum_per_channel[i].y += __shfl_xor_sync(
-                  FINAL_MASK, frag_sum_per_channel[i].y, mask, 32);
+              frag_sum_per_channel[i].x += __shfl_xor_sync(FINAL_MASK, frag_sum_per_channel[i].x, mask, 32);
+              frag_sum_per_channel[i].y += __shfl_xor_sync(FINAL_MASK, frag_sum_per_channel[i].y, mask, 32);
             }
-            static_assert(VEC_ELEMS / GCD_VEC_CPG == 1,
-                          "process only one element for each warp");
+            static_assert(VEC_ELEMS / GCD_VEC_CPG == 1, "process only one element for each warp");
             if (threadIdx.x % 32 == 0) {
-              sum_per_channel_single_group[threadIdx.x / 32] =
-                  frag_sum_per_channel[i];
+              sum_per_channel_single_group[threadIdx.x / 32] = frag_sum_per_channel[i];
             }
           } else {
-            sum_per_channel_multi_group[i * (C_PER_BLOCK / VEC_ELEMS) +
-                                        threadIdx.x % (C_PER_BLOCK / VEC_ELEMS)]
-                                       [threadIdx.x /
-                                        (C_PER_BLOCK / VEC_ELEMS)] =
-                                           frag_sum_per_channel[i];
+            sum_per_channel_multi_group[i * (C_PER_BLOCK / VEC_ELEMS) + threadIdx.x % (C_PER_BLOCK / VEC_ELEMS)]
+                                       [threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)] = frag_sum_per_channel[i];
           }
         }
         __syncthreads();
@@ -977,9 +816,7 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
         for (int j = 0; j < ROWS_PER_BLOCK / ROWS_PER_IO; j++) {
           int64_t input_idx =
               n_loop * HW * C +
-              (virtual_block_idx_y * ROWS_PER_BLOCK + j * ROWS_PER_IO +
-               threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)) *
-                  C +
+              (virtual_block_idx_y * ROWS_PER_BLOCK + j * ROWS_PER_IO + threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)) * C +
               thread_channel_start;
           frag_x[j] = *reinterpret_cast<U const *>(&x[input_idx]);
           frag_dy[j] = *reinterpret_cast<U const *>(&grad_output[input_idx]);
@@ -990,13 +827,11 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
           for (int j = 0; j < ROWS_PER_BLOCK / ROWS_PER_IO; j++) {
             for (int k = 0; k < GCD_VEC_CPG; k++) {
               float rnorm = rsqrtf(frag_var[i] + eps);
-              float x_norm =
-                  ((float)frag_x[j].data[i * GCD_VEC_CPG + k] - frag_mean[i]) *
-                  rnorm; // TODO: store rsqrtf in mean_var
+              float x_norm = ((float)frag_x[j].data[i * GCD_VEC_CPG + k] - frag_mean[i]) *
+                             rnorm;  // TODO: store rsqrtf in mean_var
               float grad_gn = frag_dy[j].data[i * GCD_VEC_CPG + k];
               if constexpr (SILU) {
-                float x_gn = x_norm * (float)uw.data[i * GCD_VEC_CPG + k] +
-                             (float)ub.data[i * GCD_VEC_CPG + k];
+                float x_gn = x_norm * (float)uw.data[i * GCD_VEC_CPG + k] + (float)ub.data[i * GCD_VEC_CPG + k];
                 float s = 1.f / (1.f + expf(-x_gn));
                 grad_gn *= s * (1.f + x_gn * (1.f - s));
               }
@@ -1013,38 +848,30 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
               sum.x += __shfl_xor_sync(FINAL_MASK, sum.x, mask, 32);
               sum.y += __shfl_xor_sync(FINAL_MASK, sum.y, mask, 32);
             }
-            static_assert(VEC_ELEMS / GCD_VEC_CPG == 1,
-                          "process only one element for each warp");
+            static_assert(VEC_ELEMS / GCD_VEC_CPG == 1, "process only one element for each warp");
             if (threadIdx.x % 32 == 0) {
               sum_per_channel_single_group[threadIdx.x / 32] = sum;
             }
           } else {
-            sum_per_channel_multi_group[i * (C_PER_BLOCK / VEC_ELEMS) +
-                                        threadIdx.x % (C_PER_BLOCK / VEC_ELEMS)]
-                                       [threadIdx.x /
-                                        (C_PER_BLOCK / VEC_ELEMS)] = sum;
+            sum_per_channel_multi_group[i * (C_PER_BLOCK / VEC_ELEMS) + threadIdx.x % (C_PER_BLOCK / VEC_ELEMS)]
+                                       [threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)] = sum;
           }
         }
         __syncthreads();
       }
 
       if ((CONSTANT_C_LOOP && nc_scheduler.at_end(n)) || !CONSTANT_C_LOOP) {
-        constexpr int NT_C = max_divisor(
-            C_PER_BLOCK, BLOCK_DIM_X); // Number of threads on the C axis
-        constexpr int NT_R =
-            1; // std::min(32, (int)round_down_pow2(BLOCK_DIM_X / NT_C));  //
-               // Number of threads on the ROWS axis
+        constexpr int NT_C = max_divisor(C_PER_BLOCK, BLOCK_DIM_X);  // Number of threads on the C axis
+        constexpr int NT_R = 1;  // std::min(32, (int)round_down_pow2(BLOCK_DIM_X / NT_C));  //
+                                 // Number of threads on the ROWS axis
         // TODO: swizzle for NT_R
         for (int i = 0; i < VEC_ELEMS; i++) {
-          union_smem.dwdb_block_buffer[threadIdx.x]
-                                      [i ^ ((threadIdx.x / (16 / VEC_ELEMS)) &
-                                            (VEC_ELEMS - 1))] =
+          union_smem.dwdb_block_buffer[threadIdx.x][i ^ ((threadIdx.x / (16 / VEC_ELEMS)) & (VEC_ELEMS - 1))] =
               float2{dw_thread[i], db_thread[i]};
         }
         __syncthreads();
         static_assert(NT_C * NT_R <= BLOCK_DIM_X, "not enough threads");
-        static_assert(C_PER_BLOCK % NT_C == 0,
-                      "need to loop once more and check c < C_PER_BLOCK");
+        static_assert(C_PER_BLOCK % NT_C == 0, "need to loop once more and check c < C_PER_BLOCK");
         for (int i = 0; i < C_PER_BLOCK / NT_C; i++) {
           int c = i * NT_C + threadIdx.x / NT_R;
           float dw_block = 0.f;
@@ -1052,11 +879,8 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
           if (BLOCK_DIM_X == NT_C * NT_R || threadIdx.x < NT_C * NT_R) {
             for (int j = threadIdx.x % NT_R; j < ROWS_PER_IO; j += NT_R) {
               int src_thread = j * (C_PER_BLOCK / VEC_ELEMS) + c / VEC_ELEMS;
-              float2 val =
-                  union_smem.dwdb_block_buffer[src_thread][(c % VEC_ELEMS) ^
-                                                           ((src_thread /
-                                                             (16 / VEC_ELEMS)) &
-                                                            (VEC_ELEMS - 1))];
+              float2 val = union_smem.dwdb_block_buffer[src_thread][(c % VEC_ELEMS) ^ ((src_thread / (16 / VEC_ELEMS)) &
+                                                                                       (VEC_ELEMS - 1))];
               dw_block += val.x;
               db_block += val.y;
             }
@@ -1070,20 +894,14 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
             if (threadIdx.x % NT_R == 0) {
               if constexpr (CONSTANT_C_LOOP) {
                 *reinterpret_cast<float2 *>(
-                    &red_buffer_wgrad[((blockIdx.y / (C / C_PER_CLUSTER) *
-                                            virtual_cluster_dim_y +
-                                        virtual_block_idx_y) *
-                                           C +
-                                       c_loop * C_PER_CLUSTER +
-                                       virtual_block_idx_x * C_PER_BLOCK + c) *
-                                      2]) = float2{dw_block, db_block};
+                    &red_buffer_wgrad
+                        [((blockIdx.y / (C / C_PER_CLUSTER) * virtual_cluster_dim_y + virtual_block_idx_y) * C +
+                          c_loop * C_PER_CLUSTER + virtual_block_idx_x * C_PER_BLOCK + c) *
+                         2]) = float2{dw_block, db_block};
               } else {
                 *reinterpret_cast<float2 *>(
-                    &red_buffer_wgrad[((n_loop * virtual_cluster_dim_y +
-                                        virtual_block_idx_y) *
-                                           C +
-                                       c_loop * C_PER_CLUSTER +
-                                       virtual_block_idx_x * C_PER_BLOCK + c) *
+                    &red_buffer_wgrad[((n_loop * virtual_cluster_dim_y + virtual_block_idx_y) * C +
+                                       c_loop * C_PER_CLUSTER + virtual_block_idx_x * C_PER_BLOCK + c) *
                                       2]) = float2{dw_block, db_block};
               }
             }
@@ -1091,46 +909,35 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
         }
       }
 
-      constexpr bool USE_SHARED_RED_BUFFER =
-          HARDWARE_CLUSTER || VIRTUAL_CLUSTER_SIZE == 1;
+      constexpr bool USE_SHARED_RED_BUFFER = HARDWARE_CLUSTER || VIRTUAL_CLUSTER_SIZE == 1;
       constexpr bool STORE_MEAN_VAR_IN_SHARED_RED_BUFFER =
-          VIRTUAL_CLUSTER_SIZE == 1 &&
-          MAX_NUM_GROUPS_PER_BLOCK ==
-              1; // MAX_NUM_GROUPS_PER_BLOCK > 1 is possible but not implemented
-      [[maybe_unused]] __align__(16) __shared__ float2
-          shared_red_buffer[MAX_NUM_GROUPS_PER_BLOCK *
-                            (STORE_MEAN_VAR_IN_SHARED_RED_BUFFER ? 1 : 2)];
+          VIRTUAL_CLUSTER_SIZE == 1 && MAX_NUM_GROUPS_PER_BLOCK == 1;  // MAX_NUM_GROUPS_PER_BLOCK > 1 is
+                                                                       // possible but not implemented
+      [[maybe_unused]] __align__(16)
+          __shared__ float2 shared_red_buffer[MAX_NUM_GROUPS_PER_BLOCK * (STORE_MEAN_VAR_IN_SHARED_RED_BUFFER ? 1 : 2)];
 
       // Block sum
       if constexpr (SINGLE_GROUP_PER_BLOCK) {
         // block reduce
         if (threadIdx.x < 32) {
           float2 sum_local_group =
-              threadIdx.x < BLOCK_DIM_X / 32
-                  ? sum_per_channel_single_group[threadIdx.x]
-                  : float2{0.f, 0.f};
+              threadIdx.x < BLOCK_DIM_X / 32 ? sum_per_channel_single_group[threadIdx.x] : float2{0.f, 0.f};
           constexpr int warp_num_pow2 = round_up_pow2(BLOCK_DIM_X / 32);
           for (int mask = warp_num_pow2 / 2; mask > 0; mask >>= 1) {
-            sum_local_group.x +=
-                __shfl_xor_sync(FINAL_MASK, sum_local_group.x, mask, 32);
-            sum_local_group.y +=
-                __shfl_xor_sync(FINAL_MASK, sum_local_group.y, mask, 32);
+            sum_local_group.x += __shfl_xor_sync(FINAL_MASK, sum_local_group.x, mask, 32);
+            sum_local_group.y += __shfl_xor_sync(FINAL_MASK, sum_local_group.y, mask, 32);
           }
           if (threadIdx.x == 0) {
             if constexpr (USE_SHARED_RED_BUFFER) {
               if constexpr (STORE_MEAN_VAR_IN_SHARED_RED_BUFFER) {
                 shared_red_buffer[0] = compute_mean_var(sum_local_group);
               } else {
-                shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK + 0] =
-                    sum_local_group;
+                shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK + 0] = sum_local_group;
               }
             } else {
               *reinterpret_cast<float2 *>(
-                  &red_buffer[((step * gridDim.y + blockIdx.y) *
-                                   VIRTUAL_CLUSTER_SIZE *
-                                   MAX_NUM_GROUPS_PER_BLOCK +
-                               virtual_block_idx_x * virtual_cluster_dim_y *
-                                   MAX_NUM_GROUPS_PER_BLOCK +
+                  &red_buffer[((step * gridDim.y + blockIdx.y) * VIRTUAL_CLUSTER_SIZE * MAX_NUM_GROUPS_PER_BLOCK +
+                               virtual_block_idx_x * virtual_cluster_dim_y * MAX_NUM_GROUPS_PER_BLOCK +
                                // (threadIdx.x / THREADS_PER_GROUP) *
                                // virtual_cluster_dim_y +
                                virtual_block_idx_y) *
@@ -1141,70 +948,45 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
       } else {
         // The number of threads to calculate the sum of each group (should be a
         // power of 2 for warp reduce)
-        constexpr int THREADS_PER_GROUP = std::min(
-            std::min(32U, round_up_pow2(ROWS_PER_IO)),
-            round_up_pow2(BLOCK_DIM_X / MAX_NUM_GROUPS_PER_BLOCK / 2 + 1));
-        static_assert(BLOCK_DIM_X >=
-                          MAX_NUM_GROUPS_PER_BLOCK * THREADS_PER_GROUP,
-                      "not enough threads");
+        constexpr int THREADS_PER_GROUP = std::min(std::min(32U, round_up_pow2(ROWS_PER_IO)),
+                                                   round_up_pow2(BLOCK_DIM_X / MAX_NUM_GROUPS_PER_BLOCK / 2 + 1));
+        static_assert(BLOCK_DIM_X >= MAX_NUM_GROUPS_PER_BLOCK * THREADS_PER_GROUP, "not enough threads");
         float2 sum_local_group = {0.f, 0.f};
         if (threadIdx.x / THREADS_PER_GROUP < MAX_NUM_GROUPS_PER_BLOCK) {
-          int local_group_idx =
-              block_group_start + threadIdx.x / THREADS_PER_GROUP;
+          int local_group_idx = block_group_start + threadIdx.x / THREADS_PER_GROUP;
           // TODO: map threads to both the CPG loop and the ROWS loop
-          for (int local_c_loop = 0; local_c_loop < CPG;
-               local_c_loop += GCD_VEC_CPG) {
+          for (int local_c_loop = 0; local_c_loop < CPG; local_c_loop += GCD_VEC_CPG) {
             int c = local_group_idx * CPG + local_c_loop;
-            if (C_PER_BLOCK % CPG == 0 ||
-                (c >= block_channel_start &&
-                 c < block_channel_start + C_PER_BLOCK)) {
-              for (int src_thread_tile_y = threadIdx.x % THREADS_PER_GROUP;
-                   src_thread_tile_y < ROWS_PER_IO;
+            if (C_PER_BLOCK % CPG == 0 || (c >= block_channel_start && c < block_channel_start + C_PER_BLOCK)) {
+              for (int src_thread_tile_y = threadIdx.x % THREADS_PER_GROUP; src_thread_tile_y < ROWS_PER_IO;
                    src_thread_tile_y += THREADS_PER_GROUP) {
                 int channel_idx = (c - block_channel_start) / GCD_VEC_CPG;
-                channel_idx = channel_idx % (VEC_ELEMS / GCD_VEC_CPG) *
-                                  (C_PER_BLOCK / VEC_ELEMS) +
+                channel_idx = channel_idx % (VEC_ELEMS / GCD_VEC_CPG) * (C_PER_BLOCK / VEC_ELEMS) +
                               channel_idx / (VEC_ELEMS / GCD_VEC_CPG);
-                sum_local_group.x +=
-                    sum_per_channel_multi_group[channel_idx][src_thread_tile_y]
-                        .x;
-                sum_local_group.y +=
-                    sum_per_channel_multi_group[channel_idx][src_thread_tile_y]
-                        .y;
+                sum_local_group.x += sum_per_channel_multi_group[channel_idx][src_thread_tile_y].x;
+                sum_local_group.y += sum_per_channel_multi_group[channel_idx][src_thread_tile_y].y;
               }
             }
           }
         }
         static_assert(32 % THREADS_PER_GROUP == 0, "cannot shuffle");
         for (int mask = THREADS_PER_GROUP / 2; mask > 0; mask >>= 1) {
-          sum_local_group.x +=
-              __shfl_xor_sync(FINAL_MASK, sum_local_group.x, mask, 32);
-          sum_local_group.y +=
-              __shfl_xor_sync(FINAL_MASK, sum_local_group.y, mask, 32);
+          sum_local_group.x += __shfl_xor_sync(FINAL_MASK, sum_local_group.x, mask, 32);
+          sum_local_group.y += __shfl_xor_sync(FINAL_MASK, sum_local_group.y, mask, 32);
         }
-        if (threadIdx.x % THREADS_PER_GROUP == 0 &&
-            threadIdx.x / THREADS_PER_GROUP < MAX_NUM_GROUPS_PER_BLOCK) {
+        if (threadIdx.x % THREADS_PER_GROUP == 0 && threadIdx.x / THREADS_PER_GROUP < MAX_NUM_GROUPS_PER_BLOCK) {
           if constexpr (USE_SHARED_RED_BUFFER) {
-            static_assert(HARDWARE_CLUSTER || VIRTUAL_CLUSTER_SIZE == 1,
-                          "no distributed shared memory");
+            static_assert(HARDWARE_CLUSTER || VIRTUAL_CLUSTER_SIZE == 1, "no distributed shared memory");
             if constexpr (STORE_MEAN_VAR_IN_SHARED_RED_BUFFER) {
-              shared_red_buffer[threadIdx.x / THREADS_PER_GROUP] =
-                  compute_mean_var(sum_local_group);
+              shared_red_buffer[threadIdx.x / THREADS_PER_GROUP] = compute_mean_var(sum_local_group);
             } else {
-              shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK +
-                                threadIdx.x / THREADS_PER_GROUP] =
-                  sum_local_group;
+              shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK + threadIdx.x / THREADS_PER_GROUP] = sum_local_group;
             }
           } else {
             *reinterpret_cast<float2 *>(
-                &red_buffer[((step * gridDim.y + blockIdx.y) *
-                                 VIRTUAL_CLUSTER_SIZE *
-                                 MAX_NUM_GROUPS_PER_BLOCK +
-                             virtual_block_idx_x * virtual_cluster_dim_y *
-                                 MAX_NUM_GROUPS_PER_BLOCK +
-                             (threadIdx.x / THREADS_PER_GROUP) *
-                                 virtual_cluster_dim_y +
-                             virtual_block_idx_y) *
+                &red_buffer[((step * gridDim.y + blockIdx.y) * VIRTUAL_CLUSTER_SIZE * MAX_NUM_GROUPS_PER_BLOCK +
+                             virtual_block_idx_x * virtual_cluster_dim_y * MAX_NUM_GROUPS_PER_BLOCK +
+                             (threadIdx.x / THREADS_PER_GROUP) * virtual_cluster_dim_y + virtual_block_idx_y) *
                             2]) = sum_local_group;
           }
         }
@@ -1214,50 +996,35 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
         if (nc_scheduler.at_end(n)) {
           static_assert(PERSISTENT, "persistent is a must for reducing wgrad");
           if constexpr (wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GRID) {
-            virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT,
-                                 HARDWARE_CLUSTER>(barrier);
-            wgrad_sync_token = group_barrier_arrive<
-                NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE, PERSISTENT>(
+            virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT, HARDWARE_CLUSTER>(barrier);
+            wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE, PERSISTENT>(
                 barrier_wgrad, blockIdx.x + blockIdx.y == 0);
-          } else if constexpr (wgrad_sync_method ==
-                               WGRAD_ARRIVE_AND_WAIT_GROUP) {
-            virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT,
-                                 HARDWARE_CLUSTER>(barrier);
-            wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS *
-                                                        VIRTUAL_CLUSTER_SIZE /
-                                                        (C / C_PER_CLUSTER),
-                                                    PERSISTENT>(
-                barrier_wgrad + virtual_cluster_idx_c,
-                blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
+          } else if constexpr (wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GROUP) {
+            virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT, HARDWARE_CLUSTER>(barrier);
+            wgrad_sync_token =
+                group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE / (C / C_PER_CLUSTER), PERSISTENT>(
+                    barrier_wgrad + virtual_cluster_idx_c, blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
           } else if constexpr (wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GRID) {
             static_assert(!HARDWARE_CLUSTER,
                           "Distributed smem sync cannot reuse gmem sync. Use "
                           "WGRAD_ARRIVE_AND_WAIT_GRID instead.");
-            wgrad_sync_token = group_barrier_arrive<
-                NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE, PERSISTENT>(
+            wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE, PERSISTENT>(
                 barrier_wgrad, blockIdx.x + blockIdx.y == 0);
             group_barrier_wait(barrier_wgrad, wgrad_sync_token);
-          } else if constexpr (wgrad_sync_method ==
-                               WGRAD_REUSE_SUM_SYNC_GROUP) {
+          } else if constexpr (wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GROUP) {
             static_assert(!HARDWARE_CLUSTER,
                           "Distributed smem sync cannot reuse gmem sync. Use "
                           "WGRAD_ARRIVE_AND_WAIT_GROUP instead.");
-            wgrad_sync_token = group_barrier_arrive<NUM_VIRTUAL_CLUSTERS *
-                                                        VIRTUAL_CLUSTER_SIZE /
-                                                        (C / C_PER_CLUSTER),
-                                                    PERSISTENT>(
-                barrier_wgrad + virtual_cluster_idx_c,
-                blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
-            group_barrier_wait(barrier_wgrad + virtual_cluster_idx_c,
-                               wgrad_sync_token);
+            wgrad_sync_token =
+                group_barrier_arrive<NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE / (C / C_PER_CLUSTER), PERSISTENT>(
+                    barrier_wgrad + virtual_cluster_idx_c, blockIdx.x + blockIdx.y / (C / C_PER_CLUSTER) == 0);
+            group_barrier_wait(barrier_wgrad + virtual_cluster_idx_c, wgrad_sync_token);
           }
         } else {
-          virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT,
-                               HARDWARE_CLUSTER>(barrier);
+          virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT, HARDWARE_CLUSTER>(barrier);
         }
       } else {
-        virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT,
-                             HARDWARE_CLUSTER>(barrier);
+        virtual_cluster_sync<VIRTUAL_CLUSTER_SIZE, PERSISTENT, HARDWARE_CLUSTER>(barrier);
       }
 
       // Group sum
@@ -1265,89 +1032,61 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
       if constexpr (!STORE_MEAN_VAR_IN_SHARED_RED_BUFFER) {
         // The number of threads to calculate the sum of each group (should be a
         // power of 2 for warp reduce)
-        constexpr int THREADS_PER_GROUP = std::min(
-            std::min(32U, round_up_pow2(virtual_cluster_dim_y)),
-            round_up_pow2(BLOCK_DIM_X / MAX_NUM_GROUPS_PER_BLOCK / 2 + 1));
-        static_assert(BLOCK_DIM_X >=
-                          MAX_NUM_GROUPS_PER_BLOCK * THREADS_PER_GROUP,
-                      "not enough threads");
+        constexpr int THREADS_PER_GROUP = std::min(std::min(32U, round_up_pow2(virtual_cluster_dim_y)),
+                                                   round_up_pow2(BLOCK_DIM_X / MAX_NUM_GROUPS_PER_BLOCK / 2 + 1));
+        static_assert(BLOCK_DIM_X >= MAX_NUM_GROUPS_PER_BLOCK * THREADS_PER_GROUP, "not enough threads");
         float2 sum_global_group = {0.f, 0.f};
         if (threadIdx.x / THREADS_PER_GROUP < MAX_NUM_GROUPS_PER_BLOCK) {
           if constexpr (C_PER_BLOCK % CPG == 0) {
             // Special case: no cross-virtual_cluster_dim_x reduction
             float2 buffer[up_div(virtual_cluster_dim_y, THREADS_PER_GROUP)];
-            for (int i = threadIdx.x % THREADS_PER_GROUP;
-                 i < virtual_cluster_dim_y; i += THREADS_PER_GROUP) {
+            for (int i = threadIdx.x % THREADS_PER_GROUP; i < virtual_cluster_dim_y; i += THREADS_PER_GROUP) {
               float2 val;
               if constexpr (USE_SHARED_RED_BUFFER) {
                 if constexpr (VIRTUAL_CLUSTER_SIZE == 1) {
-                  val = shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK +
-                                          threadIdx.x / THREADS_PER_GROUP];
+                  val = shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK + threadIdx.x / THREADS_PER_GROUP];
                 } else {
-                  static_assert(HARDWARE_CLUSTER,
-                                "no distributed shared memory");
-                  float2 const *src_shared_red_buffer =
-                      cg::this_cluster().map_shared_rank(
-                          shared_red_buffer,
-                          i * virtual_cluster_dim_x + virtual_block_idx_x);
-                  val = src_shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK +
-                                              threadIdx.x / THREADS_PER_GROUP];
+                  static_assert(HARDWARE_CLUSTER, "no distributed shared memory");
+                  float2 const *src_shared_red_buffer = cg::this_cluster().map_shared_rank(
+                      shared_red_buffer, i * virtual_cluster_dim_x + virtual_block_idx_x);
+                  val = src_shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK + threadIdx.x / THREADS_PER_GROUP];
                 }
               } else {
                 val = *reinterpret_cast<float2 const *>(
-                    &red_buffer[((step * gridDim.y + blockIdx.y) *
-                                     VIRTUAL_CLUSTER_SIZE *
-                                     MAX_NUM_GROUPS_PER_BLOCK +
-                                 virtual_block_idx_x * virtual_cluster_dim_y *
-                                     MAX_NUM_GROUPS_PER_BLOCK +
-                                 (threadIdx.x / THREADS_PER_GROUP) *
-                                     virtual_cluster_dim_y +
-                                 i) *
+                    &red_buffer[((step * gridDim.y + blockIdx.y) * VIRTUAL_CLUSTER_SIZE * MAX_NUM_GROUPS_PER_BLOCK +
+                                 virtual_block_idx_x * virtual_cluster_dim_y * MAX_NUM_GROUPS_PER_BLOCK +
+                                 (threadIdx.x / THREADS_PER_GROUP) * virtual_cluster_dim_y + i) *
                                 2]);
               }
               buffer[i / THREADS_PER_GROUP] = val;
             }
-            for (int i = threadIdx.x % THREADS_PER_GROUP;
-                 i < virtual_cluster_dim_y; i += THREADS_PER_GROUP) {
+            for (int i = threadIdx.x % THREADS_PER_GROUP; i < virtual_cluster_dim_y; i += THREADS_PER_GROUP) {
               float2 val = buffer[i / THREADS_PER_GROUP];
               sum_global_group.x += val.x;
               sum_global_group.y += val.y;
             }
           } else {
             // Common case: cross-virtual_cluster_dim_x reduction
-            int local_group_idx =
-                block_group_start + threadIdx.x / THREADS_PER_GROUP;
-            for (int i = threadIdx.x % THREADS_PER_GROUP;
-                 i < VIRTUAL_CLUSTER_SIZE; i += THREADS_PER_GROUP) {
+            int local_group_idx = block_group_start + threadIdx.x / THREADS_PER_GROUP;
+            for (int i = threadIdx.x % THREADS_PER_GROUP; i < VIRTUAL_CLUSTER_SIZE; i += THREADS_PER_GROUP) {
               int src_virtual_block_idx_x = i % virtual_cluster_dim_x;
-              int src_block_channel_start =
-                  src_virtual_block_idx_x * C_PER_BLOCK +
-                  c_loop * C_PER_CLUSTER;
+              int src_block_channel_start = src_virtual_block_idx_x * C_PER_BLOCK + c_loop * C_PER_CLUSTER;
               int src_block_group_start = src_block_channel_start / CPG;
               int relative_group_idx = local_group_idx - src_block_group_start;
-              if (0 <= relative_group_idx &&
-                  relative_group_idx < MAX_NUM_GROUPS_PER_BLOCK) {
+              if (0 <= relative_group_idx && relative_group_idx < MAX_NUM_GROUPS_PER_BLOCK) {
                 float2 val;
                 if constexpr (USE_SHARED_RED_BUFFER) {
-                  static_assert(HARDWARE_CLUSTER,
-                                "no distributed shared memory");
+                  static_assert(HARDWARE_CLUSTER, "no distributed shared memory");
                   static_assert(VIRTUAL_CLUSTER_SIZE != 1,
                                 "layout error: should not add (step * "
                                 "MAX_NUM_GROUPS_PER_BLOCK)");
-                  float2 const *src_shared_red_buffer =
-                      cg::this_cluster().map_shared_rank(shared_red_buffer, i);
-                  val = src_shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK +
-                                              relative_group_idx];
+                  float2 const *src_shared_red_buffer = cg::this_cluster().map_shared_rank(shared_red_buffer, i);
+                  val = src_shared_red_buffer[step * MAX_NUM_GROUPS_PER_BLOCK + relative_group_idx];
                 } else {
                   val = *reinterpret_cast<float2 const *>(
-                      &red_buffer[((step * gridDim.y + blockIdx.y) *
-                                       VIRTUAL_CLUSTER_SIZE *
-                                       MAX_NUM_GROUPS_PER_BLOCK +
-                                   src_virtual_block_idx_x *
-                                       virtual_cluster_dim_y *
-                                       MAX_NUM_GROUPS_PER_BLOCK +
-                                   relative_group_idx * virtual_cluster_dim_y +
-                                   i / virtual_cluster_dim_x) *
+                      &red_buffer[((step * gridDim.y + blockIdx.y) * VIRTUAL_CLUSTER_SIZE * MAX_NUM_GROUPS_PER_BLOCK +
+                                   src_virtual_block_idx_x * virtual_cluster_dim_y * MAX_NUM_GROUPS_PER_BLOCK +
+                                   relative_group_idx * virtual_cluster_dim_y + i / virtual_cluster_dim_x) *
                                   2]);
                 }
                 sum_global_group.x += val.x;
@@ -1369,42 +1108,31 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
         }
         static_assert(32 % THREADS_PER_GROUP == 0, "cannot shuffle");
         for (int mask = THREADS_PER_GROUP / 2; mask > 0; mask >>= 1) {
-          sum_global_group.x +=
-              __shfl_xor_sync(FINAL_MASK, sum_global_group.x, mask, 32);
-          sum_global_group.y +=
-              __shfl_xor_sync(FINAL_MASK, sum_global_group.y, mask, 32);
+          sum_global_group.x += __shfl_xor_sync(FINAL_MASK, sum_global_group.x, mask, 32);
+          sum_global_group.y += __shfl_xor_sync(FINAL_MASK, sum_global_group.y, mask, 32);
         }
-        if (threadIdx.x % THREADS_PER_GROUP == 0 &&
-            threadIdx.x / THREADS_PER_GROUP < MAX_NUM_GROUPS_PER_BLOCK) {
-          mean_var[threadIdx.x / THREADS_PER_GROUP] =
-              compute_mean_var(sum_global_group);
+        if (threadIdx.x % THREADS_PER_GROUP == 0 && threadIdx.x / THREADS_PER_GROUP < MAX_NUM_GROUPS_PER_BLOCK) {
+          mean_var[threadIdx.x / THREADS_PER_GROUP] = compute_mean_var(sum_global_group);
         }
         __syncthreads();
       }
 
       auto get_mean_var = [&](int relative_group_idx) {
-        return STORE_MEAN_VAR_IN_SHARED_RED_BUFFER
-                   ? shared_red_buffer[relative_group_idx]
-                   : mean_var[relative_group_idx];
+        return STORE_MEAN_VAR_IN_SHARED_RED_BUFFER ? shared_red_buffer[relative_group_idx]
+                                                   : mean_var[relative_group_idx];
       };
 
       float frag_dyw[VEC_ELEMS / GCD_VEC_CPG];
       float frag_xdyw[VEC_ELEMS / GCD_VEC_CPG];
       for (int k = 0; k < VEC_ELEMS; k += GCD_VEC_CPG) {
-        frag_dyw[k / GCD_VEC_CPG] =
-            get_mean_var((thread_channel_start + k) / CPG - block_group_start)
-                .x;
-        frag_xdyw[k / GCD_VEC_CPG] =
-            get_mean_var((thread_channel_start + k) / CPG - block_group_start)
-                .y;
+        frag_dyw[k / GCD_VEC_CPG] = get_mean_var((thread_channel_start + k) / CPG - block_group_start).x;
+        frag_xdyw[k / GCD_VEC_CPG] = get_mean_var((thread_channel_start + k) / CPG - block_group_start).y;
       }
 
       for (int j = 0; j < ROWS_PER_BLOCK / ROWS_PER_IO; j++) {
         int64_t input_idx =
             n_loop * HW * C +
-            (virtual_block_idx_y * ROWS_PER_BLOCK + j * ROWS_PER_IO +
-             threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)) *
-                C +
+            (virtual_block_idx_y * ROWS_PER_BLOCK + j * ROWS_PER_IO + threadIdx.x / (C_PER_BLOCK / VEC_ELEMS)) * C +
             thread_channel_start;
         U ux;
         U udy;
@@ -1418,8 +1146,7 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
         U val;
         for (int k = 0; k < VEC_ELEMS; k++) {
           float rnorm = rsqrtf(frag_var[k / GCD_VEC_CPG] + eps);
-          float x_norm = ((float)ux.data[k] - frag_mean[k / GCD_VEC_CPG]) *
-                         rnorm; // TODO: store rsqrtf in mean_var
+          float x_norm = ((float)ux.data[k] - frag_mean[k / GCD_VEC_CPG]) * rnorm;  // TODO: store rsqrtf in mean_var
           float grad_gn = udy.data[k];
           if constexpr (SILU) {
             float x_gn = x_norm * (float)uw.data[k] + (float)ub.data[k];
@@ -1427,15 +1154,12 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
             grad_gn *= s * (1.f + x_gn * (1.f - s));
           }
           val.data[k] =
-              (grad_gn * (float)uw.data[k] - frag_dyw[k / GCD_VEC_CPG] -
-               frag_xdyw[k / GCD_VEC_CPG] * x_norm) *
-              rnorm;
+              (grad_gn * (float)uw.data[k] - frag_dyw[k / GCD_VEC_CPG] - frag_xdyw[k / GCD_VEC_CPG] * x_norm) * rnorm;
         }
         *reinterpret_cast<U *>(&grad_input[input_idx]) = val;
       }
 
-      if constexpr (!STORE_MEAN_VAR_IN_SHARED_RED_BUFFER &&
-                    USE_SHARED_RED_BUFFER && VIRTUAL_CLUSTER_SIZE > 1) {
+      if constexpr (!STORE_MEAN_VAR_IN_SHARED_RED_BUFFER && USE_SHARED_RED_BUFFER && VIRTUAL_CLUSTER_SIZE > 1) {
         if constexpr (PERSISTENT) {
           if (nc_scheduler.at_end(n)) {
             cg::this_cluster().barrier_wait();
@@ -1458,8 +1182,7 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
       if constexpr (wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GRID) {
         group_barrier_wait(barrier_wgrad, wgrad_sync_token);
       } else if constexpr (wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GROUP) {
-        group_barrier_wait(barrier_wgrad + virtual_cluster_idx_c,
-                           wgrad_sync_token);
+        group_barrier_wait(barrier_wgrad + virtual_cluster_idx_c, wgrad_sync_token);
       } else if constexpr (wgrad_sync_method == WGRAD_SYNC_AT_LAST) {
         cg::this_grid().sync();
       }
@@ -1468,75 +1191,48 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
       // channels to these channels (named "split channels"); otherwise, map all
       // blocks to all channels.
       constexpr bool split_channels =
-          wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GROUP ||
-          wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GROUP;
+          wgrad_sync_method == WGRAD_ARRIVE_AND_WAIT_GROUP || wgrad_sync_method == WGRAD_REUSE_SUM_SYNC_GROUP;
 
-      for (int c = split_channels
-                       ? virtual_cluster_idx_c * C_PER_CLUSTER +
-                             32 * (blockIdx.y / (C / C_PER_CLUSTER) *
-                                       VIRTUAL_CLUSTER_SIZE +
-                                   blockIdx.x)
-                       : 32 * (blockIdx.y * VIRTUAL_CLUSTER_SIZE + blockIdx.x);
-           split_channels ? c < (virtual_cluster_idx_c + 1) * C_PER_CLUSTER
-                          : c < C;
-           c += split_channels
-                    ? 32 * (NUM_VIRTUAL_CLUSTERS / (C / C_PER_CLUSTER) *
-                            VIRTUAL_CLUSTER_SIZE)
-                    : 32 * (NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE)) {
-        int64_t rows =
-            (CONSTANT_C_LOOP ? std::min(n, (int64_t)NUM_VIRTUAL_CLUSTERS /
-                                               (C / C_PER_CLUSTER))
-                             : n) *
-            virtual_cluster_dim_y;
+      for (int c = split_channels ? virtual_cluster_idx_c * C_PER_CLUSTER +
+                                        32 * (blockIdx.y / (C / C_PER_CLUSTER) * VIRTUAL_CLUSTER_SIZE + blockIdx.x)
+                                  : 32 * (blockIdx.y * VIRTUAL_CLUSTER_SIZE + blockIdx.x);
+           split_channels ? c < (virtual_cluster_idx_c + 1) * C_PER_CLUSTER : c < C;
+           c += split_channels ? 32 * (NUM_VIRTUAL_CLUSTERS / (C / C_PER_CLUSTER) * VIRTUAL_CLUSTER_SIZE)
+                               : 32 * (NUM_VIRTUAL_CLUSTERS * VIRTUAL_CLUSTER_SIZE)) {
+        int64_t rows = (CONSTANT_C_LOOP ? std::min(n, (int64_t)NUM_VIRTUAL_CLUSTERS / (C / C_PER_CLUSTER)) : n) *
+                       virtual_cluster_dim_y;
         float sum_wgrad = 0.f;
         float sum_bgrad = 0.f;
         if ((split_channels &&
-             (C_PER_CLUSTER % 32 == 0 ||
-              c + threadIdx.x % 32 <
-                  (virtual_cluster_idx_c + 1) * C_PER_CLUSTER)) ||
+             (C_PER_CLUSTER % 32 == 0 || c + threadIdx.x % 32 < (virtual_cluster_idx_c + 1) * C_PER_CLUSTER)) ||
             (!split_channels && (C % 32 == 0 || c + threadIdx.x % 32 < C))) {
           for (int64_t i = threadIdx.x / 32; i < rows; i += BLOCK_DIM_X / 32) {
-            float2 val = *reinterpret_cast<float2 const *>(
-                &red_buffer_wgrad[(i * C + c + threadIdx.x % 32) * 2]);
+            float2 val = *reinterpret_cast<float2 const *>(&red_buffer_wgrad[(i * C + c + threadIdx.x % 32) * 2]);
             sum_wgrad += val.x;
             sum_bgrad += val.y;
           }
         }
         constexpr int warp_num_pow2 = round_up_pow2(BLOCK_DIM_X / 32);
         union_smem.transpose_buffer
-            .wgrad_buffer[threadIdx.x / 32]
-                         [(threadIdx.x % 32) ^
-                          ((threadIdx.x / 32) * (32 / warp_num_pow2))] =
+            .wgrad_buffer[threadIdx.x / 32][(threadIdx.x % 32) ^ ((threadIdx.x / 32) * (32 / warp_num_pow2))] =
             sum_wgrad;
         union_smem.transpose_buffer
-            .bgrad_buffer[threadIdx.x / 32]
-                         [(threadIdx.x % 32) ^
-                          ((threadIdx.x / 32) * (32 / warp_num_pow2))] =
+            .bgrad_buffer[threadIdx.x / 32][(threadIdx.x % 32) ^ ((threadIdx.x / 32) * (32 / warp_num_pow2))] =
             sum_bgrad;
         __syncthreads();
         for (int i = threadIdx.x / warp_num_pow2;
              i < 32 &&
-             ((split_channels &&
-               (C_PER_CLUSTER % 32 == 0 ||
-                c + i < (virtual_cluster_idx_c + 1) * C_PER_CLUSTER)) ||
+             ((split_channels && (C_PER_CLUSTER % 32 == 0 || c + i < (virtual_cluster_idx_c + 1) * C_PER_CLUSTER)) ||
               (!split_channels && (C % 32 == 0 || c + i < C)));
              i += BLOCK_DIM_X / warp_num_pow2) {
           int j = threadIdx.x % warp_num_pow2;
           float sum_wgrad =
-              j < BLOCK_DIM_X / 32
-                  ? union_smem.transpose_buffer
-                        .wgrad_buffer[j][i ^ (j * (32 / warp_num_pow2))]
-                  : 0.f;
+              j < BLOCK_DIM_X / 32 ? union_smem.transpose_buffer.wgrad_buffer[j][i ^ (j * (32 / warp_num_pow2))] : 0.f;
           float sum_bgrad =
-              j < BLOCK_DIM_X / 32
-                  ? union_smem.transpose_buffer
-                        .bgrad_buffer[j][i ^ (j * (32 / warp_num_pow2))]
-                  : 0.f;
+              j < BLOCK_DIM_X / 32 ? union_smem.transpose_buffer.bgrad_buffer[j][i ^ (j * (32 / warp_num_pow2))] : 0.f;
           for (int mask = warp_num_pow2 / 2; mask > 0; mask >>= 1) {
-            sum_wgrad += __shfl_xor_sync((uint64_t(1) << warp_num_pow2) - 1,
-                                         sum_wgrad, mask, warp_num_pow2);
-            sum_bgrad += __shfl_xor_sync((uint64_t(1) << warp_num_pow2) - 1,
-                                         sum_bgrad, mask, warp_num_pow2);
+            sum_wgrad += __shfl_xor_sync((uint64_t(1) << warp_num_pow2) - 1, sum_wgrad, mask, warp_num_pow2);
+            sum_bgrad += __shfl_xor_sync((uint64_t(1) << warp_num_pow2) - 1, sum_bgrad, mask, warp_num_pow2);
           }
           if (j == 0) {
             grad_weight[c + i] = sum_wgrad;
@@ -1549,4 +1245,4 @@ __launch_bounds__(BLOCK_DIM_X, BLOCKS_PER_SM) void gn_bwd_cuda_kernel(
   }
 }
 
-} // namespace group_norm_v2
+}  // namespace group_norm_v2

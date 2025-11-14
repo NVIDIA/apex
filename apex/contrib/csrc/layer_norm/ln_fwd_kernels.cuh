@@ -5,9 +5,7 @@
 namespace layer_norm {
 
 template <typename Ktraits>
-__global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_fwd_kernel(
-    FwdParams params) {
-
+__global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_fwd_kernel(FwdParams params) {
   enum { ROWS_PER_CTA = Ktraits::ROWS_PER_CTA };
   enum { WARPS_N = Ktraits::WARPS_N };
   enum { WARPS_M = Ktraits::WARPS_M };
@@ -59,8 +57,7 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_fwd_kernel(
 
   constexpr compute_t rn = 1.f / compute_t(Ktraits::COLS);
 
-  for (int row = r; row < params.rows;
-       row += params.ctas_per_col * ROWS_PER_CTA) {
+  for (int row = r; row < params.rows; row += params.ctas_per_col * ROWS_PER_CTA) {
     Ivec x[LDGS];
     index_t idx = row * Ktraits::VEC_COLS + c;
     compute_t xf[LDGS * NUM_ELTS];
@@ -107,4 +104,4 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_fwd_kernel(
   }
 }
 
-} // namespace layer_norm
+}  // namespace layer_norm

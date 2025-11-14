@@ -15,22 +15,20 @@
 #define BLOCK_SIZE 512
 #define ILP 4
 
-template <typename T> __device__ __forceinline__ bool is_aligned(T *p) {
+template <typename T>
+__device__ __forceinline__ bool is_aligned(T *p) {
   return ((uint64_t)p) % (ILP * sizeof(T)) == 0;
 }
 
 template <typename T>
-__device__ __forceinline__ void load_store(T *dst, T *src, int dst_offset,
-                                           int src_offset) {
-  typedef
-      typename std::aligned_storage<ILP * sizeof(T), ILP * alignof(T)>::type LT;
+__device__ __forceinline__ void load_store(T *dst, T *src, int dst_offset, int src_offset) {
+  typedef typename std::aligned_storage<ILP * sizeof(T), ILP * alignof(T)>::type LT;
   ((LT *)dst)[dst_offset] = ((LT *)src)[src_offset];
 }
 
-template <typename in_t, typename out_t> struct ScaleFunctor {
-  __device__ __forceinline__ void operator()(int chunk_size,
-                                             volatile int *noop_gmem,
-                                             TensorListMetadata<2> &tl,
+template <typename in_t, typename out_t>
+struct ScaleFunctor {
+  __device__ __forceinline__ void operator()(int chunk_size, volatile int *noop_gmem, TensorListMetadata<2> &tl,
                                              float scale) {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
@@ -53,11 +51,8 @@ template <typename in_t, typename out_t> struct ScaleFunctor {
     out_t r_out[ILP];
 
     // to make things simple, we put aligned case in a different code path
-    if (n % ILP == 0 && chunk_size % ILP == 0 && is_aligned(in) &&
-        is_aligned(out)) {
-      for (int i_start = threadIdx.x;
-           i_start * ILP < n && i_start * ILP < chunk_size;
-           i_start += blockDim.x) {
+    if (n % ILP == 0 && chunk_size % ILP == 0 && is_aligned(in) && is_aligned(out)) {
+      for (int i_start = threadIdx.x; i_start * ILP < n && i_start * ILP < chunk_size; i_start += blockDim.x) {
         // load
         load_store(r_in, in, 0, i_start);
 #pragma unroll
@@ -70,14 +65,12 @@ template <typename in_t, typename out_t> struct ScaleFunctor {
       }
     } else {
       // Non-divergent exit condition for __syncthreads, not necessary here
-      for (int i_start = 0; i_start < n && i_start < chunk_size;
-           i_start += blockDim.x * ILP) {
+      for (int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
 #pragma unroll
         for (int ii = 0; ii < ILP; ii++) {
           r_in[ii] = 0;
           int i = i_start + threadIdx.x + ii * blockDim.x;
-          if (i < n && i < chunk_size)
-            r_in[ii] = in[i];
+          if (i < n && i < chunk_size) r_in[ii] = in[i];
         }
         // note for clarification to future michael:
         // From a pure memory dependency perspective, there's likely no point
@@ -93,19 +86,15 @@ template <typename in_t, typename out_t> struct ScaleFunctor {
 #pragma unroll
         for (int ii = 0; ii < ILP; ii++) {
           int i = i_start + threadIdx.x + ii * blockDim.x;
-          if (i < n && i < chunk_size)
-            out[i] = r_out[ii];
+          if (i < n && i < chunk_size) out[i] = r_out[ii];
         }
       }
     }
-    if (!finite)
-      *noop_gmem =
-          1; // Blindly fire off a write.  These will race but that's ok.
+    if (!finite) *noop_gmem = 1;  // Blindly fire off a write.  These will race but that's ok.
   }
 };
 
-void multi_tensor_scale_cuda(int chunk_size, at::Tensor noop_flag,
-                             std::vector<std::vector<at::Tensor>> tensor_lists,
+void multi_tensor_scale_cuda(int chunk_size, at::Tensor noop_flag, std::vector<std::vector<at::Tensor>> tensor_lists,
                              float scale) {
   using namespace at;
   // The output (downscaled) type is always float.
@@ -114,11 +103,9 @@ void multi_tensor_scale_cuda(int chunk_size, at::Tensor noop_flag,
 
   DISPATCH_FLOAT_HALF_AND_BFLOAT(
       tensor_lists[0][0].scalar_type(), 0, "multi_tensor_scale_cuda",
-      DISPATCH_FLOAT_HALF_AND_BFLOAT(
-          tensor_lists[1][0].scalar_type(), 1, "multi_tensor_scale_cuda",
-          multi_tensor_apply<2>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                                ScaleFunctor<scalar_t_0, scalar_t_1>(),
-                                scale);))
+      DISPATCH_FLOAT_HALF_AND_BFLOAT(tensor_lists[1][0].scalar_type(), 1, "multi_tensor_scale_cuda",
+                                     multi_tensor_apply<2>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
+                                                           ScaleFunctor<scalar_t_0, scalar_t_1>(), scale);))
   AT_CUDA_CHECK(cudaGetLastError());
 
   // AT_CUDA_CHECK(cudaDeviceSynchronize());

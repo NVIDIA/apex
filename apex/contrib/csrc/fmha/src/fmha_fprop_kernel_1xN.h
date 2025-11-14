@@ -27,15 +27,17 @@
 
 #pragma once
 
-#include "fmha_kernel.h"
 #include <fmha/gemm.h>
 #include <fmha/kernel_traits.h>
+
+#include "fmha_kernel.h"
 
 namespace fmha {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Kernel_traits> struct Gemm_Q_K_base {
+template <typename Kernel_traits>
+struct Gemm_Q_K_base {
   using Smem_tile_o = typename Kernel_traits::Smem_tile_o;
   using Smem_tile_q = typename Kernel_traits::Smem_tile_q;
   using Smem_tile_k = typename Kernel_traits::Smem_tile_k;
@@ -48,11 +50,9 @@ template <typename Kernel_traits> struct Gemm_Q_K_base {
   // The MMA tile for the 1st GEMM.
   using Mma_tile_p = fmha::Hmma_tile<Cta_tile_p>;
 
-  static constexpr int SMEM_BYTES_SOFTMAX =
-      Cta_tile_p::M * Cta_tile_p::WARPS_N * sizeof(float) * 2;
+  static constexpr int SMEM_BYTES_SOFTMAX = Cta_tile_p::M * Cta_tile_p::WARPS_N * sizeof(float) * 2;
 
-  __device__ inline Gemm_Q_K_base(char *smem_ptr_q, char *smem_ptr_k,
-                                  const int tidx)
+  __device__ inline Gemm_Q_K_base(char *smem_ptr_q, char *smem_ptr_k, const int tidx)
       : smem_q(smem_ptr_q, tidx), smem_k(smem_ptr_k, tidx) {}
 
   __device__ inline void load_q() { smem_q.load(frag_q[0], 0); }
@@ -66,7 +66,6 @@ template <typename Kernel_traits> struct Gemm_Q_K_base {
 
 template <typename Kernel_traits, bool K_in_regs>
 struct Gemm_Q_K : public Gemm_Q_K_base<Kernel_traits> {
-
   using Base = Gemm_Q_K_base<Kernel_traits>;
   using Smem_tile_o = typename Base::Smem_tile_o;
   using Smem_tile_q = typename Base::Smem_tile_q;
@@ -77,20 +76,15 @@ struct Gemm_Q_K : public Gemm_Q_K_base<Kernel_traits> {
   enum { SHARE_SMEM_FOR_K_AND_V = Kernel_traits::SHARE_SMEM_FOR_K_AND_V };
 
   enum { SMEM_OFFSET_O = Smem_tile_q::BYTES_PER_TILE };
-  enum {
-    SMEM_OFFSET_V = Smem_tile_q::BYTES_PER_TILE +
-                    (SHARE_SMEM_FOR_K_AND_V ? 0 : Smem_tile_k::BYTES_PER_TILE)
-  };
+  enum { SMEM_OFFSET_V = Smem_tile_q::BYTES_PER_TILE + (SHARE_SMEM_FOR_K_AND_V ? 0 : Smem_tile_k::BYTES_PER_TILE) };
 
   // Q | K / V
   //   | O | SOFTMAX
   static constexpr int SMEM_BYTES =
-      Smem_tile_q::BYTES_PER_TILE +
-      std::max((SHARE_SMEM_FOR_K_AND_V ? 1 : 2) * Smem_tile_k::BYTES_PER_TILE,
-               Smem_tile_o::BYTES_PER_TILE + Base::SMEM_BYTES_SOFTMAX);
+      Smem_tile_q::BYTES_PER_TILE + std::max((SHARE_SMEM_FOR_K_AND_V ? 1 : 2) * Smem_tile_k::BYTES_PER_TILE,
+                                             Smem_tile_o::BYTES_PER_TILE + Base::SMEM_BYTES_SOFTMAX);
 
-  __device__ inline Gemm_Q_K(char *smem_, const int tidx)
-      : Base(smem_, smem_ + Smem_tile_q::BYTES_PER_TILE, tidx) {}
+  __device__ inline Gemm_Q_K(char *smem_, const int tidx) : Base(smem_, smem_ + Smem_tile_q::BYTES_PER_TILE, tidx) {}
 
   __device__ inline void load_k() {
 #pragma unroll
@@ -136,22 +130,16 @@ struct Gemm_Q_K<Kernel_traits, false> : public Gemm_Q_K_base<Kernel_traits> {
 
   enum { SHARE_SMEM_FOR_K_AND_V = Kernel_traits::SHARE_SMEM_FOR_K_AND_V };
 
-  enum {
-    SMEM_OFFSET_V = Smem_tile_q::BYTES_PER_TILE +
-                    (SHARE_SMEM_FOR_K_AND_V ? 0 : Smem_tile_k::BYTES_PER_TILE)
-  };
-  static_assert(Smem_tile_v::BYTES_PER_TILE ==
-                (int)Smem_tile_k::BYTES_PER_TILE);
+  enum { SMEM_OFFSET_V = Smem_tile_q::BYTES_PER_TILE + (SHARE_SMEM_FOR_K_AND_V ? 0 : Smem_tile_k::BYTES_PER_TILE) };
+  static_assert(Smem_tile_v::BYTES_PER_TILE == (int)Smem_tile_k::BYTES_PER_TILE);
   enum { SMEM_OFFSET_O = SMEM_OFFSET_V + Smem_tile_v::BYTES_PER_TILE };
 
   // Q | K/V + O + SOFTMAX
-  static constexpr int SMEM_BYTES =
-      Smem_tile_q::BYTES_PER_TILE +
-      (SHARE_SMEM_FOR_K_AND_V ? 1 : 2) * Smem_tile_k::BYTES_PER_TILE +
-      Smem_tile_o::BYTES_PER_TILE + Base::SMEM_BYTES_SOFTMAX;
+  static constexpr int SMEM_BYTES = Smem_tile_q::BYTES_PER_TILE +
+                                    (SHARE_SMEM_FOR_K_AND_V ? 1 : 2) * Smem_tile_k::BYTES_PER_TILE +
+                                    Smem_tile_o::BYTES_PER_TILE + Base::SMEM_BYTES_SOFTMAX;
 
-  __device__ inline Gemm_Q_K(char *smem_, const int tidx)
-      : Base(smem_, smem_ + Smem_tile_q::BYTES_PER_TILE, tidx) {}
+  __device__ inline Gemm_Q_K(char *smem_, const int tidx) : Base(smem_, smem_ + Smem_tile_q::BYTES_PER_TILE, tidx) {}
 
   __device__ inline void load_k() { Base::smem_k.load(frag_k[0], 0); }
 
@@ -176,16 +164,14 @@ struct Gemm_Q_K<Kernel_traits, false> : public Gemm_Q_K_base<Kernel_traits> {
   __device__ inline void reload_k() { Base::smem_k.load(frag_k[0], 0); }
 };
 
-template <typename Kernel_traits> constexpr size_t get_dynamic_smem_size() {
+template <typename Kernel_traits>
+constexpr size_t get_dynamic_smem_size() {
   return Gemm_Q_K<Kernel_traits, Kernel_traits::K_IN_REGS>::SMEM_BYTES;
 }
 
-template <typename Kernel_traits, bool Is_training, typename Params,
-          typename Prng>
-inline __device__ void device_1xN_(const Params &params, const int bidb,
-                                   const int bidh, const int begin,
+template <typename Kernel_traits, bool Is_training, typename Params, typename Prng>
+inline __device__ void device_1xN_(const Params &params, const int bidb, const int bidh, const int begin,
                                    const int steps, Prng &ph) {
-
   // The description of the CTA tile for the 1st batched GEMM.
   using Cta_tile_p = typename Kernel_traits::Cta_tile_p;
   // The description of the CTA tile for the 2nd batched GEMM.
@@ -230,8 +216,7 @@ inline __device__ void device_1xN_(const Params &params, const int bidb,
   const int tidx = threadIdx.x;
 
   const BlockInfoPadded<Kernel_traits::THREADS> binfo(params, bidb, bidh, tidx);
-  if (binfo.stop_early())
-    return;
+  if (binfo.stop_early()) return;
 
   Gemm1 gemm_q_k(smem_, tidx);
   // Allocate the global memory tile loader for Q.
@@ -271,8 +256,7 @@ inline __device__ void device_1xN_(const Params &params, const int bidb,
   // Trigger the loads for V.
   gmem_v.load(smem_v);
 
-  const uint32_t scale_bmm1 =
-      reinterpret_cast<const uint32_t &>(params.scale_bmm1);
+  const uint32_t scale_bmm1 = reinterpret_cast<const uint32_t &>(params.scale_bmm1);
 #pragma unroll
   for (int it = 0; it < Gmem_tile_k::LDGS; it++) {
     gmem_k.fetch_[it] = fmha::hmul8(scale_bmm1, gmem_k.fetch_[it]);
@@ -317,19 +301,15 @@ inline __device__ void device_1xN_(const Params &params, const int bidb,
   uint32_t p_scaled = (uint32_t)256.0 * params.p_dropout;
 
   // Create the object to do the softmax.
-  Softmax softmax(params,
-                  &smem_[Gemm1::SMEM_OFFSET_O + Smem_tile_o::BYTES_PER_TILE],
-                  bidb, tidx);
+  Softmax softmax(params, &smem_[Gemm1::SMEM_OFFSET_O + Smem_tile_o::BYTES_PER_TILE], bidb, tidx);
 
   // Load over the entire sequence length.
   for (int l = 0; l < steps; l++) {
-    if (begin + l * Cta_tile_p::M >= binfo.actual_seqlen)
-      break;
+    if (begin + l * Cta_tile_p::M >= binfo.actual_seqlen) break;
 
     // Declare the accumulators for the 1st gemm.
     fmha::Fragment_accumulator acc_p[Mma_tile_p::MMAS_M][Mma_tile_p::MMAS_N];
-    fmha::Clear_accumulator<typename fmha::Accumulator_type,
-                            Cta_tile_p::WARPS_K>::apply(acc_p);
+    fmha::Clear_accumulator<typename fmha::Accumulator_type, Cta_tile_p::WARPS_K>::apply(acc_p);
 
     // Do this part of P^T = (Q * K^T)^T.
     gemm_q_k(acc_p);
@@ -373,9 +353,7 @@ inline __device__ void device_1xN_(const Params &params, const int bidb,
     using Frag_p = fmha::Fragment_a<fmha::Row>;
     Frag_p frag_p[Mma_tile_o::MMAS_K][Mma_tile_o::MMAS_M];
     if (Is_training) {
-      auto encode_dropout = [](bool keep, float val) {
-        return keep ? val : -val;
-      };
+      auto encode_dropout = [](bool keep, float val) { return keep ? val : -val; };
 #pragma unroll
       for (int mi = 0; mi < Mma_tile_p::MMAS_M; mi++) {
 #pragma unroll
@@ -387,8 +365,7 @@ inline __device__ void device_1xN_(const Params &params, const int bidb,
             // softmax to distinguish from pre-existing zeros
             for (int ind = 0; ind < 16; ind++) {
               softmax.elt_[2 * mi + ii][16 * ni + ind] =
-                  encode_dropout(rand_arr[ind] <= p_scaled,
-                                 softmax.elt_[2 * mi + ii][16 * ni + ind]);
+                  encode_dropout(rand_arr[ind] <= p_scaled, softmax.elt_[2 * mi + ii][16 * ni + ind]);
             }
           }
         }
@@ -413,8 +390,7 @@ inline __device__ void device_1xN_(const Params &params, const int bidb,
 #pragma unroll
           for (int ii = 0; ii < Frag_p::NUM_REGS; ii++) {
             //"Apply" the dropout.
-            frag_p[ki][mi].reg(ii) =
-                fmha::hmul2(frag_p[ki][mi].reg(ii), params.scale_dropout);
+            frag_p[ki][mi].reg(ii) = fmha::hmul2(frag_p[ki][mi].reg(ii), params.scale_dropout);
             frag_p[ki][mi].reg(ii) = fmha::hrelu2(frag_p[ki][mi].reg(ii));
           }
         }
@@ -423,8 +399,7 @@ inline __device__ void device_1xN_(const Params &params, const int bidb,
 
     // Declare the accumulators for the 1st gemm.
     fmha::Fragment_accumulator acc_o[Mma_tile_o::MMAS_M][Mma_tile_o::MMAS_N];
-    fmha::Clear_accumulator<typename fmha::Accumulator_type,
-                            Cta_tile_o::WARPS_K>::apply(acc_o);
+    fmha::Clear_accumulator<typename fmha::Accumulator_type, Cta_tile_o::WARPS_K>::apply(acc_o);
 
 // Do this part of O = P^T * V^T.
 #pragma unroll
@@ -435,7 +410,6 @@ inline __device__ void device_1xN_(const Params &params, const int bidb,
 // Loop over MMAS_M.
 #pragma unroll
     for (int ii = 0; ii < Gmem_tile_o::LOOPS; ++ii) {
-
       // Swizzle the elements and do the final reduction.
       smem_o.store(acc_o, ii);
 
@@ -464,19 +438,15 @@ inline __device__ void device_1xN_(const Params &params, const int bidb,
       gemm_q_k.reload_q();
     }
 
-  } // Outer loop over the sequence length.
+  }  // Outer loop over the sequence length.
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Kernel_traits, bool Is_training, typename Params>
-inline __device__ void
-device_1xN(const Params &params, const int num_full_heads,
-           const int num_main_groups, const int main_group_size,
-           const int main_steps, const int rest_steps) {
-
-  constexpr int STEPS =
-      Kernel_traits::Cta_tile_p::N / Kernel_traits::Cta_tile_p::M;
+inline __device__ void device_1xN(const Params &params, const int num_full_heads, const int num_main_groups,
+                                  const int main_group_size, const int main_steps, const int rest_steps) {
+  constexpr int STEPS = Kernel_traits::Cta_tile_p::N / Kernel_traits::Cta_tile_p::M;
   const int tidx_global = blockIdx.x * gridDim.x + threadIdx.x;
   auto seeds = at::cuda::philox::unpack(params.philox_args);
   Philox ph(std::get<0>(seeds), tidx_global, std::get<1>(seeds));
@@ -484,12 +454,10 @@ device_1xN(const Params &params, const int num_full_heads,
     const int bidx = it * gridDim.x + blockIdx.x;
     const int bidh = bidx % params.h;
     const int bidb = bidx / params.h;
-    fmha::device_1xN_<Kernel_traits, Is_training>(params, bidb, bidh, 0, STEPS,
-                                                  ph);
+    fmha::device_1xN_<Kernel_traits, Is_training>(params, bidb, bidh, 0, STEPS, ph);
     __syncthreads();
   }
-  if (main_group_size == 0)
-    return;
+  if (main_group_size == 0) return;
   const int head_offset = num_full_heads * gridDim.x;
 
   if (blockIdx.x < main_group_size * num_main_groups) {
@@ -499,11 +467,9 @@ device_1xN(const Params &params, const int num_full_heads,
     const int bidh = (head_offset + bidx) % params.h;
     const int bidb = (head_offset + bidx) / params.h;
     const int offset = group * main_steps;
-    fmha::device_1xN_<Kernel_traits, Is_training>(params, bidb, bidh, offset,
-                                                  main_steps, ph);
+    fmha::device_1xN_<Kernel_traits, Is_training>(params, bidb, bidh, offset, main_steps, ph);
   } else {
-    if (rest_steps == 0)
-      return;
+    if (rest_steps == 0) return;
     // process across heads
     const int bidx = blockIdx.x - main_group_size * num_main_groups;
     const int offset = num_main_groups * main_steps;
@@ -512,8 +478,7 @@ device_1xN(const Params &params, const int num_full_heads,
     for (int it = head_offset + bidx; it < total_heads; it += rest_ctas) {
       const int bidh = it % params.h;
       const int bidb = it / params.h;
-      fmha::device_1xN_<Kernel_traits, Is_training>(params, bidb, bidh, offset,
-                                                    rest_steps, ph);
+      fmha::device_1xN_<Kernel_traits, Is_training>(params, bidb, bidh, offset, rest_steps, ph);
       __syncthreads();
     }
   }
@@ -523,22 +488,19 @@ device_1xN(const Params &params, const int num_full_heads,
 
 template <typename Kernel_traits, bool Is_training, typename Params>
 inline __device__ void device_1xN(const Params &params, const int total_heads) {
-
   const int tidx_global = blockIdx.x * gridDim.x + threadIdx.x;
   auto seeds = at::cuda::philox::unpack(params.philox_args);
   Philox ph(std::get<0>(seeds), tidx_global, std::get<1>(seeds));
-  constexpr int STEPS =
-      Kernel_traits::Cta_tile_p::N / Kernel_traits::Cta_tile_p::M;
+  constexpr int STEPS = Kernel_traits::Cta_tile_p::N / Kernel_traits::Cta_tile_p::M;
 
   for (int bidx = blockIdx.x; bidx < total_heads; bidx += gridDim.x) {
     const int bidh = bidx % params.h;
     const int bidb = bidx / params.h;
-    fmha::device_1xN_<Kernel_traits, Is_training>(params, bidb, bidh, 0, STEPS,
-                                                  ph);
+    fmha::device_1xN_<Kernel_traits, Is_training>(params, bidb, bidh, 0, STEPS, ph);
     __syncthreads();
   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace fmha
+}  // namespace fmha

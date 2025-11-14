@@ -35,24 +35,18 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define FMHA_CHECK_CUDA(call)                                                  \
-  do {                                                                         \
-    cudaError_t status_ = call;                                                \
-    if (status_ != cudaSuccess) {                                              \
-      fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__,          \
-              cudaGetErrorString(status_));                                    \
-      exit(1);                                                                 \
-    }                                                                          \
+#define FMHA_CHECK_CUDA(call)                                                                       \
+  do {                                                                                              \
+    cudaError_t status_ = call;                                                                     \
+    if (status_ != cudaSuccess) {                                                                   \
+      fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, cudaGetErrorString(status_)); \
+      exit(1);                                                                                      \
+    }                                                                                               \
   } while (0)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum Data_type {
-  DATA_TYPE_FP16,
-  DATA_TYPE_FP32,
-  DATA_TYPE_INT32,
-  DATA_TYPE_INT8
-};
+enum Data_type { DATA_TYPE_FP16, DATA_TYPE_FP32, DATA_TYPE_INT32, DATA_TYPE_INT8 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -76,17 +70,17 @@ static inline void set_alpha(uint32_t &alpha, float norm, Data_type dtype) {
 
 static inline size_t get_size_in_bytes(size_t n, Data_type dtype) {
   switch (dtype) {
-  case DATA_TYPE_FP32:
-    return n * 4;
-  case DATA_TYPE_FP16:
-    return n * 2;
-  case DATA_TYPE_INT32:
-    return n * 4;
-  case DATA_TYPE_INT8:
-    return n;
-  default:
-    assert(false);
-    return 0;
+    case DATA_TYPE_FP32:
+      return n * 4;
+    case DATA_TYPE_FP16:
+      return n * 2;
+    case DATA_TYPE_INT32:
+      return n * 4;
+    case DATA_TYPE_INT8:
+      return n;
+    default:
+      assert(false);
+      return 0;
   }
 }
 

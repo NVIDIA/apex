@@ -5,7 +5,6 @@ repos:
   - id: clang-format
     files: \.(c|h|cpp|hpp|proto|cu|cuh)$
     exclude: ^(apex/contrib/csrc/multihead_attn/cutlass|apex/contrib/csrc/cudnn-frontend)/
-    args: ['-style=Google']
 
 # TODO: Enable Ruff
 # - repo: https://github.com/astral-sh/ruff-pre-commit

@@ -4,14 +4,15 @@
 #include <cuda_fp16.h>
 #include <stdint.h>
 #include <stdio.h>
+
 #include <unordered_map>
 
 namespace layer_norm {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Params> struct LaunchParams {
-
+template <typename Params>
+struct LaunchParams {
   size_t workspace_bytes;
   size_t barrier_size;
 
@@ -26,9 +27,18 @@ template <typename Params> struct LaunchParams {
 
 struct FwdParams {
   FwdParams()
-      : ctas_per_col(0), rows(0), cols(0), x(nullptr), z(nullptr), mu(nullptr),
-        rs(nullptr), gamma(nullptr), beta(nullptr), workspace(nullptr),
-        barrier(nullptr), epsilon(0.f) {}
+      : ctas_per_col(0),
+        rows(0),
+        cols(0),
+        x(nullptr),
+        z(nullptr),
+        mu(nullptr),
+        rs(nullptr),
+        gamma(nullptr),
+        beta(nullptr),
+        workspace(nullptr),
+        barrier(nullptr),
+        epsilon(0.f) {}
 
   // For Multi-CTA, number of different CTA groups. Otherwise same as gridDim.x.
   int ctas_per_col;
@@ -59,8 +69,13 @@ struct FwdParams {
 
 struct BwdParams : public FwdParams {
   BwdParams()
-      : FwdParams(), dz(nullptr), dbeta_part(nullptr), dgamma_part(nullptr),
-        dx(nullptr), dbeta(nullptr), dgamma(nullptr) {}
+      : FwdParams(),
+        dz(nullptr),
+        dbeta_part(nullptr),
+        dgamma_part(nullptr),
+        dx(nullptr),
+        dbeta(nullptr),
+        dgamma(nullptr) {}
   // Input: gradient wrt. LN FWD output.
   void *dz;
 
@@ -94,42 +109,51 @@ using bf16 = nv_bfloat16;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename T> struct TypeId {};
+template <typename T>
+struct TypeId {};
 
-template <> struct TypeId<fp16> {
+template <>
+struct TypeId<fp16> {
   constexpr static uint32_t Value = 0;
 };
 
-template <> struct TypeId<bf16> {
+template <>
+struct TypeId<bf16> {
   constexpr static uint32_t Value = 1;
 };
 
-template <> struct TypeId<fp32> {
+template <>
+struct TypeId<fp32> {
   constexpr static uint32_t Value = 2;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename T, int S> struct Type2Key {
+template <typename T, int S>
+struct Type2Key {
   constexpr static uint32_t Value = TypeId<T>::Value << S;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename T> struct WeightType2Key : public Type2Key<T, 0> {};
+template <typename T>
+struct WeightType2Key : public Type2Key<T, 0> {};
 
-template <typename T> struct InputType2Key : public Type2Key<T, 2> {};
+template <typename T>
+struct InputType2Key : public Type2Key<T, 2> {};
 
-template <typename T> struct OutputType2Key : public Type2Key<T, 4> {};
+template <typename T>
+struct OutputType2Key : public Type2Key<T, 4> {};
 
-template <typename T> struct ComputeType2Key : public Type2Key<T, 6> {};
+template <typename T>
+struct ComputeType2Key : public Type2Key<T, 6> {};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename W, typename I, typename O, typename C> struct Types2Key {
+template <typename W, typename I, typename O, typename C>
+struct Types2Key {
   constexpr static uint32_t Value =
-      WeightType2Key<W>::Value | InputType2Key<I>::Value |
-      OutputType2Key<O>::Value | ComputeType2Key<C>::Value;
+      WeightType2Key<W>::Value | InputType2Key<I>::Value | OutputType2Key<O>::Value | ComputeType2Key<C>::Value;
   constexpr static inline uint64_t get(const uint64_t hidden_size) {
     constexpr uint64_t type_key = Value;
     return (type_key << 32) | hidden_size;
@@ -158,4 +182,4 @@ struct BwdRegistrar {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace layer_norm
+}  // namespace layer_norm

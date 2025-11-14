@@ -18,27 +18,27 @@
 
 #include <assert.h>
 #include <c10/macros/Macros.h>
-#include <cfloat>
 #include <cuda_fp16.h>
-#include <limits>
 #include <stdint.h>
+
+#include <cfloat>
+#include <limits>
 
 namespace {
 
-template <typename T> struct Add {
+template <typename T>
+struct Add {
   __device__ __forceinline__ T operator()(T a, T b) const { return a + b; }
 };
 
-template <typename T> struct Max {
-  __device__ __forceinline__ T operator()(T a, T b) const {
-    return a < b ? b : a;
-  }
+template <typename T>
+struct Max {
+  __device__ __forceinline__ T operator()(T a, T b) const { return a < b ? b : a; }
 };
 
 template <typename T>
-__device__ __forceinline__ T
-WARP_SHFL_DOWN_NATIVE(T value, int laneMask, int width = warpSize,
-                      unsigned int mask = 0xffffffff) {
+__device__ __forceinline__ T WARP_SHFL_DOWN_NATIVE(T value, int laneMask, int width = warpSize,
+                                                   unsigned int mask = 0xffffffff) {
 #if CUDA_VERSION >= 9000
   return __shfl_down_sync(mask, value, laneMask, width);
 #else
@@ -58,11 +58,10 @@ __device__ __forceinline__ acc_t warp_reduce_new(acc_t val) {
 
 template <typename input_t, typename output_t, typename acc_t,
           int log2_elements>
-__global__ void scaled_masked_softmax_warp_backward_new(
-    output_t *gradInput, //[batches, attn_heads, q_len, k_len]
-    input_t *grad,
-    const input_t *output, //[batches, attn_heads, q_len, k_len]
-    acc_t scale, int element_count) {
+__global__ void scaled_masked_softmax_warp_backward_new(output_t *gradInput,  //[batches, attn_heads, q_len, k_len]
+                                                        input_t *grad,
+                                                        const input_t *output,  //[batches, attn_heads, q_len, k_len]
+                                                        acc_t scale, int element_count) {
   int threads_per_block = blockDim.x;
   // the first element_count*2 elements are used for cache, the last 128 is used
   // for reduction
@@ -88,15 +87,13 @@ __global__ void scaled_masked_softmax_warp_backward_new(
     if (i * threads_per_block + local_idx < element_count) {
       val = output[offset + i * threads_per_block + local_idx];
       output_data[i * threads_per_block + local_idx] = val;
-      local_data[i * threads_per_block + local_idx] =
-          val * grad[offset + i * threads_per_block + local_idx];
+      local_data[i * threads_per_block + local_idx] = val * grad[offset + i * threads_per_block + local_idx];
     }
     __syncthreads();
   }
 
   // find the sum
-  for (int i = local_idx; i < (element_count - 1) / C10_WARP_SIZE + 1;
-       i += threads_per_block) {
+  for (int i = local_idx; i < (element_count - 1) / C10_WARP_SIZE + 1; i += threads_per_block) {
     shared[i] = 0.0;
   }
   __syncthreads();
@@ -110,8 +107,7 @@ __global__ void scaled_masked_softmax_warp_backward_new(
     }
     __syncthreads();
     val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
-    if (lane == 0 && wid + warps_per_thread_block * i <
-                         (element_count - 1) / C10_WARP_SIZE + 1) {
+    if (lane == 0 && wid + warps_per_thread_block * i < (element_count - 1) / C10_WARP_SIZE + 1) {
       shared[wid + warps_per_thread_block * i] = val;
     }
     __syncthreads();
@@ -142,18 +138,16 @@ __global__ void scaled_masked_softmax_warp_backward_new(
   val = shared[0];
 #pragma unroll
   for (int i = local_idx; i < element_count; i += threads_per_block) {
-    gradInput[offset + i] =
-        (output_t)(scale * (local_data[i] - output_data[i] * val));
+    gradInput[offset + i] = (output_t)(scale * (local_data[i] - output_data[i] * val));
   }
 }
 
-} // end of anonymous namespace
+}  // end of anonymous namespace
 
 template <typename input_t, typename output_t, typename acc_t>
-void dispatch_scaled_masked_softmax_backward_new(
-    output_t *grad_input, input_t *grad, const input_t *output,
-    const acc_t scale, int query_seq_len, int key_seq_len, int batches,
-    int attn_heads) {
+void dispatch_scaled_masked_softmax_backward_new(output_t *grad_input, input_t *grad, const input_t *output,
+                                                 const acc_t scale, int query_seq_len, int key_seq_len, int batches,
+                                                 int attn_heads) {
   if (key_seq_len == 0) {
     return;
   } else {
@@ -165,10 +159,8 @@ void dispatch_scaled_masked_softmax_backward_new(
     dim3 threads(threads_per_block, 1, 1);
 
     scaled_masked_softmax_warp_backward_new<input_t, output_t, acc_t, 12>
-        <<<blocks, threads,
-           sizeof(input_t) * key_seq_len * 2 + sizeof(acc_t) * num_warps,
-           at::cuda::getCurrentCUDAStream()>>>(grad_input, grad, output, scale,
-                                               key_seq_len);
+        <<<blocks, threads, sizeof(input_t) * key_seq_len * 2 + sizeof(acc_t) * num_warps,
+           at::cuda::getCurrentCUDAStream()>>>(grad_input, grad, output, scale, key_seq_len);
   }
 }
 
@@ -177,13 +169,12 @@ void dispatch_scaled_masked_softmax_backward_new(
  * features 1) input scaling 2) Explicit masking
  */
 template <typename input_t, typename output_t, typename acc_t>
-__global__ void
-scaled_masked_softmax_warp_forward_new(output_t *dst, const input_t *src,
-                                       const uint8_t *mask, const acc_t scale,
-                                       int query_len, // query_len
-                                       int attn_heads,
-                                       int element_count, // key_len
-                                       int pad_batches)   // mask batch size
+__global__ void scaled_masked_softmax_warp_forward_new(output_t *dst, const input_t *src, const uint8_t *mask,
+                                                       const acc_t scale,
+                                                       int query_len,  // query_len
+                                                       int attn_heads,
+                                                       int element_count,  // key_len
+                                                       int pad_batches)    // mask batch size
 {
   // min threawds_per_block has to be bigger than 128
   int threads_per_block = blockDim.x;
@@ -223,8 +214,7 @@ scaled_masked_softmax_warp_forward_new(output_t *dst, const input_t *src,
   }
 
   // first find the max value
-  for (int i = local_idx; i < (element_count - 1) / C10_WARP_SIZE + 1;
-       i += threads_per_block) {
+  for (int i = local_idx; i < (element_count - 1) / C10_WARP_SIZE + 1; i += threads_per_block) {
     shared[i] = -10000.0;
   }
   __syncthreads();
@@ -239,8 +229,7 @@ scaled_masked_softmax_warp_forward_new(output_t *dst, const input_t *src,
     __syncthreads();
     val = warp_reduce_new<acc_t, C10_WARP_SIZE, Max>(val);
 
-    if (lane == 0 && wid + warps_per_thread_block * i <
-                         (element_count - 1) / C10_WARP_SIZE + 1) {
+    if (lane == 0 && wid + warps_per_thread_block * i < (element_count - 1) / C10_WARP_SIZE + 1) {
       shared[wid + warps_per_thread_block * i] = val;
     }
     __syncthreads();
@@ -285,8 +274,7 @@ scaled_masked_softmax_warp_forward_new(output_t *dst, const input_t *src,
   }
 
   // find the sum
-  for (int i = local_idx; i < (element_count - 1) / C10_WARP_SIZE + 1;
-       i += threads_per_block) {
+  for (int i = local_idx; i < (element_count - 1) / C10_WARP_SIZE + 1; i += threads_per_block) {
     shared[i] = 0.0;
   }
   __syncthreads();
@@ -301,8 +289,7 @@ scaled_masked_softmax_warp_forward_new(output_t *dst, const input_t *src,
     __syncthreads();
 
     val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
-    if (lane == 0 && wid + warps_per_thread_block * i <
-                         (element_count - 1) / C10_WARP_SIZE + 1) {
+    if (lane == 0 && wid + warps_per_thread_block * i < (element_count - 1) / C10_WARP_SIZE + 1) {
       shared[wid + warps_per_thread_block * i] = val;
     }
     __syncthreads();
@@ -338,10 +325,9 @@ scaled_masked_softmax_warp_forward_new(output_t *dst, const input_t *src,
 }
 
 template <typename input_t, typename output_t, typename acc_t>
-void dispatch_scaled_masked_softmax_forward_new(
-    output_t *dst, const input_t *src, const uint8_t *mask, const input_t scale,
-    int query_seq_len, int key_seq_len, int batches, int attn_heads,
-    int pad_batches) {
+void dispatch_scaled_masked_softmax_forward_new(output_t *dst, const input_t *src, const uint8_t *mask,
+                                                const input_t scale, int query_seq_len, int key_seq_len, int batches,
+                                                int attn_heads, int pad_batches) {
   if (key_seq_len == 0) {
     return;
   } else {
@@ -356,9 +342,7 @@ void dispatch_scaled_masked_softmax_forward_new(
     dim3 blocks(batch_count, 1, 1);
     dim3 threads(threads_per_block, 1, 1);
     scaled_masked_softmax_warp_forward_new<input_t, output_t, acc_t>
-        <<<blocks, threads, sizeof(acc_t) * (key_seq_len + num_warps),
-           at::cuda::getCurrentCUDAStream()>>>(dst, src, mask, scale,
-                                               query_seq_len, attn_heads,
-                                               key_seq_len, pad_batches);
+        <<<blocks, threads, sizeof(acc_t) * (key_seq_len + num_warps), at::cuda::getCurrentCUDAStream()>>>(
+            dst, src, mask, scale, query_seq_len, attn_heads, key_seq_len, pad_batches);
   }
 }

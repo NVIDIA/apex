@@ -1,11 +1,13 @@
-#include "nccl.h"
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDACachingAllocator.h>
+#include <torch/extension.h>
+
 #include <cassert>
 #include <cstdio>
 #include <ctime>
 #include <list>
-#include <torch/extension.h>
+
+#include "nccl.h"
 
 /*
  * This file implements a crude but effective mechanism for copying data between
@@ -32,34 +34,34 @@ __global__ void AddDelay_kernel(const int delay, int *counter) {
 }
 
 class NcclCommWrapper {
-private:
+ private:
   ncclComm_t comm;
   int rank, world_size;
 
   ncclDataType_t get_nccl_type(at::Tensor input) {
     switch (input.scalar_type()) {
-    case at::ScalarType::Half:
-      return ncclFloat16;
-    case at::ScalarType::Float:
-      return ncclFloat32;
-    case at::ScalarType::Double:
-      return ncclFloat64;
-    case at::ScalarType::Byte:
-      return ncclUint8;
-    case at::ScalarType::Char:
-      return ncclInt8;
-    case at::ScalarType::Int:
-      return ncclInt32;
-    case at::ScalarType::Long:
-      return ncclInt64;
-    case at::ScalarType::BFloat16:
-      return ncclBfloat16;
-    default:
-      assert(false);
+      case at::ScalarType::Half:
+        return ncclFloat16;
+      case at::ScalarType::Float:
+        return ncclFloat32;
+      case at::ScalarType::Double:
+        return ncclFloat64;
+      case at::ScalarType::Byte:
+        return ncclUint8;
+      case at::ScalarType::Char:
+        return ncclInt8;
+      case at::ScalarType::Int:
+        return ncclInt32;
+      case at::ScalarType::Long:
+        return ncclInt64;
+      case at::ScalarType::BFloat16:
+        return ncclBfloat16;
+      default:
+        assert(false);
     }
   }
 
-public:
+ public:
   NcclCommWrapper() {
     memset(&comm, 0, sizeof(ncclComm_t));
     rank = 0;
@@ -76,10 +78,8 @@ public:
     ncclCommDestroy(comm);
   }
 
-  void left_right_halo_exchange_inplace(int left_rank, int right_rank,
-                                        at::Tensor left_output_halo,
-                                        at::Tensor right_output_halo,
-                                        at::Tensor left_input_halo,
+  void left_right_halo_exchange_inplace(int left_rank, int right_rank, at::Tensor left_output_halo,
+                                        at::Tensor right_output_halo, at::Tensor left_input_halo,
                                         at::Tensor right_input_halo) {
     auto stream = at::cuda::getCurrentCUDAStream();
     ncclGroupStart();
@@ -93,51 +93,44 @@ public:
       left_input_halo.zero_();
     } else {
       AT_DISPATCH_ALL_TYPES_AND3(
-          at::ScalarType::Bool, at::ScalarType::BFloat16, at::ScalarType::Half,
-          left_output_halo.scalar_type(), "left_halo_exch", [&]() {
+          at::ScalarType::Bool, at::ScalarType::BFloat16, at::ScalarType::Half, left_output_halo.scalar_type(),
+          "left_halo_exch", [&]() {
             // send left (to my_rank - 1)
-            ncclSend(left_output_halo.data_ptr<scalar_t>(), left_n, ncclType,
-                     left_rank, comm, stream);
+            ncclSend(left_output_halo.data_ptr<scalar_t>(), left_n, ncclType, left_rank, comm, stream);
             // receive left (from my_rank - 1)
-            ncclRecv(left_input_halo.data_ptr<scalar_t>(), right_n, ncclType,
-                     left_rank, comm, stream);
+            ncclRecv(left_input_halo.data_ptr<scalar_t>(), right_n, ncclType, left_rank, comm, stream);
           });
     }
     if (right_zero) {
       right_input_halo.zero_();
     } else {
       AT_DISPATCH_ALL_TYPES_AND3(
-          at::ScalarType::Bool, at::ScalarType::BFloat16, at::ScalarType::Half,
-          right_output_halo.scalar_type(), "right_halo_exch", [&]() {
+          at::ScalarType::Bool, at::ScalarType::BFloat16, at::ScalarType::Half, right_output_halo.scalar_type(),
+          "right_halo_exch", [&]() {
             // send right (to my_rank + 1 )
-            ncclSend(right_output_halo.data_ptr<scalar_t>(), right_n, ncclType,
-                     right_rank, comm, stream);
+            ncclSend(right_output_halo.data_ptr<scalar_t>(), right_n, ncclType, right_rank, comm, stream);
             // receive right (from my_rank + 1)
-            ncclRecv(right_input_halo.data_ptr<scalar_t>(), left_n, ncclType,
-                     right_rank, comm, stream);
+            ncclRecv(right_input_halo.data_ptr<scalar_t>(), left_n, ncclType, right_rank, comm, stream);
           });
     }
     ncclGroupEnd();
   }
 
-  std::vector<at::Tensor>
-  left_right_halo_exchange(int left_rank, int right_rank,
-                           at::Tensor left_output_halo,
-                           at::Tensor right_output_halo) {
+  std::vector<at::Tensor> left_right_halo_exchange(int left_rank, int right_rank, at::Tensor left_output_halo,
+                                                   at::Tensor right_output_halo) {
     // after halo exchange:
     // left_output_halo of rank+1 ends up in right_input_halo of rank
     // right_output_halo of rank-1 ends up in left_input_halo of rank
     auto right_input_halo = torch::empty_like(left_output_halo);
     auto left_input_halo = torch::empty_like(right_output_halo);
-    left_right_halo_exchange_inplace(left_rank, right_rank, left_output_halo,
-                                     right_output_halo, left_input_halo,
+    left_right_halo_exchange_inplace(left_rank, right_rank, left_output_halo, right_output_halo, left_input_halo,
                                      right_input_halo);
     return {left_input_halo, right_input_halo};
   }
 };
 
 class ManagedObjects {
-public:
+ public:
   ManagedObjects() {}
   ~ManagedObjects() {
     for (auto it = _nccl_comms.begin(); it != _nccl_comms.end(); ++it) {
@@ -156,12 +149,12 @@ public:
     return *_nccl_comms[handle];
   }
 
-private:
+ private:
   std::vector<NcclCommWrapper *> _nccl_comms;
 };
 class ManagedObjects mo;
 
-} // end anonymous namespace
+}  // end anonymous namespace
 
 namespace apex {
 namespace contrib {
@@ -170,9 +163,8 @@ namespace nccl_p2p {
 at::Tensor get_unique_nccl_id(int n) {
   ncclUniqueId id;
   ncclGetUniqueId(&id);
-  auto id_tensor = torch::empty(
-      {n, (int)sizeof(ncclUniqueId)},
-      torch::dtype(torch::kUInt8).device(torch::kCPU).requires_grad(false));
+  auto id_tensor = torch::empty({n, (int)sizeof(ncclUniqueId)},
+                                torch::dtype(torch::kUInt8).device(torch::kCPU).requires_grad(false));
   auto id_ptr = id_tensor.data_ptr<uint8_t>();
   size_t offset = 0;
   for (int i = 0; i < n; ++i) {
@@ -194,24 +186,18 @@ int init_nccl_comm(at::Tensor unique_nccl_id, int my_rank, int num_ranks) {
   return handle;
 }
 
-void left_right_halo_exchange_inplace(int handle, int left_rank, int right_rank,
-                                      at::Tensor left_output_halo,
-                                      at::Tensor right_output_halo,
-                                      at::Tensor left_input_halo,
+void left_right_halo_exchange_inplace(int handle, int left_rank, int right_rank, at::Tensor left_output_halo,
+                                      at::Tensor right_output_halo, at::Tensor left_input_halo,
                                       at::Tensor right_input_halo) {
   class NcclCommWrapper &communicator = mo.get_comm(handle);
-  return communicator.left_right_halo_exchange_inplace(
-      left_rank, right_rank, left_output_halo, right_output_halo,
-      left_input_halo, right_input_halo);
+  return communicator.left_right_halo_exchange_inplace(left_rank, right_rank, left_output_halo, right_output_halo,
+                                                       left_input_halo, right_input_halo);
 }
 
-std::vector<at::Tensor> left_right_halo_exchange(int handle, int left_rank,
-                                                 int right_rank,
-                                                 at::Tensor left_output_halo,
+std::vector<at::Tensor> left_right_halo_exchange(int handle, int left_rank, int right_rank, at::Tensor left_output_halo,
                                                  at::Tensor right_output_halo) {
   class NcclCommWrapper &communicator = mo.get_comm(handle);
-  return communicator.left_right_halo_exchange(
-      left_rank, right_rank, left_output_halo, right_output_halo);
+  return communicator.left_right_halo_exchange(left_rank, right_rank, left_output_halo, right_output_halo);
 }
 
 void add_delay(int delay) {
@@ -220,6 +206,6 @@ void add_delay(int delay) {
   AddDelay_kernel<<<1, 1, 0, stream>>>(delay, t.data_ptr<int>());
 }
 
-} // namespace nccl_p2p
-} // namespace contrib
-} // namespace apex
+}  // namespace nccl_p2p
+}  // namespace contrib
+}  // namespace apex

@@ -27,19 +27,15 @@
 
 #include "fmha.h"
 
-inline __device__ float4 ldg128(const void *ptr) {
-  return *static_cast<const float4 *>(ptr);
-}
+inline __device__ float4 ldg128(const void *ptr) { return *static_cast<const float4 *>(ptr); }
 
-inline __device__ void stg128(void *ptr, const float4 &data) {
-  *static_cast<float4 *>(ptr) = data;
-}
+inline __device__ void stg128(void *ptr, const float4 &data) { *static_cast<float4 *>(ptr) = data; }
 
 template <typename T, int THREADS, int HIDDEN_SIZE, int CHUNKS>
-__global__ __launch_bounds__(THREADS) void fmha_noloop_reduce_kernel(
-    void *__restrict__ out, const void *__restrict__ in,
-    const int *__restrict__ cu_seqlens, const int batch_size) {
-
+__global__ __launch_bounds__(THREADS) void fmha_noloop_reduce_kernel(void *__restrict__ out,
+                                                                     const void *__restrict__ in,
+                                                                     const int *__restrict__ cu_seqlens,
+                                                                     const int batch_size) {
   enum { BYTES_PER_LDG = 16 };
   enum { NUM_ELTS = BYTES_PER_LDG / sizeof(T) };
 
@@ -83,12 +79,10 @@ __global__ __launch_bounds__(THREADS) void fmha_noloop_reduce_kernel(
   }
 
   // SETUP
-  const int offset_in =
-      blockIdx.x * BYTES_PER_TILE + threadIdx.x * BYTES_PER_LDG;
+  const int offset_in = blockIdx.x * BYTES_PER_TILE + threadIdx.x * BYTES_PER_LDG;
   const char *ptr_in = static_cast<const char *>(in) + offset_in;
 
-  const int offset_out =
-      blockIdx.x * OUT_STRIDE_BYTES + threadIdx.x * BYTES_PER_LDG;
+  const int offset_out = blockIdx.x * OUT_STRIDE_BYTES + threadIdx.x * BYTES_PER_LDG;
   char *ptr_out = static_cast<char *>(out) + OUT_OFFSET_KV_BYTES + offset_out;
 
   // LOAD
@@ -146,15 +140,11 @@ __global__ __launch_bounds__(THREADS) void fmha_noloop_reduce_kernel(
   }
 }
 
-void fmha_run_noloop_reduce(void *out, const void *in, const int *cu_seqlens,
-                            const int hidden_size, const int batch_size,
-                            const int total, const int num_chunks,
-                            cudaStream_t stream) {
-
+void fmha_run_noloop_reduce(void *out, const void *in, const int *cu_seqlens, const int hidden_size,
+                            const int batch_size, const int total, const int num_chunks, cudaStream_t stream) {
   const int blocks = total;
 
   if (hidden_size == 1024) {
-
     constexpr int HIDDEN_SIZE = 1024;
     constexpr int THREADS = 256;
 

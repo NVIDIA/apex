@@ -2,11 +2,13 @@
  * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES.
  * All rights reserved. SPDX-License-Identifier: BSD-3-Clause
  */
+#include <assert.h>
+
+#include <cub/cub.cuh>
+
 #include "group_norm_nhwc.h"
 #include "macros.h"
 #include "traits.h"
-#include <assert.h>
-#include <cub/cub.cuh>
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -15,9 +17,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Traits_, int THREADS_PER_BLOCK>
-__global__ void
-group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params) {
-
+__global__ void group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params) {
   // The IO traits.
   using Traits = Traits_;
   // The IO traits.
@@ -67,11 +67,9 @@ group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params) {
   float2 gamma_f2 = make_float2(0.f, 0.f);
   float2 beta_f2 = make_float2(0.f, 0.f);
   if (ci < params.c) {
-    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(
-        &reinterpret_cast<const WType *>(params.gamma)[ci]));
+    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.gamma)[ci]));
     if (params.with_swish) {
-      beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(
-          &reinterpret_cast<const WType *>(params.beta)[ci]));
+      beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.beta)[ci]));
     }
   }
 
@@ -91,7 +89,6 @@ group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params) {
 
   // Iterate over the activations to compute the sums.
   for (int hwi = hw_begin; hwi < hw_end; ++hwi) {
-
     // The offset.
     int64_t offset = (int64_t)ni * params.hwc + hwi * params.c + ci;
 
@@ -99,10 +96,8 @@ group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params) {
     IOType2 x_v2 = IOTraits::zero();
     IOType2 dy_v2 = IOTraits::zero();
     if (ci < params.c) {
-      x_v2 = *reinterpret_cast<const IOType2 *>(
-          &reinterpret_cast<const IOType *>(params.x)[offset]);
-      dy_v2 = *reinterpret_cast<const IOType2 *>(
-          &reinterpret_cast<const IOType *>(params.dy)[offset]);
+      x_v2 = *reinterpret_cast<const IOType2 *>(&reinterpret_cast<const IOType *>(params.x)[offset]);
+      dy_v2 = *reinterpret_cast<const IOType2 *>(&reinterpret_cast<const IOType *>(params.dy)[offset]);
     }
 
     // Extract the two half values.
@@ -171,15 +166,12 @@ group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params) {
 
   // Store to global memory.
   if (threadIdx.x < params.groups_per_block && gk < params.groups) {
-    atomicAdd(&params.zeroed_red_buffer[(2 * ni + 0) * params.groups + gk],
-              sums.x);
-    atomicAdd(&params.zeroed_red_buffer[(2 * ni + 1) * params.groups + gk],
-              sums.y);
+    atomicAdd(&params.zeroed_red_buffer[(2 * ni + 0) * params.groups + gk], sums.x);
+    atomicAdd(&params.zeroed_red_buffer[(2 * ni + 1) * params.groups + gk], sums.y);
   }
 
   // The base pointer for the gradients for gamma and beta.
-  float *dgamma_beta_ptr =
-      &params.zeroed_red_buffer[params.n * params.groups * 2];
+  float *dgamma_beta_ptr = &params.zeroed_red_buffer[params.n * params.groups * 2];
 
   // The 1st channel in the output tensor. NOTE: Two channels per thread store
   // interleaved.
@@ -196,9 +188,7 @@ group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params &params,
-                                          size_t &zeroed_red_buffer_elts) {
-
+void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params &params, size_t &zeroed_red_buffer_elts) {
   // The pre-computed dimensions.
   params.hw = params.h * params.w;
   params.hwc = params.c * params.hw;
@@ -206,8 +196,7 @@ void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params &params,
   // The number of channels per group.
   params.channels_per_group = params.c / params.groups;
   // The inverse to compute the mean/variance.
-  params.inv_hwc_per_group =
-      1.f / (float)(params.hw * params.channels_per_group);
+  params.inv_hwc_per_group = 1.f / (float)(params.hw * params.channels_per_group);
 
   // Define the number of blocks per activation map. That's a simple heuristic.
   int blocks_per_act_slice = 0;
@@ -240,18 +229,15 @@ void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params &params,
   }
 
   if (params.c % params.channels_per_block != 0) {
-    if (params.c % 512 == 0 && params.c != 1536 && params.c != 3072 &&
-        params.c % 448 != 0) {
+    if (params.c % 512 == 0 && params.c != 1536 && params.c != 3072 && params.c % 448 != 0) {
       params.channels_per_block = 512;
     } else if (params.c % 42 == 0) {
       params.channels_per_block = 336;
     } else if (params.c % 384 == 0) {
       params.channels_per_block = 384;
-    } else if (params.c % 256 == 0 && params.c % 448 != 0 &&
-               params.c % 392 != 0) {
+    } else if (params.c % 256 == 0 && params.c % 448 != 0 && params.c % 392 != 0) {
       params.channels_per_block = 256;
-    } else if (params.c % 128 == 0 && params.c % 448 != 0 &&
-               params.c % 392 != 0) {
+    } else if (params.c % 128 == 0 && params.c % 448 != 0 && params.c % 392 != 0) {
       params.channels_per_block = 128;
     } else if (params.c % 448 == 0 && params.c % 392 != 0) {
       params.channels_per_block = 448;
@@ -261,8 +247,7 @@ void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params &params,
   }
 
   // The number of groups per block.
-  params.groups_per_block =
-      params.channels_per_block / params.channels_per_group;
+  params.groups_per_block = params.channels_per_block / params.channels_per_group;
 
   // Make sure the number of channels is a multiple of the number of channels
   // per block.
@@ -277,9 +262,7 @@ void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params &params,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_sum(
-    const Group_norm_nhwc_bwd_params &params, cudaStream_t stream) {
-
+void group_norm_nhwc_bwd_two_passes_sum(const Group_norm_nhwc_bwd_params &params, cudaStream_t stream) {
   // The dimension of the grid.
   dim3 grid;
 
@@ -317,9 +300,7 @@ void group_norm_nhwc_bwd_two_passes_sum(
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Traits_, int THREADS_PER_BLOCK>
-__global__ void
-group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params params) {
-
+__global__ void group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params params) {
   // The IO traits.
   using Traits = Traits_;
   // The IO traits.
@@ -371,11 +352,9 @@ group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params params) {
   float2 gamma_f2 = make_float2(0.f, 0.f);
   float2 beta_f2 = make_float2(0.f, 0.f);
   if (ci < params.c) {
-    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(
-        &reinterpret_cast<const WType *>(params.gamma)[ci]));
+    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.gamma)[ci]));
     if (params.with_swish) {
-      beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(
-          &reinterpret_cast<const WType *>(params.beta)[ci]));
+      beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.beta)[ci]));
     }
   }
 
@@ -386,7 +365,6 @@ group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params params) {
 
   // Iterate over the activations to compute the sums.
   for (int hwi = hw_begin; hwi < hw_end; ++hwi) {
-
     // The src/dst offset.
     int64_t offset = (int64_t)ni * params.hwc + hwi * params.c + ci;
 
@@ -394,10 +372,8 @@ group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params params) {
     IOType2 x_v2 = IOTraits::zero();
     IOType2 dy_v2 = IOTraits::zero();
     if (ci < params.c) {
-      x_v2 = *reinterpret_cast<const IOType2 *>(
-          &reinterpret_cast<const IOType *>(params.x)[offset]);
-      dy_v2 = *reinterpret_cast<const IOType2 *>(
-          &reinterpret_cast<const IOType *>(params.dy)[offset]);
+      x_v2 = *reinterpret_cast<const IOType2 *>(&reinterpret_cast<const IOType *>(params.x)[offset]);
+      dy_v2 = *reinterpret_cast<const IOType2 *>(&reinterpret_cast<const IOType *>(params.dy)[offset]);
     }
 
     // Extract the two half values.
@@ -435,8 +411,7 @@ group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params params) {
 
     // Store the scaled values.
     if (ci < params.c) {
-      *reinterpret_cast<IOType2 *>(
-          &reinterpret_cast<IOType *>(params.dx)[offset]) = IOTraits::pack(dx);
+      *reinterpret_cast<IOType2 *>(&reinterpret_cast<IOType *>(params.dx)[offset]) = IOTraits::pack(dx);
     }
   }
 
@@ -446,8 +421,7 @@ group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params params) {
   }
 
   // The base pointer for the gradients for gamma and beta.
-  float *dgamma_beta_ptr =
-      &params.zeroed_red_buffer[params.n * params.groups * 2];
+  float *dgamma_beta_ptr = &params.zeroed_red_buffer[params.n * params.groups * 2];
 
   // The 1st channel in the output tensor. NOTE: Two channels per thread store
   // interleaved.
@@ -462,18 +436,14 @@ group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params params) {
     dbeta.y = dgamma_beta_ptr[1 * params.c + 1 * blockDim.x + ck];
 
     // Convert to half2 and store to memory.
-    *reinterpret_cast<WType2 *>(&reinterpret_cast<WType *>(params.dgamma)[ci]) =
-        WTraits::pack(dgamma);
-    *reinterpret_cast<WType2 *>(&reinterpret_cast<WType *>(params.dbeta)[ci]) =
-        WTraits::pack(dbeta);
+    *reinterpret_cast<WType2 *>(&reinterpret_cast<WType *>(params.dgamma)[ci]) = WTraits::pack(dgamma);
+    *reinterpret_cast<WType2 *>(&reinterpret_cast<WType *>(params.dbeta)[ci]) = WTraits::pack(dbeta);
   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_scale(
-    const Group_norm_nhwc_bwd_params &params, cudaStream_t stream) {
-
+void group_norm_nhwc_bwd_two_passes_scale(const Group_norm_nhwc_bwd_params &params, cudaStream_t stream) {
   // The dimension of the grid.
   dim3 grid;
 

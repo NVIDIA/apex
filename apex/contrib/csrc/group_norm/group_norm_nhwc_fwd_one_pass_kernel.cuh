@@ -2,10 +2,12 @@
  * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES.
  * All rights reserved. SPDX-License-Identifier: BSD-3-Clause
  */
+#include <assert.h>
+
+#include <cub/cub.cuh>
+
 #include "group_norm_nhwc.h"
 #include "traits.h"
-#include <assert.h>
-#include <cub/cub.cuh>
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -13,12 +15,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Traits_, int ACTS_PER_BLOCK_, int CHANNELS_PER_GROUP_,
-          int THREADS_PER_BLOCK_>
-__global__
-__launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_fwd_one_pass_kernel(
+template <typename Traits_, int ACTS_PER_BLOCK_, int CHANNELS_PER_GROUP_, int THREADS_PER_BLOCK_>
+__global__ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_fwd_one_pass_kernel(
     Group_norm_nhwc_fwd_params params) {
-
   // The traits.
   using Traits = Traits_;
   // The IO traits.
@@ -50,12 +49,10 @@ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_fwd_one_pass_kernel(
   // The number of activations that are loaded per loop.
   constexpr int ACTS_PER_LOOP = THREADS_PER_BLOCK / THREADS_PER_ACT;
   // The number of rows per thread.
-  constexpr int ACTS_PER_THREAD =
-      (ACTS_PER_BLOCK + ACTS_PER_LOOP - 1) / ACTS_PER_LOOP;
+  constexpr int ACTS_PER_THREAD = (ACTS_PER_BLOCK + ACTS_PER_LOOP - 1) / ACTS_PER_LOOP;
 
   // The number of active threads.
-  constexpr int ACTIVE_THREADS =
-      THREADS_PER_BLOCK / THREADS_PER_ACT * THREADS_PER_ACT;
+  constexpr int ACTIVE_THREADS = THREADS_PER_BLOCK / THREADS_PER_ACT * THREADS_PER_ACT;
 
   // The object in charge of doing the sums for the block.
   typedef cub::BlockReduce<float2, THREADS_PER_BLOCK> Block_reduce;
@@ -73,16 +70,13 @@ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_fwd_one_pass_kernel(
   const bool is_active = threadIdx.x < ACTIVE_THREADS;
 
   // Iterate over the iterms in the batch.
-  for (int ngi = blockIdx.y, step = 0; ngi < params.n * params.groups;
-       ngi += gridDim.y, ++step) {
-
+  for (int ngi = blockIdx.y, step = 0; ngi < params.n * params.groups; ngi += gridDim.y, ++step) {
     // The instance and the group. TODO: Use fast divmod?
     int ni = ngi / params.groups;
     int gi = ngi % params.groups;
 
     // The offset to the first activation loaded by that thread.
-    const int64_t offset =
-        (int64_t)ni * params.hwc + gi * CHANNELS_PER_GROUP + ci;
+    const int64_t offset = (int64_t)ni * params.hwc + gi * CHANNELS_PER_GROUP + ci;
     // The pointer to the first activation loaded by that thread.
     const IOType *x_ptr = &reinterpret_cast<const IOType *>(params.x)[offset];
 
@@ -112,14 +106,12 @@ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_fwd_one_pass_kernel(
     }
 
     // Compute the sums for the block.
-    sums = Block_reduce(temp_storage)
-               .Reduce(sums, [](const float2 &a, const float2 &b) {
-                 return make_float2(a.x + b.x, a.y + b.y);
-               });
+    sums = Block_reduce(temp_storage).Reduce(sums, [](const float2 &a, const float2 &b) {
+      return make_float2(a.x + b.x, a.y + b.y);
+    });
 
     // The block leader stores to global memory, if needed.
     if (gridDim.x > 1) {
-
       // The index of the buffer (double-buffering).
       int red_buffer_idx = step & 1;
       // The barrier.
@@ -127,8 +119,7 @@ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_fwd_one_pass_kernel(
       // The offset to the reduction buffer.
       int red_buffer_offset = red_buffer_idx * gridDim.x * gridDim.y * 2;
       // The reduction buffer.
-      float2 *red_buffer =
-          reinterpret_cast<float2 *>(&params.red_buffer[red_buffer_offset]);
+      float2 *red_buffer = reinterpret_cast<float2 *>(&params.red_buffer[red_buffer_offset]);
 
       // The first thread stores its sums.
       if (threadIdx.x == 0) {
@@ -167,12 +158,10 @@ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_fwd_one_pass_kernel(
     __syncthreads();
 
     // Load gamma/beta.
-    float2 gamma_f2 = WTraits::unpack(
-        *reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(
-            params.gamma)[gi * CHANNELS_PER_GROUP + ci]));
+    float2 gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(
+        &reinterpret_cast<const WType *>(params.gamma)[gi * CHANNELS_PER_GROUP + ci]));
     float2 beta_f2 = WTraits::unpack(
-        *reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(
-            params.beta)[gi * CHANNELS_PER_GROUP + ci]));
+        *reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.beta)[gi * CHANNELS_PER_GROUP + ci]));
 
     // Compute the mean.
     float mean = smem_sums.x * params.inv_hwc_per_group;
@@ -187,7 +176,6 @@ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_fwd_one_pass_kernel(
     // Iterate over the activations to normalize the activations and store the
     // results.
     for (int ii = 0; ii < ACTS_PER_THREAD; ++ii) {
-
       // Extract the two half values.
       float2 f2 = IOTraits::unpack(x[ii]);
 
@@ -208,8 +196,7 @@ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_fwd_one_pass_kernel(
       // Store the scaled values.
       int hwj = hwi + ii * ACTS_PER_LOOP;
       if (is_active && hwj < params.hw) {
-        *reinterpret_cast<IOType2 *>(&y_ptr[hwj * params.c]) =
-            IOTraits::pack(f2);
+        *reinterpret_cast<IOType2 *>(&y_ptr[hwj * params.c]) = IOTraits::pack(f2);
       }
     }
   }

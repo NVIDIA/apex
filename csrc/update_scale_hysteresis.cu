@@ -2,10 +2,9 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
 
-__global__ void update_scale_hysteresis_cuda_kernel(
-    float *current_scale, int *growth_tracker, int *hysteresis_tracker,
-    const float *found_inf, double growth_factor, double backoff_factor,
-    int growth_interval, int hysteresis) {
+__global__ void update_scale_hysteresis_cuda_kernel(float *current_scale, int *growth_tracker, int *hysteresis_tracker,
+                                                    const float *found_inf, double growth_factor, double backoff_factor,
+                                                    int growth_interval, int hysteresis) {
   if (*found_inf > 0) {
     *hysteresis_tracker -= 1;
 
@@ -41,17 +40,13 @@ __global__ void update_scale_hysteresis_cuda_kernel(
   }
 }
 
-at::Tensor update_scale_hysteresis_cuda(
-    at::Tensor current_scale, at::Tensor growth_tracker,
-    at::Tensor hysteresis_tracker, at::Tensor found_inf,
-    const double growth_factor, const double backoff_factor,
-    const int64_t growth_interval, const int hysteresis) {
-  update_scale_hysteresis_cuda_kernel<<<1, 1, 0,
-                                        at::cuda::getCurrentCUDAStream()>>>(
-      current_scale.mutable_data_ptr<float>(),
-      growth_tracker.mutable_data_ptr<int>(),
-      hysteresis_tracker.mutable_data_ptr<int>(),
-      found_inf.const_data_ptr<float>(), growth_factor, backoff_factor,
+at::Tensor update_scale_hysteresis_cuda(at::Tensor current_scale, at::Tensor growth_tracker,
+                                        at::Tensor hysteresis_tracker, at::Tensor found_inf, const double growth_factor,
+                                        const double backoff_factor, const int64_t growth_interval,
+                                        const int hysteresis) {
+  update_scale_hysteresis_cuda_kernel<<<1, 1, 0, at::cuda::getCurrentCUDAStream()>>>(
+      current_scale.mutable_data_ptr<float>(), growth_tracker.mutable_data_ptr<int>(),
+      hysteresis_tracker.mutable_data_ptr<int>(), found_inf.const_data_ptr<float>(), growth_factor, backoff_factor,
       growth_interval, hysteresis);
 
   AT_CUDA_CHECK(cudaGetLastError());

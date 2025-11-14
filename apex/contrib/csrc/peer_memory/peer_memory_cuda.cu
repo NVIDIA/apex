@@ -1,21 +1,22 @@
-#include "nccl.h"
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDACachingAllocator.h>
-#include <cassert>
-#include <cstdio>
 #include <cuda_runtime_api.h>
-#include <list>
 #include <torch/extension.h>
 
-#define CUDACHECK(cmd)                                                         \
-  do {                                                                         \
-    cudaError_t err = cmd;                                                     \
-    if (err != cudaSuccess) {                                                  \
-      char hostname[1024];                                                     \
-      gethostname(hostname, 1024);                                             \
-      printf("%s: CUDA failure %s:%d '%s'\n", hostname, __FILE__, __LINE__,    \
-             cudaGetErrorString(err));                                         \
-    }                                                                          \
+#include <cassert>
+#include <cstdio>
+#include <list>
+
+#include "nccl.h"
+
+#define CUDACHECK(cmd)                                                                                \
+  do {                                                                                                \
+    cudaError_t err = cmd;                                                                            \
+    if (err != cudaSuccess) {                                                                         \
+      char hostname[1024];                                                                            \
+      gethostname(hostname, 1024);                                                                    \
+      printf("%s: CUDA failure %s:%d '%s'\n", hostname, __FILE__, __LINE__, cudaGetErrorString(err)); \
+    }                                                                                                 \
   } while (0)
 
 namespace {
@@ -31,8 +32,7 @@ void deleter(void* ptr)
 */
 
 template <class T>
-at::Tensor blob_view(T *raw_ptr, std::vector<int64_t> shape,
-                     const at::TensorOptions &options, bool channels_last) {
+at::Tensor blob_view(T *raw_ptr, std::vector<int64_t> shape, const at::TensorOptions &options, bool channels_last) {
   size_t size = 1;
   std::vector<int64_t> strides(shape.size());
   if (channels_last) {
@@ -55,8 +55,7 @@ at::Tensor blob_view(T *raw_ptr, std::vector<int64_t> shape,
   return torch::from_blob((void *)raw_ptr, shape, strides, 0L, options);
 }
 
-void tensor_shape(at::Tensor t, bool explicit_nhwc, int &N, int &C, int &H,
-                  int &W) {
+void tensor_shape(at::Tensor t, bool explicit_nhwc, int &N, int &C, int &H, int &W) {
   if (t.dim() == 3) {
     N = 1;
     if (explicit_nhwc) {
@@ -81,14 +80,12 @@ void tensor_shape(at::Tensor t, bool explicit_nhwc, int &N, int &C, int &H,
       W = t.size(3);
     }
   } else {
-    printf("%s;%d - t.dim() must be either 3 or 4 (was %d)\n", __FILE__,
-           __LINE__, int(t.dim()));
+    printf("%s;%d - t.dim() must be either 3 or 4 (was %d)\n", __FILE__, __LINE__, int(t.dim()));
     assert(t.dim() == 3 || t.dim() == 4);
   }
 }
 
-void tensor_strides(at::Tensor t, bool explicit_nhwc, int &stride_N,
-                    int &stride_C, int &stride_H, int &stride_W) {
+void tensor_strides(at::Tensor t, bool explicit_nhwc, int &stride_N, int &stride_C, int &stride_H, int &stride_W) {
   if (t.dim() == 3) {
     if (explicit_nhwc) {
       stride_C = t.stride(2);
@@ -113,22 +110,22 @@ void tensor_strides(at::Tensor t, bool explicit_nhwc, int &stride_N,
       stride_W = t.stride(3);
     }
   } else {
-    printf("%s;%d - t.dim() must be either 3 or 4 (was %d)\n", __FILE__,
-           __LINE__, t.dim());
+    printf("%s;%d - t.dim() must be either 3 or 4 (was %d)\n", __FILE__, __LINE__, t.dim());
     assert(t.dim() == 3 || t.dim() == 4);
   }
 }
 
-template <class T> inline __device__ void __zero(T *dst) { *dst = T(0); }
+template <class T>
+inline __device__ void __zero(T *dst) {
+  *dst = T(0);
+}
 
 inline __device__ void __zero(int2 *dst) { *dst = {0, 0}; }
 
 template <class T, bool contiguous>
-inline __device__ void
-zero_tensor(const int dim0, const int dim1, const int dim2,
-            T *__restrict__ data, const int data_stride0,
-            const int data_stride1, const int data_stride2, const int thread_id,
-            const int block_id, const int num_blocks) {
+inline __device__ void zero_tensor(const int dim0, const int dim1, const int dim2, T *__restrict__ data,
+                                   const int data_stride0, const int data_stride1, const int data_stride2,
+                                   const int thread_id, const int block_id, const int num_blocks) {
   const int global_id = thread_id + block_id * THREADS_PER_CTA;
   const int num_threads = num_blocks * THREADS_PER_CTA;
   const int count = dim0 * dim1 * dim2;
@@ -148,14 +145,12 @@ zero_tensor(const int dim0, const int dim1, const int dim2,
 }
 
 template <class T, bool contiguous>
-inline __device__ void
-push_pull_tensor(const int dim0, const int dim1, const int dim2,
-                 const T *__restrict__ data_in, const int data_in_stride0,
-                 const int data_in_stride1, const int data_in_stride2,
-                 T *__restrict__ data_out, const int data_out_stride0,
-                 const int data_out_stride1, const int data_out_stride2,
-                 int4 *local_peer, int4 *remote_peer, const int thread_id,
-                 const int block_id, const int num_blocks) {
+inline __device__ void push_pull_tensor(const int dim0, const int dim1, const int dim2, const T *__restrict__ data_in,
+                                        const int data_in_stride0, const int data_in_stride1, const int data_in_stride2,
+                                        T *__restrict__ data_out, const int data_out_stride0,
+                                        const int data_out_stride1, const int data_out_stride2, int4 *local_peer,
+                                        int4 *remote_peer, const int thread_id, const int block_id,
+                                        const int num_blocks) {
   // 128b=16B NVLink flit
   // Note: Use last 4B as a semaphore
   static_assert(sizeof(T) <= 12);
@@ -177,14 +172,10 @@ push_pull_tensor(const int dim0, const int dim1, const int dim2,
   // memory
   const int peer_offset1 = block_id * THREADS_PER_CTA * 2 + thread_id;
   const int peer_offset2 = peer_offset1 + THREADS_PER_CTA;
-  volatile int *local_peer1 =
-      reinterpret_cast<volatile int *>(local_peer + peer_offset1);
-  volatile int *local_peer2 =
-      reinterpret_cast<volatile int *>(local_peer + peer_offset2);
-  volatile int *remote_peer1 =
-      reinterpret_cast<volatile int *>(remote_peer + peer_offset1);
-  volatile int *remote_peer2 =
-      reinterpret_cast<volatile int *>(remote_peer + peer_offset2);
+  volatile int *local_peer1 = reinterpret_cast<volatile int *>(local_peer + peer_offset1);
+  volatile int *local_peer2 = reinterpret_cast<volatile int *>(local_peer + peer_offset2);
+  volatile int *remote_peer1 = reinterpret_cast<volatile int *>(remote_peer + peer_offset1);
+  volatile int *remote_peer2 = reinterpret_cast<volatile int *>(remote_peer + peer_offset2);
 
   // Iterate through tensor entries
   const int num_threads = num_blocks * THREADS_PER_CTA;
@@ -203,10 +194,8 @@ push_pull_tensor(const int dim0, const int dim1, const int dim2,
       const int k = i / dim2;
       const int j1 = k % dim1;
       const int j0 = k / dim1;
-      data_in_offset =
-          j0 * data_in_stride0 + j1 * data_in_stride1 + j2 * data_in_stride2;
-      data_out_offset =
-          j0 * data_out_stride0 + j1 * data_out_stride1 + j2 * data_out_stride2;
+      data_in_offset = j0 * data_in_stride0 + j1 * data_in_stride1 + j2 * data_in_stride2;
+      data_out_offset = j0 * data_out_stride0 + j1 * data_out_stride1 + j2 * data_out_stride2;
     }
 
     // Determine which peer memory buffer to use
@@ -214,13 +203,13 @@ push_pull_tensor(const int dim0, const int dim1, const int dim2,
     // communication from the remote GPU.
     Flit local_message1, local_message2;
     asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];"
-                 : "=r"(local_message1.uints[0]), "=r"(local_message1.uints[1]),
-                   "=r"(local_message1.uints[2]), "=r"(local_message1.uints[3])
+                 : "=r"(local_message1.uints[0]), "=r"(local_message1.uints[1]), "=r"(local_message1.uints[2]),
+                   "=r"(local_message1.uints[3])
                  : "l"(local_peer1)
                  : "memory");
     asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];"
-                 : "=r"(local_message2.uints[0]), "=r"(local_message2.uints[1]),
-                   "=r"(local_message2.uints[2]), "=r"(local_message2.uints[3])
+                 : "=r"(local_message2.uints[0]), "=r"(local_message2.uints[1]), "=r"(local_message2.uints[2]),
+                   "=r"(local_message2.uints[3])
                  : "l"(local_peer2)
                  : "memory");
     const uint status1 = local_message1.uints[3] & status_mask;
@@ -238,16 +227,15 @@ push_pull_tensor(const int dim0, const int dim1, const int dim2,
       send_message.payload = data_in[data_in_offset];
     }
     send_message.uints[3] = communication_mask | status;
-    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" ::"l"(ox),
-                 "r"(send_message.uints[0]), "r"(send_message.uints[1]),
-                 "r"(send_message.uints[2]), "r"(send_message.uints[3])
+    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" ::"l"(ox), "r"(send_message.uints[0]),
+                 "r"(send_message.uints[1]), "r"(send_message.uints[2]), "r"(send_message.uints[3])
                  : "memory");
 
     // Recieve flit from peer
     while ((recv_message.uints[3] & communication_mask) == 0) {
       asm volatile("ld.volatile.global.v4.u32 {%0,%1,%2,%3}, [%4];"
-                   : "=r"(recv_message.uints[0]), "=r"(recv_message.uints[1]),
-                     "=r"(recv_message.uints[2]), "=r"(recv_message.uints[3])
+                   : "=r"(recv_message.uints[0]), "=r"(recv_message.uints[1]), "=r"(recv_message.uints[2]),
+                     "=r"(recv_message.uints[3])
                    : "l"(ix)
                    : "memory");
     }
@@ -258,8 +246,7 @@ push_pull_tensor(const int dim0, const int dim1, const int dim2,
     // Reset semaphore
     // Note: Clear communication bit and invert status bit
     uint flag = ~status & status_mask;
-    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" ::"l"(ix),
-                 "n"(0), "n"(0), "n"(0), "r"(flag)
+    asm volatile("st.volatile.global.v4.u32 [%0], {%1,%2,%3,%4};" ::"l"(ix), "n"(0), "n"(0), "n"(0), "r"(flag)
                  : "memory");
     if (i0 + num_threads < count) {
       __threadfence_system();
@@ -274,48 +261,40 @@ __launch_bounds__(THREADS_PER_CTA)
     __global__ void push_pull_halos_1d_kernel(
         // top halo,
         T *toh, int toh_stride0, int toh_stride1,
-        int toh_stride2, // top output halo (local)
+        int toh_stride2,  // top output halo (local)
         const T *tih, int tih_stride0, int tih_stride1,
-        int tih_stride2, // top input halo (local)
-        int4 *tox,       // top output transfer buffer (remote peer)
-        int4 *tix,       // top input transfer buffer (local peer)
+        int tih_stride2,  // top input halo (local)
+        int4 *tox,        // top output transfer buffer (remote peer)
+        int4 *tix,        // top input transfer buffer (local peer)
         // btm halo
         T *boh, int boh_stride0, int boh_stride1,
-        int boh_stride2, // btm output halo (local)
+        int boh_stride2,  // btm output halo (local)
         const T *bih, int bih_stride0, int bih_stride1,
-        int bih_stride2, // btm input halo (local)
-        int4 *box,       // btm output transfer buffer (remote peer)
-        int4 *bix,       // btm input transfer buffer (local peer)
+        int bih_stride2,  // btm input halo (local)
+        int4 *box,        // btm output transfer buffer (remote peer)
+        int4 *bix,        // btm input transfer buffer (local peer)
         // dimensions
         int dim0, int dim1, int dim2,
-        bool top_first // whether to launch communicate top halo first
+        bool top_first  // whether to launch communicate top halo first
     ) {
   const int num_blocks_side = gridDim.x / 2;
-  const int block_id_side =
-      (blockIdx.x < num_blocks_side ? blockIdx.x
-                                    : blockIdx.x - num_blocks_side);
+  const int block_id_side = (blockIdx.x < num_blocks_side ? blockIdx.x : blockIdx.x - num_blocks_side);
   const bool in_top_block = top_first == (blockIdx.x < num_blocks_side);
   if (in_top_block) {
     if (top_zero) {
-      zero_tensor<T, contiguous>(dim0, dim1, dim2, toh, toh_stride0,
-                                 toh_stride1, toh_stride2, threadIdx.x,
+      zero_tensor<T, contiguous>(dim0, dim1, dim2, toh, toh_stride0, toh_stride1, toh_stride2, threadIdx.x,
                                  block_id_side, num_blocks_side);
     } else {
-      push_pull_tensor<T, contiguous>(
-          dim0, dim1, dim2, tih, tih_stride0, tih_stride1, tih_stride2, toh,
-          toh_stride0, toh_stride1, toh_stride2, tix, tox, threadIdx.x,
-          block_id_side, num_blocks_side);
+      push_pull_tensor<T, contiguous>(dim0, dim1, dim2, tih, tih_stride0, tih_stride1, tih_stride2, toh, toh_stride0,
+                                      toh_stride1, toh_stride2, tix, tox, threadIdx.x, block_id_side, num_blocks_side);
     }
   } else {
     if (btm_zero) {
-      zero_tensor<T, contiguous>(dim0, dim1, dim2, boh, boh_stride0,
-                                 boh_stride1, boh_stride2, threadIdx.x,
+      zero_tensor<T, contiguous>(dim0, dim1, dim2, boh, boh_stride0, boh_stride1, boh_stride2, threadIdx.x,
                                  block_id_side, num_blocks_side);
     } else {
-      push_pull_tensor<T, contiguous>(
-          dim0, dim1, dim2, bih, bih_stride0, bih_stride1, bih_stride2, boh,
-          boh_stride0, boh_stride1, boh_stride2, bix, box, threadIdx.x,
-          block_id_side, num_blocks_side);
+      push_pull_tensor<T, contiguous>(dim0, dim1, dim2, bih, bih_stride0, bih_stride1, bih_stride2, boh, boh_stride0,
+                                      boh_stride1, boh_stride2, bix, box, threadIdx.x, block_id_side, num_blocks_side);
     }
   }
 }
@@ -336,7 +315,7 @@ __global__ void delay_kernel(int delay_nanoseconds, int *counter) {
   }
 }
 
-} // namespace
+}  // namespace
 
 namespace apex {
 namespace contrib {
@@ -363,18 +342,15 @@ at::Tensor get_raw_ipc_address(int64_t raw) {
   return address_tensor;
 }
 
-std::vector<int64_t> get_raw_peers(at::Tensor ipc_addresses, int peer_rank,
-                                   int64_t raw) {
+std::vector<int64_t> get_raw_peers(at::Tensor ipc_addresses, int peer_rank, int64_t raw) {
   int peer_group_size = ipc_addresses.size(0);
   std::vector<int64_t> results(peer_group_size);
   for (int i = 0; i < peer_group_size; ++i) {
     if (i != peer_rank) {
       cudaIpcMemHandle_t mem_handle;
-      memcpy(&mem_handle, ipc_addresses.index({i}).data_ptr<uint8_t>(),
-             sizeof(cudaIpcMemHandle_t));
+      memcpy(&mem_handle, ipc_addresses.index({i}).data_ptr<uint8_t>(), sizeof(cudaIpcMemHandle_t));
       void *p = 0L;
-      CUDACHECK(cudaIpcOpenMemHandle((void **)&p, mem_handle,
-                                     cudaIpcMemLazyEnablePeerAccess));
+      CUDACHECK(cudaIpcOpenMemHandle((void **)&p, mem_handle, cudaIpcMemLazyEnablePeerAccess));
       results[i] = (int64_t)p;
     } else {
       results[i] = (int64_t)raw;
@@ -383,49 +359,37 @@ std::vector<int64_t> get_raw_peers(at::Tensor ipc_addresses, int peer_rank,
   return results;
 }
 
-at::Tensor blob_view_half(int64_t raw, std::vector<int64_t> shape,
-                          bool channels_last) {
-  return blob_view<at::Half>((at::Half *)raw, shape,
-                             torch::dtype(torch::kFloat16).device(torch::kCUDA),
-                             channels_last);
+at::Tensor blob_view_half(int64_t raw, std::vector<int64_t> shape, bool channels_last) {
+  return blob_view<at::Half>((at::Half *)raw, shape, torch::dtype(torch::kFloat16).device(torch::kCUDA), channels_last);
 }
 
-at::Tensor blob_view_float(int64_t raw, std::vector<int64_t> shape,
-                           bool channels_last) {
-  return blob_view<float>((float *)raw, shape,
-                          torch::dtype(torch::kFloat32).device(torch::kCUDA),
-                          channels_last);
+at::Tensor blob_view_float(int64_t raw, std::vector<int64_t> shape, bool channels_last) {
+  return blob_view<float>((float *)raw, shape, torch::dtype(torch::kFloat32).device(torch::kCUDA), channels_last);
 }
 
-at::Tensor blob_view_int(int64_t raw, std::vector<int64_t> shape,
-                         bool channels_last) {
-  return blob_view<int>((int *)raw, shape,
-                        torch::dtype(torch::kInt32).device(torch::kCUDA),
-                        channels_last);
+at::Tensor blob_view_int(int64_t raw, std::vector<int64_t> shape, bool channels_last) {
+  return blob_view<int>((int *)raw, shape, torch::dtype(torch::kInt32).device(torch::kCUDA), channels_last);
 }
 
-void push_pull_halos_1d(
-    bool diagnostics, bool explicit_nhwc,
-    int numSM,     // number of SMs to use (zero corresponds to all SMs)
-    int rank,      // rank in spatial parallel group
-    bool top_zero, // if top halo should be zeroed
-    at::Tensor top_in_halo, // top input halo buffer (in local device memory,
-                            // sent to top neighbor)
-    at::Tensor
-        top_in_transfer, // top input transfer buffer (in local peer memory)
-    at::Tensor top_out_transfer, // top output transfer buffer (in top neighbor
-                                 // peer memory)
-    at::Tensor top_out_halo, // top output halo buffer (in local device memory,
-                             // received from top neighbor)
-    bool btm_zero,           // if btm halo should be zeroed
-    at::Tensor btm_in_halo,  // btm input halo buffer (in local device memory,
-                             // sent to btm neighbor)
-    at::Tensor
-        btm_in_transfer, // btm input transfer buffer (in local peer memory)
-    at::Tensor btm_out_transfer, // btm output transfer buffer (in btm neighbor
-                                 // peer memory)
-    at::Tensor btm_out_halo // btm output halo buffer (in local device memory,
-                            // received from btm neighbor)
+void push_pull_halos_1d(bool diagnostics, bool explicit_nhwc,
+                        int numSM,                    // number of SMs to use (zero corresponds to all SMs)
+                        int rank,                     // rank in spatial parallel group
+                        bool top_zero,                // if top halo should be zeroed
+                        at::Tensor top_in_halo,       // top input halo buffer (in local device memory,
+                                                      // sent to top neighbor)
+                        at::Tensor top_in_transfer,   // top input transfer buffer (in local peer memory)
+                        at::Tensor top_out_transfer,  // top output transfer buffer (in top neighbor
+                                                      // peer memory)
+                        at::Tensor top_out_halo,      // top output halo buffer (in local device memory,
+                                                      // received from top neighbor)
+                        bool btm_zero,                // if btm halo should be zeroed
+                        at::Tensor btm_in_halo,       // btm input halo buffer (in local device memory,
+                                                      // sent to btm neighbor)
+                        at::Tensor btm_in_transfer,   // btm input transfer buffer (in local peer memory)
+                        at::Tensor btm_out_transfer,  // btm output transfer buffer (in btm neighbor
+                                                      // peer memory)
+                        at::Tensor btm_out_halo       // btm output halo buffer (in local device memory,
+                                                      // received from btm neighbor)
 ) {
   // basic checks of inputs
   TORCH_CHECK(!(top_zero && btm_zero));
@@ -447,10 +411,9 @@ void push_pull_halos_1d(
   tensor_shape(btm_in_halo, explicit_nhwc, bih_N, bih_C, bih_H, bih_W);
   int boh_N, boh_C, boh_H, boh_W;
   tensor_shape(btm_out_halo, explicit_nhwc, boh_N, boh_C, boh_H, boh_W);
-  TORCH_CHECK(toh_N == tih_N && tih_N == boh_N && boh_N == bih_N &&
-              toh_C == tih_C && tih_C == boh_C && boh_C == bih_C &&
-              toh_H == tih_H && tih_H == boh_H && boh_H == bih_H &&
-              toh_W == tih_W && tih_W == boh_W && boh_W == bih_W);
+  TORCH_CHECK(toh_N == tih_N && tih_N == boh_N && boh_N == bih_N && toh_C == tih_C && tih_C == boh_C &&
+              boh_C == bih_C && toh_H == tih_H && tih_H == boh_H && boh_H == bih_H && toh_W == tih_W &&
+              tih_W == boh_W && boh_W == bih_W);
   int NN = toh_N, NC = toh_C, NH = toh_H, NW = toh_W;
   if (diagnostics) {
     printf("rank %d: NN=%d, NC=%d, NH=%d, NW=%d\n", rank, NN, NC, NH, NW);
@@ -459,26 +422,22 @@ void push_pull_halos_1d(
 
   // tensor strides
   int tih_stride_N, tih_stride_C, tih_stride_H, tih_stride_W;
-  tensor_strides(top_in_halo, explicit_nhwc, tih_stride_N, tih_stride_C,
-                 tih_stride_H, tih_stride_W);
+  tensor_strides(top_in_halo, explicit_nhwc, tih_stride_N, tih_stride_C, tih_stride_H, tih_stride_W);
   int toh_stride_N, toh_stride_C, toh_stride_H, toh_stride_W;
-  tensor_strides(top_out_halo, explicit_nhwc, toh_stride_N, toh_stride_C,
-                 toh_stride_H, toh_stride_W);
+  tensor_strides(top_out_halo, explicit_nhwc, toh_stride_N, toh_stride_C, toh_stride_H, toh_stride_W);
   int bih_stride_N, bih_stride_C, bih_stride_H, bih_stride_W;
-  tensor_strides(btm_in_halo, explicit_nhwc, bih_stride_N, bih_stride_C,
-                 bih_stride_H, bih_stride_W);
+  tensor_strides(btm_in_halo, explicit_nhwc, bih_stride_N, bih_stride_C, bih_stride_H, bih_stride_W);
   int boh_stride_N, boh_stride_C, boh_stride_H, boh_stride_W;
-  tensor_strides(btm_out_halo, explicit_nhwc, boh_stride_N, boh_stride_C,
-                 boh_stride_H, boh_stride_W);
+  tensor_strides(btm_out_halo, explicit_nhwc, boh_stride_N, boh_stride_C, boh_stride_H, boh_stride_W);
   if (diagnostics) {
-    printf("rank %d: tih_stride :: N=%d, C=%d, H=%d, W=%d\n", rank,
-           tih_stride_N, tih_stride_C, tih_stride_H, tih_stride_W);
-    printf("rank %d: toh_stride :: N=%d, C=%d, H=%d, W=%d\n", rank,
-           toh_stride_N, toh_stride_C, toh_stride_H, toh_stride_W);
-    printf("rank %d: bih_stride :: N=%d, C=%d, H=%d, W=%d\n", rank,
-           bih_stride_N, bih_stride_C, bih_stride_H, bih_stride_W);
-    printf("rank %d: boh_stride :: N=%d, C=%d, H=%d, W=%d\n", rank,
-           boh_stride_N, boh_stride_C, boh_stride_H, boh_stride_W);
+    printf("rank %d: tih_stride :: N=%d, C=%d, H=%d, W=%d\n", rank, tih_stride_N, tih_stride_C, tih_stride_H,
+           tih_stride_W);
+    printf("rank %d: toh_stride :: N=%d, C=%d, H=%d, W=%d\n", rank, toh_stride_N, toh_stride_C, toh_stride_H,
+           toh_stride_W);
+    printf("rank %d: bih_stride :: N=%d, C=%d, H=%d, W=%d\n", rank, bih_stride_N, bih_stride_C, bih_stride_H,
+           bih_stride_W);
+    printf("rank %d: boh_stride :: N=%d, C=%d, H=%d, W=%d\n", rank, boh_stride_N, boh_stride_C, boh_stride_H,
+           boh_stride_W);
   }
 
   // determine if nhwc
@@ -489,25 +448,23 @@ void push_pull_halos_1d(
 
   // determine if contiguous
   bool contiguous = true;
-  if ((NN - 1) * toh_stride_N + (NC - 1) * toh_stride_C +
-          (NH - 1) * toh_stride_H + (NW - 1) * toh_stride_W !=
+  if ((NN - 1) * toh_stride_N + (NC - 1) * toh_stride_C + (NH - 1) * toh_stride_H + (NW - 1) * toh_stride_W !=
       NN * NC * NH * NW - 1) {
     contiguous = false;
   }
-  if ((NN - 1) * boh_stride_N + (NC - 1) * boh_stride_C +
-          (NH - 1) * boh_stride_H + (NW - 1) * boh_stride_W !=
+  if ((NN - 1) * boh_stride_N + (NC - 1) * boh_stride_C + (NH - 1) * boh_stride_H + (NW - 1) * boh_stride_W !=
       NN * NC * NH * NW - 1) {
     contiguous = false;
   }
   if (!top_zero) {
-    if (toh_stride_N != tih_stride_N || toh_stride_C != tih_stride_C ||
-        toh_stride_H != tih_stride_H || toh_stride_W != tih_stride_W) {
+    if (toh_stride_N != tih_stride_N || toh_stride_C != tih_stride_C || toh_stride_H != tih_stride_H ||
+        toh_stride_W != tih_stride_W) {
       contiguous = false;
     }
   }
   if (!btm_zero) {
-    if (boh_stride_N != bih_stride_N || boh_stride_C != bih_stride_C ||
-        boh_stride_H != bih_stride_H || boh_stride_W != bih_stride_W) {
+    if (boh_stride_N != bih_stride_N || boh_stride_C != bih_stride_C || boh_stride_H != bih_stride_H ||
+        boh_stride_W != bih_stride_W) {
       contiguous = false;
     }
   }
@@ -549,213 +506,188 @@ void push_pull_halos_1d(
   dim3 block(THREADS_PER_CTA, 1, 1);
 
   // helper macros to launch templated kernel
-#define LAUNCH_PUSH_PULL_HALO_KERNEL_BASE(T, CONTIGUOUS, TOP_ZERO, BTM_ZERO,   \
-                                          KERNEL_ARGS, NUM_ELEMENTS)           \
-  do {                                                                         \
-    /* kernel configuration */                                                 \
-    int numBlocksPerSm;                                                        \
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(                             \
-        &numBlocksPerSm,                                                       \
-        push_pull_halos_1d_kernel<T, CONTIGUOUS, TOP_ZERO, BTM_ZERO>,          \
-        THREADS_PER_CTA, 0);                                                   \
-    dim3 grid(numSM *numBlocksPerSm, 1, 1);                                    \
-    if (grid.x % 2 != 0) {                                                     \
-      /* require even number of blocks (half for top, half for bottom) */      \
-      grid.x -= 1;                                                             \
-    }                                                                          \
-    if ((grid.x / 2) * THREADS_PER_CTA > NUM_ELEMENTS) {                       \
-      /* only need enough blocks to cover top and bottom halo elements */      \
-      grid.x = 2 * ((NUM_ELEMENTS + THREADS_PER_CTA - 1) / THREADS_PER_CTA);   \
-    }                                                                          \
-    if (!TOP_ZERO) {                                                           \
-      /* require 2*128b=32B peer memory per thread */                          \
-      if ((grid.x / 2) * THREADS_PER_CTA * 32 > tox_size) {                    \
-        grid.x = 2 * (tox_size / (THREADS_PER_CTA * 32));                      \
-      }                                                                        \
-    }                                                                          \
-    if (!BTM_ZERO) {                                                           \
-      /* require 2*128b=32B peer memory per thread */                          \
-      if ((grid.x / 2) * THREADS_PER_CTA * 32 > box_size) {                    \
-        grid.x = 2 * (box_size / (THREADS_PER_CTA * 32));                      \
-      }                                                                        \
-    }                                                                          \
-    TORCH_CHECK(grid.x >= 2);                                                  \
-                                                                               \
-    /* launch kernel */                                                        \
-    cudaLaunchCooperativeKernel(                                               \
-        (void *)push_pull_halos_1d_kernel<T, CONTIGUOUS, TOP_ZERO, BTM_ZERO>,  \
-        grid, block, KERNEL_ARGS, 0, current_stream);                          \
+#define LAUNCH_PUSH_PULL_HALO_KERNEL_BASE(T, CONTIGUOUS, TOP_ZERO, BTM_ZERO, KERNEL_ARGS, NUM_ELEMENTS)            \
+  do {                                                                                                             \
+    /* kernel configuration */                                                                                     \
+    int numBlocksPerSm;                                                                                            \
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(                                                                 \
+        &numBlocksPerSm, push_pull_halos_1d_kernel<T, CONTIGUOUS, TOP_ZERO, BTM_ZERO>, THREADS_PER_CTA, 0);        \
+    dim3 grid(numSM *numBlocksPerSm, 1, 1);                                                                        \
+    if (grid.x % 2 != 0) {                                                                                         \
+      /* require even number of blocks (half for top, half for bottom) */                                          \
+      grid.x -= 1;                                                                                                 \
+    }                                                                                                              \
+    if ((grid.x / 2) * THREADS_PER_CTA > NUM_ELEMENTS) {                                                           \
+      /* only need enough blocks to cover top and bottom halo elements */                                          \
+      grid.x = 2 * ((NUM_ELEMENTS + THREADS_PER_CTA - 1) / THREADS_PER_CTA);                                       \
+    }                                                                                                              \
+    if (!TOP_ZERO) {                                                                                               \
+      /* require 2*128b=32B peer memory per thread */                                                              \
+      if ((grid.x / 2) * THREADS_PER_CTA * 32 > tox_size) {                                                        \
+        grid.x = 2 * (tox_size / (THREADS_PER_CTA * 32));                                                          \
+      }                                                                                                            \
+    }                                                                                                              \
+    if (!BTM_ZERO) {                                                                                               \
+      /* require 2*128b=32B peer memory per thread */                                                              \
+      if ((grid.x / 2) * THREADS_PER_CTA * 32 > box_size) {                                                        \
+        grid.x = 2 * (box_size / (THREADS_PER_CTA * 32));                                                          \
+      }                                                                                                            \
+    }                                                                                                              \
+    TORCH_CHECK(grid.x >= 2);                                                                                      \
+                                                                                                                   \
+    /* launch kernel */                                                                                            \
+    cudaLaunchCooperativeKernel((void *)push_pull_halos_1d_kernel<T, CONTIGUOUS, TOP_ZERO, BTM_ZERO>, grid, block, \
+                                KERNEL_ARGS, 0, current_stream);                                                   \
   } while (false)
-#define LAUNCH_PUSH_PULL_HALO_KERNEL(T, CONTIGUOUS, KERNEL_ARGS, NUM_ELEMENTS) \
-  do {                                                                         \
-    if (top_zero) {                                                            \
-      LAUNCH_PUSH_PULL_HALO_KERNEL_BASE(T, CONTIGUOUS, true, false,            \
-                                        KERNEL_ARGS, NUM_ELEMENTS);            \
-    } else if (btm_zero) {                                                     \
-      LAUNCH_PUSH_PULL_HALO_KERNEL_BASE(T, CONTIGUOUS, false, true,            \
-                                        KERNEL_ARGS, NUM_ELEMENTS);            \
-    } else {                                                                   \
-      LAUNCH_PUSH_PULL_HALO_KERNEL_BASE(T, CONTIGUOUS, false, false,           \
-                                        KERNEL_ARGS, NUM_ELEMENTS);            \
-    }                                                                          \
+#define LAUNCH_PUSH_PULL_HALO_KERNEL(T, CONTIGUOUS, KERNEL_ARGS, NUM_ELEMENTS)                   \
+  do {                                                                                           \
+    if (top_zero) {                                                                              \
+      LAUNCH_PUSH_PULL_HALO_KERNEL_BASE(T, CONTIGUOUS, true, false, KERNEL_ARGS, NUM_ELEMENTS);  \
+    } else if (btm_zero) {                                                                       \
+      LAUNCH_PUSH_PULL_HALO_KERNEL_BASE(T, CONTIGUOUS, false, true, KERNEL_ARGS, NUM_ELEMENTS);  \
+    } else {                                                                                     \
+      LAUNCH_PUSH_PULL_HALO_KERNEL_BASE(T, CONTIGUOUS, false, false, KERNEL_ARGS, NUM_ELEMENTS); \
+    }                                                                                            \
   } while (false)
 
-  AT_DISPATCH_ALL_TYPES_AND(
-      at::ScalarType::Half, top_out_halo.scalar_type(),
-      "push_pull_halos_1d_kernel", [&] {
-        if (diagnostics) {
-          printf("rank %d: size(scalar_t) = %ld\n", rank, sizeof(scalar_t));
-        }
-        scalar_t *toh_p = top_out_halo.data_ptr<scalar_t>();
-        scalar_t *tih_p = top_in_halo.data_ptr<scalar_t>();
-        int4 *tox_p =
-            reinterpret_cast<int4 *>(top_out_transfer.data_ptr<scalar_t>());
-        int4 *tix_p =
-            reinterpret_cast<int4 *>(top_in_transfer.data_ptr<scalar_t>());
-        scalar_t *boh_p = btm_out_halo.data_ptr<scalar_t>();
-        scalar_t *bih_p = btm_in_halo.data_ptr<scalar_t>();
-        int4 *box_p =
-            reinterpret_cast<int4 *>(btm_out_transfer.data_ptr<scalar_t>());
-        int4 *bix_p =
-            reinterpret_cast<int4 *>(btm_in_transfer.data_ptr<scalar_t>());
-        if (diagnostics)
-          printf("rank %d: choosing halo exchange kernel\n", rank);
+  AT_DISPATCH_ALL_TYPES_AND(at::ScalarType::Half, top_out_halo.scalar_type(), "push_pull_halos_1d_kernel", [&] {
+    if (diagnostics) {
+      printf("rank %d: size(scalar_t) = %ld\n", rank, sizeof(scalar_t));
+    }
+    scalar_t *toh_p = top_out_halo.data_ptr<scalar_t>();
+    scalar_t *tih_p = top_in_halo.data_ptr<scalar_t>();
+    int4 *tox_p = reinterpret_cast<int4 *>(top_out_transfer.data_ptr<scalar_t>());
+    int4 *tix_p = reinterpret_cast<int4 *>(top_in_transfer.data_ptr<scalar_t>());
+    scalar_t *boh_p = btm_out_halo.data_ptr<scalar_t>();
+    scalar_t *bih_p = btm_in_halo.data_ptr<scalar_t>();
+    int4 *box_p = reinterpret_cast<int4 *>(btm_out_transfer.data_ptr<scalar_t>());
+    int4 *bix_p = reinterpret_cast<int4 *>(btm_in_transfer.data_ptr<scalar_t>());
+    if (diagnostics) printf("rank %d: choosing halo exchange kernel\n", rank);
 
-        // do int2 vector loads if channel count permits
-        if (contiguous &&
-            (NN * NH * NW * NC * sizeof(scalar_t)) % sizeof(int2) == 0) {
-          // can do contiguous int2 transfers
-          if (diagnostics) {
-          }
-          toh_stride_N = toh_stride_H = toh_stride_W = toh_stride_C = 1;
-          tih_stride_N = tih_stride_H = tih_stride_W = tih_stride_C = 1;
-          boh_stride_N = boh_stride_H = boh_stride_W = boh_stride_C = 1;
-          bih_stride_N = bih_stride_H = bih_stride_W = bih_stride_C = 1;
-          NC = (NN * NH * NW * NC * sizeof(scalar_t)) / sizeof(int2);
-          NN = NH = NW = 1;
-          if (diagnostics) {
-            printf("rank %d: launching contiguous int2 halo exchange kernel\n",
-                   rank);
-            printf("rank %d: NC=%d, NH=%d, NW=%d\n", rank, NC, NH, NW);
-          }
-          void *kernel_args[] = {(int2 **)&toh_p,
-                                 &toh_stride_H,
-                                 &toh_stride_W,
-                                 &toh_stride_C,
-                                 (int2 **)&tih_p,
-                                 &tih_stride_H,
-                                 &tih_stride_W,
-                                 &tih_stride_C,
-                                 &tox_p,
-                                 &tix_p,
-                                 (int2 **)&boh_p,
-                                 &boh_stride_H,
-                                 &boh_stride_W,
-                                 &boh_stride_C,
-                                 (int2 **)&bih_p,
-                                 &bih_stride_H,
-                                 &bih_stride_W,
-                                 &bih_stride_C,
-                                 &box_p,
-                                 &bix_p,
-                                 &NH,
-                                 &NW,
-                                 &NC,
-                                 &top_first};
-          int num_elem = NN * NH * NW * NC;
-          LAUNCH_PUSH_PULL_HALO_KERNEL(int2, true, kernel_args, num_elem);
-        } else if (is_nhwc && (NC * sizeof(scalar_t)) % sizeof(int2) == 0) {
-          // can do strided int2 transfers
-          int divisor = sizeof(int2) / sizeof(scalar_t);
-          if (diagnostics) {
-            printf("rank %d: launching strided int2 halo exchange kernel\n",
-                   rank);
-          }
-          toh_stride_N /= divisor;
-          toh_stride_H /= divisor;
-          toh_stride_W /= divisor;
-          tih_stride_N /= divisor;
-          tih_stride_H /= divisor;
-          tih_stride_W /= divisor;
-          boh_stride_N /= divisor;
-          boh_stride_H /= divisor;
-          boh_stride_W /= divisor;
-          bih_stride_N /= divisor;
-          bih_stride_H /= divisor;
-          bih_stride_W /= divisor;
-          NC /= divisor;
-          if (diagnostics) {
-            printf("rank %d: divisor=%d\n", rank, divisor);
-            printf("rank %d: tih_stride :: N=%d, C=%d, H=%d, W=%d\n", rank,
-                   tih_stride_N, tih_stride_C, tih_stride_H, tih_stride_W);
-            printf("rank %d: toh_stride :: N=%d, C=%d, H=%d, W=%d\n", rank,
-                   toh_stride_N, toh_stride_C, toh_stride_H, toh_stride_W);
-            printf("rank %d: bih_stride :: N=%d, C=%d, H=%d, W=%d\n", rank,
-                   bih_stride_N, bih_stride_C, bih_stride_H, bih_stride_W);
-            printf("rank %d: boh_stride :: N=%d, C=%d, H=%d, W=%d\n", rank,
-                   boh_stride_N, boh_stride_C, boh_stride_H, boh_stride_W);
-            printf("rank %d: NC=%d, NH=%d, NW=%d\n", rank, NC, NH, NW);
-          }
-          void *kernel_args[] = {(int2 **)&toh_p,
-                                 &toh_stride_H,
-                                 &toh_stride_W,
-                                 &toh_stride_C,
-                                 (int2 **)&tih_p,
-                                 &tih_stride_H,
-                                 &tih_stride_W,
-                                 &tih_stride_C,
-                                 &tox_p,
-                                 &tix_p,
-                                 (int2 **)&boh_p,
-                                 &boh_stride_H,
-                                 &boh_stride_W,
-                                 &boh_stride_C,
-                                 (int2 **)&bih_p,
-                                 &bih_stride_H,
-                                 &bih_stride_W,
-                                 &bih_stride_C,
-                                 &box_p,
-                                 &bix_p,
-                                 &NH,
-                                 &NW,
-                                 &NC,
-                                 &top_first};
-          int num_elem = NH * NW * NC;
-          LAUNCH_PUSH_PULL_HALO_KERNEL(int2, false, kernel_args, num_elem);
-        } else {
-          // cannot do int2 transfers
-          if (diagnostics) {
-            printf("rank %d: launching non-int2 halo exchange kernel\n", rank);
-          }
-          int num_elem = NC * NH * NW;
-          if (is_nhwc) {
-            void *kernel_args[] = {
-                &toh_p,        &toh_stride_H, &toh_stride_W, &toh_stride_C,
-                &tih_p,        &tih_stride_H, &tih_stride_W, &tih_stride_C,
-                &tox_p,        &tix_p,        &boh_p,        &boh_stride_H,
-                &boh_stride_W, &boh_stride_C, &bih_p,        &bih_stride_H,
-                &bih_stride_W, &bih_stride_C, &box_p,        &bix_p,
-                &NH,           &NW,           &NC,           &top_first};
-            LAUNCH_PUSH_PULL_HALO_KERNEL(scalar_t, false, kernel_args,
-                                         num_elem);
-          } else {
-            void *kernel_args[] = {
-                &toh_p,        &toh_stride_C, &toh_stride_H, &toh_stride_W,
-                &tih_p,        &tih_stride_C, &tih_stride_H, &tih_stride_W,
-                &tox_p,        &tix_p,        &boh_p,        &boh_stride_C,
-                &boh_stride_H, &boh_stride_W, &bih_p,        &bih_stride_C,
-                &bih_stride_H, &bih_stride_W, &box_p,        &bix_p,
-                &NC,           &NH,           &NW,           &top_first};
-            LAUNCH_PUSH_PULL_HALO_KERNEL(scalar_t, false, kernel_args,
-                                         num_elem);
-          }
-        }
-      });
+    // do int2 vector loads if channel count permits
+    if (contiguous && (NN * NH * NW * NC * sizeof(scalar_t)) % sizeof(int2) == 0) {
+      // can do contiguous int2 transfers
+      if (diagnostics) {
+      }
+      toh_stride_N = toh_stride_H = toh_stride_W = toh_stride_C = 1;
+      tih_stride_N = tih_stride_H = tih_stride_W = tih_stride_C = 1;
+      boh_stride_N = boh_stride_H = boh_stride_W = boh_stride_C = 1;
+      bih_stride_N = bih_stride_H = bih_stride_W = bih_stride_C = 1;
+      NC = (NN * NH * NW * NC * sizeof(scalar_t)) / sizeof(int2);
+      NN = NH = NW = 1;
+      if (diagnostics) {
+        printf("rank %d: launching contiguous int2 halo exchange kernel\n", rank);
+        printf("rank %d: NC=%d, NH=%d, NW=%d\n", rank, NC, NH, NW);
+      }
+      void *kernel_args[] = {(int2 **)&toh_p,
+                             &toh_stride_H,
+                             &toh_stride_W,
+                             &toh_stride_C,
+                             (int2 **)&tih_p,
+                             &tih_stride_H,
+                             &tih_stride_W,
+                             &tih_stride_C,
+                             &tox_p,
+                             &tix_p,
+                             (int2 **)&boh_p,
+                             &boh_stride_H,
+                             &boh_stride_W,
+                             &boh_stride_C,
+                             (int2 **)&bih_p,
+                             &bih_stride_H,
+                             &bih_stride_W,
+                             &bih_stride_C,
+                             &box_p,
+                             &bix_p,
+                             &NH,
+                             &NW,
+                             &NC,
+                             &top_first};
+      int num_elem = NN * NH * NW * NC;
+      LAUNCH_PUSH_PULL_HALO_KERNEL(int2, true, kernel_args, num_elem);
+    } else if (is_nhwc && (NC * sizeof(scalar_t)) % sizeof(int2) == 0) {
+      // can do strided int2 transfers
+      int divisor = sizeof(int2) / sizeof(scalar_t);
+      if (diagnostics) {
+        printf("rank %d: launching strided int2 halo exchange kernel\n", rank);
+      }
+      toh_stride_N /= divisor;
+      toh_stride_H /= divisor;
+      toh_stride_W /= divisor;
+      tih_stride_N /= divisor;
+      tih_stride_H /= divisor;
+      tih_stride_W /= divisor;
+      boh_stride_N /= divisor;
+      boh_stride_H /= divisor;
+      boh_stride_W /= divisor;
+      bih_stride_N /= divisor;
+      bih_stride_H /= divisor;
+      bih_stride_W /= divisor;
+      NC /= divisor;
+      if (diagnostics) {
+        printf("rank %d: divisor=%d\n", rank, divisor);
+        printf("rank %d: tih_stride :: N=%d, C=%d, H=%d, W=%d\n", rank, tih_stride_N, tih_stride_C, tih_stride_H,
+               tih_stride_W);
+        printf("rank %d: toh_stride :: N=%d, C=%d, H=%d, W=%d\n", rank, toh_stride_N, toh_stride_C, toh_stride_H,
+               toh_stride_W);
+        printf("rank %d: bih_stride :: N=%d, C=%d, H=%d, W=%d\n", rank, bih_stride_N, bih_stride_C, bih_stride_H,
+               bih_stride_W);
+        printf("rank %d: boh_stride :: N=%d, C=%d, H=%d, W=%d\n", rank, boh_stride_N, boh_stride_C, boh_stride_H,
+               boh_stride_W);
+        printf("rank %d: NC=%d, NH=%d, NW=%d\n", rank, NC, NH, NW);
+      }
+      void *kernel_args[] = {(int2 **)&toh_p,
+                             &toh_stride_H,
+                             &toh_stride_W,
+                             &toh_stride_C,
+                             (int2 **)&tih_p,
+                             &tih_stride_H,
+                             &tih_stride_W,
+                             &tih_stride_C,
+                             &tox_p,
+                             &tix_p,
+                             (int2 **)&boh_p,
+                             &boh_stride_H,
+                             &boh_stride_W,
+                             &boh_stride_C,
+                             (int2 **)&bih_p,
+                             &bih_stride_H,
+                             &bih_stride_W,
+                             &bih_stride_C,
+                             &box_p,
+                             &bix_p,
+                             &NH,
+                             &NW,
+                             &NC,
+                             &top_first};
+      int num_elem = NH * NW * NC;
+      LAUNCH_PUSH_PULL_HALO_KERNEL(int2, false, kernel_args, num_elem);
+    } else {
+      // cannot do int2 transfers
+      if (diagnostics) {
+        printf("rank %d: launching non-int2 halo exchange kernel\n", rank);
+      }
+      int num_elem = NC * NH * NW;
+      if (is_nhwc) {
+        void *kernel_args[] = {&toh_p,        &toh_stride_H, &toh_stride_W, &toh_stride_C, &tih_p,        &tih_stride_H,
+                               &tih_stride_W, &tih_stride_C, &tox_p,        &tix_p,        &boh_p,        &boh_stride_H,
+                               &boh_stride_W, &boh_stride_C, &bih_p,        &bih_stride_H, &bih_stride_W, &bih_stride_C,
+                               &box_p,        &bix_p,        &NH,           &NW,           &NC,           &top_first};
+        LAUNCH_PUSH_PULL_HALO_KERNEL(scalar_t, false, kernel_args, num_elem);
+      } else {
+        void *kernel_args[] = {&toh_p,        &toh_stride_C, &toh_stride_H, &toh_stride_W, &tih_p,        &tih_stride_C,
+                               &tih_stride_H, &tih_stride_W, &tox_p,        &tix_p,        &boh_p,        &boh_stride_C,
+                               &boh_stride_H, &boh_stride_W, &bih_p,        &bih_stride_C, &bih_stride_H, &bih_stride_W,
+                               &box_p,        &bix_p,        &NC,           &NH,           &NW,           &top_first};
+        LAUNCH_PUSH_PULL_HALO_KERNEL(scalar_t, false, kernel_args, num_elem);
+      }
+    }
+  });
 
 #undef LAUNCH_PUSH_PULL_HALO_KERNEL_BASE
 #undef LAUNCH_PUSH_PULL_HALO_KERNEL
 }
 
-} // namespace peer_memory
-} // namespace contrib
-} // namespace apex
+}  // namespace peer_memory
+}  // namespace contrib
+}  // namespace apex

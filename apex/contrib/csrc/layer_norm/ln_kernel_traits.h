@@ -3,11 +3,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace layer_norm {
-template <uint32_t HIDDEN_SIZE_, typename weight_t_, typename input_t_,
-          typename output_t_, typename compute_t_, typename index_t_,
-          uint32_t THREADS_PER_CTA_>
+template <uint32_t HIDDEN_SIZE_, typename weight_t_, typename input_t_, typename output_t_, typename compute_t_,
+          typename index_t_, uint32_t THREADS_PER_CTA_>
 struct Kernel_traits_base {
-
   using weight_t = weight_t_;
   using input_t = input_t_;
   using output_t = output_t_;
@@ -21,12 +19,10 @@ struct Kernel_traits_base {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <uint32_t HIDDEN_SIZE_, typename weight_t_, typename input_t_,
-          typename output_t_, typename compute_t_, typename index_t_,
-          uint32_t THREADS_PER_CTA_, uint32_t BYTES_PER_LDG_,
+template <uint32_t HIDDEN_SIZE_, typename weight_t_, typename input_t_, typename output_t_, typename compute_t_,
+          typename index_t_, uint32_t THREADS_PER_CTA_, uint32_t BYTES_PER_LDG_,
           typename Base =
-              Kernel_traits_base<HIDDEN_SIZE_, weight_t_, input_t_, output_t_,
-                                 compute_t_, index_t_, THREADS_PER_CTA_>>
+              Kernel_traits_base<HIDDEN_SIZE_, weight_t_, input_t_, output_t_, compute_t_, index_t_, THREADS_PER_CTA_>>
 struct Kernel_traits_finalize : public Base {
   enum { ROWS_PER_CTA = Base::THREADS_PER_CTA / Base::THREADS_PER_WARP };
   static_assert((int)ROWS_PER_CTA <= (int)Base::THREADS_PER_WARP);
@@ -36,11 +32,8 @@ struct Kernel_traits_finalize : public Base {
   enum { ELTS_PER_LDG = BYTES_PER_LDG / sizeof(compute_t_) };
   // Bytes per global store of the weights.
   enum { BYTES_PER_STG = ELTS_PER_LDG * sizeof(weight_t_) };
-  static_assert(
-      sizeof(BYTES_PER_LDG) == 4,
-      "Conflict-free smem transpose only implemented for 4B compute type!");
-  static_assert(Base::THREADS_PER_CTA == ROWS_PER_CTA * Base::THREADS_PER_WARP,
-                "We assume one warp per row!");
+  static_assert(sizeof(BYTES_PER_LDG) == 4, "Conflict-free smem transpose only implemented for 4B compute type!");
+  static_assert(Base::THREADS_PER_CTA == ROWS_PER_CTA * Base::THREADS_PER_WARP, "We assume one warp per row!");
   // The total number of BYTES_PER_LDG-wide words in a hidden vector.
   enum { COLS = HIDDEN_SIZE_ * sizeof(compute_t_) / BYTES_PER_LDG };
   static_assert(COLS * BYTES_PER_LDG == HIDDEN_SIZE_ * sizeof(compute_t_));
@@ -50,9 +43,7 @@ struct Kernel_traits_finalize : public Base {
   // Shared memory size to coalsece the CTA result.
   enum { SMEM_BYTES_OUTPUT = Base::THREADS_PER_WARP * BYTES_PER_LDG };
   // Shared memory requirement per CTA.
-  enum {
-    SMEM_BYTES_PER_CTA = 2 * SMEM_BYTES_TRANSPOSE + 2 * SMEM_BYTES_OUTPUT
-  };
+  enum { SMEM_BYTES_PER_CTA = 2 * SMEM_BYTES_TRANSPOSE + 2 * SMEM_BYTES_OUTPUT };
 
   // The type of the reducer.
   using Reducer = layer_norm::Reducer<compute_t_, 1, 1, 1>;
@@ -64,15 +55,12 @@ struct Kernel_traits_finalize : public Base {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename weight_t_, typename input_t_, typename output_t_,
-          typename compute_t_, typename index_t_, uint32_t HIDDEN_SIZE_,
-          uint32_t CTAS_PER_ROW_, uint32_t WARPS_M_, uint32_t WARPS_N_,
+template <typename weight_t_, typename input_t_, typename output_t_, typename compute_t_, typename index_t_,
+          uint32_t HIDDEN_SIZE_, uint32_t CTAS_PER_ROW_, uint32_t WARPS_M_, uint32_t WARPS_N_,
           uint32_t BYTES_PER_LDG_ = 16,
-          typename Base = Kernel_traits_base<
-              HIDDEN_SIZE_, weight_t_, input_t_, output_t_, compute_t_,
-              index_t_, WARPS_M_ * WARPS_N_ * THREADS_PER_WARP>>
+          typename Base = Kernel_traits_base<HIDDEN_SIZE_, weight_t_, input_t_, output_t_, compute_t_, index_t_,
+                                             WARPS_M_ * WARPS_N_ * THREADS_PER_WARP>>
 struct Kernel_traits : public Base {
-
   using input_t = typename Base::input_t;
   using weight_t = typename Base::weight_t;
   using compute_t = typename Base::compute_t;
@@ -94,10 +82,7 @@ struct Kernel_traits : public Base {
   enum { BYTES_PER_ROW = COLS * sizeof(input_t) };
   enum { BYTES_PER_ROW_PER_CTA = THREADS_PER_ROW * BYTES_PER_LDG };
   // Multi-row per CTA not supported for multi-CTA => no smem for WGRAD needed
-  enum {
-    SMEM_BYTES_WGRAD =
-        CTAS_PER_ROW > 1 ? 0 : ROWS_PER_CTA *COLS * sizeof(compute_t)
-  };
+  enum { SMEM_BYTES_WGRAD = CTAS_PER_ROW > 1 ? 0 : ROWS_PER_CTA *COLS * sizeof(compute_t) };
   static_assert(WARPS_M == 1 || CTAS_PER_ROW == 1);
 
   using reduce_t = typename layer_norm::TypeToVec2<compute_t>::Type;
@@ -132,4 +117,4 @@ struct Kernel_traits : public Base {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace layer_norm
+}  // namespace layer_norm

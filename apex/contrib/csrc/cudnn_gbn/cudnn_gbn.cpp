@@ -1,9 +1,9 @@
 #include <ATen/ATen.h>
 #include <torch/extension.h>
 #include <torch/torch.h>
-#include <vector>
 
 #include <iostream>
+#include <vector>
 
 #include "norm_sample.h"
 
@@ -11,18 +11,12 @@
 enum bn_type { BN_FWD, BN_BWD };
 
 // this is a global variable
-static std::map<std::vector<int64_t>, cudnn_frontend::ExecutionPlan>
-    gbn_plan_cache;
+static std::map<std::vector<int64_t>, cudnn_frontend::ExecutionPlan> gbn_plan_cache;
 
-at::Tensor gbn_forward(const at::Tensor &x, const at::Tensor &scale,
-                       const at::Tensor &bias, const at::Tensor &running_mean,
-                       const at::Tensor &running_var,
-                       const at::Tensor &minibatch_mean,
-                       const at::Tensor &minibatch_inv_var,
-                       const float momentum, const float epsilon,
-                       const int64_t bn_group, const int rank_id,
-                       const std::vector<int64_t> &peer_buffers) {
-
+at::Tensor gbn_forward(const at::Tensor &x, const at::Tensor &scale, const at::Tensor &bias,
+                       const at::Tensor &running_mean, const at::Tensor &running_var, const at::Tensor &minibatch_mean,
+                       const at::Tensor &minibatch_inv_var, const float momentum, const float epsilon,
+                       const int64_t bn_group, const int rank_id, const std::vector<int64_t> &peer_buffers) {
   int64_t N = x.size(0);
   int64_t C = x.size(1);
   int64_t H = x.size(2);
@@ -51,11 +45,9 @@ at::Tensor gbn_forward(const at::Tensor &x, const at::Tensor &scale,
   assert(bn_group == void_peer_buffers.size());
 
   // check if plan already exists
-  std::vector<int64_t> fv = {(int64_t)BN_FWD,         N, C, H, W, bn_group,
-                             (int64_t)CUDNN_DATA_HALF};
+  std::vector<int64_t> fv = {(int64_t)BN_FWD, N, C, H, W, bn_group, (int64_t)CUDNN_DATA_HALF};
   if (gbn_plan_cache.find(fv) == gbn_plan_cache.end()) {
-    auto plan = run_batch_norm_forward(tensorDims, perChannelDims, epsilonDims,
-                                       peerDims, CUDNN_DATA_HALF);
+    auto plan = run_batch_norm_forward(tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
     gbn_plan_cache.emplace(fv, std::move(plan));
   }
 
@@ -63,25 +55,19 @@ at::Tensor gbn_forward(const at::Tensor &x, const at::Tensor &scale,
   auto plan = gbn_plan_cache.find(fv)->second;
 
   // execute
-  execute_batch_norm_forward(plan, x.data_ptr(), y.data_ptr(), scale.data_ptr(),
-                             bias.data_ptr(), running_mean.data_ptr(),
-                             running_var.data_ptr(), running_mean.data_ptr(),
-                             running_var.data_ptr(), minibatch_mean.data_ptr(),
-                             minibatch_inv_var.data_ptr(), void_peer_buffers,
-                             static_cast<double>(epsilon),
-                             static_cast<double>(momentum), peer_size, rank_id);
+  execute_batch_norm_forward(plan, x.data_ptr(), y.data_ptr(), scale.data_ptr(), bias.data_ptr(),
+                             running_mean.data_ptr(), running_var.data_ptr(), running_mean.data_ptr(),
+                             running_var.data_ptr(), minibatch_mean.data_ptr(), minibatch_inv_var.data_ptr(),
+                             void_peer_buffers, static_cast<double>(epsilon), static_cast<double>(momentum), peer_size,
+                             rank_id);
 
   return y;
 }
 
-std::vector<at::Tensor> gbn_backward(const at::Tensor &x, const at::Tensor &dy,
-                                     const at::Tensor &scale,
-                                     const at::Tensor &minibatch_mean,
-                                     const at::Tensor &minibatch_inv_var,
-                                     const float epsilon,
-                                     const int64_t bn_group, const int rank_id,
+std::vector<at::Tensor> gbn_backward(const at::Tensor &x, const at::Tensor &dy, const at::Tensor &scale,
+                                     const at::Tensor &minibatch_mean, const at::Tensor &minibatch_inv_var,
+                                     const float epsilon, const int64_t bn_group, const int rank_id,
                                      const std::vector<int64_t> &peer_buffers) {
-
   int64_t N = x.size(0);
   int64_t C = x.size(1);
   int64_t H = x.size(2);
@@ -114,11 +100,9 @@ std::vector<at::Tensor> gbn_backward(const at::Tensor &x, const at::Tensor &dy,
 
   assert(bn_group == void_peer_buffers.size());
 
-  std::vector<int64_t> fv = {(int64_t)BN_BWD,         N, C, H, W, bn_group,
-                             (int64_t)CUDNN_DATA_HALF};
+  std::vector<int64_t> fv = {(int64_t)BN_BWD, N, C, H, W, bn_group, (int64_t)CUDNN_DATA_HALF};
   if (gbn_plan_cache.find(fv) == gbn_plan_cache.end()) {
-    auto plan = run_batch_norm_backward(tensorDims, perChannelDims, epsilonDims,
-                                        peerDims, CUDNN_DATA_HALF);
+    auto plan = run_batch_norm_backward(tensorDims, perChannelDims, epsilonDims, peerDims, CUDNN_DATA_HALF);
     gbn_plan_cache.emplace(fv, std::move(plan));
   }
 
@@ -126,18 +110,14 @@ std::vector<at::Tensor> gbn_backward(const at::Tensor &x, const at::Tensor &dy,
   auto plan = gbn_plan_cache.find(fv)->second;
 
   // execute
-  execute_batch_norm_backward(
-      plan, x.data_ptr(), dy.data_ptr(), scale.data_ptr(),
-      minibatch_mean.data_ptr(), minibatch_inv_var.data_ptr(),
-      void_peer_buffers, x_grad.data_ptr(), scale_grad.data_ptr(),
-      bias_grad.data_ptr(), static_cast<double>(epsilon), peer_size, rank_id);
+  execute_batch_norm_backward(plan, x.data_ptr(), dy.data_ptr(), scale.data_ptr(), minibatch_mean.data_ptr(),
+                              minibatch_inv_var.data_ptr(), void_peer_buffers, x_grad.data_ptr(), scale_grad.data_ptr(),
+                              bias_grad.data_ptr(), static_cast<double>(epsilon), peer_size, rank_id);
 
   return std::vector<at::Tensor>{x_grad, scale_grad, bias_grad};
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &gbn_forward, "Group batch norm forward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward", &gbn_backward, "Group batch backward",
-        py::call_guard<py::gil_scoped_release>());
+  m.def("forward", &gbn_forward, "Group batch norm forward", py::call_guard<py::gil_scoped_release>());
+  m.def("backward", &gbn_backward, "Group batch backward", py::call_guard<py::gil_scoped_release>());
 }

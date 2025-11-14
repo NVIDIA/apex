@@ -35,9 +35,7 @@ void set_params(Fused_multihead_attention_fprop_params &params,
                 // sizes
                 const size_t b, const size_t s, const size_t h, const size_t d,
                 // device pointers
-                void *qkv_packed_d, void *cu_seqlens_d, void *o_packed_d,
-                void *s_d, float p_dropout) {
-
+                void *qkv_packed_d, void *cu_seqlens_d, void *o_packed_d, void *s_d, float p_dropout) {
   Data_type acc_type = DATA_TYPE_FP32;
   Data_type data_type = DATA_TYPE_FP16;
 
@@ -79,22 +77,16 @@ void set_params(Fused_multihead_attention_fprop_params &params,
 }
 
 std::vector<at::Tensor> mha_fwd(
-    const at::Tensor
-        &qkv, // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
-    const at::Tensor &cu_seqlens, // b+1
-    const float p_dropout, const int max_seq_len, const bool is_training,
-    const bool is_nl, const bool zero_tensors,
+    const at::Tensor &qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
+    const at::Tensor &cu_seqlens,  // b+1
+    const float p_dropout, const int max_seq_len, const bool is_training, const bool is_nl, const bool zero_tensors,
     c10::optional<at::Generator> gen_) {
-
   using namespace torch::indexing;
   auto dprops = at::cuda::getCurrentDeviceProperties();
-  TORCH_CHECK((dprops->major == 8 && dprops->minor == 0) ||
-              (dprops->major == 9 && dprops->minor == 0) ||
-              (dprops->major == 10 && dprops->minor == 0) ||
-              (dprops->major == 12 && dprops->minor == 0));
+  TORCH_CHECK((dprops->major == 8 && dprops->minor == 0) || (dprops->major == 9 && dprops->minor == 0) ||
+              (dprops->major == 10 && dprops->minor == 0) || (dprops->major == 12 && dprops->minor == 0));
   auto stream = at::cuda::getCurrentCUDAStream().stream();
-  Launch_params<Fused_multihead_attention_fprop_params> launch_params(
-      dprops, stream, is_training, is_nl);
+  Launch_params<Fused_multihead_attention_fprop_params> launch_params(dprops, stream, is_training, is_nl);
 
   int seq_len = 512;
   auto launch = &run_fmha_fp16_512_64_sm80;
@@ -143,12 +135,10 @@ std::vector<at::Tensor> mha_fwd(
     mha_fill(ctx, cu_seqlens.index({Slice(-1, None)}));
   }
 
-  auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
-      gen_, at::cuda::detail::getDefaultCUDAGenerator());
+  auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(gen_, at::cuda::detail::getDefaultCUDAGenerator());
 
-  set_params(launch_params.params, batch_size, seq_len, num_heads, head_size,
-             qkv.data_ptr(), cu_seqlens.data_ptr(), ctx.data_ptr(),
-             s.data_ptr(), p_dropout);
+  set_params(launch_params.params, batch_size, seq_len, num_heads, head_size, qkv.data_ptr(), cu_seqlens.data_ptr(),
+             ctx.data_ptr(), s.data_ptr(), p_dropout);
 
   launch(launch_params, /*configure=*/true);
   // number of times random will be generated per thread, to offset philox
@@ -168,21 +158,18 @@ std::vector<at::Tensor> mha_fwd(
 }
 
 std::vector<at::Tensor> mha_bwd(
-    const at::Tensor &dout, // total x num_heads, x head_size
-    const at::Tensor
-        &qkv, // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
-    at::Tensor &softmax,          // b x h x s x s softmax and dmask - will be
-                                  // overwritten with dP
-    const at::Tensor &cu_seqlens, // b+1
-    const float p_dropout,        // probability to drop
-    const int max_seq_len,        // max sequence length to choose the kernel
+    const at::Tensor &dout,        // total x num_heads, x head_size
+    const at::Tensor &qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
+    at::Tensor &softmax,           // b x h x s x s softmax and dmask - will be
+                                   // overwritten with dP
+    const at::Tensor &cu_seqlens,  // b+1
+    const float p_dropout,         // probability to drop
+    const int max_seq_len,         // max sequence length to choose the kernel
     const bool zero_tensors) {
   using namespace torch::indexing;
   auto dprops = at::cuda::getCurrentDeviceProperties();
-  TORCH_CHECK((dprops->major == 8 && dprops->minor == 0) ||
-              (dprops->major == 9 && dprops->minor == 0) ||
-              (dprops->major == 10 && dprops->minor == 0) ||
-              (dprops->major == 12 && dprops->minor == 0));
+  TORCH_CHECK((dprops->major == 8 && dprops->minor == 0) || (dprops->major == 9 && dprops->minor == 0) ||
+              (dprops->major == 10 && dprops->minor == 0) || (dprops->major == 12 && dprops->minor == 0));
   int seq_len = 512;
   auto launch = &run_fmha_dgrad_fp16_512_64_sm80;
   if (max_seq_len <= 128) {
@@ -235,10 +222,9 @@ std::vector<at::Tensor> mha_bwd(
 
   Fused_multihead_attention_fprop_params params;
 
-  set_params(params, batch_size, seq_len, num_heads, head_size, qkv.data_ptr(),
-             cu_seqlens.data_ptr(),
-             dout.data_ptr(),    // we set o_ptr to dout
-             softmax.data_ptr(), // softmax gets overwritten by dP!
+  set_params(params, batch_size, seq_len, num_heads, head_size, qkv.data_ptr(), cu_seqlens.data_ptr(),
+             dout.data_ptr(),     // we set o_ptr to dout
+             softmax.data_ptr(),  // softmax gets overwritten by dP!
              p_dropout);
 
   // we're re-using these scales
@@ -253,16 +239,14 @@ std::vector<at::Tensor> mha_bwd(
 }
 
 std::vector<at::Tensor> mha_bwd_nl(
-    const at::Tensor &dout, // total x num_heads, x head_size
-    const at::Tensor
-        &qkv, // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
-    at::Tensor &softmax,          // b x h x s x s softmax and dmask - will be
-                                  // overwritten with dP
-    const at::Tensor &cu_seqlens, // b+1
-    const float p_dropout,        // probability to drop
-    const int max_seq_len,        // max sequence length to choose the kernel
+    const at::Tensor &dout,        // total x num_heads, x head_size
+    const at::Tensor &qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
+    at::Tensor &softmax,           // b x h x s x s softmax and dmask - will be
+                                   // overwritten with dP
+    const at::Tensor &cu_seqlens,  // b+1
+    const float p_dropout,         // probability to drop
+    const int max_seq_len,         // max sequence length to choose the kernel
     const bool zero_tensors) {
-
   auto stream = at::cuda::getCurrentCUDAStream().stream();
 
   TORCH_CHECK(qkv.is_cuda())
@@ -308,10 +292,9 @@ std::vector<at::Tensor> mha_bwd_nl(
 
   Fused_multihead_attention_fprop_params params;
 
-  set_params(params, batch_size, seq_len, num_heads, head_size, qkv.data_ptr(),
-             cu_seqlens.data_ptr(),
-             dout.data_ptr(),    // o_ptr = dout
-             softmax.data_ptr(), // softmax gets overwritten by dP!
+  set_params(params, batch_size, seq_len, num_heads, head_size, qkv.data_ptr(), cu_seqlens.data_ptr(),
+             dout.data_ptr(),     // o_ptr = dout
+             softmax.data_ptr(),  // softmax gets overwritten by dP!
              p_dropout);
 
   params.dkv_ptr = dkv.data_ptr();
@@ -332,19 +315,15 @@ std::vector<at::Tensor> mha_bwd_nl(
   // torch::sum_out(view_out, dkv, 1);
 
   const int hidden_size = num_heads * head_size;
-  fmha_run_noloop_reduce(dqkv.data_ptr(), dkv.data_ptr(),
-                         cu_seqlens.data_ptr<int>(), hidden_size, batch_size,
-                         total, num_chunks, stream);
+  fmha_run_noloop_reduce(dqkv.data_ptr(), dkv.data_ptr(), cu_seqlens.data_ptr<int>(), hidden_size, batch_size, total,
+                         num_chunks, stream);
 
   return {dqkv, softmax, dkv};
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.doc() = "Fused Multi-head Self-attention for BERT";
-  m.def("fwd", &mha_fwd, "Forward pass",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("bwd", &mha_bwd, "Backward pass",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("bwd_nl", &mha_bwd_nl, "Backward pass (small-batch)",
-        py::call_guard<py::gil_scoped_release>());
+  m.def("fwd", &mha_fwd, "Forward pass", py::call_guard<py::gil_scoped_release>());
+  m.def("bwd", &mha_bwd, "Backward pass", py::call_guard<py::gil_scoped_release>());
+  m.def("bwd_nl", &mha_bwd_nl, "Backward pass (small-batch)", py::call_guard<py::gil_scoped_release>());
 }

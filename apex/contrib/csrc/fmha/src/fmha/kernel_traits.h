@@ -29,10 +29,8 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int S, int D, int STEP, int WARPS_M, int WARPS_N,
-          uint32_t FLAGS = 0x08u>
+template <int S, int D, int STEP, int WARPS_M, int WARPS_N, uint32_t FLAGS = 0x08u>
 struct FMHA_kernel_traits {
-
   // The CTA description for the 1st GEMM.
   using Cta_tile_p = fmha::Cta_tile_extd<STEP, S, D, WARPS_M, WARPS_N, 1>;
   // The CTA description for the 2nd GEMM.
@@ -44,22 +42,18 @@ struct FMHA_kernel_traits {
   enum { K_IN_REGS = (FLAGS & 0x10u) == 0u };
 
   // The global memory tile to load Q.
-  using Gmem_tile_q =
-      fmha::Gmem_tile_qkv<Cta_tile_p, fmha::BITS_PER_ELEMENT_A, STEP, D>;
+  using Gmem_tile_q = fmha::Gmem_tile_qkv<Cta_tile_p, fmha::BITS_PER_ELEMENT_A, STEP, D>;
 
   // The shared memory tile to swizzle Q.
-  using Smem_tile_q =
-      fmha::Smem_tile_a<Cta_tile_p, fmha::Row, Gmem_tile_q::BYTES_PER_LDG, 1>;
+  using Smem_tile_q = fmha::Smem_tile_a<Cta_tile_p, fmha::Row, Gmem_tile_q::BYTES_PER_LDG, 1>;
 
   // The global memory tile to load K.
-  using Gmem_tile_k =
-      fmha::Gmem_tile_qkv<Cta_tile_p, fmha::BITS_PER_ELEMENT_B, S, D>;
+  using Gmem_tile_k = fmha::Gmem_tile_qkv<Cta_tile_p, fmha::BITS_PER_ELEMENT_B, S, D>;
   // The shared memory tile to swizzle K.
   using Smem_tile_k = fmha::Smem_tile_b<Cta_tile_p, fmha::Col>;
 
   // The global memory tile to load V.
-  using Gmem_tile_v =
-      fmha::Gmem_tile_qkv<Cta_tile_o, fmha::BITS_PER_ELEMENT_B, S, D>;
+  using Gmem_tile_v = fmha::Gmem_tile_qkv<Cta_tile_o, fmha::BITS_PER_ELEMENT_B, S, D>;
   // The shared memory tile to swizzle V.
   using Smem_tile_v = fmha::Smem_tile_v<Cta_tile_o>;
 
@@ -77,9 +71,7 @@ struct FMHA_kernel_traits {
   using Gmem_tile_do = fmha::Gmem_tile_dout<Cta_tile_p>;
 
   // Make sure the number of threads match.
-  static_assert((int)Gmem_tile_o::THREADS_PER_ROW ==
-                    (int)Smem_tile_o::THREADS_PER_ROW,
-                "");
+  static_assert((int)Gmem_tile_o::THREADS_PER_ROW == (int)Smem_tile_o::THREADS_PER_ROW, "");
 
   // The number of threads.
   enum { THREADS = Cta_tile_p::THREADS_PER_CTA };
@@ -87,30 +79,18 @@ struct FMHA_kernel_traits {
   static_assert((int)THREADS == (int)Cta_tile_o::THREADS_PER_CTA, "");
 
   // The amount of shared memory needed to load Q and K.
-  enum {
-    BYTES_PER_SMEM_QK =
-        Smem_tile_q::BYTES_PER_TILE + Smem_tile_k::BYTES_PER_TILE
-  };
+  enum { BYTES_PER_SMEM_QK = Smem_tile_q::BYTES_PER_TILE + Smem_tile_k::BYTES_PER_TILE };
   // The extra amount of shared memory needed to load V.
-  enum {
-    BYTES_PER_SMEM_V = SHARE_SMEM_FOR_K_AND_V ? 0u : Smem_tile_v::BYTES_PER_TILE
-  };
+  enum { BYTES_PER_SMEM_V = SHARE_SMEM_FOR_K_AND_V ? 0u : Smem_tile_v::BYTES_PER_TILE };
   // The amount of shared memory needed for Q, K and V..
   enum { BYTES_PER_SMEM_QKV = BYTES_PER_SMEM_QK + BYTES_PER_SMEM_V };
   // The amount of shared memory needed to load Q and store O.
-  enum {
-    BYTES_PER_SMEM_QO =
-        Smem_tile_q::BYTES_PER_TILE + Smem_tile_o::BYTES_PER_TILE
-  };
+  enum { BYTES_PER_SMEM_QO = Smem_tile_q::BYTES_PER_TILE + Smem_tile_o::BYTES_PER_TILE };
 
   // The amount of shared memory needed for Q, K, V and O.
-  enum {
-    BYTES_PER_SMEM = fmha::Max<BYTES_PER_SMEM_QKV, BYTES_PER_SMEM_QO>::VALUE
-  };
+  enum { BYTES_PER_SMEM = fmha::Max<BYTES_PER_SMEM_QKV, BYTES_PER_SMEM_QO>::VALUE };
   // Make sure we have enough shared memory.
-  static_assert(Smem_tile_q::BYTES_PER_TILE + Smem_tile_o::BYTES_PER_TILE <=
-                    BYTES_PER_SMEM,
-                "");
+  static_assert(Smem_tile_q::BYTES_PER_TILE + Smem_tile_o::BYTES_PER_TILE <= BYTES_PER_SMEM, "");
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

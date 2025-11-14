@@ -16,12 +16,10 @@
 // Step 1 computes the 'update' value of regular Adam optimizer.
 template <typename GRAD_T, typename T, typename UPD_T>
 struct LAMBStage1Functor {
-  __device__ __forceinline__ void
-  operator()(int chunk_size, volatile int *noop_gmem, TensorListMetadata<5> &tl,
-             const float *per_tensor_decay, const float beta1,
-             const float beta2, const float beta1_correction,
-             const float beta2_correction, const float epsilon,
-             const float clipped_global_grad_norm) {
+  __device__ __forceinline__ void operator()(int chunk_size, volatile int *noop_gmem, TensorListMetadata<5> &tl,
+                                             const float *per_tensor_decay, const float beta1, const float beta2,
+                                             const float beta1_correction, const float beta2_correction,
+                                             const float epsilon, const float clipped_global_grad_norm) {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
     //   return;
@@ -51,8 +49,7 @@ struct LAMBStage1Functor {
     n -= chunk_idx * chunk_size;
 
     // see note in multi_tensor_scale_kernel.cu
-    for (int i_start = 0; i_start < n && i_start < chunk_size;
-         i_start += blockDim.x * ILP) {
+    for (int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
       GRAD_T r_g[ILP];
       T r_p[ILP];
       T r_m[ILP];
@@ -95,18 +92,14 @@ struct LAMBStage1Functor {
   }
 };
 
-void multi_tensor_lamb_stage1_cuda(
-    int chunk_size, at::Tensor noop_flag,
-    std::vector<std::vector<at::Tensor>> tensor_lists,
-    at::Tensor per_tensor_decay, const int step, const float beta1,
-    const float beta2, const float epsilon, at::Tensor global_grad_norm,
-    const float max_global_grad_norm) {
+void multi_tensor_lamb_stage1_cuda(int chunk_size, at::Tensor noop_flag,
+                                   std::vector<std::vector<at::Tensor>> tensor_lists, at::Tensor per_tensor_decay,
+                                   const int step, const float beta1, const float beta2, const float epsilon,
+                                   at::Tensor global_grad_norm, const float max_global_grad_norm) {
   using namespace at;
 
   const float *g_grad_norm = global_grad_norm.data_ptr<float>();
-  float clipped_global_grad_norm = *(g_grad_norm) > max_global_grad_norm
-                                       ? *(g_grad_norm) / max_global_grad_norm
-                                       : 1.0f;
+  float clipped_global_grad_norm = *(g_grad_norm) > max_global_grad_norm ? *(g_grad_norm) / max_global_grad_norm : 1.0f;
   float next_step = float(step + 1);
   float beta1_correction = 1.0f - std::pow(beta1, next_step);
   float beta2_correction = 1.0f - std::pow(beta2, next_step);
@@ -116,12 +109,10 @@ void multi_tensor_lamb_stage1_cuda(
           tensor_lists[1][0].scalar_type(), 1, "lamb_stage_1",
           DISPATCH_FLOAT_AND_HALF(
               tensor_lists[4][0].scalar_type(), 2, "lamb_stage_1",
-              multi_tensor_apply<5>(
-                  BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                  LAMBStage1Functor<scalar_t_0, scalar_t_1, scalar_t_2>(),
-                  per_tensor_decay.data_ptr<float>(), beta1, beta2,
-                  beta1_correction, beta2_correction, epsilon,
-                  clipped_global_grad_norm);)))
+              multi_tensor_apply<5>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
+                                    LAMBStage1Functor<scalar_t_0, scalar_t_1, scalar_t_2>(),
+                                    per_tensor_decay.data_ptr<float>(), beta1, beta2, beta1_correction,
+                                    beta2_correction, epsilon, clipped_global_grad_norm);)))
 
   AT_CUDA_CHECK(cudaGetLastError());
 

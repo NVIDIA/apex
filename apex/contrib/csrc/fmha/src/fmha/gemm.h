@@ -37,7 +37,6 @@ namespace fmha {
 
 template <typename Data_type_, int NUM_ELTS_, int BITS_PER_ELT_, int ALIGNMENT_>
 struct Fragment_base_ {
-
   // The data type.
   using Data_type = Data_type_;
   // default input type
@@ -57,10 +56,7 @@ struct Fragment_base_ {
   // The size in bytes (as returned by sizeof(Fragment_base<>).
   enum { SIZE_IN_BYTES = NUM_REGS * BYTES_PER_REG };
   // The alignment.
-  enum {
-    ALIGNMENT =
-        ALIGNMENT_ > 0 ? ALIGNMENT_ : Min<NUM_REGS * BYTES_PER_REG, 16>::VALUE
-  };
+  enum { ALIGNMENT = ALIGNMENT_ > 0 ? ALIGNMENT_ : Min<NUM_REGS * BYTES_PER_REG, 16>::VALUE };
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -73,10 +69,8 @@ template <
     // The alignment if you want to force a value -- use 0 otherwise.
     int ALIGNMENT_ = 0,
     // The base class.
-    typename Base_ = Fragment_base_<Data_type_, NUM_ELTS_,
-                                    8 * sizeof(Data_type_), ALIGNMENT_>>
+    typename Base_ = Fragment_base_<Data_type_, NUM_ELTS_, 8 * sizeof(Data_type_), ALIGNMENT_>>
 struct alignas(static_cast<int>(Base_::ALIGNMENT)) Fragment : public Base_ {
-
   // The size of a load/store.
   enum { BYTES_PER_LOAD_STORE = Base_::NUM_REGS * sizeof(uint32_t) };
 
@@ -89,9 +83,7 @@ struct alignas(static_cast<int>(Base_::ALIGNMENT)) Fragment : public Base_ {
   }
 
   // Immutable access to a register.
-  inline __device__ const uint32_t &reg(int ii) const {
-    return this->regs_[ii];
-  }
+  inline __device__ const uint32_t &reg(int ii) const { return this->regs_[ii]; }
 
   // Mutable access to a register.
   inline __device__ uint32_t &reg(int ii) { return this->regs_[ii]; }
@@ -104,9 +96,7 @@ struct alignas(static_cast<int>(Base_::ALIGNMENT)) Fragment : public Base_ {
   }
 
   // Mutable access to the elements.
-  inline __device__ Data_type_ &elt(int ii) {
-    return reinterpret_cast<Data_type_ *>(&this->regs_[0])[ii];
-  }
+  inline __device__ Data_type_ &elt(int ii) { return reinterpret_cast<Data_type_ *>(&this->regs_[0])[ii]; }
 
   // Immutable access to the elements with a cast.
   template <typename Cast_type>
@@ -115,7 +105,8 @@ struct alignas(static_cast<int>(Base_::ALIGNMENT)) Fragment : public Base_ {
   }
 
   // Mutable access to the elements.
-  template <typename Cast_type> inline __device__ Cast_type &elt_as(int ii) {
+  template <typename Cast_type>
+  inline __device__ Cast_type &elt_as(int ii) {
     return reinterpret_cast<Cast_type *>(&this->regs_[0])[ii];
   }
 
@@ -130,16 +121,17 @@ struct alignas(static_cast<int>(Base_::ALIGNMENT)) Fragment : public Base_ {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Layout> struct Fragment_a : public Fragment<uint16_t, 8> {};
+template <typename Layout>
+struct Fragment_a : public Fragment<uint16_t, 8> {};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Layout> struct Fragment_b : public Fragment<uint16_t, 8> {};
+template <typename Layout>
+struct Fragment_b : public Fragment<uint16_t, 8> {};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct Fragment_accumulator : public Fragment<float, 8> {
-
   // The base class.
   using Base = Fragment<float, 8>;
 
@@ -153,24 +145,23 @@ struct Fragment_accumulator : public Fragment<float, 8> {
 
   // Do the HMMA.
   template <typename Layout_a, typename Layout_b>
-  inline __device__ void mma(const Fragment_a<Layout_a> &a,
-                             const Fragment_b<Layout_b> &b) {
-    asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 \n"
-                 "    {%0, %1, %2, %3}, \n"
-                 "    {%4, %5, %6, %7}, \n"
-                 "    {%8, %9}, \n"
-                 "    {%0, %1, %2, %3}; \n"
-                 : "+f"(elt(0)), "+f"(elt(1)), "+f"(elt(2)), "+f"(elt(3))
-                 : "r"(a.reg(0)), "r"(a.reg(1)), "r"(a.reg(2)), "r"(a.reg(3)),
-                   "r"(b.reg(0)), "r"(b.reg(1)));
-    asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 \n"
-                 "    {%0, %1, %2, %3}, \n"
-                 "    {%4, %5, %6, %7}, \n"
-                 "    {%8, %9}, \n"
-                 "    {%0, %1, %2, %3}; \n"
-                 : "+f"(elt(4)), "+f"(elt(5)), "+f"(elt(6)), "+f"(elt(7))
-                 : "r"(a.reg(0)), "r"(a.reg(1)), "r"(a.reg(2)), "r"(a.reg(3)),
-                   "r"(b.reg(2)), "r"(b.reg(3)));
+  inline __device__ void mma(const Fragment_a<Layout_a> &a, const Fragment_b<Layout_b> &b) {
+    asm volatile(
+        "mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 \n"
+        "    {%0, %1, %2, %3}, \n"
+        "    {%4, %5, %6, %7}, \n"
+        "    {%8, %9}, \n"
+        "    {%0, %1, %2, %3}; \n"
+        : "+f"(elt(0)), "+f"(elt(1)), "+f"(elt(2)), "+f"(elt(3))
+        : "r"(a.reg(0)), "r"(a.reg(1)), "r"(a.reg(2)), "r"(a.reg(3)), "r"(b.reg(0)), "r"(b.reg(1)));
+    asm volatile(
+        "mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 \n"
+        "    {%0, %1, %2, %3}, \n"
+        "    {%4, %5, %6, %7}, \n"
+        "    {%8, %9}, \n"
+        "    {%0, %1, %2, %3}; \n"
+        : "+f"(elt(4)), "+f"(elt(5)), "+f"(elt(6)), "+f"(elt(7))
+        : "r"(a.reg(0)), "r"(a.reg(1)), "r"(a.reg(2)), "r"(a.reg(3)), "r"(b.reg(2)), "r"(b.reg(3)));
   }
 };
 
@@ -189,11 +180,13 @@ inline __device__ void clear(Fragment (&frag)[M][N]) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Accumulator_type, int WARPS_K> struct Clear_accumulator {};
+template <typename Accumulator_type, int WARPS_K>
+struct Clear_accumulator {};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <int WARPS_K> struct Clear_accumulator<float, WARPS_K> {
+template <int WARPS_K>
+struct Clear_accumulator<float, WARPS_K> {
   template <typename Acc, int M, int N>
   static inline __device__ void apply(Acc (&acc)[M][N], bool = false) {
     fmha::clear(acc);
@@ -203,9 +196,7 @@ template <int WARPS_K> struct Clear_accumulator<float, WARPS_K> {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Acc, typename A, typename B, int M, int N>
-inline __device__ void gemm(Acc (&acc)[M][N], const A (&a)[M],
-                            const B (&b)[N]) {
-
+inline __device__ void gemm(Acc (&acc)[M][N], const A (&a)[M], const B (&b)[N]) {
 #pragma unroll
   for (int mi = 0; mi < M; ++mi) {
 #pragma unroll
@@ -231,7 +222,6 @@ template <
     // The number of warps in the K dimension of the GEMM loop.
     int WARPS_K_>
 struct Cta_tile_ {
-
   enum { M = M_, N = N_, K = K_ };
   // The number of warps.
   enum { WARPS_M = WARPS_M_, WARPS_N = WARPS_N_, WARPS_K = WARPS_K_ };
@@ -245,7 +235,8 @@ struct Cta_tile_ {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename Cta_tile> struct Hmma_tile {
+template <typename Cta_tile>
+struct Hmma_tile {
   // The number of elements computed with a single warp-MMA.
   enum { M_PER_MMA = 16, N_PER_MMA = 16, K_PER_MMA = 16 };
 
@@ -291,11 +282,9 @@ using Cta_tile_extd = Cta_tile_<M, N, K, WARPS_M, WARPS_N, WARPS_K>;
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Cta_tile_>
-using Cta_tile_with_k_with_padding =
-    Cta_tile_extd<Cta_tile_::M, Cta_tile_::N,
-                  Next_power_of_two<Cta_tile_::K>::VALUE, Cta_tile_::WARPS_M,
-                  Cta_tile_::WARPS_N, Cta_tile_::WARPS_K>;
+using Cta_tile_with_k_with_padding = Cta_tile_extd<Cta_tile_::M, Cta_tile_::N, Next_power_of_two<Cta_tile_::K>::VALUE,
+                                                   Cta_tile_::WARPS_M, Cta_tile_::WARPS_N, Cta_tile_::WARPS_K>;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace fmha
+}  // namespace fmha
