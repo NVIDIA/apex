@@ -3,9 +3,7 @@
 #include <cuda_fp16.h>
 #include <torch/extension.h>
 
-
-#define CHECK_CUDA(x)                                                          \
-  TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x)                                                    \
   TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x)                                                         \
@@ -30,11 +28,11 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool is_training, int heads,
                                float dropout_prob) {
   TORCH_CHECK(input.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(input.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   if (use_mask) {
     TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
     TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Half,
-               "Only BYTE is supported");
+                "Only BYTE is supported");
   }
 
   return fwd_cuda(is_training, heads, input,
@@ -50,9 +48,9 @@ torch::Tensor bwd(bool use_mask, int heads, torch::Tensor const &output_grads,
   TORCH_CHECK(softmax_results.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   //  TORCH_CHECK(dropout_mask.scalar_type()      == at::ScalarType::Byte,
   //  "Only BYTE is supported");
 
@@ -79,12 +77,12 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool is_training, int heads,
                                float dropout_prob) {
   TORCH_CHECK(input.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(input.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
 
   if (use_mask) {
     TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
     TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Byte,
-               "Only BYTE is supported");
+                "Only BYTE is supported");
   }
 
   return fwd_cuda(is_training, heads, input,
@@ -102,9 +100,9 @@ torch::Tensor bwd(bool use_mask, int heads, torch::Tensor const &output_grads,
   TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
 
   TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   //  TORCH_CHECK(dropout_mask.scalar_type()      == at::ScalarType::Byte,
   //  "Only BYTE is supported");
 
@@ -152,20 +150,20 @@ fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
   TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
 
   TORCH_CHECK(inputs_q.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(inputs_kv.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights_q.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights_kv.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
 
   if (use_mask) {
     TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
     TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Byte,
-               "Only BYTE is supported");
+                "Only BYTE is supported");
   }
 
   return fwd_cuda(use_time_mask, is_training, heads, inputs_q, inputs_kv,
@@ -198,29 +196,29 @@ bwd(int heads, torch::Tensor const &output_grads,
   TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
 
   TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(matmul2_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(dropout_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_lin_q_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_lin_kv_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(inputs_q.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(inputs_kv.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights_q.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights_kv.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(dropout_mask.scalar_type() == at::ScalarType::Byte,
-             "Only BYTE is supported");
+              "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, matmul2_results, dropout_results,
                   softmax_results, input_lin_q_results, input_lin_kv_results,
@@ -276,24 +274,24 @@ fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
   TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
 
   TORCH_CHECK(inputs_q.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(inputs_kv.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(lyr_nrm_gamma_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(lyr_nrm_beta_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights_q.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights_kv.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
 
   if (use_mask) {
     TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
     TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Byte,
-               "Only BYTE is supported");
+                "Only BYTE is supported");
   }
 
   return fwd_cuda(use_time_mask, is_training, heads, inputs_q, inputs_kv,
@@ -337,41 +335,41 @@ bwd(int heads, torch::Tensor const &output_grads,
   TORCH_CHECK(dropout_add_mask.dim() == 3, "expected 3D tensor");
 
   TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(matmul2_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(dropout_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_lin_q_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_lin_kv_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(lyr_nrm_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(lyr_nrm_mean.scalar_type() == at::ScalarType::Float,
-             "Only FLOAT is supported");
+              "Only FLOAT is supported");
   TORCH_CHECK(lyr_nrm_invvar.scalar_type() == at::ScalarType::Float,
-             "Only FLOAT is supported");
+              "Only FLOAT is supported");
   TORCH_CHECK(inputs_q.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(inputs_kv.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(lyr_nrm_gamma_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(lyr_nrm_beta_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights_q.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights_kv.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(dropout_mask.scalar_type() == at::ScalarType::Byte,
-             "Only BYTE is supported");
+              "Only BYTE is supported");
   TORCH_CHECK(dropout_add_mask.scalar_type() == at::ScalarType::Byte,
-             "Only BYTE is supported");
+              "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, matmul2_results, dropout_results,
                   softmax_results, input_lin_q_results, input_lin_kv_results,
@@ -412,16 +410,16 @@ fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
   TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
 
   TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
 
   if (use_mask) {
     TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
     TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Byte,
-               "Only BYTE is supported");
+                "Only BYTE is supported");
   }
 
   return fwd_cuda(
@@ -448,23 +446,23 @@ bwd(int heads, torch::Tensor const &output_grads,
   TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
 
   TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(matmul2_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(dropout_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_lin_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(dropout_mask.scalar_type() == at::ScalarType::Byte,
-             "Only BYTE is supported");
+              "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, matmul2_results, dropout_results,
                   softmax_results, input_lin_results, inputs, input_weights,
@@ -504,16 +502,16 @@ fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
   TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
 
   TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
 
   if (use_mask) {
     TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
     TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Byte,
-               "Only BYTE is supported");
+                "Only BYTE is supported");
   }
 
   return fwd_cuda(use_time_mask, is_training, heads, inputs, input_weights,
@@ -541,23 +539,23 @@ bwd(int heads, torch::Tensor const &output_grads,
   TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
 
   TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(matmul2_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(dropout_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_lin_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(dropout_mask.scalar_type() == at::ScalarType::Byte,
-             "Only BYTE is supported");
+              "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, matmul2_results, dropout_results,
                   softmax_results, input_lin_results, inputs, input_weights,
@@ -599,17 +597,17 @@ fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
   TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
 
   TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(use_mask, "no mask is not supported");
 
   if (use_mask) {
     TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
     TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Half,
-               "Only Half is supported");
+                "Only Half is supported");
   }
 
   return fwd_cuda(use_time_mask, is_training, heads, inputs, input_weights,
@@ -636,21 +634,21 @@ bwd(int heads, torch::Tensor const &output_grads,
   TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
 
   TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(matmul2_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(dropout_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_lin_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(dropout_mask.scalar_type() == at::ScalarType::Byte,
-             "Only BYTE is supported");
+              "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, matmul2_results, dropout_results,
                   bmm1_results, pad_mask, input_lin_results, inputs,
@@ -698,20 +696,20 @@ fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
   TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
 
   TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(lyr_nrm_gamma_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(lyr_nrm_beta_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
 
   if (use_mask) {
     TORCH_CHECK(pad_mask.dim() == 2, "expected 2D tensor");
     TORCH_CHECK(pad_mask.scalar_type() == at::ScalarType::Byte,
-               "Only BYTE is supported");
+                "Only BYTE is supported");
   }
 
   return fwd_cuda(
@@ -750,35 +748,35 @@ bwd(int heads, torch::Tensor const &output_grads,
   TORCH_CHECK(dropout_add_mask.dim() == 3, "expected 3D tensor");
 
   TORCH_CHECK(output_grads.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(matmul2_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(dropout_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(softmax_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_lin_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(lyr_nrm_results.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(lyr_nrm_mean.scalar_type() == at::ScalarType::Float,
-             "Only FLOAT is supported");
+              "Only FLOAT is supported");
   TORCH_CHECK(lyr_nrm_invvar.scalar_type() == at::ScalarType::Float,
-             "Only FLOAT is supported");
+              "Only FLOAT is supported");
   TORCH_CHECK(inputs.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(lyr_nrm_gamma_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(lyr_nrm_beta_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(input_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(output_weights.scalar_type() == at::ScalarType::Half,
-             "Only HALF is supported");
+              "Only HALF is supported");
   TORCH_CHECK(dropout_mask.scalar_type() == at::ScalarType::Byte,
-             "Only BYTE is supported");
+              "Only BYTE is supported");
   TORCH_CHECK(dropout_add_mask.scalar_type() == at::ScalarType::Byte,
-             "Only BYTE is supported");
+              "Only BYTE is supported");
 
   return bwd_cuda(heads, output_grads, matmul2_results, dropout_results,
                   softmax_results, input_lin_results, lyr_nrm_results,
@@ -794,46 +792,66 @@ bwd(int heads, torch::Tensor const &output_grads,
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("additive_mask_softmax_dropout_forward",
         &multihead_attn::fused_softmax::additive_mask_softmax_dropout::fwd,
-        "Self Multihead Attention masked softmax dropout -- Forward.", 
+        "Self Multihead Attention masked softmax dropout -- Forward.",
         py::call_guard<py::gil_scoped_release>());
   m.def("additive_mask_softmax_dropout_backward",
         &multihead_attn::fused_softmax::additive_mask_softmax_dropout::bwd,
         "Self Multihead Attention masked softmax dropout -- Backward.",
         py::call_guard<py::gil_scoped_release>());
-  m.def("mask_softmax_dropout_forward", &multihead_attn::fused_softmax::mask_softmax_dropout::fwd,
+  m.def("mask_softmax_dropout_forward",
+        &multihead_attn::fused_softmax::mask_softmax_dropout::fwd,
         "Self Multihead Attention masked softmax dropout -- Forward.",
         py::call_guard<py::gil_scoped_release>());
-  m.def("mask_softmax_dropout_backward", &multihead_attn::fused_softmax::mask_softmax_dropout::bwd,
+  m.def("mask_softmax_dropout_backward",
+        &multihead_attn::fused_softmax::mask_softmax_dropout::bwd,
         "Self Multihead Attention masked softmax dropout -- Backward.",
         py::call_guard<py::gil_scoped_release>());
-  m.def("encdec_multihead_attn_forward", &multihead_attn::encdec::cublas_gemmex::fwd,
-        "Encdec Multihead Attention Forward.", py::call_guard<py::gil_scoped_release>());
-  m.def("encdec_multihead_attn_backward", &multihead_attn::encdec::cublas_gemmex::bwd,
-        "Encdec Multihead Attention Backward.", py::call_guard<py::gil_scoped_release>());
-  m.def("encdec_multihead_attn_norm_add_forward", &multihead_attn::encdec_norm_add::cublas_gemmex::fwd,
+  m.def("encdec_multihead_attn_forward",
+        &multihead_attn::encdec::cublas_gemmex::fwd,
+        "Encdec Multihead Attention Forward.",
+        py::call_guard<py::gil_scoped_release>());
+  m.def("encdec_multihead_attn_backward",
+        &multihead_attn::encdec::cublas_gemmex::bwd,
+        "Encdec Multihead Attention Backward.",
+        py::call_guard<py::gil_scoped_release>());
+  m.def("encdec_multihead_attn_norm_add_forward",
+        &multihead_attn::encdec_norm_add::cublas_gemmex::fwd,
         "Encdec Multihead Attention Plus Layer Norm and Residual Add Forward.",
         py::call_guard<py::gil_scoped_release>());
-  m.def(
-      "encdec_multihead_attn_norm_add_backward", &multihead_attn::encdec_norm_add::cublas_gemmex::bwd,
-      "Encdec Multihead Attention Plus Layer Norm and Residual Add Backward.",
-      py::call_guard<py::gil_scoped_release>());
+  m.def("encdec_multihead_attn_norm_add_backward",
+        &multihead_attn::encdec_norm_add::cublas_gemmex::bwd,
+        "Encdec Multihead Attention Plus Layer Norm and Residual Add Backward.",
+        py::call_guard<py::gil_scoped_release>());
   m.def("self_attn_forward", &multihead_attn::self::cublas_gemmex::fwd,
-        "Self Multihead Attention Forward.", py::call_guard<py::gil_scoped_release>());
+        "Self Multihead Attention Forward.",
+        py::call_guard<py::gil_scoped_release>());
   m.def("self_attn_backward", &multihead_attn::self::cublas_gemmex::bwd,
-        "Self Multihead Attention Backward.", py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_bias_forward", &multihead_attn::self_bias::cublas_gemmex::fwd,
-        "Self Multihead Attention with Bias -- Forward.", py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_bias_backward", &multihead_attn::self_bias::cublas_gemmex::bwd,
-        "Self Multihead Attention with Bias -- Backward.", py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_bias_additive_mask_forward", &multihead_attn::self_bias_additive_mask::cublas_gemmex::fwd,
-        "Self Multihead Attention with Bias -- Forward.", py::call_guard<py::gil_scoped_release>());
+        "Self Multihead Attention Backward.",
+        py::call_guard<py::gil_scoped_release>());
+  m.def("self_attn_bias_forward",
+        &multihead_attn::self_bias::cublas_gemmex::fwd,
+        "Self Multihead Attention with Bias -- Forward.",
+        py::call_guard<py::gil_scoped_release>());
+  m.def("self_attn_bias_backward",
+        &multihead_attn::self_bias::cublas_gemmex::bwd,
+        "Self Multihead Attention with Bias -- Backward.",
+        py::call_guard<py::gil_scoped_release>());
+  m.def("self_attn_bias_additive_mask_forward",
+        &multihead_attn::self_bias_additive_mask::cublas_gemmex::fwd,
+        "Self Multihead Attention with Bias -- Forward.",
+        py::call_guard<py::gil_scoped_release>());
   m.def("self_attn_bias_additive_mask_backward",
         &multihead_attn::self_bias_additive_mask::cublas_gemmex::bwd,
-        "Self Multihead Attention with Bias -- Backward.", py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_norm_add_forward", &multihead_attn::self_norm_add::cublas_gemmex::fwd,
-        "Self Multihead Attention Plus Layer Norm and Residual Add Forward.", py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_norm_add_backward", &multihead_attn::self_norm_add::cublas_gemmex::bwd,
-        "Self Multihead Attention Plus Layer Norm and Residual Add Backward.", py::call_guard<py::gil_scoped_release>());
+        "Self Multihead Attention with Bias -- Backward.",
+        py::call_guard<py::gil_scoped_release>());
+  m.def("self_attn_norm_add_forward",
+        &multihead_attn::self_norm_add::cublas_gemmex::fwd,
+        "Self Multihead Attention Plus Layer Norm and Residual Add Forward.",
+        py::call_guard<py::gil_scoped_release>());
+  m.def("self_attn_norm_add_backward",
+        &multihead_attn::self_norm_add::cublas_gemmex::bwd,
+        "Self Multihead Attention Plus Layer Norm and Residual Add Backward.",
+        py::call_guard<py::gil_scoped_release>());
 }
 
 #undef CHECK_CUDA

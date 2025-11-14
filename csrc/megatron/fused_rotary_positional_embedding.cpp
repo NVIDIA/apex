@@ -207,37 +207,47 @@ torch::Tensor bwd_2d(const torch::Tensor &output_grads,
   TORCH_CHECK(cos_h.size(2) == 1, "expected third dim of cos_h/sin_h equals 1");
   TORCH_CHECK(output_grads.size(1) <= cos_h.size(1),
               "expected output_grads' height <= cos_h/sin_h's");
-  TORCH_CHECK(output_grads.size(4) / 2 == cos_h.size(3),
-              "expected cos_h/sin_h's head dim equals output_grads' head dim / 2");
+  TORCH_CHECK(
+      output_grads.size(4) / 2 == cos_h.size(3),
+      "expected cos_h/sin_h's head dim equals output_grads' head dim / 2");
   TORCH_CHECK(cos_w.size(2) == 1, "expected third dim of cos_w/sin_w equals 1");
   TORCH_CHECK(output_grads.size(2) <= cos_w.size(1),
               "expected output_grads' width <= cos_w/sin_w's");
-  TORCH_CHECK(output_grads.size(4) / 2 == cos_w.size(3),
-              "expected cos_w/sin_w's head dim equals output_grads' head dim / 2");
+  TORCH_CHECK(
+      output_grads.size(4) / 2 == cos_w.size(3),
+      "expected cos_w/sin_w's head dim equals output_grads' head dim / 2");
 
   return bwd_2d_cuda(output_grads, cos_h, sin_h, cos_w, sin_w);
 }
 
-}  // end namespace fused_rope
+} // end namespace fused_rope
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &fused_rope::fwd,
-        "Fused Rotary Positional Embedding -- Forward.", py::call_guard<py::gil_scoped_release>());
+        "Fused Rotary Positional Embedding -- Forward.",
+        py::call_guard<py::gil_scoped_release>());
   m.def("backward", &fused_rope::bwd,
-        "Fused Rotary Positional Embedding -- Backward.", py::call_guard<py::gil_scoped_release>());
+        "Fused Rotary Positional Embedding -- Backward.",
+        py::call_guard<py::gil_scoped_release>());
   // cache sin/cos
   m.def("forward_cached", &fused_rope::fwd_cached,
-        "Fused Rotary Positional Embedding Cached -- Forward.", py::call_guard<py::gil_scoped_release>());
+        "Fused Rotary Positional Embedding Cached -- Forward.",
+        py::call_guard<py::gil_scoped_release>());
   m.def("backward_cached", &fused_rope::bwd_cached,
-        "Fused Rotary Positional Embedding Cached -- Backward.", py::call_guard<py::gil_scoped_release>());
+        "Fused Rotary Positional Embedding Cached -- Backward.",
+        py::call_guard<py::gil_scoped_release>());
   // thd
   m.def("forward_thd", &fused_rope::fwd_thd,
-        "Fused Rotary Positional Embedding for thd layout -- Forward.", py::call_guard<py::gil_scoped_release>());
+        "Fused Rotary Positional Embedding for thd layout -- Forward.",
+        py::call_guard<py::gil_scoped_release>());
   m.def("backward_thd", &fused_rope::bwd_thd,
-        "Fused Rotary Positional Embedding for thd layout -- Backward.", py::call_guard<py::gil_scoped_release>());
+        "Fused Rotary Positional Embedding for thd layout -- Backward.",
+        py::call_guard<py::gil_scoped_release>());
   // 2d
   m.def("forward_2d", &fused_rope::fwd_2d,
-        "2D Fused Rotary Positional Embedding -- Forward.", py::call_guard<py::gil_scoped_release>());
+        "2D Fused Rotary Positional Embedding -- Forward.",
+        py::call_guard<py::gil_scoped_release>());
   m.def("backward_2d", &fused_rope::bwd_2d,
-        "2D Fused Rotary Positional Embedding -- Backward.", py::call_guard<py::gil_scoped_release>());
+        "2D Fused Rotary Positional Embedding -- Backward.",
+        py::call_guard<py::gil_scoped_release>());
 }

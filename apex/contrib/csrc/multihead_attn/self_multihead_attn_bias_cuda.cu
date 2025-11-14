@@ -35,7 +35,8 @@ fwd_cuda(bool use_time_mask, bool is_training, int heads,
   const int attn_batches = heads * sequences;
   const int lead_dim = attn_batches * 3 * head_dim;
   const int batch_stride = 3 * head_dim;
-  [[maybe_unused]] const int dropout_elems = attn_batches * q_seq_len * k_seq_len;
+  [[maybe_unused]] const int dropout_elems =
+      attn_batches * q_seq_len * k_seq_len;
   const float alpha = 1.0;
   const float beta_zero = 0.0;
   const float beta_one = 1.0;
@@ -174,7 +175,8 @@ std::vector<torch::Tensor> bwd_cuda(
   const int attn_batches = heads * sequences;
   const int lead_dim = attn_batches * 3 * head_dim;
   const int batch_stride = 3 * head_dim;
-  [[maybe_unused]] const int dropout_elems = attn_batches * q_seq_len * k_seq_len;
+  [[maybe_unused]] const int dropout_elems =
+      attn_batches * q_seq_len * k_seq_len;
   const float alpha = 1.0;
   const float beta = 0.0;
   const float scale = 1.0 / sqrt(static_cast<float>(head_dim));
@@ -234,17 +236,17 @@ std::vector<torch::Tensor> bwd_cuda(
 
   auto output_bias_grads = output_grads.view({-1, embed_dim}).sum(0, false);
   // MatMul2 Dgrad1
-  gemm_switch_fp32accum(
-      a_layout_t, b_layout_n, k_seq_len, q_seq_len, head_dim, alpha,
-      static_cast<const half *>(v_lin_results_ptr), lead_dim, batch_stride,
-      static_cast<const half *>(output_lin_grads.data_ptr()),
-      head_dim * attn_batches, head_dim, beta,
-      static_cast<half *>(matmul2_grads.data_ptr()), k_seq_len,
-      k_seq_len * q_seq_len, attn_batches);
+  gemm_switch_fp32accum(a_layout_t, b_layout_n, k_seq_len, q_seq_len, head_dim,
+                        alpha, static_cast<const half *>(v_lin_results_ptr),
+                        lead_dim, batch_stride,
+                        static_cast<const half *>(output_lin_grads.data_ptr()),
+                        head_dim * attn_batches, head_dim, beta,
+                        static_cast<half *>(matmul2_grads.data_ptr()),
+                        k_seq_len, k_seq_len * q_seq_len, attn_batches);
 
   // Matmul2 Dgrad2
-  gemm_switch_fp32accum(a_layout_n, b_layout_t, head_dim, k_seq_len,
-                        q_seq_len, alpha,
+  gemm_switch_fp32accum(a_layout_n, b_layout_t, head_dim, k_seq_len, q_seq_len,
+                        alpha,
                         static_cast<const half *>(output_lin_grads.data_ptr()),
                         head_dim * attn_batches, head_dim,
                         static_cast<const half *>(dropout_results.data_ptr()),
@@ -262,17 +264,15 @@ std::vector<torch::Tensor> bwd_cuda(
       attn_batches * q_seq_len, stream);
 
   // Matmul1 Dgrad1
-  gemm_switch_fp32accum(a_layout_n, b_layout_n, head_dim, q_seq_len,
-                        k_seq_len, scale, k_lin_results_ptr, lead_dim,
-                        batch_stride,
+  gemm_switch_fp32accum(a_layout_n, b_layout_n, head_dim, q_seq_len, k_seq_len,
+                        scale, k_lin_results_ptr, lead_dim, batch_stride,
                         static_cast<half *>(matmul2_grads.data_ptr()),
                         k_seq_len, k_seq_len * q_seq_len, beta, q_lin_grads_ptr,
                         lead_dim, batch_stride, attn_batches);
 
   // Matmul1 Dgrad2
-  gemm_switch_fp32accum(a_layout_n, b_layout_t, head_dim, k_seq_len,
-                        q_seq_len, scale, q_lin_results_ptr, lead_dim,
-                        batch_stride,
+  gemm_switch_fp32accum(a_layout_n, b_layout_t, head_dim, k_seq_len, q_seq_len,
+                        scale, q_lin_results_ptr, lead_dim, batch_stride,
                         static_cast<half *>(matmul2_grads.data_ptr()),
                         k_seq_len, k_seq_len * q_seq_len, beta, k_lin_grads_ptr,
                         lead_dim, batch_stride, attn_batches);

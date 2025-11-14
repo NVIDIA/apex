@@ -418,4 +418,4 @@ torch::Tensor bwd_2d_cuda(const torch::Tensor &output_grads,
   return input_grads;
 }
 
-}  // end namespace fused_rope
+} // end namespace fused_rope

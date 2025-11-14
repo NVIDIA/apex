@@ -1,31 +1,33 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
- * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES.
+ * All rights reserved. SPDX-License-Identifier: BSD-3-Clause
  */
 #pragma once
 
+#include <cuda_bf16.h>
+#include <cuda_fp16.h>
+#include <cuda_runtime_api.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cuda_runtime_api.h>
-#include <cuda_fp16.h>
-#include <cuda_bf16.h>
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define CHECK_CUDA(call) do { \
-  cudaError_t status_ = call; \
-  if( status_ != cudaSuccess ) { \
-    fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, cudaGetErrorString(status_)); \
-    exit(1); \
-  } \
-} while(0)
+#define CHECK_CUDA(call)                                                       \
+  do {                                                                         \
+    cudaError_t status_ = call;                                                \
+    if (status_ != cudaSuccess) {                                              \
+      fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__,          \
+              cudaGetErrorString(status_));                                    \
+      exit(1);                                                                 \
+    }                                                                          \
+  } while (0)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 static inline __device__ __host__ int div_up(int m, int n) {
-  return (m + n-1) / n;
+  return (m + n - 1) / n;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -41,11 +43,15 @@ static inline __device__ void spin_wait_(int *barrier, int step, int expected) {
   // THE FOLLOWING CODE MUST BE EXECUTED BY A SINGLE THREAD IN THE CTA.
 
   // Update the global counter. Make sure prior writes are visible.
-  asm volatile("red.release.gpu.global.add.s32 [%0], %1;" :: "l"(barrier), "r"(step));
+  asm volatile("red.release.gpu.global.add.s32 [%0], %1;" ::"l"(barrier),
+               "r"(step));
 
-  // Busy wait. We could use found = old + step with old = atomicAdd(...) but it's not faster.
-  for( volatile int found = -1; found != expected; ) {
-    asm volatile("ld.global.acquire.gpu.b32 %0, [%1];" : "=r"(found) : "l"(barrier));
+  // Busy wait. We could use found = old + step with old = atomicAdd(...) but
+  // it's not faster.
+  for (volatile int found = -1; found != expected;) {
+    asm volatile("ld.global.acquire.gpu.b32 %0, [%1];"
+                 : "=r"(found)
+                 : "l"(barrier));
   }
 }
 
@@ -78,11 +84,12 @@ struct Group_sums {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct Group_sums_op {
-  inline __device__ Group_sums operator()(const Group_sums &a, const Group_sums &b) {
+  inline __device__ Group_sums operator()(const Group_sums &a,
+                                          const Group_sums &b) {
     Group_sums dst;
-    dst.sum    = b.flag ? b.sum    : (a.sum    + b.sum);
+    dst.sum = b.flag ? b.sum : (a.sum + b.sum);
     dst.sum_sq = b.flag ? b.sum_sq : (a.sum_sq + b.sum_sq);
-    dst.flag   = a.flag + b.flag;
+    dst.flag = a.flag + b.flag;
     return dst;
   }
 };
@@ -105,7 +112,8 @@ struct Group_norm_nhwc_fwd_params {
   float epsilon;
   // The barriers for the persistent kernel.
   int *barriers;
-  // The extra storage for multi-CTA reductions as well as to pass data to the bwd.
+  // The extra storage for multi-CTA reductions as well as to pass data to the
+  // bwd.
   float *red_buffer, *zeroed_red_buffer;
 
   // The number of instances in the batch.
@@ -137,16 +145,18 @@ struct Group_norm_nhwc_fwd_params {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params&,
+void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &,
                                           size_t &red_buffer_elts);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_sum  (const Group_norm_nhwc_fwd_params&, cudaStream_t);
+void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params &,
+                                        cudaStream_t);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_scale(const Group_norm_nhwc_fwd_params&, cudaStream_t);
+void group_norm_nhwc_fwd_two_passes_scale(const Group_norm_nhwc_fwd_params &,
+                                          cudaStream_t);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -172,7 +182,8 @@ struct Group_norm_nhwc_bwd_params {
   float epsilon;
   // The barriers for the persistent kernel.
   int *barriers;
-  // The extra storage for multi-CTA reductions as well as to pass data to the bwd.
+  // The extra storage for multi-CTA reductions as well as to pass data to the
+  // bwd.
   float *red_buffer, *zeroed_red_buffer;
 
   // The number of instances in the batch.
@@ -204,15 +215,17 @@ struct Group_norm_nhwc_bwd_params {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params&,
+void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params &,
                                           size_t &red_buffer_elts);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_sum  (const Group_norm_nhwc_bwd_params&, cudaStream_t);
+void group_norm_nhwc_bwd_two_passes_sum(const Group_norm_nhwc_bwd_params &,
+                                        cudaStream_t);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_scale(const Group_norm_nhwc_bwd_params&, cudaStream_t);
+void group_norm_nhwc_bwd_two_passes_scale(const Group_norm_nhwc_bwd_params &,
+                                          cudaStream_t);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

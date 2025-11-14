@@ -5,8 +5,9 @@
 // Use 128-bit vectorization
 typedef uint4 vector_t;
 
-#define ASSERT_ALIGNED(DTYPE, PTR)                                              \
-  TORCH_INTERNAL_ASSERT(is_aligned<DTYPE>(PTR), "Tensor " #PTR " is not " #DTYPE " aligned")
+#define ASSERT_ALIGNED(DTYPE, PTR)                                             \
+  TORCH_INTERNAL_ASSERT(is_aligned<DTYPE>(PTR),                                \
+                        "Tensor " #PTR " is not " #DTYPE " aligned")
 
 template <class T> bool is_aligned(const void *ptr) noexcept {
   auto iptr = reinterpret_cast<std::uintptr_t>(ptr);
@@ -163,24 +164,26 @@ std::vector<at::Tensor> focal_loss_forward_cuda(
     const float alpha, const float gamma, const float smoothing_factor) {
   // Checks required for correctness
   TORCH_INTERNAL_ASSERT(cls_output.size(-1) >= num_real_classes,
-             "Incorrect number of real classes.");
+                        "Incorrect number of real classes.");
   TORCH_INTERNAL_ASSERT(cls_targets_at_level.scalar_type() == at::kLong,
-             "Invalid label type.");
+                        "Invalid label type.");
   TORCH_INTERNAL_ASSERT(
       (num_positives_sum.numel() == 1) &&
           (num_positives_sum.scalar_type() == at::kFloat),
       "Expect num_positives_sum to be a float32 tensor with only one element.");
-  TORCH_INTERNAL_ASSERT(cls_output.dim() == cls_targets_at_level.dim() + 1,
-             "Mis-matched dimensions between class output and label.");
+  TORCH_INTERNAL_ASSERT(
+      cls_output.dim() == cls_targets_at_level.dim() + 1,
+      "Mis-matched dimensions between class output and label.");
   for (int64_t i = 0; i < cls_targets_at_level.dim(); i++)
     TORCH_INTERNAL_ASSERT(cls_output.size(i) == cls_targets_at_level.size(i),
-               "Mis-matched shape between class output and label.");
+                          "Mis-matched shape between class output and label.");
 
   // Checks required for better performance
   const int ILP = sizeof(vector_t) / cls_output.element_size();
   ASSERT_ALIGNED(vector_t, cls_output.data_ptr());
-  TORCH_INTERNAL_ASSERT(cls_output.size(-1) % ILP == 0,
-             "Pad number of classes first to take advantage of vectorized load.");
+  TORCH_INTERNAL_ASSERT(
+      cls_output.size(-1) % ILP == 0,
+      "Pad number of classes first to take advantage of vectorized load.");
   TORCH_INTERNAL_ASSERT(num_real_classes >= ILP, "Too few classes.");
 
   int64_t num_classes = cls_output.size(-1);

@@ -1,6 +1,6 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
- * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES.
+ * All rights reserved. SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include <ATen/cuda/CUDAContext.h>
@@ -12,36 +12,36 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define CHECK_CUDA_STATUS(call)                                       \
-  do {                                                                \
-    cudaError_t status_ = call;                                       \
-    if (status_ != cudaSuccess) {                                     \
-      fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, \
-              cudaGetErrorString(status_));                           \
-      exit(1);                                                        \
-    }                                                                 \
+#define CHECK_CUDA_STATUS(call)                                                \
+  do {                                                                         \
+    cudaError_t status_ = call;                                                \
+    if (status_ != cudaSuccess) {                                              \
+      fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__,          \
+              cudaGetErrorString(status_));                                    \
+      exit(1);                                                                 \
+    }                                                                          \
   } while (0)
 
-#define CHECK_CUDA(x) \
+#define CHECK_CUDA(x)                                                          \
   TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
-#define CHECK_CONTIGUOUS(x) \
+#define CHECK_CONTIGUOUS(x)                                                    \
   TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
-#define CHECK_CHANNELS_LAST(x)                                 \
-  TORCH_CHECK(x.is_contiguous(at::MemoryFormat::ChannelsLast), \
+#define CHECK_CHANNELS_LAST(x)                                                 \
+  TORCH_CHECK(x.is_contiguous(at::MemoryFormat::ChannelsLast),                 \
               #x " must be channels last")
-#define CHECK_INPUT(x) \
-  CHECK_CUDA(x);       \
+#define CHECK_INPUT(x)                                                         \
+  CHECK_CUDA(x);                                                               \
   CHECK_CONTIGUOUS(x)
-#define CHECK_NHWC_INPUT(x) \
-  CHECK_CUDA(x);            \
+#define CHECK_NHWC_INPUT(x)                                                    \
+  CHECK_CUDA(x);                                                               \
   CHECK_CHANNELS_LAST(x)
 
 static bool initialized = false;
 static cudaDeviceProp props;
 
 const std::unordered_set<int> supported_c_values = {
-    128,  256,  320,  384,  448,  512,  640,  768,  896,  960,  1024, 1280, 1344,
-    1536, 1792, 1920, 2048, 2240, 2560, 2688, 3072, 3136, 3584, 4096};
+    128,  256,  320,  384,  448,  512,  640,  768,  896,  960,  1024, 1280,
+    1344, 1536, 1792, 1920, 2048, 2240, 2560, 2688, 3072, 3136, 3584, 4096};
 const std::unordered_set<int> supported_groups_values = {16, 32};
 
 std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups,
@@ -285,6 +285,8 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &group_norm_fwd, "NHWC group norm forward", py::call_guard<py::gil_scoped_release>());
-  m.def("backward", &group_norm_bwd, "NHWC group norm backward", py::call_guard<py::gil_scoped_release>());
+  m.def("forward", &group_norm_fwd, "NHWC group norm forward",
+        py::call_guard<py::gil_scoped_release>());
+  m.def("backward", &group_norm_bwd, "NHWC group norm backward",
+        py::call_guard<py::gil_scoped_release>());
 }

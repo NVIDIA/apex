@@ -68,7 +68,8 @@ template <typename T> struct AdagradFunctor {
           r_p[ii] = r_p[ii] - lr * (r_g[ii] / (sqrtf(r_h[ii]) + epsilon));
         } else { // AdamW-style
           r_h[ii] = r_h[ii] + r_g[ii] * r_g[ii];
-          r_p[ii] = r_p[ii] - lr * (r_g[ii] / (sqrtf(r_h[ii]) + epsilon) + weight_decay * r_p[ii]);
+          r_p[ii] = r_p[ii] - lr * (r_g[ii] / (sqrtf(r_h[ii]) + epsilon) +
+                                    weight_decay * r_p[ii]);
         }
       }
 #pragma unroll

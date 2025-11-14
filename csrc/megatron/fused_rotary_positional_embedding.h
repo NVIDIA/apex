@@ -25,11 +25,12 @@
 namespace {
 
 template <typename scalar_t>
-__device__ void fused_rope_block_forward(
-    const scalar_t* src, const float* freqs, scalar_t* dst,
-    const int offset_block, const int offset_block_dst, const int h,
-    const int d, const int d2, const int stride_h, const int stride_d,
-    const int o_stride_h, const int o_stride_d) {
+__device__ void
+fused_rope_block_forward(const scalar_t *src, const float *freqs, scalar_t *dst,
+                         const int offset_block, const int offset_block_dst,
+                         const int h, const int d, const int d2,
+                         const int stride_h, const int stride_d,
+                         const int o_stride_h, const int o_stride_d) {
   int s_id = blockIdx.x;
 #pragma unroll
   for (int d_id = threadIdx.x; d_id < d2; d_id += blockDim.x) {
@@ -64,11 +65,12 @@ __device__ void fused_rope_block_forward(
 }
 
 template <typename scalar_t>
-__device__ void fused_rope_block_backward(
-    const scalar_t* src, const float* freqs, scalar_t* dst,
-    const int offset_block, const int offset_block_dst, const int h,
-    const int d, const int d2, const int stride_h, const int stride_d,
-    const int o_stride_h, const int o_stride_d) {
+__device__ void
+fused_rope_block_backward(const scalar_t *src, const float *freqs,
+                          scalar_t *dst, const int offset_block,
+                          const int offset_block_dst, const int h, const int d,
+                          const int d2, const int stride_h, const int stride_d,
+                          const int o_stride_h, const int o_stride_d) {
   int s_id = blockIdx.x;
 #pragma unroll
   for (int d_id = threadIdx.x; d_id < d2; d_id += blockDim.x) {
@@ -104,13 +106,12 @@ __device__ void fused_rope_block_backward(
 }
 
 template <typename scalar_t>
-__global__ void fused_rope_forward(const int h, const int d, const int d2,
-                                   const int stride_s, const int stride_b,
-                                   const int stride_h, const int stride_d,
-                                   const int o_stride_s, const int o_stride_b,
-                                   const int o_stride_h, const int o_stride_d,
-                                   const scalar_t* src, const float* freqs,
-                                   scalar_t* dst) {
+__global__ void
+fused_rope_forward(const int h, const int d, const int d2, const int stride_s,
+                   const int stride_b, const int stride_h, const int stride_d,
+                   const int o_stride_s, const int o_stride_b,
+                   const int o_stride_h, const int o_stride_d,
+                   const scalar_t *src, const float *freqs, scalar_t *dst) {
   int s_id = blockIdx.x, b_id = blockIdx.y;
   int offset_block = s_id * stride_s + b_id * stride_b;
   int offset_block_dst = s_id * o_stride_s + b_id * o_stride_b;
@@ -119,13 +120,12 @@ __global__ void fused_rope_forward(const int h, const int d, const int d2,
 }
 
 template <typename scalar_t>
-__global__ void fused_rope_backward(const int h, const int d, const int d2,
-                                    const int stride_s, const int stride_b,
-                                    const int stride_h, const int stride_d,
-                                    const int o_stride_s, const int o_stride_b,
-                                    const int o_stride_h, const int o_stride_d,
-                                    const scalar_t* src, const float* freqs,
-                                    scalar_t* dst) {
+__global__ void
+fused_rope_backward(const int h, const int d, const int d2, const int stride_s,
+                    const int stride_b, const int stride_h, const int stride_d,
+                    const int o_stride_s, const int o_stride_b,
+                    const int o_stride_h, const int o_stride_d,
+                    const scalar_t *src, const float *freqs, scalar_t *dst) {
   int s_id = blockIdx.x, b_id = blockIdx.y;
   int offset_block = s_id * stride_s + b_id * stride_b;
   int offset_block_dst = s_id * o_stride_s + b_id * o_stride_b;
@@ -135,8 +135,8 @@ __global__ void fused_rope_backward(const int h, const int d, const int d2,
 
 template <typename scalar_t_0, typename scalar_t_1>
 __device__ void fused_rope_cached_block_forward(
-    const scalar_t_0* src, const scalar_t_1* cos, const scalar_t_1* sin,
-    scalar_t_0* dst, const int s_id, const int offset_block,
+    const scalar_t_0 *src, const scalar_t_1 *cos, const scalar_t_1 *sin,
+    scalar_t_0 *dst, const int s_id, const int offset_block,
     const int offset_block_dst, const int h, const int d, const int d2,
     const int stride_h, const int stride_d, const int o_stride_h,
     const int o_stride_d) {
@@ -173,8 +173,8 @@ __device__ void fused_rope_cached_block_forward(
 
 template <typename scalar_t_0, typename scalar_t_1>
 __device__ void fused_rope_cached_block_backward(
-    const scalar_t_0* src, const scalar_t_1* cos, const scalar_t_1* sin,
-    scalar_t_0* dst, const int s_id, const int offset_block,
+    const scalar_t_0 *src, const scalar_t_1 *cos, const scalar_t_1 *sin,
+    scalar_t_0 *dst, const int s_id, const int offset_block,
     const int offset_block_dst, const int h, const int d, const int d2,
     const int stride_h, const int stride_d, const int o_stride_h,
     const int o_stride_d) {
@@ -216,8 +216,8 @@ __global__ void fused_rope_cached_forward(
     const int h, const int d, const int d2, const int stride_s,
     const int stride_b, const int stride_h, const int stride_d,
     const int o_stride_s, const int o_stride_b, const int o_stride_h,
-    const int o_stride_d, const scalar_t_0* src, const scalar_t_1* cos,
-    const scalar_t_1* sin, scalar_t_0* dst) {
+    const int o_stride_d, const scalar_t_0 *src, const scalar_t_1 *cos,
+    const scalar_t_1 *sin, scalar_t_0 *dst) {
   int s_id = blockIdx.x, b_id = blockIdx.y;
   int offset_block = s_id * stride_s + b_id * stride_b;
   int offset_block_dst = s_id * o_stride_s + b_id * o_stride_b;
@@ -231,8 +231,8 @@ __global__ void fused_rope_cached_backward(
     const int h, const int d, const int d2, const int stride_s,
     const int stride_b, const int stride_h, const int stride_d,
     const int o_stride_s, const int o_stride_b, const int o_stride_h,
-    const int o_stride_d, const scalar_t_0* src, const scalar_t_1* cos,
-    const scalar_t_1* sin, scalar_t_0* dst) {
+    const int o_stride_d, const scalar_t_0 *src, const scalar_t_1 *cos,
+    const scalar_t_1 *sin, scalar_t_0 *dst) {
   int s_id = blockIdx.x, b_id = blockIdx.y;
   int offset_block = s_id * stride_s + b_id * stride_b;
   int offset_block_dst = s_id * o_stride_s + b_id * o_stride_b;
@@ -245,11 +245,12 @@ template <typename scalar_t>
 __global__ void fused_rope_thd_forward(
     const int h, const int d, const int d2, const int stride_t,
     const int stride_h, const int stride_d, const int o_stride_t,
-    const int o_stride_h, const int o_stride_d, const scalar_t* src,
-    const int* cu_seqlens, const float* freqs, scalar_t* dst) {
+    const int o_stride_h, const int o_stride_d, const scalar_t *src,
+    const int *cu_seqlens, const float *freqs, scalar_t *dst) {
   int s_id = blockIdx.x, b_id = blockIdx.y;
   int t_id = s_id + cu_seqlens[b_id];
-  if (t_id >= cu_seqlens[b_id + 1]) return;
+  if (t_id >= cu_seqlens[b_id + 1])
+    return;
   int offset_block = t_id * stride_t;
   int offset_block_dst = t_id * o_stride_t;
   fused_rope_block_forward(src, freqs, dst, offset_block, offset_block_dst, h,
@@ -260,11 +261,12 @@ template <typename scalar_t>
 __global__ void fused_rope_thd_backward(
     const int h, const int d, const int d2, const int stride_t,
     const int stride_h, const int stride_d, const int o_stride_t,
-    const int o_stride_h, const int o_stride_d, const scalar_t* src,
-    const int* cu_seqlens, const float* freqs, scalar_t* dst) {
+    const int o_stride_h, const int o_stride_d, const scalar_t *src,
+    const int *cu_seqlens, const float *freqs, scalar_t *dst) {
   int s_id = blockIdx.x, b_id = blockIdx.y;
   int t_id = s_id + cu_seqlens[b_id];
-  if (t_id >= cu_seqlens[b_id + 1]) return;
+  if (t_id >= cu_seqlens[b_id + 1])
+    return;
   int offset_block = t_id * stride_t;
   int offset_block_dst = t_id * o_stride_t;
   fused_rope_block_backward(src, freqs, dst, offset_block, offset_block_dst, h,
@@ -276,21 +278,21 @@ __global__ void fused_rope_2d_forward(
     const int ih, const int iw, const int h, const int d, const int stride_b,
     const int stride_ih, const int stride_iw, const int stride_h,
     const int stride_d, const int o_stride_b, const int o_stride_s,
-    const int o_stride_h, const int o_stride_d, const scalar_t_0* src,
-    const scalar_t_1* cos_h, const scalar_t_1* sin_h, const scalar_t_1* cos_w,
-    const scalar_t_1* sin_w, scalar_t_0* dst) {
+    const int o_stride_h, const int o_stride_d, const scalar_t_0 *src,
+    const scalar_t_1 *cos_h, const scalar_t_1 *sin_h, const scalar_t_1 *cos_w,
+    const scalar_t_1 *sin_w, scalar_t_0 *dst) {
   int ih_id = blockIdx.x, iw_id = blockIdx.y, b_id = blockIdx.z;
   // apply to height
   int offset_block = b_id * stride_b + ih_id * stride_ih + iw_id * stride_iw;
   int offset_block_dst = b_id * o_stride_b + (ih_id * iw + iw_id) * o_stride_s;
-  int s_id = ih_id;  // for cos_h and sin_h
+  int s_id = ih_id; // for cos_h and sin_h
   fused_rope_cached_block_forward(src, cos_h, sin_h, dst, s_id, offset_block,
                                   offset_block_dst, h, d / 2, d / 2, stride_h,
                                   stride_d, o_stride_h, o_stride_d);
   // apply to width
   offset_block += d / 2 * stride_d;
   offset_block_dst += d / 2 * o_stride_d;
-  s_id = iw_id;  // for cos_w and sin_w
+  s_id = iw_id; // for cos_w and sin_w
   fused_rope_cached_block_forward(src, cos_w, sin_w, dst, s_id, offset_block,
                                   offset_block_dst, h, d / 2, d / 2, stride_h,
                                   stride_d, o_stride_h, o_stride_d);
@@ -301,27 +303,27 @@ __global__ void fused_rope_2d_backward(
     const int ih, const int iw, const int h, const int d, const int stride_b,
     const int stride_ih, const int stride_iw, const int stride_h,
     const int stride_d, const int o_stride_b, const int o_stride_s,
-    const int o_stride_h, const int o_stride_d, const scalar_t_0* src,
-    const scalar_t_1* cos_h, const scalar_t_1* sin_h, const scalar_t_1* cos_w,
-    const scalar_t_1* sin_w, scalar_t_0* dst) {
+    const int o_stride_h, const int o_stride_d, const scalar_t_0 *src,
+    const scalar_t_1 *cos_h, const scalar_t_1 *sin_h, const scalar_t_1 *cos_w,
+    const scalar_t_1 *sin_w, scalar_t_0 *dst) {
   int ih_id = blockIdx.x, iw_id = blockIdx.y, b_id = blockIdx.z;
   // apply to height
   int offset_block = b_id * stride_b + ih_id * stride_ih + iw_id * stride_iw;
   int offset_block_dst = b_id * o_stride_b + (ih_id * iw + iw_id) * o_stride_s;
-  int s_id = ih_id;  // for cos_h and sin_h
+  int s_id = ih_id; // for cos_h and sin_h
   fused_rope_cached_block_backward(src, cos_h, sin_h, dst, s_id, offset_block,
                                    offset_block_dst, h, d / 2, d / 2, stride_h,
                                    stride_d, o_stride_h, o_stride_d);
   // apply to width
   offset_block += d / 2 * stride_d;
   offset_block_dst += d / 2 * o_stride_d;
-  s_id = iw_id;  // for cos_w and sin_w
+  s_id = iw_id; // for cos_w and sin_w
   fused_rope_cached_block_backward(src, cos_w, sin_w, dst, s_id, offset_block,
                                    offset_block_dst, h, d / 2, d / 2, stride_h,
                                    stride_d, o_stride_h, o_stride_d);
 }
 
-}  // end of anonymous namespace
+} // end of anonymous namespace
 
 template <typename scalar_t>
 void dispatch_fused_rope_forward(const int s, const int b, const int h,
@@ -329,8 +331,8 @@ void dispatch_fused_rope_forward(const int s, const int b, const int h,
                                  const int stride_b, const int stride_h,
                                  const int stride_d, const int o_stride_s,
                                  const int o_stride_b, const int o_stride_h,
-                                 const int o_stride_d, const scalar_t* input,
-                                 const float* freqs, scalar_t* output) {
+                                 const int o_stride_d, const scalar_t *input,
+                                 const float *freqs, scalar_t *output) {
   auto stream = at::cuda::getCurrentCUDAStream();
 
   int warps_per_block = h < 16 ? 4 : 8;
@@ -350,8 +352,8 @@ void dispatch_fused_rope_backward(const int s, const int b, const int h,
                                   const int stride_d, const int o_stride_s,
                                   const int o_stride_b, const int o_stride_h,
                                   const int o_stride_d,
-                                  const scalar_t* output_grads,
-                                  const float* freqs, scalar_t* input_grads) {
+                                  const scalar_t *output_grads,
+                                  const float *freqs, scalar_t *input_grads) {
   auto stream = at::cuda::getCurrentCUDAStream();
 
   int warps_per_block = h < 16 ? 4 : 8;
@@ -369,8 +371,8 @@ void dispatch_fused_rope_cached_forward(
     const int s, const int b, const int h, const int d, const int d2,
     const int stride_s, const int stride_b, const int stride_h,
     const int stride_d, const int o_stride_s, const int o_stride_b,
-    const int o_stride_h, const int o_stride_d, const scalar_t_0* input,
-    const scalar_t_1* cos, const scalar_t_1* sin, scalar_t_0* output) {
+    const int o_stride_h, const int o_stride_d, const scalar_t_0 *input,
+    const scalar_t_1 *cos, const scalar_t_1 *sin, scalar_t_0 *output) {
   auto stream = at::cuda::getCurrentCUDAStream();
 
   int warps_per_block = h < 16 ? 4 : 8;
@@ -388,8 +390,8 @@ void dispatch_fused_rope_cached_backward(
     const int s, const int b, const int h, const int d, const int d2,
     const int stride_s, const int stride_b, const int stride_h,
     const int stride_d, const int o_stride_s, const int o_stride_b,
-    const int o_stride_h, const int o_stride_d, const scalar_t_0* output_grads,
-    const scalar_t_1* cos, const scalar_t_1* sin, scalar_t_0* input_grads) {
+    const int o_stride_h, const int o_stride_d, const scalar_t_0 *output_grads,
+    const scalar_t_1 *cos, const scalar_t_1 *sin, scalar_t_0 *input_grads) {
   auto stream = at::cuda::getCurrentCUDAStream();
 
   int warps_per_block = h < 16 ? 4 : 8;
@@ -408,9 +410,9 @@ void dispatch_fused_rope_thd_forward(const int max_s, const int b, const int h,
                                      const int stride_t, const int stride_h,
                                      const int stride_d, const int o_stride_t,
                                      const int o_stride_h, const int o_stride_d,
-                                     const scalar_t* input,
-                                     const int* cu_seqlens, const float* freqs,
-                                     scalar_t* output) {
+                                     const scalar_t *input,
+                                     const int *cu_seqlens, const float *freqs,
+                                     scalar_t *output) {
   auto stream = at::cuda::getCurrentCUDAStream();
 
   int warps_per_block = h < 16 ? 4 : 8;
@@ -428,8 +430,8 @@ void dispatch_fused_rope_thd_backward(
     const int max_s, const int b, const int h, const int d, const int d2,
     const int stride_t, const int stride_h, const int stride_d,
     const int o_stride_t, const int o_stride_h, const int o_stride_d,
-    const scalar_t* output_grads, const int* cu_seqlens, const float* freqs,
-    scalar_t* input_grads) {
+    const scalar_t *output_grads, const int *cu_seqlens, const float *freqs,
+    scalar_t *input_grads) {
   auto stream = at::cuda::getCurrentCUDAStream();
 
   int warps_per_block = h < 16 ? 4 : 8;
@@ -448,8 +450,8 @@ void dispatch_fused_rope_2d_forward(
     const int stride_b, const int stride_ih, const int stride_iw,
     const int stride_h, const int stride_d, const int o_stride_b,
     const int o_stride_s, const int o_stride_h, const int o_stride_d,
-    const scalar_t_0* input, const scalar_t_1* cos_h, const scalar_t_1* sin_h,
-    const scalar_t_1* cos_w, const scalar_t_1* sin_w, scalar_t_0* output) {
+    const scalar_t_0 *input, const scalar_t_1 *cos_h, const scalar_t_1 *sin_h,
+    const scalar_t_1 *cos_w, const scalar_t_1 *sin_w, scalar_t_0 *output) {
   auto stream = at::cuda::getCurrentCUDAStream();
 
   int warps_per_block = h < 16 ? 4 : 8;
@@ -469,9 +471,9 @@ void dispatch_fused_rope_2d_backward(
     const int stride_b, const int stride_ih, const int stride_iw,
     const int stride_h, const int stride_d, const int o_stride_b,
     const int o_stride_s, const int o_stride_h, const int o_stride_d,
-    const scalar_t_0* output_grads, const scalar_t_1* cos_h,
-    const scalar_t_1* sin_h, const scalar_t_1* cos_w, const scalar_t_1* sin_w,
-    scalar_t_0* input_grads) {
+    const scalar_t_0 *output_grads, const scalar_t_1 *cos_h,
+    const scalar_t_1 *sin_h, const scalar_t_1 *cos_w, const scalar_t_1 *sin_w,
+    scalar_t_0 *input_grads) {
   auto stream = at::cuda::getCurrentCUDAStream();
 
   int warps_per_block = h < 16 ? 4 : 8;

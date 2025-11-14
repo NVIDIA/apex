@@ -1,8 +1,8 @@
 #pragma once
-#include <cuda.h>
-#include <cuda_runtime.h>
 #include <ATen/ATen.h>
 #include <ATen/cuda/DeviceUtils.cuh>
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 namespace {
 template <typename U>
@@ -454,7 +454,6 @@ cuComputeGradGammaBeta(const U *part_grad_gamma, const U *part_grad_beta,
     }
   }
 }
-
 
 template <typename T, typename U>
 __global__ void
