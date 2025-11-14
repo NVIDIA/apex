@@ -208,6 +208,7 @@ class GroupNormTest(unittest.TestCase):
             [8, 1920, 32, 32],
             [8, 1920, 16, 16],
             [8, 2560, 8, 8],
+            [1, 128, 16128, 1200],
         ]
         for sz in sizes:
             n, c, h, w = sz
