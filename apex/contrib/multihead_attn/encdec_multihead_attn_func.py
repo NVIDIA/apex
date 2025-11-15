@@ -21,6 +21,13 @@ class EncdecAttnFunc(torch.autograd.Function):
         mask,
         dropout_prob,
     ):
+        from apex import deprecated_warning
+        deprecated_warning(
+            "`apex.contrib.multihead_attn` is deprecated and will be removed in March 2026. "
+            "We encourage you to migrate to PyTorch native MultiheadAttention"
+            "The documentation is available in https://docs.pytorch.org/docs/main/generated/torch.nn.MultiheadAttention.html"
+        )
+
         use_biases_t = torch.tensor([input_biases_q is not None])
         heads_t = torch.tensor([heads])
         scale_t = torch.tensor([scale])
