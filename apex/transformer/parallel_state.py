@@ -427,7 +427,21 @@ def initialize_model_parallel(
     else:
         os.environ["NCCL_NET"] = default_nccl_net
 
-def get_rank_info() -> Tuple[int, int, int]:
+def get_world_info() -> Tuple[int, int, int, int]:
+    """Returns a tuple of (data, tensor, pipeline, virtual pipeline)-parallel-world_size for logger."""
+    if model_parallel_is_initialized():
+        return (
+            get_data_parallel_world_size(),
+            get_tensor_model_parallel_world_size(),
+            get_pipeline_model_parallel_world_size(),
+            get_virtual_pipeline_model_parallel_world_size(),
+        )
+    else:
+        warnings.warn("model and data parallel groups are not initialized. Have you called `parallel_state.initialize_model_parallel`?")
+    return (0, 0, 0, 0)
+
+
+def get_rank_info() -> Tuple[int, int, int, int]:
     """Returns a tuple of (data, tensor, pipeline, virtual pipeline)-parallel-rank for logger."""
     if model_parallel_is_initialized():
         return (
@@ -436,7 +450,9 @@ def get_rank_info() -> Tuple[int, int, int]:
             get_pipeline_model_parallel_rank(),
             get_virtual_pipeline_model_parallel_rank(),
         )
-    return (0, 0, 0, 0)
+    else:
+        warnings.warn("model and data parallel groups are not initialized. Have you called `parallel_state.initialize_model_parallel`?")
+    return (-1, -1, -1, -1)
 
 
 def model_parallel_is_initialized():
