@@ -75,7 +75,7 @@ std::vector<at::Tensor> mlp_forward(int use_bias, int activation, std::vector<at
         b_ptr.push_back(inputs[i + 1 + num_layers].data_ptr<scalar_t>());
       }
     }
-    auto result = mlp_fp<scalar_t>(
+    [[maybe_unused]] auto result = mlp_fp<scalar_t>(
         inputs[0].data_ptr<scalar_t>(),
         input_features,
         batch_size,
@@ -137,7 +137,7 @@ std::vector<at::Tensor> mlp_backward(
     // auto work_space = at::empty({work_size*4}, at::kByte);
     auto work_space = at::empty({static_cast<long>(work_size / sizeof(scalar_t))}, inputs[0].type());
 
-    auto result = mlp_bp<scalar_t>(
+    [[maybe_unused]] auto result = mlp_bp<scalar_t>(
         inputs[0].data_ptr<scalar_t>(),
         fprop_outputs[0].data_ptr<scalar_t>(),
         input_features,
