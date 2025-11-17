@@ -27,10 +27,10 @@ at::Tensor linear_bias_forward(at::Tensor input, at::Tensor weight, at::Tensor b
   //auto reserved_size = get_mlp_reserved_space(batch_size, num_layers, output_features.data());
 
   // create output/workspace tensor
-  auto out = at::empty({batch_size, out_features}, input.type());
-  //auto reserved_space = at::empty({reserved_size}, inputs[0].type());
+  auto out = at::empty({batch_size, out_features}, input.options());
+  //auto reserved_space = at::empty({reserved_size}, inputs[0].options());
   // allocate fixed 4MB workspace for cublaslt for now, and this gets at least 4 MB
-  auto lt_workspace = at::empty({1 << 22}, input.type());
+  auto lt_workspace = at::empty({1 << 22}, input.options());
 
   AT_DISPATCH_FLOATING_TYPES_AND2(at::ScalarType::Half, at::ScalarType::BFloat16, input.scalar_type(), "linear_bias_forward", [&] {
     scalar_t* w_ptr = weight.data_ptr<scalar_t>();
@@ -61,16 +61,16 @@ std::vector<at::Tensor> linear_bias_backward(at::Tensor input, at::Tensor weight
   //auto reserved_size = get_mlp_reserved_space(batch_size, num_layers, output_features.data());
 
   // create output/workspace tensor
-  auto d_weight = at::empty({out_features, in_features}, input.type());
+  auto d_weight = at::empty({out_features, in_features}, input.options());
 #if defined(CUBLAS_VERSION) && CUBLAS_VERSION < 11600
   auto d_bias = d_output.view({-1, out_features}).sum(0, false);
 #else                                                                              
-  auto d_bias = at::empty({out_features}, input.type());
+  auto d_bias = at::empty({out_features}, input.options());
 #endif                                                                              
-  auto d_input = at::empty({batch_size, in_features}, input.type());
-  //auto reserved_space = at::empty({reserved_size}, inputs[0].type());
+  auto d_input = at::empty({batch_size, in_features}, input.options());
+  //auto reserved_space = at::empty({reserved_size}, inputs[0].options());
   // allocate fixed 4MB workspace for cublaslt for now, and this gets at least 4 MB
-  auto lt_workspace = at::empty({1 << 22}, input.type());
+  auto lt_workspace = at::empty({1 << 22}, input.options());
 
   AT_DISPATCH_FLOATING_TYPES_AND2(at::ScalarType::Half, at::ScalarType::BFloat16, input.scalar_type(), "linear_bias_backward", [&] {
     scalar_t* w_ptr = weight.data_ptr<scalar_t>();
@@ -103,12 +103,12 @@ std::vector<at::Tensor> linear_gelu_linear_forward(at::Tensor input, at::Tensor 
   //auto reserved_size = get_mlp_reserved_space(batch_size, num_layers, output_features.data());
 
   // create output/workspace tensor
-  auto output1 = at::empty({batch_size, hidden_features}, input.type());
-  auto gelu_in = at::empty({batch_size, hidden_features}, input.type());
-  auto output2 = at::empty({batch_size, out_features}, input.type());
-  //auto reserved_space = at::empty({reserved_size}, inputs[0].type());
+  auto output1 = at::empty({batch_size, hidden_features}, input.options());
+  auto gelu_in = at::empty({batch_size, hidden_features}, input.options());
+  auto output2 = at::empty({batch_size, out_features}, input.options());
+  //auto reserved_space = at::empty({reserved_size}, inputs[0].options());
   // allocate fixed 4MB workspace for cublaslt for now, and this gets at least 4 MB
-  auto lt_workspace = at::empty({1 << 22}, input.type());
+  auto lt_workspace = at::empty({1 << 22}, input.options());
 
   AT_DISPATCH_FLOATING_TYPES_AND2(at::ScalarType::Half, at::ScalarType::BFloat16, input.scalar_type(), "linear_gelu_linear_forward", [&] {
     scalar_t* w1_ptr = weight1.data_ptr<scalar_t>();
@@ -146,15 +146,15 @@ std::vector<at::Tensor> linear_gelu_linear_backward(at::Tensor input, at::Tensor
   //auto reserved_size = get_mlp_reserved_space(batch_size, num_layers, output_features.data());
 
   // create output/workspace tensor
-  auto d_weight1 = at::empty({hidden_features, in_features}, input.type());
-  auto d_weight2 = at::empty({out_features, hidden_features}, input.type());
-  auto d_bias1 = at::empty({hidden_features}, input.type());
-  auto d_bias2 = at::empty({out_features}, input.type());
-  auto d_input = at::empty({batch_size, in_features}, input.type());
-  auto d_output1 = at::empty({batch_size, hidden_features}, input.type());
-  //auto reserved_space = at::empty({reserved_size}, inputs[0].type());
+  auto d_weight1 = at::empty({hidden_features, in_features}, input.options());
+  auto d_weight2 = at::empty({out_features, hidden_features}, input.options());
+  auto d_bias1 = at::empty({hidden_features}, input.options());
+  auto d_bias2 = at::empty({out_features}, input.options());
+  auto d_input = at::empty({batch_size, in_features}, input.options());
+  auto d_output1 = at::empty({batch_size, hidden_features}, input.options());
+  //auto reserved_space = at::empty({reserved_size}, inputs[0].options());
   // allocate fixed 4MB workspace for cublaslt for now, and this gets at least 4 MB
-  auto lt_workspace = at::empty({1 << 22}, input.type());
+  auto lt_workspace = at::empty({1 << 22}, input.options());
 
   AT_DISPATCH_FLOATING_TYPES_AND2(at::ScalarType::Half, at::ScalarType::BFloat16, input.scalar_type(), "linear_bias_backward", [&] {
 
