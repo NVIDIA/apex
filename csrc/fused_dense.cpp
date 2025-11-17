@@ -35,7 +35,7 @@ at::Tensor linear_bias_forward(at::Tensor input, at::Tensor weight, at::Tensor b
   AT_DISPATCH_FLOATING_TYPES_AND2(at::ScalarType::Half, at::ScalarType::BFloat16, input.scalar_type(), "linear_bias_forward", [&] {
     scalar_t* w_ptr = weight.data_ptr<scalar_t>();
     scalar_t* b_ptr = bias.data_ptr<scalar_t>();
-    auto result = linear_bias_forward_cuda<scalar_t>(
+    [[maybe_unused]] auto result = linear_bias_forward_cuda<scalar_t>(
         input,
         w_ptr,
         bias,
@@ -75,7 +75,7 @@ std::vector<at::Tensor> linear_bias_backward(at::Tensor input, at::Tensor weight
   AT_DISPATCH_FLOATING_TYPES_AND2(at::ScalarType::Half, at::ScalarType::BFloat16, input.scalar_type(), "linear_bias_backward", [&] {
     scalar_t* w_ptr = weight.data_ptr<scalar_t>();
     scalar_t* d_b_ptr = d_bias.data_ptr<scalar_t>();
-    auto result = linear_bias_backward_cuda<scalar_t>(
+    [[maybe_unused]] auto result = linear_bias_backward_cuda<scalar_t>(
         input.data_ptr<scalar_t>(),
         w_ptr,
         d_output.data_ptr<scalar_t>(),
@@ -115,7 +115,7 @@ std::vector<at::Tensor> linear_gelu_linear_forward(at::Tensor input, at::Tensor 
     scalar_t* b1_ptr = bias1.data_ptr<scalar_t>();
     scalar_t* w2_ptr = weight2.data_ptr<scalar_t>();
     scalar_t* b2_ptr = bias2.data_ptr<scalar_t>();
-    auto result = linear_gelu_linear_forward_cuda<scalar_t>(
+    [[maybe_unused]] auto result = linear_gelu_linear_forward_cuda<scalar_t>(
         input.data_ptr<scalar_t>(),
         w1_ptr,
         b1_ptr,
@@ -160,7 +160,7 @@ std::vector<at::Tensor> linear_gelu_linear_backward(at::Tensor input, at::Tensor
 
     //scalar_t* w_ptr = weight.data_ptr<scalar_t>();
     //scalar_t* d_b_ptr = d_bias.data_ptr<scalar_t>();
-    auto result = linear_gelu_linear_backward_cuda<scalar_t>(
+    [[maybe_unused]] auto result = linear_gelu_linear_backward_cuda<scalar_t>(
         input.data_ptr<scalar_t>(),
         gelu_in.data_ptr<scalar_t>(),
         output1.data_ptr<scalar_t>(),
