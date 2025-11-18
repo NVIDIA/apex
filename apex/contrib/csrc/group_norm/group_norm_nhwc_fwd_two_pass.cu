@@ -2,11 +2,13 @@
  * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  */
+#include <assert.h>
+
+#include <cub/cub.cuh>
+
 #include "group_norm_nhwc.h"
 #include "macros.h"
 #include "traits.h"
-#include <assert.h>
-#include <cub/cub.cuh>
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -14,9 +16,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template< typename Traits_, int THREADS_PER_BLOCK >
+template <typename Traits_, int THREADS_PER_BLOCK>
 __global__ void group_norm_nhwc_fwd_sum_kernel(Group_norm_nhwc_fwd_params params) {
-
   // The traits.
   using Traits = Traits_;
   // The IO traits.
@@ -43,21 +44,20 @@ __global__ void group_norm_nhwc_fwd_sum_kernel(Group_norm_nhwc_fwd_params params
   // The first activation loaded by that block.
   int hw_begin = blockIdx.y * params.acts_per_block;
   // The last activation loaded by that block.
-  int hw_end = min((int64_t) hw_begin + params.acts_per_block, params.hw);
+  int hw_end = min((int64_t)hw_begin + params.acts_per_block, params.hw);
 
   // The sums.
   float sum = 0.f, sum_sq = 0.f;
 
   // Iterate over the activations to compute the sums.
-  for( int hwi = hw_begin; hwi < hw_end; ++hwi ) {
-
+  for (int hwi = hw_begin; hwi < hw_end; ++hwi) {
     // The offset.
-    int64_t offset = (int64_t) ni*params.hwc + hwi*params.c + ci;
+    int64_t offset = (int64_t)ni * params.hwc + hwi * params.c + ci;
 
     // Fetch two channels per thread.
     IOType2 v2 = IOTraits::zero();
-    if( ci < params.c ) {
-      v2  = *reinterpret_cast<const IOType2*>(&reinterpret_cast<const IOType*>(params.x )[offset]);
+    if (ci < params.c) {
+      v2 = *reinterpret_cast<const IOType2 *>(&reinterpret_cast<const IOType *>(params.x)[offset]);
     }
 
     // Extract the two values.
@@ -74,14 +74,14 @@ __global__ void group_norm_nhwc_fwd_sum_kernel(Group_norm_nhwc_fwd_params params
   int cj = threadIdx.x * 2 - params.channels_per_group * gj;
 
   // The data for the summations.
-  Group_sums inp {cj == 0 ? 1 : 0, sum, sum_sq};
+  Group_sums inp{cj == 0 ? 1 : 0, sum, sum_sq};
 
   // Do the segmented scan.
   Group_sums out;
   Block_scan(temp_storage).InclusiveScan(inp, out, Group_sums_op());
 
   // Store the results for the groups in shared memory (to produce coalesced stores later).
-  if( cj == params.channels_per_group - 2 /* 2 channels per thread */ ) {
+  if (cj == params.channels_per_group - 2 /* 2 channels per thread */) {
     smem[gj] = make_float2(out.sum, out.sum_sq);
   }
 
@@ -92,7 +92,7 @@ __global__ void group_norm_nhwc_fwd_sum_kernel(Group_norm_nhwc_fwd_params params
   int gk = blockIdx.x * params.groups_per_block + threadIdx.x;
 
   // Threads that have nothing left to do, exit.
-  if( threadIdx.x >= params.groups_per_block || gk >= params.groups ) {
+  if (threadIdx.x >= params.groups_per_block || gk >= params.groups) {
     return;
   }
 
@@ -100,29 +100,27 @@ __global__ void group_norm_nhwc_fwd_sum_kernel(Group_norm_nhwc_fwd_params params
   float2 sums = smem[threadIdx.x];
 
   // Store to global memory.
-  atomicAdd(&params.zeroed_red_buffer[(2*ni+0)*params.groups + gk], sums.x);
-  atomicAdd(&params.zeroed_red_buffer[(2*ni+1)*params.groups + gk], sums.y);
+  atomicAdd(&params.zeroed_red_buffer[(2 * ni + 0) * params.groups + gk], sums.x);
+  atomicAdd(&params.zeroed_red_buffer[(2 * ni + 1) * params.groups + gk], sums.y);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &params,
-                                          size_t &zeroed_red_buffer_elts) {
-
+void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &params, size_t &zeroed_red_buffer_elts) {
   // The pre-computed dimensions.
-  params.hw  = params.h * params.w;
+  params.hw = params.h * params.w;
   params.hwc = params.c * params.hw;
 
   // The number of channels per group.
   params.channels_per_group = params.c / params.groups;
   // The inverse to compute the mean/variance.
-  params.inv_hwc_per_group = 1.f / (float) (params.hw * params.channels_per_group);
+  params.inv_hwc_per_group = 1.f / (float)(params.hw * params.channels_per_group);
 
   // Define the number of blocks per activation map. That's a simple heuristic.
   int blocks_per_act_slice = 0;
-         if( params.c >= 1280 ) {
+  if (params.c >= 1280) {
     blocks_per_act_slice = 128 / params.n;
-  } else if( params.c >= 640 ) {
+  } else if (params.c >= 640) {
     blocks_per_act_slice = 256 / params.n;
   } else {
     blocks_per_act_slice = 512 / params.n;
@@ -136,15 +134,14 @@ void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &params,
   // The number of channels per block.
   params.channels_per_block = 320;
   // Special case to deal with 30 channels per group.
-  if( params.channels_per_block % params.channels_per_group != 0 ) {
+  if (params.channels_per_block % params.channels_per_group != 0) {
     params.channels_per_block = 240;
   }
 
   // Special case to deal with 70 channels per group.
-  if( params.c == 2240 ) {
+  if (params.c == 2240) {
     params.channels_per_block = 280;
-  }
-  else if (params.c == 832){
+  } else if (params.c == 832) {
     params.channels_per_block = 208;
   }
 
@@ -180,9 +177,7 @@ void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &params,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params &params,
-                                        cudaStream_t stream) {
-
+void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params &params, cudaStream_t stream) {
   // The dimension of the grid.
   dim3 grid;
 
@@ -220,9 +215,8 @@ void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params &params
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template< typename Traits_, int THREADS_PER_BLOCK >
+template <typename Traits_, int THREADS_PER_BLOCK>
 __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params params) {
-
   // The traits.
   using Traits = Traits_;
   // The IO traits.
@@ -249,18 +243,16 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
 
   // Load the sum and sum of squares for the group.
   float sum = 0.f, sum_sq = 0.f;
-  if( gi < params.groups ) {
-    sum    = params.zeroed_red_buffer[(2*ni+0)*params.groups + gi];
-    sum_sq = params.zeroed_red_buffer[(2*ni+1)*params.groups + gi];
+  if (gi < params.groups) {
+    sum = params.zeroed_red_buffer[(2 * ni + 0) * params.groups + gi];
+    sum_sq = params.zeroed_red_buffer[(2 * ni + 1) * params.groups + gi];
   }
 
   // Load gamma/beta.
   float2 gamma_f2, beta_f2;
-  if( ci < params.c ) {
-    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(
-      &reinterpret_cast<const WType*>(params.gamma)[ci]));
-    beta_f2  = WTraits::unpack(*reinterpret_cast<const WType2*>(
-      &reinterpret_cast<const WType*>(params.beta) [ci]));
+  if (ci < params.c) {
+    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.gamma)[ci]));
+    beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.beta)[ci]));
   }
 
   // Compute the mean.
@@ -273,18 +265,17 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
   // The first activation loaded by that block.
   int hw_begin = blockIdx.y * params.acts_per_block;
   // The last activation loaded by that block.
-  int hw_end = min((int64_t) hw_begin + params.acts_per_block, params.hw);
+  int hw_end = min((int64_t)hw_begin + params.acts_per_block, params.hw);
 
   // Iterate over the activations to compute the sums.
-  for( int hwi = hw_begin; hwi < hw_end; ++hwi ) {
-
+  for (int hwi = hw_begin; hwi < hw_end; ++hwi) {
     // The src/dst offset.
-    int64_t offset = (int64_t) ni*params.hwc + hwi*params.c + ci;
+    int64_t offset = (int64_t)ni * params.hwc + hwi * params.c + ci;
 
     // Fetch two channels per thread.
     IOType2 v2 = IOTraits::zero();
-    if( ci < params.c ) {
-      v2  = *reinterpret_cast<const IOType2*>(&reinterpret_cast<const IOType*>(params.x )[offset]);
+    if (ci < params.c) {
+      v2 = *reinterpret_cast<const IOType2 *>(&reinterpret_cast<const IOType *>(params.x)[offset]);
     }
 
     // Extract the two values.
@@ -299,31 +290,29 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
     f2.y = gamma_f2.y * f2.y + beta_f2.y;
 
     // Apply Swish if needed.
-    if( params.with_swish ) {
+    if (params.with_swish) {
       f2.x = f2.x * sigmoid(f2.x);
       f2.y = f2.y * sigmoid(f2.y);
     }
 
     // Store the scaled values.
-    if( ci < params.c ) {
-      *reinterpret_cast<IOType2*>(&reinterpret_cast<IOType*>(params.y)[offset]) = IOTraits::pack(f2);
+    if (ci < params.c) {
+      *reinterpret_cast<IOType2 *>(&reinterpret_cast<IOType *>(params.y)[offset]) = IOTraits::pack(f2);
     }
   }
 
   // Write the sums if needed.
-  if( params.sums != nullptr && gi < params.groups ) {
+  if (params.sums != nullptr && gi < params.groups) {
     float2 sums;
-    sums.x = sum    * params.inv_hwc_per_group;
+    sums.x = sum * params.inv_hwc_per_group;
     sums.y = sum_sq * params.inv_hwc_per_group;
-    params.sums[ni*params.groups + gi] = sums;
+    params.sums[ni * params.groups + gi] = sums;
   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_scale(const Group_norm_nhwc_fwd_params &params,
-                                          cudaStream_t stream) {
-
+void group_norm_nhwc_fwd_two_passes_scale(const Group_norm_nhwc_fwd_params &params, cudaStream_t stream) {
   // The dimension of the grid.
   dim3 grid;
 

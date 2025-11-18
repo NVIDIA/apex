@@ -2,10 +2,12 @@
  * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  */
+#include <assert.h>
+
+#include <cub/cub.cuh>
+
 #include "group_norm_nhwc.h"
 #include "traits.h"
-#include <assert.h>
-#include <cub/cub.cuh>
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -13,10 +15,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template< typename Traits_, int ACTS_PER_BLOCK_, int CHANNELS_PER_GROUP_, int THREADS_PER_BLOCK_ >
-__global__ __launch_bounds__(THREADS_PER_BLOCK_)
-  void group_norm_nhwc_bwd_one_pass_kernel(Group_norm_nhwc_bwd_params params) {
-
+template <typename Traits_, int ACTS_PER_BLOCK_, int CHANNELS_PER_GROUP_, int THREADS_PER_BLOCK_>
+__global__ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_bwd_one_pass_kernel(
+    Group_norm_nhwc_bwd_params params) {
   // The IO traits.
   using Traits = Traits_;
   // The IO traits.
@@ -48,7 +49,7 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
   // The number of activations that are loaded per loop.
   constexpr int ACTS_PER_LOOP = THREADS_PER_BLOCK / THREADS_PER_ACT;
   // The number of rows per thread.
-  constexpr int ACTS_PER_THREAD = (ACTS_PER_BLOCK + ACTS_PER_LOOP-1) / ACTS_PER_LOOP;
+  constexpr int ACTS_PER_THREAD = (ACTS_PER_BLOCK + ACTS_PER_LOOP - 1) / ACTS_PER_LOOP;
 
   // The number of active threads.
   constexpr int ACTIVE_THREADS = THREADS_PER_BLOCK / THREADS_PER_ACT * THREADS_PER_ACT;
@@ -73,8 +74,7 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
   const bool is_active = threadIdx.x < ACTIVE_THREADS;
 
   // Iterate over the iterms in the batch.
-  for( int ngi = blockIdx.y, step = 0; ngi < params.n*params.groups; ngi += gridDim.y, ++step ) {
-
+  for (int ngi = blockIdx.y, step = 0; ngi < params.n * params.groups; ngi += gridDim.y, ++step) {
     // The instance and the group. TODO: Use fast divmod?
     int ni = ngi / params.groups;
     int gi = ngi % params.groups;
@@ -91,34 +91,34 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
     float rcp_x_stddev = x_var <= 0.f ? 1.f : 1.f / sqrtf(x_var + params.epsilon);
 
     // The offset to the first activation loaded by that thread.
-    const int64_t offset = (int64_t) ni*params.hwc + gi*CHANNELS_PER_GROUP + ci;
+    const int64_t offset = (int64_t)ni * params.hwc + gi * CHANNELS_PER_GROUP + ci;
     // The pointer to the first activation loaded by that thread.
-    const IOType *x_ptr = &reinterpret_cast<const IOType*>(params.x)[offset];
+    const IOType *x_ptr = &reinterpret_cast<const IOType *>(params.x)[offset];
     // The pointer to the first gradient loaded by that thread.
-    const IOType *dy_ptr = &reinterpret_cast<const IOType*>(params.dy)[offset];
+    const IOType *dy_ptr = &reinterpret_cast<const IOType *>(params.dy)[offset];
 
     // Load the X and dY into registers.
     IOType2 x[ACTS_PER_THREAD], dy[ACTS_PER_THREAD];
-    #pragma unroll
-    for( int ii = 0; ii < ACTS_PER_THREAD; ++ii ) {
-      int hwj = hwi + ii*ACTS_PER_LOOP;
-      x [ii] = IOTraits::zero();
+#pragma unroll
+    for (int ii = 0; ii < ACTS_PER_THREAD; ++ii) {
+      int hwj = hwi + ii * ACTS_PER_LOOP;
+      x[ii] = IOTraits::zero();
       dy[ii] = IOTraits::zero();
-      if( is_active && hwj < params.hw ) {
-        x [ii] = *reinterpret_cast<const IOType2*>(&x_ptr [hwj*params.c]);
-        dy[ii] = *reinterpret_cast<const IOType2*>(&dy_ptr[hwj*params.c]);
+      if (is_active && hwj < params.hw) {
+        x[ii] = *reinterpret_cast<const IOType2 *>(&x_ptr[hwj * params.c]);
+        dy[ii] = *reinterpret_cast<const IOType2 *>(&dy_ptr[hwj * params.c]);
       }
     }
 
     // Load gamma as well.
     float2 gamma_f2 = make_float2(0.f, 0.f);
     float2 beta_f2 = make_float2(0.f, 0.f);
-    if( is_active ) {
-      gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(
-        &reinterpret_cast<const WType*>(params.gamma)[gi*CHANNELS_PER_GROUP+ci]));
+    if (is_active) {
+      gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(
+          &reinterpret_cast<const WType *>(params.gamma)[gi * CHANNELS_PER_GROUP + ci]));
       if (params.with_swish) {
-        beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(
-          &reinterpret_cast<const WType*>(params.beta) [gi*CHANNELS_PER_GROUP+ci]));
+        beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(
+            &reinterpret_cast<const WType *>(params.beta)[gi * CHANNELS_PER_GROUP + ci]));
       }
     }
 
@@ -127,11 +127,11 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
     // Accumulated gradients for dgrad calculation.
     float mean_1 = 0.f, mean_2 = 0.f;
 
-    // Compute the sum and the sum of squares for each thread.
-    #pragma unroll
-    for( int ii = 0; ii < ACTS_PER_THREAD; ++ii ) {
+// Compute the sum and the sum of squares for each thread.
+#pragma unroll
+    for (int ii = 0; ii < ACTS_PER_THREAD; ++ii) {
       // Convert x to float.
-      float2 x_f2  = IOTraits::unpack(x [ii]);
+      float2 x_f2 = IOTraits::unpack(x[ii]);
       // Convert dY to float.
       float2 dy_f2 = IOTraits::unpack(dy[ii]);
 
@@ -175,7 +175,7 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
 
     // Pack valid gradients.
     float2 sums = make_float2(0.f, 0.f);
-    if( ACTIVE_THREADS == THREADS_PER_BLOCK || is_active ) {
+    if (ACTIVE_THREADS == THREADS_PER_BLOCK || is_active) {
       sums = make_float2(mean_1, mean_2);
     }
 
@@ -191,9 +191,9 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
     __syncthreads();
 
     // Compute gamma/beta for the block.
-    if( threadIdx.x < THREADS_PER_ACT ) {
-      for( int ii = 1; ii < ACTS_PER_LOOP; ++ii ) {
-        float4 other = smem_dgamma_dbeta[threadIdx.x + ii*THREADS_PER_ACT];
+    if (threadIdx.x < THREADS_PER_ACT) {
+      for (int ii = 1; ii < ACTS_PER_LOOP; ++ii) {
+        float4 other = smem_dgamma_dbeta[threadIdx.x + ii * THREADS_PER_ACT];
         dgamma_dbeta.x += other.x;
         dgamma_dbeta.y += other.y;
         dgamma_dbeta.z += other.z;
@@ -207,42 +207,41 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
     float *red_buffer_dgamma_dbeta = &params.zeroed_red_buffer[cj];
 
     // The first threads store their gradients for gamma/beta.
-    if( threadIdx.x < THREADS_PER_ACT ) {
-      atomicAdd(&red_buffer_dgamma_dbeta[0*params.c/2], dgamma_dbeta.x);
-      atomicAdd(&red_buffer_dgamma_dbeta[1*params.c/2], dgamma_dbeta.y);
-      atomicAdd(&red_buffer_dgamma_dbeta[2*params.c/2], dgamma_dbeta.z);
-      atomicAdd(&red_buffer_dgamma_dbeta[3*params.c/2], dgamma_dbeta.w);
+    if (threadIdx.x < THREADS_PER_ACT) {
+      atomicAdd(&red_buffer_dgamma_dbeta[0 * params.c / 2], dgamma_dbeta.x);
+      atomicAdd(&red_buffer_dgamma_dbeta[1 * params.c / 2], dgamma_dbeta.y);
+      atomicAdd(&red_buffer_dgamma_dbeta[2 * params.c / 2], dgamma_dbeta.z);
+      atomicAdd(&red_buffer_dgamma_dbeta[3 * params.c / 2], dgamma_dbeta.w);
     }
 
     // The block leader stores to global memory, if needed.
-    if( gridDim.x > 1 ) {
-
+    if (gridDim.x > 1) {
       // The index of the buffer.
       int red_buffer_idx = step & 1;
       // The barrier.
-      int *barrier = &params.barriers[red_buffer_idx*gridDim.y + blockIdx.y];
+      int *barrier = &params.barriers[red_buffer_idx * gridDim.y + blockIdx.y];
       // The offset to the reduction buffer.
-      int red_buffer_offset = red_buffer_idx*gridDim.x*gridDim.y*2;
+      int red_buffer_offset = red_buffer_idx * gridDim.x * gridDim.y * 2;
       // The reduction buffer.
-      float2 *red_buffer = reinterpret_cast<float2*>(&params.red_buffer[red_buffer_offset]);
+      float2 *red_buffer = reinterpret_cast<float2 *>(&params.red_buffer[red_buffer_offset]);
 
       // The offset to the reduction buffer for dgamma/dbeta.
 
       // The first thread stores its sums.
-      if( threadIdx.x == 0 ) {
-        red_buffer[blockIdx.x*gridDim.y + blockIdx.y] = sums;
+      if (threadIdx.x == 0) {
+        red_buffer[blockIdx.x * gridDim.y + blockIdx.y] = sums;
       }
 
       // Make sure the data is in memory.
-      if( threadIdx.x == 0 ) {
+      if (threadIdx.x == 0) {
         spin_wait_(barrier, (step & 2) ? -1 : 1, (step & 2) ? 0 : gridDim.x);
       }
       __syncthreads();
 
       // Update the sums.
-      for( int ii = 0; ii < gridDim.x; ++ii ) {
-        if( ii != blockIdx.x && threadIdx.x == 0 ) {
-          float2 other_sums = red_buffer[ii*gridDim.y + blockIdx.y];
+      for (int ii = 0; ii < gridDim.x; ++ii) {
+        if (ii != blockIdx.x && threadIdx.x == 0) {
+          float2 other_sums = red_buffer[ii * gridDim.y + blockIdx.y];
           sums.x += other_sums.x;
           sums.y += other_sums.y;
         }
@@ -250,7 +249,7 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
     }
 
     // Store the result for other threads.
-    if( threadIdx.x == 0 ) {
+    if (threadIdx.x == 0) {
       smem_sums = sums;
     }
 
@@ -266,12 +265,12 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
     mean_2 *= params.inv_hwc_per_group;
 
     // The pointer to the first activation stored by that thread.
-    IOType *dx_ptr = &reinterpret_cast<IOType*>(params.dx)[offset];
+    IOType *dx_ptr = &reinterpret_cast<IOType *>(params.dx)[offset];
 
     // Iterate over the activations to normalize the activations and store the results.
-    for( int ii = 0; ii < ACTS_PER_THREAD; ++ii ) {
+    for (int ii = 0; ii < ACTS_PER_THREAD; ++ii) {
       // Convert x to float.
-      float2 x_f2  = IOTraits::unpack(x [ii]);
+      float2 x_f2 = IOTraits::unpack(x[ii]);
       // Convert dY to float.
       float2 dy_f2 = IOTraits::unpack(dy[ii]);
 
@@ -304,49 +303,49 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_)
       dx.y = (dx_norm.y - (x_norm_f2.y * mean_1 + mean_2)) * rcp_x_stddev;
 
       // Store the scaled values.
-      int hwj = hwi + ii*ACTS_PER_LOOP;
-      if( is_active && hwj < params.hw ) {
-        *reinterpret_cast<IOType2*>(&dx_ptr[hwj*params.c]) = IOTraits::pack(dx);
+      int hwj = hwi + ii * ACTS_PER_LOOP;
+      if (is_active && hwj < params.hw) {
+        *reinterpret_cast<IOType2 *>(&dx_ptr[hwj * params.c]) = IOTraits::pack(dx);
       }
     }
   }
 
   // The completion barrier.
-  int *barrier = &params.barriers[gridDim.x == 1 ? 0 : gridDim.y*2];
+  int *barrier = &params.barriers[gridDim.x == 1 ? 0 : gridDim.y * 2];
 
   // Mark the completion of the threadblock.
-  if( threadIdx.x == 0 ) {
-    asm volatile("red.release.gpu.global.add.s32 [%0], 1;" :: "l"(barrier));
+  if (threadIdx.x == 0) {
+    asm volatile("red.release.gpu.global.add.s32 [%0], 1;" ::"l"(barrier));
   }
 
   // Exit if that's not the last thread block.
-  if( blockIdx.x != gridDim.x-1 || blockIdx.y != gridDim.y-1 ) {
+  if (blockIdx.x != gridDim.x - 1 || blockIdx.y != gridDim.y - 1) {
     return;
   }
 
   // Busy wait. We could use found = old + step with old = atomicAdd(...) but it's not faster.
-  if( threadIdx.x == 0 ) {
-    for( int found = -1; found != gridDim.x * gridDim.y; ) {
+  if (threadIdx.x == 0) {
+    for (int found = -1; found != gridDim.x * gridDim.y;) {
       asm volatile("ld.global.acquire.gpu.b32 %0, [%1];" : "=r"(found) : "l"(barrier));
     }
   }
   __syncthreads();
 
   // The last block converts dgamma and dbeta to half.
-  for( int idx = threadIdx.x; idx < params.c/2; idx += THREADS_PER_BLOCK ) {
+  for (int idx = threadIdx.x; idx < params.c / 2; idx += THREADS_PER_BLOCK) {
     // Load dgamma.
     float2 dgamma;
-    dgamma.x = params.zeroed_red_buffer[idx + 0*params.c/2];
-    dgamma.y = params.zeroed_red_buffer[idx + 1*params.c/2];
+    dgamma.x = params.zeroed_red_buffer[idx + 0 * params.c / 2];
+    dgamma.y = params.zeroed_red_buffer[idx + 1 * params.c / 2];
 
     // Load dbeta.
     float2 dbeta;
-    dbeta.x = params.zeroed_red_buffer[idx + 2*params.c/2];
-    dbeta.y = params.zeroed_red_buffer[idx + 3*params.c/2];
+    dbeta.x = params.zeroed_red_buffer[idx + 2 * params.c / 2];
+    dbeta.y = params.zeroed_red_buffer[idx + 3 * params.c / 2];
 
     // Store to global memory.
-    *reinterpret_cast<WType2*>(&reinterpret_cast<WType*>(params.dgamma)[idx*2]) = WTraits::pack(dgamma);
-    *reinterpret_cast<WType2*>(&reinterpret_cast<WType*>(params.dbeta )[idx*2]) = WTraits::pack(dbeta);
+    *reinterpret_cast<WType2 *>(&reinterpret_cast<WType *>(params.dgamma)[idx * 2]) = WTraits::pack(dgamma);
+    *reinterpret_cast<WType2 *>(&reinterpret_cast<WType *>(params.dbeta)[idx * 2]) = WTraits::pack(dbeta);
   }
 }
 

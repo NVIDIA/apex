@@ -19,30 +19,33 @@
 #ifndef _peer_memory_h_
 #define _peer_memory_h_
 
-namespace apex { namespace contrib { namespace peer_memory {
-    int64_t allocate_raw(int64_t size);
-    void free_raw(int64_t raw);
-    void zero(int64_t raw, int64_t size);
-    at::Tensor get_raw_ipc_address(int64_t raw);
-    std::vector<int64_t> get_raw_peers(at::Tensor ipc_addresses, int peer_rank, int64_t raw);
-    at::Tensor blob_view_half(int64_t raw, std::vector<int64_t> shape, bool channels_last);
-    at::Tensor blob_view_float(int64_t raw, std::vector<int64_t> shape, bool channels_last);
-    at::Tensor blob_view_int(int64_t raw, std::vector<int64_t> shape, bool channels_last);
-    void push_pull_halos_1d(
-        bool diagnostics,
-        bool explicit_nhwc,
-        int numSM,                      // number of SMs to use
-        int peer_rank,                  // rank in spatial parallel group
-	bool top_zero,			// if top halo should be zeroed
-        at::Tensor top_out_halo,        // top output halo buffer (in local device memory, received from top neighbor)
-	at::Tensor top_inp_transfer,    // top input transfer buffer (in local peer memory)
-        at::Tensor top_out_transfer,    // top output transfer buffer (in top neighbor peer memory)
-        at::Tensor top_inp_halo,        // top input halo buffer (in local device memory, sent to top neighbor)
-	bool btm_zero,			// if btm halo should be zeroed
-        at::Tensor btm_out_halo,        // btm output halo buffer (in local device memory, received from btm neighbor)
-	at::Tensor btm_inp_transfer,	// btm input transfer buffer (in local peer memory)
-        at::Tensor btm_out_transfer,    // btm output transfer buffer (in btm neighbor peer memory)
-        at::Tensor btm_inp_halo         // btm input halo buffer (in local device memory, sent to btm neighbor)
-        );
-} } }
+namespace apex {
+namespace contrib {
+namespace peer_memory {
+int64_t allocate_raw(int64_t size);
+void free_raw(int64_t raw);
+void zero(int64_t raw, int64_t size);
+at::Tensor get_raw_ipc_address(int64_t raw);
+std::vector<int64_t> get_raw_peers(at::Tensor ipc_addresses, int peer_rank, int64_t raw);
+at::Tensor blob_view_half(int64_t raw, std::vector<int64_t> shape, bool channels_last);
+at::Tensor blob_view_float(int64_t raw, std::vector<int64_t> shape, bool channels_last);
+at::Tensor blob_view_int(int64_t raw, std::vector<int64_t> shape, bool channels_last);
+void push_pull_halos_1d(
+    bool diagnostics, bool explicit_nhwc,
+    int numSM,                    // number of SMs to use
+    int peer_rank,                // rank in spatial parallel group
+    bool top_zero,                // if top halo should be zeroed
+    at::Tensor top_out_halo,      // top output halo buffer (in local device memory, received from top neighbor)
+    at::Tensor top_inp_transfer,  // top input transfer buffer (in local peer memory)
+    at::Tensor top_out_transfer,  // top output transfer buffer (in top neighbor peer memory)
+    at::Tensor top_inp_halo,      // top input halo buffer (in local device memory, sent to top neighbor)
+    bool btm_zero,                // if btm halo should be zeroed
+    at::Tensor btm_out_halo,      // btm output halo buffer (in local device memory, received from btm neighbor)
+    at::Tensor btm_inp_transfer,  // btm input transfer buffer (in local peer memory)
+    at::Tensor btm_out_transfer,  // btm output transfer buffer (in btm neighbor peer memory)
+    at::Tensor btm_inp_halo       // btm input halo buffer (in local device memory, sent to btm neighbor)
+);
+}  // namespace peer_memory
+}  // namespace contrib
+}  // namespace apex
 #endif
