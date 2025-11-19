@@ -16,29 +16,21 @@
 namespace apex::contrib::gds {
 
 // POSIX
-template <
-    class T,
-    typename std::enable_if<std::is_integral<T>::value, std::nullptr_t>::type =
-        nullptr>
+template <class T, typename std::enable_if<std::is_integral<T>::value, std::nullptr_t>::type = nullptr>
 std::string cuFileGetErrorString(T status) {
   status = std::abs(status);
-  return IS_CUFILE_ERR(status) ? std::string(CUFILE_ERRSTR(status))
-                               : std::string(std::strerror(errno));
+  return IS_CUFILE_ERR(status) ? std::string(CUFILE_ERRSTR(status)) : std::string(std::strerror(errno));
 }
 
 // CUfileError_t
-template <
-    class T,
-    typename std::enable_if<!std::is_integral<T>::value, std::nullptr_t>::type =
-        nullptr>
+template <class T, typename std::enable_if<!std::is_integral<T>::value, std::nullptr_t>::type = nullptr>
 std::string cuFileGetErrorString(T status) {
   std::string errStr = cuFileGetErrorString(static_cast<int>(status.err));
-  if (IS_CUDA_ERR(status))
-    errStr.append(".").append(cudaGetErrorString(static_cast<cudaError_t>(status.cu_err)));
+  if (IS_CUDA_ERR(status)) errStr.append(".").append(cudaGetErrorString(static_cast<cudaError_t>(status.cu_err)));
   return errStr;
 }
 
-File::File() : is_open(false) {};
+File::File() : is_open(false){};
 
 File::File(const std::string& filename, const std::string& mode) : filename(filename), mode(mode), is_open(false) {
   open(filename, mode);
@@ -61,7 +53,7 @@ void File::open(const std::string& other_filename, const std::string& other_mode
 
   maybe_register = true;
   // Open the binary file
-  if(mode == "r") {
+  if (mode == "r") {
     // for reading
     fd = ::open(filename.c_str(), O_RDONLY | O_DIRECT);
   } else if (mode == "w") {
@@ -81,26 +73,26 @@ void File::open(const std::string& other_filename, const std::string& other_mode
   TORCH_CHECK(fd >= 0, "fcntl cannot open file: ", filename);
 
   // Register cuFile handle
-  if(maybe_register) {
-      memset((void*)&cf_descr, 0, sizeof(CUfileDescr_t));
-      cf_descr.handle.fd = fd;
-      cf_descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
-      status = cuFileHandleRegister(&cf_handle, &cf_descr);
-      if (status.err != CU_FILE_SUCCESS) {
-        TORCH_CHECK(false, "cuFileHandleRegister failed: ", cuFileGetErrorString(status));
-      }
+  if (maybe_register) {
+    memset((void*)&cf_descr, 0, sizeof(CUfileDescr_t));
+    cf_descr.handle.fd = fd;
+    cf_descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
+    status = cuFileHandleRegister(&cf_handle, &cf_descr);
+    if (status.err != CU_FILE_SUCCESS) {
+      TORCH_CHECK(false, "cuFileHandleRegister failed: ", cuFileGetErrorString(status));
+    }
   }
   is_open = true;
 }
 
 void File::close() {
   // Deregister cuFile handle and close the file
-  if(is_open) {
-      if(maybe_register) {
-        cuFileHandleDeregister(cf_handle);
-      }
-      ::close(fd);
-      fd = -1;
+  if (is_open) {
+    if (maybe_register) {
+      cuFileHandleDeregister(cf_handle);
+    }
+    ::close(fd);
+    fd = -1;
   }
   is_open = false;
 }
@@ -136,7 +128,6 @@ void File::save_data(const torch::Tensor& tensor) {
   TORCH_CHECK(status.err == CU_FILE_SUCCESS, "cuFileBufDeregister failed:", cuFileGetErrorString(status));
 }
 
-
 // Just for benchmarking purposes
 
 void File::load_data_no_gds(const torch::Tensor& tensor) {
@@ -171,4 +162,4 @@ void File::save_data_no_gds(const torch::Tensor& tensor) {
   free(dataPtrCPU);
 }
 
-} // namespace torch_gds
+}  // namespace apex::contrib::gds

@@ -1,6 +1,6 @@
 /******************************************************************************
  * Copyright (c) 2011-2021, NVIDIA CORPORATION.  All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
@@ -11,7 +11,7 @@
  *     * Neither the name of the NVIDIA CORPORATION nor the
  *       names of its contributors may be used to endorse or promote products
  *       derived from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -29,53 +29,46 @@
 
 namespace fmha {
 
-
-template<typename Cta_tile>
+template <typename Cta_tile>
 struct Mask {
-    using Mma_tile = fmha::Hmma_tile<Cta_tile>;
+  using Mma_tile = fmha::Hmma_tile<Cta_tile>;
 
-    template<typename Params, typename BInfo>
-    __device__ Mask(const Params &params, const BInfo &blockInfo, int tidx) {
+  template <typename Params, typename BInfo>
+  __device__ Mask(const Params &params, const BInfo &blockInfo, int tidx) {
+    actual_seqlen = blockInfo.actual_seqlen;
 
-        actual_seqlen = blockInfo.actual_seqlen;
+    const int warp = tidx / Cta_tile::THREADS_PER_WARP;
+    const int lane = tidx % Cta_tile::THREADS_PER_WARP;
 
-        const int warp = tidx / Cta_tile::THREADS_PER_WARP;
-        const int lane = tidx % Cta_tile::THREADS_PER_WARP;
+    static_assert(Cta_tile::WARPS_K == 1, "");
 
-        static_assert(Cta_tile::WARPS_K == 1, "");
+    // find the warp in the Cta tile
+    const int warp_n = (warp / Cta_tile::WARPS_M);
+    const int warp_m = (warp % Cta_tile::WARPS_M);
+    // decompose warp into 8x4 tile
+    const int quad = lane / 4;
+    const int tid = (lane % 4) * 2;
+    row = warp_m * 16 + quad;
+    col = warp_n * 16 + tid;
+  }
 
-        // find the warp in the Cta tile
-        const int warp_n = (warp / Cta_tile::WARPS_M);
-        const int warp_m = (warp % Cta_tile::WARPS_M);
-        // decompose warp into 8x4 tile
-        const int quad = lane / 4;
-        const int tid = (lane % 4) * 2;
-        row = warp_m * 16 + quad;
-        col = warp_n * 16 + tid;
-    }
+  inline __device__ bool is_valid(const int mi, const int ni, const int ii, const int jj) const {
+    // ii and jj iterate over the 2x4 fragment
+    const bool col_valid = (ni * Mma_tile::N_PER_MMA_PER_CTA + col + (jj & 2) * 4 + (jj & 1)) < actual_seqlen;
+    //&& (row + mi * Mma_tile::M_PER_MMA_PER_CTA + ii * 8) < actual_seqlen;
+    return col_valid;
+    // return row_valid && col_valid;
+  }
 
-    inline __device__ bool is_valid(const int mi, const int ni, const int ii, const int jj) const {
+  // BERT Mask: if upper left is invalid, none are valid
+  inline __device__ bool any_valid(int mi, int ni) const { return is_valid(mi, ni, 0, 0); }
 
-        // ii and jj iterate over the 2x4 fragment
-        const bool col_valid = (ni * Mma_tile::N_PER_MMA_PER_CTA + col + (jj & 2) * 4 + (jj & 1)) < actual_seqlen;
-        //&& (row + mi * Mma_tile::M_PER_MMA_PER_CTA + ii * 8) < actual_seqlen;
-        return col_valid;
-        // return row_valid && col_valid;
-    }
+  inline __device__ void load(int it) { row_offset = it * Cta_tile::M + row; }
+  int row_offset;
 
-    //BERT Mask: if upper left is invalid, none are valid
-    inline __device__ bool any_valid(int mi, int ni) const {
-        return is_valid(mi, ni, 0, 0);
-    }
-
-    inline __device__ void load(int it) {
-        row_offset = it * Cta_tile::M + row;
-    }
-    int row_offset;
-
-    int row;
-    int col;
-    int actual_seqlen;
+  int row;
+  int col;
+  int actual_seqlen;
 };
 
 }  // namespace fmha

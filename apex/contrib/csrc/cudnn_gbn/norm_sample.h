@@ -24,53 +24,51 @@
 
 #pragma once
 
-#include <iostream>
+#include <assert.h>
+#include <ctype.h>
+#include <cudnn.h>
+#include <cudnn_frontend.h>
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
-#include <assert.h>
-#include <tuple>
-#include <functional>
 
-#include <cudnn.h>
-#include <cudnn_frontend.h>
+#include <functional>
+#include <iostream>
+#include <tuple>
 
 /* some helpers
  */
-void generateStrides(const int64_t* dimA, int64_t* strideA, int64_t nbDims, cudnnTensorFormat_t filterFormat);
+void generateStrides(const int64_t *dimA, int64_t *strideA, int64_t nbDims, cudnnTensorFormat_t filterFormat);
 
-int64_t checkCudaError(cudaError_t code, const char* expr, const char* file, int line);
-int64_t checkCudnnError(cudnnStatus_t code, const char* expr, const char* file, int line);
+int64_t checkCudaError(cudaError_t code, const char *expr, const char *file, int line);
+int64_t checkCudnnError(cudnnStatus_t code, const char *expr, const char *file, int line);
 
 #define checkCudaErr(...)                                                        \
-    do {                                                                         \
-        int64_t err = checkCudaError(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__); \
-        assert(err == 0);                                                       \
-    } while (0)
+  do {                                                                           \
+    int64_t err = checkCudaError(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__); \
+    assert(err == 0);                                                            \
+  } while (0)
 
 #define checkCudnnErr(...)                                                        \
-    do {                                                                          \
-        int64_t err = checkCudnnError(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__); \
-        assert(err == 0);                                                        \
-    } while (0)
+  do {                                                                            \
+    int64_t err = checkCudnnError(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__); \
+    assert(err == 0);                                                             \
+  } while (0)
 
 /**
  * @brief Run a Group BN forward sample with 2 peer stat tensors.
  *
- * @param tensorDims an array with shape (N, C, H, W) for input tensor dims. Stride in NHWC or NCHW will take care of memory format
+ * @param tensorDims an array with shape (N, C, H, W) for input tensor dims. Stride in NHWC or NCHW will take care of
+ memory format
  * @param perChannelSum an array with shape (1, C, 1, 1) to denote the sum values for each channel in the input tensor
  * @param epsilon a scalar array with shape (1, 1, 1, 1) to represent the epsilon value for the BN
- * @param peerDims an array with shape (num GPUs, 2 * C, 1, 1) to denote the tensor dimensions for peer stat tensor in GBN
+ * @param peerDims an array with shape (num GPUs, 2 * C, 1, 1) to denote the tensor dimensions for peer stat tensor in
+ GBN
 
  *
  */
-cudnn_frontend::ExecutionPlan run_batch_norm_forward(
-						     int64_t *tensorDims,
-						     int64_t *perChannelSum,
-						     int64_t *epsilon,
-						     int64_t *peerDims,
-						     cudnnDataType_t in_out_data_type);
+cudnn_frontend::ExecutionPlan run_batch_norm_forward(int64_t *tensorDims, int64_t *perChannelSum, int64_t *epsilon,
+                                                     int64_t *peerDims, cudnnDataType_t in_out_data_type);
 /**
  * @param xDevPtr input tensor device pointer
  * @param yDevPtr output tensor device pointer
@@ -87,38 +85,26 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(
  * @param epsilon_val episilon value as a double
  * @param exponential_decay_factor exponential_decay_factor as a value
  *
-**/
-void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan,
-				void *xDevPtr,
-				void *yDevPtr,
-				void *scaledevPtr,
-				void *biasdevPtr,
-				void *in_meandevPtr,
-				void *in_vardevPtr,
-				void *out_meandevPtr,
-				void *out_vardevPtr,
-				void *saved_meandevPtr,
-				void *saved_inv_vardevPtr,
-				const std::vector<void*> &peer_devPtrs,
-				double epsilon_val,
-				double exponential_decay_factor,
-				size_t peer_size,
-				int rank_id);
+ **/
+void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan, void *xDevPtr, void *yDevPtr, void *scaledevPtr,
+                                void *biasdevPtr, void *in_meandevPtr, void *in_vardevPtr, void *out_meandevPtr,
+                                void *out_vardevPtr, void *saved_meandevPtr, void *saved_inv_vardevPtr,
+                                const std::vector<void *> &peer_devPtrs, double epsilon_val,
+                                double exponential_decay_factor, size_t peer_size, int rank_id);
 
 /**
  * @brief Run a Group BN backward sample with 2 peer stat tensors.
  *
- * @param tensorDims an array with shape (N, C, H, W) for input tensor dims. Stride in NHWC or NCHW will take care of memory format
+ * @param tensorDims an array with shape (N, C, H, W) for input tensor dims. Stride in NHWC or NCHW will take care of
+ * memory format
  * @param perChannelSum an array with shape (1, C, 1, 1) to denote the sum values for each channel in the input tensor
  * @param epsilon a scalar array with shape (1, 1, 1, 1) to represent the epsilon value for the BN
- * @param peerDims an array with shape (num GPUs, 2 * C, 1, 1) to denote the tensor dimensions for peer stat tensor in GBN
-    *
-*/
-cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims,
-						      int64_t *perChannelSum,
-						      int64_t *epsilon,
-						      int64_t *peerDims,
-						      cudnnDataType_t data_type);
+ * @param peerDims an array with shape (num GPUs, 2 * C, 1, 1) to denote the tensor dimensions for peer stat tensor in
+ * GBN
+ *
+ */
+cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims, int64_t *perChannelSum, int64_t *epsilon,
+                                                      int64_t *peerDims, cudnnDataType_t data_type);
 
 /**
  * @brief Run a Group BN backward sample with 2 peer stat tensors.
@@ -138,16 +124,7 @@ cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims,
  * @param epsilon_val episilon value as a double
  *
  */
-void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan,
-				 void *xDevPtr,
-				 void *dyDevPtr,
-				 void *scaledevPtr,
-				 void *saved_meandevPtr,
-				 void *saved_inv_vardevPtr,
-				 const std::vector<void*> &peer_devPtrs,
-				 void *dxDevPtr,
-				 void *dscaledevPtr,
-				 void *dbiasdevPtr,
-				 double epsilon_val,
-				 size_t peer_size,
-				 int rank_id);
+void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan, void *xDevPtr, void *dyDevPtr, void *scaledevPtr,
+                                 void *saved_meandevPtr, void *saved_inv_vardevPtr,
+                                 const std::vector<void *> &peer_devPtrs, void *dxDevPtr, void *dscaledevPtr,
+                                 void *dbiasdevPtr, double epsilon_val, size_t peer_size, int rank_id);

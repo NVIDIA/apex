@@ -1,15 +1,14 @@
-#include <iostream>
-#include <math.h>
-#include <vector>
-
+#include <ATen/ATen.h>
+#include <ATen/cuda/CUDAContext.h>
 #include <cuda.h>
 #include <cuda_fp16.h>
 #include <cuda_profiler_api.h>
 #include <cuda_runtime.h>
-
-#include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <math.h>
 #include <torch/extension.h>
+
+#include <iostream>
+#include <vector>
 
 #include "dropout.cuh"
 #include "softmax.cuh"
@@ -18,9 +17,7 @@ namespace multihead_attn {
 namespace fused_softmax {
 namespace mask_softmax_dropout {
 
-std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads,
-                                    torch::Tensor const &input,
-                                    const uint8_t *pad_mask,
+std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads, torch::Tensor const &input, const uint8_t *pad_mask,
                                     float dropout_prob) {
   const int attn_batches = input.size(0);
   const int sequences = attn_batches / heads;
@@ -39,12 +36,9 @@ std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads,
   auto act_options = input.options().requires_grad(false);
   auto mask_options = act_options.dtype(torch::kUInt8);
 
-  torch::Tensor softmax_results =
-      torch::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
-  torch::Tensor dropout_results =
-      torch::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
-  torch::Tensor dropout_mask =
-      torch::empty({attn_batches, q_seq_len, k_seq_len}, mask_options);
+  torch::Tensor softmax_results = torch::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
+  torch::Tensor dropout_results = torch::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
+  torch::Tensor dropout_mask = torch::empty({attn_batches, q_seq_len, k_seq_len}, mask_options);
 
   // Softmax Intermediate Result Ptr (used by Matmul1 -> Softmax)
   void *input_ptr = static_cast<void *>(input.data_ptr());
@@ -53,23 +47,19 @@ std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads,
   // Padded Softmax
   bool softmax_success = false;
   if (pad_mask == nullptr) {
-    softmax_success = dispatch_softmax<half, half, float>(
-        reinterpret_cast<half *>(softmax_results_ptr),
-        reinterpret_cast<const half *>(input_ptr), k_seq_len, k_seq_len,
-        attn_batches * q_seq_len);
+    softmax_success = dispatch_softmax<half, half, float>(reinterpret_cast<half *>(softmax_results_ptr),
+                                                          reinterpret_cast<const half *>(input_ptr), k_seq_len,
+                                                          k_seq_len, attn_batches * q_seq_len);
   } else {
     softmax_success = dispatch_masked_softmax<half, half, float>(
-        reinterpret_cast<half *>(softmax_results_ptr),
-        reinterpret_cast<const half *>(input_ptr), pad_mask, k_seq_len,
-        k_seq_len, attn_batches * q_seq_len,
-        attn_batches * q_seq_len / sequences);
+        reinterpret_cast<half *>(softmax_results_ptr), reinterpret_cast<const half *>(input_ptr), pad_mask, k_seq_len,
+        k_seq_len, attn_batches * q_seq_len, attn_batches * q_seq_len / sequences);
   }
 
   if (is_training) {
     // use at:: function so that C++ version generates the same random mask as
     // python version
-    auto dropout_tuple =
-        at::_fused_dropout(softmax_results, 1.0f - dropout_prob);
+    auto dropout_tuple = at::_fused_dropout(softmax_results, 1.0f - dropout_prob);
     dropout_results = std::get<0>(dropout_tuple);
     dropout_mask = std::get<1>(dropout_tuple);
   }
@@ -79,10 +69,8 @@ std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads,
   return {dropout_results, dropout_mask, softmax_results};
 }
 
-torch::Tensor bwd_cuda(int heads, torch::Tensor const &output_grads,
-                       torch::Tensor const &softmax_results,
-                       torch::Tensor const &dropout_mask,
-                       const uint8_t *padding_mask, float dropout_prob) {
+torch::Tensor bwd_cuda(int heads, torch::Tensor const &output_grads, torch::Tensor const &softmax_results,
+                       torch::Tensor const &dropout_mask, const uint8_t *padding_mask, float dropout_prob) {
   const int attn_batches = output_grads.size(0);
   const int q_seq_len = output_grads.size(1);
   const int k_seq_len = q_seq_len;
@@ -100,25 +88,20 @@ torch::Tensor bwd_cuda(int heads, torch::Tensor const &output_grads,
   // Softmax Grad
   if (padding_mask == nullptr) {
     dispatch_masked_scale_softmax_backward_stream<half, half, float, false>(
-        static_cast<half *>(output_grads.data_ptr()),
-        static_cast<half *>(output_grads.data_ptr()),
+        static_cast<half *>(output_grads.data_ptr()), static_cast<half *>(output_grads.data_ptr()),
         reinterpret_cast<half const *>(softmax_results.data_ptr()),
-        static_cast<uint8_t const *>(dropout_mask.data_ptr()),
-        1.0 / (1.0 - dropout_prob), k_seq_len, k_seq_len,
+        static_cast<uint8_t const *>(dropout_mask.data_ptr()), 1.0 / (1.0 - dropout_prob), k_seq_len, k_seq_len,
         attn_batches * q_seq_len, stream);
   } else {
-    dispatch_masked_scale_softmax_backward_masked_out_stream<half, half, float,
-                                                             false>(
-        static_cast<half *>(output_grads.data_ptr()),
-        static_cast<half *>(output_grads.data_ptr()),
+    dispatch_masked_scale_softmax_backward_masked_out_stream<half, half, float, false>(
+        static_cast<half *>(output_grads.data_ptr()), static_cast<half *>(output_grads.data_ptr()),
         reinterpret_cast<half const *>(softmax_results.data_ptr()),
-        static_cast<uint8_t const *>(dropout_mask.data_ptr()),
-        static_cast<uint8_t const *>(padding_mask), 1.0 / (1.0 - dropout_prob),
-        k_seq_len, k_seq_len, attn_batches * q_seq_len, heads, stream);
+        static_cast<uint8_t const *>(dropout_mask.data_ptr()), static_cast<uint8_t const *>(padding_mask),
+        1.0 / (1.0 - dropout_prob), k_seq_len, k_seq_len, attn_batches * q_seq_len, heads, stream);
   }
   // backward pass is completely in-place
   return output_grads;
 }
-} // namespace mask_softmax_dropout
-} // namespace fused_softmax
-} // namespace multihead_attn
+}  // namespace mask_softmax_dropout
+}  // namespace fused_softmax
+}  // namespace multihead_attn

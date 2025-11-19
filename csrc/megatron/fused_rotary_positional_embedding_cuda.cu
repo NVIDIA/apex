@@ -21,8 +21,7 @@
 
 namespace fused_rope {
 
-torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &freqs,
-                       const bool transpose_output) {
+torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &freqs, const bool transpose_output) {
   // input sizes: (s, b, h, d)
   // s: sequence length
   // b: batch size
@@ -57,16 +56,13 @@ torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &freqs,
 
   DISPATCH_FLOAT_HALF_AND_BFLOAT(
       input.scalar_type(), 0, "dispatch_fused_rope_forward",
-      dispatch_fused_rope_forward(
-          s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s,
-          o_stride_b, o_stride_h, o_stride_d, input.data_ptr<scalar_t_0>(),
-          freqs.data_ptr<float>(), output.data_ptr<scalar_t_0>()););
+      dispatch_fused_rope_forward(s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s, o_stride_b,
+                                  o_stride_h, o_stride_d, input.data_ptr<scalar_t_0>(), freqs.data_ptr<float>(),
+                                  output.data_ptr<scalar_t_0>()););
   return output;
 }
 
-torch::Tensor bwd_cuda(const torch::Tensor &output_grads,
-                       const torch::Tensor &freqs,
-                       const bool transpose_output) {
+torch::Tensor bwd_cuda(const torch::Tensor &output_grads, const torch::Tensor &freqs, const bool transpose_output) {
   // output_grads sizes: (s, b, h, d)
   // s: sequence length
   // b: batch size
@@ -99,76 +95,68 @@ torch::Tensor bwd_cuda(const torch::Tensor &output_grads,
 
   DISPATCH_FLOAT_HALF_AND_BFLOAT(
       output_grads.scalar_type(), 0, "dispatch_fused_rope_backward",
-      dispatch_fused_rope_backward(
-          s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s,
-          o_stride_b, o_stride_h, o_stride_d,
-          output_grads.data_ptr<scalar_t_0>(), freqs.data_ptr<float>(),
-          input_grads.data_ptr<scalar_t_0>()););
+      dispatch_fused_rope_backward(s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s, o_stride_b,
+                                   o_stride_h, o_stride_d, output_grads.data_ptr<scalar_t_0>(), freqs.data_ptr<float>(),
+                                   input_grads.data_ptr<scalar_t_0>()););
   return input_grads;
 }
 
-#define DISPATCH_FUSED_ROPE_TYPES(TYPE1, TYPE2, NAME, ...)                     \
-  switch (TYPE1) {                                                             \
-  case at::ScalarType::Float: {                                                \
-    using scalar_t_0 = float;                                                  \
-    switch (TYPE2) {                                                           \
-    case at::ScalarType::Float: {                                              \
-      using scalar_t_1 = float;                                                \
-      __VA_ARGS__;                                                             \
-      break;                                                                   \
-    }                                                                          \
-    default:                                                                   \
-      TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1),       \
-                  "' with '", toString(TYPE2), "'");                           \
-    }                                                                          \
-    break;                                                                     \
-  }                                                                            \
-  case at::ScalarType::Half: {                                                 \
-    using scalar_t_0 = at::Half;                                               \
-    switch (TYPE2) {                                                           \
-    case at::ScalarType::Float: {                                              \
-      using scalar_t_1 = float;                                                \
-      __VA_ARGS__;                                                             \
-      break;                                                                   \
-    }                                                                          \
-    case at::ScalarType::Half: {                                               \
-      using scalar_t_1 = at::Half;                                             \
-      __VA_ARGS__;                                                             \
-      break;                                                                   \
-    }                                                                          \
-    default:                                                                   \
-      TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1),       \
-                  "' with '", toString(TYPE2), "'");                           \
-    }                                                                          \
-    break;                                                                     \
-  }                                                                            \
-  case at::ScalarType::BFloat16: {                                             \
-    using scalar_t_0 = at::BFloat16;                                           \
-    switch (TYPE2) {                                                           \
-    case at::ScalarType::Float: {                                              \
-      using scalar_t_1 = float;                                                \
-      __VA_ARGS__;                                                             \
-      break;                                                                   \
-    }                                                                          \
-    case at::ScalarType::BFloat16: {                                           \
-      using scalar_t_1 = at::BFloat16;                                         \
-      __VA_ARGS__;                                                             \
-      break;                                                                   \
-    }                                                                          \
-    default:                                                                   \
-      TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1),       \
-                  "' with '", toString(TYPE2), "'");                           \
-    }                                                                          \
-    break;                                                                     \
-  }                                                                            \
-  default:                                                                     \
-    TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1),         \
-                "' with '", toString(TYPE2), "'");                             \
+#define DISPATCH_FUSED_ROPE_TYPES(TYPE1, TYPE2, NAME, ...)                                                      \
+  switch (TYPE1) {                                                                                              \
+    case at::ScalarType::Float: {                                                                               \
+      using scalar_t_0 = float;                                                                                 \
+      switch (TYPE2) {                                                                                          \
+        case at::ScalarType::Float: {                                                                           \
+          using scalar_t_1 = float;                                                                             \
+          __VA_ARGS__;                                                                                          \
+          break;                                                                                                \
+        }                                                                                                       \
+        default:                                                                                                \
+          TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1), "' with '", toString(TYPE2), "'"); \
+      }                                                                                                         \
+      break;                                                                                                    \
+    }                                                                                                           \
+    case at::ScalarType::Half: {                                                                                \
+      using scalar_t_0 = at::Half;                                                                              \
+      switch (TYPE2) {                                                                                          \
+        case at::ScalarType::Float: {                                                                           \
+          using scalar_t_1 = float;                                                                             \
+          __VA_ARGS__;                                                                                          \
+          break;                                                                                                \
+        }                                                                                                       \
+        case at::ScalarType::Half: {                                                                            \
+          using scalar_t_1 = at::Half;                                                                          \
+          __VA_ARGS__;                                                                                          \
+          break;                                                                                                \
+        }                                                                                                       \
+        default:                                                                                                \
+          TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1), "' with '", toString(TYPE2), "'"); \
+      }                                                                                                         \
+      break;                                                                                                    \
+    }                                                                                                           \
+    case at::ScalarType::BFloat16: {                                                                            \
+      using scalar_t_0 = at::BFloat16;                                                                          \
+      switch (TYPE2) {                                                                                          \
+        case at::ScalarType::Float: {                                                                           \
+          using scalar_t_1 = float;                                                                             \
+          __VA_ARGS__;                                                                                          \
+          break;                                                                                                \
+        }                                                                                                       \
+        case at::ScalarType::BFloat16: {                                                                        \
+          using scalar_t_1 = at::BFloat16;                                                                      \
+          __VA_ARGS__;                                                                                          \
+          break;                                                                                                \
+        }                                                                                                       \
+        default:                                                                                                \
+          TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1), "' with '", toString(TYPE2), "'"); \
+      }                                                                                                         \
+      break;                                                                                                    \
+    }                                                                                                           \
+    default:                                                                                                    \
+      TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1), "' with '", toString(TYPE2), "'");     \
   }
 
-torch::Tensor fwd_cached_cuda(const torch::Tensor &input,
-                              const torch::Tensor &cos,
-                              const torch::Tensor &sin,
+torch::Tensor fwd_cached_cuda(const torch::Tensor &input, const torch::Tensor &cos, const torch::Tensor &sin,
                               const bool transpose_output) {
   // input sizes: (s, b, h, d)
   // s: sequence length
@@ -202,20 +190,15 @@ torch::Tensor fwd_cached_cuda(const torch::Tensor &input,
   const int o_stride_h = output.stride(2);
   const int o_stride_d = output.stride(3);
 
-  DISPATCH_FUSED_ROPE_TYPES(
-      input.scalar_type(), cos.scalar_type(),
-      "dispatch_fused_rope_cached_forward",
-      dispatch_fused_rope_cached_forward(
-          s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s,
-          o_stride_b, o_stride_h, o_stride_d, input.data_ptr<scalar_t_0>(),
-          cos.data_ptr<scalar_t_1>(), sin.data_ptr<scalar_t_1>(),
-          output.data_ptr<scalar_t_0>()););
+  DISPATCH_FUSED_ROPE_TYPES(input.scalar_type(), cos.scalar_type(), "dispatch_fused_rope_cached_forward",
+                            dispatch_fused_rope_cached_forward(
+                                s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s, o_stride_b,
+                                o_stride_h, o_stride_d, input.data_ptr<scalar_t_0>(), cos.data_ptr<scalar_t_1>(),
+                                sin.data_ptr<scalar_t_1>(), output.data_ptr<scalar_t_0>()););
   return output;
 }
 
-torch::Tensor bwd_cached_cuda(const torch::Tensor &output_grads,
-                              const torch::Tensor &cos,
-                              const torch::Tensor &sin,
+torch::Tensor bwd_cached_cuda(const torch::Tensor &output_grads, const torch::Tensor &cos, const torch::Tensor &sin,
                               const bool transpose_output) {
   // output_grads sizes: (s, b, h, d)
   // s: sequence length
@@ -247,20 +230,15 @@ torch::Tensor bwd_cached_cuda(const torch::Tensor &output_grads,
   const int o_stride_h = input_grads.stride(2);
   const int o_stride_d = input_grads.stride(3);
 
-  DISPATCH_FUSED_ROPE_TYPES(
-      output_grads.scalar_type(), cos.scalar_type(),
-      "dispatch_fused_rope_cached_backward",
-      dispatch_fused_rope_cached_backward(
-          s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s,
-          o_stride_b, o_stride_h, o_stride_d,
-          output_grads.data_ptr<scalar_t_0>(), cos.data_ptr<scalar_t_1>(),
-          sin.data_ptr<scalar_t_1>(), input_grads.data_ptr<scalar_t_0>()););
+  DISPATCH_FUSED_ROPE_TYPES(output_grads.scalar_type(), cos.scalar_type(), "dispatch_fused_rope_cached_backward",
+                            dispatch_fused_rope_cached_backward(
+                                s, b, h, d, d2, stride_s, stride_b, stride_h, stride_d, o_stride_s, o_stride_b,
+                                o_stride_h, o_stride_d, output_grads.data_ptr<scalar_t_0>(), cos.data_ptr<scalar_t_1>(),
+                                sin.data_ptr<scalar_t_1>(), input_grads.data_ptr<scalar_t_0>()););
   return input_grads;
 }
 
-torch::Tensor fwd_thd_cuda(const torch::Tensor &input,
-                           const torch::Tensor &cu_seqlens,
-                           const torch::Tensor &freqs) {
+torch::Tensor fwd_thd_cuda(const torch::Tensor &input, const torch::Tensor &cu_seqlens, const torch::Tensor &freqs) {
   // input sizes: (t, h, d)
   // t: cumulative sum of sequence lengths
   // h: head num
@@ -288,16 +266,13 @@ torch::Tensor fwd_thd_cuda(const torch::Tensor &input,
 
   DISPATCH_FLOAT_HALF_AND_BFLOAT(
       input.scalar_type(), 0, "dispatch_fused_rope_thd_forward",
-      dispatch_fused_rope_thd_forward(
-          max_s, b, h, d, d2, stride_t, stride_h, stride_d, o_stride_t,
-          o_stride_h, o_stride_d, input.data_ptr<scalar_t_0>(),
-          cu_seqlens.data_ptr<int>(), freqs.data_ptr<float>(),
-          output.data_ptr<scalar_t_0>()););
+      dispatch_fused_rope_thd_forward(max_s, b, h, d, d2, stride_t, stride_h, stride_d, o_stride_t, o_stride_h,
+                                      o_stride_d, input.data_ptr<scalar_t_0>(), cu_seqlens.data_ptr<int>(),
+                                      freqs.data_ptr<float>(), output.data_ptr<scalar_t_0>()););
   return output;
 }
 
-torch::Tensor bwd_thd_cuda(const torch::Tensor &output_grads,
-                           const torch::Tensor &cu_seqlens,
+torch::Tensor bwd_thd_cuda(const torch::Tensor &output_grads, const torch::Tensor &cu_seqlens,
                            const torch::Tensor &freqs) {
   // output_grads sizes: (t, h, d)
   // t: cumulative sum of sequence lengths
@@ -324,19 +299,14 @@ torch::Tensor bwd_thd_cuda(const torch::Tensor &output_grads,
 
   DISPATCH_FLOAT_HALF_AND_BFLOAT(
       output_grads.scalar_type(), 0, "dispatch_fused_rope_thd_backward",
-      dispatch_fused_rope_thd_backward(
-          max_s, b, h, d, d2, stride_t, stride_h, stride_d, o_stride_t,
-          o_stride_h, o_stride_d, output_grads.data_ptr<scalar_t_0>(),
-          cu_seqlens.data_ptr<int>(), freqs.data_ptr<float>(),
-          input_grads.data_ptr<scalar_t_0>()););
+      dispatch_fused_rope_thd_backward(max_s, b, h, d, d2, stride_t, stride_h, stride_d, o_stride_t, o_stride_h,
+                                       o_stride_d, output_grads.data_ptr<scalar_t_0>(), cu_seqlens.data_ptr<int>(),
+                                       freqs.data_ptr<float>(), input_grads.data_ptr<scalar_t_0>()););
   return input_grads;
 }
 
-torch::Tensor fwd_2d_cuda(const torch::Tensor &input,
-                          const torch::Tensor &cos_h,
-                          const torch::Tensor &sin_h,
-                          const torch::Tensor &cos_w,
-                          const torch::Tensor &sin_w) {
+torch::Tensor fwd_2d_cuda(const torch::Tensor &input, const torch::Tensor &cos_h, const torch::Tensor &sin_h,
+                          const torch::Tensor &cos_w, const torch::Tensor &sin_w) {
   // input sizes: (b, ih, iw, h, d)
   // b: batch size
   // ih: image height
@@ -365,22 +335,16 @@ torch::Tensor fwd_2d_cuda(const torch::Tensor &input,
   const int o_stride_d = output.stride(3);
 
   DISPATCH_FUSED_ROPE_TYPES(
-      input.scalar_type(), cos_h.scalar_type(),
-      "dispatch_fused_rope_2d_forward",
+      input.scalar_type(), cos_h.scalar_type(), "dispatch_fused_rope_2d_forward",
       dispatch_fused_rope_2d_forward(
-          b, ih, iw, h, d, stride_b, stride_ih, stride_iw, stride_h, stride_d,
-          o_stride_b, o_stride_s, o_stride_h, o_stride_d,
-          input.data_ptr<scalar_t_0>(), cos_h.data_ptr<scalar_t_1>(),
-          sin_h.data_ptr<scalar_t_1>(), cos_w.data_ptr<scalar_t_1>(),
-          sin_w.data_ptr<scalar_t_1>(), output.data_ptr<scalar_t_0>()););
+          b, ih, iw, h, d, stride_b, stride_ih, stride_iw, stride_h, stride_d, o_stride_b, o_stride_s, o_stride_h,
+          o_stride_d, input.data_ptr<scalar_t_0>(), cos_h.data_ptr<scalar_t_1>(), sin_h.data_ptr<scalar_t_1>(),
+          cos_w.data_ptr<scalar_t_1>(), sin_w.data_ptr<scalar_t_1>(), output.data_ptr<scalar_t_0>()););
   return output;
 }
 
-torch::Tensor bwd_2d_cuda(const torch::Tensor &output_grads,
-                          const torch::Tensor &cos_h,
-                          const torch::Tensor &sin_h,
-                          const torch::Tensor &cos_w,
-                          const torch::Tensor &sin_w) {
+torch::Tensor bwd_2d_cuda(const torch::Tensor &output_grads, const torch::Tensor &cos_h, const torch::Tensor &sin_h,
+                          const torch::Tensor &cos_w, const torch::Tensor &sin_w) {
   // output_grads sizes: (b, ih, iw, h, d)
   // b: batch size
   // ih: image height
@@ -407,14 +371,11 @@ torch::Tensor bwd_2d_cuda(const torch::Tensor &output_grads,
   const int o_stride_d = input_grads.stride(3);
 
   DISPATCH_FUSED_ROPE_TYPES(
-      output_grads.scalar_type(), cos_h.scalar_type(),
-      "dispatch_fused_rope_2d_backward",
+      output_grads.scalar_type(), cos_h.scalar_type(), "dispatch_fused_rope_2d_backward",
       dispatch_fused_rope_2d_backward(
-          b, ih, iw, h, d, stride_b, stride_ih, stride_iw, stride_h, stride_d,
-          o_stride_b, o_stride_s, o_stride_h, o_stride_d,
-          output_grads.data_ptr<scalar_t_0>(), cos_h.data_ptr<scalar_t_1>(),
-          sin_h.data_ptr<scalar_t_1>(), cos_w.data_ptr<scalar_t_1>(),
-          sin_w.data_ptr<scalar_t_1>(), input_grads.data_ptr<scalar_t_0>()););
+          b, ih, iw, h, d, stride_b, stride_ih, stride_iw, stride_h, stride_d, o_stride_b, o_stride_s, o_stride_h,
+          o_stride_d, output_grads.data_ptr<scalar_t_0>(), cos_h.data_ptr<scalar_t_1>(), sin_h.data_ptr<scalar_t_1>(),
+          cos_w.data_ptr<scalar_t_1>(), sin_w.data_ptr<scalar_t_1>(), input_grads.data_ptr<scalar_t_0>()););
   return input_grads;
 }
 

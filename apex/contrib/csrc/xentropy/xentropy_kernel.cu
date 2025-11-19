@@ -71,9 +71,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 #include <ATen/ATen.h>
+#include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 
-#include <ATen/AccumulateType.h>
 #include <ATen/cuda/NumericLimits.cuh>
 
 #include "type_shim.h"
@@ -85,25 +85,21 @@ using TensorList = at::TensorList;
 using ScalarType = at::ScalarType;
 using at::acc_type;
 
-template<typename T, typename AccumT, typename OutT>
+template <typename T, typename AccumT, typename OutT>
 struct LogSoftMaxForwardEpilogue {
   __device__ __forceinline__ LogSoftMaxForwardEpilogue(AccumT max_input, AccumT sum)
-    : logsum(max_input + std::log(sum)) {}
+      : logsum(max_input + std::log(sum)) {}
 
-  __device__ __forceinline__ LogSoftMaxForwardEpilogue(AccumT max_log_sum_exp)
-    : logsum(max_log_sum_exp) {}
+  __device__ __forceinline__ LogSoftMaxForwardEpilogue(AccumT max_log_sum_exp) : logsum(max_log_sum_exp) {}
 
-  __device__ __forceinline__ OutT operator()(T input) const {
-    return static_cast<OutT>(input - logsum);
-  }
+  __device__ __forceinline__ OutT operator()(T input) const { return static_cast<OutT>(input - logsum); }
 
   const AccumT logsum;
 };
 
-template<typename T, typename AccumT, typename OutT>
+template <typename T, typename AccumT, typename OutT>
 struct LogSoftMaxBackwardEpilogue {
-  __device__ __forceinline__ LogSoftMaxBackwardEpilogue(AccumT sum)
-    : sum(sum) {}
+  __device__ __forceinline__ LogSoftMaxBackwardEpilogue(AccumT sum) : sum(sum) {}
 
   __device__ __forceinline__ T operator()(OutT gradOutput, OutT output) const {
     return static_cast<T>(gradOutput - std::exp(static_cast<AccumT>(output)) * sum);
@@ -112,74 +108,52 @@ struct LogSoftMaxBackwardEpilogue {
   const AccumT sum;
 };
 
-
-
 const int max_threads = 1024;
 
 inline dim3 SoftMax_getBlockSize(int ILP, uint64_t dim_size) {
   uint64_t block_size = 1;
   uint64_t max_block_size = std::min(dim_size / ILP, static_cast<uint64_t>(max_threads));
-  while (block_size < (max_block_size/2)) block_size *= 2;
+  while (block_size < (max_block_size / 2)) block_size *= 2;
   // Launch at least a single warp - the kernel assumes that.
   block_size = std::max(block_size, static_cast<uint64_t>(32));
   return dim3(block_size);
 }
 
-template<typename T>
+template <typename T>
 struct Add {
-  __device__ __forceinline__ T operator()(T a, T b) const {
-    return a + b;
-  }
+  __device__ __forceinline__ T operator()(T a, T b) const { return a + b; }
 };
 
-template<typename T>
+template <typename T>
 struct Max {
-  __device__ __forceinline__ T operator()(T a, T b) const {
-    return a < b ? b : a;
-  }
+  __device__ __forceinline__ T operator()(T a, T b) const { return a < b ? b : a; }
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Regular kernel (fast when dim_size is large; requires inner_size == 1)
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T, typename AccumT>
+struct MaxFloat {
+  __device__ __forceinline__ AccumT operator()(AccumT max, T v) const { return ::max(max, (AccumT)v); }
+};
 
 template <typename T, typename AccumT>
-struct MaxFloat
-{
-  __device__ __forceinline__ AccumT operator()(AccumT max, T v) const {
-    return ::max(max, (AccumT)v);
-  }
+struct AddFloat {
+  __device__ __forceinline__ AccumT operator()(AccumT sum, T v) const { return sum + v; }
 };
 
-template<typename T, typename AccumT>
-struct AddFloat
-{
-  __device__ __forceinline__ AccumT operator()(AccumT sum, T v) const {
-    return sum + v;
-  }
-};
+template <typename T, typename AccumT>
+struct SumExpFloat {
+  __device__ __forceinline__ SumExpFloat(AccumT v) : max_k(v) {}
 
-template<typename T, typename AccumT>
-struct SumExpFloat
-{
-  __device__ __forceinline__ SumExpFloat(AccumT v)
-    : max_k(v) {}
-
-  __device__ __forceinline__ AccumT operator()(AccumT sum, T v) const {
-    return sum + std::exp(v - max_k);
-  }
+  __device__ __forceinline__ AccumT operator()(AccumT sum, T v) const { return sum + std::exp(v - max_k); }
 
   const AccumT max_k;
 };
 
-template <template<typename> class Reduction, typename AccumT>
-__device__ __forceinline__ AccumT
-blockReduce(AccumT* smem, AccumT val,
-            const Reduction<AccumT>& r,
-            AccumT defaultVal)
-{
+template <template <typename> class Reduction, typename AccumT>
+__device__ __forceinline__ AccumT blockReduce(AccumT *smem, AccumT val, const Reduction<AccumT> &r, AccumT defaultVal) {
   // To avoid RaW races from chaining blockReduce calls together, we need a sync here
   __syncthreads();
 
@@ -220,18 +194,10 @@ blockReduce(AccumT* smem, AccumT val,
   return smem[0];
 }
 
-template <template<typename> class Reduction1, template<typename> class Reduction2, typename AccumT>
-__device__ __forceinline__ void
-blockReduce(AccumT* smem,
-            AccumT* reducVal1,
-            AccumT val1,
-            const Reduction1<AccumT>& r1,
-            AccumT defaultVal1,
-            AccumT* reducVal2,
-            AccumT val2,
-            const Reduction2<AccumT>& r2,
-            AccumT defaultVal2)
-{
+template <template <typename> class Reduction1, template <typename> class Reduction2, typename AccumT>
+__device__ __forceinline__ void blockReduce(AccumT *smem, AccumT *reducVal1, AccumT val1, const Reduction1<AccumT> &r1,
+                                            AccumT defaultVal1, AccumT *reducVal2, AccumT val2,
+                                            const Reduction2<AccumT> &r2, AccumT defaultVal2) {
   // To avoid RaW races from chaining blockReduce calls together, we need a sync here
   __syncthreads();
 
@@ -281,23 +247,18 @@ blockReduce(AccumT* smem,
   __syncthreads();
 }
 
-template <template<typename, typename> class Reduction, int ILP, typename T, typename AccumT>
-__device__ __forceinline__ AccumT
-ilpReduce(int shift,
-          T* data,
-          int size,
-          const Reduction<T, AccumT>& r,
-          AccumT defaultVal)
-{
-  typedef typename std::aligned_storage<ILP*sizeof(T), ILP*alignof(T)>::type LoadT;
+template <template <typename, typename> class Reduction, int ILP, typename T, typename AccumT>
+__device__ __forceinline__ AccumT ilpReduce(int shift, T *data, int size, const Reduction<T, AccumT> &r,
+                                            AccumT defaultVal) {
+  typedef typename std::aligned_storage<ILP * sizeof(T), ILP * alignof(T)>::type LoadT;
   AccumT threadVal = defaultVal;
   int offset = threadIdx.x;
 
   // shift and do 1
-  if(shift > 0){
+  if (shift > 0) {
     data -= shift;
     size += shift;
-    if(threadIdx.x >= shift){
+    if (threadIdx.x >= shift) {
       threadVal = r(threadVal, data[offset]);
     }
     size -= blockDim.x;
@@ -306,10 +267,10 @@ ilpReduce(int shift,
   int last = size % (ILP * blockDim.x);
 
   T v[ILP];
-  LoadT* value = reinterpret_cast<LoadT*>(&v);
+  LoadT *value = reinterpret_cast<LoadT *>(&v);
 
   for (; offset * ILP < (size - last); offset += blockDim.x) {
-    *value = reinterpret_cast<LoadT*>(data)[offset];
+    *value = reinterpret_cast<LoadT *>(data)[offset];
 
     for (int j = 0; j < ILP; ++j) {
       threadVal = r(threadVal, v[j]);
@@ -318,35 +279,27 @@ ilpReduce(int shift,
 
   offset = size - last + threadIdx.x;
   // Epilogue
-  for (; offset < size; offset += blockDim.x)
-    threadVal = r(threadVal, data[offset]);
+  for (; offset < size; offset += blockDim.x) threadVal = r(threadVal, data[offset]);
 
   return threadVal;
 }
 
-template <template<typename, typename> class Reduction1, template<typename, typename> class Reduction2, int ILP, typename T, typename AccumT>
-__device__ __forceinline__ void
-ilpReduce(int shift,
-          T* data,
-          int size,
-          AccumT* reducVal1,
-          const Reduction1<T, AccumT>& r1,
-          AccumT defaultVal1,
-          AccumT* reducVal2,
-          const Reduction2<T, AccumT>& r2,
-          AccumT defaultVal2)
-{
-  typedef typename std::aligned_storage<ILP*sizeof(T), ILP*alignof(T)>::type LoadT;
+template <template <typename, typename> class Reduction1, template <typename, typename> class Reduction2, int ILP,
+          typename T, typename AccumT>
+__device__ __forceinline__ void ilpReduce(int shift, T *data, int size, AccumT *reducVal1,
+                                          const Reduction1<T, AccumT> &r1, AccumT defaultVal1, AccumT *reducVal2,
+                                          const Reduction2<T, AccumT> &r2, AccumT defaultVal2) {
+  typedef typename std::aligned_storage<ILP * sizeof(T), ILP * alignof(T)>::type LoadT;
 
   AccumT threadVal1 = defaultVal1;
   AccumT threadVal2 = defaultVal2;
   int offset = threadIdx.x;
 
   // shift and do 1
-  if(shift > 0){
+  if (shift > 0) {
     data -= shift;
     size += shift;
-    if(threadIdx.x >= shift){
+    if (threadIdx.x >= shift) {
       threadVal1 = r1(threadVal1, data[offset]);
       threadVal2 = r2(threadVal2, data[offset]);
     }
@@ -356,10 +309,10 @@ ilpReduce(int shift,
   int last = size % (ILP * blockDim.x);
 
   T v[ILP];
-  LoadT* value = reinterpret_cast<LoadT*>(&v);
+  LoadT *value = reinterpret_cast<LoadT *>(&v);
 
   for (; offset * ILP < (size - last); offset += blockDim.x) {
-    *value = reinterpret_cast<LoadT*>(data)[offset];
+    *value = reinterpret_cast<LoadT *>(data)[offset];
 
     for (int j = 0; j < ILP; ++j) {
       threadVal1 = r1(threadVal1, v[j]);
@@ -378,22 +331,16 @@ ilpReduce(int shift,
   *reducVal2 = threadVal2;
 }
 
-template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t, template <typename, typename, typename> class Epilogue>
-__global__ void
-cunn_SoftMaxXEntropyForward(
-    accscalar_t *losses,
-    outscalar_t *max_log_sum_exp,
-    scalar_t *input,
-    int64_t *labels,
-    int64_t classes,
-    const float smoothing)
-{
+template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t,
+          template <typename, typename, typename> class Epilogue>
+__global__ void cunn_SoftMaxXEntropyForward(accscalar_t *losses, outscalar_t *max_log_sum_exp, scalar_t *input,
+                                            int64_t *labels, int64_t classes, const float smoothing) {
   extern __shared__ unsigned char smem[];
-  auto sdata = reinterpret_cast<accscalar_t*>(smem);
+  auto sdata = reinterpret_cast<accscalar_t *>(smem);
   // forward pointers to batch[blockIdx.x]
   // each block handles a sample in the mini-batch
   input += blockIdx.x * classes;
-  //output += blockIdx.x * classes;
+  // output += blockIdx.x * classes;
   const int shift = ((uint64_t)input) % ALIGN_BYTES / sizeof(scalar_t);
 
   int64_t label = labels[blockIdx.x];
@@ -401,22 +348,16 @@ cunn_SoftMaxXEntropyForward(
   // find the max and sum
   accscalar_t threadMax, threadSum, max_k, sum_k;
   ilpReduce<MaxFloat, AddFloat, ILP, scalar_t, accscalar_t>(
-    shift, input, classes,
-    &threadMax, MaxFloat<scalar_t, accscalar_t>(),
-    -at::numeric_limits<accscalar_t>::max(),
-    &threadSum, AddFloat<scalar_t, accscalar_t>(),
-    static_cast<accscalar_t>(0));
+      shift, input, classes, &threadMax, MaxFloat<scalar_t, accscalar_t>(), -at::numeric_limits<accscalar_t>::max(),
+      &threadSum, AddFloat<scalar_t, accscalar_t>(), static_cast<accscalar_t>(0));
 
-  blockReduce<Max, Add, accscalar_t>(
-      sdata,
-      &max_k, threadMax, Max<accscalar_t>(),
-      -at::numeric_limits<accscalar_t>::max(),
-      &sum_k, threadSum, Add<accscalar_t>(),
-      static_cast<accscalar_t>(0));
+  blockReduce<Max, Add, accscalar_t>(sdata, &max_k, threadMax, Max<accscalar_t>(),
+                                     -at::numeric_limits<accscalar_t>::max(), &sum_k, threadSum, Add<accscalar_t>(),
+                                     static_cast<accscalar_t>(0));
 
-  accscalar_t threadExp = ilpReduce<SumExpFloat, ILP, scalar_t, accscalar_t>(shift, input, classes, SumExpFloat<scalar_t, accscalar_t>(max_k), static_cast<accscalar_t>(0));
-  accscalar_t sumAll = blockReduce<Add, accscalar_t>(
-      sdata, threadExp, Add<accscalar_t>(), static_cast<accscalar_t>(0));
+  accscalar_t threadExp = ilpReduce<SumExpFloat, ILP, scalar_t, accscalar_t>(
+      shift, input, classes, SumExpFloat<scalar_t, accscalar_t>(max_k), static_cast<accscalar_t>(0));
+  accscalar_t sumAll = blockReduce<Add, accscalar_t>(sdata, threadExp, Add<accscalar_t>(), static_cast<accscalar_t>(0));
 
   Epilogue<scalar_t, accscalar_t, outscalar_t> epilogue(max_k, sumAll);
 
@@ -424,22 +365,14 @@ cunn_SoftMaxXEntropyForward(
   // reserve max + log_sum_exp for bprop
   if (threadIdx.x == 0) {
     accscalar_t log_prob = epilogue(static_cast<accscalar_t>(input[label]));
-    losses[blockIdx.x] = (max_k + std::log(sumAll) - sum_k / classes) \
-      * smoothing - log_prob * (1 - smoothing);
+    losses[blockIdx.x] = (max_k + std::log(sumAll) - sum_k / classes) * smoothing - log_prob * (1 - smoothing);
     max_log_sum_exp[blockIdx.x] = max_k + std::log(sumAll);
   }
 }
 
 template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t>
-__device__ __forceinline__ void
-apply(scalar_t *gradInput,
-      scalar_t *logits,
-      outscalar_t *max_log_sum_exp,
-      outscalar_t *gradOutput,
-      int64_t *labels,
-      const float smoothing,
-      int classes)
-{
+__device__ __forceinline__ void apply(scalar_t *gradInput, scalar_t *logits, outscalar_t *max_log_sum_exp,
+                                      outscalar_t *gradOutput, int64_t *labels, const float smoothing, int classes) {
   accscalar_t smooth_positives = 1.0 - smoothing;
   accscalar_t smooth_negatives = smoothing / classes;
   accscalar_t tmpGradOutput = gradOutput[blockIdx.x];
@@ -459,31 +392,22 @@ apply(scalar_t *gradInput,
 
 #pragma unroll
     for (int j = 0; j < ILP; ++j)
-      gradInput[offset + j * blockDim.x] = tmpGradOutput * (
-        std::exp(tmpLogits[j] - coeff) - static_cast<accscalar_t>(
-          (offset + j * blockDim.x == label) ? 1 : 0) *
-        smooth_positives - smooth_negatives);
+      gradInput[offset + j * blockDim.x] =
+          tmpGradOutput *
+          (std::exp(tmpLogits[j] - coeff) -
+           static_cast<accscalar_t>((offset + j * blockDim.x == label) ? 1 : 0) * smooth_positives - smooth_negatives);
   }
 
   for (; offset < classes; offset += blockDim.x)
-    gradInput[offset] = tmpGradOutput * (std::exp(
-        static_cast<accscalar_t>(logits[offset]) - coeff) -
-        static_cast<accscalar_t>((offset == label) ? 1 : 0) *
-        smooth_positives - smooth_negatives);
+    gradInput[offset] =
+        tmpGradOutput * (std::exp(static_cast<accscalar_t>(logits[offset]) - coeff) -
+                         static_cast<accscalar_t>((offset == label) ? 1 : 0) * smooth_positives - smooth_negatives);
 }
 
-
 template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t>
-__device__ __forceinline__ void
-aligned_apply(int shift,
-              scalar_t *gradInput,
-              scalar_t *logits,
-              outscalar_t *max_log_sum_exp,
-              outscalar_t *gradOutput,
-              int64_t *labels,
-              const float smoothing,
-              int classes)
-{
+__device__ __forceinline__ void aligned_apply(int shift, scalar_t *gradInput, scalar_t *logits,
+                                              outscalar_t *max_log_sum_exp, outscalar_t *gradOutput, int64_t *labels,
+                                              const float smoothing, int classes) {
   accscalar_t smooth_positives = 1.0 - smoothing;
   accscalar_t smooth_negatives = smoothing / classes;
   accscalar_t tmpGradOutput = gradOutput[blockIdx.x];
@@ -493,15 +417,15 @@ aligned_apply(int shift,
   int offset = threadIdx.x;
 
   // shift and do 1
-  if(shift > 0){
+  if (shift > 0) {
     logits -= shift;
     gradInput -= shift;
     classes += shift;
-    if(threadIdx.x >= shift){
-      gradInput[offset] = tmpGradOutput * (std::exp(
-        static_cast<accscalar_t>(logits[offset]) - coeff) -
-        static_cast<accscalar_t>(((offset - shift) == label) ? 1 : 0) *
-        smooth_positives - smooth_negatives);
+    if (threadIdx.x >= shift) {
+      gradInput[offset] =
+          tmpGradOutput *
+          (std::exp(static_cast<accscalar_t>(logits[offset]) - coeff) -
+           static_cast<accscalar_t>(((offset - shift) == label) ? 1 : 0) * smooth_positives - smooth_negatives);
     }
     classes -= blockDim.x;
     gradInput += blockDim.x;
@@ -511,78 +435,70 @@ aligned_apply(int shift,
 
   int last = classes % (ILP * blockDim.x);
 
-  typedef typename std::aligned_storage<ILP*sizeof(scalar_t), ILP*alignof(scalar_t)>::type LoadT;
+  typedef typename std::aligned_storage<ILP * sizeof(scalar_t), ILP * alignof(scalar_t)>::type LoadT;
   // input
   scalar_t v[ILP];
-  LoadT* value = reinterpret_cast<LoadT*>(&v);
+  LoadT *value = reinterpret_cast<LoadT *>(&v);
   // output
   scalar_t r[ILP];
-  LoadT* result = reinterpret_cast<LoadT*>(&r);
+  LoadT *result = reinterpret_cast<LoadT *>(&r);
 
   for (; offset * ILP < (classes - last); offset += blockDim.x) {
-    *value = reinterpret_cast<LoadT*>(logits)[offset];
+    *value = reinterpret_cast<LoadT *>(logits)[offset];
 
 #pragma unroll
     for (int j = 0; j < ILP; ++j) {
-      r[j] = tmpGradOutput * (std::exp(
-          static_cast<accscalar_t>(v[j]) - coeff) -
-          static_cast<accscalar_t>(((ILP * offset + j - shift) == label) ? 1 : 0) *
-          smooth_positives - smooth_negatives);
+      r[j] =
+          tmpGradOutput * (std::exp(static_cast<accscalar_t>(v[j]) - coeff) -
+                           static_cast<accscalar_t>(((ILP * offset + j - shift) == label) ? 1 : 0) * smooth_positives -
+                           smooth_negatives);
     }
-    reinterpret_cast<LoadT*>(gradInput)[offset] = *result;
+    reinterpret_cast<LoadT *>(gradInput)[offset] = *result;
   }
 
   offset = classes - last + threadIdx.x;
   for (; offset < classes; offset += blockDim.x)
-    gradInput[offset] = tmpGradOutput * (std::exp(
-        static_cast<accscalar_t>(logits[offset]) - coeff) -
-        static_cast<accscalar_t>(((offset - shift) == label) ? 1 : 0) *
-        smooth_positives - smooth_negatives);
-
+    gradInput[offset] =
+        tmpGradOutput *
+        (std::exp(static_cast<accscalar_t>(logits[offset]) - coeff) -
+         static_cast<accscalar_t>(((offset - shift) == label) ? 1 : 0) * smooth_positives - smooth_negatives);
 }
 
-template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t, template<typename, typename, typename> class Epilogue>
-__global__ void
-cunn_SoftMaxXEntropyBackward(
-    scalar_t *gradInput,
-    scalar_t *logits,
-    outscalar_t *max_log_sum_exp,
-    outscalar_t *gradOutput,
-    int64_t *labels,
-    const float smoothing,
-    int classes)
-{
+template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t,
+          template <typename, typename, typename> class Epilogue>
+__global__ void cunn_SoftMaxXEntropyBackward(scalar_t *gradInput, scalar_t *logits, outscalar_t *max_log_sum_exp,
+                                             outscalar_t *gradOutput, int64_t *labels, const float smoothing,
+                                             int classes) {
   gradInput += blockIdx.x * classes;
   logits += blockIdx.x * classes;
 
   // Do vectorized load/store when input/output have same alignment
   const int shift = ((uint64_t)logits) % ALIGN_BYTES / sizeof(scalar_t);
   const int shift_ = ((uint64_t)gradInput) % ALIGN_BYTES / sizeof(scalar_t);
-  if (shift == shift_){
-    aligned_apply<ILP, scalar_t, accscalar_t, outscalar_t>(shift, gradInput, logits, max_log_sum_exp, gradOutput, labels, smoothing, classes);
+  if (shift == shift_) {
+    aligned_apply<ILP, scalar_t, accscalar_t, outscalar_t>(shift, gradInput, logits, max_log_sum_exp, gradOutput,
+                                                           labels, smoothing, classes);
+  } else {
+    apply<ILP, scalar_t, accscalar_t, outscalar_t>(gradInput, logits, max_log_sum_exp, gradOutput, labels, smoothing,
+                                                   classes);
   }
-  else {
-    apply<ILP, scalar_t, accscalar_t, outscalar_t>(gradInput, logits, max_log_sum_exp, gradOutput, labels, smoothing, classes);
-  }
-
 }
 
-template<template<typename, typename, typename> class Epilogue>
-std::vector<Tensor> host_softmax_xentropy(
-        const Tensor & input_,
-        const Tensor & labels_,
-        const float smoothing,
-        const bool half_to_float){
-  if (half_to_float) TORCH_CHECK(input_.scalar_type() == ScalarType::Half,"conversion is supported for Half type only");
-  TORCH_CHECK(labels_.scalar_type() == ScalarType::Long,"Label type should be CUDA Long");
+template <template <typename, typename, typename> class Epilogue>
+std::vector<Tensor> host_softmax_xentropy(const Tensor &input_, const Tensor &labels_, const float smoothing,
+                                          const bool half_to_float) {
+  if (half_to_float)
+    TORCH_CHECK(input_.scalar_type() == ScalarType::Half, "conversion is supported for Half type only");
+  TORCH_CHECK(labels_.scalar_type() == ScalarType::Long, "Label type should be CUDA Long");
 
   auto input = input_.contiguous();
-  Tensor max_log_sum_exp = at::empty_like(labels_, half_to_float ? input.options().dtype(ScalarType::Float) : input.options());
+  Tensor max_log_sum_exp =
+      at::empty_like(labels_, half_to_float ? input.options().dtype(ScalarType::Float) : input.options());
   Tensor losses = at::empty_like(labels_, input_.options().dtype(ScalarType::Float));
 
-  static_assert(std::is_same<acc_type<at::Half, true>, float>::value ||
-    std::is_same<acc_type<at::Half, true>, double>::value,
-    "accscalar_t for half should be float or double");
+  static_assert(
+      std::is_same<acc_type<at::Half, true>, float>::value || std::is_same<acc_type<at::Half, true>, double>::value,
+      "accscalar_t for half should be float or double");
   TORCH_CHECK(input.dim() == 2, "Currently only 2 dim input supported");
   TORCH_CHECK(labels_.dim() == 1, "Labels should be 1 dimensional");
   TORCH_CHECK(input.size(0) == labels_.size(0), "Input and label should have same number of examples");
@@ -593,10 +509,8 @@ std::vector<Tensor> host_softmax_xentropy(
   int64_t dim_size = input.size(dim);
   int64_t inner_size = 1;
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-  for (int64_t i = 0; i < dim; ++i)
-    outer_size *= input.size(i);
-  for (int64_t i = dim + 1; i < input.dim(); ++i)
-    inner_size *= input.size(i);
+  for (int64_t i = 0; i < dim; ++i) outer_size *= input.size(i);
+  for (int64_t i = dim + 1; i < input.dim(); ++i) inner_size *= input.size(i);
   // This kernel spawns a block per each element in the batch.
   // XXX: it assumes that inner_size == 1
   TORCH_CHECK(inner_size == 1, "Currently only inner size 1 supported");
@@ -604,26 +518,20 @@ std::vector<Tensor> host_softmax_xentropy(
   dim3 grid(outer_size);
 
   using namespace at;
-  DISPATCH_FLOAT_HALF_AND_BFLOAT(input.scalar_type(), 0, "host_softmax_xentropy",
-    using accscalar_t = at::acc_type<scalar_t_0, true>;
-    const int ILP = sizeof(float4)/sizeof(scalar_t_0);
-    dim3 block = SoftMax_getBlockSize(ILP, dim_size);
-    if (!half_to_float) {
-      cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, scalar_t_0, Epilogue>
-        <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
-          losses.data_ptr<accscalar_t>(), max_log_sum_exp.data_ptr<scalar_t_0>(),
-          input.data_ptr<scalar_t_0>(), labels_.data_ptr<int64_t>(),
-          dim_size, smoothing
-      );
-    } else {
-      cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, accscalar_t, Epilogue>
-        <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
-          losses.data_ptr<accscalar_t>(), max_log_sum_exp.data_ptr<accscalar_t>(),
-          input.data_ptr<scalar_t_0>(), labels_.data_ptr<int64_t>(),
-          dim_size, smoothing
-      );
-    }
-  );
+  DISPATCH_FLOAT_HALF_AND_BFLOAT(
+      input.scalar_type(), 0, "host_softmax_xentropy", using accscalar_t = at::acc_type<scalar_t_0, true>;
+      const int ILP = sizeof(float4) / sizeof(scalar_t_0); dim3 block = SoftMax_getBlockSize(ILP, dim_size);
+      if (!half_to_float) {
+        cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, scalar_t_0, Epilogue>
+            <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
+                losses.data_ptr<accscalar_t>(), max_log_sum_exp.data_ptr<scalar_t_0>(), input.data_ptr<scalar_t_0>(),
+                labels_.data_ptr<int64_t>(), dim_size, smoothing);
+      } else {
+        cunn_SoftMaxXEntropyForward<ILP, scalar_t_0, accscalar_t, accscalar_t, Epilogue>
+            <<<grid, block, 2 * block.x * sizeof(accscalar_t), stream>>>(
+                losses.data_ptr<accscalar_t>(), max_log_sum_exp.data_ptr<accscalar_t>(), input.data_ptr<scalar_t_0>(),
+                labels_.data_ptr<int64_t>(), dim_size, smoothing);
+      });
 
   C10_CUDA_CHECK(cudaGetLastError());
 
@@ -631,14 +539,10 @@ std::vector<Tensor> host_softmax_xentropy(
   return ret;
 }
 
-template<template<typename, typename, typename> class Epilogue>
-Tensor host_softmax_xentropy_backward(
-    const at::Tensor &grad_loss,
-    const at::Tensor &logits_,
-    const at::Tensor &max_log_sum_exp,
-    const at::Tensor &labels,
-    const float smoothing,
-    bool half_to_float) {
+template <template <typename, typename, typename> class Epilogue>
+Tensor host_softmax_xentropy_backward(const at::Tensor &grad_loss, const at::Tensor &logits_,
+                                      const at::Tensor &max_log_sum_exp, const at::Tensor &labels,
+                                      const float smoothing, bool half_to_float) {
   const int64_t dim = 1;
   Tensor gI = at::empty_like(logits_);
   if (grad_loss.numel() == 0) {
@@ -648,9 +552,9 @@ Tensor host_softmax_xentropy_backward(
   auto grad = grad_loss.contiguous();
   auto logits = logits_.contiguous();
 
-  static_assert(std::is_same<acc_type<at::Half, true>, float>::value ||
-    std::is_same<acc_type<at::Half, true>, double>::value,
-    "accscalar_t for half should be float or double");
+  static_assert(
+      std::is_same<acc_type<at::Half, true>, float>::value || std::is_same<acc_type<at::Half, true>, double>::value,
+      "accscalar_t for half should be float or double");
   if (grad.dim() == 0) grad = grad.view(1);
 
   TORCH_CHECK(logits_.dim() == 2, "Currently only 2 dim input supported");
@@ -662,56 +566,46 @@ Tensor host_softmax_xentropy_backward(
   int64_t outer_size = 1;
   int64_t dim_size = logits.size(dim);
   int64_t inner_size = 1;
-  for (int64_t i = 0; i < dim; ++i)
-    outer_size *= logits.size(i);
-  for (int64_t i = dim + 1; i < logits.dim(); ++i)
-    inner_size *= logits.size(i);
+  for (int64_t i = 0; i < dim; ++i) outer_size *= logits.size(i);
+  for (int64_t i = dim + 1; i < logits.dim(); ++i) inner_size *= logits.size(i);
   // See descriptions of kernels above.
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
   TORCH_CHECK(inner_size == 1, "Currently only inner size 1 supported");
 
   dim3 grid(outer_size);
 
-  DISPATCH_FLOAT_HALF_AND_BFLOAT(gI.scalar_type(), 0, "host_softmax_xentropy_backward",
-    using accscalar_t = acc_type<scalar_t_0, true>;
-    const int ILP = sizeof(float4)/sizeof(scalar_t_0);
-    dim3 block = SoftMax_getBlockSize(ILP, dim_size);
-    if (!half_to_float) {
-      cunn_SoftMaxXEntropyBackward<ILP, scalar_t_0, accscalar_t, scalar_t_0, Epilogue>
-       <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
-          gI.data_ptr<scalar_t_0>(), logits.data_ptr<scalar_t_0>(),
-          max_log_sum_exp.data_ptr<scalar_t_0>(),
-          grad.data_ptr<scalar_t_0>(), labels.data_ptr<int64_t>(),
-          smoothing, dim_size
-      );
-    } else {
-      cunn_SoftMaxXEntropyBackward<ILP, scalar_t_0, accscalar_t, accscalar_t, Epilogue>
-       <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
-          gI.data_ptr<scalar_t_0>(), logits.data_ptr<scalar_t_0>(),
-          max_log_sum_exp.data_ptr<accscalar_t>(),
-          grad.data_ptr<accscalar_t>(), labels.data_ptr<int64_t>(),
-          smoothing, dim_size
-      );
-    }
-  );
+  DISPATCH_FLOAT_HALF_AND_BFLOAT(
+      gI.scalar_type(), 0, "host_softmax_xentropy_backward", using accscalar_t = acc_type<scalar_t_0, true>;
+      const int ILP = sizeof(float4) / sizeof(scalar_t_0); dim3 block = SoftMax_getBlockSize(ILP, dim_size);
+      if (!half_to_float) {
+        cunn_SoftMaxXEntropyBackward<ILP, scalar_t_0, accscalar_t, scalar_t_0, Epilogue>
+            <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
+                gI.data_ptr<scalar_t_0>(), logits.data_ptr<scalar_t_0>(), max_log_sum_exp.data_ptr<scalar_t_0>(),
+                grad.data_ptr<scalar_t_0>(), labels.data_ptr<int64_t>(), smoothing, dim_size);
+      } else {
+        cunn_SoftMaxXEntropyBackward<ILP, scalar_t_0, accscalar_t, accscalar_t, Epilogue>
+            <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
+                gI.data_ptr<scalar_t_0>(), logits.data_ptr<scalar_t_0>(), max_log_sum_exp.data_ptr<accscalar_t>(),
+                grad.data_ptr<accscalar_t>(), labels.data_ptr<int64_t>(), smoothing, dim_size);
+      });
 
   C10_CUDA_CHECK(cudaGetLastError());
   return gI;
 }
 
-std::vector<Tensor> softmax_xentropy_cuda(const Tensor &input, const Tensor &labels, const float smoothing, const bool half_to_float){
+std::vector<Tensor> softmax_xentropy_cuda(const Tensor &input, const Tensor &labels, const float smoothing,
+                                          const bool half_to_float) {
   return host_softmax_xentropy<LogSoftMaxForwardEpilogue>(input, labels, smoothing, half_to_float);
 }
 
-at::Tensor softmax_xentropy_backward_cuda(
-    const at::Tensor &grad_loss,
-    const at::Tensor &logits,
-    const at::Tensor &max_log_sum_exp,
-    const at::Tensor &labels,
-    const float smoothing) {
+at::Tensor softmax_xentropy_backward_cuda(const at::Tensor &grad_loss, const at::Tensor &logits,
+                                          const at::Tensor &max_log_sum_exp, const at::Tensor &labels,
+                                          const float smoothing) {
   bool half_to_float = grad_loss.scalar_type() != logits.scalar_type();
   if (half_to_float) {
-     TORCH_CHECK((grad_loss.scalar_type() == ScalarType::Float && logits.scalar_type() == ScalarType::Half), "expected input and grad types to match, or input to be at::Half and grad to be at::Float");
+    TORCH_CHECK((grad_loss.scalar_type() == ScalarType::Float && logits.scalar_type() == ScalarType::Half),
+                "expected input and grad types to match, or input to be at::Half and grad to be at::Float");
   }
-  return host_softmax_xentropy_backward<LogSoftMaxBackwardEpilogue>(grad_loss, logits, max_log_sum_exp, labels, smoothing, half_to_float);
+  return host_softmax_xentropy_backward<LogSoftMaxBackwardEpilogue>(grad_loss, logits, max_log_sum_exp, labels,
+                                                                    smoothing, half_to_float);
 }

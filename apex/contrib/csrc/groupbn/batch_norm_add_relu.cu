@@ -1,27 +1,22 @@
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDACachingAllocator.h>
+#include <cuda.h>
 
 #include "batch_norm_add_relu.h"
 
-#include <cuda.h>
+// FIXME move the common stuff to common h file
+#define cudaCheckErrors(msg)                                                                                  \
+  do {                                                                                                        \
+    cudaError_t __err = cudaGetLastError();                                                                   \
+    if (__err != cudaSuccess) {                                                                               \
+      fprintf(stderr, "Fatal error: %s (%s at %s:%d)\n", msg, cudaGetErrorString(__err), __FILE__, __LINE__); \
+      fprintf(stderr, "*** FAILED - ABORTING\n");                                                             \
+      exit(1);                                                                                                \
+    }                                                                                                         \
+  } while (0)
 
-//FIXME move the common stuff to common h file
-#define cudaCheckErrors(msg) \
-    do { \
-        cudaError_t __err = cudaGetLastError(); \
-        if (__err != cudaSuccess) { \
-            fprintf(stderr, "Fatal error: %s (%s at %s:%d)\n", \
-                msg, cudaGetErrorString(__err), \
-                __FILE__, __LINE__); \
-            fprintf(stderr, "*** FAILED - ABORTING\n"); \
-            exit(1); \
-        } \
-    } while (0)
-
-static size_t round_up_to_multiple(size_t x, int multiple) {
-  return ((x + multiple - 1) / multiple) * multiple;
-}
+static size_t round_up_to_multiple(size_t x, int multiple) { return ((x + multiple - 1) / multiple) * multiple; }
 
 struct Workspace {
   Workspace(size_t size) : size(size), data(NULL) {
@@ -40,29 +35,14 @@ struct Workspace {
 };
 
 // Return {y}
-at::Tensor nhwc_bn_addrelu_fwd_train(
-                       const at::Tensor& x,
-                       const at::Tensor& z,
-                       const at::Tensor& scale,
-                       const at::Tensor& bias,
-                       const at::Tensor& running_mean,
-                       const at::Tensor& running_inv_var,
-                       const at::Tensor& minibatch_mean,
-                       const at::Tensor& minibatch_inv_var,
-                       const at::Tensor& bitmask,
-                       const at::Tensor& ret_cta,
-                       const float momentum,
-                       const float epsilon,
-                       void * my_data,
-                       void * pair_data,
-                       void * pair_data2,
-                       void * pair_data3,
-                       const int bn_group,
-                       const at::Tensor& magic_tensor,
-                       const int occupancy,
-                       const int grid_dim_x,
-                       const bool coop) {
-
+at::Tensor nhwc_bn_addrelu_fwd_train(const at::Tensor& x, const at::Tensor& z, const at::Tensor& scale,
+                                     const at::Tensor& bias, const at::Tensor& running_mean,
+                                     const at::Tensor& running_inv_var, const at::Tensor& minibatch_mean,
+                                     const at::Tensor& minibatch_inv_var, const at::Tensor& bitmask,
+                                     const at::Tensor& ret_cta, const float momentum, const float epsilon,
+                                     void* my_data, void* pair_data, void* pair_data2, void* pair_data3,
+                                     const int bn_group, const at::Tensor& magic_tensor, const int occupancy,
+                                     const int grid_dim_x, const bool coop) {
   const int N = x.size(0);
   const int H = x.size(1);
   const int W = x.size(2);
@@ -76,7 +56,7 @@ at::Tensor nhwc_bn_addrelu_fwd_train(
   at::Tensor y = at::empty({N, H, W, C}, x.options());
 
   // Create wrapper
-  NhwcBatchNormAddRelu *bn = new NhwcBatchNormAddRelu();
+  NhwcBatchNormAddRelu* bn = new NhwcBatchNormAddRelu();
 
   bn->setInputDescriptor(CUDNN_TENSOR_NHWC, CUDNN_DATA_HALF, N, C, H, W, bn_group);
   bn->setOutputDescriptor(CUDNN_TENSOR_NHWC, CUDNN_DATA_HALF, N, C, H, W);
@@ -84,11 +64,7 @@ at::Tensor nhwc_bn_addrelu_fwd_train(
   bn->setConstants(momentum, epsilon);
 
   // set pointers within the wrapper
-  bn->setInputOutputPointers(x.data_ptr<at::Half>(),
-                             nullptr,
-                             y.data_ptr<at::Half>(),
-                             nullptr,
-                             z.data_ptr<at::Half>(),
+  bn->setInputOutputPointers(x.data_ptr<at::Half>(), nullptr, y.data_ptr<at::Half>(), nullptr, z.data_ptr<at::Half>(),
                              nullptr);
 
   bn->setWeightPointers({scale.data_ptr<float>(), bias.data_ptr<float>()}, {nullptr, nullptr});
@@ -112,7 +88,7 @@ at::Tensor nhwc_bn_addrelu_fwd_train(
   // Allocate the workspace
   Workspace ws(total_workspace_bytes);
 
-  std::vector<void *> workspace;
+  std::vector<void*> workspace;
   workspace.push_back(minibatch_mean.data_ptr<float>());
   workspace.push_back(minibatch_inv_var.data_ptr<float>());
   workspace.push_back(bitmask.data_ptr<int32_t>());
@@ -120,12 +96,12 @@ at::Tensor nhwc_bn_addrelu_fwd_train(
   auto stream = at::cuda::getCurrentCUDAStream().stream();
   const int retired_cta_bytes = workspace_bytes[3];
   void* retired_ctas = ret_cta.data_ptr<uint8_t>();
-  assert(ret_cta.size(0)>=retired_cta_bytes);
+  assert(ret_cta.size(0) >= retired_cta_bytes);
 
   workspace.push_back(retired_ctas);
 
   for (auto index = 4; index < workspace_bytes.size(); ++index) {
-    void *ptr = reinterpret_cast<uint8_t*>(ws.data) + workspace_offsets[index-4];
+    void* ptr = reinterpret_cast<uint8_t*>(ws.data) + workspace_offsets[index - 4];
     workspace.push_back(ptr);
   }
 
@@ -137,18 +113,10 @@ at::Tensor nhwc_bn_addrelu_fwd_train(
   return y;
 }
 
-at::Tensor nhwc_bn_addrelu_fwd_eval(
-                       const at::Tensor& x,
-                       const at::Tensor& z,
-                       const at::Tensor& scale,
-                       const at::Tensor& bias,
-                       const at::Tensor& running_mean,
-                       const at::Tensor& running_inv_var,
-                       const at::Tensor& ret_cta,
-                       const int bn_group,
-                       const float momentum,
-                       const float epsilon) {
-
+at::Tensor nhwc_bn_addrelu_fwd_eval(const at::Tensor& x, const at::Tensor& z, const at::Tensor& scale,
+                                    const at::Tensor& bias, const at::Tensor& running_mean,
+                                    const at::Tensor& running_inv_var, const at::Tensor& ret_cta, const int bn_group,
+                                    const float momentum, const float epsilon) {
   const int N = x.size(0);
   const int H = x.size(1);
   const int W = x.size(2);
@@ -158,7 +126,7 @@ at::Tensor nhwc_bn_addrelu_fwd_eval(
   at::Tensor y = at::empty({N, H, W, C}, x.options());
 
   // Create wrapper
-  NhwcBatchNormAddRelu *bn = new NhwcBatchNormAddRelu();
+  NhwcBatchNormAddRelu* bn = new NhwcBatchNormAddRelu();
 
   bn->setInputDescriptor(CUDNN_TENSOR_NHWC, CUDNN_DATA_HALF, N, C, H, W, bn_group);
   bn->setOutputDescriptor(CUDNN_TENSOR_NHWC, CUDNN_DATA_HALF, N, C, H, W);
@@ -166,11 +134,7 @@ at::Tensor nhwc_bn_addrelu_fwd_eval(
   bn->setConstants(momentum, epsilon);
 
   // set pointers within the wrapper
-  bn->setInputOutputPointers(x.data_ptr<at::Half>(),
-                             nullptr,
-                             y.data_ptr<at::Half>(),
-                             nullptr,
-                             z.data_ptr<at::Half>(),
+  bn->setInputOutputPointers(x.data_ptr<at::Half>(), nullptr, y.data_ptr<at::Half>(), nullptr, z.data_ptr<at::Half>(),
                              nullptr);
 
   bn->setWeightPointers({scale.data_ptr<float>(), bias.data_ptr<float>()}, {nullptr, nullptr});
@@ -194,7 +158,7 @@ at::Tensor nhwc_bn_addrelu_fwd_eval(
   // Allocate the workspace
   Workspace ws(total_workspace_bytes);
 
-  std::vector<void *> workspace;
+  std::vector<void*> workspace;
   workspace.push_back(nullptr);
   workspace.push_back(nullptr);
   workspace.push_back(nullptr);
@@ -202,11 +166,11 @@ at::Tensor nhwc_bn_addrelu_fwd_eval(
   auto stream = at::cuda::getCurrentCUDAStream().stream();
   const int retired_cta_bytes = workspace_bytes[3];
   void* retired_ctas = ret_cta.data_ptr<uint8_t>();
-  assert(ret_cta.size(0)>=retired_cta_bytes);
+  assert(ret_cta.size(0) >= retired_cta_bytes);
   workspace.push_back(retired_ctas);
 
   for (auto index = 4; index < workspace_bytes.size(); ++index) {
-    void *ptr = reinterpret_cast<uint8_t*>(ws.data) + workspace_offsets[index-4];
+    void* ptr = reinterpret_cast<uint8_t*>(ws.data) + workspace_offsets[index - 4];
     workspace.push_back(ptr);
   }
 
@@ -216,31 +180,16 @@ at::Tensor nhwc_bn_addrelu_fwd_eval(
   bn->fwdInference(stream);
 
   return y;
-
 }
 
-std::vector<at::Tensor> nhwc_bn_addrelu_bwd(
-                       const at::Tensor& x,
-                       const at::Tensor& dy,
-                       const at::Tensor& scale,
-                       const at::Tensor& bias,
-                       const at::Tensor& running_mean,
-                       const at::Tensor& running_inv_var,
-                       const at::Tensor& minibatch_mean,
-                       const at::Tensor& minibatch_inv_var,
-                       const at::Tensor& bitmask,
-                       const at::Tensor& ret_cta,
-                       const float momentum,
-                       const float epsilon,
-                       void * my_data,
-                       void * pair_data, 
-                       void * pair_data2, 
-                       void * pair_data3, 
-                       const int bn_group,
-                       const at::Tensor& magic_tensor,
-                       const int occupancy,
-                       const int grid_dim_x,
-                       const bool coop) {
+std::vector<at::Tensor> nhwc_bn_addrelu_bwd(const at::Tensor& x, const at::Tensor& dy, const at::Tensor& scale,
+                                            const at::Tensor& bias, const at::Tensor& running_mean,
+                                            const at::Tensor& running_inv_var, const at::Tensor& minibatch_mean,
+                                            const at::Tensor& minibatch_inv_var, const at::Tensor& bitmask,
+                                            const at::Tensor& ret_cta, const float momentum, const float epsilon,
+                                            void* my_data, void* pair_data, void* pair_data2, void* pair_data3,
+                                            const int bn_group, const at::Tensor& magic_tensor, const int occupancy,
+                                            const int grid_dim_x, const bool coop) {
   // shape
   const int N = x.size(0);
   const int H = x.size(1);
@@ -261,7 +210,7 @@ std::vector<at::Tensor> nhwc_bn_addrelu_bwd(
   bias_grad = at::empty_like(bias);
 
   // Create wrapper
-  NhwcBatchNormAddRelu *bn = new NhwcBatchNormAddRelu();
+  NhwcBatchNormAddRelu* bn = new NhwcBatchNormAddRelu();
 
   bn->setInputDescriptor(CUDNN_TENSOR_NHWC, CUDNN_DATA_HALF, N, C, H, W, bn_group);
   bn->setOutputDescriptor(CUDNN_TENSOR_NHWC, CUDNN_DATA_HALF, N, C, H, W);
@@ -269,14 +218,11 @@ std::vector<at::Tensor> nhwc_bn_addrelu_bwd(
   bn->setConstants(momentum, epsilon);
 
   // set pointers within the wrapper
-  bn->setInputOutputPointers(x.data_ptr<at::Half>(),
-                             x_grad.data_ptr<at::Half>(),
-                             nullptr,
-                             dy.data_ptr<at::Half>(),
-                             nullptr,
-                             z_grad.data_ptr<at::Half>());
+  bn->setInputOutputPointers(x.data_ptr<at::Half>(), x_grad.data_ptr<at::Half>(), nullptr, dy.data_ptr<at::Half>(),
+                             nullptr, z_grad.data_ptr<at::Half>());
 
-  bn->setWeightPointers({scale.data_ptr<float>(), bias.data_ptr<float>()}, {scale_grad.data_ptr<float>(), bias_grad.data_ptr<float>()});
+  bn->setWeightPointers({scale.data_ptr<float>(), bias.data_ptr<float>()},
+                        {scale_grad.data_ptr<float>(), bias_grad.data_ptr<float>()});
   bn->setParameterPointers({running_mean.data_ptr<float>(), running_inv_var.data_ptr<float>()});
 
   // deal with workspace(s)
@@ -297,7 +243,7 @@ std::vector<at::Tensor> nhwc_bn_addrelu_bwd(
   // Allocate the workspace
   Workspace ws(total_workspace_bytes);
 
-  std::vector<void *> workspace;
+  std::vector<void*> workspace;
   workspace.push_back(minibatch_mean.data_ptr<float>());
   workspace.push_back(minibatch_inv_var.data_ptr<float>());
   workspace.push_back(bitmask.data_ptr<int32_t>());
@@ -305,11 +251,11 @@ std::vector<at::Tensor> nhwc_bn_addrelu_bwd(
   auto stream = at::cuda::getCurrentCUDAStream().stream();
   const int retired_cta_bytes = workspace_bytes[3];
   void* retired_ctas = ret_cta.data_ptr<uint8_t>();
-  assert(ret_cta.size(0)>=retired_cta_bytes);
+  assert(ret_cta.size(0) >= retired_cta_bytes);
   workspace.push_back(retired_ctas);
 
   for (auto index = 4; index < workspace_bytes.size(); ++index) {
-    void *ptr = reinterpret_cast<uint8_t*>(ws.data) + workspace_offsets[index-4];
+    void* ptr = reinterpret_cast<uint8_t*>(ws.data) + workspace_offsets[index - 4];
     workspace.push_back(ptr);
   }
 
@@ -321,18 +267,17 @@ std::vector<at::Tensor> nhwc_bn_addrelu_bwd(
 }
 
 int nhwc_bn_addrelu_fwd_occupancy() {
-    int device_id=-1;
-    cudaGetDevice(&device_id);
-    
-    //max occupancy supported by the code is 2
-    return NhwcBatchNormAddRelu::smem_driven_fwd_occupancy(device_id, 2);
+  int device_id = -1;
+  cudaGetDevice(&device_id);
+
+  // max occupancy supported by the code is 2
+  return NhwcBatchNormAddRelu::smem_driven_fwd_occupancy(device_id, 2);
 }
 
 int nhwc_bn_addrelu_bwd_occupancy() {
-    int device_id=-1;
-    cudaGetDevice(&device_id);
+  int device_id = -1;
+  cudaGetDevice(&device_id);
 
-    //max occupancy supported by the code is 2
-    return NhwcBatchNormAddRelu::smem_driven_bwd_occupancy(device_id, 2);
+  // max occupancy supported by the code is 2
+  return NhwcBatchNormAddRelu::smem_driven_bwd_occupancy(device_id, 2);
 }
-

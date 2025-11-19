@@ -12,23 +12,18 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define CHECK_CUDA_STATUS(call)                                       \
-  do {                                                                \
-    cudaError_t status_ = call;                                       \
-    if (status_ != cudaSuccess) {                                     \
-      fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, \
-              cudaGetErrorString(status_));                           \
-      exit(1);                                                        \
-    }                                                                 \
+#define CHECK_CUDA_STATUS(call)                                                                     \
+  do {                                                                                              \
+    cudaError_t status_ = call;                                                                     \
+    if (status_ != cudaSuccess) {                                                                   \
+      fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, cudaGetErrorString(status_)); \
+      exit(1);                                                                                      \
+    }                                                                                               \
   } while (0)
 
-#define CHECK_CUDA(x) \
-  TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
-#define CHECK_CONTIGUOUS(x) \
-  TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
-#define CHECK_CHANNELS_LAST(x)                                 \
-  TORCH_CHECK(x.is_contiguous(at::MemoryFormat::ChannelsLast), \
-              #x " must be channels last")
+#define CHECK_CUDA(x) TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
+#define CHECK_CHANNELS_LAST(x) TORCH_CHECK(x.is_contiguous(at::MemoryFormat::ChannelsLast), #x " must be channels last")
 #define CHECK_INPUT(x) \
   CHECK_CUDA(x);       \
   CHECK_CONTIGUOUS(x)
@@ -39,15 +34,13 @@
 static bool initialized = false;
 static cudaDeviceProp props;
 
-const std::unordered_set<int> supported_c_values = {
-    128,  256,  320,  384,  448,  512,  640,  768,  896,  960,  1024, 1280, 1344,
-    1536, 1792, 1920, 2048, 2240, 2560, 2688, 3072, 3136, 3584, 4096};
+const std::unordered_set<int> supported_c_values = {128,  256,  320,  384,  448,  512,  640,  768,
+                                                    896,  960,  1024, 1280, 1344, 1536, 1792, 1920,
+                                                    2048, 2240, 2560, 2688, 3072, 3136, 3584, 4096};
 const std::unordered_set<int> supported_groups_values = {16, 32};
 
-std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups,
-                                          torch::Tensor weight,
-                                          torch::Tensor bias, float eps,
-                                          int passes, bool with_swish = false) {
+std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups, torch::Tensor weight, torch::Tensor bias,
+                                          float eps, int passes, bool with_swish = false) {
   if (!initialized) {
     CHECK_CUDA_STATUS(cudaGetDeviceProperties(&props, 0));
     initialized = true;
@@ -62,11 +55,9 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups,
   int w = input.size(3);
 
   // Check kernel constraints
-  TORCH_CHECK(supported_groups_values.count(groups),
-              "`groups` of {16, 32} are only supported but ", groups,
+  TORCH_CHECK(supported_groups_values.count(groups), "`groups` of {16, 32} are only supported but ", groups,
               " is passed");
-  TORCH_CHECK(supported_c_values.count(c), "`c` of ", c,
-              " is not included in supported_c_values");
+  TORCH_CHECK(supported_c_values.count(c), "`c` of ", c, " is not included in supported_c_values");
 
   // Allocate tensors
   auto options = at::TensorOptions(at::kCUDA);
@@ -81,10 +72,8 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups,
   params_fwd.y = reinterpret_cast<void *>(output.data_ptr());
   params_fwd.sums = reinterpret_cast<float2 *>(sums_d.data_ptr());
   params_fwd.x = const_cast<void *>(reinterpret_cast<void *>(input.data_ptr()));
-  params_fwd.gamma =
-      const_cast<void *>(reinterpret_cast<void *>(weight.data_ptr()));
-  params_fwd.beta =
-      const_cast<void *>(reinterpret_cast<void *>(bias.data_ptr()));
+  params_fwd.gamma = const_cast<void *>(reinterpret_cast<void *>(weight.data_ptr()));
+  params_fwd.beta = const_cast<void *>(reinterpret_cast<void *>(bias.data_ptr()));
   params_fwd.epsilon = eps;
   params_fwd.n = n;
   params_fwd.h = h;
@@ -131,8 +120,7 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups,
   // Finalize the parameters.
   dim3 grid;
   if (passes == 1) {
-    group_norm_nhwc_fwd_one_pass_setup(params_fwd, barriers_elts,
-                                       red_buffer_elts, grid, props);
+    group_norm_nhwc_fwd_one_pass_setup(params_fwd, barriers_elts, red_buffer_elts, grid, props);
   } else {
     group_norm_nhwc_fwd_two_passes_setup(params_fwd, zeroed_red_buffer_elts);
   }
@@ -144,8 +132,7 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups,
   // Allocate the buffer if needed.
   auto barriers = at::zeros({barriers_elts}, options.dtype(at::kInt));
   params_fwd.barriers = barriers.data_ptr<int>();
-  auto zeroed_red_buffer =
-      at::zeros({zeroed_red_buffer_elts}, options.dtype(at::kFloat));
+  auto zeroed_red_buffer = at::zeros({zeroed_red_buffer_elts}, options.dtype(at::kFloat));
   params_fwd.zeroed_red_buffer = zeroed_red_buffer.data_ptr<float>();
 
   if (passes == 1) {
@@ -158,12 +145,9 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups,
   return {output, sums_d};
 }
 
-std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
-                                          torch::Tensor sums,
-                                          torch::Tensor input, int groups,
-                                          torch::Tensor weight,
-                                          torch::Tensor bias, float eps,
-                                          int passes, bool with_swish = false) {
+std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output, torch::Tensor sums, torch::Tensor input,
+                                          int groups, torch::Tensor weight, torch::Tensor bias, float eps, int passes,
+                                          bool with_swish = false) {
   if (!initialized) {
     CHECK_CUDA_STATUS(cudaGetDeviceProperties(&props, 0));
     initialized = true;
@@ -178,11 +162,9 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
   int w = input.size(3);
 
   // Check kernel constraints
-  TORCH_CHECK(supported_groups_values.count(groups),
-              "`groups` of {16, 32} are only supported but ", groups,
+  TORCH_CHECK(supported_groups_values.count(groups), "`groups` of {16, 32} are only supported but ", groups,
               " is passed");
-  TORCH_CHECK(supported_c_values.count(c), "`c` of ", c,
-              " is not included in supported_c_values");
+  TORCH_CHECK(supported_c_values.count(c), "`c` of ", c, " is not included in supported_c_values");
 
   // Allocate tensors
   auto options = at::TensorOptions(at::kCUDA);
@@ -199,16 +181,12 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
   params_bwd.dx = reinterpret_cast<void *>(grad_input.data_ptr());
   params_bwd.dgamma = reinterpret_cast<void *>(grad_weight.data_ptr());
   params_bwd.dbeta = reinterpret_cast<void *>(grad_bias.data_ptr());
-  params_bwd.sums =
-      const_cast<float2 *>(reinterpret_cast<float2 *>(sums.data_ptr()));
-  params_bwd.dy =
-      const_cast<void *>(reinterpret_cast<void *>(grad_output.data_ptr()));
+  params_bwd.sums = const_cast<float2 *>(reinterpret_cast<float2 *>(sums.data_ptr()));
+  params_bwd.dy = const_cast<void *>(reinterpret_cast<void *>(grad_output.data_ptr()));
   params_bwd.x = const_cast<void *>(reinterpret_cast<void *>(input.data_ptr()));
   ;
-  params_bwd.gamma =
-      const_cast<void *>(reinterpret_cast<void *>(weight.data_ptr()));
-  params_bwd.beta =
-      const_cast<void *>(reinterpret_cast<void *>(bias.data_ptr()));
+  params_bwd.gamma = const_cast<void *>(reinterpret_cast<void *>(weight.data_ptr()));
+  params_bwd.beta = const_cast<void *>(reinterpret_cast<void *>(bias.data_ptr()));
   ;
   params_bwd.epsilon = eps;
   params_bwd.n = n;
@@ -256,9 +234,7 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
   // Finalize the parameters.
   dim3 grid;
   if (passes == 1) {
-    group_norm_nhwc_bwd_one_pass_setup(params_bwd, barriers_elts,
-                                       red_buffer_elts, zeroed_red_buffer_elts,
-                                       grid, props);
+    group_norm_nhwc_bwd_one_pass_setup(params_bwd, barriers_elts, red_buffer_elts, zeroed_red_buffer_elts, grid, props);
   } else {
     group_norm_nhwc_bwd_two_passes_setup(params_bwd, zeroed_red_buffer_elts);
   }
@@ -270,8 +246,7 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output,
   // Allocate the buffer if needed.
   auto barriers = at::zeros({barriers_elts}, options.dtype(at::kInt));
   params_bwd.barriers = barriers.data_ptr<int>();
-  auto zeroed_red_buffer =
-      at::zeros({zeroed_red_buffer_elts}, options.dtype(at::kFloat));
+  auto zeroed_red_buffer = at::zeros({zeroed_red_buffer_elts}, options.dtype(at::kFloat));
   params_bwd.zeroed_red_buffer = zeroed_red_buffer.data_ptr<float>();
 
   if (passes == 1) {

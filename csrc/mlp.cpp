@@ -1,8 +1,8 @@
+#include <stdio.h>
 #include <torch/extension.h>
 #include <torch/torch.h>
-#include <vector>
 
-#include <stdio.h>
+#include <vector>
 
 size_t get_mlp_reserved_space(int64_t batch_size, int num_layers, const int* output_features);
 
@@ -10,41 +10,15 @@ template <typename T>
 size_t get_mlp_bp_workspace_in_bytes(int batch_size, int num_layers, const int* output_features);
 
 template <typename T>
-int mlp_fp(
-    T* X,
-    int input_features,
-    int batch_size,
-    T** WPtr,
-    int num_layers,
-    int* output_features,
-    T** BPtr,
-    T* Y,
-    T* reserved_space,
-    int use_bias,
-    int activation,
-    void* lt_workspace);
+int mlp_fp(T* X, int input_features, int batch_size, T** WPtr, int num_layers, int* output_features, T** BPtr, T* Y,
+           T* reserved_space, int use_bias, int activation, void* lt_workspace);
 
 template <typename T>
-int mlp_bp(
-    T* X,
-    T* Y,
-    int input_features,
-    int batch_size,
-    T** WPtr,
-    int num_layers,
-    int* output_features,
-    T* dY,
-    T* reserved_space,
-    T* work_space,
-    T* dX,
-    T** dwPtr,
-    T** dbPtr,
-    bool requires_grad,
-    int use_bias,
-    int activation);
+int mlp_bp(T* X, T* Y, int input_features, int batch_size, T** WPtr, int num_layers, int* output_features, T* dY,
+           T* reserved_space, T* work_space, T* dX, T** dwPtr, T** dbPtr, bool requires_grad, int use_bias,
+           int activation);
 
 std::vector<at::Tensor> mlp_forward(int use_bias, int activation, std::vector<at::Tensor> inputs) {
-
   auto num_layers = inputs.size() - 1;
   if (use_bias) {
     // inputs contains (input, weights, biases)
@@ -75,31 +49,17 @@ std::vector<at::Tensor> mlp_forward(int use_bias, int activation, std::vector<at
         b_ptr.push_back(inputs[i + 1 + num_layers].data_ptr<scalar_t>());
       }
     }
-    [[maybe_unused]] auto result = mlp_fp<scalar_t>(
-        inputs[0].data_ptr<scalar_t>(),
-        input_features,
-        batch_size,
-        w_ptr.data(),
-        num_layers,
-        output_features.data(),
-        b_ptr.data(),
-        out.data_ptr<scalar_t>(),
-        reserved_space.data_ptr<scalar_t>(),
-        use_bias,
-        activation,
-        (void*) (lt_workspace.data_ptr<scalar_t>()));
+    [[maybe_unused]] auto result = mlp_fp<scalar_t>(inputs[0].data_ptr<scalar_t>(), input_features, batch_size,
+                                                    w_ptr.data(), num_layers, output_features.data(), b_ptr.data(),
+                                                    out.data_ptr<scalar_t>(), reserved_space.data_ptr<scalar_t>(),
+                                                    use_bias, activation, (void*)(lt_workspace.data_ptr<scalar_t>()));
   });
 
   return {out, reserved_space};
 }
 
-std::vector<at::Tensor> mlp_backward(
-  int use_bias,
-  int activation,
-  at::Tensor grad_o,
-  std::vector<at::Tensor> fprop_outputs,
-  std::vector<at::Tensor> inputs) {
-
+std::vector<at::Tensor> mlp_backward(int use_bias, int activation, at::Tensor grad_o,
+                                     std::vector<at::Tensor> fprop_outputs, std::vector<at::Tensor> inputs) {
   auto num_layers = inputs.size() - 1;
   if (use_bias) {
     // inputs contains (input, weights, biases)
@@ -131,29 +91,16 @@ std::vector<at::Tensor> mlp_backward(
       outputs_ptr.push_back(outputs[i].data_ptr<scalar_t>());
     }
 
-    auto work_size =
-        get_mlp_bp_workspace_in_bytes<scalar_t>(batch_size, num_layers, output_features.data());
+    auto work_size = get_mlp_bp_workspace_in_bytes<scalar_t>(batch_size, num_layers, output_features.data());
 
     // auto work_space = at::empty({work_size*4}, at::kByte);
     auto work_space = at::empty({static_cast<long>(work_size / sizeof(scalar_t))}, inputs[0].type());
 
     [[maybe_unused]] auto result = mlp_bp<scalar_t>(
-        inputs[0].data_ptr<scalar_t>(),
-        fprop_outputs[0].data_ptr<scalar_t>(),
-        input_features,
-        batch_size,
-        w_ptr.data(),
-        num_layers,
-        output_features.data(),
-        grad_o.contiguous().data_ptr<scalar_t>(),
-        fprop_outputs[1].data_ptr<scalar_t>(),
-        work_space.data_ptr<scalar_t>(),
-        outputs_ptr[0],
-        outputs_ptr.data() + 1,
-        outputs_ptr.data() + 1 + num_layers,
-        requires_grad,
-        use_bias,
-        activation);
+        inputs[0].data_ptr<scalar_t>(), fprop_outputs[0].data_ptr<scalar_t>(), input_features, batch_size, w_ptr.data(),
+        num_layers, output_features.data(), grad_o.contiguous().data_ptr<scalar_t>(),
+        fprop_outputs[1].data_ptr<scalar_t>(), work_space.data_ptr<scalar_t>(), outputs_ptr[0], outputs_ptr.data() + 1,
+        outputs_ptr.data() + 1 + num_layers, requires_grad, use_bias, activation);
   });
 
   return outputs;
@@ -163,4 +110,3 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &mlp_forward, "MLP forward", py::call_guard<py::gil_scoped_release>());
   m.def("backward", &mlp_backward, "MLP backward", py::call_guard<py::gil_scoped_release>());
 }
-
