@@ -27,6 +27,9 @@
 
 #pragma once
 
+#include "gmem_tile.h"
+#include "smem_tile.h"
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <int S, int D, int STEP, int WARPS_M, int WARPS_N, uint32_t FLAGS = 0x08u>
