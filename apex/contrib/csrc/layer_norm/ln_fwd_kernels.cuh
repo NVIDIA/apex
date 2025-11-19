@@ -15,6 +15,7 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_fwd_kernel(FwdPar
   enum { BYTES_PER_ROW = Ktraits::BYTES_PER_ROW };
   enum { LDGS = Ktraits::LDGS };
   enum { NUM_ELTS = Ktraits::NUM_ELTS };
+  enum { THREADS_PER_WARP = Ktraits::THREADS_PER_WARP };
   enum { CTAS_PER_ROW = Ktraits::CTAS_PER_ROW };
   enum { THREADS_PER_WARP = Ktraits::THREADS_PER_WARP };
 
