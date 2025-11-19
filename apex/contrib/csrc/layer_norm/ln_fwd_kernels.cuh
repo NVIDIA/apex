@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ln.h"
+#include "ln_utils.cuh"
 
 namespace layer_norm {
 
@@ -15,6 +16,7 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_fwd_kernel(FwdPar
   enum { LDGS = Ktraits::LDGS };
   enum { NUM_ELTS = Ktraits::NUM_ELTS };
   enum { CTAS_PER_ROW = Ktraits::CTAS_PER_ROW };
+  enum { THREADS_PER_WARP = Ktraits::THREADS_PER_WARP };
 
   using output_t = typename Ktraits::output_t;
   using index_t = typename Ktraits::index_t;

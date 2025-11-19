@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ln_utils.cuh"
+
 namespace layer_norm {
 
 template <typename Ktraits>
