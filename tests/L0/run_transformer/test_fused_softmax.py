@@ -9,6 +9,7 @@ from torch.testing._internal import common_utils
 
 from apex.transformer import AttnMaskType
 from apex.transformer.functional import FusedScaleMaskSoftmax
+from apex.transformer.functional.fused_softmax import GenericFusedScaleMaskSoftmax
 
 
 def attention_mask_func(attention_scores, attention_mask):
@@ -327,6 +328,31 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
 
         self.q_k_lens = itertools.product(qlen, klen)
 
+    def _setup_generic_fused_softmax(
+        self,
+        input_in_fp16,
+        input_in_bf16,
+        scale=None,
+        softmax_in_fp32=False,
+    ):
+        fused_fn = GenericFusedScaleMaskSoftmax(
+            input_in_fp16=input_in_fp16,
+            input_in_bf16=input_in_bf16,
+            mask_func=attention_mask_func,
+            scale=scale,
+            softmax_in_fp32=softmax_in_fp32,
+            scaled_masked_softmax_fusion=True,
+        )
+        torch_fn = GenericFusedScaleMaskSoftmax(
+            input_in_fp16=input_in_fp16,
+            input_in_bf16=input_in_bf16,
+            mask_func=attention_mask_func,
+            scale=scale,
+            softmax_in_fp32=softmax_in_fp32,
+            scaled_masked_softmax_fusion=False,
+        )
+        return fused_fn, torch_fn
+
     def tearDown(self) -> None:
         torch.cuda.empty_cache()
         super().tearDown()
@@ -369,6 +395,51 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
     def test_allmask_backward(self):
         self.test_backward(True)
 
+    def test_generic_fused_scale_mask_softmax(self):
+        """
+        attention_scores.shape = [4, 12, 24, 24]
+        mask.shape = [4, 1, 24, 24]
+        """
+        for (dtype, scale, softmax_in_fp32, shape) in itertools.product(
+            (torch.half, torch.bfloat16), (None, 2.0), (False, True), ((4, 12, 24, 24), (32, 12, 4, 214))
+        ):
+            msg = f"{dtype}-{scale}-{softmax_in_fp32}"
+            input_in_fp16 = dtype == torch.half
+            input_in_bf16 = dtype == torch.bfloat16
+            if not (scale is None or softmax_in_fp32):
+                with self.assertRaises(RuntimeError, msg=msg):
+                    self._setup_generic_fused_softmax(
+                        input_in_fp16,
+                        input_in_bf16,
+                        scale,
+                        softmax_in_fp32,
+                    )
+                return
+            fused_fn, torch_fn = self._setup_generic_fused_softmax(
+                input_in_fp16,
+                input_in_bf16,
+                scale,
+                softmax_in_fp32,
+            )
+
+            attention_scores_0 = (
+                torch.randn(shape)
+                .to(device="cuda", dtype=dtype)
+                .requires_grad_(True)
+            )
+            with torch.no_grad():
+                attention_scores_1 = attention_scores_0.clone().requires_grad_(True)
+            mask_shape = (shape[0],) + (1,) + shape[2:]
+            mask = torch.randint(0, 2, mask_shape, device="cuda").bool()
+            expected = fused_fn(attention_scores_0, mask)
+            actual = torch_fn(attention_scores_1, mask)
+            self.assertEqual(actual, expected, msg=msg)
+
+            g0 = torch.rand_like(actual)
+            with torch.no_grad():
+                g1 = g0.clone()
+            expected.backward(g0)
+            actual.backward(g1)
 
 if __name__ == "__main__":
     common_utils.run_tests()
