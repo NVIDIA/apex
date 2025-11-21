@@ -158,6 +158,7 @@ class FusedAdam(torch.optim.Optimizer):
             g_bf, p_bf, m_bf, v_bf = [], [], [], []
             g_32, p_32, m_32, v_32 = [], [], [], []
             p_16_master = []
+            p_bf_master = []
             p_32_master = []
 
             for p, p_master in zip(group['params'], group_master['params']):
@@ -182,6 +183,8 @@ class FusedAdam(torch.optim.Optimizer):
                     m_16.append(state['exp_avg'])
                     v_16.append(state['exp_avg_sq'])
                 elif p.dtype == torch.bfloat16:
+                    if self.master_weights:
+                        p_bf_master.append(p_master.data)
                     g_bf.append(p.grad)
                     p_bf.append(p)
                     m_bf.append(state['exp_avg'])
@@ -232,10 +235,11 @@ class FusedAdam(torch.optim.Optimizer):
                             inv_scale)
 
                 if len(g_bf) > 0:
-                    multi_tensor_applier(
-                            self.multi_tensor_adam_capturable,
+                    multi_tensor_applier(self.multi_tensor_adam_capturable_master if self.master_weights
+                            else self.multi_tensor_adam_capturable,
                             self._dummy_overflow_buf,
-                            [g_bf, p_bf, m_bf, v_bf],
+                            [g_bf, p_bf, m_bf, v_bf, p_bf_master] if self.master_weights
+                            else [g_bf, p_bf, m_bf, v_bf],
                             group['lr'],
                             beta1,
                             beta2,
