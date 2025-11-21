@@ -127,6 +127,8 @@ def get_apex_version():
             apex_version = f.read().strip()
     else:
         raise RuntimeError("version.txt file is missing")
+    if os.getenv("BUILD_VERSION"):
+        apex_version = os.getenv("BUILD_VERSION")
     if os.getenv("DESIRED_CUDA"):
         apex_version += "+" + os.getenv("DESIRED_CUDA")
         if os.getenv("APEX_COMMIT"):
