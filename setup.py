@@ -20,6 +20,11 @@ from torch.utils.cpp_extension import (
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
+# Check for Stable ABI build
+USE_STABLE_ABI = os.environ.get("TORCH_STABLE_ONLY", "0") == "1"
+if USE_STABLE_ABI:
+    print("[apex] Building with LibTorch Stable ABI support (TORCH_STABLE_ONLY=1)")
+
 # Allow environment variables to specify build flags for PEP 517 compatibility
 ENV_TO_FLAG = {
     "APEX_CPP_EXT": "--cpp_ext",
@@ -114,6 +119,78 @@ def check_cudnn_version_and_warn(global_option: str, required_cudnn_version: int
     return True
 
 
+def prepare_stable_abi_sources(sources):
+    """
+    Convert source file paths to stable ABI versions if TORCH_STABLE_ONLY is set.
+    For dual-build support, replaces .cpp files with _stable.cpp equivalents.
+
+    Example: "csrc/amp_C_frontend.cpp" -> "csrc/amp_C_frontend_stable.cpp"
+    """
+    if not USE_STABLE_ABI:
+        return sources
+
+    stable_sources = []
+    for src in sources:
+        if src.endswith(".cpp"):
+            # Replace .cpp with _stable.cpp
+            stable_src = src[:-4] + "_stable.cpp"
+            stable_sources.append(stable_src)
+        else:
+            # Keep .cu files as-is (they should work with stable ABI via updated headers)
+            stable_sources.append(src)
+    return stable_sources
+
+
+def add_stable_abi_compile_args(extra_compile_args):
+    """
+    Add -DTORCH_STABLE_ONLY to compiler flags when building with stable ABI.
+    """
+    if not USE_STABLE_ABI:
+        return extra_compile_args
+
+    # Make a copy to avoid modifying the original
+    args = extra_compile_args.copy() if extra_compile_args else {}
+
+    # Add TORCH_STABLE_ONLY define to both cxx and nvcc compilers
+    if "cxx" not in args:
+        args["cxx"] = []
+    if "nvcc" not in args:
+        args["nvcc"] = []
+
+    args["cxx"] = args["cxx"] + ["-DTORCH_STABLE_ONLY"]
+    args["nvcc"] = args["nvcc"] + ["-DTORCH_STABLE_ONLY"]
+
+    return args
+
+
+def StableCUDAExtension(name, sources, extra_compile_args=None, **kwargs):
+    """
+    Wrapper for CUDAExtension that automatically handles stable ABI source substitution and flags.
+    """
+    stable_sources = prepare_stable_abi_sources(sources)
+    stable_compile_args = add_stable_abi_compile_args(extra_compile_args if extra_compile_args else {})
+    return CUDAExtension(
+        name=name,
+        sources=stable_sources,
+        extra_compile_args=stable_compile_args,
+        **kwargs
+    )
+
+
+def StableCppExtension(name, sources, extra_compile_args=None, **kwargs):
+    """
+    Wrapper for CppExtension that automatically handles stable ABI source substitution and flags.
+    """
+    stable_sources = prepare_stable_abi_sources(sources)
+    stable_compile_args = add_stable_abi_compile_args(extra_compile_args if extra_compile_args else {})
+    return CppExtension(
+        name=name,
+        sources=stable_sources,
+        extra_compile_args=stable_compile_args,
+        **kwargs
+    )
+
+
 if not torch.cuda.is_available():
     # https://github.com/NVIDIA/apex/issues/486
     # Extension builds after https://github.com/pytorch/pytorch/pull/23408 attempt to query torch.cuda.get_device_capability(),
@@ -168,7 +245,7 @@ if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
 if has_flag("--cpp_ext", "APEX_CPP_EXT"):
     if "--cpp_ext" in sys.argv:
         sys.argv.remove("--cpp_ext")
-    ext_modules.append(CppExtension("apex_C", ["csrc/flatten_unflatten.cpp"]))
+    ext_modules.append(StableCppExtension("apex_C", ["csrc/flatten_unflatten.cpp"]))
 
 
 _, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
@@ -178,7 +255,7 @@ if has_flag("--distributed_adam", "APEX_DISTRIBUTED_ADAM"):
         sys.argv.remove("--distributed_adam")
     raise_if_cuda_home_none("--distributed_adam")
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="distributed_adam_cuda",
             sources=[
                 "apex/contrib/csrc/optimizers/multi_tensor_distopt_adam.cpp",
@@ -197,7 +274,7 @@ if has_flag("--distributed_lamb", "APEX_DISTRIBUTED_LAMB"):
         sys.argv.remove("--distributed_lamb")
     raise_if_cuda_home_none("--distributed_lamb")
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="distributed_lamb_cuda",
             sources=[
                 "apex/contrib/csrc/optimizers/multi_tensor_distopt_lamb.cpp",
@@ -218,7 +295,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     check_cuda_torch_binary_vs_bare_metal(CUDA_HOME)
 
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="amp_C",
             sources=[
                 "csrc/amp_C_frontend.cpp",
@@ -249,7 +326,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
         )
     )
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="syncbn",
             sources=["csrc/syncbn.cpp", "csrc/welford.cu"],
             extra_compile_args={
@@ -260,7 +337,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     )
 
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="fused_layer_norm_cuda",
             sources=["csrc/layer_norm_cuda.cpp", "csrc/layer_norm_cuda_kernel.cu"],
             extra_compile_args={
@@ -271,7 +348,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     )
 
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="mlp_cuda",
             sources=["csrc/mlp.cpp", "csrc/mlp_cuda.cu"],
             extra_compile_args={
@@ -281,7 +358,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
         )
     )
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="fused_dense_cuda",
             sources=["csrc/fused_dense.cpp", "csrc/fused_dense_cuda.cu"],
             extra_compile_args={
@@ -292,7 +369,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     )
 
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="scaled_upper_triang_masked_softmax_cuda",
             sources=[
                 "csrc/megatron/scaled_upper_triang_masked_softmax.cpp",
@@ -313,7 +390,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     )
 
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="generic_scaled_masked_softmax_cuda",
             sources=[
                 "csrc/megatron/generic_scaled_masked_softmax.cpp",
@@ -334,7 +411,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     )
 
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="scaled_masked_softmax_cuda",
             sources=[
                 "csrc/megatron/scaled_masked_softmax.cpp",
@@ -355,7 +432,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     )
 
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="scaled_softmax_cuda",
             sources=[
                 "csrc/megatron/scaled_softmax.cpp",
@@ -376,7 +453,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     )
 
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="fused_rotary_positional_embedding",
             sources=[
                 "csrc/megatron/fused_rotary_positional_embedding.cpp",
@@ -397,7 +474,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     )
 
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="fused_weight_gradient_mlp_cuda",
             include_dirs=[os.path.join(this_dir, "csrc")],
             sources=[
@@ -454,7 +531,7 @@ if has_flag("--bnp", "APEX_BNP"):
         sys.argv.remove("--bnp")
     raise_if_cuda_home_none("--bnp")
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="bnp",
             sources=[
                 "apex/contrib/csrc/groupbn/batch_norm.cu",
@@ -484,7 +561,7 @@ if has_flag("--xentropy", "APEX_XENTROPY"):
     xentropy_ver = datetime.today().strftime("%y.%m.%d")
     print(f"`--xentropy` setting version of {xentropy_ver}")
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="xentropy_cuda",
             sources=[
                 "apex/contrib/csrc/xentropy/interface.cpp",
@@ -503,7 +580,7 @@ if has_flag("--focal_loss", "APEX_FOCAL_LOSS"):
         sys.argv.remove("--focal_loss")
     raise_if_cuda_home_none("--focal_loss")
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="focal_loss_cuda",
             sources=[
                 "apex/contrib/csrc/focal_loss/focal_loss_cuda.cpp",
@@ -523,7 +600,7 @@ if has_flag("--group_norm", "APEX_GROUP_NORM"):
     raise_if_cuda_home_none("--group_norm")
 
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="group_norm_cuda",
             sources=[
                 "apex/contrib/csrc/group_norm/group_norm_nhwc_op.cpp",
@@ -583,7 +660,7 @@ if has_flag("--index_mul_2d", "APEX_INDEX_MUL_2D"):
         sys.argv.remove("--index_mul_2d")
     raise_if_cuda_home_none("--index_mul_2d")
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="fused_index_mul_2d",
             sources=[
                 "apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda.cpp",
@@ -602,7 +679,7 @@ if has_flag("--deprecated_fused_adam", "APEX_DEPRECATED_FUSED_ADAM"):
         sys.argv.remove("--deprecated_fused_adam")
     raise_if_cuda_home_none("--deprecated_fused_adam")
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="fused_adam_cuda",
             sources=[
                 "apex/contrib/csrc/optimizers/fused_adam_cuda.cpp",
@@ -621,7 +698,7 @@ if has_flag("--deprecated_fused_lamb", "APEX_DEPRECATED_FUSED_LAMB"):
         sys.argv.remove("--deprecated_fused_lamb")
     raise_if_cuda_home_none("--deprecated_fused_lamb")
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="fused_lamb_cuda",
             sources=[
                 "apex/contrib/csrc/optimizers/fused_lamb_cuda.cpp",
@@ -649,7 +726,7 @@ if has_flag("--fast_layer_norm", "APEX_FAST_LAYER_NORM"):
     raise_if_cuda_home_none("--fast_layer_norm")
 
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="fast_layer_norm",
             sources=[
                 "apex/contrib/csrc/layer_norm/ln_api.cpp",
@@ -701,7 +778,7 @@ if has_flag("--fmha", "APEX_FMHA"):
         cc_flag.append("arch=compute_110,code=sm_110")
 
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="fmhalib",
             sources=[
                 "apex/contrib/csrc/fmha/fmha_api.cpp",
@@ -752,7 +829,7 @@ if has_flag("--fast_multihead_attn", "APEX_FAST_MULTIHEAD_ATTN"):
         ]
     )
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="fast_multihead_attn",
             sources=[
                 "apex/contrib/csrc/multihead_attn/multihead_attn_frontend.cpp",
@@ -792,7 +869,7 @@ if has_flag("--transducer", "APEX_TRANSDUCER"):
         sys.argv.remove("--transducer")
     raise_if_cuda_home_none("--transducer")
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="transducer_joint_cuda",
             sources=[
                 "apex/contrib/csrc/transducer/transducer_joint.cpp",
@@ -809,7 +886,7 @@ if has_flag("--transducer", "APEX_TRANSDUCER"):
         )
     )
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="transducer_loss_cuda",
             sources=[
                 "apex/contrib/csrc/transducer/transducer_loss.cpp",
@@ -854,7 +931,7 @@ if has_flag("--peer_memory", "APEX_PEER_MEMORY"):
         sys.argv.remove("--peer_memory")
     raise_if_cuda_home_none("--peer_memory")
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="peer_memory_cuda",
             sources=[
                 "apex/contrib/csrc/peer_memory/peer_memory_cuda.cu",
@@ -978,7 +1055,7 @@ if has_flag("--gpu_direct_storage", "APEX_GPU_DIRECT_STORAGE"):
         sys.argv.remove("--gpu_direct_storage")
     raise_if_cuda_home_none("--gpu_direct_storage")
     ext_modules.append(
-        CUDAExtension(
+        StableCUDAExtension(
             name="_apex_gpu_direct_storage",
             sources=[
                 "apex/contrib/csrc/gpu_direct_storage/gds.cpp",

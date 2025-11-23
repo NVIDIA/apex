@@ -1,13 +1,48 @@
+#ifdef TORCH_STABLE_ONLY
+#include <torch/csrc/stable/tensor.h>
+#include <torch/csrc/stable/accelerator.h>
+#include <torch/headeronly/types.h>
+#include "stable_abi_utils.h"
+#else
 #include <ATen/ATen.h>
 #include <ATen/AccumulateType.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/Exceptions.h>
-#include <assert.h>
 #include <c10/cuda/CUDAGuard.h>
+#endif
+
+#include <assert.h>
 
 // #include <iostream>
 
 // This header is the one-stop shop for all your multi-tensor apply needs.
+
+// Namespace aliases for dual-build support
+#ifdef TORCH_STABLE_ONLY
+namespace apex_tensor {
+  using Tensor = torch::stable::Tensor;
+  using MemoryFormat = apex::stable::MemoryFormat;
+  namespace device = torch::headeronly;
+
+  inline bool is_contiguous_any_format(const Tensor& t) {
+    return apex::stable::is_contiguous(t, MemoryFormat::Contiguous) ||
+           apex::stable::is_contiguous(t, MemoryFormat::ChannelsLast) ||
+           apex::stable::is_contiguous(t, MemoryFormat::ChannelsLast3d);
+  }
+}
+#else
+namespace apex_tensor {
+  using Tensor = at::Tensor;
+  using MemoryFormat = at::MemoryFormat;
+  namespace device = at;
+
+  inline bool is_contiguous_any_format(const Tensor& t) {
+    return t.is_contiguous() ||
+           t.is_contiguous(at::MemoryFormat::ChannelsLast) ||
+           t.is_contiguous(at::MemoryFormat::ChannelsLast3d);
+  }
+}
+#endif
 
 // TODO:  Kernel arg size limit may be <4KB for some other cards (ie Jetson)
 constexpr int depth_to_max_tensors[6] = {110, 64, 48, 36, 30, 24};
@@ -30,21 +65,19 @@ __global__ void multi_tensor_apply_kernel(int64_t chunk_size, volatile int* noop
 }
 
 template <int depth, typename T, typename... ArgTypes>
-void multi_tensor_apply(int64_t block_size, int64_t chunk_size, const at::Tensor& noop_flag,
-                        const std::vector<std::vector<at::Tensor>>& tensor_lists, T callable, ArgTypes... args) {
+void multi_tensor_apply(int64_t block_size, int64_t chunk_size, const apex_tensor::Tensor& noop_flag,
+                        const std::vector<std::vector<apex_tensor::Tensor>>& tensor_lists, T callable, ArgTypes... args) {
   TORCH_CHECK(tensor_lists.size() == depth, "tensor_lists.size() != depth");
   int len0 = tensor_lists[0].size();
   TORCH_CHECK(len0 > 0, "tensor_lists[0].size() is not > 0");
   auto ref_device = tensor_lists[0][0].device();
-  TORCH_CHECK(ref_device.type() == at::kCUDA, "expected input to be on cuda");
+  TORCH_CHECK(ref_device.type() == apex_tensor::device::kCUDA, "expected input to be on cuda");
   for (int l = 0; l < tensor_lists.size(); l++)  // No range-based for because I need indices
   {
     TORCH_CHECK(tensor_lists[l].size() == len0, "Size mismatch among tensor lists");
     for (int t = 0; t < tensor_lists[l].size(); t++) {
       // TODO:  Print which tensor fails.
-      bool contiguous_memory = tensor_lists[l][t].is_contiguous();
-      contiguous_memory = (contiguous_memory || tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast) ||
-                           tensor_lists[l][t].is_contiguous(at::MemoryFormat::ChannelsLast3d));
+      bool contiguous_memory = apex_tensor::is_contiguous_any_format(tensor_lists[l][t]);
       TORCH_CHECK(contiguous_memory, "A tensor was not contiguous.");
       TORCH_CHECK(tensor_lists[l][t].device() == ref_device, "A tensor was not on the same device as the first tensor");
       TORCH_CHECK(tensor_lists[l][t].numel() == tensor_lists[0][t].numel(), "Size mismatch");
@@ -55,8 +88,16 @@ void multi_tensor_apply(int64_t block_size, int64_t chunk_size, const at::Tensor
 
   TensorListMetadata<depth> tl;
 
+#ifdef TORCH_STABLE_ONLY
+  // Stable ABI: device guard and stream management
+  auto device = tensor_lists[0][0].device();
+  // TODO: stable ABI device guard - for now assume correct device context
+  cudaStream_t stream = nullptr; // Use default stream for stable ABI
+  cudaGetLastError(); // Clear any prior errors
+#else
   const at::cuda::OptionalCUDAGuard device_guard(device_of(tensor_lists[0][0]));
   auto stream = at::cuda::getCurrentCUDAStream();
+#endif
 
   tl.start_tensor_this_launch = 0;
   int loc_block_info = 0;
@@ -82,7 +123,12 @@ void multi_tensor_apply(int64_t block_size, int64_t chunk_size, const at::Tensor
         multi_tensor_apply_kernel<<<loc_block_info, block_size, 0, stream>>>(chunk_size, noop_flag.data_ptr<int>(), tl,
                                                                              callable, args...);
 
+#ifdef TORCH_STABLE_ONLY
+        cudaError_t err = cudaGetLastError();
+        apex::stable::STD_TORCH_CHECK(err == cudaSuccess, "CUDA kernel launch failed: %s", cudaGetErrorString(err));
+#else
         AT_CUDA_CHECK(cudaGetLastError());
+#endif
 
         // Reset.  The control flow possibilities here make my brain hurt.
         loc_block_info = 0;
