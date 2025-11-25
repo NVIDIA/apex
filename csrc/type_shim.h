@@ -107,7 +107,7 @@ namespace apex_internal {
     } \
     case apex_internal::ScalarType::Half: \
     { \
-      using scalar_t_##LEVEL = at::Half; \
+      using scalar_t_##LEVEL = apex_internal::Half; \
       __VA_ARGS__; \
       break; \
     } \
@@ -139,7 +139,7 @@ namespace apex_internal {
     } \
     case apex_internal::ScalarType::Half: \
     { \
-      using scalar_t_##LEVEL = at::Half; \
+      using scalar_t_##LEVEL = apex_internal::Half; \
       __VA_ARGS__; \
       break; \
     } \
@@ -165,13 +165,13 @@ namespace apex_internal {
     } \
     case apex_internal::ScalarType::Half: \
     { \
-      using scalar_t_##LEVEL = at::Half; \
+      using scalar_t_##LEVEL = apex_internal::Half; \
       __VA_ARGS__; \
       break; \
     } \
     case apex_internal::ScalarType::BFloat16: \
     { \
-      using scalar_t_##LEVEL = at::BFloat16; \
+      using scalar_t_##LEVEL = apex_internal::BFloat16; \
       __VA_ARGS__; \
       break; \
     } \
@@ -228,45 +228,45 @@ namespace apex_internal {
 	using scalar_t_in = float;					\
 	switch(TYPEOUT)							\
 	  {								\
-	  case at::ScalarType::Float:					\
+	  case apex_internal::ScalarType::Float:					\
 	    {								\
 	      using scalar_t_out = float;				\
 	      __VA_ARGS__;						\
 	      break;							\
 	    }								\
-	  case at::ScalarType::Half:					\
+	  case apex_internal::ScalarType::Half:					\
 	    {								\
 	      using scalar_t_out = apex_internal::Half;				\
 	      __VA_ARGS__;						\
 	      break;							\
 	    }								\
-	  case at::ScalarType::BFloat16:				\
+	  case apex_internal::ScalarType::BFloat16:				\
 	    {								\
 	      using scalar_t_out = apex_internal::BFloat16;			\
 	      __VA_ARGS__;						\
 	      break;							\
 	    }								\
 	  default:							\
-	    AT_ERROR(#NAME, " not implemented for '", toString(TYPEOUT), "'"); \
+	    APEX_ERROR(#NAME, " not implemented for '", apex_internal::toString(TYPEOUT), "'"); \
 	  }								\
 	break;								\
       }									\
     case apex_internal::ScalarType::Half:						\
       {									\
 	using scalar_t_in = apex_internal::Half;					\
-	using scalar_t_out = at::Half;					\
+	using scalar_t_out = apex_internal::Half;					\
 	__VA_ARGS__;							\
 	break;								\
       }									\
     case apex_internal::ScalarType::BFloat16:					\
       {									\
 	using scalar_t_in = apex_internal::BFloat16;				\
-	using scalar_t_out = at::BFloat16;				\
+	using scalar_t_out = apex_internal::BFloat16;				\
 	__VA_ARGS__;							\
 	break;								\
       }									\
     default:								\
-      AT_ERROR(#NAME, " not implemented for '", toString(TYPEIN), "'");	\
+      APEX_ERROR(#NAME, " not implemented for '", apex_internal::toString(TYPEIN), "'");	\
     }
 
 
@@ -278,32 +278,32 @@ namespace apex_internal {
 	using scalar_t_in = double;					\
 	switch(TYPEOUT)							\
 	  {								\
-	  case at::ScalarType::Double:					\
+	  case apex_internal::ScalarType::Double:					\
 	    {								\
 	      using scalar_t_out = double;				\
 	      __VA_ARGS__;						\
 	      break;							\
 	    }								\
-	  case at::ScalarType::Float:					\
+	  case apex_internal::ScalarType::Float:					\
 	    {								\
 	      using scalar_t_out = float;				\
 	      __VA_ARGS__;						\
 	      break;							\
 	    }								\
-	  case at::ScalarType::Half:					\
+	  case apex_internal::ScalarType::Half:					\
 	    {								\
 	      using scalar_t_out = apex_internal::Half;				\
 	      __VA_ARGS__;						\
 	      break;							\
 	    }								\
-	  case at::ScalarType::BFloat16:				\
+	  case apex_internal::ScalarType::BFloat16:				\
 	    {								\
 	      using scalar_t_out = apex_internal::BFloat16;			\
 	      __VA_ARGS__;						\
 	      break;							\
 	    }								\
 	  default:							\
-	    AT_ERROR(#NAME, " not implemented for '", toString(TYPEOUT), "'"); \
+	    APEX_ERROR(#NAME, " not implemented for '", apex_internal::toString(TYPEOUT), "'"); \
 	  }								\
 	break;								\
       }									\
@@ -312,45 +312,45 @@ namespace apex_internal {
 	using scalar_t_in = float;					\
 	switch(TYPEOUT)							\
 	  {								\
-	  case at::ScalarType::Float:					\
+	  case apex_internal::ScalarType::Float:					\
 	    {								\
 	      using scalar_t_out = float;				\
 	      __VA_ARGS__;						\
 	      break;							\
 	    }								\
-	  case at::ScalarType::Half:					\
+	  case apex_internal::ScalarType::Half:					\
 	    {								\
 	      using scalar_t_out = apex_internal::Half;				\
 	      __VA_ARGS__;						\
 	      break;							\
 	    }								\
-	  case at::ScalarType::BFloat16:				\
+	  case apex_internal::ScalarType::BFloat16:				\
 	    {								\
 	      using scalar_t_out = apex_internal::BFloat16;			\
 	      __VA_ARGS__;						\
 	      break;							\
 	    }								\
 	  default:							\
-	    AT_ERROR(#NAME, " not implemented for '", toString(TYPEOUT), "'"); \
+	    APEX_ERROR(#NAME, " not implemented for '", apex_internal::toString(TYPEOUT), "'"); \
 	  }								\
 	break;								\
       }									\
     case apex_internal::ScalarType::Half:						\
       {									\
 	using scalar_t_in = apex_internal::Half;					\
-	using scalar_t_out = at::Half;					\
+	using scalar_t_out = apex_internal::Half;					\
 	__VA_ARGS__;							\
 	break;								\
       }									\
     case apex_internal::ScalarType::BFloat16:					\
       {									\
 	using scalar_t_in = apex_internal::BFloat16;				\
-	using scalar_t_out = at::BFloat16;				\
+	using scalar_t_out = apex_internal::BFloat16;				\
 	__VA_ARGS__;							\
 	break;								\
       }									\
     default:								\
-      AT_ERROR(#NAME, " not implemented for '", toString(TYPEIN), "'");	\
+      APEX_ERROR(#NAME, " not implemented for '", apex_internal::toString(TYPEIN), "'");	\
     }
 
 

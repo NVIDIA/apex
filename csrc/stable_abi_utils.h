@@ -42,7 +42,7 @@ inline bool is_contiguous(const torch::stable::Tensor& tensor, MemoryFormat form
   int64_t ndim = tensor.dim();
 
   if (format == MemoryFormat::ChannelsLast) {
-    // NCHW format requires ndim == 4
+    // NHWC format requires ndim == 4
     if (ndim != 4) return false;
 
     // For ChannelsLast (NHWC), strides should follow: C=1, W=C, H=W*W_size, N=H*H_size
@@ -61,7 +61,7 @@ inline bool is_contiguous(const torch::stable::Tensor& tensor, MemoryFormat form
   }
 
   if (format == MemoryFormat::ChannelsLast3d) {
-    // NCDHW format requires ndim == 5
+    // NDHWC format requires ndim == 5
     if (ndim != 5) return false;
 
     // For ChannelsLast3d (NDHWC), similar logic for 5D tensors
@@ -78,6 +78,11 @@ inline bool is_contiguous(const torch::stable::Tensor& tensor, MemoryFormat form
            (stride_h == W * C) &&
            (stride_d == H * W * C) &&
            (stride_n == D * H * W * C);
+  }
+
+  if (format == MemoryFormat::Preserve) {
+    // Preserve means "keep current format" - not applicable for checking contiguity
+    return false;
   }
 
   return false;
