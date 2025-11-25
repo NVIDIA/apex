@@ -1,6 +1,7 @@
 #ifdef TORCH_STABLE_ONLY
 #include <torch/csrc/stable/tensor.h>
 #include <torch/csrc/stable/accelerator.h>
+#include <torch/csrc/inductor/aoti_torch/c/shim.h>
 #include <torch/headeronly/types.h>
 #include "stable_abi_utils.h"
 #else
@@ -91,9 +92,17 @@ void multi_tensor_apply(int64_t block_size, int64_t chunk_size, const apex_tenso
 #ifdef TORCH_STABLE_ONLY
   // Stable ABI: device guard and stream management
   auto device = tensor_lists[0][0].device();
-  // TODO: stable ABI device guard - for now assume correct device context
-  cudaStream_t stream = nullptr; // Use default stream for stable ABI
-  cudaGetLastError(); // Clear any prior errors
+  int32_t device_index = static_cast<int32_t>(device.index());
+
+  // Use stable ABI DeviceGuard for proper device context
+  torch::stable::accelerator::DeviceGuard device_guard(device_index);
+
+  // Get current CUDA stream using stable ABI C API
+  void* stream_ptr = nullptr;
+  auto err = aoti_torch_get_current_cuda_stream(device_index, &stream_ptr);
+  cudaStream_t stream = (err == AOTI_TORCH_SUCCESS)
+                        ? reinterpret_cast<cudaStream_t>(stream_ptr)
+                        : nullptr;
 #else
   const at::cuda::OptionalCUDAGuard device_guard(device_of(tensor_lists[0][0]));
   auto stream = at::cuda::getCurrentCUDAStream();
