@@ -1,4 +1,17 @@
-from .permutation_utilities import use_gpu, sum_after_2_to_4
+from .permutation_utilities import use_gpu, sum_after_2_to_4, try_permutations_on_matrix
+import os
+from os import path
+import math
+import numpy as np
+import time
+
+try:
+    import permutation_search_cuda as permutation_search_cuda_kernels
+except ImportError:
+    try:
+        from . import permutation_search_cuda as permutation_search_cuda_kernels
+    except ImportError:
+        permutation_search_cuda_kernels = None
 
 ASP_CACHE_DIR_ENV_VAR = "APEX_ASP_CACHE_DIR"
 ASP_CACHE_DIR_DEFAULT = ".cache"
@@ -67,9 +80,6 @@ def generate_unique_combinations(
                 remaining_columns.insert(c, built_permutation.pop(-1))
 
 
-import os
-from os import path
-
 unique_permutation_list = {}
 
 
@@ -96,9 +106,6 @@ def generate_all_unique_combinations(C, M, must_use_all_groups=False):
 
 
 # analytical solution
-import math
-
-
 def predict_unique_combinations(C, M):
     assert C % M == 0
     G = int(C / M)

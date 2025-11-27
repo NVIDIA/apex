@@ -1,5 +1,6 @@
 import subprocess
 import os
+import matplotlib.pyplot as plt
 
 from apex.transformer.testing.commons import TEST_SUCCESS_MESSAGE
 
@@ -34,8 +35,6 @@ def run_gpt(cmd):
 
 
 def plot(runtimes):
-    import matplotlib.pyplot as plt
-
     for distributed_setting in runtimes.keys():
         plt.scatter(
             runtimes[distributed_setting].keys(),

@@ -6,6 +6,7 @@ import time
 import numpy as np
 import builtins as __builtin__
 import io
+import random
 
 try:
     from .permutation_search_kernels import (
@@ -177,7 +178,6 @@ class Permutation:
 
         torch.manual_seed(identical_seed)
         torch.cuda.manual_seed(identical_seed)
-        import random
 
         np.random.seed(identical_seed)
         random.seed(identical_seed)

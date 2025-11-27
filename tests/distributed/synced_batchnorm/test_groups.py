@@ -5,6 +5,7 @@ import syncbn
 import os
 import argparse
 import torch.optim as optim
+from apex.parallel import DistributedDataParallel as DDP
 
 
 def compare(desc, inp1, inp2, error):
@@ -24,9 +25,6 @@ def compare(desc, inp1, inp2, error):
 feature_size = 10
 space_size = 40
 batch_size = 32
-
-
-from apex.parallel import DistributedDataParallel as DDP
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--local_rank", default=0, type=int)
