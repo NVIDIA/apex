@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Megatron number of micro-batches calculators."""
+
 from abc import ABC
 from abc import abstractmethod
 from typing import Optional, List
@@ -166,7 +167,6 @@ class RampupBatchsizeNumMicroBatches(NumMicroBatchesCalculator):
         self.update(0, False)
 
     def update(self, consumed_samples, consistency_check):
-
         if consumed_samples > self.ramup_samples:
             self.current_global_batch_size = self.global_batch_size
         else:

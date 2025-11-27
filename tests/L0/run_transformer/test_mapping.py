@@ -42,8 +42,7 @@ class MappingTestBase:
             )
 
             tensors = [
-                torch.randn(10, 1)
-                for _ in range(tensor_model_paralell_world_size)
+                torch.randn(10, 1) for _ in range(tensor_model_paralell_world_size)
             ]
             x = torch.cat(tensors, 1)
             out = mappings._split_along_last_dim(x)
@@ -51,7 +50,7 @@ class MappingTestBase:
                 torch.equal(
                     out, tensors[parallel_state.get_tensor_model_parallel_rank()]
                 ),
-                msg=f"tensor_model_paralell_world_size: {tensor_model_paralell_world_size}"
+                msg=f"tensor_model_paralell_world_size: {tensor_model_paralell_world_size}",
             )
             parallel_state.destroy_model_parallel()
 
@@ -79,8 +78,12 @@ class MappingTestBase:
             parallel_state.destroy_model_parallel()
 
 
-class NcclMappingTest(MappingTestBase, NcclDistributedTestBase): pass
-class UccMappingTest(MappingTestBase, UccDistributedTestBase): pass
+class NcclMappingTest(MappingTestBase, NcclDistributedTestBase):
+    pass
+
+
+class UccMappingTest(MappingTestBase, UccDistributedTestBase):
+    pass
 
 
 if __name__ == "__main__":

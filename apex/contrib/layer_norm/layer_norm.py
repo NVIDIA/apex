@@ -29,14 +29,16 @@ class FastLayerNormFN(torch.autograd.Function):
         dy = dy.contiguous()  # this happens!
         x_or_y_mat, gamma, mu, rsigma, beta = ctx.saved_tensors
         dymat = dy.view(x_or_y_mat.shape)
-        dxmat, dgamma, dbeta, _, _ = fast_layer_norm.ln_bwd(dymat, x_or_y_mat, mu, rsigma, gamma, beta, ctx.memory_efficient)
+        dxmat, dgamma, dbeta, _, _ = fast_layer_norm.ln_bwd(
+            dymat, x_or_y_mat, mu, rsigma, gamma, beta, ctx.memory_efficient
+        )
         dx = dxmat.view(ctx.x_shape)
         return dx, dgamma, dbeta, None, None
 
 
 def _fast_layer_norm(x, weight, bias, epsilon, memory_efficient):
     args = _cast_if_autocast_enabled(x, weight, bias, epsilon, memory_efficient)
-    with torch.amp.autocast('cuda', enabled=False):
+    with torch.amp.autocast("cuda", enabled=False):
         return FastLayerNormFN.apply(*args)
 
 
@@ -54,4 +56,6 @@ class FastLayerNorm(torch.nn.Module):
         init.zeros_(self.bias)
 
     def forward(self, x):
-        return _fast_layer_norm(x, self.weight, self.bias, self.epsilon, self.memory_efficient)
+        return _fast_layer_norm(
+            x, self.weight, self.bias, self.epsilon, self.memory_efficient
+        )

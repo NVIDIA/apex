@@ -8,6 +8,7 @@ from torch.testing._internal import common_utils
 
 SKIP_TEST = None
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+
 try:
     from apex.contrib.cudnn_gbn import GroupBatchNorm2d as GBN
 except ImportError as e:
@@ -40,7 +41,13 @@ class BNModelRef(nn.Module):
         super().__init__()
         self.fwd = nn.Sequential(
             *[
-                nn.BatchNorm2d(num_features, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                nn.BatchNorm2d(
+                    num_features,
+                    eps=1e-05,
+                    momentum=0.1,
+                    affine=True,
+                    track_running_stats=True,
+                )
                 for _ in range(num_layers)
             ]
         )
@@ -54,7 +61,14 @@ class BNModel(nn.Module):
         super().__init__()
         self.fwd = nn.Sequential(
             *[
-                GBN(num_features, group_size=2, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                GBN(
+                    num_features,
+                    group_size=2,
+                    eps=1e-05,
+                    momentum=0.1,
+                    affine=True,
+                    track_running_stats=True,
+                )
                 for _ in range(num_layers)
             ]
         )
@@ -64,10 +78,14 @@ class BNModel(nn.Module):
 
 
 def get_rand_tensors(global_shape, device):
-    inp_t = torch.rand(global_shape, dtype=torch.float32, device=device).to(memory_format=torch.channels_last)
+    inp_t = torch.rand(global_shape, dtype=torch.float32, device=device).to(
+        memory_format=torch.channels_last
+    )
     weight = torch.rand(global_shape[1], dtype=torch.float32, device=device)
     bias = torch.rand(global_shape[1], dtype=torch.float32, device=device)
-    _grad_out = torch.rand(global_shape, dtype=torch.float32, device=device).to(memory_format=torch.channels_last)
+    _grad_out = torch.rand(global_shape, dtype=torch.float32, device=device).to(
+        memory_format=torch.channels_last
+    )
     return inp_t, weight, bias, _grad_out
 
 
@@ -110,12 +128,14 @@ class TestCudnnGBN(NcclDistributedTestBase):
             cudnn_gbn_model.fwd[0].bias.copy_(bias)
 
             ref_input = input.clone().detach().requires_grad_()
-            input = input[self.rank : self.rank + 1, ...].clone().detach().requires_grad_()
+            input = (
+                input[self.rank : self.rank + 1, ...].clone().detach().requires_grad_()
+            )
 
             ref_grad_out = grad_out.half().clone().detach()
             grad_out = grad_out[self.rank : self.rank + 1, ...].half().clone().detach()
 
-        with torch.amp.autocast('cuda'):
+        with torch.amp.autocast("cuda"):
             out = cudnn_gbn_model(input)
             ref_out = ref_model(ref_input.half())
         out.backward(grad_out)
@@ -124,20 +144,28 @@ class TestCudnnGBN(NcclDistributedTestBase):
         kwargs = {"rtol": 3.5e-3, "atol": 3e-2, "msg": f"shape: {shape}"}
 
         torch.testing.assert_close(ref_out[self.rank : self.rank + 1], out, **kwargs)
-        torch.testing.assert_close(ref_input.grad[self.rank : self.rank + 1], input.grad, **kwargs)
+        torch.testing.assert_close(
+            ref_input.grad[self.rank : self.rank + 1], input.grad, **kwargs
+        )
         # compensating the averaging over processes done by DDP
         # in order to produce mathematically equivalent result
         # https://github.com/NVIDIA/apex/issues/134#issuecomment-458307368
         torch.testing.assert_close(
-            ref_model.fwd[0].weight.grad / self.world_size, cudnn_gbn_model.fwd[0].weight.grad, **kwargs
+            ref_model.fwd[0].weight.grad / self.world_size,
+            cudnn_gbn_model.fwd[0].weight.grad,
+            **kwargs,
         )
         torch.testing.assert_close(
-            ref_model.fwd[0].bias.grad / self.world_size, cudnn_gbn_model.fwd[0].bias.grad, **kwargs
+            ref_model.fwd[0].bias.grad / self.world_size,
+            cudnn_gbn_model.fwd[0].bias.grad,
+            **kwargs,
         )
 
     def test_cudnngbn(self):
         if self.world_size != 2:
-            self.skipTest(f"This test is written for world_size of 2 but {self.world_size}")
+            self.skipTest(
+                f"This test is written for world_size of 2 but {self.world_size}"
+            )
         for shape in input_shapes:
             self._prep()
             self._test_cudnn_gbn(1, shape)

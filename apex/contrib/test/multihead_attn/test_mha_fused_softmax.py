@@ -36,19 +36,29 @@ class FusedSoftmaxTest(unittest.TestCase):
 
     def test_fused_softmax(self):
         grads = torch.randn_like(self.tst_inputs)
-        y_ref = self.ref_inputs.view(self.sequences, self.heads, self.seq_length, self.seq_length)
+        y_ref = self.ref_inputs.view(
+            self.sequences, self.heads, self.seq_length, self.seq_length
+        )
         y_ref = y_ref + self.mask.unsqueeze(1).unsqueeze(2)
-        y_ref = y_ref.view(self.sequences * self.heads, self.seq_length, self.seq_length)
+        y_ref = y_ref.view(
+            self.sequences * self.heads, self.seq_length, self.seq_length
+        )
         y_ref = F.softmax(y_ref, dim=-1)
         y_ref = torch._fused_dropout(y_ref, 1.0)
 
-        y_tst = fast_mask_softmax_dropout_func(True, self.heads, self.tst_inputs, self.mask, True, 0.0)
+        y_tst = fast_mask_softmax_dropout_func(
+            True, self.heads, self.tst_inputs, self.mask, True, 0.0
+        )
         y_ref[0].backward(grads)
         y_tst.backward(grads)
 
-        torch.testing.assert_close(self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(
+            self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5
+        )
         torch.testing.assert_close(y_ref[0], y_tst, atol=1e-3, rtol=1e-3)
-        torch.testing.assert_close(self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3)
+        torch.testing.assert_close(
+            self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3
+        )
 
 
 if __name__ == "__main__":

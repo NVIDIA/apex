@@ -17,14 +17,14 @@ DATA_PARALLEL_WORLD_SIZE: int = 1
 
 
 def calc_expected_tensor_model_paralell_rank(
-    rank: int, tensor_model_parallel_world_size: int,
+    rank: int,
+    tensor_model_parallel_world_size: int,
 ) -> int:
     return rank % tensor_model_parallel_world_size
 
 
 class ParallelStateTestBase:
     def test_initialize_model_parallel(self) -> None:
-
         self.assertFalse(parallel_state.model_parallel_is_initialized())
 
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
@@ -45,8 +45,10 @@ class ParallelStateTestBase:
                 parallel_state.get_tensor_model_parallel_world_size(),
                 msg=msg,
             )
-            expected_tensor_model_parallel_rank = calc_expected_tensor_model_paralell_rank(
-                self.rank, tensor_model_parallel_world_size
+            expected_tensor_model_parallel_rank = (
+                calc_expected_tensor_model_paralell_rank(
+                    self.rank, tensor_model_parallel_world_size
+                )
             )
             self.assertEqual(
                 expected_tensor_model_parallel_rank,
@@ -103,12 +105,14 @@ class ParallelStateTestBase:
             self.rank - (self.rank % tensor_model_parallel_world_size)
         ) % pipeline_model_parallel_world_size
         self.assertEqual(
-            expected_pipeline_rank, parallel_state.get_pipeline_model_parallel_rank(),
+            expected_pipeline_rank,
+            parallel_state.get_pipeline_model_parallel_rank(),
         )
         # virtual pipeline model parallel rank is lazily set, i.e., right after the call of
         # `initialize_model_parallel`, it's set to 0.
         self.assertEqual(
-            0, parallel_state.get_virtual_pipeline_model_parallel_rank(),
+            0,
+            parallel_state.get_virtual_pipeline_model_parallel_rank(),
         )
         self.assertEqual(
             pipeline_model_parallel_split_rank,
@@ -123,12 +127,12 @@ class ParallelStateTestBase:
 
         # relative position embedding groups check
         self.assertEqual(
-           expected_pipeline_rank < pipeline_model_parallel_split_rank,
-           parallel_state.is_rank_in_encoder_relative_position_embedding_group(),
+            expected_pipeline_rank < pipeline_model_parallel_split_rank,
+            parallel_state.is_rank_in_encoder_relative_position_embedding_group(),
         )
         self.assertEqual(
-           expected_pipeline_rank >= pipeline_model_parallel_split_rank,
-           parallel_state.is_rank_in_decoder_relative_position_embedding_group(),
+            expected_pipeline_rank >= pipeline_model_parallel_split_rank,
+            parallel_state.is_rank_in_decoder_relative_position_embedding_group(),
         )
 
         parallel_state.destroy_model_parallel()
@@ -139,7 +143,9 @@ class ParallelStateTestBase:
         self.assertFalse(parallel_state.model_parallel_is_initialized())
 
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
-            msg = f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
+            msg = (
+                f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
+            )
             if self.world_size % tensor_model_parallel_world_size:
                 continue
 
@@ -157,8 +163,10 @@ class ParallelStateTestBase:
                 parallel_state.get_tensor_model_parallel_world_size(),
                 msg=msg,
             )
-            expected_tensor_model_parallel_rank = calc_expected_tensor_model_paralell_rank(
-                self.rank, tensor_model_parallel_world_size
+            expected_tensor_model_parallel_rank = (
+                calc_expected_tensor_model_paralell_rank(
+                    self.rank, tensor_model_parallel_world_size
+                )
             )
             self.assertEqual(
                 expected_tensor_model_parallel_rank,
@@ -179,8 +187,12 @@ class ParallelStateTestBase:
             self.assertFalse(parallel_state.model_parallel_is_initialized(), msg=msg)
 
 
-class NcclParallelStateTest(ParallelStateTestBase, NcclDistributedTestBase): pass
-class UccParallelStateTest(ParallelStateTestBase, UccDistributedTestBase): pass
+class NcclParallelStateTest(ParallelStateTestBase, NcclDistributedTestBase):
+    pass
+
+
+class UccParallelStateTest(ParallelStateTestBase, UccDistributedTestBase):
+    pass
 
 
 if __name__ == "__main__":

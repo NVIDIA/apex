@@ -4,6 +4,7 @@ import torch
 from torch.testing._internal import common_utils
 
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+
 SKIP_TEST = None
 try:
     from apex.contrib.bottleneck import Bottleneck, SpatialBottleneck
@@ -46,14 +47,19 @@ def has_nan(x):
 
 
 def rel_diff_t(xx1, xx2):
-    return ((xx1 - xx2).norm(p=2, dtype=torch.float32) / (xx1 + xx2).norm(p=2, dtype=torch.float32)).item()
+    return (
+        (xx1 - xx2).norm(p=2, dtype=torch.float32)
+        / (xx1 + xx2).norm(p=2, dtype=torch.float32)
+    ).item()
 
 
 def rel_diff(x1, x2):
     if isinstance(x1, list) or isinstance(x1, tuple):
         return [rel_diff_t(xx1, xx2) for xx1, xx2 in zip(x1, x2)]
     elif isinstance(x1, dict):
-        return [rel_diff_t(xx1, xx2) for (k1, xx1), (k2, xx2) in zip(x1.items(), x2.items())]
+        return [
+            rel_diff_t(xx1, xx2) for (k1, xx1), (k2, xx2) in zip(x1.items(), x2.items())
+        ]
     else:
         return rel_diff_t(x1, x2)
 
@@ -145,7 +151,9 @@ def compare(gt, bt):
         torch.distributed.barrier()
 
 
-def spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, spatial_parallel_args):
+def spatial_parallel_bottleneck(
+    C, dtype, explicit_nhwc, gt_bottleneck, spatial_parallel_args
+):
     spatial_bottleneck = SpatialBottleneck(
         C,
         C,
@@ -169,7 +177,9 @@ def spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, spatial_
     return spatial_bottleneck
 
 
-def n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp32_reduce=False):
+def n_way_spatial(
+    halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp32_reduce=False
+):
     assert explicit_nhwc, "Only tested for explicit nhwc"
 
     x, _, dy, _, _ = gt
@@ -180,7 +190,9 @@ def n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp3
     spatial_group_rank = rank
     spatial_communicator = None
     spatial_halo_exchanger = halex
-    spatial_method = 1  # 1 -> overlap halo and main conv, 2 -> wait for halo, conv on padded x
+    spatial_method = (
+        1  # 1 -> overlap halo and main conv, 2 -> wait for halo, conv on padded x
+    )
     use_delay_kernel = False
     spatial_parallel_args = (
         spatial_group_size,
@@ -190,12 +202,16 @@ def n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp3
         spatial_method,
         use_delay_kernel,
     )
-    spatial_bottleneck = spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, spatial_parallel_args)
+    spatial_bottleneck = spatial_parallel_bottleneck(
+        C, dtype, explicit_nhwc, gt_bottleneck, spatial_parallel_args
+    )
 
     with torch.no_grad():
         Hs = H // spatial_group_size
         xs = x[:, spatial_group_rank * Hs : (spatial_group_rank + 1) * Hs, :, :].clone()
-        dys = dy[:, spatial_group_rank * Hs : (spatial_group_rank + 1) * Hs, :, :].clone()
+        dys = dy[
+            :, spatial_group_rank * Hs : (spatial_group_rank + 1) * Hs, :, :
+        ].clone()
         xs.requires_grad = True
 
     spatial_bottleneck = graph_it(spatial_bottleneck, xs)
@@ -236,7 +252,9 @@ def main():
     gt = ground_truth(N, C, H, W, dtype, 1, gt_bottleneck)
 
     # verify that spatial bottleneck with group_size 1 produces same results as ground truth bottleneck
-    spatial_bottleneck = spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, None)
+    spatial_bottleneck = spatial_parallel_bottleneck(
+        C, dtype, explicit_nhwc, gt_bottleneck, None
+    )
     bt = apply_to_different_bottleneck(gt, spatial_bottleneck)
     compare(gt, bt)
     # print_bottleneck_p_and_b(gt_bottleneck)
@@ -270,7 +288,9 @@ def main():
     # torch.cuda.synchronize()
     # torch.distributed.barrier()
 
-    bt2 = n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp32_reduce=True)
+    bt2 = n_way_spatial(
+        halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp32_reduce=True
+    )
     compare(gt, bt2)
 
 
@@ -278,6 +298,7 @@ def main():
 class TestBottleneck(NcclDistributedTestBase):
     # PyTorch's float16 tolerance values, see https://pytorch.org/docs/stable/testing.html#torch.testing.assert_close
     fp16_tolerance = {"atol": 1e-5, "rtol": 1e-3}
+
     @property
     def world_size(self) -> int:
         return min(torch.cuda.device_count(), 2)
@@ -292,13 +313,17 @@ class TestBottleneck(NcclDistributedTestBase):
         gt_bottleneck = ground_truth_bottleneck(C, dtype, explicit_nhwc)
         gt = ground_truth(N, C, H, W, dtype, 1, gt_bottleneck)
 
-        spatial_bottleneck = spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, None)
+        spatial_bottleneck = spatial_parallel_bottleneck(
+            C, dtype, explicit_nhwc, gt_bottleneck, None
+        )
         bt = apply_to_different_bottleneck(gt, spatial_bottleneck)
         self.assertEqual(gt, bt, **self.fp16_tolerance)
 
-    @unittest.skipIf(torch.cuda.device_count() < 2 or not torch.cuda.can_device_access_peer(0,1), "peer memory access not supported")
+    @unittest.skipIf(
+        torch.cuda.device_count() < 2 or not torch.cuda.can_device_access_peer(0, 1),
+        "peer memory access not supported",
+    )
     def test_bottleneck_with_peer_memory(self) -> None:
-
         explicit_nhwc: bool = True
         dtype: torch.dtype = torch.float16
         N, C, H, W = 1, 64, 200, 336
@@ -314,9 +339,17 @@ class TestBottleneck(NcclDistributedTestBase):
 
         spatial_group_size, spatial_communicator = self.world_size, None
         peer_pool = PeerMemoryPool(0, 64 * 1024 * 1024, ranks)
-        halo_exchanger_peer = HaloExchangerPeer(ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=0)
+        halo_exchanger_peer = HaloExchangerPeer(
+            ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=0
+        )
         bt2 = n_way_spatial(
-            halo_exchanger_peer, gt_bottleneck, gt, explicit_nhwc, self.world_size, self.rank, fp32_reduce=True
+            halo_exchanger_peer,
+            gt_bottleneck,
+            gt,
+            explicit_nhwc,
+            self.world_size,
+            self.rank,
+            fp32_reduce=True,
         )
         # TODO(crcrpar): Investigate the implementation to mitigate the numerical errors.
         # NOTE(crcrpar): This assert often fails due to numerical errors.

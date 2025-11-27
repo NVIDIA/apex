@@ -167,9 +167,7 @@ class FusedRoPETHDFunc(torch.autograd.Function):
     ) -> torch.Tensor:
         import fused_rotary_positional_embedding
 
-        output = fused_rotary_positional_embedding.forward_thd(
-            t, cu_seqlens, freqs
-        )
+        output = fused_rotary_positional_embedding.forward_thd(t, cu_seqlens, freqs)
         ctx.save_for_backward(cu_seqlens, freqs)
 
         return output
@@ -291,13 +289,13 @@ def fused_apply_rotary_pos_emb_2d(
     Returns:
         Tensor: The input tensor after applying RoPE
     """
-    assert (
-        t.size(1) == img_h * img_w
-    ), "The sequence length should be equal to img_h * img_w"
-    assert (
-        cos_h.size() == sin_h.size()
-    ), "The shape of cos_h and sin_h should be the same"
-    assert (
-        cos_w.size() == sin_w.size()
-    ), "The shape of cos_w and sin_w should be the same"
+    assert t.size(1) == img_h * img_w, (
+        "The sequence length should be equal to img_h * img_w"
+    )
+    assert cos_h.size() == sin_h.size(), (
+        "The shape of cos_h and sin_h should be the same"
+    )
+    assert cos_w.size() == sin_w.size(), (
+        "The shape of cos_w and sin_w should be the same"
+    )
     return FusedRoPE2DFunc.apply(t, img_h, img_w, cos_h, sin_h, cos_w, sin_w)

@@ -34,7 +34,9 @@ class FocalLoss(torch.autograd.Function):
 
         # The backward kernel is actually in-place to save memory space,
         # partial_grad and grad_input are the same tensor.
-        grad_input = focal_loss_cuda.backward(grad_loss, partial_grad, num_positives_sum)
+        grad_input = focal_loss_cuda.backward(
+            grad_loss, partial_grad, num_positives_sum
+        )
 
         return grad_input, None, None, None, None, None, None
 

@@ -3,6 +3,7 @@ from torch.optim.optimizer import Optimizer, required
 
 from apex.multi_tensor_apply import multi_tensor_applier
 
+
 class FusedSGD(Optimizer):
     r"""Implements stochastic gradient descent (optionally with momentum).
 
@@ -73,11 +74,18 @@ class FusedSGD(Optimizer):
         The Nesterov version is analogously modified.
     """
 
-    def __init__(self, params, lr=required, momentum=0, dampening=0,
-                 weight_decay=0, nesterov=False,
-                 wd_after_momentum=False,
-                 materialize_master_grads=True,
-                 set_grad_none=False):
+    def __init__(
+        self,
+        params,
+        lr=required,
+        momentum=0,
+        dampening=0,
+        weight_decay=0,
+        nesterov=False,
+        wd_after_momentum=False,
+        materialize_master_grads=True,
+        set_grad_none=False,
+    ):
         if lr is not required and lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if momentum < 0.0:
@@ -85,8 +93,13 @@ class FusedSGD(Optimizer):
         if weight_decay < 0.0:
             raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
 
-        defaults = dict(lr=lr, momentum=momentum, dampening=dampening,
-                        weight_decay=weight_decay, nesterov=nesterov)
+        defaults = dict(
+            lr=lr,
+            momentum=momentum,
+            dampening=dampening,
+            weight_decay=weight_decay,
+            nesterov=nesterov,
+        )
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
         super(FusedSGD, self).__init__(params, defaults)
@@ -99,21 +112,24 @@ class FusedSGD(Optimizer):
 
         if multi_tensor_applier.available:
             import amp_C
+
             # Skip buffer
-            self._dummy_overflow_buf = torch.tensor([0], dtype=torch.int, device=self.param_groups[0]["params"][0].device)
+            self._dummy_overflow_buf = torch.tensor(
+                [0], dtype=torch.int, device=self.param_groups[0]["params"][0].device
+            )
             self.multi_tensor_sgd = amp_C.multi_tensor_sgd
         else:
-            raise RuntimeError('apex.optimizers.FusedSGD requires cuda extensions')
+            raise RuntimeError("apex.optimizers.FusedSGD requires cuda extensions")
 
     def __setstate__(self, state):
         super(FusedSGD, self).__setstate__(state)
         for group in self.param_groups:
-            group.setdefault('nesterov', False)
+            group.setdefault("nesterov", False)
 
     def zero_grad(self):
         if self.set_grad_none:
             for group in self.param_groups:
-                for p in group['params']:
+                for p in group["params"]:
                     p.grad = None
         else:
             super(FusedSGD, self).zero_grad()
@@ -126,13 +142,13 @@ class FusedSGD(Optimizer):
             # torch.optim.SGD initializes momentum in the main loop, we have
             # to do it here, and track whether or not we've done so, so that
             # momentum application can be skipped in the main kernel.
-            if 'momentum_buffer' not in param_state:
+            if "momentum_buffer" not in param_state:
                 first_run = True
-                buf = param_state['momentum_buffer'] = torch.zeros_like(p.data)
+                buf = param_state["momentum_buffer"] = torch.zeros_like(p.data)
                 momentums.append(buf)
             else:
                 first_run = False
-                momentums.append(param_state['momentum_buffer'])
+                momentums.append(param_state["momentum_buffer"])
         return momentums, first_run
 
     def step(self, closure=None):
@@ -146,15 +162,15 @@ class FusedSGD(Optimizer):
         if closure is not None:
             loss = closure()
 
-        explicit_master_params = (hasattr(self, "_amp_stash") and
-                                  hasattr(self._amp_stash, "fp32_from_fp16_groups"))
+        explicit_master_params = hasattr(self, "_amp_stash") and hasattr(
+            self._amp_stash, "fp32_from_fp16_groups"
+        )
 
         for gid, group in enumerate(self.param_groups):
-            weight_decay = group['weight_decay']
-            momentum = group['momentum']
-            dampening = group['dampening']
-            nesterov = group['nesterov']
-
+            weight_decay = group["weight_decay"]
+            momentum = group["momentum"]
+            dampening = group["dampening"]
+            nesterov = group["nesterov"]
 
             # For each group, there are 3 possible combinations we need to consider:
             # grad_type, param_to_update_type, momentum_type, requires_fp16_model_copy
@@ -168,41 +184,95 @@ class FusedSGD(Optimizer):
             if explicit_master_params:
                 stash = self._amp_stash
 
-                fp32_params = [p for p in stash.fp32_from_fp32_groups[gid] if p.grad is not None]
-                fp32_grads = [p.grad for p in stash.fp32_from_fp32_groups[gid] if p.grad is not None]
+                fp32_params = [
+                    p for p in stash.fp32_from_fp32_groups[gid] if p.grad is not None
+                ]
+                fp32_grads = [
+                    p.grad
+                    for p in stash.fp32_from_fp32_groups[gid]
+                    if p.grad is not None
+                ]
                 fp32_momentums, first_runs[1] = self.get_momentums(fp32_params)
 
                 if self.materialize_master_grads:
-                    fp16_model_params = [p for i, p in enumerate(
-                        stash.fp16_groups[gid]) if stash.fp32_from_fp16_groups[gid][i].grad is not None]
-                    fp32_from_fp16_grads = [p.grad for p in stash.fp32_from_fp16_groups[gid] if p.grad is not None]
-                    fp32_from_fp16_params = [p for p in stash.fp32_from_fp16_groups[gid] if p.grad is not None]
-                    fp32_from_fp16_momentums, first_runs[0] = self.get_momentums(fp32_from_fp16_params)
+                    fp16_model_params = [
+                        p
+                        for i, p in enumerate(stash.fp16_groups[gid])
+                        if stash.fp32_from_fp16_groups[gid][i].grad is not None
+                    ]
+                    fp32_from_fp16_grads = [
+                        p.grad
+                        for p in stash.fp32_from_fp16_groups[gid]
+                        if p.grad is not None
+                    ]
+                    fp32_from_fp16_params = [
+                        p
+                        for p in stash.fp32_from_fp16_groups[gid]
+                        if p.grad is not None
+                    ]
+                    fp32_from_fp16_momentums, first_runs[0] = self.get_momentums(
+                        fp32_from_fp16_params
+                    )
 
-                    fp16_set = [fp32_from_fp16_grads, fp32_from_fp16_params,
-                                fp32_from_fp16_momentums, fp16_model_params]
+                    fp16_set = [
+                        fp32_from_fp16_grads,
+                        fp32_from_fp16_params,
+                        fp32_from_fp16_momentums,
+                        fp16_model_params,
+                    ]
                 else:
-                    fp16_model_params = [p for p in stash.fp16_groups[gid] if p.grad is not None]
-                    fp16_model_grads = [p.grad for p in stash.fp16_groups[gid] if p.grad is not None]
-                    fp32_from_fp16_params = [p for i, p in enumerate(
-                        stash.fp32_from_fp16_groups[gid]) if stash.fp16_groups[gid][i].grad is not None]
-                    fp32_from_fp16_momentums, first_runs[0] = self.get_momentums(fp32_from_fp16_params)
+                    fp16_model_params = [
+                        p for p in stash.fp16_groups[gid] if p.grad is not None
+                    ]
+                    fp16_model_grads = [
+                        p.grad for p in stash.fp16_groups[gid] if p.grad is not None
+                    ]
+                    fp32_from_fp16_params = [
+                        p
+                        for i, p in enumerate(stash.fp32_from_fp16_groups[gid])
+                        if stash.fp16_groups[gid][i].grad is not None
+                    ]
+                    fp32_from_fp16_momentums, first_runs[0] = self.get_momentums(
+                        fp32_from_fp16_params
+                    )
 
-                    fp16_set = [fp16_model_grads, fp32_from_fp16_params,
-                                fp32_from_fp16_momentums, fp16_model_params]
+                    fp16_set = [
+                        fp16_model_grads,
+                        fp32_from_fp16_params,
+                        fp32_from_fp16_momentums,
+                        fp16_model_params,
+                    ]
 
-                launch_sets= [fp16_set, [fp32_grads, fp32_params, fp32_momentums]]
+                launch_sets = [fp16_set, [fp32_grads, fp32_params, fp32_momentums]]
             else:
-                fp16_params = [p for p in group['params'] if (p.dtype == torch.float16 and p.grad is not None)]
-                fp16_grads = [p.grad for p in group['params'] if (p.dtype == torch.float16 and p.grad is not None)]
+                fp16_params = [
+                    p
+                    for p in group["params"]
+                    if (p.dtype == torch.float16 and p.grad is not None)
+                ]
+                fp16_grads = [
+                    p.grad
+                    for p in group["params"]
+                    if (p.dtype == torch.float16 and p.grad is not None)
+                ]
                 fp16_momentums, first_runs[0] = self.get_momentums(fp16_params)
 
-                fp32_params = [p for p in group['params'] if (p.dtype == torch.float32 and p.grad is not None)]
-                fp32_grads = [p.grad for p in group['params'] if (p.dtype == torch.float32 and p.grad is not None)]
+                fp32_params = [
+                    p
+                    for p in group["params"]
+                    if (p.dtype == torch.float32 and p.grad is not None)
+                ]
+                fp32_grads = [
+                    p.grad
+                    for p in group["params"]
+                    if (p.dtype == torch.float32 and p.grad is not None)
+                ]
                 fp32_momentums, first_runs[1] = self.get_momentums(fp32_params)
 
-                launch_sets = [[fp16_grads, fp16_params, fp16_momentums],
-                               [fp32_grads, fp32_params, fp32_momentums]]
+                launch_sets = [
+                    [fp16_grads, fp16_params, fp16_momentums],
+                    [fp32_grads, fp32_params, fp32_momentums],
+                ]
 
             for s, (launch_set, first_run) in enumerate(zip(launch_sets, first_runs)):
                 assert len(launch_set[0]) == len(launch_set[1])
@@ -215,11 +285,12 @@ class FusedSGD(Optimizer):
                         weight_decay,
                         momentum,
                         dampening,
-                        group['lr'],
+                        group["lr"],
                         nesterov,
                         first_run,
                         self.wd_after_momentum,
-                        1.0/self.most_recent_scale)
+                        1.0 / self.most_recent_scale,
+                    )
 
         self.most_recent_scale = 1.0
         self.scale_set_by_backward = False

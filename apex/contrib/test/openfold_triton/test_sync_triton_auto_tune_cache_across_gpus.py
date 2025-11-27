@@ -18,6 +18,7 @@ from apex.contrib.openfold_triton import (
 
 class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
     device_type = "cuda"
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -45,9 +46,13 @@ class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
     def _create_process_group_nccl(self):
         def maybe_export(env, val):
             if not type(env) == str:
-                raise ValueError(f"Type of type of env is expected to be str, but got {type(env)}")
+                raise ValueError(
+                    f"Type of type of env is expected to be str, but got {type(env)}"
+                )
             if not type(val) == str:
-                raise ValueError(f"Type of type of val is expected to be str, but got {type(val)}")
+                raise ValueError(
+                    f"Type of type of val is expected to be str, but got {type(val)}"
+                )
             if os.getenv(env) is None:
                 os.environ[env] = val
 
@@ -63,7 +68,6 @@ class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
         pg = dist.distributed_c10d._get_default_group()
         return pg
 
-
     @requires_nccl()
     @skip_if_lt_x_gpu(1)
     def test_sync_triton_auto_tune_cache_across_gpus(self):
@@ -73,15 +77,23 @@ class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
 
         if self.rank == 0:
             eps = 1e-5
-            normalized_shape = (128, 64,)
+            normalized_shape = (
+                128,
+                64,
+            )
 
             weight = torch.ones(normalized_shape, device=device, requires_grad=True)
-            bias= torch.zeros(normalized_shape, device=device, requires_grad=True)
+            bias = torch.zeros(normalized_shape, device=device, requires_grad=True)
 
-            x = torch.randn((2, 2,) + normalized_shape, device=device)
-            y = LayerNormSmallShapeOptImpl.apply(
-                x, normalized_shape, weight, bias, eps
+            x = torch.randn(
+                (
+                    2,
+                    2,
+                )
+                + normalized_shape,
+                device=device,
             )
+            y = LayerNormSmallShapeOptImpl.apply(x, normalized_shape, weight, bias, eps)
             l = torch.sum(y)
             l.backward()
 
@@ -91,10 +103,13 @@ class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
         for func_name, func in _tuneable_triton_kernels.items():
             if len(func.cache) > 0:
                 caches_synced = caches_synced + 1
-                print(f"caches were synchronized for {func_name} at rank = {self.rank}:", func.cache)
+                print(
+                    f"caches were synchronized for {func_name} at rank = {self.rank}:",
+                    func.cache,
+                )
 
         self.assertTrue(caches_synced > 0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_tests()

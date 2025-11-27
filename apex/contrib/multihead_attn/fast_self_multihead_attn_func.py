@@ -211,18 +211,20 @@ class FastSelfAttnFunc(torch.autograd.Function):
         else:
             input_bias_grads = None
             output_bias_grads = None
-            input_grads, input_weight_grads, output_weight_grads = fast_multihead_attn.self_attn_backward(
-                heads_t[0],
-                output_grads,
-                matmul2_results,
-                dropout_results,
-                softmax_results,
-                input_lin_results,
-                inputs,
-                input_weights,
-                output_weights,
-                dropout_mask,
-                dropout_prob_t[0],
+            input_grads, input_weight_grads, output_weight_grads = (
+                fast_multihead_attn.self_attn_backward(
+                    heads_t[0],
+                    output_grads,
+                    matmul2_results,
+                    dropout_results,
+                    softmax_results,
+                    input_lin_results,
+                    inputs,
+                    input_weights,
+                    output_weights,
+                    dropout_mask,
+                    dropout_prob_t[0],
+                )
             )
             # fast_self_multihead_attn.backward(                          \
         return (

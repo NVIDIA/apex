@@ -1,4 +1,3 @@
-import os
 import torch
 import apex.contrib.nccl_allocator as nccl_allocator
 from pynvml.smi import nvidia_smi

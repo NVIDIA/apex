@@ -291,14 +291,17 @@ def layer_norm(
 
     xdtype, wdtype, device = x.dtype, weight.dtype, x.device
     m, n = math.prod(x.shape[: -len(normalized_shape)]), math.prod(normalized_shape)
-    forward_graph, (
-        x_sym,
-        scale_sym,
-        bias_sym,
-        eps_sym,
-        y_sym,
-        x_mean_sym,
-        x_invstd_sym,
+    (
+        forward_graph,
+        (
+            x_sym,
+            scale_sym,
+            bias_sym,
+            eps_sym,
+            y_sym,
+            x_mean_sym,
+            x_invstd_sym,
+        ),
     ) = LayerNormGraphFactory.get_forward_graph(m, n, xdtype, wdtype)
 
     x_contiguous = x.reshape(m, n, 1, 1)  # NOTE: x could be noncontiguous.
@@ -369,15 +372,18 @@ def layer_norm_backward(
     cudnn_manager: CuDNNManager = get_cudnn_manager()
     cudnn_manager.set_stream(stream)
 
-    backward_graph, (
-        x_sym,
-        d_y_sym,
-        scale_sym,
-        x_mean_sym,
-        x_invstd_sym,
-        d_x_sym,
-        d_scale_sym,
-        d_bias_sym,
+    (
+        backward_graph,
+        (
+            x_sym,
+            d_y_sym,
+            scale_sym,
+            x_mean_sym,
+            x_invstd_sym,
+            d_x_sym,
+            d_scale_sym,
+            d_bias_sym,
+        ),
     ) = LayerNormGraphFactory.get_backward_graph(m, n, xdtype, wdtype)
 
     d_y_contiguous = d_y.reshape(m, n, 1, 1)  # NOTE: d_y could also be noncontiguous.

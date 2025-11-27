@@ -1,12 +1,11 @@
 import os
 import logging
 import itertools
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple
 import unittest
 
 import torch
 from torch.testing._internal import common_utils
-from torch.testing._internal import common_cuda
 from torch.testing._internal import common_distributed
 
 from apex._autocast_utils import _get_autocast_dtypes
@@ -34,8 +33,9 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 logging.getLogger("apex").setLevel(logging.WARNING)
 
 
-def _get_default_world_sizes_model_parallel_world_size(pipeline_model_parallel_world_size: Optional[int] = None
-    ) -> Tuple[int, int, int]:
+def _get_default_world_sizes_model_parallel_world_size(
+    pipeline_model_parallel_world_size: Optional[int] = None,
+) -> Tuple[int, int, int]:
     # TODO: revisit if we can fold this into the class for skip logic / avoid duplication
     # of world size computation
     world_size = torch.cuda.device_count()
@@ -43,15 +43,22 @@ def _get_default_world_sizes_model_parallel_world_size(pipeline_model_parallel_w
     data_parallel_size = 1 + (world_size >= 8 and world_size % 2 == 0)
 
     if pipeline_model_parallel_world_size is None:
-        pipeline_model_parallel_world_size =  world_size // (tensor_model_parallel_world_size * data_parallel_size)
+        pipeline_model_parallel_world_size = world_size // (
+            tensor_model_parallel_world_size * data_parallel_size
+        )
     else:
-        data_parallel_size = world_size // (tensor_model_parallel_world_size * pipeline_model_parallel_world_size)
+        data_parallel_size = world_size // (
+            tensor_model_parallel_world_size * pipeline_model_parallel_world_size
+        )
 
-    return tensor_model_parallel_world_size, data_parallel_size, pipeline_model_parallel_world_size
+    return (
+        tensor_model_parallel_world_size,
+        data_parallel_size,
+        pipeline_model_parallel_world_size,
+    )
 
 
 class UccPipelineParallelForwardBackwardProf(UccDistributedTestBase):
-
     # The purpose of this class is to test and confirm asynchronous communication via profiling.
     # Having that in mind, it is safe to skip all the numerical checks.
     # For unit testing with numerical checks please refer to `tests/L0/run_transformer/test_pipeline_parallel_fwd_bwd.py`.
@@ -83,20 +90,27 @@ class UccPipelineParallelForwardBackwardProf(UccDistributedTestBase):
         if fwd_bwd_func == _forward_backward_pipelining_with_interleaving:
             self.assertIsNotNone(virtual_pipeline_model_parallel_size)
             self.assertGreater(virtual_pipeline_model_parallel_size, 1)
-        dtype_options = self.dtypes or [torch.float32, torch.double] + _get_autocast_dtypes()
+        dtype_options = (
+            self.dtypes or [torch.float32, torch.double] + _get_autocast_dtypes()
+        )
 
         for dtype, deallocate_pipeline_outputs in itertools.product(
-            dtype_options, self.deallocate_options,
+            dtype_options,
+            self.deallocate_options,
         ):
             grad_scaler = (
-                torch.amp.GradScaler('cuda', init_scale=4.0)
+                torch.amp.GradScaler("cuda", init_scale=4.0)
                 if dtype == torch.half
                 else None
             )
 
-            (tensor_model_parallel_world_size,
-            data_parallel_size,
-            pipeline_model_parallel_world_size) = _get_default_world_sizes_model_parallel_world_size(pipeline_model_parallel_world_size)
+            (
+                tensor_model_parallel_world_size,
+                data_parallel_size,
+                pipeline_model_parallel_world_size,
+            ) = _get_default_world_sizes_model_parallel_world_size(
+                pipeline_model_parallel_world_size
+            )
 
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size,
@@ -114,15 +128,14 @@ class UccPipelineParallelForwardBackwardProf(UccDistributedTestBase):
             )
 
             global_batch_shape = (
-                self.GLOBAL_BATCH_SIZE
-                // parallel_state.get_data_parallel_world_size(),
+                self.GLOBAL_BATCH_SIZE // parallel_state.get_data_parallel_world_size(),
                 self.HIDDEN_SIZE,
                 self.HIDDEN_SIZE,
             )
 
             batch = None
             if parallel_state.is_pipeline_first_stage():
-                batch = (torch.ones(global_batch_shape, dtype=dtype).cuda(), )
+                batch = (torch.ones(global_batch_shape, dtype=dtype).cuda(),)
 
             model = build_model(
                 testing_utils.model_provider_func,
@@ -132,8 +145,11 @@ class UccPipelineParallelForwardBackwardProf(UccDistributedTestBase):
                 hidden_size=self.HIDDEN_SIZE,
             )
 
-
-            offset = pipeline_model_parallel_world_size if virtual_pipeline_model_parallel_size is not None else 0
+            offset = (
+                pipeline_model_parallel_world_size
+                if virtual_pipeline_model_parallel_size is not None
+                else 0
+            )
             for idx, model_module in enumerate(model):
                 model_module = model_module.to(dtype)
 
@@ -180,36 +196,70 @@ class UccPipelineParallelForwardBackwardProf(UccDistributedTestBase):
 
     def test_learning_async_pipelining_without_interleaving(self):
         self._forward_backward_test_impl(
-            False, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
+            False,
+            forward_backward_pipelining_without_interleaving,
+            None,
+            None,
+            async_comm=True,
         )
 
     def test_inference_async_pipelining_without_interleaving(self):
         self._forward_backward_test_impl(
-            True, forward_backward_pipelining_without_interleaving, None, None, async_comm=True
+            True,
+            forward_backward_pipelining_without_interleaving,
+            None,
+            None,
+            async_comm=True,
         )
 
-    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
+    @unittest.skipUnless(
+        _get_default_world_sizes_model_parallel_world_size()[-1] > 2,
+        "Interleaved schedule requires pipeline_model_parallel_world_size > 2",
+    )
     def test_learning_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
-            False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
+            False,
+            _forward_backward_pipelining_with_interleaving,
+            None,
+            virtual_pipeline_model_parallel_size=2,
         )
 
-    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
+    @unittest.skipUnless(
+        _get_default_world_sizes_model_parallel_world_size()[-1] > 2,
+        "Interleaved schedule requires pipeline_model_parallel_world_size > 2",
+    )
     def test_inference_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
-            True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2
+            True,
+            _forward_backward_pipelining_with_interleaving,
+            None,
+            virtual_pipeline_model_parallel_size=2,
         )
 
-    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
+    @unittest.skipUnless(
+        _get_default_world_sizes_model_parallel_world_size()[-1] > 2,
+        "Interleaved schedule requires pipeline_model_parallel_world_size > 2",
+    )
     def test_learning_async_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
-            False, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True
+            False,
+            _forward_backward_pipelining_with_interleaving,
+            None,
+            virtual_pipeline_model_parallel_size=2,
+            async_comm=True,
         )
 
-    @unittest.skipUnless(_get_default_world_sizes_model_parallel_world_size()[-1] > 2, "Interleaved schedule requires pipeline_model_parallel_world_size > 2")
+    @unittest.skipUnless(
+        _get_default_world_sizes_model_parallel_world_size()[-1] > 2,
+        "Interleaved schedule requires pipeline_model_parallel_world_size > 2",
+    )
     def test_inference_async_pipelining_with_interleaving(self):
         self._forward_backward_test_impl(
-            True, _forward_backward_pipelining_with_interleaving, None, virtual_pipeline_model_parallel_size=2, async_comm=True
+            True,
+            _forward_backward_pipelining_with_interleaving,
+            None,
+            virtual_pipeline_model_parallel_size=2,
+            async_comm=True,
         )
 
 

@@ -58,7 +58,9 @@ class CUDAStreamPool:
                 Defaults to 8.
         """
         self.pool_size: int = pool_size
-        self.stream_queue: queue.Queue[torch.cuda.Stream] = queue.Queue(maxsize=pool_size)
+        self.stream_queue: queue.Queue[torch.cuda.Stream] = queue.Queue(
+            maxsize=pool_size
+        )
 
         for _ in range(pool_size):
             stream = torch.cuda.Stream(device=device)
@@ -111,7 +113,9 @@ class CUDAStreamPool:
 _cuda_stream_pool: CUDAStreamPool | None = None
 
 
-def get_cuda_stream_pool(device: int | None = None, pool_size: int = 32) -> CUDAStreamPool:
+def get_cuda_stream_pool(
+    device: int | None = None, pool_size: int = 32
+) -> CUDAStreamPool:
     """Retrieve a global CUDA stream pool, creating it if necessary.
 
     This function ensures that only one CUDAStreamPool instance exists globally.

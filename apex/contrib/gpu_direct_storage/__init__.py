@@ -1,6 +1,7 @@
 from _apex_gpu_direct_storage import _GDSFile
 from contextlib import contextmanager
 
+
 @contextmanager
 def GDSFile(filename, mode):
     assert type(filename) == str

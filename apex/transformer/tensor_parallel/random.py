@@ -32,8 +32,6 @@ from torch.utils.checkpoint import detach_variable
 
 from apex.transformer.parallel_state import get_tensor_model_parallel_rank
 from apex.transformer.tensor_parallel.memory import allocate_mem_buff
-from apex.transformer.utils import split_tensor_into_1d_equal_chunks
-from apex.transformer.utils import gather_split_1d_tensor
 
 
 # Default name for the model parallel rng tracker.
@@ -62,9 +60,9 @@ def init_checkpointed_activations_memory_buffer(
         * hidden_size
         // tensor_model_parallel_size
     )
-    assert (
-        num_layers % checkpoint_num_layers == 0
-    ), "number of layers is not divisible by checkpoint-num-layers"
+    assert num_layers % checkpoint_num_layers == 0, (
+        "number of layers is not divisible by checkpoint-num-layers"
+    )
     num_checkpointer_layers = num_layers // checkpoint_num_layers
     numel = per_layer * num_checkpointer_layers
     dtype = torch.half
@@ -72,9 +70,9 @@ def init_checkpointed_activations_memory_buffer(
         dtype = torch.float
 
     global _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER
-    assert (
-        _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER is None
-    ), "checkpointed activations memory buffer is already allocated."
+    assert _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER is None, (
+        "checkpointed activations memory buffer is already allocated."
+    )
     _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER = allocate_mem_buff(
         "checkpointed activations", numel, dtype, track_usage=False
     )
@@ -236,10 +234,10 @@ def model_parallel_cuda_manual_seed(seed):
 # TODO (mkozuki): Move the below gradient checkpoint related features to another (new) file.
 class CheckpointFunction(torch.autograd.Function):
     """This function is adapted from torch.utils.checkpoint with
-       two main changes:
-           1) torch.cuda.set_rng_state is replaced with `_set_cuda_rng_state`
-           2) the states in the model parallel tracker are also properly
-              tracked/set/reset.
+    two main changes:
+        1) torch.cuda.set_rng_state is replaced with `_set_cuda_rng_state`
+        2) the states in the model parallel tracker are also properly
+           tracked/set/reset.
     """
 
     @staticmethod

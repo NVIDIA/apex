@@ -57,7 +57,9 @@ class VocabUtility:
         return index_f, index_l
 
     @staticmethod
-    def vocab_range_from_global_vocab_size(global_vocab_size: int, rank: int, world_size: int) -> Sequence[int]:
+    def vocab_range_from_global_vocab_size(
+        global_vocab_size: int, rank: int, world_size: int
+    ) -> Sequence[int]:
         per_partition_vocab_size = divide(global_vocab_size, world_size)
         return VocabUtility.vocab_range_from_per_partition_vocab_size(
             per_partition_vocab_size, rank, world_size

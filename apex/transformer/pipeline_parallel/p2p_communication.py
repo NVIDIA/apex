@@ -101,9 +101,14 @@ def _run_p2pops(
             reqs = torch.distributed.batch_isend_irecv(ops)
     else:
         # sync before communication if needed
-        if need_to_sync and any([
-            tensor_send_prev is not None, tensor_recv_prev is not None,
-            tensor_send_next is not None, tensor_recv_next is not None]):
+        if need_to_sync and any(
+            [
+                tensor_send_prev is not None,
+                tensor_recv_prev is not None,
+                tensor_send_next is not None,
+                tensor_recv_next is not None,
+            ]
+        ):
             torch.cuda.synchronize()
 
         if tensor_send_prev is not None:
@@ -126,7 +131,7 @@ def _run_p2pops(
                 dst=parallel_state.get_pipeline_model_parallel_next_rank(),
                 group=p2p_group,
             )
-            reqs.append(send_next_req)        
+            reqs.append(send_next_req)
         if tensor_recv_next is not None:
             recv_next_op = torch.distributed.irecv(
                 tensor=tensor_recv_next,
@@ -152,7 +157,13 @@ def _run_p2pops(
                 tensor_recv_next_req = None if tensor_recv_next is None else reqs[0]
             else:
                 assert False, "failed to manage p2p requests and handles"
-            return (tensor_send_prev_req, tensor_recv_prev_req, tensor_send_next_req, tensor_recv_next_req, None)
+            return (
+                tensor_send_prev_req,
+                tensor_recv_prev_req,
+                tensor_send_next_req,
+                tensor_recv_next_req,
+                None,
+            )
         else:
             for req in reqs:
                 req.wait()
@@ -182,7 +193,9 @@ def _communicate(
     sync_batch_comm: bool = True,
     overlap_p2p_comm: bool = False,
     batch_p2p_comm: bool = True,
-) -> Tuple[Union[torch.Tensor, FutureTensor, None], Union[torch.Tensor, FutureTensor, None]]:
+) -> Tuple[
+    Union[torch.Tensor, FutureTensor, None], Union[torch.Tensor, FutureTensor, None]
+]:
     """Base function for communication of tensors between stages.
 
 
@@ -230,7 +243,10 @@ def _communicate(
     """
     if async_comm and sequence_parallel_enabled:
         import warnings  # NOQA
-        class ExperimentalWarning(UserWarning): pass  # NOQA
+
+        class ExperimentalWarning(UserWarning):
+            pass  # NOQA
+
         warnings.warn(
             "The combination of `async_comm` and `sequence_parallel_enabled` is not well tested.",
             ExperimentalWarning,
@@ -241,7 +257,8 @@ def _communicate(
     if tensor_shape is None:
         # In megatron, `tensor_shape` is set to `(args.seq_length, args.micro_batch_size, args.hidden_size)`
         raise RuntimeError(
-            "`tensor_shape` must be specified. Common `tensor_shape` is `(seq_length, micro_batch_size, hidden_size)`")
+            "`tensor_shape` must be specified. Common `tensor_shape` is `(seq_length, micro_batch_size, hidden_size)`"
+        )
 
     tensor_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
     override_scatter_gather_tensors_in_pipeline_ = False
@@ -311,8 +328,21 @@ def _communicate(
             tensor_send_prev = split_tensor_into_1d_equal_chunks(tensor_send_prev)
 
     # Send tensors in both the forward and backward directions as appropriate.
-    tensor_send_prev_req, tensor_recv_prev_req, tensor_send_next_req, tensor_recv_next_req, wait_handles = _run_p2pops(
-        tensor_send_prev, tensor_send_next, tensor_recv_prev, tensor_recv_next, async_comm, overlap_p2p_comm, batch_p2p_comm)
+    (
+        tensor_send_prev_req,
+        tensor_recv_prev_req,
+        tensor_send_next_req,
+        tensor_recv_next_req,
+        wait_handles,
+    ) = _run_p2pops(
+        tensor_send_prev,
+        tensor_send_next,
+        tensor_recv_prev,
+        tensor_recv_next,
+        async_comm,
+        overlap_p2p_comm,
+        batch_p2p_comm,
+    )
 
     if async_comm:
         tensor_recv_prev_waitfunc = None
@@ -320,14 +350,18 @@ def _communicate(
         # TODO: investigate whether this is necessary for correctness (ref: https://github.com/pytorch/pytorch/issues/38642)
         # see also: sync added for async_comm callbacks below in gather_recv_prev_wait and gather_recv_next_wait
         if tensor_recv_prev_req is not None:
+
             def tensor_recv_prev_wait():
                 tensor_recv_prev_req.wait()
                 torch.cuda.synchronize()
+
             tensor_recv_prev_waitfunc = tensor_recv_prev_wait
         if tensor_recv_next_req is not None:
+
             def tensor_recv_next_wait():
                 tensor_recv_next_req.wait()
                 torch.cuda.synchronize()
+
             tensor_recv_next_waitfunc = tensor_recv_next_wait
     else:
         if sync_batch_comm:
@@ -351,6 +385,7 @@ def _communicate(
                     .requires_grad_()
                 )
         else:
+
             def gather_recv_prev_wait():
                 tensor_recv_prev_req.wait()
                 # From @Deepak's PR https://github.com/NVIDIA/Megatron-LM/commit/27fc468964064eeb33b703c9a0b2af938d80dd14
@@ -361,6 +396,7 @@ def _communicate(
                     .view(tensor_shape)
                     .requires_grad_()
                 )
+
             def gather_recv_next_wait():
                 tensor_recv_next_req.wait()
                 torch.cuda.synchronize()
@@ -369,15 +405,20 @@ def _communicate(
                     .view(tensor_shape)
                     .requires_grad_()
                 )
+
             tensor_recv_prev_waitfunc = gather_recv_prev_wait
             tensor_recv_next_waitfunc = gather_recv_next_wait
     if async_comm:
         future_tensor_recv_prev = None
         future_tensor_recv_next = None
         if tensor_recv_prev is not None:
-            future_tensor_recv_prev = FutureTensor(tensor_recv_prev, tensor_recv_prev_waitfunc)
+            future_tensor_recv_prev = FutureTensor(
+                tensor_recv_prev, tensor_recv_prev_waitfunc
+            )
         if tensor_recv_next is not None:
-            future_tensor_recv_next = FutureTensor(tensor_recv_next, tensor_recv_next_waitfunc)
+            future_tensor_recv_next = FutureTensor(
+                tensor_recv_next, tensor_recv_next_waitfunc
+            )
         return future_tensor_recv_prev, future_tensor_recv_next, None
     return tensor_recv_prev, tensor_recv_next, wait_handles
 

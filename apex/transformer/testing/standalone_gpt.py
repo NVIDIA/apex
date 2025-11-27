@@ -16,12 +16,11 @@ import contextlib
 import torch
 
 from apex.transformer.enums import AttnMaskType
-from apex.transformer.enums import ModelType
-from apex.transformer import tensor_parallel
 from apex.transformer.testing.global_vars import get_args
 from apex.transformer.testing.standalone_transformer_lm import MegatronModule
-from apex.transformer.testing.standalone_transformer_lm import parallel_lm_logits
-from apex.transformer.testing.standalone_transformer_lm import post_language_model_processing
+from apex.transformer.testing.standalone_transformer_lm import (
+    post_language_model_processing,
+)
 from apex.transformer.testing.standalone_transformer_lm import get_language_model
 from apex.transformer.testing.standalone_transformer_lm import init_method_normal
 from apex.transformer.testing.standalone_transformer_lm import (
@@ -29,8 +28,11 @@ from apex.transformer.testing.standalone_transformer_lm import (
 )
 
 
-
-def gpt_model_provider(pre_process: bool = True, post_process: bool = True, cpu_offload: bool = False,) -> "GPTModel":
+def gpt_model_provider(
+    pre_process: bool = True,
+    post_process: bool = True,
+    cpu_offload: bool = False,
+) -> "GPTModel":
     args = get_args()
     model = GPTModel(
         num_tokentypes=0,
@@ -47,7 +49,7 @@ class GPTModel(MegatronModule):
 
     def __init__(
         self,
-        num_tokentypes:int = 0,
+        num_tokentypes: int = 0,
         parallel_output: bool = True,
         pre_process: bool = True,
         post_process: bool = True,
@@ -92,10 +94,12 @@ class GPTModel(MegatronModule):
         tokentype_ids=None,
         inference_params=None,
     ):
-
         with self.forward_context():
             lm_output = self.language_model(
-                input_ids, position_ids, attention_mask, inference_params=inference_params
+                input_ids,
+                position_ids,
+                attention_mask,
+                inference_params=inference_params,
             )
 
             if self.post_process:

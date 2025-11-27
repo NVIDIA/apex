@@ -22,12 +22,21 @@ class SelfMultiheadAttnTest(unittest.TestCase):
         self.dropout_prob = 0.0
 
         self.ref_layer = SelfMultiheadAttn(
-            self.hidden_dim, self.heads, dropout=self.dropout_prob, bias=False, include_norm_add=False, impl="default"
+            self.hidden_dim,
+            self.heads,
+            dropout=self.dropout_prob,
+            bias=False,
+            include_norm_add=False,
+            impl="default",
         )
         self.ref_layer.cuda().half()
         self.ref_layer.reset_parameters()
         self.ref_inputs = torch.randn(
-            self.seq_length, self.sequences, self.hidden_dim, dtype=torch.float16, device=torch.device("cuda")
+            self.seq_length,
+            self.sequences,
+            self.hidden_dim,
+            dtype=torch.float16,
+            device=torch.device("cuda"),
         ).requires_grad_(True)
 
         # Reset seed so parameters are identical
@@ -35,13 +44,22 @@ class SelfMultiheadAttnTest(unittest.TestCase):
         torch.cuda.manual_seed_all(seed)
 
         self.tst_layer = SelfMultiheadAttn(
-            self.hidden_dim, self.heads, dropout=self.dropout_prob, bias=False, include_norm_add=False, impl="fast"
+            self.hidden_dim,
+            self.heads,
+            dropout=self.dropout_prob,
+            bias=False,
+            include_norm_add=False,
+            impl="fast",
         )
         self.tst_layer.cuda().half()
         self.tst_layer.reset_parameters()
 
         self.tst_inputs = torch.randn(
-            self.seq_length, self.sequences, self.hidden_dim, dtype=torch.float16, device=torch.device("cuda")
+            self.seq_length,
+            self.sequences,
+            self.hidden_dim,
+            dtype=torch.float16,
+            device=torch.device("cuda"),
         ).requires_grad_(True)
 
     def test_self_multihead_attn(self):
@@ -65,7 +83,9 @@ class SelfMultiheadAttnTest(unittest.TestCase):
             is_training=True,
         )
 
-        torch.testing.assert_close(self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(
+            self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5
+        )
         torch.testing.assert_close(ref_outputs, tst_outputs, atol=1e-3, rtol=1e-3)
 
         with torch.no_grad():
@@ -74,13 +94,18 @@ class SelfMultiheadAttnTest(unittest.TestCase):
 
         ref_outputs.backward(ref_grads)
         tst_outputs.backward(tst_grads)
-        torch.testing.assert_close(self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3)
+        torch.testing.assert_close(
+            self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3
+        )
 
     def test_self_multihead_attn_time_mask(self):
         grads = torch.randn_like(self.tst_inputs)
         time_mask_byte = torch.triu(
             torch.ones(
-                self.tst_inputs.size(0), self.tst_inputs.size(0), device=torch.device("cuda"), dtype=torch.uint8
+                self.tst_inputs.size(0),
+                self.tst_inputs.size(0),
+                device=torch.device("cuda"),
+                dtype=torch.uint8,
             ),
             1,
         )
@@ -109,15 +134,22 @@ class SelfMultiheadAttnTest(unittest.TestCase):
         self.ref_inputs.backward(grads)
         self.tst_inputs.backward(grads)
 
-        torch.testing.assert_close(self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(
+            self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5
+        )
         torch.testing.assert_close(ref_outputs, tst_outputs, atol=5e-3, rtol=1e-3)
-        torch.testing.assert_close(self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3)
+        torch.testing.assert_close(
+            self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3
+        )
 
     def test_self_multihead_attn_pad_mask(self):
         grads = torch.randn_like(self.tst_inputs)
         pad_mask_byte = torch.tril(
             torch.ones(
-                self.tst_inputs.size(1), self.tst_inputs.size(0), device=torch.device("cuda"), dtype=torch.uint8
+                self.tst_inputs.size(1),
+                self.tst_inputs.size(0),
+                device=torch.device("cuda"),
+                dtype=torch.uint8,
             ),
             1,
         )
@@ -146,9 +178,13 @@ class SelfMultiheadAttnTest(unittest.TestCase):
         self.ref_inputs.backward(grads)
         self.tst_inputs.backward(grads)
 
-        torch.testing.assert_close(self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(
+            self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5
+        )
         torch.testing.assert_close(ref_outputs, tst_outputs, atol=1e-3, rtol=1e-3)
-        torch.testing.assert_close(self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3)
+        torch.testing.assert_close(
+            self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3
+        )
 
 
 if __name__ == "__main__":

@@ -69,8 +69,11 @@ def _save_triton_auto_tune_cache(strict: bool = True, verbose: bool = False) -> 
             else:
                 warnings.warn(msg)
         else:
-            caches[func_name] = [(keys, vals.all_kwargs()) for keys, vals in zip(func.cache.keys(), func.cache.values())]
-    f = BytesIO(json.dumps(caches).encode('utf-8'))
+            caches[func_name] = [
+                (keys, vals.all_kwargs())
+                for keys, vals in zip(func.cache.keys(), func.cache.values())
+            ]
+    f = BytesIO(json.dumps(caches).encode("utf-8"))
     if verbose:
         print(f"Triton kernel auto-tuning caches written to {f}")
     return f
@@ -100,7 +103,9 @@ def _load_triton_auto_tune_cache(
         print(f"Triton kernel auto-tuning caches loaded from {f}")
 
 
-def sync_triton_auto_tune_cache_across_gpus(strict: bool = True, verbose: bool = False) -> None:
+def sync_triton_auto_tune_cache_across_gpus(
+    strict: bool = True, verbose: bool = False
+) -> None:
     if not torch.distributed.is_initialized():
         return
     if torch.distributed.get_rank() == 0:

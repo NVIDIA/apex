@@ -30,7 +30,7 @@ def run_gpt(cmd):
                 quit()
         if str(out) == str(TEST_SUCCESS_MESSAGE):
             success = True
-    return runtime, round(float(int(num_params)) / 10.0 ** 9, 3), success, errs
+    return runtime, round(float(int(num_params)) / 10.0**9, 3), success, errs
 
 
 def plot(runtimes):

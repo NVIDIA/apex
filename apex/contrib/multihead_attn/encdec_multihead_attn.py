@@ -10,6 +10,7 @@ from .fast_encdec_multihead_attn_func import fast_encdec_attn_func
 from .fast_encdec_multihead_attn_norm_add_func import fast_encdec_attn_norm_add_func
 from apex.normalization.fused_layer_norm import FusedLayerNorm
 
+
 @torch.jit.script
 def jit_dropout_add(x, residual, prob, is_training):
     # type: (Tensor, Tensor, float, bool) -> Tensor
@@ -24,23 +25,35 @@ class EncdecMultiheadAttn(nn.Module):
     See "Attention Is All You Need" for more details.
     """
 
-    def __init__(self, embed_dim, num_heads, dropout=0.0, bias=False, include_norm_add=False, impl="fast"):
+    def __init__(
+        self,
+        embed_dim,
+        num_heads,
+        dropout=0.0,
+        bias=False,
+        include_norm_add=False,
+        impl="fast",
+    ):
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.dropout = dropout
         self.head_dim = embed_dim // num_heads
-        assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
+        assert self.head_dim * num_heads == self.embed_dim, (
+            "embed_dim must be divisible by num_heads"
+        )
         self.bias = bias
         self.include_norm_add = include_norm_add
         self.impl = impl
-        self.scaling = self.head_dim ** -0.5
+        self.scaling = self.head_dim**-0.5
 
         self.in_proj_weight_q = Parameter(torch.empty(embed_dim, embed_dim))
         self.in_proj_weight_kv = Parameter(torch.empty(2 * embed_dim, embed_dim))
         self.out_proj_weight = Parameter(torch.empty(embed_dim, embed_dim))
         if self.bias:
-            assert impl != "fast", "ERROR! The Fast implementation does not support biases!"
+            assert impl != "fast", (
+                "ERROR! The Fast implementation does not support biases!"
+            )
             self.in_proj_bias_q = Parameter(torch.empty(embed_dim))
             self.in_proj_bias_kv = Parameter(torch.empty(2 * embed_dim))
             self.out_proj_bias = Parameter(torch.empty(embed_dim))
@@ -97,7 +110,16 @@ class EncdecMultiheadAttn(nn.Module):
             else:
                 self.lyr_nrm.reset_parameters()
 
-    def forward(self, query, key, value, key_padding_mask=None, need_weights=False, attn_mask=None, is_training=True):
+    def forward(
+        self,
+        query,
+        key,
+        value,
+        key_padding_mask=None,
+        need_weights=False,
+        attn_mask=None,
+        is_training=True,
+    ):
         """Input shape: Time x Batch x Channel
 
         Self-attention can be implemented by passing in the same arguments for
@@ -108,7 +130,9 @@ class EncdecMultiheadAttn(nn.Module):
         """
 
         if key_padding_mask is not None:
-            assert attn_mask is None, "ERROR attn_mask and key_padding_mask should not be both defined!"
+            assert attn_mask is None, (
+                "ERROR attn_mask and key_padding_mask should not be both defined!"
+            )
             mask = key_padding_mask
         elif attn_mask is not None:
             mask = attn_mask

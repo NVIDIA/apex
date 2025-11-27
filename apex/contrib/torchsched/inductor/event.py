@@ -53,7 +53,10 @@ class CudaEventSym:
         """Whether the current event is generated before the rhs event."""
         if self.factory is not rhs.factory:
             return NotImplemented
-        return (self.idx, self.originate_stream_idx) < (rhs.idx, rhs.originate_stream_idx)
+        return (self.idx, self.originate_stream_idx) < (
+            rhs.idx,
+            rhs.originate_stream_idx,
+        )
 
     def __eq__(self, rhs: object) -> bool:
         """Whether the current event is identical to the rhs event."""
@@ -122,7 +125,6 @@ class CudaEventSym:
 
 @dataclasses.dataclass
 class _CudaEventRecordLine(WrapperLine):
-
     event: CudaEventSym
     stream: str
     _reuse_cuda_event: bool = torchsched_config.reuse_cuda_event
@@ -131,13 +133,14 @@ class _CudaEventRecordLine(WrapperLine):
         assert 0 <= self.event.ref_count
         assert self.event.materialized_event is None
         if self.event.ref_count or not self._reuse_cuda_event:
-            self.event.materialized_event = self.event.factory.get_materialized_event(code)
+            self.event.materialized_event = self.event.factory.get_materialized_event(
+                code
+            )
             code.writeline(f"{self.event.materialized_event}.record({self.stream})")
 
 
 @dataclasses.dataclass
 class _CudaEventWaitLine(WrapperLine):
-
     event: CudaEventSym
     stream: str
 
@@ -195,7 +198,9 @@ class CudaEventFactory:
         if self._reuse_cuda_event and self.available_materialized_events:
             return self.available_materialized_events.pop()
         else:
-            event = EVENT_NAME_TEMPLATE.format(event_idx=next(self.materialized_event_idx))
+            event = EVENT_NAME_TEMPLATE.format(
+                event_idx=next(self.materialized_event_idx)
+            )
             code.writeline(f"{event} = torch.cuda.Event()")
             return event
 

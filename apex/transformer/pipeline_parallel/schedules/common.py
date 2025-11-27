@@ -20,7 +20,12 @@ from apex.transformer.log_util import get_transformer_logger
 _logger = get_transformer_logger(__name__)
 
 
-Batch = Union[torch.Tensor, FutureTensor, List[Union[torch.Tensor, FutureTensor]], Tuple[Union[torch.Tensor, FutureTensor], ...]]
+Batch = Union[
+    torch.Tensor,
+    FutureTensor,
+    List[Union[torch.Tensor, FutureTensor]],
+    Tuple[Union[torch.Tensor, FutureTensor], ...],
+]
 LossFunc = Callable[[torch.Tensor], torch.Tensor]
 FwdStepFunc = Callable[
     [Optional[Batch], torch.nn.Module], Tuple[torch.Tensor, LossFunc]
@@ -66,7 +71,10 @@ def build_model(
             pre_process = parallel_state.is_pipeline_first_stage()
             post_process = parallel_state.is_pipeline_last_stage()
             cur_kwargs.update(
-                {"pre_process": pre_process, "post_process": post_process,}
+                {
+                    "pre_process": pre_process,
+                    "post_process": post_process,
+                }
             )
             this_model = model_provider_func(*cur_args, **cur_kwargs)
             model.append(this_model)
@@ -77,7 +85,10 @@ def build_model(
             pre_process = parallel_state.is_pipeline_first_stage()
             post_process = parallel_state.is_pipeline_last_stage()
             cur_kwargs.update(
-                {"pre_process": pre_process, "post_process": post_process,}
+                {
+                    "pre_process": pre_process,
+                    "post_process": post_process,
+                }
             )
             model = model_provider_func(*cur_args, **cur_kwargs)
         elif model_type == ModelType.encoder_and_decoder:
@@ -223,15 +234,15 @@ def custom_backward(output: torch.Tensor, grad_output: Optional[torch.Tensor]) -
     directly, bypassing PyTorch's `torch.autograd.backward`. PyTorch's `backward` checks that the
     output and grad have the same shape, while C++ `backward` does not.
     """
-    assert (
-        output.numel() == 1
-    ), "output should be pseudo-freed in schedule, to optimize memory consumption"
+    assert output.numel() == 1, (
+        "output should be pseudo-freed in schedule, to optimize memory consumption"
+    )
     assert isinstance(output, torch.Tensor), "output == {}.".format(
         type(output).__name__
     )
-    assert isinstance(
-        grad_output, (torch.Tensor, type(None))
-    ), "grad_outptu == {}.".format(type(grad_output).__name__)
+    assert isinstance(grad_output, (torch.Tensor, type(None))), (
+        "grad_outptu == {}.".format(type(grad_output).__name__)
+    )
 
     # Handle scalar output
     if grad_output is None:
@@ -291,17 +302,22 @@ def forward_step(
     if unwrap_output_tensor:
         input_tensor = [input_tensor]
 
-    input_tensor = [inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor]
+    input_tensor = [
+        inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor
+    ]
 
     unwrapped_model.set_input_tensor(input_tensor)
-    with torch.amp.autocast('cuda', 
+    with torch.amp.autocast(
+        "cuda",
         enabled=not disable_autocast and dtype in (torch.half, torch.bfloat16),
         dtype=dtype,
     ):
         if checkpoint_activations_micro_batch is None:
             output_tensor, loss_func = forward_step_func(batch, model)
         else:
-            output_tensor, loss_func = forward_step_func(batch, model, checkpoint_activations_micro_batch)
+            output_tensor, loss_func = forward_step_func(
+                batch, model, checkpoint_activations_micro_batch
+            )
         if parallel_state.is_pipeline_last_stage():
             output_tensor = loss_func(output_tensor)
             loss, loss_reduced = output_tensor
@@ -358,7 +374,9 @@ def backward_step(
     if unwrap_input_tensor_grad:
         input_tensor = [input_tensor]
 
-    input_tensor = [inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor]
+    input_tensor = [
+        inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor
+    ]
 
     for x in input_tensor:
         if x is not None:
@@ -367,12 +385,17 @@ def backward_step(
     if not isinstance(output_tensor, list):
         output_tensor = [output_tensor]
 
-    output_tensor = [out.get() if isinstance(out, FutureTensor) else out for out in output_tensor]
+    output_tensor = [
+        out.get() if isinstance(out, FutureTensor) else out for out in output_tensor
+    ]
 
     if not isinstance(output_tensor_grad, list):
         output_tensor_grad = [output_tensor_grad]
 
-    output_tensor_grad = [ogr.get() if isinstance(ogr, FutureTensor) else ogr for ogr in output_tensor_grad]
+    output_tensor_grad = [
+        ogr.get() if isinstance(ogr, FutureTensor) else ogr
+        for ogr in output_tensor_grad
+    ]
 
     # Backward pass.
     if grad_scaler is not None and output_tensor_grad[0] is None:

@@ -51,7 +51,6 @@ bf16 = torch.bfloat16
 
 
 def backward_(dz, x, mu, rs, gamma):
-
     wtype = gamma.dtype
     itype = x.dtype
     otype = dz.dtype
@@ -82,7 +81,6 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
 
     stream = torch.cuda.Stream()
     with torch.cuda.stream(stream):
-
         timer = GPUTimer(stream)
 
         # warmup
@@ -95,7 +93,9 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
         timer.stop()
         timer.sync()
 
-        total_bytes_fwd = sum([size_in_bytes(t) for t in [x, z, gamma, beta, mu, rsigma]])
+        total_bytes_fwd = sum(
+            [size_in_bytes(t) for t in [x, z, gamma, beta, mu, rsigma]]
+        )
 
         ms_fwd = timer.millis() / runs
 
@@ -107,14 +107,29 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
 
         timer.start()
         for r in range(runs):
-            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(dz, z, mu, rsigma, gamma, beta, True)
+            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(
+                dz, z, mu, rsigma, gamma, beta, True
+            )
         timer.stop()
         timer.sync()
 
         total_bytes_bwd = sum(
             [
                 size_in_bytes(t)
-                for t in [dz, x, mu, rsigma, gamma, dx, dgamma, dbeta, dbp, dbp, dgp, dgp]
+                for t in [
+                    dz,
+                    x,
+                    mu,
+                    rsigma,
+                    gamma,
+                    dx,
+                    dgamma,
+                    dbeta,
+                    dbp,
+                    dbp,
+                    dgp,
+                    dgp,
+                ]
             ]
         )
 
@@ -128,7 +143,6 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
 
 
 def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32, mem_eff=False):
-
     seed = 1243
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -179,7 +193,7 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32, mem_eff=False):
     re_dg, mse_dg = metrics(dg_ref, dg)
     re_db, mse_db = metrics(db_ref, db)
 
-    print(f" z: relerr={re_z :.4e} mse={mse_z :.4e}")
+    print(f" z: relerr={re_z:.4e} mse={mse_z:.4e}")
     print(f"mu: relerr={re_mu:.4e} mse={mse_mu:.4e}")
     print(f"rs: relerr={re_mu:.4e} mse={mse_mu:.4e}")
 
@@ -193,7 +207,9 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32, mem_eff=False):
 
     return [
         check_err(x, re)
-        for x, re in zip([z, mu, rs, dx, dg, db], [re_z, re_mu, re_rs, re_dx, re_dg, re_db])
+        for x, re in zip(
+            [z, mu, rs, dx, dg, db], [re_z, re_mu, re_rs, re_dx, re_dg, re_db]
+        )
     ]
 
 
@@ -207,7 +223,6 @@ class TestFastLayerNorm(unittest.TestCase):
             self.assertTrue(x)
 
     def test_all_configs(self):
-
         hidden_sizes = [
             768,
             1024,
@@ -237,7 +252,7 @@ class TestFastLayerNorm(unittest.TestCase):
             65536,
         ]
 
-        for (h, mem_eff) in itertools.product(hidden_sizes, (True, False)):
+        for h, mem_eff in itertools.product(hidden_sizes, (True, False)):
             with self.subTest(f"hidden_size={h}"):
                 self.assertAll(_test_impl(256, 2, h, fp32, fp32, mem_eff=mem_eff))
                 self.assertAll(_test_impl(256, 2, h, fp16, fp16, mem_eff=mem_eff))
@@ -246,7 +261,7 @@ class TestFastLayerNorm(unittest.TestCase):
                 self.assertAll(_test_impl(256, 2, h, fp32, bf16, mem_eff=mem_eff))
 
     def test_run_benchmark(self):
-        for (S, B, hidden_size, runs) in (
+        for S, B, hidden_size, runs in (
             (512, 32, 768, 1000),
             (512, 32, 1024, 1000),
             (512, 8, 4096, 1000),
@@ -262,7 +277,9 @@ class TestFastLayerNorm(unittest.TestCase):
 
     def test_compat_with_autocast(self):
         autocast_dtypes = (
-            (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
+            (torch.half, torch.bfloat16)
+            if torch.cuda.is_bf16_supported()
+            else (torch.half,)
         )
         input_shape = (512, 32, 768)
         layer_norm = FastLayerNorm(input_shape[-1]).cuda()
@@ -271,7 +288,7 @@ class TestFastLayerNorm(unittest.TestCase):
         for dtype in autocast_dtypes:
             layer_norm.zero_grad(set_to_none=True)
             with self.subTest(f"autocast_dtype={dtype}"):
-                with torch.amp.autocast('cuda', enabled=True, dtype=dtype):
+                with torch.amp.autocast("cuda", enabled=True, dtype=dtype):
                     out = layer_norm(input)
                     self.assertEqual(dtype, out.dtype)
                 grad = torch.randn_like(out)

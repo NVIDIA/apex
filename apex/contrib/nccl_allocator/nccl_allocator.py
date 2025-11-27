@@ -7,25 +7,30 @@ from contextlib import nullcontext
 
 __all__ = ["init", "nccl_mem", "create_nccl_mem_pool"]
 
+
 def get_func_args(func):
     import inspect
+
     sig = inspect.signature(func)
     return [arg.name for arg in sig.parameters.values()]
+
 
 def create_nccl_mem_pool(symmetric: bool | None = None) -> torch.cuda.MemPool:
     _allocator = _apex_nccl_allocator.get_nccl_allocator()
     if symmetric is None:
         _pool = torch.cuda.MemPool(_allocator)
     else:
-        if 'symmetric' in get_func_args(torch.cuda.MemPool):
+        if "symmetric" in get_func_args(torch.cuda.MemPool):
             _pool = torch.cuda.MemPool(_allocator, symmetric=symmetric)
-        elif 'symm_mem' in get_func_args(torch.cuda.MemPool):
-            # This path handles argument name divergence between 
+        elif "symm_mem" in get_func_args(torch.cuda.MemPool):
+            # This path handles argument name divergence between
             # nvidia pytorch and the official pytorch.
             _pool = torch.cuda.MemPool(_allocator, symm_mem=symmetric)
         else:
-            raise ValueError("symmetric setting with torch.cuda.MemPool requires "
-                             "higher PyTorch version")
+            raise ValueError(
+                "symmetric setting with torch.cuda.MemPool requires "
+                "higher PyTorch version"
+            )
     return _pool
 
 
@@ -35,7 +40,7 @@ def init() -> None:
 
 
 class nccl_mem:
-    def __init__(self, pool, enabled = True, device = None, group = None):
+    def __init__(self, pool, enabled=True, device=None, group=None):
         self.device = None
         self.group = None
         self.mem_context = None

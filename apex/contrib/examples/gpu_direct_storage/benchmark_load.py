@@ -1,4 +1,3 @@
-import os
 import timeit
 import torch
 import apex.contrib.gpu_direct_storage as gds

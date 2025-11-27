@@ -14,10 +14,9 @@
 # limitations under the License.
 
 """GPT-2 model."""
-import enum
+
 import math
 import contextlib
-import json
 
 import torch
 import torch.nn.functional as F
@@ -29,7 +28,9 @@ from apex.transformer import tensor_parallel
 from apex.transformer.tensor_parallel.layers import ColumnParallelLinear
 from apex.transformer.tensor_parallel.layers import RowParallelLinear
 from apex.transformer.tensor_parallel.layers import VocabParallelEmbedding
-from apex.transformer.tensor_parallel.mappings import scatter_to_sequence_parallel_region
+from apex.transformer.tensor_parallel.mappings import (
+    scatter_to_sequence_parallel_region,
+)
 from apex.transformer import parallel_state
 from apex.transformer.testing.global_vars import get_args
 from apex.transformer.enums import ModelType
@@ -58,14 +59,17 @@ class MegatronModule(torch.nn.Module):
             return self.language_model.embedding.word_embeddings.weight
         else:
             if not self.share_word_embeddings:
-                raise Exception('word_embeddings_weight() called for last stage, but share_word_embeddings is false')
+                raise Exception(
+                    "word_embeddings_weight() called for last stage, but share_word_embeddings is false"
+                )
             return self.word_embeddings.weight
-
 
     def initialize_word_embeddings(self, init_method_normal):
         args = get_args()
         if not self.share_word_embeddings:
-            raise Exception("initialize_word_embeddings() was called but share_word_embeddings is false")
+            raise Exception(
+                "initialize_word_embeddings() was called but share_word_embeddings is false"
+            )
 
         # This function just initializes the word embeddings in the final stage
         # when we are using pipeline parallelism. Nothing to do if we aren't
@@ -87,44 +91,57 @@ class MegatronModule(torch.nn.Module):
         #    update is the same on both stages.
         if parallel_state.is_pipeline_last_stage() and not self.pre_process:
             assert not parallel_state.is_pipeline_first_stage()
-            self._word_embeddings_for_head_key = 'word_embeddings_for_head'
+            self._word_embeddings_for_head_key = "word_embeddings_for_head"
             # set word_embeddings weights to 0 here, then copy first
             # stage's weights using all_reduce below.
             self.word_embeddings = VocabParallelEmbedding(
-                args.padded_vocab_size, args.hidden_size,
-                init_method=init_method_normal(args.init_method_std))
+                args.padded_vocab_size,
+                args.hidden_size,
+                init_method=init_method_normal(args.init_method_std),
+            )
             self.word_embeddings.weight.data.fill_(0)
             self.word_embeddings.weight.shared = True
 
         # Zero out initial weights for decoder embedding.
         # NOTE: We don't currently support T5 with the interleaved schedule.
-        if not parallel_state.is_pipeline_first_stage(ignore_virtual=True) and self.pre_process:
+        if (
+            not parallel_state.is_pipeline_first_stage(ignore_virtual=True)
+            and self.pre_process
+        ):
             self.language_model.embedding.zero_parameters()
 
         # Ensure that first and last stages have the same initial parameter
         # values.
         if torch.distributed.is_initialized():
             if parallel_state.is_rank_in_embedding_group():
-                torch.distributed.all_reduce(self.word_embeddings_weight(),
-                                             group=parallel_state.get_embedding_group())
+                torch.distributed.all_reduce(
+                    self.word_embeddings_weight(),
+                    group=parallel_state.get_embedding_group(),
+                )
 
             # Ensure that encoder(first stage) and decoder(split stage) position
             # embeddings have the same initial parameter values
             # NOTE: We don't currently support T5 with the interleaved schedule.
-            if parallel_state.is_rank_in_position_embedding_group() and \
-                    args.pipeline_model_parallel_split_rank is not None:
+            if (
+                parallel_state.is_rank_in_position_embedding_group()
+                and args.pipeline_model_parallel_split_rank is not None
+            ):
                 # TODO: Support tokentype embedding.
                 self.language_model.embedding.cuda()
                 position_embeddings = self.language_model.embedding.position_embeddings
-                torch.distributed.all_reduce(position_embeddings.weight,
-                                             group=parallel_state.get_position_embedding_group())
+                torch.distributed.all_reduce(
+                    position_embeddings.weight,
+                    group=parallel_state.get_position_embedding_group(),
+                )
 
         else:
-            print("WARNING! Distributed processes aren't initialized, so "
-                  "word embeddings in the last layer are not initialized. "
-                  "If you are just manipulating a model this is fine, but "
-                  "this needs to be handled manually. If you are training "
-                  "something is definitely wrong.")
+            print(
+                "WARNING! Distributed processes aren't initialized, so "
+                "word embeddings in the last layer are not initialized. "
+                "If you are just manipulating a model this is fine, but "
+                "this needs to be handled manually. If you are training "
+                "something is definitely wrong."
+            )
 
 
 def get_linear_layer(rows, columns, init_method):
@@ -137,7 +154,9 @@ def get_linear_layer(rows, columns, init_method):
 
 
 # NOTE(mkozuki): Avoid inplace op.
-def attention_mask_func(attention_scores: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+def attention_mask_func(
+    attention_scores: torch.Tensor, attention_mask: torch.Tensor
+) -> torch.Tensor:
     # attention_scores.masked_fill_(attention_mask, -10000.0)
     # return attention_scores
     return attention_scores.masked_fill(attention_mask, -10000.0)
@@ -199,11 +218,12 @@ class ParallelMLP(MegatronModule):
         )
 
     def forward(self, hidden_states):
-
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-        intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
+        intermediate_parallel = self.activation_func(
+            intermediate_parallel + bias_parallel
+        )
 
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
@@ -211,7 +231,6 @@ class ParallelMLP(MegatronModule):
 
 
 class CoreAttention(MegatronModule):
-
     def __init__(self, layer_number, attn_mask_type=AttnMaskType.padding):
         super().__init__()
         args = get_args()
@@ -582,7 +601,13 @@ class ParallelAttention(MegatronModule):
         return output, bias
 
 
-def bias_dropout_add(x: torch.Tensor, bias: torch.Tensor, residual: torch.Tensor, prob: float, training: bool) -> torch.Tensor:
+def bias_dropout_add(
+    x: torch.Tensor,
+    bias: torch.Tensor,
+    residual: torch.Tensor,
+    prob: float,
+    training: bool,
+) -> torch.Tensor:
     out = torch.nn.functional.dropout(x + bias, p=prob, training=training)
     out = residual + out
     return out
@@ -981,9 +1006,9 @@ class ParallelTransformer(MegatronModule):
 
         # Checks.
         if inference_params:
-            assert (
-                self.recompute_granularity is None
-            ), "inference does not work with activation checkpointing"
+            assert self.recompute_granularity is None, (
+                "inference does not work with activation checkpointing"
+            )
 
         if not self.pre_process:
             # See set_input_tensor()
@@ -1079,7 +1104,9 @@ def get_num_layers(args, is_encoder_and_decoder_model):
         else:
             assert (
                 args.num_layers % args.transformer_pipeline_model_parallel_size == 0
-            ), "num_layers must be divisible by transformer_pipeline_model_parallel_size"
+            ), (
+                "num_layers must be divisible by transformer_pipeline_model_parallel_size"
+            )
 
             # When a standalone embedding stage is used, all transformer layers
             # are divided among pipeline rank >= 1, while on pipeline rank 0,
@@ -1229,7 +1256,11 @@ class Pooler(MegatronModule):
         # gather data along sequence dimensions
         # same pooler is run on all tensor parallel nodes
         if self.sequence_parallel:
-            hidden_states = tensor_parallel.mappings.gather_from_sequence_parallel_region(hidden_states)
+            hidden_states = (
+                tensor_parallel.mappings.gather_from_sequence_parallel_region(
+                    hidden_states
+                )
+            )
         pooled = hidden_states[sequence_index, :, :]
         pooled = self.dense(pooled)
         pooled = torch.tanh(pooled)
@@ -1453,14 +1484,14 @@ class TransformerLanguageModel(MegatronModule):
             input_tensor = [input_tensor]
 
         if self.add_encoder and self.add_decoder:
-            assert (
-                len(input_tensor) == 1
-            ), "input_tensor should only be length 1 for stage with both encoder and decoder"
+            assert len(input_tensor) == 1, (
+                "input_tensor should only be length 1 for stage with both encoder and decoder"
+            )
             self.encoder.set_input_tensor(input_tensor[0])
         elif self.add_encoder:
-            assert (
-                len(input_tensor) == 1
-            ), "input_tensor should only be length 1 for stage with only encoder"
+            assert len(input_tensor) == 1, (
+                "input_tensor should only be length 1 for stage with only encoder"
+            )
             self.encoder.set_input_tensor(input_tensor[0])
         elif self.add_decoder:
             if len(input_tensor) == 2:
@@ -1489,7 +1520,6 @@ class TransformerLanguageModel(MegatronModule):
         enc_hidden_states=None,
         output_enc_hidden=False,
     ):
-
         args = get_args()
         # Encoder embedding.
         if self.pre_process:

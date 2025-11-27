@@ -11,11 +11,14 @@ from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
 from apex.transformer.tensor_parallel import model_parallel_cuda_manual_seed
 from apex.transformer.pipeline_parallel.utils import (
-    average_losses_across_data_parallel_group, unwrap_model, setup_microbatch_calculator,
-    get_ltor_masks_and_position_ids
+    average_losses_across_data_parallel_group,
+    unwrap_model,
+    setup_microbatch_calculator,
+    get_ltor_masks_and_position_ids,
 )
 from apex.transformer.pipeline_parallel.schedules.common import (
-    _get_params_for_weight_decay_optimization, build_model
+    _get_params_for_weight_decay_optimization,
+    build_model,
 )
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
     forward_backward_pipelining_without_interleaving,
@@ -23,14 +26,15 @@ from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_int
 from apex.transformer.testing.standalone_gpt import gpt_model_provider
 from apex.transformer.testing import global_vars
 
-from apex.transformer.testing.distributed_test_base import UccDistributedTestBase, NcclDistributedTestBase
+from apex.transformer.testing.distributed_test_base import (
+    UccDistributedTestBase,
+    NcclDistributedTestBase,
+)
 
 from torch.testing._internal import common_utils
-from torch.testing._internal.common_device_type import instantiate_device_type_tests
 
 
 class GptTestBase:
-
     def _download_fancy_data(self):
         text = """
     An original sentence not subject to any license restrictions, copyright, or royalty payments. Nothing to see here. Commercial or non-commercial use. Research or non-research purposes. The quick brown fox jumps over the lazy dog. Lorem ipsum.
@@ -53,8 +57,7 @@ class GptTestBase:
             data_idx_ = self.data_idx
             offset = self.inds[data_idx_]
             self.data_idx += 1
-            curr = fancy_data[offset: offset +
-                              sequence_len + 1].clone().detach()
+            curr = fancy_data[offset : offset + sequence_len + 1].clone().detach()
             temps.append(curr)
         temp = torch.stack(temps, dim=0).cuda()
         return temp
@@ -89,18 +92,15 @@ class GptTestBase:
     # Ref: https://github.com/NVIDIA/Megatron-LM/blob/b31e1296354e979722627a6c4dedafe19b51fa97/pretrain_gpt.py#L86
     def _fwd_step_func(self, batch, model):
         """Forward step."""
-        tokens, labels, loss_mask, attention_mask, position_ids = self._get_batch(
-            batch)
-        output_tensor = model(tokens, position_ids,
-                              attention_mask, labels=labels)
+        tokens, labels, loss_mask, attention_mask, position_ids = self._get_batch(batch)
+        output_tensor = model(tokens, position_ids, attention_mask, labels=labels)
         return output_tensor, partial(self._loss_func, loss_mask)
 
     def _train(self, model, optim, pipeline_model_parallel_size, async_comm):
         args = global_vars.get_args()
         fwd_bwd_func = forward_backward_pipelining_without_interleaving
 
-        tensor_shape = (args.seq_length, args.micro_batch_size,
-                        args.hidden_size)
+        tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
         runtime = 0
         # training loop
         for i in range(3):
@@ -109,7 +109,8 @@ class GptTestBase:
                 print("begin iter", i)
             batch = [
                 self._generate_fancy_data_labels(
-                    args.seq_length, args.global_batch_size)
+                    args.seq_length, args.global_batch_size
+                )
                 for _ in range(pipeline_model_parallel_size)
             ]
             if torch.distributed.get_rank() == 0:
@@ -128,14 +129,19 @@ class GptTestBase:
                 print("finished forward step")
             # All-reduce layernorm parameters across model parallel nodes
             # when sequence parallelism is used
-            if parallel_state.get_tensor_model_parallel_world_size() > 1 and global_vars.get_args().sequence_parallel:
+            if (
+                parallel_state.get_tensor_model_parallel_world_size() > 1
+                and global_vars.get_args().sequence_parallel
+            ):
                 for model_module in model:
                     unwrapped_model = unwrap_model(model_module)
                     for param in unwrapped_model.parameters():
-                        if getattr(param, 'sequence_parallel_enabled', False):
+                        if getattr(param, "sequence_parallel_enabled", False):
                             grad = param.grad
                             torch.distributed.all_reduce(
-                                grad, group=parallel_state.get_tensor_model_parallel_group())
+                                grad,
+                                group=parallel_state.get_tensor_model_parallel_group(),
+                            )
             optim.step()
             if torch.distributed.get_rank() == 0:
                 print("finished iter", i)
@@ -150,7 +156,9 @@ class GptTestBase:
         self.N_VOCAB = 128
         init = True
 
-        tensor_model_parallel_size = 2 if self.world_size % 2 == 0 and self.world_size >= 4 else 1
+        tensor_model_parallel_size = (
+            2 if self.world_size % 2 == 0 and self.world_size >= 4 else 1
+        )
         pipeline_model_parallel_size = self.world_size // tensor_model_parallel_size
 
         override_args = {
@@ -167,7 +175,9 @@ class GptTestBase:
             "rank": self.rank,
         }
 
-        global_vars.set_global_variables(override_args=override_args, ignore_unknown_args=True)
+        global_vars.set_global_variables(
+            override_args=override_args, ignore_unknown_args=True
+        )
         args = global_vars.get_args()
 
         for async_comm in (False,) if args.sequence_parallel else (False, True):
@@ -212,7 +222,8 @@ class GptTestBase:
             _param_groups = _get_params_for_weight_decay_optimization(model)
             optim = torch.optim.Adam(_param_groups)
             runtime = self._train(
-                model, optim, args.pipeline_model_parallel_size, async_comm)
+                model, optim, args.pipeline_model_parallel_size, async_comm
+            )
 
             parallel_state.destroy_model_parallel()
         torch.cuda.synchronize()

@@ -5,6 +5,7 @@ from torch.testing._internal import common_utils
 
 SKIP_TEST = None
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+
 try:
     from apex.contrib.peer_memory import PeerMemoryPool, PeerHaloExchanger1d
 except ImportError as e:
@@ -47,7 +48,11 @@ def nccl_halo_ex(peer_rank, peer_group_size, y, half_halo, explicit_nhwc, H_spli
             btm_out_halo = y[:, :, :, W : W + half_halo]
             btm_inp_halo = y[:, :, :, W + half_halo : W + 2 * half_halo]
 
-    mf = torch.channels_last if y.is_contiguous(memory_format=torch.channels_last) else torch.contiguous_format
+    mf = (
+        torch.channels_last
+        if y.is_contiguous(memory_format=torch.channels_last)
+        else torch.contiguous_format
+    )
     top_out_halo = top_out_halo.contiguous()
     btm_out_halo = btm_out_halo.contiguous()
 
@@ -287,12 +292,16 @@ class TestPeerMemory(NcclDistributedTestBase):
     # TODO(crcrpar): Check if `world_size` being multiple of 2 is must.
     def _check_world_size_and_may_skip(self) -> None:
         if not (self.world_size >= 2 and self.world_size % 2 == 0):
-            self.skipTest(f"world_size is expected to be a multiple of 2 but, {self.world_size}")
+            self.skipTest(
+                f"world_size is expected to be a multiple of 2 but, {self.world_size}"
+            )
 
     def get_halo_excnahger_1d(self):
         peer_ranks = [i for i in range(self.world_size)]
         pool = PeerMemoryPool(64 * 1024, 2 * 1024 * 1024, peer_ranks)
-        halo_exchanger_1d = PeerHaloExchanger1d(peer_ranks, self.rank, pool, TestPeerMemory.HALF_HALO)
+        halo_exchanger_1d = PeerHaloExchanger1d(
+            peer_ranks, self.rank, pool, TestPeerMemory.HALF_HALO
+        )
         return halo_exchanger_1d
 
     def test_height_split(self):

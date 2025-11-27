@@ -18,7 +18,9 @@ class TransformerRandomTestBase:
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_parallel_world_size:
                 continue
-            msg = f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
+            msg = (
+                f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
+            )
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size
             )
@@ -36,7 +38,8 @@ class TransformerRandomTestBase:
 
             self.assertEqual(rng_state.sub(rng_state_clone).max(), 0, msg=msg)
             self.assertGreater(
-                torch.cuda.get_rng_state().sub(rng_state_clone).max(), 0,
+                torch.cuda.get_rng_state().sub(rng_state_clone).max(),
+                0,
                 msg=msg,
             )
 
@@ -61,7 +64,9 @@ class TransformerRandomTestBase:
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_parallel_world_size:
                 continue
-            msg = f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
+            msg = (
+                f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
+            )
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size
             )
@@ -109,8 +114,12 @@ class TransformerRandomTestBase:
             parallel_state.destroy_model_parallel()
 
 
-class NcclTransformerRandomTest(TransformerRandomTestBase, NcclDistributedTestBase): pass
-class UccTransformerRandomTest(TransformerRandomTestBase, UccDistributedTestBase): pass
+class NcclTransformerRandomTest(TransformerRandomTestBase, NcclDistributedTestBase):
+    pass
+
+
+class UccTransformerRandomTest(TransformerRandomTestBase, UccDistributedTestBase):
+    pass
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 import io
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 import unittest
 import warnings
 from contextlib import nullcontext
@@ -19,73 +19,73 @@ from apex.transformer.testing.distributed_test_base import NcclDistributedTestBa
 class SimpleModel(torch.nn.Module):
     def __init__(self, num_layers, size):
         super().__init__()
-        self.params = torch.nn.ParameterList([
-            torch.nn.Parameter(torch.rand(1, size) + 1)
-            for _ in range(num_layers)
-        ])
+        self.params = torch.nn.ParameterList(
+            [torch.nn.Parameter(torch.rand(1, size) + 1) for _ in range(num_layers)]
+        )
+
     def forward(self, x):
         y = 0
         for i, param in enumerate(self.params):
-            y += (i+1) * param * x
+            y += (i + 1) * param * x
         return y
 
 
 def make_models(
-        num_layers: int,
-        size: int,
-        *,
-        lr: float = 0.1,
-        adam_w_mode: bool = True,
-        model_dtype: torch.dtype = torch.float32,
-        optim_dtype: Optional[torch.dtype] = None,
-        grad_sync_dtype: Optional[torch.dtype] = None,
-        param_sync_dtype: Optional[torch.dtype] = None,
-        device: torch.device = 'cuda',
-        process_group: Optional[torch.distributed.ProcessGroup] = None,
-        average_grad_sync: bool = True,
-        overlap_communication: bool = True,
-        bucket_cap_mb: float = 71/(4*1024*1024),
-        contiguous_buffers: bool = False,
-        store_params: bool = False,
-        store_param_remainders: bool = False,
-        with_scaled_states: bool = False,
-        nccl_ub: bool = False,
-        with_cuda_graph: bool = False,
+    num_layers: int,
+    size: int,
+    *,
+    lr: float = 0.1,
+    adam_w_mode: bool = True,
+    model_dtype: torch.dtype = torch.float32,
+    optim_dtype: Optional[torch.dtype] = None,
+    grad_sync_dtype: Optional[torch.dtype] = None,
+    param_sync_dtype: Optional[torch.dtype] = None,
+    device: torch.device = "cuda",
+    process_group: Optional[torch.distributed.ProcessGroup] = None,
+    average_grad_sync: bool = True,
+    overlap_communication: bool = True,
+    bucket_cap_mb: float = 71 / (4 * 1024 * 1024),
+    contiguous_buffers: bool = False,
+    store_params: bool = False,
+    store_param_remainders: bool = False,
+    with_scaled_states: bool = False,
+    nccl_ub: bool = False,
+    with_cuda_graph: bool = False,
 ):
-
     # Construct models with same parameters
     ref_model = SimpleModel(num_layers, size).to(dtype=model_dtype, device=device)
     dist_model = SimpleModel(num_layers, size).to(dtype=model_dtype, device=device)
     with torch.no_grad():
-        for ref_param, dist_param in zip(dist_model.parameters(),
-                                         ref_model.parameters()):
+        for ref_param, dist_param in zip(
+            dist_model.parameters(), ref_model.parameters()
+        ):
             dist_param.copy_(ref_param)
 
     # Initialize reference model with data-parallelism
     rank = torch.distributed.get_rank()
     ref_model = torch.nn.parallel.DistributedDataParallel(
         ref_model,
-        device_ids=[rank] if device=='cuda' else None,
-        output_device=rank if device=='cuda' else None,
+        device_ids=[rank] if device == "cuda" else None,
+        output_device=rank if device == "cuda" else None,
         process_group=process_group,
     )
 
     # Construct optimizers with same hyperparameters
     if optim_dtype is None:
         optim_dtype = model_dtype
-    optim_args = dict(lr=lr, betas=(0.1,0.2), eps=0.25, weight_decay=0.1)
+    optim_args = dict(lr=lr, betas=(0.1, 0.2), eps=0.25, weight_decay=0.1)
     ref_optim_class = torch.optim.AdamW if adam_w_mode else torch.optim.Adam
     ref_optim = ref_optim_class(
         [
-            {'params': list(ref_model.parameters())[1::2], 'lr': lr*2},
-            {'params': list(ref_model.parameters())[0::2]},
+            {"params": list(ref_model.parameters())[1::2], "lr": lr * 2},
+            {"params": list(ref_model.parameters())[0::2]},
         ],
         **optim_args,
     )
     dist_optim = DistributedFusedAdam(
         [
-            {'params': list(dist_model.parameters())[1::2], 'lr': lr*2},
-            {'params': list(dist_model.parameters())[0::2]},
+            {"params": list(dist_model.parameters())[1::2], "lr": lr * 2},
+            {"params": list(dist_model.parameters())[0::2]},
         ],
         adam_w_mode=adam_w_mode,
         overlap_grad_sync=overlap_communication,
@@ -119,36 +119,34 @@ def dummy_context():
 
 @unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class TestDistributedFusedAdam(NcclDistributedTestBase):
-
     seed = 1234
 
     def test_matches_pytorch(
-            self,
-            rtol: Optional[float] = None,
-            atol: Optional[float] = None,
-            num_layers: int = 11,
-            layer_size: int = 7,
-            batch_size: int = 3,
-            num_steps: int = 3,
-            micro_batch_steps: int = 3,
-            adam_w_mode: bool = True,
-            overlap_communication: bool = True,
-            use_nosync: bool = True,
-            model_dtype: torch.dtype = torch.float32,
-            optim_dtype: Optional[torch.dtype] = None,
-            grad_sync_dtype: Optional[torch.dtype] = None,
-            param_sync_dtype: Optional[torch.dtype] = None,
-            device: torch.device = 'cuda',
-            bucket_cap_mb: float = 71/(4*1024*1024),
-            contiguous_buffers: bool = False,
-            store_params: bool = False,
-            store_param_remainders: bool = False,
-            with_scaled_states: bool = False,
-            nccl_ub: bool = False,
-            init_optim_func: Optional[Callable[[DistributedFusedAdam], None]] = None,
-            with_cuda_graph: bool = False,
+        self,
+        rtol: Optional[float] = None,
+        atol: Optional[float] = None,
+        num_layers: int = 11,
+        layer_size: int = 7,
+        batch_size: int = 3,
+        num_steps: int = 3,
+        micro_batch_steps: int = 3,
+        adam_w_mode: bool = True,
+        overlap_communication: bool = True,
+        use_nosync: bool = True,
+        model_dtype: torch.dtype = torch.float32,
+        optim_dtype: Optional[torch.dtype] = None,
+        grad_sync_dtype: Optional[torch.dtype] = None,
+        param_sync_dtype: Optional[torch.dtype] = None,
+        device: torch.device = "cuda",
+        bucket_cap_mb: float = 71 / (4 * 1024 * 1024),
+        contiguous_buffers: bool = False,
+        store_params: bool = False,
+        store_param_remainders: bool = False,
+        with_scaled_states: bool = False,
+        nccl_ub: bool = False,
+        init_optim_func: Optional[Callable[[DistributedFusedAdam], None]] = None,
+        with_cuda_graph: bool = False,
     ):
-
         torch.manual_seed(self.seed + self.rank)
 
         # Identical models with data-parallel and ZeRO
@@ -186,8 +184,9 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         graph = torch.cuda.CUDAGraph() if with_cuda_graph else None
         CAPTURE_ITERATION = 11
         if with_cuda_graph:
-            assert num_steps > CAPTURE_ITERATION + 3, \
+            assert num_steps > CAPTURE_ITERATION + 3, (
                 "Not enough iterations for CUDA graph test."
+            )
 
         # Training loop
         with torch.cuda.stream(stream):
@@ -239,7 +238,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                             x_dist = x.detach().clone().requires_grad_(True)
                             y_dist = dist_model(x_dist)
                             backward_context = dummy_context
-                            if use_nosync and micro_step < micro_batch_steps-1:
+                            if use_nosync and micro_step < micro_batch_steps - 1:
                                 backward_context = dist_optim.no_sync
                             with backward_context():
                                 y_dist.backward(dy)
@@ -261,15 +260,19 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 # Check that data tensors match
                 for mbs in range(micro_batch_steps):
                     torch.testing.assert_close(
-                        ys_dist[mbs], ys_ref[mbs], rtol=rtol, atol=atol)
+                        ys_dist[mbs], ys_ref[mbs], rtol=rtol, atol=atol
+                    )
                     torch.testing.assert_close(
-                        grad_xs_dist[mbs], grad_xs_ref[mbs], rtol=rtol, atol=atol)
+                        grad_xs_dist[mbs], grad_xs_ref[mbs], rtol=rtol, atol=atol
+                    )
 
                 # Check that parameters match
-                for ref_param, dist_param in zip(ref_model.parameters(),
-                                                 dist_model.parameters()):
+                for ref_param, dist_param in zip(
+                    ref_model.parameters(), dist_model.parameters()
+                ):
                     torch.testing.assert_close(
-                        dist_param, ref_param, rtol=rtol, atol=atol)
+                        dist_param, ref_param, rtol=rtol, atol=atol
+                    )
 
     def test_matches_pytorch_l2_reg(self):
         self.test_matches_pytorch(adam_w_mode=False)
@@ -350,6 +353,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             params = list(optim.parameters())
             optim.init_params(params[0::3], grad_sync_dtype=torch.bfloat16)
             optim.init_params(params[1::3], param_sync_dtype=torch.bfloat16)
+
         self.test_matches_pytorch(
             rtol=5e-2,
             atol=1e-5,
@@ -388,7 +392,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             store_params=True,
             with_scaled_states=True,
         )
-    
+
     def test_matches_pytorch_nccl_ub(self):
         self.test_matches_pytorch(
             contiguous_buffers=True,
@@ -396,7 +400,6 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         )
 
     def test_raises_on_mismatch(self):
-
         torch.manual_seed(self.seed + self.rank)
 
         # Identical models with data-parallel and ZeRO
@@ -410,23 +413,24 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         # Only perform training step with distributed model
         dist_optim.zero_grad()
         x = torch.rand(3, layer_size) - 0.5
-        x = x.to(dtype=torch.float32, device='cuda')
+        x = x.to(dtype=torch.float32, device="cuda")
         dy = torch.rand_like(x) - 0.5
         y = dist_model(x)
         y.backward(dy)
         dist_optim.step()
 
         # Check that parameters do not match
-        for ref_param, dist_param in zip(ref_model.parameters(),
-                                         dist_model.parameters()):
+        for ref_param, dist_param in zip(
+            ref_model.parameters(), dist_model.parameters()
+        ):
             self.assertRaises(
                 AssertionError,
                 torch.testing.assert_close,
-                dist_param, ref_param,
+                dist_param,
+                ref_param,
             )
 
     def test_clip_grad_norm(self):
-
         torch.manual_seed(self.seed + self.rank)
 
         # Identical models with data-parallel and ZeRO
@@ -436,8 +440,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         xs = [3, 1, 4, 1, 5, 9]
         dys = [1, -1, 1, -1, 1, -1]
         for x, dy in zip(xs, dys):
-            x = torch.tensor([[x]], dtype=torch.float32, device='cuda')
-            dy = torch.tensor([[dy]], dtype=torch.float32, device='cuda')
+            x = torch.tensor([[x]], dtype=torch.float32, device="cuda")
+            dy = torch.tensor([[dy]], dtype=torch.float32, device="cuda")
 
             # Reference implementation
             ref_optim.zero_grad()
@@ -455,12 +459,12 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
             # Check that parameters match
             torch.testing.assert_close(dist_grad_norm, ref_grad_norm)
-            for ref_param, dist_param in zip(ref_model.parameters(),
-                                             dist_model.parameters()):
+            for ref_param, dist_param in zip(
+                ref_model.parameters(), dist_model.parameters()
+            ):
                 torch.testing.assert_close(dist_param, ref_param)
 
     def test_grad_scaler(self):
-
         torch.manual_seed(self.seed + self.rank)
 
         # Identical models with data-parallel and ZeRO
@@ -471,15 +475,15 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             backoff_factor=0.876,
             growth_interval=1,
         )
-        ref_scaler =  torch.amp.GradScaler('cuda', **grad_scaler_args)
-        dist_scaler =  torch.amp.GradScaler('cuda', **grad_scaler_args)
+        ref_scaler = torch.amp.GradScaler("cuda", **grad_scaler_args)
+        dist_scaler = torch.amp.GradScaler("cuda", **grad_scaler_args)
 
         # Training steps with pre-determined gradients
         xs = [3, 1, 4, 1, 5, 9]
-        dys = [1, float('inf'), 1, 1, float('nan'), -1]
+        dys = [1, float("inf"), 1, 1, float("nan"), -1]
         for x, dy in zip(xs, dys):
-            x = torch.tensor([[x]], dtype=torch.float32, device='cuda')
-            dy = torch.tensor([[dy]], dtype=torch.float32, device='cuda')
+            x = torch.tensor([[x]], dtype=torch.float32, device="cuda")
+            dy = torch.tensor([[dy]], dtype=torch.float32, device="cuda")
 
             # Reference implementation
             ref_optim.zero_grad()
@@ -496,21 +500,22 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             dist_scaler.update()
 
             # Check that parameters match
-            for ref_param, dist_param in zip(ref_model.parameters(),
-                                             dist_model.parameters()):
+            for ref_param, dist_param in zip(
+                ref_model.parameters(), dist_model.parameters()
+            ):
                 torch.testing.assert_close(dist_param, ref_param)
 
     def test_checkpoint(
-            self,
-            rtol: Optional[float] = None,
-            atol: Optional[float] = None,
-            num_layers: int = 2,
-            layer_size: int = 2,
-            num_steps: int = 3,
-            save_group_size: Optional[int] = None,
-            load_group_size: Optional[int] = None,
-            save_model_kwargs: Optional[dict] = None,
-            load_model_kwargs: Optional[dict] = None,
+        self,
+        rtol: Optional[float] = None,
+        atol: Optional[float] = None,
+        num_layers: int = 2,
+        layer_size: int = 2,
+        num_steps: int = 3,
+        save_group_size: Optional[int] = None,
+        load_group_size: Optional[int] = None,
+        save_model_kwargs: Optional[dict] = None,
+        load_model_kwargs: Optional[dict] = None,
     ):
         """Test state_dict and load_state_dict functions
 
@@ -551,9 +556,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             save_group = None
         else:
             if save_group_size > world_size:
-                self.skipTest(
-                    f"Requires {save_group_size} ranks, found {world_size}"
-                )
+                self.skipTest(f"Requires {save_group_size} ranks, found {world_size}")
             save_ranks = list(range(save_group_size))
             save_group = torch.distributed.new_group(ranks=save_ranks)
         if load_group_size is None:
@@ -561,9 +564,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             load_group = None
         else:
             if load_group_size > world_size:
-                self.skipTest(
-                    f"Requires {load_group_size} ranks, found {world_size}"
-                )
+                self.skipTest(f"Requires {load_group_size} ranks, found {world_size}")
             load_ranks = list(range(load_group_size))
             load_group = torch.distributed.new_group(ranks=load_ranks)
 
@@ -582,14 +583,14 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 **save_model_kwargs,
             )
             optim_save.init_params(reversed(list(model_save.parameters())))
-        torch.manual_seed(self.seed+1)
+        torch.manual_seed(self.seed + 1)
         if self.rank < load_group_size:
             if not load_model_kwargs:
                 load_model_kwargs = {}
             _, _, model_load, optim_load = make_models(
                 num_layers,
                 layer_size,
-                lr=1234.,
+                lr=1234.0,
                 process_group=load_group,
                 average_grad_sync=False,
                 overlap_communication=False,
@@ -598,9 +599,10 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             optim_load.init_params(list(model_load.parameters()))
 
         batch_size = 2 * save_group_size * load_group_size
+
         def make_global_batch() -> torch.Tensor:
             """Generate random tensor on root rank and broadcast"""
-            x = torch.empty(batch_size, layer_size, device='cuda')
+            x = torch.empty(batch_size, layer_size, device="cuda")
             if self.rank == 0:
                 torch.rand(x.size(), out=x)
                 x -= 0.5
@@ -608,8 +610,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             return x
 
         def to_local_batch(
-                global_batch: torch.Tensor,
-                group: Optional[torch.distributed.ProcessGroup],
+            global_batch: torch.Tensor,
+            group: Optional[torch.distributed.ProcessGroup],
         ) -> Optional[torch.Tensor]:
             """Get local portion of tensor that is replicated across all ranks"""
             group_size = torch.distributed.get_world_size(group)
@@ -621,13 +623,13 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             return global_batch[batch_start:batch_end, ...]
 
         def to_global_batch(
-                local_batch: torch.Tensor,
-                group: Optional[torch.distributed.ProcessGroup],
+            local_batch: torch.Tensor,
+            group: Optional[torch.distributed.ProcessGroup],
         ) -> torch.Tensor:
             """Gather distributed tensor and broadcast to all ranks"""
 
             # Allocate buffer
-            global_batch = torch.empty(batch_size, layer_size, device='cuda')
+            global_batch = torch.empty(batch_size, layer_size, device="cuda")
 
             # Gather data on root rank
             group_size = torch.distributed.get_world_size(group)
@@ -636,7 +638,9 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 if self.rank == 0:
                     local_batch_size = batch_size // group_size
                     local_batches = [
-                        global_batch[rank*local_batch_size:(rank+1)*local_batch_size, ...]
+                        global_batch[
+                            rank * local_batch_size : (rank + 1) * local_batch_size, ...
+                        ]
                         for rank in range(group_size)
                     ]
                 torch.distributed.gather(
@@ -651,7 +655,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             return global_batch
 
         # Train one of the models
-        torch.manual_seed(self.seed+2)
+        torch.manual_seed(self.seed + 2)
         for step in range(num_steps):
             if self.rank < save_group_size:
                 optim_save.zero_grad()
@@ -666,8 +670,9 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
         # Make sure models are different
         if self.rank < min(save_group_size, load_group_size):
-            for param_save, param_load in zip(model_save.parameters(),
-                                              model_load.parameters()):
+            for param_save, param_load in zip(
+                model_save.parameters(), model_load.parameters()
+            ):
                 self.assertRaises(
                     AssertionError,
                     torch.testing.assert_close,
@@ -681,8 +686,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         state_bytes = None
         if self.rank < save_group_size:
             state_dict = {
-                'model': model_save.state_dict(),
-                'optim': optim_save.state_dict(),
+                "model": model_save.state_dict(),
+                "optim": optim_save.state_dict(),
             }
             byte_stream = io.BytesIO()
             torch.save(state_dict, byte_stream)
@@ -701,24 +706,19 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 )
                 state_bytes = state_bytes[0]
             state_dict = torch.load(io.BytesIO(state_bytes))
-            model_load.load_state_dict(state_dict['model'])
-            optim_load.load_state_dict(state_dict['optim'])
+            model_load.load_state_dict(state_dict["model"])
+            optim_load.load_state_dict(state_dict["optim"])
 
         # Make sure models are identical
         if self.rank < min(save_group_size, load_group_size):
-            for param_save, param_load in zip(model_save.parameters(),
-                                              model_load.parameters()):
-                torch.testing.assert_close(
-                    param_load,
-                    param_save,
-                    rtol=rtol,
-                    atol=atol
-                )
+            for param_save, param_load in zip(
+                model_save.parameters(), model_load.parameters()
+            ):
+                torch.testing.assert_close(param_load, param_save, rtol=rtol, atol=atol)
 
         # Train both models
-        torch.manual_seed(self.seed+3)
+        torch.manual_seed(self.seed + 3)
         for step in range(num_steps):
-
             # Reset grads
             if self.rank < save_group_size:
                 optim_save.zero_grad()
@@ -767,8 +767,9 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
             # Check that parameters match
             if self.rank < min(save_group_size, load_group_size):
-                for param_save, param_load in zip(model_save.parameters(),
-                                                  model_load.parameters()):
+                for param_save, param_load in zip(
+                    model_save.parameters(), model_load.parameters()
+                ):
                     torch.testing.assert_close(
                         param_load,
                         param_save,
@@ -828,12 +829,14 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     def test_bucket_low_utilization_warning(self):
         """Test warning when bucket utilization is low"""
-        layer_size = 2*1024*1024
+        layer_size = 2 * 1024 * 1024
         num_layers = 4
-        fairish_bucket_cap_mb = 4*num_layers*layer_size/(1024*1024)
+        fairish_bucket_cap_mb = 4 * num_layers * layer_size / (1024 * 1024)
 
         # Check that warning is raised when bucket utilization is low
-        with self.assertWarnsRegex(Warning, ".*Consider decreasing the bucket_cap_mb argument."):
+        with self.assertWarnsRegex(
+            Warning, ".*Consider decreasing the bucket_cap_mb argument."
+        ):
             self.test_matches_pytorch(
                 num_layers=num_layers,
                 layer_size=layer_size,
@@ -850,7 +853,9 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 bucket_cap_mb=fairish_bucket_cap_mb,
             )
             for w in warns:
-                self.assertNotRegex(str(w.message), ".*Consider decreasing the bucket_cap_mb argument.")
+                self.assertNotRegex(
+                    str(w.message), ".*Consider decreasing the bucket_cap_mb argument."
+                )
 
     def test_cuda_graph(self):
         """Test distributed adam with CUDA graph"""
@@ -866,6 +871,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             contiguous_buffers=True,
             with_cuda_graph=True,
         )
+
 
 if __name__ == "__main__":
     # Assume script has been run with torchrun

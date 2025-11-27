@@ -6,20 +6,28 @@ import unittest
 from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from apex.transformer.pipeline_parallel.schedules.common import (
-    _get_params_for_weight_decay_optimization, build_model
+    _get_params_for_weight_decay_optimization,
+    build_model,
 )
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
     _forward_backward_pipelining_with_interleaving,
 )
 from apex.transformer.pipeline_parallel.utils import (
-    setup_microbatch_calculator, _reconfigure_microbatch_calculator, update_num_microbatches
+    setup_microbatch_calculator,
+    _reconfigure_microbatch_calculator,
+    update_num_microbatches,
 )
 from apex.transformer.testing import global_vars
 from apex.transformer.testing.commons import (
-    print_separator, fwd_step_func, model_provider_func
+    print_separator,
+    fwd_step_func,
+    model_provider_func,
 )
 from apex.transformer.log_util import get_transformer_logger
-from apex.transformer._data import MegatronPretrainingRandomSampler, MegatronPretrainingSampler
+from apex.transformer._data import (
+    MegatronPretrainingRandomSampler,
+    MegatronPretrainingSampler,
+)
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
 
 from torch.testing._internal import common_utils
@@ -48,7 +56,9 @@ def Dataset(num_samples: int) -> List[Tuple[torch.Tensor, torch.Tensor]]:
 
 # Run forward & backward with dynamic batch size.
 def run_interleaved_with_dynamic_batch_size(
-    pipeline_model_parallel_size: int, forward_only: bool, BatchSamplerCls,
+    pipeline_model_parallel_size: int,
+    forward_only: bool,
+    BatchSamplerCls,
 ) -> None:
     args = global_vars.get_args()
     _reconfigure_microbatch_calculator(
@@ -81,8 +91,7 @@ def run_interleaved_with_dynamic_batch_size(
     )
     assert isinstance(model, list)
     assert len(model) == virtual_pipeline_model_parallel_size
-    optimizer = torch.optim.Adam(
-        _get_params_for_weight_decay_optimization(model))
+    optimizer = torch.optim.Adam(_get_params_for_weight_decay_optimization(model))
 
     initial_local_minibatch_size = get_num_microbatches() * args.micro_batch_size
     dataset = Dataset(NUM_SAMPLES)
@@ -145,7 +154,6 @@ def run_interleaved_with_dynamic_batch_size(
 class DynamicBatchsizeTestBase:
     @unittest.skipUnless(torch.cuda.device_count() > 2, "requires at least 3 gpus")
     def test_dynamic_batchsize(self):
-
         n_tests = 0
         failures = []
 
@@ -163,8 +171,10 @@ class DynamicBatchsizeTestBase:
         }
 
         global_vars.set_global_variables(
-            args_defaults={"global_batch_size": 512,
-                           "rampup_batch_size": [64, 64, 1000], },
+            args_defaults={
+                "global_batch_size": 512,
+                "rampup_batch_size": [64, 64, 1000],
+            },
             ignore_unknown_args=True,
             override_args=override_args,
         )
@@ -187,7 +197,9 @@ class DynamicBatchsizeTestBase:
                 pipeline_model_parallel_size = self.world_size
                 try:
                     run_interleaved_with_dynamic_batch_size(
-                        pipeline_model_parallel_size, forward_only, BatchSamplerCls,
+                        pipeline_model_parallel_size,
+                        forward_only,
+                        BatchSamplerCls,
                     )
                 except Exception as e:
                     msg = (
@@ -211,6 +223,7 @@ class DynamicBatchsizeTestBase:
 
 class NcclDynamicBatchsizeTest(DynamicBatchsizeTestBase, NcclDistributedTestBase):
     pass
+
 
 # TODO: (Fuzzkatt) UCC still doesn't work with fwd_bwd_pipelining_with_interleaving
 

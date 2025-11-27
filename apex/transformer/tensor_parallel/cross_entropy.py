@@ -35,7 +35,9 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         # Maximum value along vocab dimension across all GPUs.
         logits_max = torch.max(vocab_parallel_logits, dim=-1)[0]
         torch.distributed.all_reduce(
-            logits_max, op=torch.distributed.ReduceOp.MAX, group=get_tensor_model_parallel_group()
+            logits_max,
+            op=torch.distributed.ReduceOp.MAX,
+            group=get_tensor_model_parallel_group(),
         )
         # Subtract the maximum value.
         vocab_parallel_logits = vocab_parallel_logits - logits_max.unsqueeze(dim=-1)
@@ -45,7 +47,9 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         partition_vocab_size = vocab_parallel_logits.size()[-1]
         rank = get_tensor_model_parallel_rank()
         world_size = get_tensor_model_parallel_world_size()
-        vocab_start_index, vocab_end_index = get_vocab_range(partition_vocab_size, rank, world_size)
+        vocab_start_index, vocab_end_index = get_vocab_range(
+            partition_vocab_size, rank, world_size
+        )
 
         # Create a mask of valid vocab ids (1 means it needs to be masked).
         target_mask = (target < vocab_start_index) | (target >= vocab_end_index)
@@ -57,14 +61,18 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         # [*, partition-vocab-size] and target to a 1-D tensor of size [*].
         logits_2d = vocab_parallel_logits.view(-1, partition_vocab_size)
         masked_target_1d = masked_target.view(-1)
-        arange_1d = torch.arange(start=0, end=logits_2d.size()[0], device=logits_2d.device)
+        arange_1d = torch.arange(
+            start=0, end=logits_2d.size()[0], device=logits_2d.device
+        )
         predicted_logits_1d = logits_2d[arange_1d, masked_target_1d]
         predicted_logits_1d = predicted_logits_1d.clone().contiguous()
         predicted_logits = predicted_logits_1d.view_as(target)
         predicted_logits[target_mask] = 0.0
         # All reduce is needed to get the chunks from other GPUs.
         torch.distributed.all_reduce(
-            predicted_logits, op=torch.distributed.ReduceOp.SUM, group=get_tensor_model_parallel_group()
+            predicted_logits,
+            op=torch.distributed.ReduceOp.SUM,
+            group=get_tensor_model_parallel_group(),
         )
 
         # Sum of exponential of logits along vocab dimension across all GPUs.
@@ -72,7 +80,9 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         torch.exp(vocab_parallel_logits, out=exp_logits)
         sum_exp_logits = exp_logits.sum(dim=-1)
         torch.distributed.all_reduce(
-            sum_exp_logits, op=torch.distributed.ReduceOp.SUM, group=get_tensor_model_parallel_group()
+            sum_exp_logits,
+            op=torch.distributed.ReduceOp.SUM,
+            group=get_tensor_model_parallel_group(),
         )
 
         # Loss = log(sum(exp(logits))) - predicted-logit.
@@ -107,7 +117,6 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-
         # Retreive tensors from the forward path.
         softmax, target_mask, masked_target_1d = ctx.saved_tensors
         label_smoothing, vocab_size = ctx.label_smoothing, ctx.vocab_size
@@ -147,4 +156,6 @@ def vocab_parallel_cross_entropy(vocab_parallel_logits, target, label_smoothing=
         "It is available on PyPI at https://pypi.org/project/megatron-core/ "
         "and its documentation can be found at https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html."
     )
-    return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target, label_smoothing)
+    return _VocabParallelCrossEntropy.apply(
+        vocab_parallel_logits, target, label_smoothing
+    )

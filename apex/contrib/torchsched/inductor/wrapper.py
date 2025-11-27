@@ -52,7 +52,9 @@ class EnterDeviceContextManagerWithStreamInfoLine(EnterDeviceContextManagerLine)
             code.writeline(f"{DEFAULT_STREAM} = torch.cuda.current_stream()")
             code.writeline(f"{ENTRANCE_EVENT} = {DEFAULT_STREAM}.record_event()")
 
-            code.writeline("from apex.contrib.torchsched.inductor._utils import get_cuda_stream_pool")
+            code.writeline(
+                "from apex.contrib.torchsched.inductor._utils import get_cuda_stream_pool"
+            )
             code.writeline(
                 f"cuda_stream_pool = get_cuda_stream_pool(device={self.device_idx}, "
                 f"pool_size={config.num_streams})",
@@ -167,7 +169,9 @@ class MultiStreamWrapperCodegen(PythonWrapperCodegen):
             )
         return MultiStreamWrapperCodegen()
 
-    def _write_get_raw_stream(self, device_idx: int, graph: GraphLowering | None = None) -> str:
+    def _write_get_raw_stream(
+        self, device_idx: int, graph: GraphLowering | None = None
+    ) -> str:
         self.write_triton_header_once()
         if (current_stream_name := V.graph.scheduler.current_stream_name) is not None:
             name = f"{current_stream_name}_raw"
@@ -253,7 +257,9 @@ class MultiStreamWrapperCodegen(PythonWrapperCodegen):
         """Generate data structure for exiting a CUDA Stream context."""
         self.writeline(ExitCudaStreamContextLine())
 
-    def codegen_events_wait_stream(self, events: set[CudaEventSym], stream_idx: int) -> None:
+    def codegen_events_wait_stream(
+        self, events: set[CudaEventSym], stream_idx: int
+    ) -> None:
         """Generate data structure for syncing hanging CUDA Events with certain stream.
 
         Args:
@@ -281,7 +287,10 @@ class MultiStreamWrapperCodegen(PythonWrapperCodegen):
         for buff in buffers:
             prefix = (
                 f"if {buff}.is_cuda: "
-                if buffers_requiring_device_check and buff in buffers_requiring_device_check
+                if buffers_requiring_device_check
+                and buff in buffers_requiring_device_check
                 else ""
             )
-            self.writeline(f"{prefix}{buff}.record_stream({get_stream_name(stream_idx)})")
+            self.writeline(
+                f"{prefix}{buff}.record_stream({get_stream_name(stream_idx)})"
+            )

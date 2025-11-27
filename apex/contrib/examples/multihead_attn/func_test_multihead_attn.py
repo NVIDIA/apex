@@ -1,5 +1,4 @@
 import torch
-import torch.nn.functional as F
 import argparse
 
 from apex.contrib.multihead_attn import SelfMultiheadAttn

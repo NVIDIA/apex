@@ -62,7 +62,9 @@ class MultiCudaStreamScheduler(Scheduler):
                 originate_stream_idx=self.current_stream_idx,  # type: ignore[arg-type]
             ),
         )
-        self.unjoined_events: dict[int, set[CudaEventSym]] = collections.defaultdict(set)
+        self.unjoined_events: dict[int, set[CudaEventSym]] = collections.defaultdict(
+            set
+        )
         self.buffers_requiring_device_check: set[str] = set()
         # The only source of which stream context are we currently in at the scheduling phase.
         self._current_stream_ctx: EnterCudaStreamContextLine | None = None
@@ -99,7 +101,9 @@ class MultiCudaStreamScheduler(Scheduler):
             buffers recorded on the previous stream context.
         """
         assert self._current_stream_ctx is not None
-        assert buffs.issuperset(self._current_stream_ctx.buffers_recorded_on_this_stream)
+        assert buffs.issuperset(
+            self._current_stream_ctx.buffers_recorded_on_this_stream
+        )
         self._current_stream_ctx.buffers_recorded_on_this_stream = buffs
 
     def debug_str_short(self, node: BaseSchedulerNode) -> str:
@@ -127,7 +131,9 @@ class MultiCudaStreamScheduler(Scheduler):
             return
 
         buf_originate: dict[str, BaseSchedulerNode] = {}
-        node_users: dict[BaseSchedulerNode, set[BaseSchedulerNode]] = collections.defaultdict(set)
+        node_users: dict[BaseSchedulerNode, set[BaseSchedulerNode]] = (
+            collections.defaultdict(set)
+        )
         for node in self.nodes:
             for n in node.get_buffer_names():
                 buf_originate[n] = node
@@ -136,10 +142,14 @@ class MultiCudaStreamScheduler(Scheduler):
                 assert d.name in buf_originate
                 node_users[buf_originate[d.name]].add(node)
 
-        critical_path_per_depth: dict[int, set[BaseSchedulerNode]] = collections.defaultdict(set)
+        critical_path_per_depth: dict[int, set[BaseSchedulerNode]] = (
+            collections.defaultdict(set)
+        )
         node_depth: dict[BaseSchedulerNode, int] = collections.defaultdict(lambda: -1)
 
-        def visit(node: BaseSchedulerNode, depth: int, prev: set[BaseSchedulerNode]) -> None:
+        def visit(
+            node: BaseSchedulerNode, depth: int, prev: set[BaseSchedulerNode]
+        ) -> None:
             if node_depth[node] < depth:
                 node_depth[node] = depth
                 path = prev | {node}
@@ -152,7 +162,9 @@ class MultiCudaStreamScheduler(Scheduler):
         for entry in graph_entries:
             visit(entry, depth=1, prev=set())
 
-        max_depth, longest_critical_path = sorted(critical_path_per_depth.items(), reverse=True)[0]
+        max_depth, longest_critical_path = sorted(
+            critical_path_per_depth.items(), reverse=True
+        )[0]
 
         # Allocate CUDA Streams for each fused node:
         # - Critical path nodes go to the default stream
@@ -193,7 +205,9 @@ class MultiCudaStreamScheduler(Scheduler):
         schedule_log.debug(f"{' Stream assignments of other nodes ':-^79}")
         for node, stream_idx in node_to_stream.items():
             if node not in longest_critical_path:
-                schedule_log.debug("- %s -> Stream %d", self.debug_str_short(node), stream_idx)
+                schedule_log.debug(
+                    "- %s -> Stream %d", self.debug_str_short(node), stream_idx
+                )
 
     def get_final_events_to_sync(self) -> set[CudaEventSym]:
         """Return the CUDA Events that need to be synced at the end of the program.
@@ -260,7 +274,9 @@ class MultiCudaStreamScheduler(Scheduler):
             for i, buff in enumerate(sorted(node.get_buffer_names())):
                 if i == 0:
                     downstream_event = self.buff_to_event[buff]
-                    assert downstream_event.originate_stream_idx == self.current_stream_idx
+                    assert (
+                        downstream_event.originate_stream_idx == self.current_stream_idx
+                    )
                 else:
                     self.buff_to_event[buff] = downstream_event
             if (node_stream := self.node_to_stream[node]) != DEFAULT_STREAM_IDX:
@@ -295,7 +311,9 @@ class MultiCudaStreamScheduler(Scheduler):
             events_on_stream[DEFAULT_STREAM_IDX].add(entrance_event)
         for dep in node.read_writes.reads:
             buff = dep.name  # To track stream number and cuda events.
-            buff_real = self.mutation_real_name.get(buff, buff)  # The real name in code.
+            buff_real = self.mutation_real_name.get(
+                buff, buff
+            )  # The real name in code.
             if dep not in node.unmet_dependencies and not isinstance(dep, WeakDep):
                 # Materialized dependencies should be recorded on this stream.
                 buffers_from_other_streams.add(buff_real)
@@ -326,7 +344,10 @@ class MultiCudaStreamScheduler(Scheduler):
                         basename=buff_real,
                         indices=node.node.indices,
                     )
-                    self.buffers_requiring_device_check |= {buff_real, node.node.get_name()}
+                    self.buffers_requiring_device_check |= {
+                        buff_real,
+                        node.node.get_name(),
+                    }
                 buffers_from_other_streams.add(buff_real)
 
         # Should only wait for the latest event from each stream.
@@ -342,7 +363,9 @@ class MultiCudaStreamScheduler(Scheduler):
         """Code-gen to enter the Stream context assigned to node."""
         assert not isinstance(node, NopKernelSchedulerNode)
         wrapper_code = cast("MultiStreamWrapperCodegen", V.graph.wrapper_code)
-        upstream_events, buffers_from_other_streams = self.get_cross_stream_dependencies(node)
+        upstream_events, buffers_from_other_streams = (
+            self.get_cross_stream_dependencies(node)
+        )
         node_stream = self.node_to_stream[node]
         self._current_stream_ctx = wrapper_code.codegen_cuda_stream_enter(
             stream_idx=node_stream,
@@ -371,7 +394,9 @@ class MultiCudaStreamScheduler(Scheduler):
         """
         assert self.current_stream_idx is not None
         wrapper_code = cast("MultiStreamWrapperCodegen", V.graph.wrapper_code)
-        upstream_events, buffers_from_other_streams = self.get_cross_stream_dependencies(node)
+        upstream_events, buffers_from_other_streams = (
+            self.get_cross_stream_dependencies(node)
+        )
         buffers_from_other_streams -= self.buffers_recorded_on_current_stream
         wrapper_code.codegen_buffers_record_stream(
             buffers=buffers_from_other_streams,
@@ -392,7 +417,11 @@ class MultiCudaStreamScheduler(Scheduler):
         context of previous node.
         """
         assert node in self.node_to_stream
-        stream = None if isinstance(node, NopKernelSchedulerNode) else self.node_to_stream[node]
+        stream = (
+            None
+            if isinstance(node, NopKernelSchedulerNode)
+            else self.node_to_stream[node]
+        )
         if self.current_stream_idx == stream:
             if stream is not None:
                 self.propagate_cross_stream_dependencies(node)
@@ -447,8 +476,14 @@ class MultiCudaStreamScheduler(Scheduler):
 
             self.enter_context(node)
 
-            if not isinstance(node, NopKernelSchedulerNode) and (device := node.get_device()):
-                if device != self.current_device or node.is_extern() or node.is_template():
+            if not isinstance(node, NopKernelSchedulerNode) and (
+                device := node.get_device()
+            ):
+                if (
+                    device != self.current_device
+                    or node.is_extern()
+                    or node.is_template()
+                ):
                     self.flush()
                 if device != self.current_device:
                     if self.current_device and device_need_guard(
@@ -472,7 +507,9 @@ class MultiCudaStreamScheduler(Scheduler):
             elif node.is_foreach():
                 node = cast("ForeachKernelSchedulerNode", node)
                 backend_ = self.get_backend(device)
-                from torch._inductor.codegen.cuda_combined_scheduling import CUDACombinedScheduling
+                from torch._inductor.codegen.cuda_combined_scheduling import (
+                    CUDACombinedScheduling,
+                )
                 from torch._inductor.codegen.simd import SIMDScheduling
 
                 if isinstance(backend_, (SIMDScheduling, CUDACombinedScheduling)):
@@ -505,7 +542,10 @@ class MultiCudaStreamScheduler(Scheduler):
             # Record the default stream on buffers from other streams.
             side_stream_buffers = set()
             for output in V.graph.get_output_names():
-                if self.buff_to_stream.get(output, DEFAULT_STREAM_IDX) != DEFAULT_STREAM_IDX:
+                if (
+                    self.buff_to_stream.get(output, DEFAULT_STREAM_IDX)
+                    != DEFAULT_STREAM_IDX
+                ):
                     side_stream_buffers.add(output)
             wrapper_code.codegen_buffers_record_stream(
                 buffers=side_stream_buffers,

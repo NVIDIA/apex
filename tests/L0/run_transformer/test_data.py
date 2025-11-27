@@ -56,8 +56,12 @@ class BroadcastDataTestBase:
         parallel_state.destroy_model_parallel()
 
 
-class NcclBroadcastDataTest(BroadcastDataTestBase, NcclDistributedTestBase): pass
-class UccBroadcastDataTest(BroadcastDataTestBase, UccDistributedTestBase): pass
+class NcclBroadcastDataTest(BroadcastDataTestBase, NcclDistributedTestBase):
+    pass
+
+
+class UccBroadcastDataTest(BroadcastDataTestBase, UccDistributedTestBase):
+    pass
 
 
 if __name__ == "__main__":
