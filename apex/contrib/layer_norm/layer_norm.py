@@ -56,6 +56,4 @@ class FastLayerNorm(torch.nn.Module):
         init.zeros_(self.bias)
 
     def forward(self, x):
-        return _fast_layer_norm(
-            x, self.weight, self.bias, self.epsilon, self.memory_efficient
-        )
+        return _fast_layer_norm(x, self.weight, self.bias, self.epsilon, self.memory_efficient)

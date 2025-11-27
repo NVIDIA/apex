@@ -87,11 +87,7 @@ def get_target_loss_and_model(
     dtype = get_dtype_for_comparison()
     data = torch.ones(global_batch_shape, dtype=dtype)
     for i in range(total_layers):
-        w = (
-            torch.ones((hidden_size, hidden_size), dtype=dtype)
-            * (i + 1.0)
-            / weight_coeff
-        )
+        w = torch.ones((hidden_size, hidden_size), dtype=dtype) * (i + 1.0) / weight_coeff
         b = torch.ones(hidden_size, dtype=dtype)
 
         w.requires_grad_()
@@ -157,18 +153,14 @@ class PipelineParallelForwardBackwardTestBase:
         if fwd_bwd_func == _forward_backward_pipelining_with_interleaving:
             self.assertIsNotNone(virtual_pipeline_model_parallel_size)
             self.assertGreater(virtual_pipeline_model_parallel_size, 1)
-        dtype_options = (
-            self.dtypes or [torch.float32, torch.double] + _get_autocast_dtypes()
-        )
+        dtype_options = self.dtypes or [torch.float32, torch.double] + _get_autocast_dtypes()
 
         for dtype, deallocate_pipeline_outputs in itertools.product(
             dtype_options,
             self.deallocate_options,
         ):
             grad_scaler = (
-                torch.amp.GradScaler("cuda", init_scale=4.0)
-                if dtype == torch.half
-                else None
+                torch.amp.GradScaler("cuda", init_scale=4.0) if dtype == torch.half else None
             )
 
             (
@@ -293,9 +285,7 @@ class PipelineParallelForwardBackwardTestBase:
     def test_inference_no_pipelining(self):
         self._forward_backward_test_impl(True, forward_backward_no_pipelining, 1, None)
 
-    def test_learning_pipelining_without_interleaving(
-        self, sync_batch_comm: bool = True
-    ):
+    def test_learning_pipelining_without_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
             False,
             forward_backward_pipelining_without_interleaving,
@@ -304,9 +294,7 @@ class PipelineParallelForwardBackwardTestBase:
             sync_batch_comm=sync_batch_comm,
         )
 
-    def test_inference_pipelining_without_interleaving(
-        self, sync_batch_comm: bool = True
-    ):
+    def test_inference_pipelining_without_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
             True,
             forward_backward_pipelining_without_interleaving,
@@ -315,9 +303,7 @@ class PipelineParallelForwardBackwardTestBase:
             sync_batch_comm=sync_batch_comm,
         )
 
-    def test_learning_async_pipelining_without_interleaving(
-        self, sync_batch_comm: bool = True
-    ):
+    def test_learning_async_pipelining_without_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
             False,
             forward_backward_pipelining_without_interleaving,
@@ -327,9 +313,7 @@ class PipelineParallelForwardBackwardTestBase:
             sync_batch_comm=sync_batch_comm,
         )
 
-    def test_inference_async_pipelining_without_interleaving(
-        self, sync_batch_comm: bool = True
-    ):
+    def test_inference_async_pipelining_without_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
             True,
             forward_backward_pipelining_without_interleaving,
@@ -372,9 +356,7 @@ class PipelineParallelForwardBackwardTestBase:
         _get_default_world_sizes_model_parallel_world_size()[-1] > 2,
         "Interleaved schedule requires pipeline_model_parallel_world_size > 2",
     )
-    def test_learning_async_pipelining_with_interleaving(
-        self, sync_batch_comm: bool = True
-    ):
+    def test_learning_async_pipelining_with_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
             False,
             _forward_backward_pipelining_with_interleaving,
@@ -389,9 +371,7 @@ class PipelineParallelForwardBackwardTestBase:
         _get_default_world_sizes_model_parallel_world_size()[-1] > 2,
         "Interleaved schedule requires pipeline_model_parallel_world_size > 2",
     )
-    def test_inference_async_pipelining_with_interleaving(
-        self, sync_batch_comm: bool = True
-    ):
+    def test_inference_async_pipelining_with_interleaving(self, sync_batch_comm: bool = True):
         self._forward_backward_test_impl(
             True,
             _forward_backward_pipelining_with_interleaving,
@@ -419,9 +399,7 @@ class NcclPipelineParallelForwardBackwardTest(
             p2p_backend="ucc",
         )
 
-    @unittest.skipUnless(
-        HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER, "Needs driver >= 470.42.01"
-    )
+    @unittest.skipUnless(HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER, "Needs driver >= 470.42.01")
     def _test_hybrid_backends(self, forward_only: bool) -> None:
         if HAS_UCC:
             self._run_hybrid_distributed_backend(forward_only)
@@ -560,9 +538,7 @@ class NcclPipelineParallelWithToyParallelMLP(NcclDistributedTestBase):
         # if `self.world_size > 5`. Otherwise, `pipeline_model_parallel_split_rank`
         # can be 1, which can be too far real usecase.
         tensor_model_parallel_size = 1 + int(self.world_size >= 4)
-        pipeline_model_parallel_world_size = (
-            self.world_size // tensor_model_parallel_size
-        )
+        pipeline_model_parallel_world_size = self.world_size // tensor_model_parallel_size
         if model_type == ModelType.encoder_and_decoder:
             pipeline_model_parallel_split_rank = pipeline_model_parallel_world_size // 2
         else:
@@ -788,12 +764,8 @@ class NcclPipelineParallelWithCustomSyncContextHandler(NcclDistributedTestBase):
         has_all_grads = all(param.grad is not None for param in model.parameters())
 
         # Check context behavior
-        self.assertTrue(
-            has_entered_grad_sync_context, "Has not entered custom sync context"
-        )
-        self.assertTrue(
-            has_exited_grad_sync_context, "Has not exited custom sync context"
-        )
+        self.assertTrue(has_entered_grad_sync_context, "Has not entered custom sync context")
+        self.assertTrue(has_exited_grad_sync_context, "Has not exited custom sync context")
         self.assertEqual(
             has_any_grads,
             has_all_grads,

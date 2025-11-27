@@ -48,8 +48,7 @@ def has_nan(x):
 
 def rel_diff_t(xx1, xx2):
     return (
-        (xx1 - xx2).norm(p=2, dtype=torch.float32)
-        / (xx1 + xx2).norm(p=2, dtype=torch.float32)
+        (xx1 - xx2).norm(p=2, dtype=torch.float32) / (xx1 + xx2).norm(p=2, dtype=torch.float32)
     ).item()
 
 
@@ -57,9 +56,7 @@ def rel_diff(x1, x2):
     if isinstance(x1, list) or isinstance(x1, tuple):
         return [rel_diff_t(xx1, xx2) for xx1, xx2 in zip(x1, x2)]
     elif isinstance(x1, dict):
-        return [
-            rel_diff_t(xx1, xx2) for (k1, xx1), (k2, xx2) in zip(x1.items(), x2.items())
-        ]
+        return [rel_diff_t(xx1, xx2) for (k1, xx1), (k2, xx2) in zip(x1.items(), x2.items())]
     else:
         return rel_diff_t(x1, x2)
 
@@ -151,9 +148,7 @@ def compare(gt, bt):
         torch.distributed.barrier()
 
 
-def spatial_parallel_bottleneck(
-    C, dtype, explicit_nhwc, gt_bottleneck, spatial_parallel_args
-):
+def spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, spatial_parallel_args):
     spatial_bottleneck = SpatialBottleneck(
         C,
         C,
@@ -177,9 +172,7 @@ def spatial_parallel_bottleneck(
     return spatial_bottleneck
 
 
-def n_way_spatial(
-    halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp32_reduce=False
-):
+def n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp32_reduce=False):
     assert explicit_nhwc, "Only tested for explicit nhwc"
 
     x, _, dy, _, _ = gt
@@ -190,9 +183,7 @@ def n_way_spatial(
     spatial_group_rank = rank
     spatial_communicator = None
     spatial_halo_exchanger = halex
-    spatial_method = (
-        1  # 1 -> overlap halo and main conv, 2 -> wait for halo, conv on padded x
-    )
+    spatial_method = 1  # 1 -> overlap halo and main conv, 2 -> wait for halo, conv on padded x
     use_delay_kernel = False
     spatial_parallel_args = (
         spatial_group_size,
@@ -209,9 +200,7 @@ def n_way_spatial(
     with torch.no_grad():
         Hs = H // spatial_group_size
         xs = x[:, spatial_group_rank * Hs : (spatial_group_rank + 1) * Hs, :, :].clone()
-        dys = dy[
-            :, spatial_group_rank * Hs : (spatial_group_rank + 1) * Hs, :, :
-        ].clone()
+        dys = dy[:, spatial_group_rank * Hs : (spatial_group_rank + 1) * Hs, :, :].clone()
         xs.requires_grad = True
 
     spatial_bottleneck = graph_it(spatial_bottleneck, xs)
@@ -252,9 +241,7 @@ def main():
     gt = ground_truth(N, C, H, W, dtype, 1, gt_bottleneck)
 
     # verify that spatial bottleneck with group_size 1 produces same results as ground truth bottleneck
-    spatial_bottleneck = spatial_parallel_bottleneck(
-        C, dtype, explicit_nhwc, gt_bottleneck, None
-    )
+    spatial_bottleneck = spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, None)
     bt = apply_to_different_bottleneck(gt, spatial_bottleneck)
     compare(gt, bt)
     # print_bottleneck_p_and_b(gt_bottleneck)
@@ -288,9 +275,7 @@ def main():
     # torch.cuda.synchronize()
     # torch.distributed.barrier()
 
-    bt2 = n_way_spatial(
-        halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp32_reduce=True
-    )
+    bt2 = n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp32_reduce=True)
     compare(gt, bt2)
 
 

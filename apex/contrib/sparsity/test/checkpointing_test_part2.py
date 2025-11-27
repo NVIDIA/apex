@@ -72,10 +72,7 @@ def main(step, args, model_state_dict, optimizer_state_dict):
     model.load_state_dict(model_state_dict)
     optimizer.load_state_dict(optimizer_state_dict)
 
-    print(
-        "Model sparsity is %s"
-        % ("enabled" if ASP.is_sparsity_enabled() else "disabled")
-    )
+    print("Model sparsity is %s" % ("enabled" if ASP.is_sparsity_enabled() else "disabled"))
 
     # train for a few steps with sparse weights
     print("SPARSE :: ", one_ll)

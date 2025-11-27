@@ -28,8 +28,7 @@ def create_nccl_mem_pool(symmetric: bool | None = None) -> torch.cuda.MemPool:
             _pool = torch.cuda.MemPool(_allocator, symm_mem=symmetric)
         else:
             raise ValueError(
-                "symmetric setting with torch.cuda.MemPool requires "
-                "higher PyTorch version"
+                "symmetric setting with torch.cuda.MemPool requires higher PyTorch version"
             )
     return _pool
 

@@ -138,9 +138,7 @@ class RampupBatchsizeNumMicroBatches(NumMicroBatchesCalculator):
 
         self.micro_batch_size = micro_batch_size
         self.data_parallel_size = data_parallel_size
-        self.micro_batch_times_data_parallel_size = (
-            self.micro_batch_size * self.data_parallel_size
-        )
+        self.micro_batch_times_data_parallel_size = self.micro_batch_size * self.data_parallel_size
         assert self.micro_batch_times_data_parallel_size > 0
 
         assert start_batch_size > 0
@@ -178,9 +176,7 @@ class RampupBatchsizeNumMicroBatches(NumMicroBatchesCalculator):
 
         if consistency_check:
             assert (
-                self.current_global_batch_size
-                % self.micro_batch_times_data_parallel_size
-                == 0
+                self.current_global_batch_size % self.micro_batch_times_data_parallel_size == 0
             ), (
                 "current global "
                 "batch size ({}) is not divisible by micro-batch-size ({}) times"

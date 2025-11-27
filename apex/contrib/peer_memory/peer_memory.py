@@ -23,12 +23,8 @@ class PeerMemoryPool(object):
             )
 
         self.alignment = 256
-        self.static_size = (
-            (static_size + self.alignment - 1) // self.alignment
-        ) * self.alignment
-        self.dynamic_size = (
-            (dynamic_size + self.alignment - 1) // self.alignment
-        ) * self.alignment
+        self.static_size = ((static_size + self.alignment - 1) // self.alignment) * self.alignment
+        self.dynamic_size = ((dynamic_size + self.alignment - 1) // self.alignment) * self.alignment
 
         # allocate giant pool of device memory
         self.raw = pm.allocate_raw(self.static_size + self.dynamic_size)
@@ -43,9 +39,7 @@ class PeerMemoryPool(object):
         peer_raw = pm.get_raw_peers(
             peer_raw_ipcs[peer_rank_base : peer_rank_base + ngpus], peer_rank, self.raw
         )
-        self.peer_raw = [
-            peer_raw[peer_rank - peer_rank_base] for peer_rank in peer_ranks
-        ]
+        self.peer_raw = [peer_raw[peer_rank - peer_rank_base] for peer_rank in peer_ranks]
         self.static_offset = 0
         self.dynamic_offset = 0
         self.peer_ranks = peer_ranks
@@ -65,13 +59,9 @@ class PeerMemoryPool(object):
                     (self.dynamic_offset + self.alignment - 1) // self.alignment
                 ) * self.alignment
                 self.dynamic_offset = start + nels * elem_size
-                assert self.dynamic_offset < self.dynamic_size, (
-                    "Dynamic peer memory pool exhausted"
-                )
+                assert self.dynamic_offset < self.dynamic_size, "Dynamic peer memory pool exhausted"
                 return [
-                    pm.blob_view_half(
-                        pr + self.static_size + start, shape, channels_last
-                    )
+                    pm.blob_view_half(pr + self.static_size + start, shape, channels_last)
                     for pr in self.peer_raw
                 ]
             else:
@@ -79,13 +69,8 @@ class PeerMemoryPool(object):
                     (self.static_offset + self.alignment - 1) // self.alignment
                 ) * self.alignment
                 self.static_offset = start + nels * elem_size
-                assert self.static_offset < self.static_size, (
-                    "Static peer memory pool exhausted"
-                )
-                return [
-                    pm.blob_view_half(pr + start, shape, channels_last)
-                    for pr in self.peer_raw
-                ]
+                assert self.static_offset < self.static_size, "Static peer memory pool exhausted"
+                return [pm.blob_view_half(pr + start, shape, channels_last) for pr in self.peer_raw]
         if dtype == torch.float32:
             elem_size = 4
             if dynamic:
@@ -93,13 +78,9 @@ class PeerMemoryPool(object):
                     (self.dynamic_offset + self.alignment - 1) // self.alignment
                 ) * self.alignment
                 self.dynamic_offset = start + nels * elem_size
-                assert self.dynamic_offset < self.dynamic_size, (
-                    "Dynamic peer memory pool exhausted"
-                )
+                assert self.dynamic_offset < self.dynamic_size, "Dynamic peer memory pool exhausted"
                 return [
-                    pm.blob_view_float(
-                        pr + self.static_size + start, shape, channels_last
-                    )
+                    pm.blob_view_float(pr + self.static_size + start, shape, channels_last)
                     for pr in self.peer_raw
                 ]
             else:
@@ -107,12 +88,9 @@ class PeerMemoryPool(object):
                     (self.static_offset + self.alignment - 1) // self.alignment
                 ) * self.alignment
                 self.static_offset = start + nels * elem_size
-                assert self.static_offset < self.static_size, (
-                    "Static peer memory pool exhausted"
-                )
+                assert self.static_offset < self.static_size, "Static peer memory pool exhausted"
                 return [
-                    pm.blob_view_float(pr + start, shape, channels_last)
-                    for pr in self.peer_raw
+                    pm.blob_view_float(pr + start, shape, channels_last) for pr in self.peer_raw
                 ]
         if dtype == torch.int32:
             elem_size = 4
@@ -121,13 +99,9 @@ class PeerMemoryPool(object):
                     (self.dynamic_offset + self.alignment - 1) // self.alignment
                 ) * self.alignment
                 self.dynamic_offset = start + nels * elem_size
-                assert self.dynamic_offset < self.dynamic_size, (
-                    "Dynamic peer memory pool exhausted"
-                )
+                assert self.dynamic_offset < self.dynamic_size, "Dynamic peer memory pool exhausted"
                 return [
-                    pm.blob_view_int(
-                        pr + self.static_size + start, shape, channels_last
-                    )
+                    pm.blob_view_int(pr + self.static_size + start, shape, channels_last)
                     for pr in self.peer_raw
                 ]
             else:
@@ -135,12 +109,7 @@ class PeerMemoryPool(object):
                     (self.static_offset + self.alignment - 1) // self.alignment
                 ) * self.alignment
                 self.static_offset = start + nels * elem_size
-                assert self.static_offset < self.static_size, (
-                    "Static peer memory pool exhausted"
-                )
-                return [
-                    pm.blob_view_int(pr + start, shape, channels_last)
-                    for pr in self.peer_raw
-                ]
+                assert self.static_offset < self.static_size, "Static peer memory pool exhausted"
+                return [pm.blob_view_int(pr + start, shape, channels_last) for pr in self.peer_raw]
         else:
             assert False, "dtype %s not supported" % (str(dtype))

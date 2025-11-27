@@ -92,13 +92,9 @@ class TestFMHA(unittest.TestCase):
         qkv.requires_grad = True
 
         if b < 4:
-            ctx, S_ = mha.fwd(
-                qkv_vs, cu_seqlens, 0.0, s, True, True, zero_tensors, None
-            )
+            ctx, S_ = mha.fwd(qkv_vs, cu_seqlens, 0.0, s, True, True, zero_tensors, None)
         else:
-            ctx, S_ = mha.fwd(
-                qkv_vs, cu_seqlens, 0.0, s, True, False, zero_tensors, None
-            )
+            ctx, S_ = mha.fwd(qkv_vs, cu_seqlens, 0.0, s, True, False, zero_tensors, None)
         ctx = ctx.view(b, s, h, d)
 
         ctx_ref = py_mha(qkv, amask, b, s, h, d)
@@ -120,9 +116,7 @@ class TestFMHA(unittest.TestCase):
 
         dqkv2 = dqkv2.permute(0, 2, 1, 3).view(b, s, h, 3, d)
 
-        torch.testing.assert_close(
-            qkv.grad.float(), dqkv2.float(), atol=1e-3, rtol=1e-5
-        )
+        torch.testing.assert_close(qkv.grad.float(), dqkv2.float(), atol=1e-3, rtol=1e-5)
 
     def test_128(self):
         self.run_test(128, 32, False)

@@ -51,9 +51,7 @@ class SelfMultiheadAttn(nn.Module):
         self.separate_qkv_params = separate_qkv_params
         self.mask_additive = mask_additive
         if mask_additive:
-            assert self.include_norm_add == False, (
-                "additive mask not supported with layer norm"
-            )
+            assert self.include_norm_add == False, "additive mask not supported with layer norm"
             assert impl == "default" or (impl == "fast" and bias), (
                 "additive mask not supported for fast mode without bias"
             )
@@ -162,15 +160,9 @@ class SelfMultiheadAttn(nn.Module):
             input_weights = (
                 torch.cat(
                     [
-                        self.q_weight.view(
-                            self.num_heads, 1, self.head_dim, self.embed_dim
-                        ),
-                        self.k_weight.view(
-                            self.num_heads, 1, self.head_dim, self.embed_dim
-                        ),
-                        self.v_weight.view(
-                            self.num_heads, 1, self.head_dim, self.embed_dim
-                        ),
+                        self.q_weight.view(self.num_heads, 1, self.head_dim, self.embed_dim),
+                        self.k_weight.view(self.num_heads, 1, self.head_dim, self.embed_dim),
+                        self.v_weight.view(self.num_heads, 1, self.head_dim, self.embed_dim),
                     ],
                     dim=1,
                 )
@@ -203,9 +195,7 @@ class SelfMultiheadAttn(nn.Module):
             )
             mask = key_padding_mask
         elif attn_mask is not None:
-            assert self.mask_additive == False, (
-                "additive mask not supported for time mask"
-            )
+            assert self.mask_additive == False, "additive mask not supported for time mask"
             mask = attn_mask
         else:
             mask = None

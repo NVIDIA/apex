@@ -161,16 +161,12 @@ class ClipGradNormTest(unittest.TestCase):
     def test_raises_on_nan(self):
         params = make_params(5, num_dims=[1])
         params[2].grad[-1] = float("NaN")
-        self.assertRaises(
-            RuntimeError, clip_grad_norm_, params, 1.0, error_if_nonfinite=True
-        )
+        self.assertRaises(RuntimeError, clip_grad_norm_, params, 1.0, error_if_nonfinite=True)
 
     def test_raises_on_inf(self):
         params = make_params(5, num_dims=[1])
         params[2].grad[-1] = float("inf")
-        self.assertRaises(
-            RuntimeError, clip_grad_norm_, params, 1.0, error_if_nonfinite=True
-        )
+        self.assertRaises(RuntimeError, clip_grad_norm_, params, 1.0, error_if_nonfinite=True)
 
 
 if __name__ == "__main__":

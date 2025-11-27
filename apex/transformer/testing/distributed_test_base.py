@@ -17,8 +17,7 @@ _driver_version = None
 if torch.cuda.is_available():
     _driver_version = parse(collect_env.get_nvidia_driver_version(collect_env.run))
 HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER = (
-    _driver_version is not None
-    and _driver_version >= _TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION
+    _driver_version is not None and _driver_version >= _TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION
 )
 
 

@@ -62,17 +62,14 @@ def get_tensor_shapes(
     tensor_shapes = []
 
     if sequence_parallel_enabled:
-        seq_length = (
-            sequence_length // parallel_state.get_tensor_model_parallel_world_size()
-        )
+        seq_length = sequence_length // parallel_state.get_tensor_model_parallel_world_size()
     else:
         seq_length = sequence_length
 
     if model_type == ModelType.encoder_and_decoder:
         if sequence_parallel_enabled:
             dec_seq_length = (
-                decoder_sequence_length
-                // parallel_state.get_tensor_model_parallel_world_size()
+                decoder_sequence_length // parallel_state.get_tensor_model_parallel_world_size()
             )
         else:
             dec_seq_length = decoder_sequence_length

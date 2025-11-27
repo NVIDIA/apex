@@ -131,9 +131,7 @@ class FusedAdam(torch.optim.Optimizer):
             self._dummy_overflow_buf = torch.tensor([0], dtype=torch.int, device="cuda")
             self.multi_tensor_adam = amp_C.multi_tensor_adam
             self.multi_tensor_adam_capturable = amp_C.multi_tensor_adam_capturable
-            self.multi_tensor_adam_capturable_master = (
-                amp_C.multi_tensor_adam_capturable_master
-            )
+            self.multi_tensor_adam_capturable_master = amp_C.multi_tensor_adam_capturable_master
         else:
             raise RuntimeError("apex.optimizers.FusedAdam requires cuda extensions")
 
@@ -181,15 +179,11 @@ class FusedAdam(torch.optim.Optimizer):
             # per parameter step can be easily support by making it tensor, or pass list into kernel
             if "step" in group:
                 group["step"] += (
-                    1
-                    if not self.capturable
-                    else (self._dummy_overflow_buf != 1).to(torch.int)
+                    1 if not self.capturable else (self._dummy_overflow_buf != 1).to(torch.int)
                 )
             else:
                 group["step"] = (
-                    1
-                    if not self.capturable
-                    else torch.tensor([1], dtype=torch.int, device=device)
+                    1 if not self.capturable else torch.tensor([1], dtype=torch.int, device=device)
                 )
 
             # create lists for multi-tensor apply

@@ -129,9 +129,7 @@ def _attention_core(
     if use_bias:
         batch_2 = Z // BATCH
         off_hz_bias = (off_hz // (batch_2 * H) * H) + (off_hz % H)
-        offs_base_bias = (
-            off_hz_bias * (N_CTX * N_CTX) + offs_m[:, None] * N_CTX + offs_n[None, :]
-        )
+        offs_base_bias = off_hz_bias * (N_CTX * N_CTX) + offs_m[:, None] * N_CTX + offs_n[None, :]
         """
         off_b = off_hz // H
         off_h = off_hz % H
@@ -175,9 +173,7 @@ def _attention_core(
     for start_n in range(0, N_CTX, BLOCK_N):
         start_n = tl.multiple_of(start_n, BLOCK_N)
         # -- compute qk ----
-        if (
-            EVEN_N & EVEN_M
-        ):  # If we just do "if EVEN_N", there seems to be some race condition
+        if EVEN_N & EVEN_M:  # If we just do "if EVEN_N", there seems to be some race condition
             if EVEN_HEADDIM:
                 k = tl.load(k_ptrs)
             else:
@@ -188,8 +184,7 @@ def _attention_core(
             else:
                 k = tl.load(
                     k_ptrs,
-                    mask=((start_n + offs_n)[None, :] < N_CTX)
-                    & (offs_d[:, None] < H_DIM),
+                    mask=((start_n + offs_n)[None, :] < N_CTX) & (offs_d[:, None] < H_DIM),
                     other=0.0,
                 )
 
@@ -204,9 +199,7 @@ def _attention_core(
             else:
                 bias_load_mask = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32)
                 bias_load_mask = tl.where(offs_m[:, None] >= N_CTX, 1.0, bias_load_mask)
-                bias_load_mask = tl.where(
-                    (start_n + offs_n)[None, :] >= N_CTX, 1.0, bias_load_mask
-                )
+                bias_load_mask = tl.where((start_n + offs_n)[None, :] >= N_CTX, 1.0, bias_load_mask)
                 bias_data = tl.load(
                     Bias + offs_base_bias + start_n,
                     mask=(bias_load_mask == 0.0),
@@ -225,8 +218,7 @@ def _attention_core(
             else:
                 mask_data = tl.load(
                     mask_ptrs + start_n,
-                    mask=(offs_m[:, None] < N_CTX)
-                    & ((start_n + offs_n)[None, :] < N_CTX),
+                    mask=(offs_m[:, None] < N_CTX) & ((start_n + offs_n)[None, :] < N_CTX),
                     other=0,
                 ).to(tl.int32)
             qk += tl.where(mask_data == 0, -inf, 0.0)
@@ -251,9 +243,7 @@ def _attention_core(
         # update acc
         p = p.to(Q.dtype.element_ty)
 
-        if (
-            EVEN_N & EVEN_M
-        ):  # If we just do "if EVEN_N", there seems to be some race condition
+        if EVEN_N & EVEN_M:  # If we just do "if EVEN_N", there seems to be some race condition
             if EVEN_HEADDIM:
                 v = tl.load(v_ptrs)
             else:
@@ -264,8 +254,7 @@ def _attention_core(
             else:
                 v = tl.load(
                     v_ptrs,
-                    mask=((start_n + offs_n)[:, None] < N_CTX)
-                    & (offs_d[None, :] < H_DIM),
+                    mask=((start_n + offs_n)[:, None] < N_CTX) & (offs_d[None, :] < H_DIM),
                     other=0.0,
                 )
         acc += tl.dot(p, v)
@@ -490,9 +479,7 @@ def _bwd_kernel(
         if use_bias:
             b_ptrs = Bias + (offs_qm[:, None] * stride_bm + offs_n[None, :] * stride_bn)
         if use_mask:
-            mask_ptrs = Mask + (
-                offs_qm[:, None] * stride_mm + offs_n[None, :] * stride_mn
-            )
+            mask_ptrs = Mask + (offs_qm[:, None] * stride_mm + offs_n[None, :] * stride_mn)
         # pointer to row-wise quantities in value-like data
         D_ptrs = D + off_hz * N_CTX
         m_ptrs = M + off_hz * N_CTX
@@ -613,9 +600,9 @@ def _bwd_kernel(
                 tl.store(dq_ptrs, dq)
             else:
                 if EVEN_HEADDIM:
-                    dq = tl.load(
-                        dq_ptrs, mask=offs_m_curr[:, None] < N_CTX, other=0.0
-                    ).to(tl.float32)
+                    dq = tl.load(dq_ptrs, mask=offs_m_curr[:, None] < N_CTX, other=0.0).to(
+                        tl.float32
+                    )
                     dq += tl.dot(ds.to(Q.dtype.element_ty), k)
                     tl.store(dq_ptrs, dq, mask=offs_m_curr[:, None] < N_CTX)
                 else:

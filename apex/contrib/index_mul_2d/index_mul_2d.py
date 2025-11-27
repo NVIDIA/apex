@@ -11,13 +11,9 @@ class IndexMul2d_(torch.autograd.Function):
     """
 
     @staticmethod
-    def forward(
-        ctx, in1: torch.Tensor, in2: torch.Tensor, idx1: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(ctx, in1: torch.Tensor, in2: torch.Tensor, idx1: torch.Tensor) -> torch.Tensor:
         assert in2.size(0) == idx1.size(0)
-        if (
-            in1.dtype != torch.float32 and in1.dtype != torch.half
-        ) or in2.dtype != in1.dtype:
+        if (in1.dtype != torch.float32 and in1.dtype != torch.half) or in2.dtype != in1.dtype:
             raise RuntimeError(
                 "input1'dtype and input2's dtype must be fp32 or fp16. And input type must be same"
             )
@@ -83,13 +79,9 @@ class IndexMul2dBackward_(torch.autograd.Function):
         grad_in2 = torch.empty_like(in2)
 
         if in1.dtype == torch.float32:
-            fused_index_mul_2d.float_backward(
-                grad_in1, grad_in2, grad_out, in1, in2, idx1
-            )
+            fused_index_mul_2d.float_backward(grad_in1, grad_in2, grad_out, in1, in2, idx1)
         elif in1.dtype == torch.half:
-            fused_index_mul_2d.half_backward(
-                grad_in1, grad_in2, grad_out, in1, in2, idx1
-            )
+            fused_index_mul_2d.half_backward(grad_in1, grad_in2, grad_out, in1, in2, idx1)
 
         ctx.for_backwards = (in1, in2, idx1, grad_out)
         return grad_in1, grad_in2

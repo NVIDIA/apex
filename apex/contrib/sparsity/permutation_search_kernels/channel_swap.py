@@ -225,9 +225,7 @@ def Channel_Swap(matrix, escape_attempts=0, verbosity=0, permutation=None):
     # do the work
     swapped = 1  # just start with nonzero value to fall into the loop
     while swapped > 0:
-        swap_map, swap_ids = build_swap_map(
-            matrix, swap_map, swap_ids, used_stripes, verbosity
-        )
+        swap_map, swap_ids = build_swap_map(matrix, swap_map, swap_ids, used_stripes, verbosity)
         (
             matrix,
             swapped,

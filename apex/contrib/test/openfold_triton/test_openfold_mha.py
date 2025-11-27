@@ -58,9 +58,7 @@ class OpenfoldMhaTest(unittest.TestCase):
         torch.manual_seed(seed)
 
     # representative workload in openfold
-    def test_openfold_triton_mha(
-        self, Z=256, H=4, N_CTX=256, D_HEAD=32, dtype=torch.float16
-    ):
+    def test_openfold_triton_mha(self, Z=256, H=4, N_CTX=256, D_HEAD=32, dtype=torch.float16):
         One = 1
         q = (
             torch.empty((One, Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda")
@@ -83,10 +81,7 @@ class OpenfoldMhaTest(unittest.TestCase):
             .requires_grad_()
         )
         mask = (
-            torch.empty((One, N_CTX, One, One, N_CTX), device="cuda").normal_(
-                mean=0, std=0.5
-            )
-            > 0
+            torch.empty((One, N_CTX, One, One, N_CTX), device="cuda").normal_(mean=0, std=0.5) > 0
         )
         mask = mask.to(device=torch.device("cuda"), dtype=dtype).requires_grad_(False)
 
@@ -103,9 +98,7 @@ class OpenfoldMhaTest(unittest.TestCase):
         ref_dbias, bias.grad = bias.grad.clone(), None
 
         # triton implementation
-        tri_out = openfold_attention_triton(
-            q, k, v, mask, bias, inf, torch.is_grad_enabled()
-        )
+        tri_out = openfold_attention_triton(q, k, v, mask, bias, inf, torch.is_grad_enabled())
         tri_out.backward(dout)
 
         tri_dv, v.grad = v.grad.clone(), None

@@ -62,8 +62,7 @@ class EnterDeviceContextManagerWithStreamInfoLine(EnterDeviceContextManagerLine)
 
             for i in range(1, config.num_streams):
                 code.writeline(
-                    f"{STREAM_NAME_TEMPLATE.format(stream_idx=i)} "
-                    f"= cuda_stream_pool.acquire()",
+                    f"{STREAM_NAME_TEMPLATE.format(stream_idx=i)} = cuda_stream_pool.acquire()",
                 )
 
 
@@ -169,9 +168,7 @@ class MultiStreamWrapperCodegen(PythonWrapperCodegen):
             )
         return MultiStreamWrapperCodegen()
 
-    def _write_get_raw_stream(
-        self, device_idx: int, graph: GraphLowering | None = None
-    ) -> str:
+    def _write_get_raw_stream(self, device_idx: int, graph: GraphLowering | None = None) -> str:
         self.write_triton_header_once()
         if (current_stream_name := V.graph.scheduler.current_stream_name) is not None:
             name = f"{current_stream_name}_raw"
@@ -257,9 +254,7 @@ class MultiStreamWrapperCodegen(PythonWrapperCodegen):
         """Generate data structure for exiting a CUDA Stream context."""
         self.writeline(ExitCudaStreamContextLine())
 
-    def codegen_events_wait_stream(
-        self, events: set[CudaEventSym], stream_idx: int
-    ) -> None:
+    def codegen_events_wait_stream(self, events: set[CudaEventSym], stream_idx: int) -> None:
         """Generate data structure for syncing hanging CUDA Events with certain stream.
 
         Args:
@@ -287,10 +282,7 @@ class MultiStreamWrapperCodegen(PythonWrapperCodegen):
         for buff in buffers:
             prefix = (
                 f"if {buff}.is_cuda: "
-                if buffers_requiring_device_check
-                and buff in buffers_requiring_device_check
+                if buffers_requiring_device_check and buff in buffers_requiring_device_check
                 else ""
             )
-            self.writeline(
-                f"{prefix}{buff}.record_stream({get_stream_name(stream_idx)})"
-            )
+            self.writeline(f"{prefix}{buff}.record_stream({get_stream_name(stream_idx)})")

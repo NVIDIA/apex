@@ -46,13 +46,9 @@ class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
     def _create_process_group_nccl(self):
         def maybe_export(env, val):
             if not type(env) == str:
-                raise ValueError(
-                    f"Type of type of env is expected to be str, but got {type(env)}"
-                )
+                raise ValueError(f"Type of type of env is expected to be str, but got {type(env)}")
             if not type(val) == str:
-                raise ValueError(
-                    f"Type of type of val is expected to be str, but got {type(val)}"
-                )
+                raise ValueError(f"Type of type of val is expected to be str, but got {type(val)}")
             if os.getenv(env) is None:
                 os.environ[env] = val
 

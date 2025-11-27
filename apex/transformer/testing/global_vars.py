@@ -46,9 +46,7 @@ def get_current_global_batch_size() -> int:
     return _GLOBAL_NUM_MICROBATCHES_CALCULATOR.get_current_global_batch_size()
 
 
-def update_num_microbatches(
-    consumed_samples: int, *, consistency_check: bool = True
-) -> None:
+def update_num_microbatches(consumed_samples: int, *, consistency_check: bool = True) -> None:
     """Update the number of microbatches upon the number of consumed samples.
 
     .. note::
@@ -108,9 +106,7 @@ def set_global_variables(
     _set_timers()
 
 
-def _parse_args(
-    extra_args_provider=None, defaults={}, override_args={}, ignore_unknown_args=False
-):
+def _parse_args(extra_args_provider=None, defaults={}, override_args={}, ignore_unknown_args=False):
     """Parse entire arguments."""
     global _GLOBAL_ARGS
     _ensure_var_is_not_initialized(_GLOBAL_ARGS, "args")

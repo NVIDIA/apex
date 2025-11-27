@@ -43,9 +43,7 @@ class P2PCommTestBase:
 
     def create_tensor(self, value: int = None):
         return (
-            torch.tensor([value] * self.numel)
-            .view(self.shape)
-            .to(device="cuda", dtype=self.dtype)
+            torch.tensor([value] * self.numel).view(self.shape).to(device="cuda", dtype=self.dtype)
         )
 
     # Brief: Simulate warm-up.
@@ -61,9 +59,7 @@ class P2PCommTestBase:
                 output_tensor=tensor, tensor_shape=self.shape, dtype=self.dtype
             )
         else:
-            input_tensor = p2p_communication.recv_forward(
-                tensor_shape=self.shape, dtype=self.dtype
-            )
+            input_tensor = p2p_communication.recv_forward(tensor_shape=self.shape, dtype=self.dtype)
 
         if parallel_state.is_pipeline_first_stage():
             self.assertIsNone(input_tensor)
@@ -81,9 +77,7 @@ class P2PCommTestBase:
                 output_tensor=tensor, tensor_shape=self.shape, dtype=self.dtype
             )
         elif parallel_state.is_pipeline_last_stage():
-            prev_tensor = p2p_communication.recv_forward(
-                tensor_shape=self.shape, dtype=self.dtype
-            )
+            prev_tensor = p2p_communication.recv_forward(tensor_shape=self.shape, dtype=self.dtype)
         else:
             prev_tensor = p2p_communication.send_forward_recv_forward(
                 output_tensor=tensor,
@@ -105,9 +99,7 @@ class P2PCommTestBase:
 
         next_tensor = None
         if parallel_state.is_pipeline_first_stage():
-            next_tensor = p2p_communication.recv_backward(
-                tensor_shape=self.shape, dtype=self.dtype
-            )
+            next_tensor = p2p_communication.recv_backward(tensor_shape=self.shape, dtype=self.dtype)
         elif parallel_state.is_pipeline_last_stage():
             p2p_communication.send_backward(
                 input_tensor_grad=tensor, tensor_shape=self.shape, dtype=self.dtype

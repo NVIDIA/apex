@@ -21,13 +21,9 @@ import os
 import torch
 
 
-def parse_args(
-    extra_args_provider=None, defaults={}, override_args={}, ignore_unknown_args=False
-):
+def parse_args(extra_args_provider=None, defaults={}, override_args={}, ignore_unknown_args=False):
     """Parse all arguments."""
-    parser = argparse.ArgumentParser(
-        description="Megatron-LM Arguments", allow_abbrev=False
-    )
+    parser = argparse.ArgumentParser(description="Megatron-LM Arguments", allow_abbrev=False)
 
     # Standard arguments.
     parser = _add_network_size_args(parser)
@@ -72,9 +68,7 @@ def parse_args(
         setattr(args, key, override_args[key])
 
     # Tensor model parallel size.
-    args.tensor_model_parallel_size = min(
-        args.tensor_model_parallel_size, args.world_size
-    )
+    args.tensor_model_parallel_size = min(args.tensor_model_parallel_size, args.world_size)
     assert args.world_size % args.tensor_model_parallel_size == 0, (
         "world size ({}) is not divisible by tensor model parallel size ({})".format(
             args.world_size, args.tensor_model_parallel_size
@@ -93,9 +87,7 @@ def parse_args(
         else args.pipeline_model_parallel_size
     )
     # Checks.
-    model_parallel_size = (
-        args.pipeline_model_parallel_size * args.tensor_model_parallel_size
-    )
+    model_parallel_size = args.pipeline_model_parallel_size * args.tensor_model_parallel_size
     assert args.world_size % model_parallel_size == 0, (
         "world size is not"
         " divisible by tensor parallel size ({}) times pipeline parallel "
@@ -119,12 +111,8 @@ def parse_args(
         )
     if args.pipeline_model_parallel_size > 1:
         if args.pipeline_model_parallel_split_rank is not None:
-            assert (
-                args.pipeline_model_parallel_split_rank
-                < args.pipeline_model_parallel_size
-            ), (
-                "split rank needs"
-                " to be less than pipeline model parallel size ({})".format(
+            assert args.pipeline_model_parallel_split_rank < args.pipeline_model_parallel_size, (
+                "split rank needs to be less than pipeline model parallel size ({})".format(
                     args.pipeline_model_parallel_size
                 )
             )
@@ -139,8 +127,7 @@ def parse_args(
     )
     del args.warmup
     assert args.model_parallel_size is None, (
-        "--model-parallel-size is no "
-        "longer valid, use --tensor-model-parallel-size instead"
+        "--model-parallel-size is no longer valid, use --tensor-model-parallel-size instead"
     )
     del args.model_parallel_size
     if args.checkpoint_activations:
@@ -167,9 +154,7 @@ def parse_args(
             if args.rank == 0:
                 print(
                     "WARNING: overriding default arguments for {key}:{v} \
-                       with {key}:{v2}".format(
-                        key=key, v=defaults[key], v2=getattr(args, key)
-                    ),
+                       with {key}:{v2}".format(key=key, v=defaults[key], v2=getattr(args, key)),
                     flush=True,
                 )
         else:
@@ -188,12 +173,10 @@ def parse_args(
     assert args.global_batch_size > 0
     if args.num_layers_per_virtual_pipeline_stage is not None:
         assert args.pipeline_model_parallel_size > 2, (
-            "pipeline-model-parallel size should be greater than 2 with "
-            "interleaved schedule"
+            "pipeline-model-parallel size should be greater than 2 with interleaved schedule"
         )
         assert args.num_layers % args.num_layers_per_virtual_pipeline_stage == 0, (
-            "number of layers is not divisible by number of layers per virtual "
-            "pipeline stage"
+            "number of layers is not divisible by number of layers per virtual pipeline stage"
         )
         args.virtual_pipeline_model_parallel_size = (
             args.num_layers // args.pipeline_model_parallel_size
@@ -215,8 +198,7 @@ def parse_args(
             args.accumulate_allreduce_grads_in_fp32 = True
             if args.rank == 0:
                 print(
-                    "accumulate and all-reduce gradients in fp32 for "
-                    "bfloat16 data type.",
+                    "accumulate and all-reduce gradients in fp32 for bfloat16 data type.",
                     flush=True,
                 )
 
@@ -256,12 +238,8 @@ def parse_args(
         # If we use iteration-based training, make sure the
         # sample-based options are off.
         assert args.train_samples is None, "expected iteration-based training"
-        assert args.lr_decay_samples is None, (
-            "expected iteration-based learning rate decay"
-        )
-        assert args.lr_warmup_samples == 0, (
-            "expected iteration-based learning rate warmup"
-        )
+        assert args.lr_decay_samples is None, "expected iteration-based learning rate decay"
+        assert args.lr_warmup_samples == 0, "expected iteration-based learning rate warmup"
         assert args.rampup_batch_size is None, (
             "expected no batch-size rampup for iteration-based training"
         )
@@ -347,17 +325,13 @@ def parse_args(
     # Activation recomputing.
     if args.distribute_saved_activations:
         assert args.tensor_model_parallel_size > 1, (
-            "can distribute "
-            "recomputed activations only across tensor model "
-            "parallel groups"
+            "can distribute recomputed activations only across tensor model parallel groups"
         )
         assert args.recompute_granularity == "full", (
-            "distributed recompute activations is only "
-            "application to full recompute granularity"
+            "distributed recompute activations is only application to full recompute granularity"
         )
         assert args.recompute_method is not None, (
-            "for distributed recompute activations to work you "
-            "need to use a recompute method "
+            "for distributed recompute activations to work you need to use a recompute method "
         )
         assert TORCH_MAJOR >= 1 and TORCH_MINOR >= 10, (
             "distributed recompute activations are supported for pytorch "
@@ -367,8 +341,7 @@ def parse_args(
 
     if args.recompute_granularity == "selective":
         assert args.recompute_method is None, (
-            "recompute method is not yet supported for "
-            "selective recomputing granularity"
+            "recompute method is not yet supported for selective recomputing granularity"
         )
 
     # disable async_tensor_model_parallel_allreduce when
@@ -415,12 +388,8 @@ def _add_inference_args(parser):
 def _add_network_size_args(parser):
     group = parser.add_argument_group(title="network size")
 
-    group.add_argument(
-        "--num-layers", type=int, default=None, help="Number of transformer layers."
-    )
-    group.add_argument(
-        "--hidden-size", type=int, default=None, help="Tansformer hidden size."
-    )
+    group.add_argument("--num-layers", type=int, default=None, help="Number of transformer layers.")
+    group.add_argument("--hidden-size", type=int, default=None, help="Tansformer hidden size.")
     group.add_argument(
         "--ffn-hidden-size",
         type=int,
@@ -457,9 +426,7 @@ def _add_network_size_args(parser):
         help="Pad the vocab size to be divisible by this value."
         "This is added for computational efficieny reasons.",
     )
-    group.add_argument(
-        "--layernorm-epsilon", type=float, default=1e-5, help="Layer norm epsilon."
-    )
+    group.add_argument("--layernorm-epsilon", type=float, default=1e-5, help="Layer norm epsilon.")
     group.add_argument(
         "--apply-residual-connection-post-layernorm",
         action="store_true",
@@ -610,15 +577,13 @@ def _add_regularization_args(parser):
         "--adam-beta1",
         type=float,
         default=0.9,
-        help="First coefficient for computing running averages "
-        "of gradient and its square",
+        help="First coefficient for computing running averages of gradient and its square",
     )
     group.add_argument(
         "--adam-beta2",
         type=float,
         default=0.999,
-        help="Second coefficient for computing running averages "
-        "of gradient and its square",
+        help="Second coefficient for computing running averages of gradient and its square",
     )
     group.add_argument(
         "--adam-eps",
@@ -626,9 +591,7 @@ def _add_regularization_args(parser):
         default=1e-08,
         help="Term added to the denominator to improvenumerical stability",
     )
-    group.add_argument(
-        "--sgd-momentum", type=float, default=0.9, help="Momentum factor for sgd"
-    )
+    group.add_argument("--sgd-momentum", type=float, default=0.9, help="Momentum factor for sgd")
 
     return parser
 
@@ -823,8 +786,7 @@ def _add_training_args(parser):
     group.add_argument(
         "--no-gradient-accumulation-fusion",
         action="store_false",
-        help="Disable fusing gradient accumulation to weight "
-        "gradient computation of linear layers",
+        help="Disable fusing gradient accumulation to weight gradient computation of linear layers",
         dest="gradient_accumulation_fusion",
     )
     return parser
@@ -884,8 +846,7 @@ def _add_learning_rate_args(parser):
         "--lr-decay-samples",
         type=int,
         default=None,
-        help="number of samples to decay learning rate over,"
-        " If None defaults to `--train-samples`",
+        help="number of samples to decay learning rate over, If None defaults to `--train-samples`",
     )
     group.add_argument(
         "--lr-warmup-fraction",
@@ -909,15 +870,13 @@ def _add_learning_rate_args(parser):
         "--warmup",
         type=int,
         default=None,
-        help="Old lr warmup argument, do not use. Use one of the"
-        "--lr-warmup-* arguments above",
+        help="Old lr warmup argument, do not use. Use one of the--lr-warmup-* arguments above",
     )
     group.add_argument(
         "--min-lr",
         type=float,
         default=0.0,
-        help="Minumum value for learning rate. The scheduler"
-        "clip values below this threshold.",
+        help="Minumum value for learning rate. The schedulerclip values below this threshold.",
     )
     group.add_argument(
         "--override-lr-scheduler",
@@ -1000,9 +959,7 @@ def _add_mixed_precision_args(parser):
     group = parser.add_argument_group(title="mixed precision")
 
     group.add_argument("--fp16", action="store_true", help="Run model in fp16 mode.")
-    group.add_argument(
-        "--bf16", action="store_true", help="Run model in bfloat16 mode."
-    )
+    group.add_argument("--bf16", action="store_true", help="Run model in bfloat16 mode.")
     group.add_argument(
         "--loss-scale",
         type=float,
@@ -1089,8 +1046,7 @@ def _add_distributed_args(parser):
         "--model-parallel-size",
         type=int,
         default=None,
-        help="Old model parallel argument, do not use. Use "
-        "--tensor-model-parallel-size instead.",
+        help="Old model parallel argument, do not use. Use --tensor-model-parallel-size instead.",
     )
     group.add_argument(
         "--num-layers-per-virtual-pipeline-stage",
@@ -1205,12 +1161,8 @@ def _add_data_args(parser):
         "`90,5,5` will use 90%% of data for training, 5%% for "
         "validation and 5%% for test.",
     )
-    group.add_argument(
-        "--vocab-file", type=str, default=None, help="Path to the vocab file."
-    )
-    group.add_argument(
-        "--merge-file", type=str, default=None, help="Path to the BPE merge file."
-    )
+    group.add_argument("--vocab-file", type=str, default=None, help="Path to the vocab file.")
+    group.add_argument("--merge-file", type=str, default=None, help="Path to the BPE merge file.")
     group.add_argument(
         "--vocab-extra-ids",
         type=int,
@@ -1228,8 +1180,7 @@ def _add_data_args(parser):
         "--encoder-seq-length",
         type=int,
         default=None,
-        help="Maximum encoder sequence length to process."
-        "This should be exclusive of --seq-length",
+        help="Maximum encoder sequence length to process.This should be exclusive of --seq-length",
     )
     group.add_argument(
         "--decoder-seq-length",
@@ -1262,9 +1213,7 @@ def _add_data_args(parser):
         help="Probability of producing a short sequence.",
     )
     group.add_argument("--mmap-warmup", action="store_true", help="Warm up mmap files.")
-    group.add_argument(
-        "--num-workers", type=int, default=2, help="Dataloader number of workers."
-    )
+    group.add_argument("--num-workers", type=int, default=2, help="Dataloader number of workers.")
     group.add_argument(
         "--tokenizer-type",
         type=str,
@@ -1324,8 +1273,7 @@ def _add_biencoder_args(parser):
         "--ict-head-size",
         type=int,
         default=None,
-        help="Size of block embeddings to be used in ICT and "
-        "REALM (paper default: 128)",
+        help="Size of block embeddings to be used in ICT and REALM (paper default: 128)",
     )
     group.add_argument(
         "--biencoder-projection-dim",
@@ -1350,8 +1298,7 @@ def _add_biencoder_args(parser):
         "--bert-load",
         type=str,
         default=None,
-        help="Directory containing an BertModel checkpoint "
-        "(needed to start ICT and REALM)",
+        help="Directory containing an BertModel checkpoint (needed to start ICT and REALM)",
     )
 
     # data
@@ -1513,14 +1460,10 @@ def _add_vision_args(parser):
         choices=["random", "row"],
         help="mask types",
     )
-    group.add_argument(
-        "--mask-factor", type=float, default=1.0, help="mask size scaling parameter"
-    )
+    group.add_argument("--mask-factor", type=float, default=1.0, help="mask size scaling parameter")
 
     # dino arguments
-    group.add_argument(
-        "--iter-per-epoch", type=int, default=1250, help="iterations per epoch"
-    )
+    group.add_argument("--iter-per-epoch", type=int, default=1250, help="iterations per epoch")
     group.add_argument(
         "--dino-local-img-size",
         type=int,
@@ -1559,9 +1502,7 @@ def _add_vision_args(parser):
         default=0.04,
         help="warump teacher temperature",
     )
-    group.add_argument(
-        "--dino-teacher-temp", type=float, default=0.07, help="teacher temperature"
-    )
+    group.add_argument("--dino-teacher-temp", type=float, default=0.07, help="teacher temperature")
     group.add_argument(
         "--dino-warmup-teacher-temp-epochs",
         type=int,

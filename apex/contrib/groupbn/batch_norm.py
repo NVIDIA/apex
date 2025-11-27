@@ -321,12 +321,8 @@ class BatchNorm2d_NHWC(_BatchNorm):
         assert max_cta_per_sm > 0  # won't be able to do much with 0 CTAs :)
         self.fwd_occupancy = min(bnp.bn_fwd_nhwc_occupancy(), max_cta_per_sm)
         self.bwd_occupancy = min(bnp.bn_bwd_nhwc_occupancy(), max_cta_per_sm)
-        self.addrelu_fwd_occupancy = min(
-            bnp.bn_addrelu_fwd_nhwc_occupancy(), max_cta_per_sm
-        )
-        self.addrelu_bwd_occupancy = min(
-            bnp.bn_addrelu_bwd_nhwc_occupancy(), max_cta_per_sm
-        )
+        self.addrelu_fwd_occupancy = min(bnp.bn_addrelu_fwd_nhwc_occupancy(), max_cta_per_sm)
+        self.addrelu_bwd_occupancy = min(bnp.bn_addrelu_bwd_nhwc_occupancy(), max_cta_per_sm)
 
         # calculate grid dimentions based on occupancy numbers
         mp_count = torch.cuda.get_device_properties(None).multi_processor_count
@@ -366,9 +362,7 @@ class BatchNorm2d_NHWC(_BatchNorm):
             self.share_cuda = self.storage._share_cuda_()
             internal_cuda_mem = self.share_cuda
             # internal_cuda_mem[1]: ipc_mem_handle
-            my_handle = torch.cuda.ByteTensor(
-                np.frombuffer(internal_cuda_mem[1], dtype=np.uint8)
-            )
+            my_handle = torch.cuda.ByteTensor(np.frombuffer(internal_cuda_mem[1], dtype=np.uint8))
             # internal_cuda_mem[3]: offset
             my_offset = torch.cuda.IntTensor([internal_cuda_mem[3]])
 
@@ -398,16 +392,12 @@ class BatchNorm2d_NHWC(_BatchNorm):
             if bn_group > 2:
                 self.pair_handle2 = handles_l[local_rank ^ 2].cpu().contiguous()
                 pair_offset2 = offsets_l[local_rank ^ 2].cpu()
-                self.pair_data2 = bnp.get_remote_data_ptr(
-                    self.pair_handle2, pair_offset2
-                )
+                self.pair_data2 = bnp.get_remote_data_ptr(self.pair_handle2, pair_offset2)
 
             if bn_group > 4:
                 self.pair_handle3 = handles_l[local_rank ^ 4].cpu().contiguous()
                 pair_offset3 = offsets_l[local_rank ^ 4].cpu()
-                self.pair_data3 = bnp.get_remote_data_ptr(
-                    self.pair_handle3, pair_offset3
-                )
+                self.pair_data3 = bnp.get_remote_data_ptr(self.pair_handle3, pair_offset3)
 
             # FIXME: get magic value into C code and eliminate from here
             self.magic = torch.IntTensor([2])

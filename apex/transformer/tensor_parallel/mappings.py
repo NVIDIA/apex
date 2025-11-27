@@ -91,9 +91,7 @@ def _gather_along_last_dim(input_: torch.Tensor) -> torch.Tensor:
 
     tensor_list = [torch.empty_like(input_) for _ in range(world_size)]
     tensor_list[rank] = input_
-    torch.distributed.all_gather(
-        tensor_list, input_, group=get_tensor_model_parallel_group()
-    )
+    torch.distributed.all_gather(tensor_list, input_, group=get_tensor_model_parallel_group())
 
     # Note: torch.cat already creates a contiguous tensor.
     output = torch.cat(tensor_list, dim=last_dim).contiguous()

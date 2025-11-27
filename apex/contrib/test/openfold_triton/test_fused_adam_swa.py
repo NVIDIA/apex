@@ -75,9 +75,9 @@ class swa_avg_fn:
         # 1000*avg/1000 - avg/1000 + m/1000
         # avg + (m - avg)/1000
         # avg + (m - avg)*0.001
-        return averaged_model_parameter + (
-            model_parameter - averaged_model_parameter
-        ) * (1.0 - self._decay_rate)
+        return averaged_model_parameter + (model_parameter - averaged_model_parameter) * (
+            1.0 - self._decay_rate
+        )
 
 
 @unittest.skipIf(SKIP_TEST, f"Skip testing FusedAdamSWA: {SKIP_TEST}")
@@ -104,9 +104,7 @@ class FusedAdamSWATestCase(unittest.TestCase):
         device = torch.device("cuda:0")
         compute_dtype = torch.float32
         state_dtype = torch.float64
-        atol = (
-            1e-5  # Default: 1e-8, raise error at 1e-6 for FP32 compute and FP64 state.
-        )
+        atol = 1e-5  # Default: 1e-8, raise error at 1e-6 for FP32 compute and FP64 state.
         rtol = 1e-4  # Default: 1e-5
         lr = 1e-1
         bias_correction = True
@@ -120,14 +118,11 @@ class FusedAdamSWATestCase(unittest.TestCase):
         swa_n_averaged = 1
 
         state_params = [
-            torch.empty(
-                random.randint(128, 2048), device=device, dtype=state_dtype
-            ).uniform_(-5, 5)
+            torch.empty(random.randint(128, 2048), device=device, dtype=state_dtype).uniform_(-5, 5)
             for _ in range(32)
         ]
         compute_dtypes = [
-            compute_dtype if random.uniform(0.0, 1.0) <= 0.5 else state_dtype
-            for _ in range(32)
+            compute_dtype if random.uniform(0.0, 1.0) <= 0.5 else state_dtype for _ in range(32)
         ]
         grads = [
             torch.empty_like(p, dtype=d).uniform_(-5, 5)
@@ -137,9 +132,7 @@ class FusedAdamSWATestCase(unittest.TestCase):
         velocities = [torch.empty_like(p).uniform_(0, 10) for p in state_params]
 
         # Ground truth: Apex FusedAdam, optimized-hpc SWA.
-        compute_params_gt = [
-            p.clone().to(d) for d, p in zip(compute_dtypes, state_params)
-        ]
+        compute_params_gt = [p.clone().to(d) for d, p in zip(compute_dtypes, state_params)]
         dummy_model = torch.nn.Module()
         for i, p in enumerate(state_params):
             dummy_model.register_parameter(f"param_{i}", torch.nn.Parameter(p.clone()))
@@ -173,9 +166,7 @@ class FusedAdamSWATestCase(unittest.TestCase):
 
         # Fused AdamSWA, all at once.
         state_params_test = [torch.nn.Parameter(p.clone()) for p in state_params]
-        compute_params_test = [
-            p.clone().to(d) for d, p in zip(compute_dtypes, state_params)
-        ]
+        compute_params_test = [p.clone().to(d) for d, p in zip(compute_dtypes, state_params)]
         swa_params_test = [p.clone() for p in state_params]
         fused_optimizer = FusedAdamSWA(
             params=state_params_test,

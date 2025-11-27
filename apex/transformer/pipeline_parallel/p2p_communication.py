@@ -193,9 +193,7 @@ def _communicate(
     sync_batch_comm: bool = True,
     overlap_p2p_comm: bool = False,
     batch_p2p_comm: bool = True,
-) -> Tuple[
-    Union[torch.Tensor, FutureTensor, None], Union[torch.Tensor, FutureTensor, None]
-]:
+) -> Tuple[Union[torch.Tensor, FutureTensor, None], Union[torch.Tensor, FutureTensor, None]]:
     """Base function for communication of tensors between stages.
 
 
@@ -373,16 +371,12 @@ def _communicate(
         if not async_comm:
             if recv_prev:
                 tensor_recv_prev = (
-                    gather_split_1d_tensor(tensor_recv_prev)
-                    .view(tensor_shape)
-                    .requires_grad_()
+                    gather_split_1d_tensor(tensor_recv_prev).view(tensor_shape).requires_grad_()
                 )
 
             if recv_next:
                 tensor_recv_next = (
-                    gather_split_1d_tensor(tensor_recv_next)
-                    .view(tensor_shape)
-                    .requires_grad_()
+                    gather_split_1d_tensor(tensor_recv_next).view(tensor_shape).requires_grad_()
                 )
         else:
 
@@ -391,20 +385,12 @@ def _communicate(
                 # From @Deepak's PR https://github.com/NVIDIA/Megatron-LM/commit/27fc468964064eeb33b703c9a0b2af938d80dd14
                 # A sync seems to be needed before gather otherwise losses jump around e.g., in run_gpt_minimal_test
                 torch.cuda.synchronize()
-                return (
-                    gather_split_1d_tensor(tensor_recv_prev)
-                    .view(tensor_shape)
-                    .requires_grad_()
-                )
+                return gather_split_1d_tensor(tensor_recv_prev).view(tensor_shape).requires_grad_()
 
             def gather_recv_next_wait():
                 tensor_recv_next_req.wait()
                 torch.cuda.synchronize()
-                return (
-                    gather_split_1d_tensor(tensor_recv_next)
-                    .view(tensor_shape)
-                    .requires_grad_()
-                )
+                return gather_split_1d_tensor(tensor_recv_next).view(tensor_shape).requires_grad_()
 
             tensor_recv_prev_waitfunc = gather_recv_prev_wait
             tensor_recv_next_waitfunc = gather_recv_next_wait
@@ -412,13 +398,9 @@ def _communicate(
         future_tensor_recv_prev = None
         future_tensor_recv_next = None
         if tensor_recv_prev is not None:
-            future_tensor_recv_prev = FutureTensor(
-                tensor_recv_prev, tensor_recv_prev_waitfunc
-            )
+            future_tensor_recv_prev = FutureTensor(tensor_recv_prev, tensor_recv_prev_waitfunc)
         if tensor_recv_next is not None:
-            future_tensor_recv_next = FutureTensor(
-                tensor_recv_next, tensor_recv_next_waitfunc
-            )
+            future_tensor_recv_next = FutureTensor(tensor_recv_next, tensor_recv_next_waitfunc)
         return future_tensor_recv_prev, future_tensor_recv_next, None
     return tensor_recv_prev, tensor_recv_next, wait_handles
 

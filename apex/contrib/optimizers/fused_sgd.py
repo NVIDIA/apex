@@ -102,9 +102,7 @@ class FusedSGD(Optimizer):
             self._dummy_overflow_buf = torch.cuda.IntTensor([0])
             self.multi_tensor_sgd = amp_C.multi_tensor_sgd
         else:
-            raise RuntimeError(
-                "apex.contrib.optimizers.FusedSGD requires cuda extensions"
-            )
+            raise RuntimeError("apex.contrib.optimizers.FusedSGD requires cuda extensions")
 
     def __setstate__(self, state):
         super(FusedSGD, self).__setstate__(state)
@@ -128,9 +126,7 @@ class FusedSGD(Optimizer):
                 momentums.append(param_state["momentum_buffer"])
         return momentums, first_run
 
-    def step(
-        self, closure=None, grads=None, output_params=None, scale=1.0, grad_norms=None
-    ):
+    def step(self, closure=None, grads=None, output_params=None, scale=1.0, grad_norms=None):
         """Performs a single optimization step.
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
@@ -145,9 +141,7 @@ class FusedSGD(Optimizer):
                 by before applying to weights. (default: 1)
         """
         if hasattr(self, "_amp_stash"):
-            raise RuntimeError(
-                "apex.contrib.optimizers.FusedSGD should not be used with AMP."
-            )
+            raise RuntimeError("apex.contrib.optimizers.FusedSGD should not be used with AMP.")
 
         loss = None
         if closure is not None:
@@ -227,9 +221,7 @@ class FusedSGD(Optimizer):
                 for (p1, p2) in zip(output_params_this_group, group["params"])
                 if p1.dtype == torch.float16
             ]
-            fp32_from_fp16_momentums, first_runs[0] = self.get_momentums(
-                fp32_from_fp16_params
-            )
+            fp32_from_fp16_momentums, first_runs[0] = self.get_momentums(fp32_from_fp16_params)
             fp16_params = [
                 p1
                 for (p1, p2) in zip(output_params_this_group, group["params"])

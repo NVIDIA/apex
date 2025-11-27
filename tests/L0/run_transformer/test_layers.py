@@ -71,9 +71,7 @@ class TensorParallelLayerTestBase:
                 gathered[i * numel : (i + 1) * numel]
                 for i in range(tensor_model_parallel_world_size)
             ]
-            all_gather(
-                chunks, tensor, group=parallel_state.get_tensor_model_parallel_group()
-            )
+            all_gather(chunks, tensor, group=parallel_state.get_tensor_model_parallel_group())
 
             gathered_for_base = torch.empty(
                 torch.Size((numel_gathered,)),
@@ -87,9 +85,7 @@ class TensorParallelLayerTestBase:
                 group=parallel_state.get_tensor_model_parallel_group(),
             )
 
-            msg = (
-                f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
-            )
+            msg = f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
             self.assertEqual(gathered, gathered_for_base, msg=msg)
             parallel_state.destroy_model_parallel()
 
@@ -125,9 +121,7 @@ class TensorParallelLayerTestBase:
                         for i in range(tensor_model_parallel_world_size)
                     ]
                 )
-                input_list = [
-                    t.clone() for t in input.chunk(tensor_model_parallel_world_size)
-                ]
+                input_list = [t.clone() for t in input.chunk(tensor_model_parallel_world_size)]
             output = torch.empty(
                 self.tensor_shape,
                 device=cur_tensor_model_device,
@@ -152,9 +146,7 @@ class TensorParallelLayerTestBase:
                 group=parallel_state.get_tensor_model_parallel_group(),
             )
 
-            msg = (
-                f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
-            )
+            msg = f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
             self.assertEqual(output, output_for_base, msg=msg)
             self.assertEqual(input, torch.cat(input_list), msg=msg)
             parallel_state.destroy_model_parallel()
@@ -208,9 +200,7 @@ class TensorParallelLayerTestBase:
             loss_vocab_parallel = torch.mul(output_vocab_parallel, loss_weight).sum()
             loss_vocab_parallel.backward()
 
-            msg = (
-                f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
-            )
+            msg = f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
             self.assertEqual(output_torch, output_vocab_parallel, msg=msg)
             self.assertEqual(loss_torch, loss_vocab_parallel, msg=msg)
 
@@ -227,9 +217,7 @@ class TensorParallelLayerTestBase:
 
             parallel_state.destroy_model_parallel()
 
-    def _affine_weight_init_test_impl(
-        self, init_device: str, is_column_parallel: bool
-    ) -> None:
+    def _affine_weight_init_test_impl(self, init_device: str, is_column_parallel: bool) -> None:
         dim = int(not is_column_parallel)
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_parallel_world_size:
@@ -305,9 +293,7 @@ class TensorParallelLayerTestBase:
         self._row_parallel_linear_test_impl(True, True, False)
 
     # fails on native ucc and torch ucc: ucc does not support reduce scatter
-    @unittest.skipIf(
-        torch.cuda.device_count() < 2, "Sequence Parallel requires >=2 GPUs"
-    )
+    @unittest.skipIf(torch.cuda.device_count() < 2, "Sequence Parallel requires >=2 GPUs")
     def test_row_parallel_linear_sequence_parallel(self) -> None:
         self._row_parallel_linear_test_impl(False, False, True)
 
@@ -355,14 +341,10 @@ class TensorParallelLayerTestBase:
                 with torch.no_grad():
                     linear.weight.main_grad = torch.zeros_like(linear.weight)
 
-            msg = (
-                f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
-            )
+            msg = f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
 
             with torch.no_grad():
-                orig_input_tensor = torch.randn(
-                    tensor_shape, requires_grad=True, device="cuda"
-                )
+                orig_input_tensor = torch.randn(tensor_shape, requires_grad=True, device="cuda")
                 orig_loss_weight = torch.randn(tensor_shape, device="cuda")
                 input_tensor = orig_input_tensor.chunk(
                     chunks=tensor_model_parallel_world_size,
@@ -450,9 +432,7 @@ class TensorParallelLayerTestBase:
             self.skipTest("Backward's reduce_scatter fails. as of 2022/06/15")
         self._column_parallel_linear_test_impl(False, False, False, True)
 
-    @unittest.skipIf(
-        torch.cuda.device_count() < 2, "Sequence Parallel requires >= 2 GPUs"
-    )
+    @unittest.skipIf(torch.cuda.device_count() < 2, "Sequence Parallel requires >= 2 GPUs")
     def test_column_parallel_linear_exception(self):
         with self.assertRaisesRegex(
             RuntimeError,
@@ -473,9 +453,7 @@ class TensorParallelLayerTestBase:
                     continue
             if self.world_size % tensor_model_parallel_world_size:
                 continue
-            msg = (
-                f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
-            )
+            msg = f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size,
             )
@@ -510,9 +488,7 @@ class TensorParallelLayerTestBase:
                 with torch.no_grad():
                     linear.weight.main_grad = torch.zeros_like(linear.weight)
 
-            orig_input_tensor = torch.randn(
-                input_tensor_shape, device="cuda", requires_grad=True
-            )
+            orig_input_tensor = torch.randn(input_tensor_shape, device="cuda", requires_grad=True)
             if accumulation_in_fp16:
                 orig_input_tensor = orig_input_tensor.half()
             if sequence_parallel_enabled:

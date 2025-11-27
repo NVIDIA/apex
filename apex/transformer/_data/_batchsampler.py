@@ -56,9 +56,7 @@ class MegatronPretrainingSampler(_Base):
                 f"local minibatch size must be greater than 0: {local_minibatch_size}"
             )
         if data_parallel_size <= 0:
-            raise RuntimeError(
-                f"data parallel size must be greater than 0: {data_parallel_size}"
-            )
+            raise RuntimeError(f"data parallel size must be greater than 0: {data_parallel_size}")
         if data_parallel_rank >= data_parallel_size:
             raise RuntimeError(
                 "data_parallel_rank should be smaller than data size: {}, {}".format(
@@ -153,9 +151,7 @@ class MegatronPretrainingRandomSampler(_Base):
         self.local_minibatch_times_data_parallel_size = (
             self._local_minibatch_size * self.data_parallel_size
         )
-        self.last_batch_size = (
-            self.total_samples % self.local_minibatch_times_data_parallel_size
-        )
+        self.last_batch_size = self.total_samples % self.local_minibatch_times_data_parallel_size
 
     def __len__(self) -> int:
         return self.total_samples

@@ -75,9 +75,7 @@ class FusedAdam(torch.optim.Optimizer):
         super(FusedAdam, self).__init__(params, defaults)
         self.eps_mode = 0 if eps_inside_sqrt else 1
 
-    def step(
-        self, closure=None, grads=None, output_params=None, scale=1.0, grad_norms=None
-    ):
+    def step(self, closure=None, grads=None, output_params=None, scale=1.0, grad_norms=None):
         """Performs a single optimization step.
 
         Arguments:
@@ -179,9 +177,7 @@ class FusedAdam(torch.optim.Optimizer):
                 state["step"] += 1
 
                 out_p = (
-                    torch.tensor([], dtype=torch.float)
-                    if output_param is None
-                    else output_param
+                    torch.tensor([], dtype=torch.float) if output_param is None else output_param
                 )
                 if self._use_multi_tensor:
                     pl = [p.data, exp_avg, exp_avg_sq, grad]

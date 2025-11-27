@@ -103,12 +103,8 @@ class EncdecMultiheadAttnNormAddTest(unittest.TestCase):
             self.ref_inputs_q.backward(grads)
             self.tst_inputs_q.backward(grads)
 
-        torch.testing.assert_close(
-            self.ref_inputs_q, self.tst_inputs_q, atol=1e-5, rtol=1e-5
-        )
-        torch.testing.assert_close(
-            self.ref_inputs_k, self.tst_inputs_k, atol=1e-5, rtol=1e-5
-        )
+        torch.testing.assert_close(self.ref_inputs_q, self.tst_inputs_q, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(self.ref_inputs_k, self.tst_inputs_k, atol=1e-5, rtol=1e-5)
         torch.testing.assert_close(ref_outputs, tst_outputs, atol=1e-3, rtol=1e-3)
         torch.testing.assert_close(
             self.ref_inputs_q.grad, self.tst_inputs_q.grad, atol=1e-3, rtol=1e-3

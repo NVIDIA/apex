@@ -94,9 +94,7 @@ class FusedLAMB(torch.optim.Optimizer):
             fused_lamb_cuda = importlib.import_module("fused_lamb_cuda")
             self.multi_tensor_lamb = fused_lamb_cuda.lamb
         else:
-            raise RuntimeError(
-                "apex.contrib.optimizers.FusedLAMB requires cuda extensions"
-            )
+            raise RuntimeError("apex.contrib.optimizers.FusedLAMB requires cuda extensions")
 
         self.adam_w_mode = 1 if adam_w_mode else 0
         self.set_grad_none = set_grad_none

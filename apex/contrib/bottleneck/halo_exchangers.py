@@ -21,9 +21,7 @@ class HaloExchanger(object):
         self.wrap_around_right_rank_in_group = (rank_in_group + 1) % self.group_size
         self.left_rank = ranks[rank_in_group - 1] if rank_in_group > 0 else -1
         self.left_zero = True if rank_in_group == 0 else False
-        self.right_rank = (
-            ranks[rank_in_group + 1] if rank_in_group < self.group_size - 1 else -1
-        )
+        self.right_rank = ranks[rank_in_group + 1] if rank_in_group < self.group_size - 1 else -1
         self.right_zero = True if rank_in_group == self.group_size - 1 else False
 
 
@@ -72,18 +70,11 @@ class HaloExchangerAllGather(HaloExchanger):
             device=left_output_halo.device,
         )
         all_halos = [
-            all_halos[:, i * 2 * Hh : (i + 1) * 2 * Hh, :, :]
-            for i in range(self.group_size)
+            all_halos[:, i * 2 * Hh : (i + 1) * 2 * Hh, :, :] for i in range(self.group_size)
         ]
-        torch.distributed.all_gather(
-            all_halos, send_halos, group=self.comm, no_copy=True
-        )
-        ag_left_input_halo = all_halos[self.wrap_around_left_rank_in_group][
-            :, Hh:, :, :
-        ]
-        ag_right_input_halo = all_halos[self.wrap_around_right_rank_in_group][
-            :, :Hh, :, :
-        ]
+        torch.distributed.all_gather(all_halos, send_halos, group=self.comm, no_copy=True)
+        ag_left_input_halo = all_halos[self.wrap_around_left_rank_in_group][:, Hh:, :, :]
+        ag_right_input_halo = all_halos[self.wrap_around_right_rank_in_group][:, :Hh, :, :]
         if left_input_halo is None:
             if self.left_zero:
                 ag_left_input_halo.zero_()
@@ -178,9 +169,7 @@ class HaloExchangerPeer(HaloExchanger):
         left_input_halo=None,
         right_input_halo=None,
     ):
-        inplace = (
-            False if left_input_halo is None and right_input_halo is None else True
-        )
+        inplace = False if left_input_halo is None and right_input_halo is None else True
         if not inplace:
             left_input_halo = torch.empty_like(right_output_halo)
             right_input_halo = torch.empty_like(left_output_halo)
@@ -218,9 +207,7 @@ class HaloPadder:
         self.stream2 = torch.cuda.Stream()
 
     def __call__(self, y, half_halo, explicit_nhwc, H_split):
-        channels_last = not explicit_nhwc and y.is_contiguous(
-            memory_format=torch.channels_last
-        )
+        channels_last = not explicit_nhwc and y.is_contiguous(memory_format=torch.channels_last)
         if explicit_nhwc:
             N, H, W, C = list(y.shape)
             if H_split:

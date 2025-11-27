@@ -83,9 +83,9 @@ def param_is_not_tensor_parallel_duplicate(param: torch.Tensor) -> bool:
         "It is available on PyPI at https://pypi.org/project/megatron-core/ "
         "and its documentation can be found at https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html."
     )
-    return (
-        hasattr(param, "tensor_model_parallel") and param.tensor_model_parallel
-    ) or (get_tensor_model_parallel_rank() == 0)
+    return (hasattr(param, "tensor_model_parallel") and param.tensor_model_parallel) or (
+        get_tensor_model_parallel_rank() == 0
+    )
 
 
 def set_tensor_model_parallel_attributes(
@@ -190,17 +190,13 @@ def _initialize_affine_weight_cpu(
     )
 
     # Initialize master weight
-    master_weight = torch.empty(
-        output_size, input_size, dtype=torch.float, requires_grad=False
-    )
+    master_weight = torch.empty(output_size, input_size, dtype=torch.float, requires_grad=False)
     init_method(master_weight)
     master_weight = master_weight.to(dtype=params_dtype)
 
     # Split and copy
     per_partition_per_stride_size = divide(per_partition_size, stride)
-    weight_list = torch.split(
-        master_weight, per_partition_per_stride_size, dim=partition_dim
-    )
+    weight_list = torch.split(master_weight, per_partition_per_stride_size, dim=partition_dim)
     rank = get_tensor_model_parallel_rank()
     world_size = get_tensor_model_parallel_world_size()
     my_weight_list = weight_list[rank::world_size]
@@ -261,9 +257,7 @@ class VocabParallelEmbedding(torch.nn.Module):
             get_tensor_model_parallel_rank(),
             self.tensor_model_parallel_size,
         )
-        self.num_embeddings_per_partition = (
-            self.vocab_end_index - self.vocab_start_index
-        )
+        self.num_embeddings_per_partition = self.vocab_end_index - self.vocab_start_index
 
         # Allocate weights and initialize.
         if use_cpu_initialization:
@@ -292,16 +286,12 @@ class VocabParallelEmbedding(torch.nn.Module):
                     dtype=params_dtype,
                 )
             )
-            _initialize_affine_weight_gpu(
-                self.weight, init_method, partition_dim=0, stride=1
-            )
+            _initialize_affine_weight_gpu(self.weight, init_method, partition_dim=0, stride=1)
 
     def forward(self, input_):
         if self.tensor_model_parallel_size > 1:
             # Build the mask.
-            input_mask = (input_ < self.vocab_start_index) | (
-                input_ >= self.vocab_end_index
-            )
+            input_mask = (input_ < self.vocab_start_index) | (input_ >= self.vocab_end_index)
             # Mask the input.
             masked_input = input_.clone() - self.vocab_start_index
             masked_input[input_mask] = 0
@@ -488,9 +478,7 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
                     total_input, grad_output, weight.main_grad
                 )
             else:
-                raise RuntimeError(
-                    f"unsupported dtype for main_grad ({weight.main_grad.dtype})"
-                )
+                raise RuntimeError(f"unsupported dtype for main_grad ({weight.main_grad.dtype})")
             grad_weight = None
         else:
             grad_weight = grad_output.t().matmul(total_input)
@@ -607,9 +595,7 @@ class ColumnParallelLinear(torch.nn.Module):
         # Initialize weight.
         if use_cpu_initialization:
             self.weight = Parameter(
-                torch.empty(
-                    self.output_size_per_partition, self.input_size, dtype=params_dtype
-                )
+                torch.empty(self.output_size_per_partition, self.input_size, dtype=params_dtype)
             )
             self.master_weight = _initialize_affine_weight_cpu(
                 self.weight,
@@ -631,9 +617,7 @@ class ColumnParallelLinear(torch.nn.Module):
                     dtype=params_dtype,
                 )
             )
-            _initialize_affine_weight_gpu(
-                self.weight, init_method, partition_dim=0, stride=stride
-            )
+            _initialize_affine_weight_gpu(self.weight, init_method, partition_dim=0, stride=stride)
 
         if bias:
             if use_cpu_initialization:
@@ -680,19 +664,14 @@ class ColumnParallelLinear(torch.nn.Module):
                 gradient_accumulation_fusion = False
         self.gradient_accumulation_fusion = gradient_accumulation_fusion
 
-        if (
-            self.async_tensor_model_parallel_allreduce
-            and self.sequence_parallel_enabled
-        ):
+        if self.async_tensor_model_parallel_allreduce and self.sequence_parallel_enabled:
             raise RuntimeError(
                 "`async_tensor_model_parallel_allreduce` and `sequence_parallel_enabled` cannot be enabled at the same time."
             )
 
         self._forward_impl = linear_with_grad_accumulation_and_async_allreduce
 
-    def forward(
-        self, input_: torch.Tensor
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    def forward(self, input_: torch.Tensor) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Forward of ColumnParallelLinear
 
         Args:
@@ -823,9 +802,7 @@ class RowParallelLinear(torch.nn.Module):
         # Initialize weight.
         if use_cpu_initialization:
             self.weight = Parameter(
-                torch.empty(
-                    self.output_size, self.input_size_per_partition, dtype=params_dtype
-                )
+                torch.empty(self.output_size, self.input_size_per_partition, dtype=params_dtype)
             )
             self.master_weight = _initialize_affine_weight_cpu(
                 self.weight,
@@ -847,9 +824,7 @@ class RowParallelLinear(torch.nn.Module):
                     dtype=params_dtype,
                 )
             )
-            _initialize_affine_weight_gpu(
-                self.weight, init_method, partition_dim=1, stride=stride
-            )
+            _initialize_affine_weight_gpu(self.weight, init_method, partition_dim=1, stride=stride)
         if bias:
             if use_cpu_initialization:
                 self.bias = Parameter(torch.empty(self.output_size, dtype=params_dtype))
@@ -870,9 +845,7 @@ class RowParallelLinear(torch.nn.Module):
 
         self._forward_impl = linear_with_grad_accumulation_and_async_allreduce
 
-    def forward(
-        self, input_: torch.Tensor
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    def forward(self, input_: torch.Tensor) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Forward of RowParallelLinear
 
         Args:

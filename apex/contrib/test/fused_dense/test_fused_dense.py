@@ -41,15 +41,9 @@ class FusedDenseTest(common_utils.TestCase):
 
         torch.testing.assert_close(ref_inputs, tst_inputs, atol=1e-5, rtol=1e-5)
         torch.testing.assert_close(y_ref, y_tst, atol=1e-3, rtol=1e-3, equal_nan=True)
-        torch.testing.assert_close(
-            dw_ref, dense.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True
-        )
-        torch.testing.assert_close(
-            dx_ref, tst_inputs.grad, atol=1e-3, rtol=1e-3, equal_nan=True
-        )
-        torch.testing.assert_close(
-            db_ref, dense.bias.grad, atol=1e-3, rtol=1e-3, equal_nan=True
-        )
+        torch.testing.assert_close(dw_ref, dense.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(dx_ref, tst_inputs.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+        torch.testing.assert_close(db_ref, dense.bias.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
     @common_utils.parametrize("dtype", [torch.half, torch.float, torch.bfloat16])
     def test_fused_dense(self, dtype):

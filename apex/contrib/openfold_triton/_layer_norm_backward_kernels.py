@@ -122,9 +122,7 @@ def _layer_norm_backward_dw_db_partial(
     N_BLOCK: tl.constexpr,
     M_PARTIAL_REDUCE: tl.constexpr,
 ):
-    m_idx = (tl.program_id(0) * M_PARTIAL_REDUCE + tl.arange(0, M_PARTIAL_REDUCE))[
-        :, None
-    ]
+    m_idx = (tl.program_id(0) * M_PARTIAL_REDUCE + tl.arange(0, M_PARTIAL_REDUCE))[:, None]
     m_mask = m_idx < M
     n_idx = tl.program_id(1) * N_BLOCK + tl.arange(0, N_BLOCK)
     n_mask = n_idx < N
@@ -137,12 +135,8 @@ def _layer_norm_backward_dw_db_partial(
     dy = tl.load(dy_ptr + idx, mask, other=0).to(tl.float32)
     dw_partial = tl.sum(dy * x_hat, axis=0)
     db_partial = tl.sum(dy, axis=0)
-    tl.store(
-        dw_partial_buf_ptr + BUF_N_STRIDE * n_idx + tl.program_id(0), dw_partial, n_mask
-    )
-    tl.store(
-        db_partial_buf_ptr + BUF_N_STRIDE * n_idx + tl.program_id(0), db_partial, n_mask
-    )
+    tl.store(dw_partial_buf_ptr + BUF_N_STRIDE * n_idx + tl.program_id(0), dw_partial, n_mask)
+    tl.store(db_partial_buf_ptr + BUF_N_STRIDE * n_idx + tl.program_id(0), db_partial, n_mask)
 
 
 # %% Backward kernels for noncontiguous inputs. Using similar strided access logic as in forward.
@@ -197,9 +191,7 @@ def _layer_norm_backward_dx_strided(
     x_idx = m_idx[:, None] + n_idx[None, :]
     x = tl.load(x_ptr + x_idx, mask, other=0).to(tl.float32)
     x_mean = tl.load(x_mean_ptr + m_logic_idx, m_mask, other=0).to(tl.float32)[:, None]
-    x_invstd = tl.load(x_invstd_ptr + m_logic_idx, m_mask, other=0).to(tl.float32)[
-        :, None
-    ]
+    x_invstd = tl.load(x_invstd_ptr + m_logic_idx, m_mask, other=0).to(tl.float32)[:, None]
     x_hat = (x - x_mean) * x_invstd
     dy_idx = N * m_logic_idx[:, None] + n_logic_idx[None, :]
     dy = tl.load(dy_ptr + dy_idx, mask, other=0).to(tl.float32)
@@ -293,9 +285,7 @@ def _layer_norm_backward_dw_db_partial_strided(
     x_idx = m_idx[:, None] + n_idx[None, :]
     x = tl.load(x_ptr + x_idx, mask, other=0).to(tl.float32)
     x_mean = tl.load(x_mean_ptr + m_logic_idx, m_mask, other=0).to(tl.float32)[:, None]
-    x_invstd = tl.load(x_invstd_ptr + m_logic_idx, m_mask, other=0).to(tl.float32)[
-        :, None
-    ]
+    x_invstd = tl.load(x_invstd_ptr + m_logic_idx, m_mask, other=0).to(tl.float32)[:, None]
     x_hat = (x - x_mean) * x_invstd
     dy_idx = N * m_logic_idx[:, None] + n_logic_idx[None, :]
     dy = tl.load(dy_ptr + dy_idx, mask, other=0).to(tl.float32)

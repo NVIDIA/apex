@@ -32,25 +32,18 @@ def _torchsched_codegen(
     graph: GraphLowering,
 ) -> tuple[ValueWithLineMap, ValueWithLineMap]:
     # Move patching logic here as post_grad_graph_id was not available until now.
-    cpp_wrapper_cls = get_wrapper_codegen_for_device(
-        patching_device_type, cpp_wrapper=True
-    )
+    cpp_wrapper_cls = get_wrapper_codegen_for_device(patching_device_type, cpp_wrapper=True)
     only_cpu = len(graph.device_types - {"cpu", "meta"}) == 0
     scheduling_cls = get_scheduling_for_device(patching_device_type)
     wrapper_cls = get_wrapper_codegen_for_device(patching_device_type)
     write_get_raw_stream = PythonWrapperCodegen.write_get_raw_stream
-    if (
-        not only_cpu
-        and graph.post_grad_graph_id not in torchsched_config.skip_post_grad_graph_ids
-    ):
+    if not only_cpu and graph.post_grad_graph_id not in torchsched_config.skip_post_grad_graph_ids:
         patched_scheduler_cls = MultiCudaStreamScheduler
         patched_wrapper_cls = MultiStreamWrapperCodegen
         # torch.compile explicitly calls `write_get_raw_stream` via wrapper's class method in its
         # lowering process to walk around the wrapper-stream LRU cache mechanism. To be compatible
         # with this, we got to patch wrapper's class method as well.
-        PythonWrapperCodegen.write_get_raw_stream = (
-            MultiStreamWrapperCodegen._write_get_raw_stream
-        )
+        PythonWrapperCodegen.write_get_raw_stream = MultiStreamWrapperCodegen._write_get_raw_stream
     else:
         patched_scheduler_cls = Scheduler
         patched_wrapper_cls = PythonWrapperCodegen
@@ -91,9 +84,7 @@ def _mixed_codegen(graph: GraphLowering) -> tuple[ValueWithLineMap, ValueWithLin
         elif backend == "inductor":
             codegen = _inductor_codegen
         else:
-            raise ValueError(
-                f"Unknown {backend=} from {torchsched_config.dump_code_backends=}"
-            )
+            raise ValueError(f"Unknown {backend=} from {torchsched_config.dump_code_backends=}")
         wrapper_code, kernel_code = codegen(graph)
         output_code_per_backend[backend] = (wrapper_code, kernel_code)
 
@@ -101,14 +92,10 @@ def _mixed_codegen(graph: GraphLowering) -> tuple[ValueWithLineMap, ValueWithLin
         backend_dir = Path(torchsched_config.dump_code_dir) / backend
         backend_dir.mkdir(parents=True, exist_ok=True)
         graph_id = graph.post_grad_graph_id
-        (backend_dir / f"graph_{graph_id}_wrapper_code.py").write_text(
-            wrapper_code.value
-        )
+        (backend_dir / f"graph_{graph_id}_wrapper_code.py").write_text(wrapper_code.value)
         if kernel_code.value.strip():
             # Kernel_code is only available in AOTInductor mode.
-            (backend_dir / f"graph_{graph_id}_kernel_code.py").write_text(
-                kernel_code.value
-            )
+            (backend_dir / f"graph_{graph_id}_kernel_code.py").write_text(kernel_code.value)
 
     return output_code_per_backend["torchsched"]
 

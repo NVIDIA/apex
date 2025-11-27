@@ -14,15 +14,10 @@ import os
 import time
 
 
-def eligible_modules(
-    model, whitelist_layer_types, allowed_layer_names, disallowed_layer_names
-):
+def eligible_modules(model, whitelist_layer_types, allowed_layer_names, disallowed_layer_names):
     eligible_modules_list = []
     for name, mod in model.named_modules():
-        if (
-            isinstance(mod, whitelist_layer_types)
-            and name not in disallowed_layer_names
-        ):
+        if isinstance(mod, whitelist_layer_types) and name not in disallowed_layer_names:
             if allowed_layer_names is not None and name not in allowed_layer_names:
                 continue
             eligible_modules_list.append((name, mod))
@@ -207,9 +202,7 @@ class ASP:
                         module.register_buffer("__%s_mma_pruned_p" % buffname, pruned)
                     else:
                         pruned = None
-                    cls.__sparse_parameters.append(
-                        (module_name, module, p_name, p, mask, pruned)
-                    )
+                    cls.__sparse_parameters.append((module_name, module, p_name, p, mask, pruned))
                 else:
                     if cls.__verbosity >= 3:
                         print(
@@ -238,10 +231,7 @@ class ASP:
                     module_mean_name = module_name + ".running_mean"
                     module_var_name = module_name + ".running_var"
                     for param_key in model.state_dict():
-                        if (
-                            module_mean_name == param_key
-                            or module_var_name == param_key
-                        ):
+                        if module_mean_name == param_key or module_var_name == param_key:
                             cls.__all_parameters.append(
                                 (
                                     module_name,
@@ -344,9 +334,7 @@ class ASP:
                         ),
                     )
                     if successful_permutation:
-                        print(
-                            "\n[compute_sparse_masks] permuted the (distributed) model."
-                        )
+                        print("\n[compute_sparse_masks] permuted the (distributed) model.")
                 except AttributeError:
                     successful_permutation = Permutation.permute_model(
                         cls.__model,
@@ -460,17 +448,11 @@ class ASP:
         permutation_output_dir=".",
     ):
         """This function is used to set the permutation saving related parameters in ASP class and inside of the Permutation class."""
-        print(
-            "\n[ASP][set_permutation_saving_param] Set permutation saving related parameters"
-        )
-        print(
-            "\n[set_permutation_saving_param] Set permutation saving related parameters"
-        )
+        print("\n[ASP][set_permutation_saving_param] Set permutation saving related parameters")
+        print("\n[set_permutation_saving_param] Set permutation saving related parameters")
         cls.__allow_permutation = allow_permutation
         print(
-            "[set_permutation_saving_param]\t Allow permutation: {}".format(
-                cls.__allow_permutation
-            )
+            "[set_permutation_saving_param]\t Allow permutation: {}".format(cls.__allow_permutation)
         )
         cls.__save_permutation_graph = save_permutation_graph
         print(

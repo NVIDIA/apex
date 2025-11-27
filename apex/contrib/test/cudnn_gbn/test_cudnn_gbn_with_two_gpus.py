@@ -128,9 +128,7 @@ class TestCudnnGBN(NcclDistributedTestBase):
             cudnn_gbn_model.fwd[0].bias.copy_(bias)
 
             ref_input = input.clone().detach().requires_grad_()
-            input = (
-                input[self.rank : self.rank + 1, ...].clone().detach().requires_grad_()
-            )
+            input = input[self.rank : self.rank + 1, ...].clone().detach().requires_grad_()
 
             ref_grad_out = grad_out.half().clone().detach()
             grad_out = grad_out[self.rank : self.rank + 1, ...].half().clone().detach()
@@ -144,9 +142,7 @@ class TestCudnnGBN(NcclDistributedTestBase):
         kwargs = {"rtol": 3.5e-3, "atol": 3e-2, "msg": f"shape: {shape}"}
 
         torch.testing.assert_close(ref_out[self.rank : self.rank + 1], out, **kwargs)
-        torch.testing.assert_close(
-            ref_input.grad[self.rank : self.rank + 1], input.grad, **kwargs
-        )
+        torch.testing.assert_close(ref_input.grad[self.rank : self.rank + 1], input.grad, **kwargs)
         # compensating the averaging over processes done by DDP
         # in order to produce mathematically equivalent result
         # https://github.com/NVIDIA/apex/issues/134#issuecomment-458307368
@@ -163,9 +159,7 @@ class TestCudnnGBN(NcclDistributedTestBase):
 
     def test_cudnngbn(self):
         if self.world_size != 2:
-            self.skipTest(
-                f"This test is written for world_size of 2 but {self.world_size}"
-            )
+            self.skipTest(f"This test is written for world_size of 2 but {self.world_size}")
         for shape in input_shapes:
             self._prep()
             self._test_cudnn_gbn(1, shape)

@@ -18,9 +18,7 @@ class TransformerRandomTestBase:
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_parallel_world_size:
                 continue
-            msg = (
-                f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
-            )
+            msg = f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size
             )
@@ -64,9 +62,7 @@ class TransformerRandomTestBase:
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_parallel_world_size:
                 continue
-            msg = (
-                f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
-            )
+            msg = f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size
             )

@@ -54,11 +54,7 @@ def clip_grad_norm_(
         return torch.tensor(0.0)
 
     # Fallback implementation
-    if not (
-        _kernel_import_succeeded
-        and norm_type == 2.0
-        and any(p.is_cuda for p in parameters)
-    ):
+    if not (_kernel_import_succeeded and norm_type == 2.0 and any(p.is_cuda for p in parameters)):
         return torch.nn.utils.clip_grad_norm_(
             parameters,
             max_norm,

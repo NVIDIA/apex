@@ -26,9 +26,7 @@ def torch_cross_entropy(
     label_smoothing: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     set_random_seed(seed)
-    identity = IdentityLayer(
-        (batch_size, seq_length, vocab_size), scale=logits_scale
-    ).cuda()
+    identity = IdentityLayer((batch_size, seq_length, vocab_size), scale=logits_scale).cuda()
     logits = identity()
     target = torch.cuda.LongTensor(size=(batch_size, seq_length)).random_(0, vocab_size)
     loss = (
@@ -49,9 +47,7 @@ def tensor_sharded_cross_entropy(
     batch_size, seq_length, vocab_size, logits_scale, seed, label_smoothing=0.0
 ):
     set_random_seed(seed)
-    identity = IdentityLayer(
-        (batch_size, seq_length, vocab_size), scale=logits_scale
-    ).cuda()
+    identity = IdentityLayer((batch_size, seq_length, vocab_size), scale=logits_scale).cuda()
     logits = identity()
     logits_parallel = tensor_parallel.scatter_to_tensor_model_parallel_region(logits)
     target = torch.cuda.LongTensor(size=(batch_size, seq_length)).random_(0, vocab_size)
@@ -101,15 +97,11 @@ class VocabParallelCrossEntropyTestBase:
             parallel_state.destroy_model_parallel()
 
 
-class NcclVocabParallelCrossEntropyTest(
-    VocabParallelCrossEntropyTestBase, NcclDistributedTestBase
-):
+class NcclVocabParallelCrossEntropyTest(VocabParallelCrossEntropyTestBase, NcclDistributedTestBase):
     pass
 
 
-class UccVocabParallelCrossEntropyTest(
-    VocabParallelCrossEntropyTestBase, UccDistributedTestBase
-):
+class UccVocabParallelCrossEntropyTest(VocabParallelCrossEntropyTestBase, UccDistributedTestBase):
     pass
 
 

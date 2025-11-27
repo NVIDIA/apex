@@ -62,10 +62,7 @@ global_batch_size = var_batch + 8
 # Create random data
 if args.local_rank == 0:
     data = torch.randn(var_batch, 3, 8, 8, device=device, dtype=torch.float) * 50.0
-    grad = (
-        torch.randint(0, 10, (var_batch, 6, 8, 8), device=device, dtype=torch.float)
-        / 10.0
-    )
+    grad = torch.randint(0, 10, (var_batch, 6, 8, 8), device=device, dtype=torch.float) / 10.0
 else:
     data = torch.randn(8, 3, 8, 8, device=device)
     grad = torch.randint(0, 10, (8, 6, 8, 8), device=device, dtype=torch.float) / 10.0
@@ -83,18 +80,10 @@ if weighted_gradient:
 else:
     output.backward(grad / output.size(0))
 
-d_list = [
-    torch.randn(8, 3, 8, 8, device=device) for i in range(int(os.environ["WORLD_SIZE"]))
-]
-y_list = [
-    torch.randn(8, 6, 8, 8, device=device) for i in range(int(os.environ["WORLD_SIZE"]))
-]
-dgrad_list = [
-    torch.randn(8, 3, 8, 8, device=device) for i in range(int(os.environ["WORLD_SIZE"]))
-]
-grad_list = [
-    torch.randn(8, 6, 8, 8, device=device) for i in range(int(os.environ["WORLD_SIZE"]))
-]
+d_list = [torch.randn(8, 3, 8, 8, device=device) for i in range(int(os.environ["WORLD_SIZE"]))]
+y_list = [torch.randn(8, 6, 8, 8, device=device) for i in range(int(os.environ["WORLD_SIZE"]))]
+dgrad_list = [torch.randn(8, 3, 8, 8, device=device) for i in range(int(os.environ["WORLD_SIZE"]))]
+grad_list = [torch.randn(8, 6, 8, 8, device=device) for i in range(int(os.environ["WORLD_SIZE"]))]
 if args.local_rank == 0:
     # placeholder, these random data will later be discarded.
     torch.distributed.all_gather(d_list, torch.randn(8, 3, 8, 8, device=device))

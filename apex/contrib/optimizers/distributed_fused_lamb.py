@@ -176,9 +176,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._fused_norm = fused_norm if not clip_after_ar else False
         self._current_process_group = c10d._get_default_group()
         self._available_ranks = get_process_group_ranks(self._current_process_group)
-        self._group_size = (
-            torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
-        )
+        self._group_size = torch.cuda.device_count() if dwu_group_size <= 0 else dwu_group_size
         self._world_size = torch.distributed.get_world_size()
         self._num_groups = self._world_size // self._group_size
         self._rank_in_group = torch.distributed.get_rank() % self._group_size
@@ -206,13 +204,9 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         )
 
         if "reduce_scatter_tensor" not in dir(torch.distributed):
-            torch.distributed.reduce_scatter_tensor = (
-                torch.distributed._reduce_scatter_base
-            )
+            torch.distributed.reduce_scatter_tensor = torch.distributed._reduce_scatter_base
         if "all_gather_into_tensor" not in dir(torch.distributed):
-            torch.distributed.all_gather_into_tensor = (
-                torch.distributed._all_gather_base
-            )
+            torch.distributed.all_gather_into_tensor = torch.distributed._all_gather_base
 
         self._num_rs_pg = dwu_num_rs_pg
         self._num_ar_pg = dwu_num_ar_pg
@@ -221,9 +215,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         if self._full_ar:  # full all reduce, only need AR and AG groups
             # l2_grad_norm may be reduced within a node to limit from memory reads
             for group_i in range(self._num_groups):
-                ranks = [
-                    group_i * self._group_size + j for j in range(self._group_size)
-                ]
+                ranks = [group_i * self._group_size + j for j in range(self._group_size)]
                 l2_grad_norm_pg = torch.distributed.new_group(ranks=ranks)
                 if torch.distributed.get_rank() in ranks:
                     self._l2_grad_norm_pg = l2_grad_norm_pg
@@ -237,12 +229,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 grp = torch.distributed.new_group(ranks=ranks)
                 if grp != torch.distributed.GroupMember.NON_GROUP_MEMBER:
                     if self._verbose:
-                        print(
-                            f"group {i}: init barrier (device: {torch.cuda.current_device()})"
-                        )
-                    torch.distributed.barrier(
-                        group=grp, device_ids=[torch.cuda.current_device()]
-                    )
+                        print(f"group {i}: init barrier (device: {torch.cuda.current_device()})")
+                    torch.distributed.barrier(group=grp, device_ids=[torch.cuda.current_device()])
                 if self._verbose:
                     print(f"created new AR group {i}: {ranks}")
 
@@ -275,9 +263,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             if self._num_groups > 1:
                 self._ar_pg = []
                 for dev_i in range(self._group_size):
-                    ranks = [
-                        dev_i + j * self._group_size for j in range(self._num_groups)
-                    ]
+                    ranks = [dev_i + j * self._group_size for j in range(self._num_groups)]
                     for i in range(self._num_ar_pg):
                         if self._verbose:
                             print(f"creating new AR group {i}: {ranks}")
@@ -298,9 +284,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 self._ar_st = [torch.cuda.Stream() for _ in range(self._num_ar_pg)]
             rs_ranks = []
             for group_i in range(self._num_groups):
-                rs_ranks.append(
-                    [group_i * self._group_size + j for j in range(self._group_size)]
-                )
+                rs_ranks.append([group_i * self._group_size + j for j in range(self._group_size)])
             self._rs_pg = []
             for group_i in range(self._num_groups):
                 ranks = rs_ranks[group_i]
@@ -382,9 +366,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 prev = p
                 p_i += 1
         if param_order:
-            self._param_order.order = torch.argsort(
-                torch.tensor(self._param_order.order)
-            ).tolist()
+            self._param_order.order = torch.argsort(torch.tensor(self._param_order.order)).tolist()
         self._grads_generated = [False] * len(self._model_params)
         self._grads_fp16, self._grads_fp32 = [], []
         if self._overlap_reductions:
@@ -443,33 +425,21 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._chunk_size = self._block_size // self._num_chunks
         self._shard_size = self._chunk_size // self._group_size
 
-        self._flat_grads = torch.zeros(
-            [self._total_param_size], dtype=torch.float16, device="cuda"
-        )
+        self._flat_grads = torch.zeros([self._total_param_size], dtype=torch.float16, device="cuda")
         self._mega_shard_size = self._num_blocks * self._num_chunks * self._shard_size
         # initialize master weights, moments buffers if not loaded from checkpoint
         if self._fp32_p is None:
-            self._fp32_p = torch.zeros(
-                [self._mega_shard_size], dtype=torch.float32, device="cuda"
-            )
-            self._fp32_m = torch.zeros(
-                [self._mega_shard_size], dtype=torch.float32, device="cuda"
-            )
-            self._fp32_v = torch.zeros(
-                [self._mega_shard_size], dtype=torch.float32, device="cuda"
-            )
-            self._fp32_u = torch.zeros(
-                [self._mega_shard_size], dtype=torch.float32, device="cuda"
-            )
+            self._fp32_p = torch.zeros([self._mega_shard_size], dtype=torch.float32, device="cuda")
+            self._fp32_m = torch.zeros([self._mega_shard_size], dtype=torch.float32, device="cuda")
+            self._fp32_v = torch.zeros([self._mega_shard_size], dtype=torch.float32, device="cuda")
+            self._fp32_u = torch.zeros([self._mega_shard_size], dtype=torch.float32, device="cuda")
         # FIXME: Rethink fp16 label since it's either uint8 or fp16
         self._fp16_p = torch.zeros(
             [self._mega_shard_size],
             dtype=torch.uint8 if self._e5m2_allgather else torch.float16,
             device="cuda",
         )
-        self._fp16_g = torch.zeros(
-            [self._mega_shard_size], dtype=torch.float16, device="cuda"
-        )
+        self._fp16_g = torch.zeros([self._mega_shard_size], dtype=torch.float16, device="cuda")
 
         def _flat_split(p):
             def __blockify(p):
@@ -493,8 +463,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             list_of_blocks = __blockify(p)
             list_of_list_of_chunks = [__chunkify(block) for block in list_of_blocks]
             list_of_list_of_list_of_shards = [
-                [__shardify(chunk) for chunk in chunks]
-                for chunks in list_of_list_of_chunks
+                [__shardify(chunk) for chunk in chunks] for chunks in list_of_list_of_chunks
             ]
             return (
                 list_of_blocks,
@@ -515,10 +484,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         def _full_packed_split(p):
             def __shardify(p):
                 return [
-                    p[
-                        mega_shard * self._mega_shard_size : (mega_shard + 1)
-                        * self._mega_shard_size
-                    ]
+                    p[mega_shard * self._mega_shard_size : (mega_shard + 1) * self._mega_shard_size]
                     for mega_shard in range(self._group_size)
                 ]
 
@@ -568,9 +534,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 ]
 
             list_of_blocks = __packed_blockify(p)
-            list_of_list_of_chunks = [
-                __packed_chunkify(block) for block in list_of_blocks
-            ]
+            list_of_list_of_chunks = [__packed_chunkify(block) for block in list_of_blocks]
             return list_of_blocks, list_of_list_of_chunks
 
         def _split_assign(shards):
@@ -580,9 +544,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 list_of_chunks = []
                 for chunk_id in range(self._num_chunks):
                     # self._fp16_g[block_id*packed_block_size+chunk_id*self._shard_size:block_id*packed_block_size+(chunk_id+1)*self._shard_size] = shards[block_id][chunk_id][self._rank_in_group]
-                    list_of_chunks.append(
-                        shards[block_id][chunk_id][self._rank_in_group]
-                    )
+                    list_of_chunks.append(shards[block_id][chunk_id][self._rank_in_group])
                 list_of_list_of_chunks.append(list_of_chunks)
             return list_of_list_of_chunks
 
@@ -592,8 +554,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             self._new_params_mega_chunks,
         ) = _full_packed_split(self._new_params)
         # this splitting scheme is needed when allgather needs to be split into multiple chunks in a contiguous way
-        self._new_params2_blocks, self._new_params2_chunks, self._new_params2_shards = (
-            _flat_split(self._new_params)
+        self._new_params2_blocks, self._new_params2_chunks, self._new_params2_shards = _flat_split(
+            self._new_params
         )
 
         self._fp32_p_blocks, self._fp32_p_chunks = _packed_split(self._fp32_p)
@@ -631,16 +593,12 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             # re-order model_params, grad_accs, group_properties lists
         self._model_params = [self._model_params[i] for i in self._param_order.order]
         self._grad_accs = [self._grad_accs[i] for i in self._param_order.order]
-        self._group_properties = [
-            self._group_properties[i] for i in self._param_order.order
-        ]
+        self._group_properties = [self._group_properties[i] for i in self._param_order.order]
 
         def _get_flat_view(param):
             if param.is_contiguous(memory_format=torch.channels_last):
                 K, C, H, W = param.shape
-                pv = param.as_strided(
-                    size=(K, H, W, C), stride=(H * W * C, W * C, C, 1)
-                )
+                pv = param.as_strided(size=(K, H, W, C), stride=(H * W * C, W * C, C, 1))
             elif param.is_contiguous(memory_format=torch.channels_last_3d):
                 K, C, D, H, W = param.shape
                 pv = param.as_strided(
@@ -657,9 +615,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._individual_flat_grads = []
         for i, p in enumerate(self._model_params):
             p_grads_size = p.numel()
-            self._grads_info.append(
-                {"param_grads_size": p_grads_size, "param_offset": p_offset}
-            )
+            self._grads_info.append({"param_grads_size": p_grads_size, "param_offset": p_offset})
             self._individual_flat_grads.append(
                 self._flat_grads[p_offset : p_offset + p_grads_size].view_as(p)
             )
@@ -678,10 +634,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         self._low_param_i = [0] * self._num_blocks
         for block_id in range(self._num_blocks - 1, -1, -1):
             p_i = len(self._grads_info) - 1
-            while (
-                p_i > 0
-                and self._grads_info[p_i]["param_offset"] > block_id * self._block_size
-            ):
+            while p_i > 0 and self._grads_info[p_i]["param_offset"] > block_id * self._block_size:
                 p_i -= 1
             self._low_param_i[block_id] = p_i
         # print("self._low_param_i", self._low_param_i)
@@ -704,14 +657,11 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             for block_id in range(self._num_blocks):
                 for chunk_id in range(self._num_chunks):
                     flat_shard_start = (
-                        ((block_id * self._num_chunks + chunk_id) * self._group_size)
-                        + shard_id
+                        ((block_id * self._num_chunks + chunk_id) * self._group_size) + shard_id
                     ) * self._shard_size
                     flat_shard_end = flat_shard_start + self._shard_size
                     for param_i, (p, grads_info, group_props) in enumerate(
-                        zip(
-                            self._model_params, self._grads_info, self._group_properties
-                        )
+                        zip(self._model_params, self._grads_info, self._group_properties)
                     ):
                         flat_grad_start = grads_info["param_offset"]
                         flat_grad_end = flat_grad_start + grads_info["param_grads_size"]
@@ -726,14 +676,10 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                             grad_length = clipped_end - clipped_start
                             shard_offset = clipped_start - flat_shard_start
                             pf = _get_flat_view(p)
-                            model_param_fragment = pf[
-                                grad_offset : grad_offset + grad_length
-                            ]
-                            new_param_packed_fragment = self._new_params_mega_chunks[
-                                shard_id
-                            ][block_id][chunk_id][
-                                shard_offset : shard_offset + grad_length
-                            ]
+                            model_param_fragment = pf[grad_offset : grad_offset + grad_length]
+                            new_param_packed_fragment = self._new_params_mega_chunks[shard_id][
+                                block_id
+                            ][chunk_id][shard_offset : shard_offset + grad_length]
                             if model_param_fragment.dtype == torch.float16:
                                 self._packed_flat_to_model_params_fp16.append(
                                     (new_param_packed_fragment, model_param_fragment)
@@ -745,24 +691,24 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                             if shard_id == self._rank_in_group:
                                 self._model_param_is_contrib.append(param_i)
                                 # copy model parameters into master buffer
-                                master_param_fragment = self._fp32_p_chunks[block_id][
-                                    chunk_id
-                                ][shard_offset : shard_offset + grad_length]
-                                opti_state_m_fragment = self._fp32_m_chunks[block_id][
-                                    chunk_id
-                                ][shard_offset : shard_offset + grad_length]
-                                opti_state_v_fragment = self._fp32_v_chunks[block_id][
-                                    chunk_id
-                                ][shard_offset : shard_offset + grad_length]
-                                opti_state_u_fragment = self._fp32_u_chunks[block_id][
-                                    chunk_id
-                                ][shard_offset : shard_offset + grad_length]
-                                opti_state_g_fragment = self._fp16_g_chunks[block_id][
-                                    chunk_id
-                                ][shard_offset : shard_offset + grad_length]
-                                opti_state_p_fragment = self._fp16_p_chunks[block_id][
-                                    chunk_id
-                                ][shard_offset : shard_offset + grad_length]
+                                master_param_fragment = self._fp32_p_chunks[block_id][chunk_id][
+                                    shard_offset : shard_offset + grad_length
+                                ]
+                                opti_state_m_fragment = self._fp32_m_chunks[block_id][chunk_id][
+                                    shard_offset : shard_offset + grad_length
+                                ]
+                                opti_state_v_fragment = self._fp32_v_chunks[block_id][chunk_id][
+                                    shard_offset : shard_offset + grad_length
+                                ]
+                                opti_state_u_fragment = self._fp32_u_chunks[block_id][chunk_id][
+                                    shard_offset : shard_offset + grad_length
+                                ]
+                                opti_state_g_fragment = self._fp16_g_chunks[block_id][chunk_id][
+                                    shard_offset : shard_offset + grad_length
+                                ]
+                                opti_state_p_fragment = self._fp16_p_chunks[block_id][chunk_id][
+                                    shard_offset : shard_offset + grad_length
+                                ]
                                 # print("model_param_fragment.size()=%s, new_param_packed_fragment.size()=%s, master_param_fragment.size()=%s" % (str(model_param_fragment.size()), str(new_param_packed_fragment.size()), str(master_param_fragment.size())))
                                 if not self._resume_from_checkpoint:
                                     master_param_fragment.copy_(model_param_fragment)
@@ -777,9 +723,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                                         opti_state_p_fragment,
                                     )
                                 )  # p, m, v, u, g, p_copy
-                                self._contrib_update_frag_for_norm.append(
-                                    opti_state_u_fragment
-                                )
+                                self._contrib_update_frag_for_norm.append(opti_state_u_fragment)
                                 if p.dtype == torch.float16:
                                     self._contrib_model_param_for_norm_fp16.append(p)
                                 else:
@@ -790,9 +734,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                                 if self._contrib_min_param_i < 0:
                                     self._contrib_min_param_i = param_i
                                 self._contrib_max_param_i = param_i
-        self._contrib_model_param_for_norm_num = len(
-            self._contrib_model_param_for_norm_is_fp16
-        )
+        self._contrib_model_param_for_norm_num = len(self._contrib_model_param_for_norm_is_fp16)
         if len(self._contrib_model_param_for_norm_fp16) == 0:
             self._contrib_model_param_for_norm_fp16 = None
         if len(self._contrib_model_param_for_norm_fp32) == 0:
@@ -807,9 +749,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             dtype=torch.bool,
             device="cuda",
         )
-        self._offsets = torch.tensor(
-            self._model_param_is_contrib, dtype=torch.int64, device="cuda"
-        )
+        self._offsets = torch.tensor(self._model_param_is_contrib, dtype=torch.int64, device="cuda")
 
         p, m, v, u, g, p_copy = list(zip(*self._contrib_tensor_list))
         self._contrib_compute_update_term_tensor_list = [g, p, m, v, u]
@@ -1019,9 +959,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     l2_grad_norm_sq = torch.empty([1], device="cuda")
                     if self._full_ar:
                         # this flattening of lists is to keep multi_tensor_apply function happy, it wants depth=1 for l2 norm computation
-                        flat_list = [
-                            item for sublist in self._fp16_g_chunks for item in sublist
-                        ]
+                        flat_list = [item for sublist in self._fp16_g_chunks for item in sublist]
                         l2_grad_norm_sq = (
                             multi_tensor_applier(
                                 self.multi_tensor_l2norm,
@@ -1032,12 +970,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                             ** 2
                         )
                     else:
-                        l2_grad_norm_sq = (
-                            self._fp16_g.norm(dtype=torch.float32, p=2) ** 2
-                        )
-                    torch.distributed.all_reduce(
-                        l2_grad_norm_sq, group=self._l2_grad_norm_pg
-                    )
+                        l2_grad_norm_sq = self._fp16_g.norm(dtype=torch.float32, p=2) ** 2
+                    torch.distributed.all_reduce(l2_grad_norm_sq, group=self._l2_grad_norm_pg)
                     self._L2_grad_norm = l2_grad_norm_sq.sqrt()
         else:
             # Copy model grads to flat grads buffer
@@ -1047,9 +981,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             self._l2_grad_norm_st.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(self._l2_grad_norm_st):
                 if not self._fused_norm:
-                    self._L2_grad_norm = self._flat_grads.norm(
-                        dtype=torch.float16, p=2
-                    ).float()
+                    self._L2_grad_norm = self._flat_grads.norm(dtype=torch.float16, p=2).float()
             torch.cuda.current_stream().wait_stream(self._l2_grad_norm_st)
 
             # Apply clipping & pre-reduction scaling on grads
@@ -1101,12 +1033,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                 dtype=torch.bool,
                 device="cuda",
             )
-            gnorm.masked_scatter_(
-                self._contrib_model_param_for_norm_is_fp16, gnorm_fp16
-            )
-            gnorm.masked_scatter_(
-                self._contrib_model_param_for_norm_is_fp32, gnorm_fp32
-            )
+            gnorm.masked_scatter_(self._contrib_model_param_for_norm_is_fp16, gnorm_fp16)
+            gnorm.masked_scatter_(self._contrib_model_param_for_norm_is_fp32, gnorm_fp32)
         elif self._contrib_model_param_for_norm_fp16 is not None:
             gnorm = multi_tensor_applier(
                 self.multi_tensor_l2norm,
@@ -1124,9 +1052,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         return gnorm
 
     def __compute_contrib_update_norm(self):
-        l2_norm = torch.zeros(
-            size=[self._model_params_num], dtype=torch.float32, device="cuda"
-        )
+        l2_norm = torch.zeros(size=[self._model_params_num], dtype=torch.float32, device="cuda")
         local_contrib_l2_norm = (
             multi_tensor_applier(
                 self.multi_tensor_l2norm,
@@ -1150,9 +1076,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
         # check global_grad_norm and fill overflow_buf
         is_finite = (global_grad_norm + 1 > global_grad_norm).int()
-        self._overflow_buf = self._one * (
-            is_finite ^ self._one
-        )  # toggle between 0 and 1
+        self._overflow_buf = self._one * (is_finite ^ self._one)  # toggle between 0 and 1
 
         if not self._clip_after_ar:
             torch.distributed.all_reduce(
@@ -1283,13 +1207,9 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         if not self._is_accumulation_step:
             # handle overlapped reductions
             if param.dtype == torch.float16:
-                self._grads_fp16.append(
-                    (param.grad, self._individual_flat_grads[param_i])
-                )
+                self._grads_fp16.append((param.grad, self._individual_flat_grads[param_i]))
             else:
-                self._grads_fp32.append(
-                    (param.grad, self._individual_flat_grads[param_i])
-                )
+                self._grads_fp32.append((param.grad, self._individual_flat_grads[param_i]))
             self._grads_generated[param_i] = True
             if not self._first_step and not self._last_step:
                 if self._overlap_reductions:

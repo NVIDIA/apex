@@ -13,14 +13,10 @@ assert check_cudnn_version_and_warn(__name__, 8400)
 
 def kaiming_uniform_(tensor, a=0, mode="fan_in", nonlinearity="leaky_relu"):
     weight_tensor_nchw = tensor
-    nn.init.kaiming_uniform_(
-        weight_tensor_nchw, a=a, mode=mode, nonlinearity=nonlinearity
-    )
+    nn.init.kaiming_uniform_(weight_tensor_nchw, a=a, mode=mode, nonlinearity=nonlinearity)
 
 
-def compute_scale_bias_one(
-    nhwc, weight, bias, running_mean, running_var, w_scale, w_bias
-):
+def compute_scale_bias_one(nhwc, weight, bias, running_mean, running_var, w_scale, w_bias):
     scale = weight * running_var.rsqrt()
     bias = bias - running_mean * scale
     w_scale.copy_(scale)
@@ -113,9 +109,7 @@ class BottleneckFunction(torch.autograd.Function):
                 grad_o, outputs[2], ctx.saved_tensors[6], ctx.saved_tensors[11]
             )
         else:
-            grad_conv3, grad_conv4 = drelu_dscale1(
-                grad_o, outputs[2], ctx.saved_tensors[6]
-            )
+            grad_conv3, grad_conv4 = drelu_dscale1(grad_o, outputs[2], ctx.saved_tensors[6])
 
         # create input vector for backward
         t_list = [*ctx.saved_tensors[0:10]]
@@ -350,9 +344,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
             if explicit_nhwc:
                 N, Hs, W, C = list(out1.shape)
                 memory_format = torch.contiguous_format
-                out1_pad = torch.empty(
-                    [N, Hs + 2, W, C], dtype=out1.dtype, device="cuda"
-                )
+                out1_pad = torch.empty([N, Hs + 2, W, C], dtype=out1.dtype, device="cuda")
             else:
                 N, C, Hs, W = list(out1.shape)
                 memory_format = (
@@ -446,9 +438,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
             else:
                 out1_pad[:, :, 1 : Hs + 1, :].copy_(out1)
             torch.cuda.current_stream().wait_stream(stream1)
-            fast_bottleneck.forward_out2_pad(
-                explicit_nhwc, stride_1x1, args, outputs, out1_pad
-            )
+            fast_bottleneck.forward_out2_pad(explicit_nhwc, stride_1x1, args, outputs, out1_pad)
         elif spatial_method == 3:
             fast_bottleneck.forward_out2_mask(
                 explicit_nhwc, stride_1x1, args, outputs, thresholdTop, thresholdBottom
@@ -565,9 +555,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                 grad_o, outputs[2], ctx.saved_tensors[6], ctx.saved_tensors[11]
             )
         else:
-            grad_conv3, grad_conv4 = drelu_dscale1(
-                grad_o, outputs[2], ctx.saved_tensors[6]
-            )
+            grad_conv3, grad_conv4 = drelu_dscale1(grad_o, outputs[2], ctx.saved_tensors[6])
 
         # create input vector for backward
         t_list = [*ctx.saved_tensors[0:10]]
@@ -600,10 +588,8 @@ class SpatialBottleneckFunction(torch.autograd.Function):
             relu1 = t_list[12]
             ctx.stream1.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(ctx.stream1):
-                top_halo, btm_halo = (
-                    ctx.spatial_halo_exchanger.left_right_halo_exchange(
-                        grad_out2[:, :1, :, :], grad_out2[:, Hs - 1 :, :, :]
-                    )
+                top_halo, btm_halo = ctx.spatial_halo_exchanger.left_right_halo_exchange(
+                    grad_out2[:, :1, :, :], grad_out2[:, Hs - 1 :, :, :]
                 )
                 # copy halos to send buffer
             if ctx.spatial_method == 1 or ctx.spatial_method == 2:
@@ -618,18 +604,14 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                                 dtype=grad_out2.dtype,
                                 device=grad_out2.device,
                             )
-                            btm_fat_halo[:, :2, :, :].copy_(
-                                grad_out2[:, Hs - 2 :, :, :]
-                            )
+                            btm_fat_halo[:, :2, :, :].copy_(grad_out2[:, Hs - 2 :, :, :])
                             btm_fat_halo[:, 2:, :, :].copy_(btm_halo)
                             btm_fat_relu_halo = torch.empty(
                                 (N, 3, W, C),
                                 dtype=grad_out2.dtype,
                                 device=grad_out2.device,
                             )
-                            btm_fat_relu_halo[:, :2, :, :].copy_(
-                                relu1[:, Hs - 2 :, :, :]
-                            )
+                            btm_fat_relu_halo[:, :2, :, :].copy_(relu1[:, Hs - 2 :, :, :])
                             btm_fat_relu_halo[:, 2:, :, :].zero_()
                         else:
                             btm_fat_halo = torch.empty(
@@ -637,18 +619,14 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                                 dtype=grad_out2.dtype,
                                 device=grad_out2.device,
                             )
-                            btm_fat_halo[:, :, :2, :].copy_(
-                                grad_out2[:, :, Hs - 2 :, :]
-                            )
+                            btm_fat_halo[:, :, :2, :].copy_(grad_out2[:, :, Hs - 2 :, :])
                             btm_fat_halo[:, :, 2:, :].copy_(btm_halo)
                             btm_fat_relu_halo = torch.empty(
                                 (N, C, 3, W),
                                 dtype=grad_out2.dtype,
                                 device=grad_out2.device,
                             )
-                            btm_fat_relu_halo[:, :, :2, :].copy_(
-                                relu1[:, :, Hs - 2 :, :]
-                            )
+                            btm_fat_relu_halo[:, :, :2, :].copy_(relu1[:, :, Hs - 2 :, :])
                             btm_fat_relu_halo[:, :, 2:, :].zero_()
                         btm_grad_out1_halo = fast_bottleneck.backward_grad_out1_halo(
                             ctx.explicit_nhwc,
@@ -712,11 +690,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                 assert False, "spatial_method must be 1, 2 or 3"
 
         # compute grad_out1 for internal cells
-        if (
-            ctx.spatial_group_size <= 1
-            or ctx.spatial_method == 1
-            or ctx.spatial_method == 2
-        ):
+        if ctx.spatial_group_size <= 1 or ctx.spatial_method == 1 or ctx.spatial_method == 2:
             grad_out1 = fast_bottleneck.backward_grad_out1(
                 ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, grad_out2
             )
@@ -761,24 +735,20 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                         btm_relu_halo = relu1[:, :, Hs - 1 :, :].clone()
                         btm_grad_out1 = grad_out1[:, :, Hs - 1 :, :]
                     w1by3 = w[:, :1, :, :].clone()
-                    ctx.stream2.wait_stream(
-                        ctx.stream1
-                    )  # wait for halo transfers to finish
+                    ctx.stream2.wait_stream(ctx.stream1)  # wait for halo transfers to finish
                     ctx.stream2.wait_stream(
                         torch.cuda.current_stream()
                     )  # wait for backward_grad_out1_mask to finish before launching halo correction kernel
                     with torch.cuda.stream(ctx.stream2):
-                        btm_grad_out1_halo = (
-                            fast_bottleneck.backward_grad_out1_halo_corr(
-                                ctx.explicit_nhwc,
-                                ctx.stride_1x1,
-                                t_list,
-                                w1by3,
-                                grads,
-                                btm_halo,
-                                btm_relu_halo,
-                                btm_grad_out1.clone(),
-                            )
+                        btm_grad_out1_halo = fast_bottleneck.backward_grad_out1_halo_corr(
+                            ctx.explicit_nhwc,
+                            ctx.stride_1x1,
+                            t_list,
+                            w1by3,
+                            grads,
+                            btm_halo,
+                            btm_relu_halo,
+                            btm_grad_out1.clone(),
                         )
                         btm_grad_out1.copy_(btm_grad_out1_halo)
                 if ctx.spatial_group_rank > 0:
@@ -793,17 +763,15 @@ class SpatialBottleneckFunction(torch.autograd.Function):
                         torch.cuda.current_stream()
                     )  # wait for backward_grad_out1_mask to finish before launching halo correction kernel
                     with torch.cuda.stream(ctx.stream1):
-                        top_grad_out1_halo = (
-                            fast_bottleneck.backward_grad_out1_halo_corr(
-                                ctx.explicit_nhwc,
-                                ctx.stride_1x1,
-                                t_list,
-                                w1by3,
-                                grads,
-                                top_halo,
-                                top_relu_halo,
-                                top_grad_out1.clone(),
-                            )
+                        top_grad_out1_halo = fast_bottleneck.backward_grad_out1_halo_corr(
+                            ctx.explicit_nhwc,
+                            ctx.stride_1x1,
+                            t_list,
+                            w1by3,
+                            grads,
+                            top_halo,
+                            top_relu_halo,
+                            top_grad_out1.clone(),
                         )
                         top_grad_out1.copy_(top_grad_out1_halo)
                 if ctx.spatial_group_rank < ctx.spatial_group_size - 1:
@@ -819,9 +787,7 @@ class SpatialBottleneckFunction(torch.autograd.Function):
             ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads, grad_out2, grad_out1
         )
         with torch.cuda.stream(wgrad3_stream):
-            fast_bottleneck.backward_wgrad3(
-                ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads
-            )
+            fast_bottleneck.backward_wgrad3(ctx.explicit_nhwc, ctx.stride_1x1, t_list, grads)
         with torch.cuda.stream(wgrad2_stream):
             if ctx.spatial_group_size > 1:
                 fast_bottleneck.backward_wgrad2_pad(
@@ -971,9 +937,7 @@ class SpatialBottleneck(torch.nn.Module):
     def forward(self, x):
         if self.use_cudnn:
             if self.thresholdTop is None:
-                spatial_group_size, spatial_group_rank, _, _, _, _ = (
-                    self.spatial_parallel_args
-                )
+                spatial_group_size, spatial_group_rank, _, _, _, _ = self.spatial_parallel_args
                 if self.explicit_nhwc:
                     N, H, W, C = list(x.shape)
                 else:

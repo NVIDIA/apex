@@ -90,18 +90,14 @@ class UccPipelineParallelForwardBackwardProf(UccDistributedTestBase):
         if fwd_bwd_func == _forward_backward_pipelining_with_interleaving:
             self.assertIsNotNone(virtual_pipeline_model_parallel_size)
             self.assertGreater(virtual_pipeline_model_parallel_size, 1)
-        dtype_options = (
-            self.dtypes or [torch.float32, torch.double] + _get_autocast_dtypes()
-        )
+        dtype_options = self.dtypes or [torch.float32, torch.double] + _get_autocast_dtypes()
 
         for dtype, deallocate_pipeline_outputs in itertools.product(
             dtype_options,
             self.deallocate_options,
         ):
             grad_scaler = (
-                torch.amp.GradScaler("cuda", init_scale=4.0)
-                if dtype == torch.half
-                else None
+                torch.amp.GradScaler("cuda", init_scale=4.0) if dtype == torch.half else None
             )
 
             (

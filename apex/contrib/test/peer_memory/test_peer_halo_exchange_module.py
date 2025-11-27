@@ -292,9 +292,7 @@ class TestPeerMemory(NcclDistributedTestBase):
     # TODO(crcrpar): Check if `world_size` being multiple of 2 is must.
     def _check_world_size_and_may_skip(self) -> None:
         if not (self.world_size >= 2 and self.world_size % 2 == 0):
-            self.skipTest(
-                f"world_size is expected to be a multiple of 2 but, {self.world_size}"
-            )
+            self.skipTest(f"world_size is expected to be a multiple of 2 but, {self.world_size}")
 
     def get_halo_excnahger_1d(self):
         peer_ranks = [i for i in range(self.world_size)]

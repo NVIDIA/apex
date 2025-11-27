@@ -82,11 +82,7 @@ for stride, o_channel in [(1, 32), (1, 128), (2, 32)]:
     # c_s = c.storage().tolist()
     # d_s = d.storage().tolist()
     # print(max([x-y for x,y in zip(c_s,d_s)]))
-    c = (
-        c.contiguous(memory_format=torch.contiguous_format)
-        .permute(0, 2, 3, 1)
-        .contiguous()
-    )
+    c = c.contiguous(memory_format=torch.contiguous_format).permute(0, 2, 3, 1).contiguous()
     d_grad = a.grad.float().permute(0, 2, 3, 1).contiguous()
     wgrads = []
     for w in model.w_conv:

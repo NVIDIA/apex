@@ -27,9 +27,7 @@ Batch = Union[
     Tuple[Union[torch.Tensor, FutureTensor], ...],
 ]
 LossFunc = Callable[[torch.Tensor], torch.Tensor]
-FwdStepFunc = Callable[
-    [Optional[Batch], torch.nn.Module], Tuple[torch.Tensor, LossFunc]
-]
+FwdStepFunc = Callable[[Optional[Batch], torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
 
 
 def build_model(
@@ -135,10 +133,12 @@ def build_model(
         parallel_state.model_parallel_is_initialized()
         and parallel_state.get_data_parallel_rank() == 0
     ):
-        msg = " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
-            parallel_state.get_tensor_model_parallel_rank(),
-            parallel_state.get_pipeline_model_parallel_rank(),
-            _calc_number_of_params(model),
+        msg = (
+            " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
+                parallel_state.get_tensor_model_parallel_rank(),
+                parallel_state.get_pipeline_model_parallel_rank(),
+                _calc_number_of_params(model),
+            )
         )
         print(msg, flush=True)
 
@@ -162,12 +162,7 @@ def build_model(
 
 def _calc_number_of_params(model: List[torch.nn.Module]) -> int:
     assert isinstance(model, list)
-    return sum(
-        [
-            sum([p.nelement() for p in model_module.parameters()])
-            for model_module in model
-        ]
-    )
+    return sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
 
 
 def _get_params_for_weight_decay_optimization(
@@ -237,11 +232,9 @@ def custom_backward(output: torch.Tensor, grad_output: Optional[torch.Tensor]) -
     assert output.numel() == 1, (
         "output should be pseudo-freed in schedule, to optimize memory consumption"
     )
-    assert isinstance(output, torch.Tensor), "output == {}.".format(
-        type(output).__name__
-    )
-    assert isinstance(grad_output, (torch.Tensor, type(None))), (
-        "grad_outptu == {}.".format(type(grad_output).__name__)
+    assert isinstance(output, torch.Tensor), "output == {}.".format(type(output).__name__)
+    assert isinstance(grad_output, (torch.Tensor, type(None))), "grad_outptu == {}.".format(
+        type(grad_output).__name__
     )
 
     # Handle scalar output
@@ -302,9 +295,7 @@ def forward_step(
     if unwrap_output_tensor:
         input_tensor = [input_tensor]
 
-    input_tensor = [
-        inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor
-    ]
+    input_tensor = [inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor]
 
     unwrapped_model.set_input_tensor(input_tensor)
     with torch.amp.autocast(
@@ -374,9 +365,7 @@ def backward_step(
     if unwrap_input_tensor_grad:
         input_tensor = [input_tensor]
 
-    input_tensor = [
-        inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor
-    ]
+    input_tensor = [inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor]
 
     for x in input_tensor:
         if x is not None:
@@ -385,16 +374,13 @@ def backward_step(
     if not isinstance(output_tensor, list):
         output_tensor = [output_tensor]
 
-    output_tensor = [
-        out.get() if isinstance(out, FutureTensor) else out for out in output_tensor
-    ]
+    output_tensor = [out.get() if isinstance(out, FutureTensor) else out for out in output_tensor]
 
     if not isinstance(output_tensor_grad, list):
         output_tensor_grad = [output_tensor_grad]
 
     output_tensor_grad = [
-        ogr.get() if isinstance(ogr, FutureTensor) else ogr
-        for ogr in output_tensor_grad
+        ogr.get() if isinstance(ogr, FutureTensor) else ogr for ogr in output_tensor_grad
     ]
 
     # Backward pass.

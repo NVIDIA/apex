@@ -51,9 +51,7 @@ class EncdecMultiheadAttn(nn.Module):
         self.in_proj_weight_kv = Parameter(torch.empty(2 * embed_dim, embed_dim))
         self.out_proj_weight = Parameter(torch.empty(embed_dim, embed_dim))
         if self.bias:
-            assert impl != "fast", (
-                "ERROR! The Fast implementation does not support biases!"
-            )
+            assert impl != "fast", "ERROR! The Fast implementation does not support biases!"
             self.in_proj_bias_q = Parameter(torch.empty(embed_dim))
             self.in_proj_bias_kv = Parameter(torch.empty(2 * embed_dim))
             self.out_proj_bias = Parameter(torch.empty(embed_dim))

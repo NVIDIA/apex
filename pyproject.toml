@@ -7,3 +7,19 @@ build-backend = "setuptools.build_meta"
 
 [tool.ruff]
 line-length = 100
+ignore = [
+    # Sorted by occurrence count (ascending) - easier to fix first
+    "E731",  # lambda assignment (6 occurrences)
+    "E721",  # type comparison should use isinstance (8 occurrences)
+    "E741",  # ambiguous variable name (8 occurrences)
+    "E712",  # comparison to True/False (9 occurrences)
+    "F403",  # star imports used (9 occurrences)
+    "E701",  # multiple statements on one line (10 occurrences)
+    "E711",  # comparison to None should be `cond is None` (11 occurrences)
+    "F821",  # undefined name (14 occurrences)
+    "E722",  # bare except (15 occurrences)
+    "E402",  # module level import not at top of file (41 occurrences)
+    "F401",  # imported but unused (45 occurrences)
+    "F841",  # local variable assigned but never used (52 occurrences)
+    "F405",  # star imports (80 occurrences)
+]

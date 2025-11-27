@@ -27,9 +27,7 @@ class RefLAMB(Optimizer):
         https://arxiv.org/abs/1904.00962
     """
 
-    def __init__(
-        self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01
-    ):
+    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01):
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:
@@ -217,9 +215,7 @@ class TestLamb(unittest.TestCase):
                 "eps": 1e-08,
                 "weight_decay": wd,
             }
-            ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-                [tensor], lamb_option
-            )
+            ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim([tensor], lamb_option)
 
             if isinstance(tst_optim, apex.optimizers.FusedMixedPrecisionLamb):
                 if param_type != torch.float:
@@ -271,9 +267,7 @@ class TestFusedLAMB(TestLamb):
             tensors = []
             for size in sizes:
                 tensors.append(torch.rand(size, dtype=torch.float, device="cuda"))
-            ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-                tensors, lamb_option
-            )
+            ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(tensors, lamb_option)
 
             for i in range(self.iters):
                 self.gen_grad(ref_param, tst_param)
@@ -293,9 +287,7 @@ class TestFusedLAMB(TestLamb):
                 "eps": 3e-06,
                 "weight_decay": wd,
             }
-            ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-                [tensor], lamb_option
-            )
+            ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim([tensor], lamb_option)
 
             for i in range(self.iters):
                 self.gen_grad(ref_param, tst_param)
@@ -342,9 +334,7 @@ class TestFusedMixedPrecisionLamb(TestLamb):
             tensors = []
             for size in sizes:
                 tensors.append(torch.rand(size, dtype=torch.float, device="cuda"))
-            ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-                tensors, lamb_option
-            )
+            ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(tensors, lamb_option)
 
             for i in range(self.iters):
                 self.gen_grad(ref_param, tst_param)
@@ -364,9 +354,7 @@ class TestFusedMixedPrecisionLamb(TestLamb):
                 "eps": 3e-06,
                 "weight_decay": wd,
             }
-            ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-                [tensor], lamb_option
-            )
+            ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim([tensor], lamb_option)
 
             for i in range(self.iters):
                 self.gen_grad(ref_param, tst_param)

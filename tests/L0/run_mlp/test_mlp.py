@@ -123,9 +123,7 @@ class TestMLP(common_utils.TestCase):
 
         ref_mlp = nn.Sequential(*mlp_layers).cuda()
 
-        test_input = torch.empty(batch_size, mlp_sizes[0], device="cuda").uniform_(
-            -1.0, 1.0
-        )
+        test_input = torch.empty(batch_size, mlp_sizes[0], device="cuda").uniform_(-1.0, 1.0)
         ref_input = test_input.clone().detach()
         mlp_out = mlp(test_input)
         ref_out = ref_mlp(ref_input)

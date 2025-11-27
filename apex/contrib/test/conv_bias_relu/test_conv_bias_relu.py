@@ -60,9 +60,7 @@ class FusedDenseTest(unittest.TestCase):
         self.x_.requires_grad_()
 
         self.mask = (
-            torch.randn(
-                [self.batch_size, self.out_channels, self.out_height, self.out_width]
-            )
+            torch.randn([self.batch_size, self.out_channels, self.out_height, self.out_width])
             .cuda()
             .to(memory_format=torch.channels_last)
         )
@@ -149,9 +147,7 @@ class FusedDenseTest(unittest.TestCase):
             rtol=1e-3,
             equal_nan=True,
         )
-        torch.testing.assert_close(
-            self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True
-        )
+        torch.testing.assert_close(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
     def test_conv_bias(self):
         with torch.amp.autocast("cuda", dtype=torch.half):
@@ -185,9 +181,7 @@ class FusedDenseTest(unittest.TestCase):
             rtol=1e-3,
             equal_nan=True,
         )
-        torch.testing.assert_close(
-            self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True
-        )
+        torch.testing.assert_close(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
     def test_conv_bias_mask_relu(self):
         with torch.amp.autocast("cuda", dtype=torch.half):
@@ -221,9 +215,7 @@ class FusedDenseTest(unittest.TestCase):
             rtol=1e-3,
             equal_nan=True,
         )
-        torch.testing.assert_close(
-            self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True
-        )
+        torch.testing.assert_close(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
     def test_conv_frozen_scale_bias_relu(self):
         with torch.amp.autocast("cuda", dtype=torch.half):
@@ -250,9 +242,7 @@ class FusedDenseTest(unittest.TestCase):
             rtol=1e-3,
             equal_nan=True,
         )
-        torch.testing.assert_close(
-            self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True
-        )
+        torch.testing.assert_close(self.x_.grad, self.x.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
 
 
 if __name__ == "__main__":

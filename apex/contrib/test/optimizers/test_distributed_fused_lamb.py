@@ -73,15 +73,10 @@ class NcclDistributedFusedLAMB(NcclDistributedTestBase):
     def test_distributed_fused_lamb(self, no_copy, opt_kwargs):
         if (
             no_copy
-            and "no_copy"
-            not in inspect.getfullargspec(torch.distributed.reduce_scatter).args
+            and "no_copy" not in inspect.getfullargspec(torch.distributed.reduce_scatter).args
         ):
             self.skipTest("does not support no_copy")
-        if (
-            no_copy
-            and "no_copy"
-            not in inspect.getfullargspec(torch.distributed.all_gather).args
-        ):
+        if no_copy and "no_copy" not in inspect.getfullargspec(torch.distributed.all_gather).args:
             self.skipTest("does not support no_copy")
 
         assert torch.distributed.is_initialized()
@@ -99,15 +94,11 @@ class NcclDistributedFusedLAMB(NcclDistributedTestBase):
         no_decay = ["bias", "gamma", "beta", "LayerNorm"]
         optimizer_grouped_parameters = [
             {
-                "params": [
-                    p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
-                ],
+                "params": [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
                 "weight_decay": 0.01,
             },
             {
-                "params": [
-                    p for n, p in param_optimizer if any(nd in n for nd in no_decay)
-                ],
+                "params": [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
                 "weight_decay": 0.0,
             },
         ]

@@ -59,15 +59,11 @@ class MicrobatchCalculatorTestBase:
             self.assertEqual(get_micro_batch_size(), expected_micro_batch_size, msg=msg)
             self.assertEqual(
                 get_num_microbatches(),
-                expected_global_batch_size
-                / expected_micro_batch_size
-                / data_parallel_size,
+                expected_global_batch_size / expected_micro_batch_size / data_parallel_size,
                 msg=msg,
             )
             current_global_batch_size = get_current_global_batch_size()
-            self.assertEqual(
-                current_global_batch_size, expected_global_batch_size, msg=msg
-            )
+            self.assertEqual(current_global_batch_size, expected_global_batch_size, msg=msg)
 
             # Make sure `global_batch_size` equals to the final global batch size after
             # certain number of updates.
@@ -77,9 +73,7 @@ class MicrobatchCalculatorTestBase:
                     current_global_batch_size = get_current_global_batch_size()
                     update_num_microbatches(current_global_batch_size)
                 current_global_batch_size = get_current_global_batch_size()
-                self.assertEqual(
-                    get_current_global_batch_size(), self.GLOBAL_BATCH_SIZE, msg=msg
-                )
+                self.assertEqual(get_current_global_batch_size(), self.GLOBAL_BATCH_SIZE, msg=msg)
             parallel_state.destroy_model_parallel()
 
     def test_constant_microbatch_calculator(self):
@@ -89,9 +83,7 @@ class MicrobatchCalculatorTestBase:
         self._test(rampup_batch_size=[256, 128, 500])
 
 
-class NcclMicrobatchCalculatorTest(
-    MicrobatchCalculatorTestBase, NcclDistributedTestBase
-):
+class NcclMicrobatchCalculatorTest(MicrobatchCalculatorTestBase, NcclDistributedTestBase):
     pass
 
 

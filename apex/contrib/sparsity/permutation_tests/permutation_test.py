@@ -24,15 +24,9 @@ def str2bool(v):
 
 
 parser = argparse.ArgumentParser(description="Test channel permutations")
-parser.add_argument(
-    "--infile", default="random", type=str, help='input file or "random"'
-)
-parser.add_argument(
-    "--channels", default=384, type=int, help="random input channel count (C)"
-)
-parser.add_argument(
-    "--filters", default=96, type=int, help="random input filter count (K)"
-)
+parser.add_argument("--infile", default="random", type=str, help='input file or "random"')
+parser.add_argument("--channels", default=384, type=int, help="random input channel count (C)")
+parser.add_argument("--filters", default=96, type=int, help="random input filter count (K)")
 parser.add_argument("--verbosity", default=0, type=int, help="print status updates")
 parser.add_argument("--seed", default=1, type=int, help="random seed")
 parser.add_argument(
@@ -71,9 +65,7 @@ parser.add_argument(
     type=str2bool,
     help="print the final permutation found by each strategy",
 )
-parser.add_argument(
-    "strategies", metavar="strategy", type=str, nargs="+", help="strategies to try"
-)
+parser.add_argument("strategies", metavar="strategy", type=str, nargs="+", help="strategies to try")
 
 
 ## binary search for the minimum sparsity necessary to achieve a perfect permutation with some strategy
@@ -88,16 +80,12 @@ def find_minimum_sparsity(matrix, search_function, **kwargs):
 
     while min_sparsity < max_sparsity:
         if verbosity > 5:
-            print(
-                f"\tlooking now at {sparsity} (between {min_sparsity} and {max_sparsity})"
-            )
+            print(f"\tlooking now at {sparsity} (between {min_sparsity} and {max_sparsity})")
 
         # prepare unstructured sparse matrix, get row sparsity magnitude
         tmp_result = unstructured_prune(result, sparsity / 100.0)
         local_unpruned_magnitude = np.sum(np.abs(tmp_result))
-        local_unstructured_rows_magnitude = magnitude_after_pruning_rows(
-            tmp_result, rate=0.5
-        )
+        local_unstructured_rows_magnitude = magnitude_after_pruning_rows(tmp_result, rate=0.5)
 
         # quick check to see if this sparsity is trivially too low
         if local_unstructured_rows_magnitude * 1.0001 < local_unpruned_magnitude:
@@ -109,18 +97,14 @@ def find_minimum_sparsity(matrix, search_function, **kwargs):
             sparsity = int(min_sparsity + (max_sparsity - min_sparsity) / 2.0)
             continue
 
-        tmp_result, tmp_duration, found_permutation = search_function(
-            tmp_result, **kwargs
-        )
+        tmp_result, tmp_duration, found_permutation = search_function(tmp_result, **kwargs)
         duration += tmp_duration
         nonzeros = np.count_nonzero(tmp_result)
         tmp_result = apply_2_to_4(tmp_result)
         nonzeros_after_2to4 = np.count_nonzero(tmp_result)
         if nonzeros == nonzeros_after_2to4:  # found a winner, are we done?
             if verbosity > 3:
-                print(
-                    f"Found an unstructured sparsity that we can turn into 2:4: {sparsity}"
-                )
+                print(f"Found an unstructured sparsity that we can turn into 2:4: {sparsity}")
 
             max_sparsity = sparsity
             if max_sparsity <= min_sparsity and verbosity > 0:
@@ -130,9 +114,7 @@ def find_minimum_sparsity(matrix, search_function, **kwargs):
                 break
         else:
             if verbosity > 5:
-                print(
-                    f"Unstructured sparsity {sparsity} was insufficient to produce 2:4 sparsity"
-                )
+                print(f"Unstructured sparsity {sparsity} was insufficient to produce 2:4 sparsity")
             min_sparsity = sparsity + 1
             if max_sparsity <= min_sparsity and verbosity > 0:
                 print(
@@ -204,12 +186,8 @@ if __name__ == "__main__":
     if args.pretty_print:
         print(f"{'strategy':<35},{'magnitude':>15},{final_metric:>15},{'duration':>15}")
         print(f"{'unpruned':<35},{unpruned_magnitude:>15.3f},{'-':^15},{'-':^15}")
-        print(
-            f"{'unstructured':<35},{unstructured_magnitude:>15.3f},{'-':^15},{'-':^15}"
-        )
-        print(
-            f"{'50% rows':<35},{unstructured_rows_magnitude:>15.3f},{'100.0':>15},{'-':^15}"
-        )
+        print(f"{'unstructured':<35},{unstructured_magnitude:>15.3f},{'-':^15},{'-':^15}")
+        print(f"{'50% rows':<35},{unstructured_rows_magnitude:>15.3f},{'100.0':>15},{'-':^15}")
         print(
             f"{'default 2:4':<35},{simple_2to4_magnitude:>15.3f},{'0.0':>15},{default_duration:>15.3f}"
         )
@@ -239,9 +217,7 @@ if __name__ == "__main__":
             if len(strat_split) >= 3:
                 escape_attempts = int(strat_split[2])
 
-            if (
-                args.unstructured >= 0.0
-            ):  # just perform the search on the current matrix
+            if args.unstructured >= 0.0:  # just perform the search on the current matrix
                 result, duration, found_permutation = Exhaustive_Search(
                     result,
                     stripe_group_size=stripe_group_size_in_cols,
@@ -262,9 +238,7 @@ if __name__ == "__main__":
             if len(strat_split) >= 2:
                 escape_attempts = int(strat_split[1])
 
-            if (
-                args.unstructured >= 0.0
-            ):  # just perform the search on the current matrix
+            if args.unstructured >= 0.0:  # just perform the search on the current matrix
                 result, duration, found_permutation = Channel_Swap(
                     result, escape_attempts=escape_attempts, verbosity=verbosity
                 )
@@ -300,9 +274,7 @@ if __name__ == "__main__":
                     best_sum = cur_sum
                     best_perm = permutation.copy()
                     if verbosity > 0:
-                        print(
-                            f"\tnew best permutation {x} found with magnitude {best_sum:>15.3f}"
-                        )
+                        print(f"\tnew best permutation {x} found with magnitude {best_sum:>15.3f}")
                 elif verbosity > 5:
                     print(f"\tpermutation {x} magnitude too low: {cur_sum:>15.3f}")
             duration = time.perf_counter() - start_time
@@ -316,10 +288,7 @@ if __name__ == "__main__":
         # report stats for this strategy
         cur_mag = sum_after_2_to_4(result)
         cur_eff = (
-            efficacy(
-                best_lost_magnitude, base_lost_magnitude, unpruned_magnitude - cur_mag
-            )
-            * 100.0
+            efficacy(best_lost_magnitude, base_lost_magnitude, unpruned_magnitude - cur_mag) * 100.0
         )
         final_metric = cur_eff
         if args.unstructured < 0.0:

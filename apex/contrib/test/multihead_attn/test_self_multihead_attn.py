@@ -83,9 +83,7 @@ class SelfMultiheadAttnTest(unittest.TestCase):
             is_training=True,
         )
 
-        torch.testing.assert_close(
-            self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5
-        )
+        torch.testing.assert_close(self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5)
         torch.testing.assert_close(ref_outputs, tst_outputs, atol=1e-3, rtol=1e-3)
 
         with torch.no_grad():
@@ -94,9 +92,7 @@ class SelfMultiheadAttnTest(unittest.TestCase):
 
         ref_outputs.backward(ref_grads)
         tst_outputs.backward(tst_grads)
-        torch.testing.assert_close(
-            self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3
-        )
+        torch.testing.assert_close(self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3)
 
     def test_self_multihead_attn_time_mask(self):
         grads = torch.randn_like(self.tst_inputs)
@@ -134,13 +130,9 @@ class SelfMultiheadAttnTest(unittest.TestCase):
         self.ref_inputs.backward(grads)
         self.tst_inputs.backward(grads)
 
-        torch.testing.assert_close(
-            self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5
-        )
+        torch.testing.assert_close(self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5)
         torch.testing.assert_close(ref_outputs, tst_outputs, atol=5e-3, rtol=1e-3)
-        torch.testing.assert_close(
-            self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3
-        )
+        torch.testing.assert_close(self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3)
 
     def test_self_multihead_attn_pad_mask(self):
         grads = torch.randn_like(self.tst_inputs)
@@ -178,13 +170,9 @@ class SelfMultiheadAttnTest(unittest.TestCase):
         self.ref_inputs.backward(grads)
         self.tst_inputs.backward(grads)
 
-        torch.testing.assert_close(
-            self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5
-        )
+        torch.testing.assert_close(self.ref_inputs, self.tst_inputs, atol=1e-5, rtol=1e-5)
         torch.testing.assert_close(ref_outputs, tst_outputs, atol=1e-3, rtol=1e-3)
-        torch.testing.assert_close(
-            self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3
-        )
+        torch.testing.assert_close(self.ref_inputs.grad, self.tst_inputs.grad, atol=1e-3, rtol=1e-3)
 
 
 if __name__ == "__main__":

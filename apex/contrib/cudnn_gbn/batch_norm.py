@@ -169,9 +169,7 @@ class GroupBatchNorm2d(_BatchNorm):
 
     def _check_input_channels(self, input):
         if input.size(1) % 8 != 0:
-            raise ValueError(
-                "GroupBatchNorm2d number of input channels should be a multiple of 8"
-            )
+            raise ValueError("GroupBatchNorm2d number of input channels should be a multiple of 8")
 
     def forward(self, input: Tensor) -> Tensor:
         # currently only GPU input is supported

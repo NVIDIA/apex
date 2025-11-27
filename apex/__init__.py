@@ -42,9 +42,7 @@ else:
     __all__ = ["optimizers", "normalization"]
 
 
-def check_cudnn_version_and_warn(
-    global_option: str, required_cudnn_version: int
-) -> bool:
+def check_cudnn_version_and_warn(global_option: str, required_cudnn_version: int) -> bool:
     cudnn_available = torch.backends.cudnn.is_available()
     cudnn_version = torch.backends.cudnn.version() if cudnn_available else None
     if not (cudnn_available and (cudnn_version >= required_cudnn_version)):

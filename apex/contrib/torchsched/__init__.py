@@ -35,9 +35,7 @@ def torchsched(
     decompositions: dict[OpOverload, Callable[..., Any]] | None = None,
 ) -> Callable:
     backend = get_backend(backend="torchsched", scheme="dwb")
-    return backend(
-        model_, example_inputs_, inner_compile, config_patches, decompositions
-    )
+    return backend(model_, example_inputs_, inner_compile, config_patches, decompositions)
 
 
 _SUPPORTED_BACKENDS = list_backends()

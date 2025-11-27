@@ -70,9 +70,7 @@ class MyModel(nn.Module):
         )
         self.input_tensor = None
 
-    def set_input_tensor(
-        self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]
-    ) -> None:
+    def set_input_tensor(self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]) -> None:
         if not isinstance(input_tensor, list):
             input_tensor = [input_tensor]
         self.input_tensor = input_tensor[0]
@@ -284,8 +282,9 @@ def initialize_distributed(backend="nccl"):
     world_size = int(os.getenv("WORLD_SIZE", "1"))
 
     print(
-        "> initializing torch.distributed with local rank: {}, "
-        "rank: {}, world size: {}".format(local_rank, rank, world_size)
+        "> initializing torch.distributed with local rank: {}, rank: {}, world size: {}".format(
+            local_rank, rank, world_size
+        )
     )
 
     # Set the device id.

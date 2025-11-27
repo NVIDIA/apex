@@ -93,9 +93,7 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
         timer.stop()
         timer.sync()
 
-        total_bytes_fwd = sum(
-            [size_in_bytes(t) for t in [x, z, gamma, beta, mu, rsigma]]
-        )
+        total_bytes_fwd = sum([size_in_bytes(t) for t in [x, z, gamma, beta, mu, rsigma]])
 
         ms_fwd = timer.millis() / runs
 
@@ -107,9 +105,7 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
 
         timer.start()
         for r in range(runs):
-            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(
-                dz, z, mu, rsigma, gamma, beta, True
-            )
+            dx, dgamma, dbeta, dbp, dgp = fln.ln_bwd(dz, z, mu, rsigma, gamma, beta, True)
         timer.stop()
         timer.sync()
 
@@ -207,9 +203,7 @@ def _test_impl(S, B, hidden_size, itype, wtype, ctype=fp32, mem_eff=False):
 
     return [
         check_err(x, re)
-        for x, re in zip(
-            [z, mu, rs, dx, dg, db], [re_z, re_mu, re_rs, re_dx, re_dg, re_db]
-        )
+        for x, re in zip([z, mu, rs, dx, dg, db], [re_z, re_mu, re_rs, re_dx, re_dg, re_db])
     ]
 
 
@@ -277,9 +271,7 @@ class TestFastLayerNorm(unittest.TestCase):
 
     def test_compat_with_autocast(self):
         autocast_dtypes = (
-            (torch.half, torch.bfloat16)
-            if torch.cuda.is_bf16_supported()
-            else (torch.half,)
+            (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
         )
         input_shape = (512, 32, 768)
         layer_norm = FastLayerNorm(input_shape[-1]).cuda()

@@ -49,9 +49,7 @@ def _layer_norm_forward(
     n_idx = tl.arange(0, N_BLOCK)
     n_mask = n_idx < N
     mask = m_mask[:, None] & n_mask[None, :]
-    x = tl.load(x_ptr + N * m_idx[:, None] + n_idx[None, :], mask, other=0).to(
-        tl.float32
-    )
+    x = tl.load(x_ptr + N * m_idx[:, None] + n_idx[None, :], mask, other=0).to(tl.float32)
     x_mean = tl.sum(x, 1) / N
     tl.store(x_mean_ptr + m_idx, x_mean, m_mask)
     x_bar = x - x_mean[:, None]

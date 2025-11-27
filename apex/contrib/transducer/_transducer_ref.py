@@ -32,9 +32,7 @@ def transducer_loss_reference(x, label, f_len, y_len, blank_idx, loss_grad):
         for b in range(B):
             beta[b, f_len[b] - 1, y_len[b]] = x[b, f_len[b] - 1, y_len[b], blank_idx]
             for t in range(f_len[b] - 2, -1, -1):
-                beta[b, t, y_len[b]] = (
-                    beta[b, t + 1, y_len[b]] + x[b, t, y_len[b], blank_idx]
-                )
+                beta[b, t, y_len[b]] = beta[b, t + 1, y_len[b]] + x[b, t, y_len[b], blank_idx]
             for u in range(y_len[b] - 1, -1, -1):
                 beta[b, f_len[b] - 1, u] = (
                     beta[b, f_len[b] - 1, u + 1] + x[b, f_len[b] - 1, u, label[b, u]]
@@ -67,8 +65,7 @@ def transducer_loss_reference(x, label, f_len, y_len, blank_idx, loss_grad):
             )
 
             grad[b, f_len[b] - 1, y_len[b], blank_idx] = -torch.exp(
-                common_factor[b, f_len[b] - 1, y_len[b]]
-                + x[b, f_len[b] - 1, y_len[b], blank_idx]
+                common_factor[b, f_len[b] - 1, y_len[b]] + x[b, f_len[b] - 1, y_len[b], blank_idx]
             )
 
         return grad

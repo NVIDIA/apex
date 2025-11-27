@@ -126,9 +126,7 @@ class SelfAttnFunc(torch.autograd.Function):
             dtype=dropout_results.dtype,
             device=torch.device("cuda"),
         ).transpose(1, 0)
-        matmul2_results = torch.bmm(
-            dropout_results, values.transpose(0, 1), out=matmul2_results
-        )
+        matmul2_results = torch.bmm(dropout_results, values.transpose(0, 1), out=matmul2_results)
         matmul2_results = (
             matmul2_results.transpose(0, 1)
             .contiguous()
@@ -216,9 +214,7 @@ class SelfAttnFunc(torch.autograd.Function):
         # Output:               [ seql_q, seqs, embed_dim ]
         # GEMM: ( seql_q*seqs x embed_dim ) x ( embed_dim x embed_dim ) = ( seql_q*seqs x embed_dim )
         output_lin_grads = torch.mm(
-            output_grads.view(
-                output_grads.size(0) * output_grads.size(1), output_grads.size(2)
-            ),
+            output_grads.view(output_grads.size(0) * output_grads.size(1), output_grads.size(2)),
             output_weights,
         )
         output_lin_grads = output_lin_grads.view(
@@ -257,9 +253,7 @@ class SelfAttnFunc(torch.autograd.Function):
         # Input2: (activations) [seql_k, seqs*heads, head_dim] transpose(0,1).transpose(1,2)
         # Output:               [seqs*heads, seql_q, seql_k]
         # GEMM: Per batch: ( seql_q x head_dim ) x ( head_dim x seql_k ) = ( seql_q x seql_k )
-        matmul2_dgrad1 = torch.bmm(
-            output_lin_grads, values.transpose(0, 1).transpose(1, 2)
-        )
+        matmul2_dgrad1 = torch.bmm(output_lin_grads, values.transpose(0, 1).transpose(1, 2))
         # Matmul2 - DGRAD2
         # Input1: (data grads)  [seql_q, seqs*heads, head_dim] transpose(0,1)
         # Input2: (activations) [seql_k, seqs*heads, head_dim] transpose(0,1).transpose(1,2)

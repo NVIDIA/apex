@@ -26,9 +26,7 @@ def forward_torch_softmax(input, mask, scale):
     return probs
 
 
-autocast_dtypes = (
-    (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
-)
+autocast_dtypes = (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
 
 
 class TestFusedScaleMaskSoftmax(common_utils.TestCase):
@@ -122,13 +120,9 @@ class TestFusedScaleMaskSoftmax(common_utils.TestCase):
                 input_in_fp16, input_in_bf16, attn_mask_type=AttnMaskType.padding
             )
 
-            attention_scores_0 = (
-                torch.randn((4, 12, 24, 24)).cuda().requires_grad_(True)
-            )
+            attention_scores_0 = torch.randn((4, 12, 24, 24)).cuda().requires_grad_(True)
             with torch.no_grad():
-                attention_scores_1 = (
-                    attention_scores_0.clone().to(dtype).requires_grad_(True)
-                )
+                attention_scores_1 = attention_scores_0.clone().to(dtype).requires_grad_(True)
             mask = torch.randint(0, 2, (4, 1, 24, 24)).bool().cuda()
 
             expected = torch_fn(attention_scores_1, mask)
@@ -201,13 +195,9 @@ class TestFusedScaleMaskSoftmax(common_utils.TestCase):
                 input_in_fp16, input_in_bf16, attn_mask_type=AttnMaskType.padding
             )
 
-            attention_scores_0 = (
-                torch.randn((4, 12, 24, 24)).cuda().requires_grad_(True)
-            )
+            attention_scores_0 = torch.randn((4, 12, 24, 24)).cuda().requires_grad_(True)
             with torch.no_grad():
-                attention_scores_1 = (
-                    attention_scores_0.clone().to(dtype).requires_grad_(True)
-                )
+                attention_scores_1 = attention_scores_0.clone().to(dtype).requires_grad_(True)
             mask = None
 
             expected = torch_fn(attention_scores_1, mask)
@@ -257,15 +247,13 @@ class TestFusedScaleMaskSoftmax(common_utils.TestCase):
             )
 
             attn_weights_0 = (
-                torch.randn((4, 12, 24, 24))
-                .to(device="cuda", dtype=dtype)
-                .requires_grad_(True)
+                torch.randn((4, 12, 24, 24)).to(device="cuda", dtype=dtype).requires_grad_(True)
             )
             with torch.no_grad():
                 attn_weights_1 = attn_weights_0.clone().requires_grad_(True)
-            total_mask = ~(
-                torch.tril(torch.randn((24, 24), device="cuda")).bool()
-            ).unsqueeze(0).unsqueeze(0)
+            total_mask = ~(torch.tril(torch.randn((24, 24), device="cuda")).bool()).unsqueeze(
+                0
+            ).unsqueeze(0)
             total_mask = total_mask.repeat((4, 1, 1, 1))
             expected = fused_fn(attn_weights_0, total_mask)
             actual = torch_fn(attn_weights_1, total_mask)
@@ -289,9 +277,9 @@ class TestFusedScaleMaskSoftmax(common_utils.TestCase):
             attn_weights_0 = torch.randn((4, 12, 24, 24)).cuda().requires_grad_(True)
             with torch.no_grad():
                 attn_weights_1 = attn_weights_0.clone().to(dtype).requires_grad_(True)
-            total_mask = ~(
-                torch.tril(torch.randn((24, 24), device="cuda")).bool()
-            ).unsqueeze(0).unsqueeze(0)
+            total_mask = ~(torch.tril(torch.randn((24, 24), device="cuda")).bool()).unsqueeze(
+                0
+            ).unsqueeze(0)
 
             with torch.amp.autocast("cuda", dtype=dtype):
                 actual = fused_fn(attn_weights_0, total_mask)
@@ -349,9 +337,7 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
                     device=self.device,
                 )
                 if not allmasked
-                else torch.ones(
-                    (self.batch, 1, qlen, klen), dtype=torch.bool, device=self.device
-                )
+                else torch.ones((self.batch, 1, qlen, klen), dtype=torch.bool, device=self.device)
             )
             softmax_results = generic_scaled_masked_softmax_cuda.forward(
                 inputs, masks, self.scale_t
@@ -387,9 +373,7 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
                     device=self.device,
                 )
                 if not allmasked
-                else torch.ones(
-                    (self.batch, 1, qlen, klen), dtype=torch.bool, device=self.device
-                )
+                else torch.ones((self.batch, 1, qlen, klen), dtype=torch.bool, device=self.device)
             )
             softmax_results = generic_scaled_masked_softmax_cuda.forward(
                 inputs, masks, self.scale_t
@@ -400,9 +384,7 @@ class TestGenericFusedSoftmaxKernel(common_utils.TestCase):
             inputs.requires_grad = True
             softmax_results_torch = forward_torch_softmax(inputs, masks, self.scale_t)
             softmax_results_torch.backward(backward)
-            self.assertEqual(
-                back_grad, inputs.grad, **self.thresh, msg=f"(q, k) = ({qlen, klen})"
-            )
+            self.assertEqual(back_grad, inputs.grad, **self.thresh, msg=f"(q, k) = ({qlen, klen})")
         self.thresh = prev_thresh
 
     def test_allmasked(self):

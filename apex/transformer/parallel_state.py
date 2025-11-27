@@ -247,18 +247,14 @@ def initialize_model_parallel(
     )
     if torch.distributed.get_rank() == 0:
         _logger.info(
-            "> initializing tensor model parallel with size {}".format(
-                tensor_model_parallel_size
-            )
+            "> initializing tensor model parallel with size {}".format(tensor_model_parallel_size)
         )
         _logger.info(
             "> initializing pipeline model parallel with size {}".format(
                 pipeline_model_parallel_size
             )
         )
-        _logger.info(
-            "> initializing data parallel with size {}".format(data_parallel_size)
-        )
+        _logger.info("> initializing data parallel with size {}".format(data_parallel_size))
 
     num_tensor_model_parallel_groups: int = world_size // tensor_model_parallel_size
     num_pipeline_model_parallel_groups: int = world_size // pipeline_model_parallel_size
@@ -269,15 +265,12 @@ def initialize_model_parallel(
         # the root cause as we do see numerical mismatches with 2 stages and
         # the interleaved schedule
         assert pipeline_model_parallel_size_ > 2, (
-            "pipeline-model-parallel size should be greater than 2 with "
-            "interleaved schedule"
+            "pipeline-model-parallel size should be greater than 2 with interleaved schedule"
         )
         global _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK
         global _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
         _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = 0
-        _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = (
-            virtual_pipeline_model_parallel_size_
-        )
+        _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = virtual_pipeline_model_parallel_size_
 
     if pipeline_model_parallel_split_rank_ is not None:
         global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
@@ -302,9 +295,7 @@ def initialize_model_parallel(
     # Build the amax-reduction groups for fp8 precision conversion.
     if use_fp8_:
         global _AMAX_REDUCTION_GROUP
-        assert _AMAX_REDUCTION_GROUP is None, (
-            "amax reduction group is already initialized"
-        )
+        assert _AMAX_REDUCTION_GROUP is None, "amax reduction group is already initialized"
         amax_group_size: int = tensor_model_parallel_size * data_parallel_size
         num_amax_groups: int = world_size // amax_group_size
         for i in range(num_amax_groups):
@@ -333,9 +324,7 @@ def initialize_model_parallel(
         "tensor model parallel group is already initialized"
     )
     for i in range(num_tensor_model_parallel_groups):
-        ranks = list(
-            range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size)
-        )
+        ranks = list(range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size))
         group = new_process_group(ranks, backend=default_backend)
         if rank in ranks:
             _TENSOR_MODEL_PARALLEL_GROUP = group
@@ -352,9 +341,7 @@ def initialize_model_parallel(
     assert _EMBEDDING_GROUP is None, "embedding group is already initialized"
     global _POSITION_EMBEDDING_GROUP
     global _POSITION_EMBEDDING_GLOBAL_RANKS
-    assert _POSITION_EMBEDDING_GROUP is None, (
-        "position embedding group is already initialized"
-    )
+    assert _POSITION_EMBEDDING_GROUP is None, "position embedding group is already initialized"
     global _ENCODER_RELATIVE_POSITION_EMBEDDING_GROUP
     global _DECODER_RELATIVE_POSITION_EMBEDDING_GROUP
     global _ENCODER_RELATIVE_POSITION_EMBEDDING_GLOBAL_RANKS
@@ -391,10 +378,7 @@ def initialize_model_parallel(
                         ranks[pipeline_model_parallel_split_rank_],
                         ranks[-1],
                     ]
-                if (
-                    ranks[pipeline_model_parallel_split_rank_]
-                    not in position_embedding_ranks
-                ):
+                if ranks[pipeline_model_parallel_split_rank_] not in position_embedding_ranks:
                     position_embedding_ranks = [
                         ranks[0],
                         ranks[pipeline_model_parallel_split_rank_],
@@ -517,9 +501,7 @@ def get_embedding_group():
 
 def get_position_embedding_group():
     """Get the position embedding group the caller rank belongs to."""
-    assert _POSITION_EMBEDDING_GROUP is not None, (
-        "position embedding group is not initialized"
-    )
+    assert _POSITION_EMBEDDING_GROUP is not None, "position embedding group is not initialized"
     return _POSITION_EMBEDDING_GROUP
 
 
@@ -611,9 +593,7 @@ def is_pipeline_stage_at_split():
     stage executes encoder block for a model with both encoder and
     decoder."""
     rank = get_pipeline_model_parallel_rank()
-    return is_pipeline_stage_before_split(rank) and is_pipeline_stage_after_split(
-        rank + 1
-    )
+    return is_pipeline_stage_before_split(rank) and is_pipeline_stage_after_split(rank + 1)
 
 
 def set_tensor_model_parallel_world_size(world_size):
@@ -710,9 +690,7 @@ def is_pipeline_last_stage(ignore_virtual=False):
             != (virtual_pipeline_model_parallel_world_size - 1)
         ):
             return False
-    return get_pipeline_model_parallel_rank() == (
-        get_pipeline_model_parallel_world_size() - 1
-    )
+    return get_pipeline_model_parallel_rank() == (get_pipeline_model_parallel_world_size() - 1)
 
 
 def get_virtual_pipeline_model_parallel_rank():
@@ -756,33 +734,25 @@ def get_data_parallel_src_rank():
 
 
 def get_pipeline_model_parallel_first_rank():
-    assert _PIPELINE_GLOBAL_RANKS is not None, (
-        "Pipeline parallel group is not initialized"
-    )
+    assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
     return _PIPELINE_GLOBAL_RANKS[0]
 
 
 def get_pipeline_model_parallel_last_rank():
-    assert _PIPELINE_GLOBAL_RANKS is not None, (
-        "Pipeline parallel group is not initialized"
-    )
+    assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
     last_rank_local = get_pipeline_model_parallel_world_size() - 1
     return _PIPELINE_GLOBAL_RANKS[last_rank_local]
 
 
 def get_pipeline_model_parallel_next_rank():
-    assert _PIPELINE_GLOBAL_RANKS is not None, (
-        "Pipeline parallel group is not initialized"
-    )
+    assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
     rank_in_pipeline = get_pipeline_model_parallel_rank()
     world_size = get_pipeline_model_parallel_world_size()
     return _PIPELINE_GLOBAL_RANKS[(rank_in_pipeline + 1) % world_size]
 
 
 def get_pipeline_model_parallel_prev_rank():
-    assert _PIPELINE_GLOBAL_RANKS is not None, (
-        "Pipeline parallel group is not initialized"
-    )
+    assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
     rank_in_pipeline = get_pipeline_model_parallel_rank()
     world_size = get_pipeline_model_parallel_world_size()
     return _PIPELINE_GLOBAL_RANKS[(rank_in_pipeline - 1) % world_size]

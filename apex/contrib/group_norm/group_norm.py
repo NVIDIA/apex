@@ -59,9 +59,7 @@ def group_norm_nhwc_fprop(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     # sanity check
     act = act.lower() if act else act
-    assert x.is_contiguous(memory_format=torch.channels_last), (
-        "Only support NHWC layout."
-    )
+    assert x.is_contiguous(memory_format=torch.channels_last), "Only support NHWC layout."
     assert weight.numel() == x.shape[1], "Unexpected parameter count."
     assert bias.numel() == x.shape[1], "Unexpected parameter count."
     assert x.shape[1] % G == 0, "C % G != 0."
@@ -90,9 +88,7 @@ def fake_group_norm_nhwc_fprop(
 ):
     # sanity check
     act = act.lower() if act else act
-    assert x.is_contiguous(memory_format=torch.channels_last), (
-        "Only support NHWC layout."
-    )
+    assert x.is_contiguous(memory_format=torch.channels_last), "Only support NHWC layout."
     assert weight.numel() == x.shape[1], "Unexpected parameter count."
     assert bias.numel() == x.shape[1], "Unexpected parameter count."
     assert x.shape[1] % G == 0, "C % G != 0."
@@ -401,8 +397,7 @@ class GroupNorm(torch.nn.Module):
             self.act in ["silu", "swish"],
         ) in self.GN_V2_SUPPORTED_GROUPS_SWISH
         is_supported_dtype_combination = (
-            self.affine
-            and (input.dtype, self.weight.dtype) in self.GN_V2_SUPPORTED_DTYPES
+            self.affine and (input.dtype, self.weight.dtype) in self.GN_V2_SUPPORTED_DTYPES
         )
         cc, sm_count = get_cc_and_sm_count(input.device.index)
         is_supported_sm_count = (
@@ -452,9 +447,8 @@ class GroupNorm(torch.nn.Module):
 
     def extra_repr(self) -> str:
         if self.act:
-            return (
-                "{num_groups}, {num_channels}, eps={eps}, "
-                "affine={affine}, act={act}".format(**self.__dict__)
+            return "{num_groups}, {num_channels}, eps={eps}, affine={affine}, act={act}".format(
+                **self.__dict__
             )
         else:
             return "{num_groups}, {num_channels}, eps={eps}, affine={affine}".format(

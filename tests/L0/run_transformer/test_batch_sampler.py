@@ -38,17 +38,11 @@ class MegatronPretrainingRandomSampler:
         self.micro_batch_size = micro_batch_size
         self.data_parallel_rank = data_parallel_rank
         self.data_parallel_size = data_parallel_size
-        self.micro_batch_times_data_parallel_size = (
-            self.micro_batch_size * data_parallel_size
-        )
-        self.last_batch_size = (
-            self.total_samples % self.micro_batch_times_data_parallel_size
-        )
+        self.micro_batch_times_data_parallel_size = self.micro_batch_size * data_parallel_size
+        self.last_batch_size = self.total_samples % self.micro_batch_times_data_parallel_size
 
         # Sanity checks.
-        assert self.total_samples > 0, "no sample to consume: {}".format(
-            self.total_samples
-        )
+        assert self.total_samples > 0, "no sample to consume: {}".format(self.total_samples)
         assert self.micro_batch_size > 0
         assert data_parallel_size > 0
         assert self.data_parallel_rank < data_parallel_size, (
@@ -154,9 +148,7 @@ class TestBatchSamplerBehavior(common_utils.TestCase):
         global_batch_size = 16
         loader = DataLoader(
             dataset,
-            batch_sampler=MegatronPretrainingRandomSampler(
-                100, 0, global_batch_size, 0, 1
-            ),
+            batch_sampler=MegatronPretrainingRandomSampler(100, 0, global_batch_size, 0, 1),
             num_workers=2,
         )
         batch = next(iter(loader))

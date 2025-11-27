@@ -118,8 +118,7 @@ out_sbn = sbn(inp_sbn[start:finish])
 out_sbn.backward(grad_sbn[start:finish])
 
 count = [
-    space_size**2
-    * ((i + 1) * batch_size // args.world_size - i * batch_size // args.world_size)
+    space_size**2 * ((i + 1) * batch_size // args.world_size - i * batch_size // args.world_size)
     for i in range(0, args.world_size)
 ]
 count = torch.cuda.IntTensor(count)
@@ -131,15 +130,10 @@ bn_result = True
 
 if args.local_rank == 0:
     sbn_result = compare("comparing mean: ", mean, m, error) and sbn_result
-    sbn_result = (
-        compare("comparing biased variance: ", var_biased, b_v, error) and sbn_result
-    )
+    sbn_result = compare("comparing biased variance: ", var_biased, b_v, error) and sbn_result
 
 out = syncbn.batchnorm_forward(inp_t, mean, inv_std, weight_t, bias_t)
-out_r = (
-    weight_r * (inp2_r - m.view(-1, 1, 1)) * torch.rsqrt(b_v.view(-1, 1, 1) + eps)
-    + bias_r
-)
+out_r = weight_r * (inp2_r - m.view(-1, 1, 1)) * torch.rsqrt(b_v.view(-1, 1, 1) + eps) + bias_r
 
 if args.local_rank == 0:
     sbn_result = compare("comparing output: ", out, out_r, error) and sbn_result
@@ -152,11 +146,7 @@ grad_output2_r = ref_tensor(grad)
 
 grad_bias_r = grad_output_r.sum(1)
 grad_weight_r = (
-    (
-        (inp2_r - m.view(-1, 1, 1))
-        * torch.rsqrt(b_v.view(-1, 1, 1) + eps)
-        * grad_output2_r
-    )
+    ((inp2_r - m.view(-1, 1, 1)) * torch.rsqrt(b_v.view(-1, 1, 1) + eps) * grad_output2_r)
     .transpose(1, 0)
     .contiguous()
     .view(feature_size, -1)
@@ -184,9 +174,7 @@ grad_input_r = (
     (
         grad_output2_r
         - mean_dy_r.view(-1, 1, 1)
-        - (inp2_r - m.view(-1, 1, 1))
-        / (b_v.view(-1, 1, 1) + eps)
-        * mean_dy_xmu_r.view(-1, 1, 1)
+        - (inp2_r - m.view(-1, 1, 1)) / (b_v.view(-1, 1, 1) + eps) * mean_dy_xmu_r.view(-1, 1, 1)
     )
     * torch.rsqrt(b_v.view(-1, 1, 1) + eps)
     * weight_r.view(-1, 1, 1)
@@ -199,24 +187,15 @@ grad_input = syncbn.batchnorm_backward(
     grad_output_t, inp_t, mean, inv_std, weight_t, sum_dy, sum_dy_xmu, count
 )
 if args.local_rank == 0:
+    sbn_result = compare("comparing bias grad: ", grad_bias, grad_bias_r, error) and sbn_result
     sbn_result = (
-        compare("comparing bias grad: ", grad_bias, grad_bias_r, error) and sbn_result
+        compare("comparing weight grad: ", grad_weight, grad_weight_r, error) and sbn_result
     )
+    sbn_result = compare("comparing sum_dy grad: ", sum_dy, sum_dy_r, error) and sbn_result
     sbn_result = (
-        compare("comparing weight grad: ", grad_weight, grad_weight_r, error)
-        and sbn_result
+        compare("comparing sum_dy_xmu grad: ", sum_dy_xmu, sum_dy_xmu_r, error) and sbn_result
     )
-    sbn_result = (
-        compare("comparing sum_dy grad: ", sum_dy, sum_dy_r, error) and sbn_result
-    )
-    sbn_result = (
-        compare("comparing sum_dy_xmu grad: ", sum_dy_xmu, sum_dy_xmu_r, error)
-        and sbn_result
-    )
-    sbn_result = (
-        compare("comparing input grad: ", grad_input, grad_input_r, error)
-        and sbn_result
-    )
+    sbn_result = compare("comparing input grad: ", grad_input, grad_input_r, error) and sbn_result
     compare("comparing bn input grad: ", inp_bn.grad, grad_input_r, error)
 
 if args.local_rank == 0:
@@ -240,9 +219,7 @@ if args.local_rank == 0:
     )
 
 # execute by both
-compare(
-    "comparing layers output: ", out_bn[start:finish], out_sbn, error
-) and sbn_result
+compare("comparing layers output: ", out_bn[start:finish], out_sbn, error) and sbn_result
 compare(
     "comparing layers grad_input: ",
     inp_bn.grad[start:finish],

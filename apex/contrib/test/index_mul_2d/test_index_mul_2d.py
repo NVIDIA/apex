@@ -27,9 +27,7 @@ class IndexMul2dTest(unittest.TestCase):
         self.input2_float = torch.randn(
             size=(self.input2_size, self.feature_size),
         ).cuda()
-        self.index1 = torch.randint(
-            low=0, high=self.input1_size, size=(self.input2_size,)
-        ).cuda()
+        self.index1 = torch.randint(low=0, high=self.input1_size, size=(self.input2_size,)).cuda()
 
         self.input1_float_ = self.input1_float.clone()
         self.input2_float_ = self.input2_float.clone()

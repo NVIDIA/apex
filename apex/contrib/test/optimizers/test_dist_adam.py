@@ -56,9 +56,7 @@ def make_models(
     ref_model = SimpleModel(num_layers, size).to(dtype=model_dtype, device=device)
     dist_model = SimpleModel(num_layers, size).to(dtype=model_dtype, device=device)
     with torch.no_grad():
-        for ref_param, dist_param in zip(
-            dist_model.parameters(), ref_model.parameters()
-        ):
+        for ref_param, dist_param in zip(dist_model.parameters(), ref_model.parameters()):
             dist_param.copy_(ref_param)
 
     # Initialize reference model with data-parallelism
@@ -184,9 +182,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         graph = torch.cuda.CUDAGraph() if with_cuda_graph else None
         CAPTURE_ITERATION = 11
         if with_cuda_graph:
-            assert num_steps > CAPTURE_ITERATION + 3, (
-                "Not enough iterations for CUDA graph test."
-            )
+            assert num_steps > CAPTURE_ITERATION + 3, "Not enough iterations for CUDA graph test."
 
         # Training loop
         with torch.cuda.stream(stream):
@@ -259,20 +255,14 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
                 # Check that data tensors match
                 for mbs in range(micro_batch_steps):
-                    torch.testing.assert_close(
-                        ys_dist[mbs], ys_ref[mbs], rtol=rtol, atol=atol
-                    )
+                    torch.testing.assert_close(ys_dist[mbs], ys_ref[mbs], rtol=rtol, atol=atol)
                     torch.testing.assert_close(
                         grad_xs_dist[mbs], grad_xs_ref[mbs], rtol=rtol, atol=atol
                     )
 
                 # Check that parameters match
-                for ref_param, dist_param in zip(
-                    ref_model.parameters(), dist_model.parameters()
-                ):
-                    torch.testing.assert_close(
-                        dist_param, ref_param, rtol=rtol, atol=atol
-                    )
+                for ref_param, dist_param in zip(ref_model.parameters(), dist_model.parameters()):
+                    torch.testing.assert_close(dist_param, ref_param, rtol=rtol, atol=atol)
 
     def test_matches_pytorch_l2_reg(self):
         self.test_matches_pytorch(adam_w_mode=False)
@@ -420,9 +410,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         dist_optim.step()
 
         # Check that parameters do not match
-        for ref_param, dist_param in zip(
-            ref_model.parameters(), dist_model.parameters()
-        ):
+        for ref_param, dist_param in zip(ref_model.parameters(), dist_model.parameters()):
             self.assertRaises(
                 AssertionError,
                 torch.testing.assert_close,
@@ -459,9 +447,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
             # Check that parameters match
             torch.testing.assert_close(dist_grad_norm, ref_grad_norm)
-            for ref_param, dist_param in zip(
-                ref_model.parameters(), dist_model.parameters()
-            ):
+            for ref_param, dist_param in zip(ref_model.parameters(), dist_model.parameters()):
                 torch.testing.assert_close(dist_param, ref_param)
 
     def test_grad_scaler(self):
@@ -500,9 +486,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
             dist_scaler.update()
 
             # Check that parameters match
-            for ref_param, dist_param in zip(
-                ref_model.parameters(), dist_model.parameters()
-            ):
+            for ref_param, dist_param in zip(ref_model.parameters(), dist_model.parameters()):
                 torch.testing.assert_close(dist_param, ref_param)
 
     def test_checkpoint(
@@ -638,9 +622,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
                 if self.rank == 0:
                     local_batch_size = batch_size // group_size
                     local_batches = [
-                        global_batch[
-                            rank * local_batch_size : (rank + 1) * local_batch_size, ...
-                        ]
+                        global_batch[rank * local_batch_size : (rank + 1) * local_batch_size, ...]
                         for rank in range(group_size)
                     ]
                 torch.distributed.gather(
@@ -670,9 +652,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
         # Make sure models are different
         if self.rank < min(save_group_size, load_group_size):
-            for param_save, param_load in zip(
-                model_save.parameters(), model_load.parameters()
-            ):
+            for param_save, param_load in zip(model_save.parameters(), model_load.parameters()):
                 self.assertRaises(
                     AssertionError,
                     torch.testing.assert_close,
@@ -711,9 +691,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
         # Make sure models are identical
         if self.rank < min(save_group_size, load_group_size):
-            for param_save, param_load in zip(
-                model_save.parameters(), model_load.parameters()
-            ):
+            for param_save, param_load in zip(model_save.parameters(), model_load.parameters()):
                 torch.testing.assert_close(param_load, param_save, rtol=rtol, atol=atol)
 
         # Train both models
@@ -767,9 +745,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
             # Check that parameters match
             if self.rank < min(save_group_size, load_group_size):
-                for param_save, param_load in zip(
-                    model_save.parameters(), model_load.parameters()
-                ):
+                for param_save, param_load in zip(model_save.parameters(), model_load.parameters()):
                     torch.testing.assert_close(
                         param_load,
                         param_save,
@@ -834,9 +810,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         fairish_bucket_cap_mb = 4 * num_layers * layer_size / (1024 * 1024)
 
         # Check that warning is raised when bucket utilization is low
-        with self.assertWarnsRegex(
-            Warning, ".*Consider decreasing the bucket_cap_mb argument."
-        ):
+        with self.assertWarnsRegex(Warning, ".*Consider decreasing the bucket_cap_mb argument."):
             self.test_matches_pytorch(
                 num_layers=num_layers,
                 layer_size=layer_size,

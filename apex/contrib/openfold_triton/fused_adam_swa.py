@@ -71,18 +71,14 @@ def _adam_math(
         moment += (1.0 - beta1) * grad
         velocity *= beta2
         velocity += (1.0 - beta2) * grad * grad
-        update = (moment / beta1_correction) / (
-            tl.math.sqrt(velocity / beta2_correction) + eps
-        )
+        update = (moment / beta1_correction) / (tl.math.sqrt(velocity / beta2_correction) + eps)
         param -= lr * update
     elif adam_math_mode == tl.constexpr(AdamMathType.ApexAdamW.value):
         moment *= beta1
         moment += (1.0 - beta1) * grad
         velocity *= beta2
         velocity += (1.0 - beta2) * grad * grad
-        update = (moment / beta1_correction) / (
-            tl.math.sqrt(velocity / beta2_correction) + eps
-        )
+        update = (moment / beta1_correction) / (tl.math.sqrt(velocity / beta2_correction) + eps)
         update += weight_decay * param
         param -= lr * update
     elif adam_math_mode == tl.constexpr(AdamMathType.PyTorchAdam.value):
@@ -151,15 +147,11 @@ def _multi_tensor_adam_swa(
     state_dtype = _DTYPE2TRITON[MODEL_STATE_DTYPE.value]
     state_pointer_type = tl.pointer_type(state_dtype)
 
-    state_param_ptr = tl.load(state_param_ptr_per_chunk + chunk_idx).to(
-        state_pointer_type
-    )
+    state_param_ptr = tl.load(state_param_ptr_per_chunk + chunk_idx).to(state_pointer_type)
     swa_param_ptr = tl.load(swa_param_ptr_per_chunk + chunk_idx).to(state_pointer_type)
     moment_ptr = tl.load(moment_ptr_per_chunk + chunk_idx).to(state_pointer_type)
     velocity_ptr = tl.load(velocity_ptr_per_chunk + chunk_idx).to(state_pointer_type)
-    compute_param_ptr = tl.load(compute_param_ptr_per_chunk + chunk_idx).to(
-        compute_pointer_type
-    )
+    compute_param_ptr = tl.load(compute_param_ptr_per_chunk + chunk_idx).to(compute_pointer_type)
     grad_ptr = tl.load(grad_ptr_per_chunk + chunk_idx).to(compute_pointer_type)
     grad_clip_scale = tl.load(grad_clip_scale_ptr)
 
@@ -245,19 +237,14 @@ class FusedAdamSWA(Optimizer):
                 "FusedAdamSWA expects params, bf16_params, and swa_params to have same length"
             )
         if not all(
-            p.shape == b.shape == s.shape
-            for p, b, s in zip(params, compute_params, swa_params)
+            p.shape == b.shape == s.shape for p, b, s in zip(params, compute_params, swa_params)
         ):
             raise ValueError(
                 "FusedAdamSWA expects each state in params, bf16_params, abd swa_params to have same shape"
             )
         if not all(p.dtype == s.dtype for p, s in zip(params, swa_params)):
-            raise ValueError(
-                "FusedAdamSWA expects all params and swa_params to have same dtype"
-            )
-        if not all(
-            p.is_contiguous() for p in chain(params, compute_params, swa_params)
-        ):
+            raise ValueError("FusedAdamSWA expects all params and swa_params to have same dtype")
+        if not all(p.is_contiguous() for p in chain(params, compute_params, swa_params)):
             raise ValueError("FusedAdamSWA expects all input params to be contiguous")
         if amsgrad:
             raise NotImplementedError("amsgrad is not supported by FusedAdamSWA")
@@ -315,12 +302,8 @@ class FusedAdamSWA(Optimizer):
         for i, p in enumerate(compute_params):
             compute_dtype = p.dtype
             state_dtype = params[i].dtype
-            self.pointer_buffer_groups[(compute_dtype, state_dtype)].setdefault(
-                "tensor_idx", []
-            )
-            self.pointer_buffer_groups[(compute_dtype, state_dtype)][
-                "tensor_idx"
-            ].append(i)
+            self.pointer_buffer_groups[(compute_dtype, state_dtype)].setdefault("tensor_idx", [])
+            self.pointer_buffer_groups[(compute_dtype, state_dtype)]["tensor_idx"].append(i)
 
         for (_, state_dtype), buffer_group in self.pointer_buffer_groups.items():
             # Select tensors by dtype.
@@ -330,9 +313,7 @@ class FusedAdamSWA(Optimizer):
             swa_params_this_group = [swa_params[i] for i in t_idx]
 
             # Build parameter pointer buffers.
-            param_ptrs = torch.tensor(
-                [p.data_ptr() for p in params_this_group], dtype=torch.int64
-            )
+            param_ptrs = torch.tensor([p.data_ptr() for p in params_this_group], dtype=torch.int64)
             compute_param_ptrs = torch.tensor(
                 [b.data_ptr() for b in compute_params_this_group], dtype=torch.int64
             )
@@ -340,25 +321,20 @@ class FusedAdamSWA(Optimizer):
                 [s.data_ptr() for s in swa_params_this_group], dtype=torch.int64
             )
 
-            param_numels = torch.tensor(
-                [p.numel() for p in params_this_group], dtype=torch.int64
-            )
+            param_numels = torch.tensor([p.numel() for p in params_this_group], dtype=torch.int64)
             chunks_per_param = param_numels.float().div_(CHUNK_SIZE).ceil_().long()
             chunk_local_idx = torch.cat(
                 [torch.arange(chunks, dtype=torch.int64) for chunks in chunks_per_param]
             )
             chunk_numel = torch.minimum(
-                param_numels.repeat_interleave(chunks_per_param)
-                - chunk_local_idx * CHUNK_SIZE,
+                param_numels.repeat_interleave(chunks_per_param) - chunk_local_idx * CHUNK_SIZE,
                 CHUNK_SIZE,
             )
             param_ptr_per_chunk = torch.repeat_interleave(param_ptrs, chunks_per_param)
             compute_param_ptr_per_chunk = torch.repeat_interleave(
                 compute_param_ptrs, chunks_per_param
             )
-            swa_param_ptr_per_chunk = torch.repeat_interleave(
-                swa_param_ptrs, chunks_per_param
-            )
+            swa_param_ptr_per_chunk = torch.repeat_interleave(swa_param_ptrs, chunks_per_param)
 
             device = params_this_group[0].device
             buffer_group["device"] = device
@@ -366,14 +342,12 @@ class FusedAdamSWA(Optimizer):
             buffer_group["chunk_local_idx"] = chunk_local_idx.to(device)
             buffer_group["chunk_numel"] = chunk_numel.to(device)
             buffer_group["param_ptr_per_chunk"] = param_ptr_per_chunk.to(device)
-            buffer_group["compute_param_ptr_per_chunk"] = (
-                compute_param_ptr_per_chunk.to(device)
-            )
+            buffer_group["compute_param_ptr_per_chunk"] = compute_param_ptr_per_chunk.to(device)
             buffer_group["swa_param_ptr_per_chunk"] = swa_param_ptr_per_chunk.to(device)
             buffer_group["total_chunks"] = chunks_per_param.sum().item()
-            buffer_group["default_grad_clip_scale"] = torch.tensor(
-                1.0, dtype=state_dtype
-            ).to(device)
+            buffer_group["default_grad_clip_scale"] = torch.tensor(1.0, dtype=state_dtype).to(
+                device
+            )
 
             # Build moment pointer buffers.
             moment, velocity = [], []
@@ -381,9 +355,7 @@ class FusedAdamSWA(Optimizer):
                 state = self.state[p]
                 if "exp_avg" not in state or "exp_avg_sq" not in state:
                     state["exp_avg"] = torch.zeros_like(p.detach(), dtype=state_dtype)
-                    state["exp_avg_sq"] = torch.zeros_like(
-                        p.detach(), dtype=state_dtype
-                    )
+                    state["exp_avg_sq"] = torch.zeros_like(p.detach(), dtype=state_dtype)
                 moment.append(state["exp_avg"].data_ptr())
                 velocity.append(state["exp_avg_sq"].data_ptr())
             moment = torch.tensor(moment, dtype=torch.int64)
@@ -518,9 +490,7 @@ class FusedAdamSWA(Optimizer):
         if len(steps) == 0:  # Did not load optimizer checkpoint.
             steps = [torch.tensor(1)]
         elif not all(s == steps[0] for s in steps):
-            raise ValueError(
-                "FusedAdamSWA requires all parameters were updated by same steps!"
-            )
+            raise ValueError("FusedAdamSWA requires all parameters were updated by same steps!")
         step = int(steps[0].item())
         adam_state_dict["param_groups"][0].setdefault("step", step)
         fused_adam_swa_optimizer.load_state_dict(adam_state_dict)

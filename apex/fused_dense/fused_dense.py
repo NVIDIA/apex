@@ -97,9 +97,7 @@ class FusedDense(nn.Module):
 class FusedDenseGeluDense(nn.Module):
     def __init__(self, in_features, intermediate_features, out_features, bias=True):
         super(FusedDenseGeluDense, self).__init__()
-        assert bias == True, (
-            "DenseGeluDense module without bias is currently not supported"
-        )
+        assert bias == True, "DenseGeluDense module without bias is currently not supported"
         self.in_features = in_features
         self.intermediate_features = intermediate_features
         self.out_features = out_features
@@ -109,6 +107,4 @@ class FusedDenseGeluDense(nn.Module):
         self.bias2 = nn.Parameter(torch.empty(out_features))
 
     def forward(self, input):
-        return _fused_dense_gelu_dense(
-            input, self.weight1, self.bias1, self.weight2, self.bias2
-        )
+        return _fused_dense_gelu_dense(input, self.weight1, self.bias1, self.weight2, self.bias2)

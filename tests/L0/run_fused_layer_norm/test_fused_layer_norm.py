@@ -20,9 +20,7 @@ def _prep_inputs(batch_size, normalized_shape, dtype):
     return native, fused
 
 
-autocast_dtypes = (
-    (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
-)
+autocast_dtypes = (torch.half, torch.bfloat16) if torch.cuda.is_bf16_supported() else (torch.half,)
 
 
 class TestFusedLayerNorm(common_utils.TestCase):
@@ -63,9 +61,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
         if contiguous:
             input_shape = [batch_size] + normalized_shape
             input_ = torch.randn(input_shape, device="cpu").requires_grad_(True)
-            input_cuda_ = (
-                input_.to(device="cuda", dtype=dtype).detach().requires_grad_(True)
-            )
+            input_cuda_ = input_.to(device="cuda", dtype=dtype).detach().requires_grad_(True)
             self.assertTrue(input_.is_contiguous())
             self.assertTrue(input_cuda_.is_contiguous())
         else:
@@ -137,9 +133,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
         if contiguous:
             input_shape = [batch_size] + normalized_shape
             input_ = torch.randn(input_shape, device="cpu").requires_grad_(True)
-            input_cuda_ = (
-                input_.to(device="cuda", dtype=dtype).detach().requires_grad_(True)
-            )
+            input_cuda_ = input_.to(device="cuda", dtype=dtype).detach().requires_grad_(True)
             self.assertTrue(input_.is_contiguous())
             self.assertTrue(input_cuda_.is_contiguous())
         else:
@@ -280,11 +274,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
 
     @common_utils.parametrize(
         "batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient",
-        list(
-            product(
-                (16,), (True, False), (True,), (False,), (torch.half,), (True, False)
-            )
-        ),
+        list(product((16,), (True, False), (True,), (False,), (torch.half,), (True, False))),
     )
     def test_layer_norm_half(
         self,
@@ -437,11 +427,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
 
     @common_utils.parametrize(
         "batch_size, contiguous, elementwise_affine, mixed_fused, dtype, memory_efficient",
-        list(
-            product(
-                (16,), (True, False), (True,), (False,), (torch.half,), (True, False)
-            )
-        ),
+        list(product((16,), (True, False), (True,), (False,), (torch.half,), (True, False))),
     )
     def test_rms_norm_half(
         self,
@@ -499,9 +485,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
         "dtype, elementwise_affine, memory_efficient",
         list(product(autocast_dtypes, (True, False), (True, False))),
     )
-    def test_autocast_fused_layer_norm(
-        self, dtype, elementwise_affine, memory_efficient
-    ):
+    def test_autocast_fused_layer_norm(self, dtype, elementwise_affine, memory_efficient):
         bf16_fwd_thresholds = dict(rtol=1.6e-2, atol=3e-4)
         bf16_bwd_thresholds = dict(rtol=1.6e-2, atol=3e-3)
         batch_size = 16
@@ -519,9 +503,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
         expected = native(native_x)
         with torch.amp.autocast("cuda", dtype=dtype):
             actual = fused(fused_x)
-        tols = (
-            {"rtol": None, "atol": None} if dtype == torch.half else bf16_fwd_thresholds
-        )
+        tols = {"rtol": None, "atol": None} if dtype == torch.half else bf16_fwd_thresholds
         # original tests used torch.testing.assert_allclose, which disables dtype checking by default.
         # link to issue here: https://github.com/pytorch/pytorch/issues/61844
         torch.testing.assert_close(actual, expected, **tols, check_dtype=False)
@@ -538,9 +520,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
             tols = {"rtol": 1e-3, "atol": 1e-4}
         else:
             tols = {"rtol": None, "atol": None}
-        torch.testing.assert_close(
-            native_x.grad, fused_x.grad, **tols, check_dtype=False
-        )
+        torch.testing.assert_close(native_x.grad, fused_x.grad, **tols, check_dtype=False)
 
     @common_utils.parametrize(
         "dtype, elementwise_affine, memory_efficient",
@@ -566,9 +546,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
         expected = native(native_x.cpu())
         with torch.amp.autocast("cuda", dtype=dtype):
             actual = fused(fused_x)
-        tols = (
-            {"rtol": None, "atol": None} if dtype == torch.half else bf16_fwd_thresholds
-        )
+        tols = {"rtol": None, "atol": None} if dtype == torch.half else bf16_fwd_thresholds
         torch.testing.assert_close(
             actual, expected.detach().clone().cuda(), **tols, check_dtype=False
         )
@@ -579,12 +557,8 @@ class TestFusedLayerNorm(common_utils.TestCase):
         expected.backward(g_native)
         actual.backward(g_fused)
 
-        tols = (
-            {"rtol": 1e-3, "atol": 1e-3} if dtype == torch.half else bf16_bwd_thresholds
-        )
-        torch.testing.assert_close(
-            native_x.grad.cuda(), fused_x.grad, **tols, check_dtype=False
-        )
+        tols = {"rtol": 1e-3, "atol": 1e-3} if dtype == torch.half else bf16_bwd_thresholds
+        torch.testing.assert_close(native_x.grad.cuda(), fused_x.grad, **tols, check_dtype=False)
 
     def _verify_export(self, fused, fused_x):
         if importlib.util.find_spec("onnxscript") is None:
@@ -613,9 +587,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
     def test_rms_export(self):
         batch_size = 16
         normalized_shape = [32, 16]
-        fused = FusedRMSNorm(
-            normalized_shape=normalized_shape, elementwise_affine=True
-        ).cuda()
+        fused = FusedRMSNorm(normalized_shape=normalized_shape, elementwise_affine=True).cuda()
         fused_m = MixedFusedRMSNorm(normalized_shape=normalized_shape).cuda()
         native_x, fused_x = _prep_inputs(batch_size, normalized_shape, torch.float32)
         self._verify_export(fused, fused_x)
@@ -624,9 +596,7 @@ class TestFusedLayerNorm(common_utils.TestCase):
     def test_layer_norm_export(self):
         batch_size = 16
         normalized_shape = [32, 16]
-        fused = FusedLayerNorm(
-            normalized_shape=normalized_shape, elementwise_affine=True
-        ).cuda()
+        fused = FusedLayerNorm(normalized_shape=normalized_shape, elementwise_affine=True).cuda()
         fused_m = MixedFusedLayerNorm(normalized_shape=normalized_shape).cuda()
         native_x, fused_x = _prep_inputs(batch_size, normalized_shape, torch.float32)
         self._verify_export(fused, fused_x)

@@ -46,9 +46,7 @@ class TransducerJoint(torch.nn.Module):
         masked = self.relu or self.dropout
         self.mask_probe = [] if masked and probe_mask else None
         if masked and opt != 1:
-            raise NotImplementedError(
-                "ReLU and dropout fusion is only supported with opt=1"
-            )
+            raise NotImplementedError("ReLU and dropout fusion is only supported with opt=1")
 
     def forward(self, f, g, f_len, g_len, batch_offset=None, packed_batch=0):
         """Forward operation of transducer joint
@@ -68,9 +66,7 @@ class TransducerJoint(torch.nn.Module):
         """
         my_batch_offset = batch_offset if self.pack_output else self.dummy_batch_offset
         if self.pack_output and (batch_offset is None or packed_batch == 0):
-            raise Exception(
-                "Please specify batch_offset and packed_batch when packing is enabled"
-            )
+            raise Exception("Please specify batch_offset and packed_batch when packing is enabled")
         dropout = self.dropout and self.training  # only dropout for training
         return TransducerJointFunc.apply(
             f,

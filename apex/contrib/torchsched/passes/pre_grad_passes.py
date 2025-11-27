@@ -100,9 +100,7 @@ def pre_grad_custom_pass(graph: torch.fx.Graph) -> None:
     """
     passes = config.pre_grad_pass_options
     for pass_name in passes:
-        assert pass_name in PRE_GRAD_PASS_PATTERNS, (
-            f"Unknown pre_grad pass: {pass_name}"
-        )
+        assert pass_name in PRE_GRAD_PASS_PATTERNS, f"Unknown pre_grad pass: {pass_name}"
         pattern, replacement = PRE_GRAD_PASS_PATTERNS[pass_name]
         replaced = run_pre_grad_pass(pass_name, graph, pattern, replacement)
         counters["torchsched"][f"pre_grad_{pass_name}"] += replaced

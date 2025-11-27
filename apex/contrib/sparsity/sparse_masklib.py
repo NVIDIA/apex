@@ -94,9 +94,7 @@ def mn_2d_greedy(matrix, m, n):
         rowEndIdx = rowStartIdx + m
         for colStartIdx in range(0, colCount, m):
             colEndIdx = colStartIdx + m
-            matrixSub = np.absolute(
-                np.squeeze(mat[rowStartIdx:rowEndIdx, colStartIdx:colEndIdx])
-            )
+            matrixSub = np.absolute(np.squeeze(mat[rowStartIdx:rowEndIdx, colStartIdx:colEndIdx]))
             maskSub = np.squeeze(mask[rowStartIdx:rowEndIdx, colStartIdx:colEndIdx])
             maskSub.fill(0.0)
             matrixVecView = matrixSub.reshape(-1)
@@ -107,9 +105,7 @@ def mn_2d_greedy(matrix, m, n):
             colCounter = collections.Counter()
             for currIdx in range(len(linearIdx) - 1, -1, -1):
                 currMatrixEntry = matrixIdx[currIdx]
-                if (rowCounter[currMatrixEntry[0]] == n) or (
-                    colCounter[currMatrixEntry[1]] == n
-                ):
+                if (rowCounter[currMatrixEntry[0]] == n) or (colCounter[currMatrixEntry[1]] == n):
                     continue
                 # end if
                 maskSub[currMatrixEntry[0], currMatrixEntry[1]] = 1.0
@@ -158,15 +154,11 @@ def mn_2d_best(matrix, m, n):
     # Find the best m:n pattern (sum of non-masked weights).
     mask = torch.cuda.IntTensor(matrix.shape).fill_(1)
     mat = reshape_2d(matrix, m, m).abs()
-    pmax = torch.argmax(
-        torch.matmul(mat, patterns.view(patterns.shape[0], m * m).t()), dim=2
-    )
+    pmax = torch.argmax(torch.matmul(mat, patterns.view(patterns.shape[0], m * m).t()), dim=2)
 
     # Copy best m:n patterns into mask.
     mat = mat.view(mat.shape[0] * mat.shape[1], -1)
-    pmax = (
-        pmax.view(pmax.shape[0] * pmax.shape[1]).unsqueeze(1).expand(-1, mat.shape[1])
-    )
+    pmax = pmax.view(pmax.shape[0] * pmax.shape[1]).unsqueeze(1).expand(-1, mat.shape[1])
     patterns = patterns.view(patterns.shape[0], patterns.shape[1] * patterns.shape[2])
     mat = torch.gather(patterns, 0, pmax)
     mat = reshape_2d_inv(mat.view(matrix.shape[0] // m, matrix.shape[1] // m, m, m))
@@ -218,16 +210,8 @@ def create_mask(tensor, pattern="m4n2_1d", density=0.5):
         return mask.view(shape).type(ttype)
         """
         # 2d convs
-        t = (
-            t.permute(2, 3, 0, 1)
-            .contiguous()
-            .view(shape[2] * shape[3] * shape[0], shape[1])
-        )
+        t = t.permute(2, 3, 0, 1).contiguous().view(shape[2] * shape[3] * shape[0], shape[1])
         func = getattr(sys.modules[__name__], pattern, None)
         mask = func(t, density)
-        mask = (
-            mask.view(shape[2], shape[3], shape[0], shape[1])
-            .permute(2, 3, 0, 1)
-            .contiguous()
-        )
+        mask = mask.view(shape[2], shape[3], shape[0], shape[1]).permute(2, 3, 0, 1).contiguous()
         return mask.view(shape).type(ttype)

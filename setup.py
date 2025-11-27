@@ -66,9 +66,7 @@ def has_flag(flag, env_var):
 
 
 def get_cuda_bare_metal_version(cuda_dir):
-    raw_output = subprocess.check_output(
-        [cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True
-    )
+    raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)
     output = raw_output.split()
     release_idx = output.index("release") + 1
     bare_metal_version = parse(output[release_idx].split(",")[0])
@@ -104,9 +102,7 @@ def raise_if_cuda_home_none(global_option: str) -> None:
     )
 
 
-def check_cudnn_version_and_warn(
-    global_option: str, required_cudnn_version: int
-) -> bool:
+def check_cudnn_version_and_warn(global_option: str, required_cudnn_version: int) -> bool:
     cudnn_available = torch.backends.cudnn.is_available()
     cudnn_version = torch.backends.cudnn.version() if cudnn_available else None
     if not (cudnn_available and (cudnn_version >= required_cudnn_version)):
@@ -164,8 +160,9 @@ extras = {}
 if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
     if TORCH_MAJOR == 0:
         raise RuntimeError(
-            "--cpp_ext requires Pytorch 1.0 or later, "
-            "found torch.__version__ = {}".format(torch.__version__)
+            "--cpp_ext requires Pytorch 1.0 or later, found torch.__version__ = {}".format(
+                torch.__version__
+            )
         )
 
 if has_flag("--cpp_ext", "APEX_CPP_EXT"):
@@ -781,9 +778,7 @@ if has_flag("--fast_multihead_attn", "APEX_FAST_MULTIHEAD_ATTN"):
                 + generator_flag,
             },
             include_dirs=[
-                os.path.join(
-                    this_dir, "apex/contrib/csrc/multihead_attn/cutlass/include/"
-                ),
+                os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass/include/"),
                 os.path.join(
                     this_dir,
                     "apex/contrib/csrc/multihead_attn/cutlass/tools/util/include",
@@ -849,9 +844,7 @@ if has_flag("--cudnn_gbn", "APEX_CUDNN_GBN"):
                     "apex/contrib/csrc/cudnn_gbn/norm_sample.cpp",
                     "apex/contrib/csrc/cudnn_gbn/cudnn_gbn.cpp",
                 ],
-                include_dirs=[
-                    os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")
-                ],
+                include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
                 extra_compile_args={"cxx": ["-O3", "-g"] + generator_flag},
             )
         )
@@ -920,9 +913,7 @@ if has_flag("--fast_bottleneck", "APEX_FAST_BOTTLENECK"):
             CUDAExtension(
                 name="fast_bottleneck",
                 sources=["apex/contrib/csrc/bottleneck/bottleneck.cpp"],
-                include_dirs=[
-                    os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")
-                ],
+                include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
                 extra_compile_args={"cxx": ["-O3"] + generator_flag},
             )
         )
@@ -946,9 +937,7 @@ if has_flag("--fused_conv_bias_relu", "APEX_FUSED_CONV_BIAS_RELU"):
             CUDAExtension(
                 name="fused_conv_bias_relu",
                 sources=["apex/contrib/csrc/conv_bias_relu/conv_bias_relu.cpp"],
-                include_dirs=[
-                    os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")
-                ],
+                include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
                 extra_compile_args={"cxx": ["-O3"] + generator_flag},
             )
         )
@@ -973,9 +962,7 @@ if has_flag("--nccl_allocator", "APEX_NCCL_ALLOCATOR"):
                 sources=[
                     "apex/contrib/csrc/nccl_allocator/NCCLAllocator.cpp",
                 ],
-                include_dirs=[
-                    os.path.join(this_dir, "apex/apex/contrib/csrc/nccl_allocator")
-                ],
+                include_dirs=[os.path.join(this_dir, "apex/apex/contrib/csrc/nccl_allocator")],
                 libraries=["nccl"],
                 extra_compile_args={"cxx": ["-O3"] + generator_flag},
             )
@@ -997,9 +984,7 @@ if has_flag("--gpu_direct_storage", "APEX_GPU_DIRECT_STORAGE"):
                 "apex/contrib/csrc/gpu_direct_storage/gds.cpp",
                 "apex/contrib/csrc/gpu_direct_storage/gds_pybind.cpp",
             ],
-            include_dirs=[
-                os.path.join(this_dir, "apex/contrib/csrc/gpu_direct_storage")
-            ],
+            include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/gpu_direct_storage")],
             libraries=["cufile"],
             extra_compile_args={"cxx": ["-O3"] + generator_flag},
         )
@@ -1050,9 +1035,7 @@ class BuildExtensionSeparateDir(BuildExtension):
                             **kwargs,
                             "output_dir": os.path.join(
                                 kwargs["output_dir"],
-                                self.thread_ext_name_map[
-                                    threading.current_thread().ident
-                                ],
+                                self.thread_ext_name_map[threading.current_thread().ident],
                             ),
                         },
                     )

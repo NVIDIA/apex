@@ -173,9 +173,7 @@ class Permutation:
         """To find the same permutations no matter how many GPUs are used, we reset the seed before every search"""
 
         identical_seed = cls.__manual_seed
-        assert identical_seed is not None, (
-            "Must call set_identical_seed() before it can be reset"
-        )
+        assert identical_seed is not None, "Must call set_identical_seed() before it can be reset"
 
         torch.manual_seed(identical_seed)
         torch.cuda.manual_seed(identical_seed)
@@ -213,9 +211,7 @@ class Permutation:
             )
 
     @classmethod
-    def set_permutation_params_from_asp(
-        cls, model, sparse_parameters, all_parameters, verbosity
-    ):
+    def set_permutation_params_from_asp(cls, model, sparse_parameters, all_parameters, verbosity):
         """This function is used to set the permutation needed parameters from ASP class."""
         cls.__verbosity = verbosity
 
@@ -272,29 +268,23 @@ class Permutation:
 
         if success_in_build_fx_graph:
             fx_graph_after_init_flags = cls.init_permutation_flags(fx_graph)
-            fx_graph_after_find_real_parents = cls.find_real_parents(
-                fx_graph_after_init_flags
-            )
+            fx_graph_after_find_real_parents = cls.find_real_parents(fx_graph_after_init_flags)
             fx_graph_after_find_real_children = cls.find_real_children(
                 fx_graph_after_find_real_parents
             )
             fx_graph_after_making_groups = cls.make_sibling_coparent_groups(
                 fx_graph_after_find_real_children
             )
-            fx_graph_after_fixup_concats = cls.fixup_concats(
-                fx_graph_after_making_groups
-            )
-            fx_graph_after_enforce_dimension_agreement = (
-                cls.enforce_dimension_agreement(fx_graph_after_fixup_concats)
+            fx_graph_after_fixup_concats = cls.fixup_concats(fx_graph_after_making_groups)
+            fx_graph_after_enforce_dimension_agreement = cls.enforce_dimension_agreement(
+                fx_graph_after_fixup_concats
             )
             fx_graph_after_propagate_flags = cls.propagate_permutation_flags(
                 fx_graph_after_enforce_dimension_agreement
             )
 
             start_time_search_for_good_permutation = time.perf_counter()
-            fx_graph_after_find_permutations = cls.find_permutations(
-                fx_graph_after_propagate_flags
-            )
+            fx_graph_after_find_permutations = cls.find_permutations(fx_graph_after_propagate_flags)
 
             if torch.distributed.is_initialized():
                 if cls.__verbosity > 0:
@@ -415,17 +405,12 @@ class Permutation:
                         if p_from_all_parameters.shape[1] != len(
                             permutation_sequence
                         ):  # assumed to be grouped convolutions
-                            if (
-                                p_from_all_parameters.shpae[1]
-                                % len(permutation_sequence)
-                                != 0
-                            ):
+                            if p_from_all_parameters.shpae[1] % len(permutation_sequence) != 0:
                                 return False
 
                             permutation_to_apply = replicate_sequence(
                                 permutation_sequence,
-                                p_from_all_parameters.shape[1]
-                                // len(permutation_sequence),
+                                p_from_all_parameters.shape[1] // len(permutation_sequence),
                             )
 
                         if not dryrun:
@@ -494,9 +479,7 @@ class Permutation:
         return found_perm
 
     @classmethod
-    def apply_permutation_in_K_dim(
-        cls, node_name, permutation_sequence, fx_graph, dryrun
-    ):
+    def apply_permutation_in_K_dim(cls, node_name, permutation_sequence, fx_graph, dryrun):
         """This function is used to permutation for a node in K dim. (Need to handle the weight/bias/running_mean/running_var of the node)"""
 
         if cls.__verbosity > 1:
@@ -532,9 +515,7 @@ class Permutation:
                 is_node_in_all_parameters = True
                 permutation_to_apply = permutation_sequence
 
-                if p.shape[0] != len(
-                    permutation_sequence
-                ):  # assumed to be grouped convolutions
+                if p.shape[0] != len(permutation_sequence):  # assumed to be grouped convolutions
                     if cls.__verbosity > 2 and dryrun:
                         print(
                             f"Mismatch in K dimension between found module {module_name} {p_name} for node {node_name}: permutation length {len(permutation_sequence)} but parameter shape in K {p.shape[0]}"
@@ -588,16 +569,11 @@ class Permutation:
         for node_name in fx_graph.keys():
             node = fx_graph[node_name]
 
-            if (
-                "C_permutable" in node.keys()
-                and node["C_permutable"]
-                and not node["C_permuted"]
-            ):
+            if "C_permutable" in node.keys() and node["C_permutable"] and not node["C_permuted"]:
                 sibling_group_id = node["sibling_group_id"]
                 if (
                     node["is_real"]
-                    and cls.__group_data["skipped_sibling_groups"][sibling_group_id]
-                    is None
+                    and cls.__group_data["skipped_sibling_groups"][sibling_group_id] is None
                 ):
                     if cls.__verbosity >= 0:
                         print(
@@ -605,16 +581,11 @@ class Permutation:
                         )
                     cls.__unpermuted_dims.append(node_name + "_C")
 
-            if (
-                "K_permutable" in node.keys()
-                and node["K_permutable"]
-                and not node["K_permuted"]
-            ):
+            if "K_permutable" in node.keys() and node["K_permutable"] and not node["K_permuted"]:
                 coparent_group_id = node["coparent_group_id"]
                 if (
                     node["is_real"]
-                    and cls.__group_data["skipped_coparent_groups"][coparent_group_id]
-                    is None
+                    and cls.__group_data["skipped_coparent_groups"][coparent_group_id] is None
                 ):
                     if cls.__verbosity >= 0:
                         print(
@@ -673,9 +644,7 @@ class Permutation:
             # 3d-tensor (K, C, R)
             elif len(shape) == 3:
                 node_weight = (
-                    node_weight.permute(0, 2, 1)
-                    .contiguous()
-                    .view(shape[0] * shape[2], shape[1])
+                    node_weight.permute(0, 2, 1).contiguous().view(shape[0] * shape[2], shape[1])
                 )
             # 4d-tensor (K, C, R, S)
             elif len(shape) == 4:
@@ -845,9 +814,7 @@ class Permutation:
         cls.reset_seed()
 
         sibling_group = cls.__group_data["sibling_groups"][sibling_group_id]
-        sibling_group_C_param = int(
-            cls.__group_data["sibling_group_C_params"][sibling_group_id]
-        )
+        sibling_group_C_param = int(cls.__group_data["sibling_group_C_params"][sibling_group_id])
 
         if sibling_group_C_param % 4 != 0 or sibling_group_C_param < 8:
             cls.skip_sibling_group(
@@ -856,9 +823,7 @@ class Permutation:
             return
 
         # collect *sparse* weights from all siblings, get the coparent group
-        matrix_group = cls.collect_sparse_weights(
-            fx_graph, sibling_group, sibling_group_C_param
-        )
+        matrix_group = cls.collect_sparse_weights(fx_graph, sibling_group, sibling_group_C_param)
 
         # early-out if no siblings are sparse
         if matrix_group is None:
@@ -874,13 +839,9 @@ class Permutation:
             return
 
         if cls.__verbosity > 2:
-            print(
-                f"Permutation for sibling group {sibling_group_id}: {group_permutation}"
-            )
+            print(f"Permutation for sibling group {sibling_group_id}: {group_permutation}")
 
-        cls.__group_data["sibling_group_permutations"][sibling_group_id] = (
-            group_permutation
-        )
+        cls.__group_data["sibling_group_permutations"][sibling_group_id] = group_permutation
 
     @classmethod
     def permute_sibling_group(cls, fx_graph, sibling_group_id, group_permutation):
@@ -898,47 +859,35 @@ class Permutation:
         for dryrun in [True, False]:
             # apply that permutation to the siblings' C dimension
             for sibling in sibling_group:
-                assert (
-                    fx_graph[sibling]["C_permutable"]
-                    and not fx_graph[sibling]["C_permuted"]
-                )
+                assert fx_graph[sibling]["C_permutable"] and not fx_graph[sibling]["C_permuted"]
                 sibling_permuted = cls.apply_permutation_in_C_dim(
                     sibling, group_permutation, dryrun
                 )
                 if dryrun:
                     success = success and sibling_permuted
                 else:
-                    assert sibling_permuted, (
-                        "shouldn't fail permuting siblings after the dry run"
-                    )
+                    assert sibling_permuted, "shouldn't fail permuting siblings after the dry run"
                     fx_graph[sibling]["C_permuted"] = sibling_permuted
 
                 a_parent = fx_graph[sibling]["real_parents"][0]
                 if coparent_group_id is None:
                     coparent_group_id = fx_graph[a_parent]["coparent_group_id"]
                 else:
-                    assert (
-                        coparent_group_id == fx_graph[a_parent]["coparent_group_id"]
-                    ), (
+                    assert coparent_group_id == fx_graph[a_parent]["coparent_group_id"], (
                         f"parent {a_parent} must belong to the same coparent group {coparent_group_id}, not {fx_graph[a_parent]['coparent_group_id']}"
                     )
 
             # grab the parents (and co-parents) and apply to their K dimension
             coparents = cls.__group_data["coparent_groups"][coparent_group_id]
             for coparent in coparents:
-                assert (
-                    fx_graph[coparent]["K_permutable"]
-                    and not fx_graph[coparent]["K_permuted"]
-                )
+                assert fx_graph[coparent]["K_permutable"] and not fx_graph[coparent]["K_permuted"]
                 coparent_permuted = cls.apply_permutation_in_K_dim(
                     coparent, group_permutation, fx_graph, dryrun
                 )
                 if dryrun:
                     success = success and coparent_permuted
                 else:
-                    assert coparent_permuted, (
-                        "shouldn't fail permuting coparents after the dry run"
-                    )
+                    assert coparent_permuted, "shouldn't fail permuting coparents after the dry run"
                     fx_graph[coparent]["K_permuted"] = coparent_permuted
 
                 children_permuted = cls.apply_permutation_in_K_dim_to_children(
@@ -962,25 +911,19 @@ class Permutation:
                 break
 
     @classmethod
-    def apply_permutation_in_K_dim_to_children(
-        cls, fx_graph, node_name, permutation, dryrun
-    ):
+    def apply_permutation_in_K_dim_to_children(cls, fx_graph, node_name, permutation, dryrun):
         """Apply a permutation along K to the children of some node"""
 
         success = True
         children = fx_graph[node_name]["children"]
         if cls.__verbosity > 2 and dryrun:
-            print(
-                f"Applying a permutation in K to children of {node_name} : {children}"
-            )
+            print(f"Applying a permutation in K to children of {node_name} : {children}")
 
         # apply the permutation along K to children as necessary
         for child in children:
             if "is_real" in fx_graph[child].keys() and fx_graph[child]["is_real"]:
                 if cls.__verbosity > 3 and dryrun:
-                    print(
-                        f"\tFound a real child {child}, not permuting it or its children along K"
-                    )
+                    print(f"\tFound a real child {child}, not permuting it or its children along K")
             else:
                 if (
                     "module_type" not in fx_graph[child].keys()
@@ -992,10 +935,7 @@ class Permutation:
                         fx_graph, child, permutation, dryrun
                     )
                 elif not fx_graph[child]["C_permutable"]:
-                    if (
-                        fx_graph[child]["K_permutable"]
-                        and not fx_graph[child]["K_permuted"]
-                    ):
+                    if fx_graph[child]["K_permutable"] and not fx_graph[child]["K_permuted"]:
                         if cls.__verbosity > 2 and dryrun:
                             print(f"\tPermuting {child} along K")
                         child_permuted = cls.apply_permutation_in_K_dim(
@@ -1007,11 +947,8 @@ class Permutation:
                         assert fx_graph[child]["K_passthru"]
 
                     if fx_graph[child]["K_passthru"]:
-                        success = (
-                            success
-                            and cls.apply_permutation_in_K_dim_to_children(
-                                fx_graph, child, permutation, dryrun
-                            )
+                        success = success and cls.apply_permutation_in_K_dim_to_children(
+                            fx_graph, child, permutation, dryrun
                         )
                     else:
                         if cls.__verbosity >= 0:
@@ -1025,18 +962,13 @@ class Permutation:
     def defer_prints(cls):
         """Collect prints from this rank in distributed mode to avoid interleaved output"""
 
-        if (
-            torch.distributed.is_initialized()
-            and torch.distributed.get_world_size() > 1
-        ):
+        if torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1:
             cls.__new_stdout = io.StringIO(str(torch.distributed.get_rank()))
             cls.__builtin_print = __builtin__.print
 
             def deferred_print(*args, **kwargs):
                 try:  # see if torchvision examples has suppressed other ranks with the force argument
-                    cls.__builtin_print(
-                        *args, file=cls.__new_stdout, force=True, **kwargs
-                    )
+                    cls.__builtin_print(*args, file=cls.__new_stdout, force=True, **kwargs)
                 except:
                     cls.__builtin_print(*args, file=cls.__new_stdout, **kwargs)
 
@@ -1046,10 +978,7 @@ class Permutation:
     def resume_prints(cls):
         """Emit the collected outputs from this rank, resume immediate printing"""
 
-        if (
-            torch.distributed.is_initialized()
-            and torch.distributed.get_world_size() > 1
-        ):
+        if torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1:
             output = cls.__new_stdout.getvalue()
             __builtin__.print = cls.__builtin_print
 
@@ -1085,9 +1014,7 @@ class Permutation:
 
                 else:
                     if cls.__verbosity > 1:
-                        print(
-                            f"Sibling group {sibling_group_id} can permute along C, permuting it"
-                        )
+                        print(f"Sibling group {sibling_group_id} can permute along C, permuting it")
 
                     cls.find_sibling_group_permutation(fx_graph, sibling_group_id)
 
@@ -1116,9 +1043,7 @@ class Permutation:
             src_rank = sibling_group_id % world_size
 
             if src_rank == rank:
-                to_send = cls.__group_data["sibling_group_permutations"].get(
-                    sibling_group_id, None
-                )
+                to_send = cls.__group_data["sibling_group_permutations"].get(sibling_group_id, None)
                 skip_reason = None
                 if to_send is None:
                     skip_reason = cls.__group_data["skipped_sibling_groups"].get(
@@ -1155,9 +1080,7 @@ class Permutation:
                 else:
                     permutation = [int(c) for c in permutation.split(",")]
 
-            cls.__group_data["sibling_group_permutations"][sibling_group_id] = (
-                permutation
-            )
+            cls.__group_data["sibling_group_permutations"][sibling_group_id] = permutation
 
             if cls.__verbosity > 1:
                 print(f"Got permutation for sibling group {sibling_group_id}")
@@ -1170,9 +1093,7 @@ class Permutation:
         """Apply all the permutations that were found to the network appropriately"""
 
         for sibling_group_id in cls.__group_data["sibling_group_permutations"].keys():
-            permutation = cls.__group_data["sibling_group_permutations"][
-                sibling_group_id
-            ]
+            permutation = cls.__group_data["sibling_group_permutations"][sibling_group_id]
 
             if permutation is not None:
                 cls.permute_sibling_group(fx_graph, sibling_group_id, permutation)
@@ -1228,9 +1149,7 @@ class Permutation:
         return fx_graph
 
     @staticmethod
-    def init_grouped_conv_permutation_flags(
-        fx_graph, node_name, node_groups, verbosity
-    ):
+    def init_grouped_conv_permutation_flags(fx_graph, node_name, node_groups, verbosity):
         """Handle grouped convolutions to make dimensions match"""
 
         node_C = int(fx_graph.get(node_name).get("C_param"))
@@ -1238,21 +1157,15 @@ class Permutation:
         node_groups = int(node_groups)
 
         if verbosity > 2:
-            print(
-                f"\t{node_name} pre-divide C: {node_C}, K: {node_K}, G: {node_groups}"
-            )
+            print(f"\t{node_name} pre-divide C: {node_C}, K: {node_K}, G: {node_groups}")
         assert node_C % node_groups == 0
         node_C = int(node_C / node_groups)
         fx_graph[node_name]["C_param"] = str(node_C)
         if verbosity > 2:
-            print(
-                f"\t{node_name} post-divide C: {node_C}, K: {node_K}, G: {node_groups}"
-            )
+            print(f"\t{node_name} post-divide C: {node_C}, K: {node_K}, G: {node_groups}")
 
         if node_C == 1:  # G == C (C is pre-divided by G)
-            if (
-                node_groups == node_K
-            ):  # true depthwise, G == C == K (C will be pre-divided by G)
+            if node_groups == node_K:  # true depthwise, G == C == K (C will be pre-divided by G)
                 fx_graph[node_name]["K_permutable"] = True
                 fx_graph[node_name]["K_permuted"] = False
                 fx_graph[node_name]["K_passthru"] = True
@@ -1297,9 +1210,7 @@ class Permutation:
                 if node_module_type == "get_attr":
                     print(f"Initializing node {node_name} of type {node_module_type}")
                 else:
-                    print(
-                        f"Initializing node {node_name} of type {node_module_type}: {fx_node}"
-                    )
+                    print(f"Initializing node {node_name} of type {node_module_type}: {fx_node}")
 
             # default for all nodes: don't allow anything
             if node_module_type is not None:
@@ -1383,9 +1294,7 @@ class Permutation:
                     )
 
         for MHA_node in MHA_nodes:
-            fx_graph = Permutation.insert_MHA_out_proj(
-                fx_graph, MHA_node, cls.__verbosity
-            )
+            fx_graph = Permutation.insert_MHA_out_proj(fx_graph, MHA_node, cls.__verbosity)
 
         return fx_graph
 
@@ -1407,9 +1316,7 @@ class Permutation:
         all_siblings.update(new_siblings)
 
         for new_sibling in new_siblings:
-            all_siblings = Permutation.collect_siblings(
-                fx_graph, new_sibling, all_siblings
-            )
+            all_siblings = Permutation.collect_siblings(fx_graph, new_sibling, all_siblings)
 
         return all_siblings
 
@@ -1425,9 +1332,7 @@ class Permutation:
             if allow_C != pre_check:
                 if verbosity > 2:
                     if fx_graph[sibling]["module_type"] == "get_attr":
-                        print(
-                            f"\tnode {sibling} has poisoned the sibling group of {all_siblings}"
-                        )
+                        print(f"\tnode {sibling} has poisoned the sibling group of {all_siblings}")
                     else:
                         print(
                             f"\tnode {sibling} has poisoned the sibling group of {all_siblings}: {fx_graph[sibling]}"
@@ -1470,9 +1375,7 @@ class Permutation:
                     grandparents = fx_graph[parent]["real_parents"]
                     for grandparent in grandparents:
                         coparents = coparents.union(
-                            Permutation.collect_coparents(
-                                fx_graph, grandparent, coparents
-                            )
+                            Permutation.collect_coparents(fx_graph, grandparent, coparents)
                         )
 
         # separate the new coparents, since we'll need to process them recursively
@@ -1481,9 +1384,7 @@ class Permutation:
         all_coparents.update(new_coparents)
 
         for new_coparent in new_coparents:
-            all_coparents = Permutation.collect_coparents(
-                fx_graph, new_coparent, all_coparents
-            )
+            all_coparents = Permutation.collect_coparents(fx_graph, new_coparent, all_coparents)
 
         return all_coparents
 
@@ -1515,10 +1416,7 @@ class Permutation:
         if not allow_K:
             for coparent in all_coparents:
                 # all coparents can no longer be permuted along K
-                if (
-                    fx_graph[coparent]["K_permutable"]
-                    or fx_graph[coparent]["K_passthru"]
-                ):
+                if fx_graph[coparent]["K_permutable"] or fx_graph[coparent]["K_passthru"]:
                     made_change = True
 
                     fx_graph[coparent]["K_permutable"] = False
@@ -1572,20 +1470,14 @@ class Permutation:
                     sibling_group_id = fx_graph[child]["sibling_group_id"]
                     fx_graph[child]["C_param"] = children_GCD_param
 
-                old_children_GCD = cls.__group_data["sibling_group_C_params"][
-                    sibling_group_id
-                ]
-                cls.__group_data["sibling_group_C_params"][sibling_group_id] = (
-                    children_GCD_param
-                )
+                old_children_GCD = cls.__group_data["sibling_group_C_params"][sibling_group_id]
+                cls.__group_data["sibling_group_C_params"][sibling_group_id] = children_GCD_param
 
                 # fixup this node's dimensions
                 # use the functionality of grouped convolutions
                 fx_node["C_param"] = children_GCD_param
                 fx_node["K_param"] = old_children_GCD
-                fx_node["groups_param"] = str(
-                    int(old_children_GCD) // int(children_GCD_param)
-                )
+                fx_node["groups_param"] = str(int(old_children_GCD) // int(children_GCD_param))
 
                 if cls.__verbosity > 2:
                     print(
@@ -1615,9 +1507,7 @@ class Permutation:
                 node_real_parents = fx_node["real_parents"]
                 if len(node_real_parents) == 0:
                     if cls.__verbosity > 1:
-                        print(
-                            f"\t{node_name} has no real parents, disabling permutations along C"
-                        )
+                        print(f"\t{node_name} has no real parents, disabling permutations along C")
                     fx_graph[node_name]["C_permutable"] = False
                 else:
                     for real_parent in node_real_parents:
@@ -1640,15 +1530,11 @@ class Permutation:
                             fx_graph[real_parent]["K_permutable"] = False
 
                             if cls.__verbosity > 2:
-                                print(
-                                    f"\t{fx_graph[node_name]}\n\t{fx_graph[real_parent]}"
-                                )
+                                print(f"\t{fx_graph[node_name]}\n\t{fx_graph[real_parent]}")
 
                 if len(fx_graph[node_name]["real_children"]) == 0:
                     if cls.__verbosity > 1:
-                        print(
-                            f"\t{node_name} has no real children, disabling permutations along K"
-                        )
+                        print(f"\t{node_name} has no real children, disabling permutations along K")
                     fx_graph[node_name]["K_permutable"] = False
 
         return fx_graph
@@ -1665,15 +1551,9 @@ class Permutation:
 
             if "is_real" in fx_node.keys() and fx_node["is_real"]:
                 sibling_group_id = fx_node["sibling_group_id"]
-                if (
-                    sibling_group_id is None
-                ):  # need to make a new sibling group for this node
-                    all_siblings = cls.collect_siblings(
-                        fx_graph, node_name, set([node_name])
-                    )
-                    all_siblings = sorted(
-                        all_siblings
-                    )  # deterministic order for DDP setups
+                if sibling_group_id is None:  # need to make a new sibling group for this node
+                    all_siblings = cls.collect_siblings(fx_graph, node_name, set([node_name]))
+                    all_siblings = sorted(all_siblings)  # deterministic order for DDP setups
                     sibling_group_id = cls.__group_data["next_sibling_group_id"]
                     cls.__group_data["sibling_groups"][sibling_group_id] = all_siblings
                     cls.__group_data["next_sibling_group_id"] = sibling_group_id + 1
@@ -1699,25 +1579,17 @@ class Permutation:
 
                 coparent_group_id = fx_node["coparent_group_id"]
                 if coparent_group_id is None:
-                    all_coparents = cls.collect_coparents(
-                        fx_graph, node_name, set([node_name])
-                    )
+                    all_coparents = cls.collect_coparents(fx_graph, node_name, set([node_name]))
                     coparent_group_id = cls.__group_data["next_coparent_group_id"]
-                    cls.__group_data["coparent_groups"][coparent_group_id] = (
-                        all_coparents
-                    )
+                    cls.__group_data["coparent_groups"][coparent_group_id] = all_coparents
                     cls.__group_data["next_coparent_group_id"] = coparent_group_id + 1
-                    cls.__group_data["skipped_coparent_groups"][coparent_group_id] = (
-                        None
-                    )
+                    cls.__group_data["skipped_coparent_groups"][coparent_group_id] = None
 
                     for coparent in all_coparents:
                         fx_graph[coparent]["coparent_group_id"] = coparent_group_id
 
                     if cls.__verbosity > 1:
-                        print(
-                            f"New coparent group {coparent_group_id}: {all_coparents}"
-                        )
+                        print(f"New coparent group {coparent_group_id}: {all_coparents}")
         return fx_graph
 
     @classmethod
@@ -1772,21 +1644,15 @@ class Permutation:
                     sibling_group_id = fx_graph[node_name]["sibling_group_id"]
                     all_siblings = cls.__group_data["sibling_groups"][sibling_group_id]
                     made_change = (
-                        cls.propagate_sibling_group(
-                            fx_graph, all_siblings, cls.__verbosity
-                        )
+                        cls.propagate_sibling_group(fx_graph, all_siblings, cls.__verbosity)
                         or made_change
                     )
 
                     # coparents must share K-flags; if one cannot be permuted along K, none can
                     coparent_group_id = fx_graph[node_name]["coparent_group_id"]
-                    all_coparents = cls.__group_data["coparent_groups"][
-                        coparent_group_id
-                    ]
+                    all_coparents = cls.__group_data["coparent_groups"][coparent_group_id]
                     made_change = (
-                        cls.propagate_coparent_group(
-                            fx_graph, all_coparents, cls.__verbosity
-                        )
+                        cls.propagate_coparent_group(fx_graph, all_coparents, cls.__verbosity)
                         or made_change
                     )
 
@@ -1809,9 +1675,7 @@ class Permutation:
                 if "is_real" in fx_graph[child].keys() and fx_graph[child]["is_real"]:
                     found_children.add(child)
                 else:  # otherwise, search its children
-                    found_children = cls.find_node_real_children(
-                        fx_graph, child, found_children
-                    )
+                    found_children = cls.find_node_real_children(fx_graph, child, found_children)
 
         return found_children
 
@@ -1873,9 +1737,7 @@ class Permutation:
                 if "is_real" in fx_graph[parent].keys() and fx_graph[parent]["is_real"]:
                     found_parents.add(parent)
                 else:  # otherwise, search its parents
-                    found_parents = cls.find_node_real_parents(
-                        fx_graph, parent, found_parents
-                    )
+                    found_parents = cls.find_node_real_parents(fx_graph, parent, found_parents)
 
         return found_parents
 
@@ -1935,9 +1797,7 @@ class Permutation:
                 )
             )
 
-        if torch_version_major >= 2 or (
-            torch_version_major >= 1 and torch_version_minor >= 8
-        ):
+        if torch_version_major >= 2 or (torch_version_major >= 1 and torch_version_minor >= 8):
             if cls.__verbosity > 1:
                 print("[build_fx_graph] The Torch.FX is supported.")
         else:  # Torch.FX is introduced in torch 1.8.0
@@ -1949,9 +1809,7 @@ class Permutation:
             return network_fx_graph, success
 
         if cls.__verbosity > 2:
-            print(
-                "\n[build_fx_graph] Print the model structure with pure PyTorch function"
-            )
+            print("\n[build_fx_graph] Print the model structure with pure PyTorch function")
             print(model)
 
         graph_module = cls.trace_and_print_raw_fx_graph(
@@ -1970,11 +1828,7 @@ class Permutation:
         module_name_K_dict = {}
         for name, mod in model.named_modules():
             if cls.__verbosity > 1:
-                print(
-                    "[build_fx_graph] module_name: {}, module type: {}".format(
-                        name, type(mod)
-                    )
-                )
+                print("[build_fx_graph] module_name: {}, module type: {}".format(name, type(mod)))
             module_name_type_dict[name] = str(type(mod)).split("'")[1]
             try:
                 module_name_C_dict[name] = str(mod.in_channels)
@@ -2012,26 +1866,16 @@ class Permutation:
 
         # keep track of children and parents for each layer (could be call_module or call_function)
         if cls.__verbosity > 0:
-            print(
-                "\n[build_fx_graph] Print the children and parents relationship for each layer"
-            )
+            print("\n[build_fx_graph] Print the children and parents relationship for each layer")
         network_fx_graph = {}
         for node in graph_module.graph.nodes:
             if node.op == "placeholder":
                 if cls.__verbosity > 2:
-                    print(
-                        "[build_fx_graph] This is the 'input' node: {:}".format(
-                            node.target
-                        )
-                    )
+                    print("[build_fx_graph] This is the 'input' node: {:}".format(node.target))
                 continue
             elif node.op == "get_attr":
                 if cls.__verbosity > 2:
-                    print(
-                        "[build_fx_graph] This is the 'get_attr' node: {:}".format(
-                            node.target
-                        )
-                    )
+                    print("[build_fx_graph] This is the 'get_attr' node: {:}".format(node.target))
                 node_parent, node_children = get_node_parent_children(node)
                 converted_node_name = convert_fx_node_name(node.target)
 
@@ -2078,11 +1922,7 @@ class Permutation:
 
                 # concatenating along K can be handled by reducing the size of the childrens' C appropriately
                 # see fixup_concats, if no dim arg, default is 0 (handled automatically)
-                if (
-                    node.target == torch.cat
-                    and len(node.args) > 1
-                    and node.args[1] == 1
-                ):
+                if node.target == torch.cat and len(node.args) > 1 and node.args[1] == 1:
                     network_fx_graph[converted_node_name]["fx_op"] = "call_module"
                     network_fx_graph[converted_node_name]["module_type"] = "concat"
                     network_fx_graph[converted_node_name]["groups_param"] = (
@@ -2133,23 +1973,15 @@ class Permutation:
                 network_fx_graph[converted_node_name]["children"] = node_children
                 network_fx_graph[converted_node_name]["fx_op"] = "call_module"
                 network_fx_graph[converted_node_name]["module_type"] = node_type
-                network_fx_graph[converted_node_name]["groups_param"] = (
-                    module_name_group_conv_dict[node.target]
-                )
-                network_fx_graph[converted_node_name]["C_param"] = module_name_C_dict[
+                network_fx_graph[converted_node_name]["groups_param"] = module_name_group_conv_dict[
                     node.target
                 ]
-                network_fx_graph[converted_node_name]["K_param"] = module_name_K_dict[
-                    node.target
-                ]
+                network_fx_graph[converted_node_name]["C_param"] = module_name_C_dict[node.target]
+                network_fx_graph[converted_node_name]["K_param"] = module_name_K_dict[node.target]
 
             elif node.op == "output":
                 if cls.__verbosity > 2:
-                    print(
-                        "[build_fx_graph] This is the 'output' node: {:}".format(
-                            node.target
-                        )
-                    )
+                    print("[build_fx_graph] This is the 'output' node: {:}".format(node.target))
                 continue
 
         if dump_fx_graph:
@@ -2164,9 +1996,7 @@ class Permutation:
         return network_fx_graph, success
 
     @classmethod
-    def trace_and_print_raw_fx_graph(
-        cls, model, print_tabular=False, generate_python_code=False
-    ):
+    def trace_and_print_raw_fx_graph(cls, model, print_tabular=False, generate_python_code=False):
         """This function is used to find and print the intermediate representation (IR) - Graph representation with Torch.FX features."""
 
         from torch.fx import symbolic_trace
@@ -2176,10 +2006,7 @@ class Permutation:
         try:
             symbolic_traced: torch.fx.GraphModule = symbolic_trace(model)
         except Exception as ex:
-            if (
-                not torch.distributed.is_initialized()
-                or torch.distributed.get_rank() == 0
-            ):
+            if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
                 if cls.__verbosity > 0:
                     print(ex)
                     print(
@@ -2196,9 +2023,7 @@ class Permutation:
 
         # High-level intermediate representation (IR) - Graph representation
         if cls.__verbosity > 1:
-            print(
-                "\n[print_raw_fx_graph] Print the intermediate representation (IR) with Torch.FX"
-            )
+            print("\n[print_raw_fx_graph] Print the intermediate representation (IR) with Torch.FX")
             print(symbolic_traced.graph)
 
         if print_tabular:
@@ -2214,7 +2039,9 @@ class Permutation:
                     print(
                         "[print_raw_fx_graph][Warning] 'print_tabular' relies on the library `tabulate`; run `pip install tabulate` to install it."
                     )
-            except AttributeError:  # to avoid the AttributeError: 'Graph' object has no attribute 'print_tabular'
+            except (
+                AttributeError
+            ):  # to avoid the AttributeError: 'Graph' object has no attribute 'print_tabular'
                 if cls.__verbosity > 1:
                     print(
                         "[print_raw_fx_graph][Warning] 'print_tabular' function is not supported in current Torch version. Skip!"
@@ -2230,16 +2057,12 @@ class Permutation:
         return symbolic_traced
 
     @classmethod
-    def save_graph_to_json(
-        cls, graph, save_dumped_graph_path_with_name="./model_fx_graph.json"
-    ):
+    def save_graph_to_json(cls, graph, save_dumped_graph_path_with_name="./model_fx_graph.json"):
         """This function is used to save the graph into JSON file for inspection."""
 
         # use dumps to transfer the dict to JSON string
         json_graph_str = json.dumps(graph)
-        with open(
-            save_dumped_graph_path_with_name, "w", encoding="utf-8"
-        ) as dumped_graph_file:
+        with open(save_dumped_graph_path_with_name, "w", encoding="utf-8") as dumped_graph_file:
             dumped_graph_file.write(
                 json_graph_str
             )  # write the transferred JSON string into JSON file

@@ -120,12 +120,8 @@ class FusedNovoGrad(torch.optim.Optimizer):
         # in case exp_avg_sq is not on the same device as params, move it there
         for group in self.param_groups:
             if len(group["params"]) > 0:
-                group["exp_avg_sq"][0] = group["exp_avg_sq"][0].to(
-                    group["params"][0].device
-                )
-                group["exp_avg_sq"][1] = group["exp_avg_sq"][1].to(
-                    group["params"][0].device
-                )
+                group["exp_avg_sq"][0] = group["exp_avg_sq"][0].to(group["params"][0].device)
+                group["exp_avg_sq"][1] = group["exp_avg_sq"][1].to(group["params"][0].device)
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -201,21 +197,15 @@ class FusedNovoGrad(torch.optim.Optimizer):
                     )
                 else:  # init with first step norm, so first blend have no effect
                     if group["norm_type"] == 0:
-                        v_16 = [
-                            torch.max(torch.abs(g.to(torch.float32))).item()
-                            for g in g_16
-                        ]
+                        v_16 = [torch.max(torch.abs(g.to(torch.float32))).item() for g in g_16]
                         v_32 = [torch.max(torch.abs(g)).item() for g in g_32]
                     elif group["norm_type"] == 2:
                         v_16 = [
-                            torch.sum(torch.pow(g.to(torch.float32), 2)).sqrt().item()
-                            for g in g_16
+                            torch.sum(torch.pow(g.to(torch.float32), 2)).sqrt().item() for g in g_16
                         ]
                         v_32 = [torch.sum(torch.pow(g, 2)).sqrt().item() for g in g_32]
                     else:
-                        raise RuntimeError(
-                            "FusedNovoGrad only support l2/inf norm now."
-                        )
+                        raise RuntimeError("FusedNovoGrad only support l2/inf norm now.")
                     # Creating the following parameters on the same device as the params tensors.
                     group["exp_avg_sq"][0] = torch.cuda.FloatTensor(
                         v_16, device=self.param_groups[0]["params"][0].device

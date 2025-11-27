@@ -122,9 +122,7 @@ def post_language_model_processing(
             assert lm_logits.dtype == torch.half
             lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits, lm_labels)
         else:
-            lm_loss = tensor_parallel.vocab_parallel_cross_entropy(
-                lm_logits.float(), lm_labels
-            )
+            lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits.float(), lm_labels)
         return lm_loss, binary_logits
 
 
@@ -150,9 +148,7 @@ class BertModel(MegatronModule):
         self.post_process = post_process
 
         init_method = init_method_normal(args.init_method_std)
-        scaled_init_method = scaled_init_method_normal(
-            args.init_method_std, args.num_layers
-        )
+        scaled_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
 
         self.language_model, self._language_model_key = get_language_model(
             num_tokentypes=num_tokentypes,
@@ -187,9 +183,7 @@ class BertModel(MegatronModule):
         """See megatron.model.transformer.set_input_tensor()"""
         self.language_model.set_input_tensor(input_tensor)
 
-    def forward(
-        self, bert_model_input, attention_mask, tokentype_ids=None, lm_labels=None
-    ):
+    def forward(self, bert_model_input, attention_mask, tokentype_ids=None, lm_labels=None):
         with self.forward_context():
             extended_attention_mask = bert_extended_attention_mask(attention_mask)
             input_ids = bert_model_input
@@ -221,23 +215,17 @@ class BertModel(MegatronModule):
                 return lm_output
 
     # NOTE(mkozuki): This method is not maintained as apex only tests forward_backward with best effort.
-    def state_dict_for_save_checkpoint(
-        self, destination=None, prefix="", keep_vars=False
-    ):
+    def state_dict_for_save_checkpoint(self, destination=None, prefix="", keep_vars=False):
         """For easy load when model is combined with other heads,
         add an extra key."""
 
         state_dict_ = {}
-        state_dict_[self._language_model_key] = (
-            self.language_model.state_dict_for_save_checkpoint(
-                destination, prefix, keep_vars
-            )
+        state_dict_[self._language_model_key] = self.language_model.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
         )
         if self.post_process:
-            state_dict_[self._lm_head_key] = (
-                self.lm_head.state_dict_for_save_checkpoint(
-                    destination, prefix, keep_vars
-                )
+            state_dict_[self._lm_head_key] = self.lm_head.state_dict_for_save_checkpoint(
+                destination, prefix, keep_vars
             )
         if self.post_process and self.add_binary_head:
             state_dict_[self._binary_head_key] = self.binary_head.state_dict(
@@ -245,8 +233,8 @@ class BertModel(MegatronModule):
             )
         # Save word_embeddings.
         if self.post_process and not self.pre_process:
-            state_dict_[self._word_embeddings_for_head_key] = (
-                self.word_embeddings.state_dict(destination, prefix, keep_vars)
+            state_dict_[self._word_embeddings_for_head_key] = self.word_embeddings.state_dict(
+                destination, prefix, keep_vars
             )
         return state_dict_
 
@@ -254,15 +242,11 @@ class BertModel(MegatronModule):
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
-        self.language_model.load_state_dict(
-            state_dict[self._language_model_key], strict=strict
-        )
+        self.language_model.load_state_dict(state_dict[self._language_model_key], strict=strict)
         if self.post_process:
             self.lm_head.load_state_dict(state_dict[self._lm_head_key], strict=strict)
         if self.post_process and self.add_binary_head:
-            self.binary_head.load_state_dict(
-                state_dict[self._binary_head_key], strict=strict
-            )
+            self.binary_head.load_state_dict(state_dict[self._binary_head_key], strict=strict)
         # Load word_embeddings.
         if self.post_process and not self.pre_process:
             self.word_embeddings.load_state_dict(

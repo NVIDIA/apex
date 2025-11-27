@@ -41,9 +41,7 @@ class FocalLossTest(unittest.TestCase):
             x_expected.requires_grad_()
             x_actual.requires_grad_()
 
-            classes = torch.randint(
-                0, FocalLossTest.N_CLASSES, (FocalLossTest.N_SAMPLES,)
-            ).cuda()
+            classes = torch.randint(0, FocalLossTest.N_CLASSES, (FocalLossTest.N_SAMPLES,)).cuda()
             with torch.no_grad():
                 y = F.one_hot(classes, FocalLossTest.N_CLASSES).float()
 

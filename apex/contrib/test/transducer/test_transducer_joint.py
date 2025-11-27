@@ -28,19 +28,11 @@ class TransducerJointTest(unittest.TestCase):
         dtype = torch.float16
         device = "cuda"
 
-        self.f_tst = torch.randn(
-            (self.B, T_max, H), dtype=dtype, requires_grad=True, device=device
-        )
-        self.g_tst = torch.randn(
-            (self.B, U_max, H), dtype=dtype, requires_grad=True, device=device
-        )
+        self.f_tst = torch.randn((self.B, T_max, H), dtype=dtype, requires_grad=True, device=device)
+        self.g_tst = torch.randn((self.B, U_max, H), dtype=dtype, requires_grad=True, device=device)
         self.h_grad = torch.randn(self.B, T_max, U_max, H, dtype=dtype, device=device)
-        self.f_len = torch.randint(
-            T_min, T_max + 1, (self.B,), dtype=torch.int, device=device
-        )
-        self.g_len = torch.randint(
-            U_min, U_max + 1, (self.B,), dtype=torch.int, device=device
-        )
+        self.f_len = torch.randint(T_min, T_max + 1, (self.B,), dtype=torch.int, device=device)
+        self.g_len = torch.randint(U_min, U_max + 1, (self.B,), dtype=torch.int, device=device)
         self.f_len[torch.randint(0, self.B, (1,)).item()] = T_max
         self.g_len[torch.randint(0, self.B, (1,)).item()] = U_max
         self.dropout_prob = 0.5
@@ -75,9 +67,7 @@ class TransducerJointTest(unittest.TestCase):
             my_g_len = g_len[b]
             for t in range(my_f_len):
                 x_unpacked[b, t, :my_g_len] = x[
-                    my_batch_offset + t * my_g_len : my_batch_offset
-                    + t * my_g_len
-                    + my_g_len
+                    my_batch_offset + t * my_g_len : my_batch_offset + t * my_g_len + my_g_len
                 ]
         return x_unpacked
 
@@ -97,9 +87,7 @@ class TransducerJointTest(unittest.TestCase):
             probe_mask=True,
         )
         if not pack_output:
-            h_tst = my_joint(
-                f=self.f_tst, g=self.g_tst, f_len=self.f_len, g_len=self.g_len
-            )
+            h_tst = my_joint(f=self.f_tst, g=self.g_tst, f_len=self.f_len, g_len=self.g_len)
             h_tst.backward(self.h_grad)
             if dropout:
                 mask = my_joint.mask_probe[0]
@@ -181,9 +169,7 @@ class TransducerJointTest(unittest.TestCase):
 
     @unittest.expectedFailure
     def test_transducer_joint_relu_dropout(self):
-        self.run_transducer_joint(
-            for_vector_kernel=True, pack_output=True, relu=True, dropout=True
-        )
+        self.run_transducer_joint(for_vector_kernel=True, pack_output=True, relu=True, dropout=True)
 
     @unittest.expectedFailure
     def test_transducer_joint_vec_relu_dropout(self):
@@ -199,9 +185,7 @@ class TransducerJointTest(unittest.TestCase):
 
     @unittest.expectedFailure
     def test_transducer_joint_vec_pack_relu_dropout(self):
-        self.run_transducer_joint(
-            for_vector_kernel=True, pack_output=True, relu=True, dropout=True
-        )
+        self.run_transducer_joint(for_vector_kernel=True, pack_output=True, relu=True, dropout=True)
 
 
 if __name__ == "__main__":

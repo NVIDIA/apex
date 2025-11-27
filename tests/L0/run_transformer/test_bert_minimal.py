@@ -99,9 +99,7 @@ class BertTestBase:
         def loss_func(output_tensor):
             output_tensor, _ = output_tensor
             lm_loss_ = output_tensor.float()
-            lm_loss = (
-                torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
-            )
+            lm_loss = torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
             averaged_loss = average_losses_across_data_parallel_group([lm_loss])
             if self.data_idx >= 1536:
                 # NOTE (patwang): Loss cutoff might be excessively high but roughly one in five
@@ -142,10 +140,7 @@ class BertTestBase:
             )
             # All-reduce layernorm parameters across model parallel nodes
             # when sequence parallelism is used
-            if (
-                parallel_state.get_tensor_model_parallel_world_size() > 1
-                and args.sequence_parallel
-            ):
+            if parallel_state.get_tensor_model_parallel_world_size() > 1 and args.sequence_parallel:
                 for model_module in model:
                     unwrapped_model = unwrap_model(model_module)
                     for param in unwrapped_model.parameters():
@@ -177,9 +172,7 @@ class BertTestBase:
         self.EASY_MODE = False
         self.EASY_MODE_SIZ = 32
 
-        tensor_model_parallel_size = (
-            2 if self.world_size % 2 == 0 and self.world_size > 4 else 1
-        )
+        tensor_model_parallel_size = 2 if self.world_size % 2 == 0 and self.world_size > 4 else 1
         pipeline_model_parallel_size = self.world_size // tensor_model_parallel_size
 
         override_args = {
@@ -197,9 +190,7 @@ class BertTestBase:
             "rank": self.rank,
         }
 
-        global_vars.set_global_variables(
-            override_args=override_args, ignore_unknown_args=True
-        )
+        global_vars.set_global_variables(override_args=override_args, ignore_unknown_args=True)
         args = global_vars.get_args()
 
         self.fancy_data = self._download_fancy_data()
@@ -210,9 +201,7 @@ class BertTestBase:
             print(
                 f"testing backend: {self.DISTRIBUTED_BACKEND} with virtual_pipeline_model_parallel_size: {virtual_pipeline_model_parallel_size}"
             )
-        async_comm = (
-            not args.sequence_parallel and virtual_pipeline_model_parallel_size is None
-        )
+        async_comm = not args.sequence_parallel and virtual_pipeline_model_parallel_size is None
         self.data_idx = 0
         args.padded_vocab_size = 128  # needed in standalone gpt
         args.model_type = ModelType.encoder_or_decoder

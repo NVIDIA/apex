@@ -32,9 +32,7 @@ class ParallelStateTestBase:
             if self.world_size % tensor_model_parallel_world_size:
                 continue
 
-            pipeline_model_parallel_world_size = (
-                self.world_size // tensor_model_parallel_world_size
-            )
+            pipeline_model_parallel_world_size = self.world_size // tensor_model_parallel_world_size
 
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size,
@@ -45,10 +43,8 @@ class ParallelStateTestBase:
                 parallel_state.get_tensor_model_parallel_world_size(),
                 msg=msg,
             )
-            expected_tensor_model_parallel_rank = (
-                calc_expected_tensor_model_paralell_rank(
-                    self.rank, tensor_model_parallel_world_size
-                )
+            expected_tensor_model_parallel_rank = calc_expected_tensor_model_paralell_rank(
+                self.rank, tensor_model_parallel_world_size
             )
             self.assertEqual(
                 expected_tensor_model_parallel_rank,
@@ -74,9 +70,7 @@ class ParallelStateTestBase:
         self.assertFalse(parallel_state.model_parallel_is_initialized())
 
         tensor_model_parallel_world_size = 1 + int(self.world_size > 4)
-        pipeline_model_parallel_world_size = (
-            self.world_size // tensor_model_parallel_world_size
-        )
+        pipeline_model_parallel_world_size = self.world_size // tensor_model_parallel_world_size
         virtual_pipeline_model_parallel_world_size = 2
         pipeline_model_parallel_split_rank = pipeline_model_parallel_world_size // 2
 
@@ -87,9 +81,7 @@ class ParallelStateTestBase:
             pipeline_model_parallel_split_rank_=pipeline_model_parallel_split_rank,
         )
         self.assertEqual(
-            calc_expected_tensor_model_paralell_rank(
-                self.rank, tensor_model_parallel_world_size
-            ),
+            calc_expected_tensor_model_paralell_rank(self.rank, tensor_model_parallel_world_size),
             parallel_state.get_tensor_model_parallel_rank(),
         )
         self.assertEqual(
@@ -121,9 +113,7 @@ class ParallelStateTestBase:
 
         fake_split_rank = 77
         parallel_state.set_pipeline_model_parallel_split_rank(fake_split_rank)
-        self.assertEqual(
-            fake_split_rank, parallel_state.get_pipeline_model_parallel_split_rank()
-        )
+        self.assertEqual(fake_split_rank, parallel_state.get_pipeline_model_parallel_split_rank())
 
         # relative position embedding groups check
         self.assertEqual(
@@ -143,15 +133,11 @@ class ParallelStateTestBase:
         self.assertFalse(parallel_state.model_parallel_is_initialized())
 
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
-            msg = (
-                f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
-            )
+            msg = f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
             if self.world_size % tensor_model_parallel_world_size:
                 continue
 
-            pipeline_model_parallel_world_size = (
-                self.world_size // tensor_model_parallel_world_size
-            )
+            pipeline_model_parallel_world_size = self.world_size // tensor_model_parallel_world_size
 
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size_=tensor_model_parallel_world_size,
@@ -163,10 +149,8 @@ class ParallelStateTestBase:
                 parallel_state.get_tensor_model_parallel_world_size(),
                 msg=msg,
             )
-            expected_tensor_model_parallel_rank = (
-                calc_expected_tensor_model_paralell_rank(
-                    self.rank, tensor_model_parallel_world_size
-                )
+            expected_tensor_model_parallel_rank = calc_expected_tensor_model_paralell_rank(
+                self.rank, tensor_model_parallel_world_size
             )
             self.assertEqual(
                 expected_tensor_model_parallel_rank,

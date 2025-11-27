@@ -20,9 +20,7 @@ class MlpFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_o):
-        grads = mlp_cuda.backward(
-            ctx.bias, ctx.activation, grad_o, ctx.outputs, ctx.saved_tensors
-        )
+        grads = mlp_cuda.backward(ctx.bias, ctx.activation, grad_o, ctx.outputs, ctx.saved_tensors)
         del ctx.outputs
         return (None, None, *grads)
 
@@ -82,9 +80,7 @@ class MLP(torch.nn.Module):
                 nn.init.normal_(bias, 0.0, std)
 
     def forward(self, input):
-        return mlp_function(
-            self.bias, self.activation, input, *self.weights, *self.biases
-        )
+        return mlp_function(self.bias, self.activation, input, *self.weights, *self.biases)
 
     def extra_repr(self):
         s = f"MLP sizes: {self.mlp_sizes}, Bias={self.bias}, activation={self.activation}"

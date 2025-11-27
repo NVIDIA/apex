@@ -84,9 +84,7 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
         saved_groups = state_dict["param_groups"]
 
         if len(groups) != len(saved_groups):
-            raise ValueError(
-                "loaded state dict has a different number of parameter groups"
-            )
+            raise ValueError("loaded state dict has a different number of parameter groups")
         param_lens = (len(g["params"]) for g in groups)
         saved_lens = (len(g["params"]) for g in saved_groups)
         if any(p_len != s_len for p_len, s_len in zip(param_lens, saved_lens)):

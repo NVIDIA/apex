@@ -128,9 +128,7 @@ class TestFusedAdam(TestFusedOptimizer):
         tensors = []
         for size in sizes:
             tensors.append(torch.rand(size, dtype=torch.float, device="cuda"))
-        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-            tensors, self.options
-        )
+        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(tensors, self.options)
 
         for i in range(self.iters):
             self.gen_grad(ref_param, tst_param)
@@ -144,9 +142,7 @@ class TestFusedAdam(TestFusedOptimizer):
     def test_scale(self):
         nelem = 278011
         tensor = torch.rand(nelem, dtype=torch.float, device="cuda")
-        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-            [tensor], self.options
-        )
+        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim([tensor], self.options)
 
         for i in range(self.iters):
             scale = random.random() * 1000
@@ -163,9 +159,7 @@ class TestFusedAdam(TestFusedOptimizer):
         nelem = 278011
 
         tensor = torch.rand(nelem, dtype=torch.float, device="cuda")
-        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-            [tensor], self.options
-        )
+        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim([tensor], self.options)
 
         fp16_param = torch.nn.Parameter(tensor.clone().half())
 
@@ -178,9 +172,7 @@ class TestFusedAdam(TestFusedOptimizer):
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
-            max_abs_diff, max_rel_diff = self.get_max_diff(
-                tst_param, [fp16_param.float()]
-            )
+            max_abs_diff, max_rel_diff = self.get_max_diff(tst_param, [fp16_param.float()])
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
@@ -195,9 +187,7 @@ class TestFusedAdam(TestFusedOptimizer):
         }
 
         tensor = torch.rand(nelem, dtype=torch.float, device="cuda")
-        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-            [tensor], adam_option
-        )
+        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim([tensor], adam_option)
 
         for i in range(self.iters):
             self.gen_grad(ref_param, tst_param)
@@ -219,9 +209,7 @@ class TestFusedAdam(TestFusedOptimizer):
         }
 
         tensor = torch.rand(nelem, dtype=torch.float, device="cuda")
-        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-            [tensor], adam_option
-        )
+        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim([tensor], adam_option)
 
         # Add an empty param group which may occur for pipeline parallel p-tuning
         tst_optim.add_param_group({"params": []})
@@ -264,9 +252,7 @@ class TestFusedAdagrad(TestFusedOptimizer):
         tensors = []
         for size in sizes:
             tensors.append(torch.rand(size, dtype=torch.float, device="cuda"))
-        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-            tensors, adagrad_option
-        )
+        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(tensors, adagrad_option)
 
         for _ in range(self.iters):
             self.gen_grad(ref_param, tst_param)
@@ -283,12 +269,8 @@ class TestFusedAdagrad(TestFusedOptimizer):
 
         tensors = []
         for i, size in enumerate(sizes):
-            tensors.append(
-                torch.rand(size, dtype=torch.float, device="cuda:" + str(i % 2))
-            )
-        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-            tensors, adagrad_option
-        )
+            tensors.append(torch.rand(size, dtype=torch.float, device="cuda:" + str(i % 2)))
+        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(tensors, adagrad_option)
         self.gen_grad(ref_param, tst_param)
         with self.assertRaisesRegex(RuntimeError, "not on the same device"):
             tst_optim.step()
@@ -298,9 +280,7 @@ class TestFusedAdagrad(TestFusedOptimizer):
         adagrad_option = {"lr": 0.01, "eps": 3e-06, "weight_decay": 0}
 
         tensor = torch.rand(nelem, dtype=torch.float, device="cuda")
-        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim(
-            [tensor], adagrad_option
-        )
+        ref_param, tst_param, ref_optim, tst_optim = self.gen_param_optim([tensor], adagrad_option)
 
         for _ in range(self.iters):
             self.gen_grad(ref_param, tst_param)

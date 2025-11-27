@@ -66,9 +66,7 @@ for t in range(500):
 if args.local_rank == 0:
     print("final loss = ", loss)
 
-torch.save(
-    list(model.parameters()), "rank{}model.pth".format(torch.distributed.get_rank())
-)
+torch.save(list(model.parameters()), "rank{}model.pth".format(torch.distributed.get_rank()))
 torch.save(
     list(amp.master_params(optimizer)),
     "rank{}master.pth".format(torch.distributed.get_rank()),

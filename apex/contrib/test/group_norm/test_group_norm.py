@@ -139,44 +139,28 @@ class GroupNormTest(unittest.TestCase):
         self.verify_group_norm(cuda_group_norm_nhwc_two_pass, act="swish")
 
     def test_bf16_one_pass_algo(self):
-        self.verify_group_norm(
-            cuda_group_norm_nhwc_one_pass, xdtype=torch.bfloat16, act=""
-        )
+        self.verify_group_norm(cuda_group_norm_nhwc_one_pass, xdtype=torch.bfloat16, act="")
 
     def test_bf16_two_pass_algo(self):
-        self.verify_group_norm(
-            cuda_group_norm_nhwc_two_pass, xdtype=torch.bfloat16, act=""
-        )
+        self.verify_group_norm(cuda_group_norm_nhwc_two_pass, xdtype=torch.bfloat16, act="")
 
     def test_bf16_one_pass_algo_with_swish(self):
-        self.verify_group_norm(
-            cuda_group_norm_nhwc_one_pass, xdtype=torch.bfloat16, act="swish"
-        )
+        self.verify_group_norm(cuda_group_norm_nhwc_one_pass, xdtype=torch.bfloat16, act="swish")
 
     def test_bf16_two_pass_algo_with_swish(self):
-        self.verify_group_norm(
-            cuda_group_norm_nhwc_two_pass, xdtype=torch.bfloat16, act="swish"
-        )
+        self.verify_group_norm(cuda_group_norm_nhwc_two_pass, xdtype=torch.bfloat16, act="swish")
 
     def test_fp32_one_pass_algo(self):
-        self.verify_group_norm(
-            cuda_group_norm_nhwc_one_pass, xdtype=torch.float32, act=""
-        )
+        self.verify_group_norm(cuda_group_norm_nhwc_one_pass, xdtype=torch.float32, act="")
 
     def test_fp32_two_pass_algo(self):
-        self.verify_group_norm(
-            cuda_group_norm_nhwc_two_pass, xdtype=torch.float32, act=""
-        )
+        self.verify_group_norm(cuda_group_norm_nhwc_two_pass, xdtype=torch.float32, act="")
 
     def test_fp32_one_pass_algo_with_swish(self):
-        self.verify_group_norm(
-            cuda_group_norm_nhwc_one_pass, xdtype=torch.float32, act="swish"
-        )
+        self.verify_group_norm(cuda_group_norm_nhwc_one_pass, xdtype=torch.float32, act="swish")
 
     def test_fp32_two_pass_algo_with_swish(self):
-        self.verify_group_norm(
-            cuda_group_norm_nhwc_two_pass, xdtype=torch.float32, act="swish"
-        )
+        self.verify_group_norm(cuda_group_norm_nhwc_two_pass, xdtype=torch.float32, act="swish")
 
     def test_group_norm_module(self):
         self.verify_group_norm(GroupNorm, G=16, act="swish")
@@ -211,9 +195,7 @@ class GroupNormTest(unittest.TestCase):
         else:
             num_graph_breaks = counters["graph_break"].total()
         self.assertEqual(num_graph_breaks, 0, "Shouldn't see any graph breaks.")
-        self.assertEqual(
-            counters["stats"]["unique_graphs"], 1, "Expect only one graph."
-        )
+        self.assertEqual(counters["stats"]["unique_graphs"], 1, "Expect only one graph.")
 
     def test_16_groups(self):
         sizes = [
@@ -246,16 +228,9 @@ class GroupNormTest(unittest.TestCase):
     def get_v2_hw_c_list():
         srcpath = pathlib.Path(__file__).parent.absolute()
         gen_module_path = (
-            srcpath
-            / ".."
-            / ".."
-            / "csrc"
-            / "group_norm_v2"
-            / "generate_gn_cuda_inst.py"
+            srcpath / ".." / ".." / "csrc" / "group_norm_v2" / "generate_gn_cuda_inst.py"
         )
-        spec = importlib.util.spec_from_file_location(
-            "generate_gn_cuda_inst", gen_module_path
-        )
+        spec = importlib.util.spec_from_file_location("generate_gn_cuda_inst", gen_module_path)
         generate_gn_cuda_inst = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(generate_gn_cuda_inst)
         return generate_gn_cuda_inst.hw_c_list

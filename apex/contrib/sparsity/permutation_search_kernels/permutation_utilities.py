@@ -16,9 +16,7 @@ except ImportError:
         print("Found permutation search CUDA kernels for standalone testing")
 
     except ImportError:
-        print(
-            "Could not find permutation search CUDA kernels, falling back to CPU path"
-        )
+        print("Could not find permutation search CUDA kernels, falling back to CPU path")
         kernels_found = False
 
 
@@ -30,9 +28,7 @@ def use_gpu(initial_override=True):
             return False
 
         try:
-            gpus_found = str(subprocess.check_output(["nvidia-smi", "-L"])).count(
-                "UUID"
-            )
+            gpus_found = str(subprocess.check_output(["nvidia-smi", "-L"])).count("UUID")
             print(f"Found {gpus_found} gpus")
         except:
             gpus_found = 0
@@ -153,9 +149,7 @@ def try_permutations_on_matrix(matrix, permutations):
     matrix_view = np.copy(matrix).flatten()
     permutations_view = np.copy(np.asarray(permutations)).astype(np.uint32).flatten()
 
-    stripe_groups = np.asarray([[s for s in range(int(matrix.shape[1] / 4))]]).astype(
-        np.uint32
-    )
+    stripe_groups = np.asarray([[s for s in range(int(matrix.shape[1] / 4))]]).astype(np.uint32)
     stripe_groups_view = stripe_groups.flatten()
 
     improvement = np.zeros((1), dtype=np.float32).flatten()
@@ -313,9 +307,7 @@ def move_groups_to_match(B, A, debug=False):
             moved_groups.append(k[0])
             keys_to_del.append(k)
             if debug:
-                print(
-                    f"MGTM: moved triple {wrong_entry_dict[k]} from group {k[0]} to group {k[1]}"
-                )
+                print(f"MGTM: moved triple {wrong_entry_dict[k]} from group {k[0]} to group {k[1]}")
 
     for k in keys_to_del:
         del wrong_entry_dict[k]
@@ -329,9 +321,7 @@ def move_groups_to_match(B, A, debug=False):
             continue
 
         if len(wrong_entry_dict[k]) == 2:
-            if (
-                len(new_Bg[k[1]]) == 0
-            ):  # move it to its requested destination if possible
+            if len(new_Bg[k[1]]) == 0:  # move it to its requested destination if possible
                 new_Bg[k[1]] = Bg[k[0]]
                 keys_to_del.append(k)
                 assert k[0] not in moved_groups
@@ -346,9 +336,7 @@ def move_groups_to_match(B, A, debug=False):
                 assert k[0] not in moved_groups
                 moved_groups.append(k[0])
                 if debug:
-                    print(
-                        f"MGTM: left double {wrong_entry_dict[k]} where it was in group {k[0]}"
-                    )
+                    print(f"MGTM: left double {wrong_entry_dict[k]} where it was in group {k[0]}")
     for k in keys_to_del:
         del wrong_entry_dict[k]
     keys_to_del = []
@@ -376,9 +364,7 @@ def move_groups_to_match(B, A, debug=False):
             assert k[0] not in moved_groups
             moved_groups.append(k[0])
             if debug:
-                print(
-                    f"MGTM: left group {wrong_entry_dict[k]} where it was in group {k[0]}"
-                )
+                print(f"MGTM: left group {wrong_entry_dict[k]} where it was in group {k[0]}")
 
     for k in keys_to_del:
         del wrong_entry_dict[k]
@@ -460,9 +446,7 @@ def move_permutation_towards(B, A, debug=False):
                 if Ag[dst][c] not in Bg[src]:
                     value = Ag[dst][c]
                     if debug:
-                        print(
-                            f"\tMPT: found the missing value {value} in A group {dst} offset {c}"
-                        )
+                        print(f"\tMPT: found the missing value {value} in A group {dst} offset {c}")
                     break
             assert value != -1
 
@@ -504,9 +488,7 @@ def move_permutation_towards(B, A, debug=False):
                     if complement_key in entry_dict:
                         complement = entry_dict[complement_key][0]
                         if debug:
-                            print(
-                                f"\t\tMPT: found a complement to the loner:{complement}"
-                            )
+                            print(f"\t\tMPT: found a complement to the loner:{complement}")
                         return swap_and_correct(
                             B,
                             np.where(B == entry_dict[k2][0])[0][0],
@@ -564,9 +546,7 @@ def move_permutation_towards(B, A, debug=False):
     # fall back on picking the first one we come across
     assert candidate_second is not None
     if debug:
-        print(
-            f"No complement, swapping two entries: {wrong_entries[0]} {candidate_second}"
-        )
+        print(f"No complement, swapping two entries: {wrong_entries[0]} {candidate_second}")
     return swap_and_correct(
         B,
         np.where(B == wrong_entries[0][0])[0][0],
@@ -575,9 +555,7 @@ def move_permutation_towards(B, A, debug=False):
 
 
 ## find a shortest path from permutation A to B
-def permutation_distance(
-    A, B, matrix=None, magnitude_targets=None, debug=False, verbosity=0
-):
+def permutation_distance(A, B, matrix=None, magnitude_targets=None, debug=False, verbosity=0):
     global num_diffs
     swaps = 0
     debug = False
@@ -617,9 +595,7 @@ def permutation_distance(
                 cur_mag = sum_after_2_to_4(matrix[:, total_cur_permute])
                 for i in range(len(target_results)):
                     result = target_results[i]
-                    if abs(magnitude_targets[i] - result[0]) > abs(
-                        magnitude_targets[i] - cur_mag
-                    ):
+                    if abs(magnitude_targets[i] - result[0]) > abs(magnitude_targets[i] - cur_mag):
                         target_results[i] = (cur_mag, total_cur_permute)
                 if verbosity > 0:
                     print(f"swap {swaps:>4} {cur_mag:>15.3f}")

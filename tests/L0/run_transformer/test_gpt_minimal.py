@@ -108,9 +108,7 @@ class GptTestBase:
             if torch.distributed.get_rank() == 0:
                 print("begin iter", i)
             batch = [
-                self._generate_fancy_data_labels(
-                    args.seq_length, args.global_batch_size
-                )
+                self._generate_fancy_data_labels(args.seq_length, args.global_batch_size)
                 for _ in range(pipeline_model_parallel_size)
             ]
             if torch.distributed.get_rank() == 0:
@@ -156,9 +154,7 @@ class GptTestBase:
         self.N_VOCAB = 128
         init = True
 
-        tensor_model_parallel_size = (
-            2 if self.world_size % 2 == 0 and self.world_size >= 4 else 1
-        )
+        tensor_model_parallel_size = 2 if self.world_size % 2 == 0 and self.world_size >= 4 else 1
         pipeline_model_parallel_size = self.world_size // tensor_model_parallel_size
 
         override_args = {
@@ -175,9 +171,7 @@ class GptTestBase:
             "rank": self.rank,
         }
 
-        global_vars.set_global_variables(
-            override_args=override_args, ignore_unknown_args=True
-        )
+        global_vars.set_global_variables(override_args=override_args, ignore_unknown_args=True)
         args = global_vars.get_args()
 
         for async_comm in (False,) if args.sequence_parallel else (False, True):
@@ -221,9 +215,7 @@ class GptTestBase:
             assert isinstance(model, list), model
             _param_groups = _get_params_for_weight_decay_optimization(model)
             optim = torch.optim.Adam(_param_groups)
-            runtime = self._train(
-                model, optim, args.pipeline_model_parallel_size, async_comm
-            )
+            runtime = self._train(model, optim, args.pipeline_model_parallel_size, async_comm)
 
             parallel_state.destroy_model_parallel()
         torch.cuda.synchronize()

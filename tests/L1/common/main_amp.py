@@ -255,9 +255,7 @@ def main():
                 model.load_state_dict(checkpoint["state_dict"])
                 optimizer.load_state_dict(checkpoint["optimizer"])
                 print(
-                    "=> loaded checkpoint '{}' (epoch {})".format(
-                        args.resume, checkpoint["epoch"]
-                    )
+                    "=> loaded checkpoint '{}' (epoch {})".format(args.resume, checkpoint["epoch"])
                 )
             else:
                 print("=> no checkpoint found at '{}'".format(args.resume))
@@ -357,16 +355,8 @@ class data_prefetcher:
     def __init__(self, loader):
         self.loader = iter(loader)
         self.stream = torch.cuda.Stream()
-        self.mean = (
-            torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255])
-            .cuda()
-            .view(1, 3, 1, 1)
-        )
-        self.std = (
-            torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255])
-            .cuda()
-            .view(1, 3, 1, 1)
-        )
+        self.mean = torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255]).cuda().view(1, 3, 1, 1)
+        self.std = torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255]).cuda().view(1, 3, 1, 1)
         # With Amp, it isn't necessary to manually convert data to half.
         # if args.fp16:
         #     self.mean = self.mean.half()
@@ -492,9 +482,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
                 )
             run_info_dict["Iteration"].append(i)
             run_info_dict["Loss"].append(losses.val)
-            run_info_dict["Speed"].append(
-                args.world_size * args.batch_size / batch_time.val
-            )
+            run_info_dict["Speed"].append(args.world_size * args.batch_size / batch_time.val)
             if len(run_info_dict["Loss"]) == args.prints_to_process:
                 if args.local_rank == 0:
                     torch.save(

@@ -91,9 +91,7 @@ class Novograd(Optimizer):
                     state["exp_avg_sq"] = torch.zeros([]).to(state["exp_avg"].device)
                     if amsgrad:
                         # Maintains max of all exp. moving avg. of sq. grad. values
-                        state["max_exp_avg_sq"] = torch.zeros([]).to(
-                            state["exp_avg"].device
-                        )
+                        state["max_exp_avg_sq"] = torch.zeros([]).to(state["exp_avg"].device)
 
                 exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
                 if amsgrad:

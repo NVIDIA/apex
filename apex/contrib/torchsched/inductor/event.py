@@ -133,9 +133,7 @@ class _CudaEventRecordLine(WrapperLine):
         assert 0 <= self.event.ref_count
         assert self.event.materialized_event is None
         if self.event.ref_count or not self._reuse_cuda_event:
-            self.event.materialized_event = self.event.factory.get_materialized_event(
-                code
-            )
+            self.event.materialized_event = self.event.factory.get_materialized_event(code)
             code.writeline(f"{self.event.materialized_event}.record({self.stream})")
 
 
@@ -198,9 +196,7 @@ class CudaEventFactory:
         if self._reuse_cuda_event and self.available_materialized_events:
             return self.available_materialized_events.pop()
         else:
-            event = EVENT_NAME_TEMPLATE.format(
-                event_idx=next(self.materialized_event_idx)
-            )
+            event = EVENT_NAME_TEMPLATE.format(event_idx=next(self.materialized_event_idx))
             code.writeline(f"{event} = torch.cuda.Event()")
             return event
 

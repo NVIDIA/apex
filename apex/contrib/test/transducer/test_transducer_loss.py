@@ -31,21 +31,17 @@ class TransducerLossTest(unittest.TestCase):
         self.y = torch.randint(
             0, self.blank_idx, (self.B, U_max - 1), dtype=torch.int, device=device
         )
-        self.f_len = torch.randint(
-            T_min, T_max + 1, (self.B,), dtype=torch.int, device=device
-        )
-        self.y_len = torch.randint(
-            U_min - 1, U_max, (self.B,), dtype=torch.int, device=device
-        )
+        self.f_len = torch.randint(T_min, T_max + 1, (self.B,), dtype=torch.int, device=device)
+        self.y_len = torch.randint(U_min - 1, U_max, (self.B,), dtype=torch.int, device=device)
         self.f_len[torch.randint(0, self.B, (1,)).item()] = T_max
         self.y_len[torch.randint(0, self.B, (1,)).item()] = U_max - 1
         self.x_tst_packed, self.batch_offset = self._pack(self.x_tst)
         # Generate reference
         x_ref = self.x_tst.data.clone()
         x_ref.requires_grad = True
-        loss_grad = torch.ones(
-            x_ref.size(0), dtype=x_ref.dtype, device=x_ref.device
-        ) / x_ref.size(0)
+        loss_grad = torch.ones(x_ref.size(0), dtype=x_ref.dtype, device=x_ref.device) / x_ref.size(
+            0
+        )
         _, _, self.grad_ref, self.loss_ref = transducer_ref.transducer_loss_reference(
             x=x_ref,
             label=self.y,
@@ -84,9 +80,7 @@ class TransducerLossTest(unittest.TestCase):
                     x_unpacked[b, t, u] = x[my_batch_offset + t * my_g_len + u]
         return x_unpacked
 
-    def run_transducer_loss(
-        self, scalar_t, fuse_softmax_backward, packed_input, for_vector_kernel
-    ):
+    def run_transducer_loss(self, scalar_t, fuse_softmax_backward, packed_input, for_vector_kernel):
         self.gen_input(scalar_t, for_vector_kernel)
         my_loss = TransducerLoss(
             fuse_softmax_backward=fuse_softmax_backward, packed_input=packed_input

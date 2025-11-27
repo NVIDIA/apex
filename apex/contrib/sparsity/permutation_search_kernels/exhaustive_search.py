@@ -80,15 +80,11 @@ def generate_all_unique_combinations(C, M, must_use_all_groups=False):
     global unique_permutation_list
     if (C, M) not in unique_permutation_list:
         if path.exists(cache_file_path):
-            unique_permutation_list[(C, M)] = np.load(
-                cache_file_path, allow_pickle=False
-            )
+            unique_permutation_list[(C, M)] = np.load(cache_file_path, allow_pickle=False)
 
         else:
             full_permutation_list = []
-            generate_unique_combinations(
-                [0], [c for c in range(1, C)], full_permutation_list, M
-            )
+            generate_unique_combinations([0], [c for c in range(1, C)], full_permutation_list, M)
             unique_permutation_list[(C, M)] = full_permutation_list
             if not path.exists(cache_dir_path):
                 os.makedirs(cache_dir_path)
@@ -106,10 +102,7 @@ import math
 def predict_unique_combinations(C, M):
     assert C % M == 0
     G = int(C / M)
-    return int(
-        int(math.factorial(C))
-        / (int(math.pow(math.factorial(M), G)) * math.factorial(G))
-    )
+    return int(int(math.factorial(C)) / (int(math.pow(math.factorial(M), G)) * math.factorial(G)))
 
 
 #################################################################
@@ -129,9 +122,7 @@ def search_matrix(matrix, group_width):
         return matrix, prediction, best_permutation
 
     start_time = time.perf_counter()
-    full_permutation_list = generate_all_unique_combinations(
-        matrix.shape[1], group_width
-    )
+    full_permutation_list = generate_all_unique_combinations(matrix.shape[1], group_width)
 
     # found them, now try them
     best_improvement = 0.0
@@ -268,13 +259,9 @@ def build_stripe_map(
 
     if use_cuda:  # if using the GPU, perform the work
         matrix_view = np.copy(matrix).astype(np.float32).flatten()
-        all_permutations = generate_all_unique_combinations(
-            window_size * group_width, group_width
-        )
+        all_permutations = generate_all_unique_combinations(window_size * group_width, group_width)
         num_permutations = len(all_permutations)
-        permutation_view = (
-            np.copy(np.asarray(all_permutations)).astype(np.uint32).flatten()
-        )
+        permutation_view = np.copy(np.asarray(all_permutations)).astype(np.uint32).flatten()
         stripe_groups_view = np.asarray(gpu_groups).astype(np.uint32).flatten()
         num_gpu_groups = len(gpu_list)
         gpu_improvement = np.zeros((num_gpu_groups), dtype=np.float32).flatten()
@@ -346,9 +333,7 @@ def use_stripe_map(matrix, group_width, stripe_map, stripe_ids, perm_map, permut
         # apply the permutation we've already found to this stripe group
         subset = collect_stripes(matrix, stripe_group, group_width)
         sub_result = subset[..., perm]
-        permutation = apply_stripe_group_permutation(
-            perm, stripe_group, group_width, permutation
-        )
+        permutation = apply_stripe_group_permutation(perm, stripe_group, group_width, permutation)
 
         # scatter the results, track what changed
         for s, stripe in enumerate(stripe_group):
@@ -367,9 +352,9 @@ def use_stripe_map(matrix, group_width, stripe_map, stripe_ids, perm_map, permut
             if changed:
                 used_stripes.append(stripe_group[s])
 
-            matrix[..., stripe * group_width : stripe * group_width + group_width] = (
-                sub_result[..., s * group_width : s * group_width + group_width]
-            )
+            matrix[..., stripe * group_width : stripe * group_width + group_width] = sub_result[
+                ..., s * group_width : s * group_width + group_width
+            ]
 
         improvement += stripe_map[stripe_group_id]
         stripe_groups_optimized += 1
@@ -386,9 +371,7 @@ def use_stripe_map(matrix, group_width, stripe_map, stripe_ids, perm_map, permut
 
 
 # entry point for exhaustive searches - both the entire matrix, as well as stripe groups
-def Exhaustive_Search(
-    matrix, stripe_group_size=-1, escape_attempts=0, permutation=None
-):
+def Exhaustive_Search(matrix, stripe_group_size=-1, escape_attempts=0, permutation=None):
     global sm_perturbation_limit, sm_perturbations
     sm_perturbations = 0
     sm_perturbation_limit = escape_attempts
@@ -463,9 +446,7 @@ def Exhaustive_Search(
                 used_stripes,
                 improvement,
                 permutation,
-            ) = use_stripe_map(
-                result, group_width, stripe_map, stripe_ids, perm_map, permutation
-            )
+            ) = use_stripe_map(result, group_width, stripe_map, stripe_ids, perm_map, permutation)
 
             # converged?
             if len(used_stripes) == 0:

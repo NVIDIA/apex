@@ -76,7 +76,9 @@ def main():
             runtimes[dist_setting] = {}
             print("Beginning Testing for", dist_setting)
             for n in nlist:
-                cmd = "python3 -m torch.distributed.launch --nproc_per_node=8 run_gpt_minimal_test.py"
+                cmd = (
+                    "python3 -m torch.distributed.launch --nproc_per_node=8 run_gpt_minimal_test.py"
+                )
                 cmd += (
                     " --micro-batch-size 1 --num-layers "
                     + str(n)

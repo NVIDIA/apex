@@ -128,9 +128,7 @@ def _split_batch_into_microbatch(
 
 
 # TODO(mkozuki): Support non-tensor local minibatches?
-def get_kth_microbatch(
-    batch: Optional[List[torch.Tensor]], k: int
-) -> List[torch.Tensor]:
+def get_kth_microbatch(batch: Optional[List[torch.Tensor]], k: int) -> List[torch.Tensor]:
     """Create a list of microbatches from a list of local minibatches.
 
     This function creates a list of `k`th microbatches from a list of local minibatches.
@@ -231,9 +229,7 @@ def calc_params_l2_norm(model: torch.nn.Module, bf16: bool):
     for model_ in model:
         for param in model_.parameters():
             is_not_shared = param_is_not_shared(param)
-            is_not_tp_duplicate = parallel_state.param_is_not_tensor_parallel_duplicate(
-                param
-            )
+            is_not_tp_duplicate = parallel_state.param_is_not_tensor_parallel_duplicate(param)
             if is_not_shared and is_not_tp_duplicate:
                 if bf16:
                     params_data.append(param.data.float())
@@ -260,9 +256,7 @@ def calc_params_l2_norm(model: torch.nn.Module, bf16: bool):
 def average_losses_across_data_parallel_group(losses):
     """Reduce a tensor of losses across all GPUs."""
     averaged_losses = torch.cat([loss.clone().detach().view(1) for loss in losses])
-    torch.distributed.all_reduce(
-        averaged_losses, group=parallel_state.get_data_parallel_group()
-    )
+    torch.distributed.all_reduce(averaged_losses, group=parallel_state.get_data_parallel_group())
     averaged_losses = averaged_losses / torch.distributed.get_world_size(
         group=parallel_state.get_data_parallel_group()
     )
@@ -275,13 +269,9 @@ def report_memory(name):
     mega_bytes = 1024.0 * 1024.0
     string = name + " memory (MB)"
     string += " | allocated: {}".format(torch.cuda.memory_allocated() / mega_bytes)
-    string += " | max allocated: {}".format(
-        torch.cuda.max_memory_allocated() / mega_bytes
-    )
+    string += " | max allocated: {}".format(torch.cuda.max_memory_allocated() / mega_bytes)
     string += " | reserved: {}".format(torch.cuda.memory_reserved() / mega_bytes)
-    string += " | max reserved: {}".format(
-        torch.cuda.max_memory_reserved() / mega_bytes
-    )
+    string += " | max reserved: {}".format(torch.cuda.max_memory_reserved() / mega_bytes)
     if parallel_state.get_data_parallel_rank() == 0:
         print("[Rank {}] {}".format(torch.distributed.get_rank(), string), flush=True)
 

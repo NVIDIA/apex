@@ -132,12 +132,8 @@ class LayerNormSmallShapeOptImpl(Function):
         # 2. dW and db.
         key = (M, N, inputs.is_contiguous())
         M_BUFSIZE = _M_BUFSIZE_CACHE.get(key, triton.cdiv(M, PARTIAL_REDUCE_MIN))
-        dw_partial_buf = torch.empty(
-            [N, M_BUFSIZE], dtype=torch.float32, device=d_y.device
-        )
-        db_partial_buf = torch.empty(
-            [N, M_BUFSIZE], dtype=torch.float32, device=d_y.device
-        )
+        dw_partial_buf = torch.empty([N, M_BUFSIZE], dtype=torch.float32, device=d_y.device)
+        db_partial_buf = torch.empty([N, M_BUFSIZE], dtype=torch.float32, device=d_y.device)
         grid = lambda kwargs: (
             triton.cdiv(M, kwargs["M_PARTIAL_REDUCE"]),
             triton.cdiv(N, kwargs["N_BLOCK"]),
@@ -177,11 +173,9 @@ class LayerNormSmallShapeOptImpl(Function):
                 S2=S2,
                 S3=S3,
             )
-            M_PARTIAL_REDUCE = (
-                _layer_norm_backward_dw_db_partial_strided.best_config.kwargs[
-                    "M_PARTIAL_REDUCE"
-                ]
-            )
+            M_PARTIAL_REDUCE = _layer_norm_backward_dw_db_partial_strided.best_config.kwargs[
+                "M_PARTIAL_REDUCE"
+            ]
         # 2.1. Reduce partial buffers, which can be overlapped.
         M_BUFSIZE = triton.cdiv(M, M_PARTIAL_REDUCE)
         _M_BUFSIZE_CACHE[key] = M_BUFSIZE

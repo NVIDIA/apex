@@ -60,9 +60,7 @@ def accelerated_search_for_good_permutation(matrix_group, options=None, verbosit
     elif options["strategy"] == "progressive channel swap":
         real_swap_num = 0
         start_time = time.perf_counter()
-        while (
-            time.perf_counter() - start_time < options["progressive_search_time_limit"]
-        ):
+        while time.perf_counter() - start_time < options["progressive_search_time_limit"]:
             src = np.random.randint(result.shape[1])
             dst = np.random.randint(result.shape[1])
             src_group = int(src / 4)
