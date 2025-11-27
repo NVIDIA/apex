@@ -97,7 +97,7 @@ class FusedDense(nn.Module):
 class FusedDenseGeluDense(nn.Module):
     def __init__(self, in_features, intermediate_features, out_features, bias=True):
         super(FusedDenseGeluDense, self).__init__()
-        assert bias == True, "DenseGeluDense module without bias is currently not supported"
+        assert bias is True, "DenseGeluDense module without bias is currently not supported"
         self.in_features = in_features
         self.intermediate_features = intermediate_features
         self.out_features = out_features

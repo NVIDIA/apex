@@ -98,7 +98,7 @@ def transducer_joint_reference(
         h *= scale
     h.backward(h_grad)
 
-    if pack_output == False:
+    if not pack_output:
         # intentionally set don't-care region to -1 to test if transducer joint
         # write these regions to avoid NaN and inf
         for b in range(B):

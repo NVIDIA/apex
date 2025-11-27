@@ -405,7 +405,7 @@ class BatchNorm2d_NHWC(_BatchNorm):
 
     def forward(self, x, z=None):
         if z is not None:
-            assert self.fuse_relu == True
+            assert self.fuse_relu is True
             return bn_addrelu_NHWC_impl.apply(
                 x,
                 z,

@@ -34,7 +34,7 @@ def disable() -> None:
 
 # TODO: support q.shape [1, 1024, 8, 256, 8]
 def CanSchTriMHA(in_shape, has_bias=True, inf=1e9, training=True):
-    if has_bias == False:  # skip bias is None
+    if not has_bias:  # skip bias is None
         return False
     if inf != 1e9:  # skip inf != 1e9
         return False

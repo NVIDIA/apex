@@ -13,7 +13,7 @@ class MultiTensorApply(object):
             MultiTensorApply.import_err = err
 
     def check_avail(self):
-        if MultiTensorApply.available == False:
+        if not MultiTensorApply.available:
             raise RuntimeError(
                 "Attempted to call MultiTensorApply method, but MultiTensorApply "
                 "is not available, possibly because Apex was installed without "

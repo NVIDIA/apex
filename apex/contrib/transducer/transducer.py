@@ -182,7 +182,7 @@ class TransducerLossFunc(torch.autograd.Function):
         opt,
         packed_input,
     ):
-        if fuse_softmax_backward == False:
+        if not fuse_softmax_backward:
             with torch.enable_grad():
                 x = torch.nn.functional.log_softmax(x, dim=-1)
         else:
@@ -226,7 +226,7 @@ class TransducerLossFunc(torch.autograd.Function):
             ctx.fuse_softmax_backward,
             ctx.packed_input,
         )
-        if ctx.fuse_softmax_backward == False:
+        if not ctx.fuse_softmax_backward:
             x_grad = x.backward(x_grad)
         return x_grad, None, None, None, None, None, None, None, None, None, None
 
