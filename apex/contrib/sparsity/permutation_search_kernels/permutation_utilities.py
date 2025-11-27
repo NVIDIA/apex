@@ -30,7 +30,7 @@ def use_gpu(initial_override=True):
         try:
             gpus_found = str(subprocess.check_output(["nvidia-smi", "-L"])).count("UUID")
             print(f"Found {gpus_found} gpus")
-        except:
+        except Exception:
             gpus_found = 0
             print("Could not find nvidia-smi, please check your cuda installation")
 

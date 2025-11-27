@@ -428,7 +428,7 @@ class Permutation:
                                     node_name
                                 )
                             )
-            except:
+            except Exception:
                 success_permutation = False
                 if cls.__verbosity >= 0:
                     print(
@@ -782,7 +782,7 @@ class Permutation:
                             (matrix_group, node_weight), dim=0
                         )  # concat the weights in the K dimension, keep the same C dimension
 
-                    except:
+                    except Exception:
                         if cls.__verbosity >= 0:
                             print(
                                 "ERROR: [search_for_good_permutation][warning] cannot merge the weight for node: '{:}', with its weight shape: '{:}', the matrix_group shape: '{:}'.".format(
@@ -969,7 +969,7 @@ class Permutation:
             def deferred_print(*args, **kwargs):
                 try:  # see if torchvision examples has suppressed other ranks with the force argument
                     cls.__builtin_print(*args, file=cls.__new_stdout, force=True, **kwargs)
-                except:
+                except Exception:
                     cls.__builtin_print(*args, file=cls.__new_stdout, **kwargs)
 
             __builtin__.print = deferred_print
@@ -984,7 +984,7 @@ class Permutation:
 
             try:
                 print(output, force=True)
-            except:
+            except Exception:
                 print(output)
 
     @classmethod
@@ -1832,24 +1832,24 @@ class Permutation:
             module_name_type_dict[name] = str(type(mod)).split("'")[1]
             try:
                 module_name_C_dict[name] = str(mod.in_channels)
-            except:
+            except Exception:
                 try:
                     module_name_C_dict[name] = str(mod.in_features)
-                except:
+                except Exception:
                     try:
                         module_name_C_dict[name] = str(mod.embed_dim)
-                    except:
+                    except Exception:
                         module_name_C_dict[name] = "None"
 
             try:
                 module_name_K_dict[name] = str(mod.out_channels)
-            except:
+            except Exception:
                 try:
                     module_name_K_dict[name] = str(mod.out_features)
-                except:
+                except Exception:
                     try:
                         module_name_K_dict[name] = str(mod.embed_dim)
-                    except:
+                    except Exception:
                         module_name_K_dict[name] = "None"
 
             try:
@@ -1860,7 +1860,7 @@ class Permutation:
                             mod.groups
                         )
                     )
-            except:
+            except Exception:
                 module_name_group_conv_dict[name] = "None"
                 continue
 

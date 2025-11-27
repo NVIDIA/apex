@@ -18,14 +18,14 @@ def run_gpt(cmd):
             slicey = out[out.find(":") + 2 :]
             try:
                 runtime = float(slicey)
-            except:
+            except Exception:
                 print(slicey)
                 quit()
         if "Number of Parameters:" in str(out):
             slicey = out[out.find(":") + 2 :]
             try:
                 num_params = int(slicey)
-            except:
+            except Exception:
                 print(slicey)
                 quit()
         if str(out) == str(TEST_SUCCESS_MESSAGE):

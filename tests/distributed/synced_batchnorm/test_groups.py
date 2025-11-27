@@ -37,7 +37,7 @@ args = parser.parse_args()
 
 try:
     args.world_size = int(os.environ["WORLD_SIZE"])
-except:
+except Exception:
     print(
         "This is a multi-gpu test. To run it please use 'python -m torch.distributed.launch --nproc_per_node=<num gpus> test_groups.py <more options>'"
     )

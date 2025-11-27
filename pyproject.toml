@@ -9,7 +9,6 @@ build-backend = "setuptools.build_meta"
 line-length = 100
 ignore = [
     # Sorted by occurrence count (ascending) - easier to fix first
-    "E722",  # bare except (15 occurrences)
     "E402",  # module level import not at top of file (41 occurrences)
     "F401",  # imported but unused (45 occurrences)
     "F841",  # local variable assigned but never used (52 occurrences)
