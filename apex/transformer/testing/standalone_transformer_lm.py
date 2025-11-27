@@ -912,26 +912,26 @@ class ParallelTransformer(MegatronModule):
             # Uniformly divide the total number of Transformer layers and checkpoint
             # the input activation of each divided chunk.
             # A method to further reduce memory usage reducing checkpoints.
-            l = 0
-            while l < self.num_layers:
+            layer_idx = 0
+            while layer_idx < self.num_layers:
                 hidden_states = tensor_parallel.random.checkpoint(
-                    custom(l, l + self.recompute_num_layers),
+                    custom(layer_idx, layer_idx + self.recompute_num_layers),
                     self.distribute_saved_activations,
                     hidden_states,
                     attention_mask,
                     encoder_output,
                     enc_dec_attn_mask,
                 )
-                l += self.recompute_num_layers
+                layer_idx += self.recompute_num_layers
 
         elif self.recompute_method == "block":
             # Checkpoint the input activation of only a set number of individual
             # Transformer layers and skip the rest.
             # A method fully use the device memory removing redundant re-computation.
-            for l in range(self.num_layers):
-                if l < self.recompute_num_layers:
+            for layer_idx in range(self.num_layers):
+                if layer_idx < self.recompute_num_layers:
                     hidden_states = tensor_parallel.random.checkpoint(
-                        custom(l, l + 1),
+                        custom(layer_idx, layer_idx + 1),
                         self.distribute_saved_activations,
                         hidden_states,
                         attention_mask,
@@ -939,7 +939,7 @@ class ParallelTransformer(MegatronModule):
                         enc_dec_attn_mask,
                     )
                 else:
-                    hidden_states = custom(l, l + 1)(
+                    hidden_states = custom(layer_idx, layer_idx + 1)(
                         hidden_states, attention_mask, encoder_output, enc_dec_attn_mask
                     )
         else:

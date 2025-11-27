@@ -102,8 +102,8 @@ class TestFMHA(unittest.TestCase):
 
         labels = torch.randn_like(ctx_ref)
         diff = ctx_ref - labels
-        l = (diff * diff).sum() / b
-        l.backward()
+        loss = (diff * diff).sum() / b
+        loss.backward()
 
         dw = ctx_ref.grad.permute(0, 2, 1, 3)
 

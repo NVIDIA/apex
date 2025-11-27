@@ -90,8 +90,8 @@ class SyncTritonAutoTuneCacheTest(MultiProcessTestCase):
                 device=device,
             )
             y = LayerNormSmallShapeOptImpl.apply(x, normalized_shape, weight, bias, eps)
-            l = torch.sum(y)
-            l.backward()
+            loss = torch.sum(y)
+            loss.backward()
 
         sync_triton_auto_tune_cache_across_gpus(strict=False, verbose=True)
 

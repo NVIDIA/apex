@@ -162,7 +162,7 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
         def grid(META):
             return (triton.cdiv(N_CTX, META["BLOCK_M"]), Z * H)
 
-        l = torch.empty(
+        lse = torch.empty(
             (q.shape[-4], q.shape[-3], q.shape[-2]),
             device=q.device,
             dtype=torch.float32,
@@ -196,7 +196,7 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
             mask,
             bias,
             sm_scale,
-            l,
+            lse,
             m,
             o,
             q.stride(0),
@@ -235,7 +235,7 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
         o = o.contiguous()
         # print(h.asm["ttgir"])
         if is_training:
-            ctx.save_for_backward(q, k, v, o, m, l, bias)
+            ctx.save_for_backward(q, k, v, o, m, lse, bias)
             ctx.grid = grid
             ctx.sm_scale = sm_scale
             ctx.BLOCK_DMODEL = Lk
@@ -247,7 +247,7 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, do):
-        q, k, v, o, m, l, bias = ctx.saved_tensors
+        q, k, v, o, m, lse, bias = ctx.saved_tensors
         ori_do_size = len(do.size())
         if ori_do_size == 5:
             do = rearrange(do, "1 a b c d -> a b c d")
@@ -260,7 +260,7 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
         dp = torch.zeros((Z, H, N_CTX, N_CTX), dtype=torch.float32, device="cuda")
 
         do_scaled = torch.empty_like(do)
-        delta = torch.empty_like(l)
+        delta = torch.empty_like(lse)
         mask = ctx.mask
         inf = ctx.inf
 
@@ -270,7 +270,7 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
         _bwd_preprocess[grid](
             o,
             do,
-            l,
+            lse,
             do_scaled,
             delta,
             o.stride(0),
@@ -329,7 +329,7 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
             dk,
             dv,
             dp,
-            l,
+            lse,
             m,
             delta,
             q.stride(0),
