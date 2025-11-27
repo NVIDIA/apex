@@ -264,17 +264,18 @@ def build_stripe_map(
                 gpu_groups.append(sg)
                 gpu_list.append(i)
 
-    if use_cuda:  # if using the GPU, perform the work
+    if (
+        use_cuda and permutation_search_cuda_kernels is not None
+    ):  # if using the GPU, perform the work
         matrix_view = np.copy(matrix).astype(np.float32).flatten()
         all_permutations = generate_all_unique_combinations(window_size * group_width, group_width)
-        num_permutations = len(all_permutations)
         permutation_view = np.copy(np.asarray(all_permutations)).astype(np.uint32).flatten()
         stripe_groups_view = np.asarray(gpu_groups).astype(np.uint32).flatten()
         num_gpu_groups = len(gpu_list)
         gpu_improvement = np.zeros((num_gpu_groups), dtype=np.float32).flatten()
         gpu_permutation = np.zeros((num_gpu_groups), dtype=np.uint32).flatten()
 
-        result = permutation_search_cuda_kernels.build_permute_map(
+        permutation_search_cuda_kernels.build_permute_map(
             matrix_view,
             matrix.shape[0],
             matrix.shape[1],
