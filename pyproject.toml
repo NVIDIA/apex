@@ -4,3 +4,6 @@ requires = [
     "wheel",
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
