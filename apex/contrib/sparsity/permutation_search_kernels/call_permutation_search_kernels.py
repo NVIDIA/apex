@@ -23,7 +23,7 @@ def accelerated_search_for_good_permutation(matrix_group, options=None, verbosit
     permutation_sequence = [n for n in range(input_channel_num)]
     duration = 0.0
 
-    if options == None:
+    if options is None:
         options = {}
     if (
         "strategy" not in options

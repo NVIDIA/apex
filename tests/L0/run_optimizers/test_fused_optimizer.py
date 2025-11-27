@@ -21,7 +21,7 @@ class TestFusedOptimizer(unittest.TestCase):
         # Adding this to make backward compatible with existing tests. Just in
         # case "tst_options" are not provided, it gets a copy of options
         # which contains the parameters for the reference optimizer
-        if tst_options == None:
+        if tst_options is None:
             tst_options = options
 
         ref_param = []

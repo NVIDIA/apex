@@ -174,14 +174,14 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
         )
         # BLOCK_M, BLOCK_N, num_warps, num_stages  = 64, 64, 2, 3
         BLOCK_M, BLOCK_N, num_warps, num_stages = schedule_triton_mha(list(q.shape), fwd=True)
-        if bias != None:
+        if bias is not None:
             bias = bias.expand(Z, H, N_CTX, N_CTX)
         bias_strides = (
             (bias.stride(0), bias.stride(1), bias.stride(2), bias.stride(3))
             if bias is not None
             else (0, 0, 0, 0)
         )
-        if mask != None:
+        if mask is not None:
             mask = mask.expand(-1, q.shape[1], q.shape[2], -1)
         mask_strides = (
             (mask.stride(0), mask.stride(1), mask.stride(2), mask.stride(3))
@@ -227,8 +227,8 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
             BLOCK_M=BLOCK_M,
             BLOCK_N=BLOCK_N,
             BLOCK_DMODEL=Lk,
-            use_mask=(mask != None),
-            use_bias=(bias != None),
+            use_mask=(mask is not None),
+            use_bias=(bias is not None),
             num_warps=num_warps,
             num_stages=num_stages,
         )
@@ -375,8 +375,8 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
             BLOCK_M=BLOCK_M,
             BLOCK_N=BLOCK_N,
             BLOCK_DMODEL=ctx.BLOCK_DMODEL,
-            use_mask=(mask != None),
-            use_bias=(bias != None),
+            use_mask=(mask is not None),
+            use_bias=(bias is not None),
             num_warps=num_warps,
             num_stages=num_stages,
             SEQUENCE_PARALLEL=False,

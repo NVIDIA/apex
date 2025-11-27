@@ -176,7 +176,7 @@ class Bottleneck(torch.nn.Module):
             raise RuntimeError("Only support groups == 1")
         if dilation != 1:
             raise RuntimeError("Only support dilation == 1")
-        if norm_func == None:
+        if norm_func is None:
             norm_func = FrozenBatchNorm2d
         else:
             raise RuntimeError("Only support frozen BN now.")
@@ -856,7 +856,7 @@ class SpatialBottleneck(torch.nn.Module):
             raise RuntimeError("Only support groups == 1")
         if dilation != 1:
             raise RuntimeError("Only support dilation == 1")
-        if norm_func == None:
+        if norm_func is None:
             norm_func = FrozenBatchNorm2d
         else:
             raise RuntimeError("Only support frozen BN now.")

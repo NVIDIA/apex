@@ -83,7 +83,7 @@ def transducer_loss_reference(x, label, f_len, y_len, blank_idx, loss_grad):
 def transducer_joint_reference(
     f, g, h_grad, f_len, g_len, pack_output, relu, dropout, dropout_prob=0, mask=None
 ):
-    if dropout and mask == None:
+    if dropout and mask is None:
         raise NotImplementedError("mask needs to supplied to test dropout.")
     B, T, H = f.size()
     U = g.size(1)
