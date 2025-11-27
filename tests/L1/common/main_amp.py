@@ -246,9 +246,13 @@ def main():
         def resume():
             if os.path.isfile(args.resume):
                 print("=> loading checkpoint '{}'".format(args.resume))
+
+                def map_location(storage, loc):
+                    return storage.cuda(args.gpu)
+
                 checkpoint = torch.load(
                     args.resume,
-                    map_location=lambda storage, loc: storage.cuda(args.gpu),
+                    map_location=map_location,
                 )
                 args.start_epoch = checkpoint["epoch"]
                 best_prec1 = checkpoint["best_prec1"]

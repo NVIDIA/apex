@@ -205,7 +205,8 @@ def main():
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
         val_sampler = torch.utils.data.distributed.DistributedSampler(val_dataset)
 
-    collate_fn = lambda b: fast_collate(b, memory_format)
+    def collate_fn(b):
+        return fast_collate(b, memory_format)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
