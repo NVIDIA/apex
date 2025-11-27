@@ -25,45 +25,42 @@
  *
  ******************************************************************************/
 
-#include <torch/extension.h>
-#include <ATen/cuda/CUDAContext.h>
 #include <ATen/Dispatch.h>
+#include <ATen/cuda/CUDAContext.h>
+#include <torch/extension.h>
 
 constexpr int block_size = 512;
 constexpr int ctas_per_sm = 4;
 
 template <typename scalar_t>
-__global__ void
-__launch_bounds__(block_size)
-mha_fill_kernel(scalar_t* out_tensor,
-                const int32_t* const start_row,
-                const size_t num_rows) {
-    size_t row_stride = gridDim.y * blockDim.x;
-    size_t row_index = blockIdx.x + (size_t)start_row[0];
-    size_t col_index = blockIdx.y * blockDim.x + threadIdx.x;
-    while (row_index < num_rows) {
-        out_tensor[row_index*row_stride + col_index] = 0;
-        row_index += gridDim.x;
-    }
+__global__ void __launch_bounds__(block_size)
+    mha_fill_kernel(scalar_t* out_tensor, const int32_t* const start_row, const size_t num_rows) {
+  size_t row_stride = gridDim.y * blockDim.x;
+  size_t row_index = blockIdx.x + (size_t)start_row[0];
+  size_t col_index = blockIdx.y * blockDim.x + threadIdx.x;
+  while (row_index < num_rows) {
+    out_tensor[row_index * row_stride + col_index] = 0;
+    row_index += gridDim.x;
+  }
 }
 
-at::Tensor & mha_fill(at::Tensor &self, const at::Tensor &start_index) {
-    auto max_tokens = self.size(0);
-    auto self_2d = self.view({max_tokens, -1});
-    auto fcd_size = self_2d.size(1);
-    TORCH_CHECK (self.is_contiguous(), "input not contiguous");
-    TORCH_CHECK (fcd_size % block_size == 0, "input size not aligned to block size");
-    const int num_mp = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
-    uint64_t num_blk_y = (uint64_t)(fcd_size / block_size);
-    uint64_t num_blk_x = (uint64_t)std::ceil(num_mp * ctas_per_sm / num_blk_y);
-    dim3 dim_grid(num_blk_x, num_blk_y);
-    dim3 dim_block(block_size);
+at::Tensor& mha_fill(at::Tensor& self, const at::Tensor& start_index) {
+  auto max_tokens = self.size(0);
+  auto self_2d = self.view({max_tokens, -1});
+  auto fcd_size = self_2d.size(1);
+  TORCH_CHECK(self.is_contiguous(), "input not contiguous");
+  TORCH_CHECK(fcd_size % block_size == 0, "input size not aligned to block size");
+  const int num_mp = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+  uint64_t num_blk_y = (uint64_t)(fcd_size / block_size);
+  uint64_t num_blk_x = (uint64_t)std::ceil(num_mp * ctas_per_sm / num_blk_y);
+  dim3 dim_grid(num_blk_x, num_blk_y);
+  dim3 dim_block(block_size);
 
-    AT_DISPATCH_ALL_TYPES_AND_COMPLEX_AND2(
-        at::ScalarType::Half, at::ScalarType::BFloat16, self_2d.scalar_type(), "mha_padding_fill_", [&]() {
-            mha_fill_kernel<<<dim_grid, dim_block, 0, at::cuda::getCurrentCUDAStream()>>>(
-                self_2d.data_ptr<scalar_t>(), start_index.data_ptr<int32_t>(), max_tokens);
-            C10_CUDA_KERNEL_LAUNCH_CHECK();
-        });
-    return self;
+  AT_DISPATCH_ALL_TYPES_AND_COMPLEX_AND2(
+      at::ScalarType::Half, at::ScalarType::BFloat16, self_2d.scalar_type(), "mha_padding_fill_", [&]() {
+        mha_fill_kernel<<<dim_grid, dim_block, 0, at::cuda::getCurrentCUDAStream()>>>(
+            self_2d.data_ptr<scalar_t>(), start_index.data_ptr<int32_t>(), max_tokens);
+        C10_CUDA_KERNEL_LAUNCH_CHECK();
+      });
+  return self;
 }

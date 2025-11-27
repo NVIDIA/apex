@@ -5,23 +5,23 @@
 // Use 128-bit vectorization
 typedef uint4 vector_t;
 
-#define ASSERT_ALIGNED(DTYPE, PTR)                                              \
+#define ASSERT_ALIGNED(DTYPE, PTR) \
   TORCH_INTERNAL_ASSERT(is_aligned<DTYPE>(PTR), "Tensor " #PTR " is not " #DTYPE " aligned")
 
-template <class T> bool is_aligned(const void *ptr) noexcept {
+template <class T>
+bool is_aligned(const void *ptr) noexcept {
   auto iptr = reinterpret_cast<std::uintptr_t>(ptr);
   return !(iptr % alignof(T));
 }
 
-template <bool SMOOTHING, int ILP, typename scalar_t, typename labelscalar_t,
-          typename accscalar_t, typename outscalar_t>
-__global__ void focal_loss_forward_cuda_kernel(
-    outscalar_t *loss, scalar_t *partial_grad,
-    const scalar_t *__restrict__ cls_output,
-    const labelscalar_t *__restrict__ cls_targets_at_level,
-    const float *__restrict__ num_positives_sum, const int64_t num_examples,
-    const int64_t num_classes, const int64_t num_real_classes,
-    const float alpha, const float gamma, const float smoothing_factor) {
+template <bool SMOOTHING, int ILP, typename scalar_t, typename labelscalar_t, typename accscalar_t,
+          typename outscalar_t>
+__global__ void focal_loss_forward_cuda_kernel(outscalar_t *loss, scalar_t *partial_grad,
+                                               const scalar_t *__restrict__ cls_output,
+                                               const labelscalar_t *__restrict__ cls_targets_at_level,
+                                               const float *__restrict__ num_positives_sum, const int64_t num_examples,
+                                               const int64_t num_classes, const int64_t num_real_classes,
+                                               const float alpha, const float gamma, const float smoothing_factor) {
   extern __shared__ unsigned char shm[];
   accscalar_t *loss_shm = reinterpret_cast<accscalar_t *>(shm);
   loss_shm[threadIdx.x] = 0;
@@ -43,14 +43,14 @@ __global__ void focal_loss_forward_cuda_kernel(
   vector_t p_vec, grad_vec;
 
   // Accumulate loss on each thread
-  for (int64_t i = (blockIdx.x * blockDim.x + threadIdx.x) * ILP;
-       i < num_examples * num_classes; i += gridDim.x * blockDim.x * ILP) {
+  for (int64_t i = (blockIdx.x * blockDim.x + threadIdx.x) * ILP; i < num_examples * num_classes;
+       i += gridDim.x * blockDim.x * ILP) {
     int64_t idy = i / num_classes;
     labelscalar_t y = cls_targets_at_level[idy];
     int64_t base_yid = i % num_classes;
 
     int64_t pos_idx = idy * num_classes + y;
-    p_vec = *(vector_t *)&cls_output[i]; // Vectorized load
+    p_vec = *(vector_t *)&cls_output[i];  // Vectorized load
 
     // Skip ignored matches
     if (y == -2) {
@@ -131,20 +131,16 @@ __global__ void focal_loss_forward_cuda_kernel(
   }
 }
 
-template <int ILP, typename scalar_t, typename accscalar_t,
-          typename outscalar_t>
-__global__ void focal_loss_backward_cuda_kernel(
-    scalar_t *partial_grad, const outscalar_t *__restrict__ grad_output,
-    const float *__restrict__ num_positives_sum, const uint64_t numel) {
+template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t>
+__global__ void focal_loss_backward_cuda_kernel(scalar_t *partial_grad, const outscalar_t *__restrict__ grad_output,
+                                                const float *__restrict__ num_positives_sum, const uint64_t numel) {
   int64_t idx = (blockIdx.x * blockDim.x + threadIdx.x) * ILP;
 
-  accscalar_t normalizer = static_cast<accscalar_t>(grad_output[0]) /
-                           static_cast<accscalar_t>(num_positives_sum[0]);
+  accscalar_t normalizer = static_cast<accscalar_t>(grad_output[0]) / static_cast<accscalar_t>(num_positives_sum[0]);
 
   // The input is enforced to pad to use vector load, thus there's no need to
   // check whether the last element of ILP can out of bound.
-  if (idx >= numel)
-    return;
+  if (idx >= numel) return;
 
   vector_t grad_vec;
   grad_vec = *(vector_t *)&partial_grad[idx];
@@ -157,30 +153,25 @@ __global__ void focal_loss_backward_cuda_kernel(
   *(vector_t *)&partial_grad[idx] = grad_vec;
 }
 
-std::vector<at::Tensor> focal_loss_forward_cuda(
-    const at::Tensor &cls_output, const at::Tensor &cls_targets_at_level,
-    const at::Tensor &num_positives_sum, const int64_t num_real_classes,
-    const float alpha, const float gamma, const float smoothing_factor) {
+std::vector<at::Tensor> focal_loss_forward_cuda(const at::Tensor &cls_output, const at::Tensor &cls_targets_at_level,
+                                                const at::Tensor &num_positives_sum, const int64_t num_real_classes,
+                                                const float alpha, const float gamma, const float smoothing_factor) {
   // Checks required for correctness
-  TORCH_INTERNAL_ASSERT(cls_output.size(-1) >= num_real_classes,
-             "Incorrect number of real classes.");
-  TORCH_INTERNAL_ASSERT(cls_targets_at_level.scalar_type() == at::kLong,
-             "Invalid label type.");
-  TORCH_INTERNAL_ASSERT(
-      (num_positives_sum.numel() == 1) &&
-          (num_positives_sum.scalar_type() == at::kFloat),
-      "Expect num_positives_sum to be a float32 tensor with only one element.");
+  TORCH_INTERNAL_ASSERT(cls_output.size(-1) >= num_real_classes, "Incorrect number of real classes.");
+  TORCH_INTERNAL_ASSERT(cls_targets_at_level.scalar_type() == at::kLong, "Invalid label type.");
+  TORCH_INTERNAL_ASSERT((num_positives_sum.numel() == 1) && (num_positives_sum.scalar_type() == at::kFloat),
+                        "Expect num_positives_sum to be a float32 tensor with only one element.");
   TORCH_INTERNAL_ASSERT(cls_output.dim() == cls_targets_at_level.dim() + 1,
-             "Mis-matched dimensions between class output and label.");
+                        "Mis-matched dimensions between class output and label.");
   for (int64_t i = 0; i < cls_targets_at_level.dim(); i++)
     TORCH_INTERNAL_ASSERT(cls_output.size(i) == cls_targets_at_level.size(i),
-               "Mis-matched shape between class output and label.");
+                          "Mis-matched shape between class output and label.");
 
   // Checks required for better performance
   const int ILP = sizeof(vector_t) / cls_output.element_size();
   ASSERT_ALIGNED(vector_t, cls_output.data_ptr());
   TORCH_INTERNAL_ASSERT(cls_output.size(-1) % ILP == 0,
-             "Pad number of classes first to take advantage of vectorized load.");
+                        "Pad number of classes first to take advantage of vectorized load.");
   TORCH_INTERNAL_ASSERT(num_real_classes >= ILP, "Too few classes.");
 
   int64_t num_classes = cls_output.size(-1);
@@ -206,49 +197,36 @@ std::vector<at::Tensor> focal_loss_forward_cuda(
   // Specialize on label smoothing or not to reduce redundant operations
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
   if (smoothing_factor == 0.0f) {
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(
-        cls_output.scalar_type(), "focal_loss_fprop", [&] {
-          using accscalar_t = at::acc_type<scalar_t, true>;
-          using labelscalar_t = int64_t;
-          using outscalar_t = float;
-          const int ILP = sizeof(vector_t) / sizeof(scalar_t);
-          focal_loss_forward_cuda_kernel<false, ILP, scalar_t, labelscalar_t,
-                                         accscalar_t, outscalar_t>
-              <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
-                  loss.data_ptr<outscalar_t>(),
-                  partial_grad.data_ptr<scalar_t>(),
-                  cls_output.data_ptr<scalar_t>(),
-                  cls_targets_at_level.data_ptr<labelscalar_t>(),
-                  num_positives_sum.data_ptr<float>(), num_examples,
-                  num_classes, num_real_classes, alpha, gamma,
-                  smoothing_factor);
-        });
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(cls_output.scalar_type(), "focal_loss_fprop", [&] {
+      using accscalar_t = at::acc_type<scalar_t, true>;
+      using labelscalar_t = int64_t;
+      using outscalar_t = float;
+      const int ILP = sizeof(vector_t) / sizeof(scalar_t);
+      focal_loss_forward_cuda_kernel<false, ILP, scalar_t, labelscalar_t, accscalar_t, outscalar_t>
+          <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
+              loss.data_ptr<outscalar_t>(), partial_grad.data_ptr<scalar_t>(), cls_output.data_ptr<scalar_t>(),
+              cls_targets_at_level.data_ptr<labelscalar_t>(), num_positives_sum.data_ptr<float>(), num_examples,
+              num_classes, num_real_classes, alpha, gamma, smoothing_factor);
+    });
   } else {
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(
-        cls_output.scalar_type(), "focal_loss_fprop", [&] {
-          using accscalar_t = at::acc_type<scalar_t, true>;
-          using labelscalar_t = int64_t;
-          using outscalar_t = float;
-          const int ILP = sizeof(vector_t) / sizeof(scalar_t);
-          focal_loss_forward_cuda_kernel<true, ILP, scalar_t, labelscalar_t,
-                                         accscalar_t, outscalar_t>
-              <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
-                  loss.data_ptr<outscalar_t>(),
-                  partial_grad.data_ptr<scalar_t>(),
-                  cls_output.data_ptr<scalar_t>(),
-                  cls_targets_at_level.data_ptr<labelscalar_t>(),
-                  num_positives_sum.data_ptr<float>(), num_examples,
-                  num_classes, num_real_classes, alpha, gamma,
-                  smoothing_factor);
-        });
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(cls_output.scalar_type(), "focal_loss_fprop", [&] {
+      using accscalar_t = at::acc_type<scalar_t, true>;
+      using labelscalar_t = int64_t;
+      using outscalar_t = float;
+      const int ILP = sizeof(vector_t) / sizeof(scalar_t);
+      focal_loss_forward_cuda_kernel<true, ILP, scalar_t, labelscalar_t, accscalar_t, outscalar_t>
+          <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
+              loss.data_ptr<outscalar_t>(), partial_grad.data_ptr<scalar_t>(), cls_output.data_ptr<scalar_t>(),
+              cls_targets_at_level.data_ptr<labelscalar_t>(), num_positives_sum.data_ptr<float>(), num_examples,
+              num_classes, num_real_classes, alpha, gamma, smoothing_factor);
+    });
   }
 
   AT_CUDA_CHECK(cudaGetLastError());
   return {loss, partial_grad};
 }
 
-at::Tensor focal_loss_backward_cuda(const at::Tensor &grad_output,
-                                    const at::Tensor &partial_grad,
+at::Tensor focal_loss_backward_cuda(const at::Tensor &grad_output, const at::Tensor &partial_grad,
                                     const at::Tensor &num_positives_sum) {
   // Each thread process ILP elements
   const int ILP = sizeof(vector_t) / partial_grad.element_size();
@@ -256,17 +234,14 @@ at::Tensor focal_loss_backward_cuda(const at::Tensor &grad_output,
   dim3 grid((partial_grad.numel() + block.x * ILP - 1) / (block.x * ILP));
 
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(
-      partial_grad.scalar_type(), "focal_loss_bprop", [&] {
-        using accscalar_t = at::acc_type<scalar_t, true>;
-        using outscalar_t = float;
-        const int ILP = sizeof(vector_t) / sizeof(scalar_t);
-        focal_loss_backward_cuda_kernel<ILP, scalar_t, accscalar_t, outscalar_t>
-            <<<grid, block, 0, stream>>>(partial_grad.data_ptr<scalar_t>(),
-                                         grad_output.data_ptr<outscalar_t>(),
-                                         num_positives_sum.data_ptr<float>(),
-                                         partial_grad.numel());
-      });
+  AT_DISPATCH_FLOATING_TYPES_AND_HALF(partial_grad.scalar_type(), "focal_loss_bprop", [&] {
+    using accscalar_t = at::acc_type<scalar_t, true>;
+    using outscalar_t = float;
+    const int ILP = sizeof(vector_t) / sizeof(scalar_t);
+    focal_loss_backward_cuda_kernel<ILP, scalar_t, accscalar_t, outscalar_t>
+        <<<grid, block, 0, stream>>>(partial_grad.data_ptr<scalar_t>(), grad_output.data_ptr<outscalar_t>(),
+                                     num_positives_sum.data_ptr<float>(), partial_grad.numel());
+  });
 
   AT_CUDA_CHECK(cudaGetLastError());
   return partial_grad;

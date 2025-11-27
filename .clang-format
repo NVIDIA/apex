@@ -1,0 +1,5 @@
+# Start with a built-in style and modify it
+BasedOnStyle: Google
+
+# Overrides
+ColumnLimit: 120
