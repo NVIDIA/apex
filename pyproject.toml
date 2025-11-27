@@ -9,7 +9,6 @@ build-backend = "setuptools.build_meta"
 line-length = 100
 ignore = [
     # Sorted by occurrence count (ascending) - easier to fix first
-    "E721",  # type comparison should use isinstance (8 occurrences)
     "E741",  # ambiguous variable name (8 occurrences)
     "E712",  # comparison to True/False (9 occurrences)
     "F403",  # star imports used (9 occurrences)

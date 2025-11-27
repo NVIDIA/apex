@@ -106,7 +106,7 @@ class FusedAdam(torch.optim.Optimizer):
         # assuming a list/generator of parameter means single group
         elif isinstance(grads, types.GeneratorType):
             grads_group = [grads]
-        elif type(grads[0]) != list:
+        elif not isinstance(grads[0], list):
             grads_group = [grads]
         else:
             grads_group = grads
@@ -115,7 +115,7 @@ class FusedAdam(torch.optim.Optimizer):
             output_params_group = [None] * len(self.param_groups)
         elif isinstance(output_params, types.GeneratorType):
             output_params_group = [output_params]
-        elif type(output_params[0]) != list:
+        elif not isinstance(output_params[0], list):
             output_params_group = [output_params]
         else:
             output_params_group = output_params

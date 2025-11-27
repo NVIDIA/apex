@@ -4,8 +4,8 @@ from contextlib import contextmanager
 
 @contextmanager
 def GDSFile(filename, mode):
-    assert type(filename) == str
-    assert type(mode) == str
+    assert isinstance(filename, str)
+    assert isinstance(mode, str)
     try:
         from apex import deprecated_warning
 
