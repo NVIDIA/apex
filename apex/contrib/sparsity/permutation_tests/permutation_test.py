@@ -4,7 +4,7 @@ import sys
 
 # permutation-specifics
 sys.path.append("../")
-from permutation_search_kernels.permutation_utilities import *
+from permutation_search_kernels.permutation_utilities import apply_2_to_4, use_gpu
 from permutation_search_kernels.exhaustive_search import Exhaustive_Search
 from permutation_search_kernels.channel_swap import Channel_Swap
 

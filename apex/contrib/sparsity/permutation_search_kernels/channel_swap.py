@@ -1,4 +1,4 @@
-from .permutation_utilities import *
+from .permutation_utilities import use_gpu, sum_after_2_to_4
 
 ################################################################################################################
 # Greedy Channel Swaps - iterative, deterministic, can be parallelized

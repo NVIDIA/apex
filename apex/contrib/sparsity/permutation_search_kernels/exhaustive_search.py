@@ -1,4 +1,4 @@
-from .permutation_utilities import *
+from .permutation_utilities import use_gpu, sum_after_2_to_4
 
 ASP_CACHE_DIR_ENV_VAR = "APEX_ASP_CACHE_DIR"
 ASP_CACHE_DIR_DEFAULT = ".cache"

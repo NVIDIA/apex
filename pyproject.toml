@@ -9,7 +9,6 @@ build-backend = "setuptools.build_meta"
 line-length = 100
 ignore = [
     # Sorted by occurrence count (ascending) - easier to fix first
-    "F403",  # star imports used (9 occurrences)
     "E701",  # multiple statements on one line (10 occurrences)
     "E711",  # comparison to None should be `cond is None` (11 occurrences)
     "F821",  # undefined name (14 occurrences)
