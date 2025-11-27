@@ -9,6 +9,5 @@ build-backend = "setuptools.build_meta"
 line-length = 100
 ignore = [
     # Sorted by occurrence count (ascending) - easier to fix first
-    "F841",  # local variable assigned but never used (52 occurrences)
     "F405",  # star imports (80 occurrences)
 ]
