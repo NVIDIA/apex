@@ -38,7 +38,7 @@ except ImportError as e:
     SKIP_TEST = e
 
 
-def _get_device_properties(device = torch.device("cuda")):
+def _get_device_properties(device=torch.device("cuda")):
     # type: (str or torch.device) -> Tuple[int, int]
     properties = torch.cuda.get_device_properties(device)
     return properties.major, properties.minor
@@ -46,14 +46,14 @@ def _get_device_properties(device = torch.device("cuda")):
 
 def py_mha(qkv, amask, b, s, h, d):
     qkv = qkv.view(b, s, h, 3, d)
-    q = qkv[:, :, :, 0, :].permute(0,2,1,3)
-    k = qkv[:, :, :, 1, :].permute(0,2,1,3)
-    v = qkv[:, :, :, 2, :].permute(0,2,1,3)
-    p = torch.matmul(q.float(), k.permute(0,1,3,2).float())
+    q = qkv[:, :, :, 0, :].permute(0, 2, 1, 3)
+    k = qkv[:, :, :, 1, :].permute(0, 2, 1, 3)
+    v = qkv[:, :, :, 2, :].permute(0, 2, 1, 3)
+    p = torch.matmul(q.float(), k.permute(0, 1, 3, 2).float())
     p_masked = p / math.sqrt(d) + (1.0 - amask) * -10000.0
     s = torch.softmax(p_masked, -1).to(qkv.dtype)
     ctx = torch.matmul(s, v)
-    ctx = ctx.permute(0,2,1,3).contiguous()
+    ctx = ctx.permute(0, 2, 1, 3).contiguous()
 
     ctx.retain_grad()
 
@@ -61,31 +61,33 @@ def py_mha(qkv, amask, b, s, h, d):
 
 
 @unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
-@unittest.skipIf(_get_device_properties() not in [(8, 0), (9, 0), (10, 0), (12, 0)], "FMHA only supports sm80")
+@unittest.skipIf(
+    _get_device_properties() not in [(8, 0), (9, 0), (10, 0), (12, 0)],
+    "FMHA only supports sm80",
+)
 class TestFMHA(unittest.TestCase):
-
     def run_test(self, s: int, b: int, zero_tensors: bool):
-        print(f'Test s={s} b={b}, zero_tensors={zero_tensors}')
+        print(f"Test s={s} b={b}, zero_tensors={zero_tensors}")
 
         torch.manual_seed(1234)
         torch.cuda.manual_seed(1234)
 
         dtype = torch.float16
-        device = torch.device('cuda')
+        device = torch.device("cuda")
 
         h = 16
         d = 64
 
         slens = [s] * b
         a = torch.tensor(np.array([0] + slens), dtype=torch.int32)
-        amask = torch.ones(b,h,s,s, dtype=dtype, device=device)
+        amask = torch.ones(b, h, s, s, dtype=dtype, device=device)
         seqlens = torch.tensor(slens, dtype=torch.int32, device=device)
         cu_seqlens = torch.cumsum(a, 0).to(dtype=torch.int32, device=device)
         total = cu_seqlens[-1].item()
 
-        qkv = torch.randn((b,s,h,3,d), device=device, dtype=dtype)
+        qkv = torch.randn((b, s, h, 3, d), device=device, dtype=dtype)
 
-        qkv_vs = qkv.permute(0,1,3,2,4).contiguous().view(b*s, 3, h,d)
+        qkv_vs = qkv.permute(0, 1, 3, 2, 4).contiguous().view(b * s, 3, h, d)
 
         qkv.requires_grad = True
 
@@ -93,9 +95,9 @@ class TestFMHA(unittest.TestCase):
             ctx, S_ = mha.fwd(qkv_vs, cu_seqlens, 0.0, s, True, True, zero_tensors, None)
         else:
             ctx, S_ = mha.fwd(qkv_vs, cu_seqlens, 0.0, s, True, False, zero_tensors, None)
-        ctx = ctx.view(b,s,h,d)
+        ctx = ctx.view(b, s, h, d)
 
-        ctx_ref = py_mha(qkv, amask, b,s,h,d)
+        ctx_ref = py_mha(qkv, amask, b, s, h, d)
         torch.testing.assert_close(ctx_ref.float(), ctx.float(), atol=1e-3, rtol=1e-5)
 
         labels = torch.randn_like(ctx_ref)
@@ -103,16 +105,16 @@ class TestFMHA(unittest.TestCase):
         l = (diff * diff).sum() / b
         l.backward()
 
-        dw = ctx_ref.grad.permute(0,2,1,3)
+        dw = ctx_ref.grad.permute(0, 2, 1, 3)
 
-        dw2 = dw.permute(0,2,1,3).clone().detach().contiguous()
+        dw2 = dw.permute(0, 2, 1, 3).clone().detach().contiguous()
 
         if b < 4:
             dqkv2, _, _ = mha.bwd_nl(dw2, qkv_vs, S_, cu_seqlens, 0.0, s, zero_tensors)
         else:
             dqkv2, _ = mha.bwd(dw2, qkv_vs, S_, cu_seqlens, 0.0, s, zero_tensors)
 
-        dqkv2 = dqkv2.permute(0,2,1,3).view(b,s, h,3,d)
+        dqkv2 = dqkv2.permute(0, 2, 1, 3).view(b, s, h, 3, d)
 
         torch.testing.assert_close(qkv.grad.float(), dqkv2.float(), atol=1e-3, rtol=1e-5)
 
@@ -145,5 +147,5 @@ class TestFMHA(unittest.TestCase):
         self.run_test(512, 3, True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

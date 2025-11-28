@@ -25,7 +25,12 @@ class GradScaler(torch.cuda.amp.GradScaler):
     """
 
     def __init__(
-        self, init_scale=2.0 ** 16, growth_factor=2.0, backoff_factor=0.5, growth_interval=2000, enabled=True
+        self,
+        init_scale=2.0**16,
+        growth_factor=2.0,
+        backoff_factor=0.5,
+        growth_interval=2000,
+        enabled=True,
     ):
         super().__init__(
             init_scale=init_scale,
@@ -43,11 +48,15 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
     def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
         retval = None
-        found_inf = torch.cuda.FloatTensor([sum(v.item() for v in optimizer_state["found_inf_per_device"].values())])
+        found_inf = torch.cuda.FloatTensor(
+            [sum(v.item() for v in optimizer_state["found_inf_per_device"].values())]
+        )
 
         # Update across all model parallel instances.
         torch.distributed.all_reduce(
-            found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
+            found_inf,
+            op=torch.distributed.ReduceOp.MAX,
+            group=parallel_state.get_model_parallel_group(),
         )
 
         if found_inf.item() == 0:
@@ -100,7 +109,9 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
             # Update across all model parallel instances.
             torch.distributed.all_reduce(
-                found_inf_combined, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
+                found_inf_combined,
+                op=torch.distributed.ReduceOp.MAX,
+                group=parallel_state.get_model_parallel_group(),
             )
 
             if len(found_infs) > 1:
@@ -108,7 +119,9 @@ class GradScaler(torch.cuda.amp.GradScaler):
                     found_inf = found_infs[i]
                     # Update across all model parallel instances.
                     torch.distributed.all_reduce(
-                        found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
+                        found_inf,
+                        op=torch.distributed.ReduceOp.MAX,
+                        group=parallel_state.get_model_parallel_group(),
                     )
                     found_inf_combined += found_inf
 
@@ -122,4 +135,6 @@ class GradScaler(torch.cuda.amp.GradScaler):
             )
 
         # To prepare for next iteration, clear the data collected from optimizers this iteration.
-        self._per_optimizer_states = defaultdict(torch.cuda.amp.grad_scaler._refresh_per_optimizer_state)
+        self._per_optimizer_states = defaultdict(
+            torch.cuda.amp.grad_scaler._refresh_per_optimizer_state
+        )

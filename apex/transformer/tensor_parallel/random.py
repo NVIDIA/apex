@@ -32,8 +32,6 @@ from torch.utils.checkpoint import detach_variable
 
 from apex.transformer.parallel_state import get_tensor_model_parallel_rank
 from apex.transformer.tensor_parallel.memory import allocate_mem_buff
-from apex.transformer.utils import split_tensor_into_1d_equal_chunks
-from apex.transformer.utils import gather_split_1d_tensor
 
 
 # Default name for the model parallel rng tracker.
@@ -57,14 +55,11 @@ def init_checkpointed_activations_memory_buffer(
     """Initializ the memory buffer for the checkpointed activations."""
 
     per_layer = (
-        micro_batch_size
-        * max_position_embeddings
-        * hidden_size
-        // tensor_model_parallel_size
+        micro_batch_size * max_position_embeddings * hidden_size // tensor_model_parallel_size
     )
-    assert (
-        num_layers % checkpoint_num_layers == 0
-    ), "number of layers is not divisible by checkpoint-num-layers"
+    assert num_layers % checkpoint_num_layers == 0, (
+        "number of layers is not divisible by checkpoint-num-layers"
+    )
     num_checkpointer_layers = num_layers // checkpoint_num_layers
     numel = per_layer * num_checkpointer_layers
     dtype = torch.half
@@ -72,9 +67,9 @@ def init_checkpointed_activations_memory_buffer(
         dtype = torch.float
 
     global _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER
-    assert (
-        _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER is None
-    ), "checkpointed activations memory buffer is already allocated."
+    assert _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER is None, (
+        "checkpointed activations memory buffer is already allocated."
+    )
     _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER = allocate_mem_buff(
         "checkpointed activations", numel, dtype, track_usage=False
     )
@@ -228,18 +223,16 @@ def model_parallel_cuda_manual_seed(seed):
     # Set the default state.
     torch.cuda.manual_seed(data_parallel_seed)
     # and model parallel state.
-    _CUDA_RNG_STATE_TRACKER.add(
-        _MODEL_PARALLEL_RNG_TRACKER_NAME, tensor_model_parallel_seed
-    )
+    _CUDA_RNG_STATE_TRACKER.add(_MODEL_PARALLEL_RNG_TRACKER_NAME, tensor_model_parallel_seed)
 
 
 # TODO (mkozuki): Move the below gradient checkpoint related features to another (new) file.
 class CheckpointFunction(torch.autograd.Function):
     """This function is adapted from torch.utils.checkpoint with
-       two main changes:
-           1) torch.cuda.set_rng_state is replaced with `_set_cuda_rng_state`
-           2) the states in the model parallel tracker are also properly
-              tracked/set/reset.
+    two main changes:
+        1) torch.cuda.set_rng_state is replaced with `_set_cuda_rng_state`
+        2) the states in the model parallel tracker are also properly
+           tracked/set/reset.
     """
 
     @staticmethod
@@ -268,8 +261,7 @@ class CheckpointFunction(torch.autograd.Function):
     def backward(ctx, *args):
         if not torch.autograd._is_checkpoint_valid():
             raise RuntimeError(
-                "Checkpointing is not compatible with .grad(), "
-                "please use .backward() if possible"
+                "Checkpointing is not compatible with .grad(), please use .backward() if possible"
             )
         inputs = ctx.saved_tensors
 
@@ -296,10 +288,7 @@ class CheckpointFunction(torch.autograd.Function):
         if isinstance(outputs, torch.Tensor):
             outputs = (outputs,)
         torch.autograd.backward(outputs, args)
-        grads = tuple(
-            inp.grad if isinstance(inp, torch.Tensor) else inp
-            for inp in detached_inputs
-        )
+        grads = tuple(inp.grad if isinstance(inp, torch.Tensor) else inp for inp in detached_inputs)
         return (None, None) + grads
 
 

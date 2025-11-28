@@ -16,11 +16,12 @@ _TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION = Version("470.42.01")
 _driver_version = None
 if torch.cuda.is_available():
     _driver_version = parse(collect_env.get_nvidia_driver_version(collect_env.run))
-HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER = _driver_version is not None and _driver_version >= _TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION
+HAS_TORCH_UCC_COMPAT_NVIDIA_DRIVER = (
+    _driver_version is not None and _driver_version >= _TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION
+)
 
 
 class DistributedTestBase(common_distributed.MultiProcessTestCase):
-
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -83,8 +84,8 @@ class DistributedTestBase(common_distributed.MultiProcessTestCase):
 
 
 class NcclDistributedTestBase(DistributedTestBase):
-
     DISTRIBUTED_BACKEND = "nccl"
+
 
 @unittest.skipUnless(
     HAS_UCC,
@@ -95,9 +96,7 @@ class NcclDistributedTestBase(DistributedTestBase):
     f"`torch_ucc` requires NVIDIA driver >= {_TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION} but {_driver_version} found. "
     "See https://github.com/openucx/ucc/issues/496",
 )
-
 class UccDistributedTestBase(DistributedTestBase):
-
     DISTRIBUTED_BACKEND = "ucc"
 
     def _setup_pre_spawn(self) -> None:
@@ -109,6 +108,7 @@ class UccDistributedTestBase(DistributedTestBase):
         else:
             try:
                 from caffe2.torch.fb.common.utils import get_free_port
+
                 self.master_port = str(get_free_port())
             except ImportError:
                 self.master_port = "12375"
@@ -117,7 +117,7 @@ class UccDistributedTestBase(DistributedTestBase):
         self._has_ucx_tls = "UCX_TLS" in os.environ
         if not self._has_ucx_tls:
             os.environ["UCX_TLS"] = "tcp,cuda"
-        print('os.environ[\"UCX_TLS\"] = {}'.format(os.environ["UCX_TLS"]))
+        print('os.environ["UCX_TLS"] = {}'.format(os.environ["UCX_TLS"]))
 
     def tearDown(self) -> None:
         super().tearDown()

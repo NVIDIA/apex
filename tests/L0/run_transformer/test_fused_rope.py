@@ -73,10 +73,7 @@ def apply_rotary_pos_emb_thd(
     """
     seqlens = (cu_seqlens[1:] - cu_seqlens[:-1]).tolist()
     return torch.cat(
-        [
-            apply_rotary_pos_emb(x.unsqueeze(1), freqs[: x.size(0)])
-            for x in torch.split(t, seqlens)
-        ]
+        [apply_rotary_pos_emb(x.unsqueeze(1), freqs[: x.size(0)]) for x in torch.split(t, seqlens)]
     ).squeeze(1)
 
 
@@ -190,9 +187,7 @@ class TestFusedRoPE(common_utils.TestCase):
                 msg=f"{dtype=}, {seq_length=}, {hidden_size=}, {rotary_percent=}, "
                 f"{transpose=}, {transpose_output_memory=}, loss_func={loss_func.__name__}",
             )
-            assert (
-                output_fused.transpose(0, 1).is_contiguous() is transpose_output_memory
-            )
+            assert output_fused.transpose(0, 1).is_contiguous() is transpose_output_memory
 
     def test_thd_forward_backward(self):
         cu_seqlens = torch.tensor(
@@ -301,9 +296,7 @@ class TestFusedRoPE(common_utils.TestCase):
             cos_w, sin_w = emb_w.cos().to(dtype), emb_w.sin().to(dtype)
 
             # unfused
-            output_unfused = apply_rotary_pos_emb_2d(
-                t, img_h, img_w, cos_h, sin_h, cos_w, sin_w
-            )
+            output_unfused = apply_rotary_pos_emb_2d(t, img_h, img_w, cos_h, sin_h, cos_w, sin_w)
             loss_unfused = loss_func(output_unfused)
             loss_unfused.backward()
             grad_unfused = t.grad.detach().clone()

@@ -6,12 +6,11 @@ repos:
     files: \.(c|h|cpp|hpp|proto|cu|cuh)$
     exclude: ^(apex/contrib/csrc/multihead_attn/cutlass|apex/contrib/csrc/cudnn-frontend)/
 
-# TODO: Enable Ruff
-# - repo: https://github.com/astral-sh/ruff-pre-commit
-#   rev: v0.14.0
-#   hooks:
-#   - id: ruff-check
-#     args: ["--fix"]
-#   - id: ruff-format
-#     types_or: [python]
-#     exclude: "examples"
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.14.0
+  hooks:
+  - id: ruff-check
+    args: ["--fix"]
+  - id: ruff-format
+    types_or: [python]
+    exclude: "examples"

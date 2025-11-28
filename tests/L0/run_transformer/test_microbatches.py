@@ -20,13 +20,11 @@ logging.getLogger("apex").setLevel(logging.WARNING)
 
 
 class MicrobatchCalculatorTestBase:
-
     GLOBAL_BATCH_SIZE: int = 1024
     MICRO_BATCH_SIZE: int = 1
 
     def _test(self, rampup_batch_size: Optional[List[int]]) -> None:
         for data_parallel_size in range(1, self.world_size + 1):
-
             expected_global_batch_size = self.GLOBAL_BATCH_SIZE
             expected_micro_batch_size = self.MICRO_BATCH_SIZE
             if rampup_batch_size:
@@ -44,7 +42,11 @@ class MicrobatchCalculatorTestBase:
                 tensor_model_parallel_size_=self.world_size // data_parallel_size,
                 pipeline_model_parallel_size_=1,
             )
-            self.assertEqual(data_parallel_size, parallel_state.get_data_parallel_world_size(), msg=msg)
+            self.assertEqual(
+                data_parallel_size,
+                parallel_state.get_data_parallel_world_size(),
+                msg=msg,
+            )
 
             _reconfigure_microbatch_calculator(
                 self.rank,
@@ -55,7 +57,11 @@ class MicrobatchCalculatorTestBase:
             )
 
             self.assertEqual(get_micro_batch_size(), expected_micro_batch_size, msg=msg)
-            self.assertEqual(get_num_microbatches(), expected_global_batch_size / expected_micro_batch_size / data_parallel_size, msg=msg)
+            self.assertEqual(
+                get_num_microbatches(),
+                expected_global_batch_size / expected_micro_batch_size / data_parallel_size,
+                msg=msg,
+            )
             current_global_batch_size = get_current_global_batch_size()
             self.assertEqual(current_global_batch_size, expected_global_batch_size, msg=msg)
 
@@ -77,8 +83,12 @@ class MicrobatchCalculatorTestBase:
         self._test(rampup_batch_size=[256, 128, 500])
 
 
-class NcclMicrobatchCalculatorTest(MicrobatchCalculatorTestBase, NcclDistributedTestBase): pass
-class UccMicrobatchCalculatorTest(MicrobatchCalculatorTestBase, UccDistributedTestBase): pass
+class NcclMicrobatchCalculatorTest(MicrobatchCalculatorTestBase, NcclDistributedTestBase):
+    pass
+
+
+class UccMicrobatchCalculatorTest(MicrobatchCalculatorTestBase, UccDistributedTestBase):
+    pass
 
 
 if __name__ == "__main__":

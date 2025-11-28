@@ -20,11 +20,14 @@ from apex.transformer.log_util import get_transformer_logger
 _logger = get_transformer_logger(__name__)
 
 
-Batch = Union[torch.Tensor, FutureTensor, List[Union[torch.Tensor, FutureTensor]], Tuple[Union[torch.Tensor, FutureTensor], ...]]
-LossFunc = Callable[[torch.Tensor], torch.Tensor]
-FwdStepFunc = Callable[
-    [Optional[Batch], torch.nn.Module], Tuple[torch.Tensor, LossFunc]
+Batch = Union[
+    torch.Tensor,
+    FutureTensor,
+    List[Union[torch.Tensor, FutureTensor]],
+    Tuple[Union[torch.Tensor, FutureTensor], ...],
 ]
+LossFunc = Callable[[torch.Tensor], torch.Tensor]
+FwdStepFunc = Callable[[Optional[Batch], torch.nn.Module], Tuple[torch.Tensor, LossFunc]]
 
 
 def build_model(
@@ -66,7 +69,10 @@ def build_model(
             pre_process = parallel_state.is_pipeline_first_stage()
             post_process = parallel_state.is_pipeline_last_stage()
             cur_kwargs.update(
-                {"pre_process": pre_process, "post_process": post_process,}
+                {
+                    "pre_process": pre_process,
+                    "post_process": post_process,
+                }
             )
             this_model = model_provider_func(*cur_args, **cur_kwargs)
             model.append(this_model)
@@ -77,7 +83,10 @@ def build_model(
             pre_process = parallel_state.is_pipeline_first_stage()
             post_process = parallel_state.is_pipeline_last_stage()
             cur_kwargs.update(
-                {"pre_process": pre_process, "post_process": post_process,}
+                {
+                    "pre_process": pre_process,
+                    "post_process": post_process,
+                }
             )
             model = model_provider_func(*cur_args, **cur_kwargs)
         elif model_type == ModelType.encoder_and_decoder:
@@ -124,10 +133,12 @@ def build_model(
         parallel_state.model_parallel_is_initialized()
         and parallel_state.get_data_parallel_rank() == 0
     ):
-        msg = " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
-            parallel_state.get_tensor_model_parallel_rank(),
-            parallel_state.get_pipeline_model_parallel_rank(),
-            _calc_number_of_params(model),
+        msg = (
+            " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
+                parallel_state.get_tensor_model_parallel_rank(),
+                parallel_state.get_pipeline_model_parallel_rank(),
+                _calc_number_of_params(model),
+            )
         )
         print(msg, flush=True)
 
@@ -151,12 +162,7 @@ def build_model(
 
 def _calc_number_of_params(model: List[torch.nn.Module]) -> int:
     assert isinstance(model, list)
-    return sum(
-        [
-            sum([p.nelement() for p in model_module.parameters()])
-            for model_module in model
-        ]
-    )
+    return sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
 
 
 def _get_params_for_weight_decay_optimization(
@@ -223,15 +229,13 @@ def custom_backward(output: torch.Tensor, grad_output: Optional[torch.Tensor]) -
     directly, bypassing PyTorch's `torch.autograd.backward`. PyTorch's `backward` checks that the
     output and grad have the same shape, while C++ `backward` does not.
     """
-    assert (
-        output.numel() == 1
-    ), "output should be pseudo-freed in schedule, to optimize memory consumption"
-    assert isinstance(output, torch.Tensor), "output == {}.".format(
-        type(output).__name__
+    assert output.numel() == 1, (
+        "output should be pseudo-freed in schedule, to optimize memory consumption"
     )
-    assert isinstance(
-        grad_output, (torch.Tensor, type(None))
-    ), "grad_outptu == {}.".format(type(grad_output).__name__)
+    assert isinstance(output, torch.Tensor), "output == {}.".format(type(output).__name__)
+    assert isinstance(grad_output, (torch.Tensor, type(None))), "grad_outptu == {}.".format(
+        type(grad_output).__name__
+    )
 
     # Handle scalar output
     if grad_output is None:
@@ -294,14 +298,17 @@ def forward_step(
     input_tensor = [inp.get() if isinstance(inp, FutureTensor) else inp for inp in input_tensor]
 
     unwrapped_model.set_input_tensor(input_tensor)
-    with torch.amp.autocast('cuda', 
+    with torch.amp.autocast(
+        "cuda",
         enabled=not disable_autocast and dtype in (torch.half, torch.bfloat16),
         dtype=dtype,
     ):
         if checkpoint_activations_micro_batch is None:
             output_tensor, loss_func = forward_step_func(batch, model)
         else:
-            output_tensor, loss_func = forward_step_func(batch, model, checkpoint_activations_micro_batch)
+            output_tensor, loss_func = forward_step_func(
+                batch, model, checkpoint_activations_micro_batch
+            )
         if parallel_state.is_pipeline_last_stage():
             output_tensor = loss_func(output_tensor)
             loss, loss_reduced = output_tensor
@@ -372,7 +379,9 @@ def backward_step(
     if not isinstance(output_tensor_grad, list):
         output_tensor_grad = [output_tensor_grad]
 
-    output_tensor_grad = [ogr.get() if isinstance(ogr, FutureTensor) else ogr for ogr in output_tensor_grad]
+    output_tensor_grad = [
+        ogr.get() if isinstance(ogr, FutureTensor) else ogr for ogr in output_tensor_grad
+    ]
 
     # Backward pass.
     if grad_scaler is not None and output_tensor_grad[0] is None:

@@ -34,18 +34,14 @@ class FusedRoPEFunc(torch.autograd.Function):
     ) -> torch.Tensor:
         import fused_rotary_positional_embedding
 
-        output = fused_rotary_positional_embedding.forward(
-            t, freqs, transpose_output_memory
-        )
+        output = fused_rotary_positional_embedding.forward(t, freqs, transpose_output_memory)
         ctx.save_for_backward(freqs)
         ctx.transpose_output_memory = transpose_output_memory
 
         return output
 
     @staticmethod
-    def backward(
-        ctx, grad_output: torch.Tensor
-    ) -> Tuple[Union[torch.Tensor, None], ...]:
+    def backward(ctx, grad_output: torch.Tensor) -> Tuple[Union[torch.Tensor, None], ...]:
         import fused_rotary_positional_embedding
 
         (freqs,) = ctx.saved_tensors
@@ -109,9 +105,7 @@ class FusedRoPECachedFunc(torch.autograd.Function):
         return output
 
     @staticmethod
-    def backward(
-        ctx, grad_output: torch.Tensor
-    ) -> Tuple[Union[torch.Tensor, None], ...]:
+    def backward(ctx, grad_output: torch.Tensor) -> Tuple[Union[torch.Tensor, None], ...]:
         import fused_rotary_positional_embedding
 
         cos_, sin_ = ctx.saved_tensors
@@ -167,23 +161,17 @@ class FusedRoPETHDFunc(torch.autograd.Function):
     ) -> torch.Tensor:
         import fused_rotary_positional_embedding
 
-        output = fused_rotary_positional_embedding.forward_thd(
-            t, cu_seqlens, freqs
-        )
+        output = fused_rotary_positional_embedding.forward_thd(t, cu_seqlens, freqs)
         ctx.save_for_backward(cu_seqlens, freqs)
 
         return output
 
     @staticmethod
-    def backward(
-        ctx, grad_output: torch.Tensor
-    ) -> Tuple[Union[torch.Tensor, None], ...]:
+    def backward(ctx, grad_output: torch.Tensor) -> Tuple[Union[torch.Tensor, None], ...]:
         import fused_rotary_positional_embedding
 
         cu_seqlens, freqs = ctx.saved_tensors
-        grad_input = fused_rotary_positional_embedding.backward_thd(
-            grad_output, cu_seqlens, freqs
-        )
+        grad_input = fused_rotary_positional_embedding.backward_thd(grad_output, cu_seqlens, freqs)
 
         return grad_input, None, None
 
@@ -230,9 +218,7 @@ class FusedRoPE2DFunc(torch.autograd.Function):
         import fused_rotary_positional_embedding
 
         t = t.view(t.shape[0], img_h, img_w, t.shape[2], t.shape[3])
-        output = fused_rotary_positional_embedding.forward_2d(
-            t, cos_h, sin_h, cos_w, sin_w
-        )
+        output = fused_rotary_positional_embedding.forward_2d(t, cos_h, sin_h, cos_w, sin_w)
         ctx.save_for_backward(cos_h, sin_h, cos_w, sin_w)
         ctx.img_h = img_h
         ctx.img_w = img_w
@@ -240,9 +226,7 @@ class FusedRoPE2DFunc(torch.autograd.Function):
         return output
 
     @staticmethod
-    def backward(
-        ctx, grad_output: torch.Tensor
-    ) -> Tuple[Union[torch.Tensor, None], ...]:
+    def backward(ctx, grad_output: torch.Tensor) -> Tuple[Union[torch.Tensor, None], ...]:
         import fused_rotary_positional_embedding
 
         grad_output = grad_output.view(
@@ -291,13 +275,7 @@ def fused_apply_rotary_pos_emb_2d(
     Returns:
         Tensor: The input tensor after applying RoPE
     """
-    assert (
-        t.size(1) == img_h * img_w
-    ), "The sequence length should be equal to img_h * img_w"
-    assert (
-        cos_h.size() == sin_h.size()
-    ), "The shape of cos_h and sin_h should be the same"
-    assert (
-        cos_w.size() == sin_w.size()
-    ), "The shape of cos_w and sin_w should be the same"
+    assert t.size(1) == img_h * img_w, "The sequence length should be equal to img_h * img_w"
+    assert cos_h.size() == sin_h.size(), "The shape of cos_h and sin_h should be the same"
+    assert cos_w.size() == sin_w.size(), "The shape of cos_w and sin_w should be the same"
     return FusedRoPE2DFunc.apply(t, img_h, img_w, cos_h, sin_h, cos_w, sin_w)

@@ -38,17 +38,18 @@ class MLP(torch.nn.Module):
         bias (bool): Default True:
         relu (bool): Default True
     """
-    def __init__(self, mlp_sizes, bias=True, activation='relu'):
+
+    def __init__(self, mlp_sizes, bias=True, activation="relu"):
         super().__init__()
         self.num_layers = len(mlp_sizes) - 1
         self.mlp_sizes = copy(mlp_sizes)
         self.bias = 1 if bias else 0
 
-        if activation == 'none':
+        if activation == "none":
             self.activation = 0
-        elif activation == 'relu':
+        elif activation == "relu":
             self.activation = 1
-        elif activation == 'sigmoid':
+        elif activation == "sigmoid":
             self.activation = 2
         else:
             raise TypeError("activation must be relu or none.")
@@ -56,14 +57,14 @@ class MLP(torch.nn.Module):
         self.weights = []
         self.biases = []
         for i in range(self.num_layers):
-            w = torch.nn.Parameter(torch.empty(mlp_sizes[i+1], mlp_sizes[i]))
+            w = torch.nn.Parameter(torch.empty(mlp_sizes[i + 1], mlp_sizes[i]))
             self.weights.append(w)
-            name = 'weight_{}'.format(i)
+            name = "weight_{}".format(i)
             setattr(self, name, w)
             if self.bias:
-                b = torch.nn.Parameter(torch.empty(mlp_sizes[i+1]))
+                b = torch.nn.Parameter(torch.empty(mlp_sizes[i + 1]))
                 self.biases.append(b)
-                name = 'bias_{}'.format(i)
+                name = "bias_{}".format(i)
                 setattr(self, name, b)
 
         self.reset_parameters()
@@ -71,16 +72,16 @@ class MLP(torch.nn.Module):
     def reset_parameters(self):
         for weight in self.weights:
             dimsum = weight.size(0) + weight.size(1)
-            std = math.sqrt(2. / float(dimsum))
-            nn.init.normal_(weight, 0., std)
+            std = math.sqrt(2.0 / float(dimsum))
+            nn.init.normal_(weight, 0.0, std)
         if self.bias:
             for bias in self.biases:
-                std = math.sqrt(1. / float(bias.size(0)))
-                nn.init.normal_(bias, 0., std)
+                std = math.sqrt(1.0 / float(bias.size(0)))
+                nn.init.normal_(bias, 0.0, std)
 
     def forward(self, input):
         return mlp_function(self.bias, self.activation, input, *self.weights, *self.biases)
 
     def extra_repr(self):
-        s = F"MLP sizes: {self.mlp_sizes}, Bias={self.bias}, activation={self.activation}"
+        s = f"MLP sizes: {self.mlp_sizes}, Bias={self.bias}, activation={self.activation}"
         return s

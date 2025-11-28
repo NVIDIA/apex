@@ -6,19 +6,45 @@ import peer_memory_cuda as pm
 import cudnn_gbn_lib
 from torch.cuda.amp import custom_fwd, custom_bwd
 
-class _GroupBatchNorm2d(torch.autograd.Function):
 
+class _GroupBatchNorm2d(torch.autograd.Function):
     @staticmethod
     @custom_fwd
-    def forward(ctx, input, weight, bias, running_mean, running_variance,
-                minibatch_mean, minibatch_inv_var, momentum, eps, group_size, group_rank, fwd_buffers, bwd_buffers):
+    def forward(
+        ctx,
+        input,
+        weight,
+        bias,
+        running_mean,
+        running_variance,
+        minibatch_mean,
+        minibatch_inv_var,
+        momentum,
+        eps,
+        group_size,
+        group_rank,
+        fwd_buffers,
+        bwd_buffers,
+    ):
         ctx.save_for_backward(input, weight, minibatch_mean, minibatch_inv_var)
         ctx.eps = eps
         ctx.bn_group = group_size
         ctx.rank_id = group_rank
         ctx.peer_buffers = bwd_buffers
-        return cudnn_gbn_lib.forward(input, weight, bias, running_mean, running_variance,
-                                     minibatch_mean, minibatch_inv_var, momentum, eps, group_size, group_rank, fwd_buffers)
+        return cudnn_gbn_lib.forward(
+            input,
+            weight,
+            bias,
+            running_mean,
+            running_variance,
+            minibatch_mean,
+            minibatch_inv_var,
+            momentum,
+            eps,
+            group_size,
+            group_rank,
+            fwd_buffers,
+        )
 
     @staticmethod
     @custom_bwd
@@ -28,17 +54,32 @@ class _GroupBatchNorm2d(torch.autograd.Function):
         bn_group = ctx.bn_group
         rank_id = ctx.rank_id
         peer_buffers = ctx.peer_buffers
-        dx, dscale, dbias = cudnn_gbn_lib.backward(x,
-                       grad_output,
-                       scale,
-                       minibatch_mean,
-                       minibatch_inv_var,
-                       eps,
-                       bn_group,
-                       rank_id,
-                       peer_buffers)
-        return dx, dscale, dbias, None, None, None, None, None, None, None, None, None, None
-
+        dx, dscale, dbias = cudnn_gbn_lib.backward(
+            x,
+            grad_output,
+            scale,
+            minibatch_mean,
+            minibatch_inv_var,
+            eps,
+            bn_group,
+            rank_id,
+            peer_buffers,
+        )
+        return (
+            dx,
+            dscale,
+            dbias,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
 
 
 class GroupBatchNorm2d(_BatchNorm):
@@ -78,9 +119,22 @@ class GroupBatchNorm2d(_BatchNorm):
         >>> out = sbn(inp)
     """
 
-    def __init__(self, num_features, group_size, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True):
-
-        super(GroupBatchNorm2d, self).__init__(num_features, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
+    def __init__(
+        self,
+        num_features,
+        group_size,
+        eps=1e-5,
+        momentum=0.1,
+        affine=True,
+        track_running_stats=True,
+    ):
+        super(GroupBatchNorm2d, self).__init__(
+            num_features,
+            eps=eps,
+            momentum=momentum,
+            affine=affine,
+            track_running_stats=track_running_stats,
+        )
         self.group_size = group_size
         rank = torch.distributed.get_rank()
         self.group_id = rank // group_size
@@ -99,28 +153,32 @@ class GroupBatchNorm2d(_BatchNorm):
         raw_ipc = pm.get_raw_ipc_address(raw).cuda()
         raw_ipcs = [torch.empty_like(raw_ipc) for _ in range(world_size)]
         torch.distributed.all_gather(raw_ipcs, raw_ipc)
-        group_ipcs = [raw_ipcs[x] for x in range(self.group_id * self.group_size, (self.group_id * self.group_size) + self.group_size)]
+        group_ipcs = [
+            raw_ipcs[x]
+            for x in range(
+                self.group_id * self.group_size,
+                (self.group_id * self.group_size) + self.group_size,
+            )
+        ]
         peer_raw_ipcs = torch.stack(group_ipcs).cpu()
         return pm.get_raw_peers(peer_raw_ipcs, self.group_rank, raw)
 
     def _check_input_dim(self, input):
         if input.dim() != 4:
-            raise ValueError(
-                "expected 4D input (got {}D input)".format(input.dim())
-            )
+            raise ValueError("expected 4D input (got {}D input)".format(input.dim()))
 
     def _check_input_channels(self, input):
         if input.size(1) % 8 != 0:
-            raise ValueError(
-                "GroupBatchNorm2d number of input channels should be a multiple of 8"
-            )
+            raise ValueError("GroupBatchNorm2d number of input channels should be a multiple of 8")
 
-    def forward(self, input : Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         # currently only GPU input is supported
         if not input.is_cuda:
             raise ValueError("GroupBatchNorm2d expected input tensor to be on GPU")
         if not input.is_contiguous(memory_format=torch.channels_last):
-            raise ValueError("GroupBatchNorm2d expected input tensor to be in channels last memory format")
+            raise ValueError(
+                "GroupBatchNorm2d expected input tensor to be in channels last memory format"
+            )
         if torch.is_autocast_enabled():
             input = input.to(torch.get_autocast_gpu_dtype())
         if input.dtype != torch.float16:
@@ -130,15 +188,29 @@ class GroupBatchNorm2d(_BatchNorm):
 
         if not self.training:
             # fall back to pytorch implementation for inference
-            return F.batch_norm(input, self.running_mean, self.running_var, self.weight, self.bias, False, self.momentum, self.eps)
+            return F.batch_norm(
+                input,
+                self.running_mean,
+                self.running_var,
+                self.weight,
+                self.bias,
+                False,
+                self.momentum,
+                self.eps,
+            )
 
-        return _GroupBatchNorm2d.apply(input,
-                                       self.weight, self.bias,
-                                       self.running_mean, self.running_var,
-                                       self.minibatch_mean, self.minibatch_inv_var,
-                                       self.momentum,
-                                       self.eps,
-                                       self.group_size,
-                                       self.group_rank,
-                                       self.fwd_peer_buffers,
-                                       self.bwd_peer_buffers)
+        return _GroupBatchNorm2d.apply(
+            input,
+            self.weight,
+            self.bias,
+            self.running_mean,
+            self.running_var,
+            self.minibatch_mean,
+            self.minibatch_inv_var,
+            self.momentum,
+            self.eps,
+            self.group_size,
+            self.group_rank,
+            self.fwd_peer_buffers,
+            self.bwd_peer_buffers,
+        )

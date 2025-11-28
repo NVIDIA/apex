@@ -17,9 +17,11 @@ except ImportError as e:
 
 
 @unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
-@unittest.skipIf(not reference_available, "Reference implementation `torchvision.ops.focal_loss.sigmoid_focal_loss` is not available.")
+@unittest.skipIf(
+    not reference_available,
+    "Reference implementation `torchvision.ops.focal_loss.sigmoid_focal_loss` is not available.",
+)
 class FocalLossTest(unittest.TestCase):
-
     N_SAMPLES = 12
     N_CLASSES = 8
     ALPHA = 0.24
@@ -28,7 +30,9 @@ class FocalLossTest(unittest.TestCase):
 
     def test_focal_loss(self) -> None:
         if not reference_available:
-            self.skipTest("This test needs `torchvision` for `torchvision.ops.focal_loss.sigmoid_focal_loss`.")
+            self.skipTest(
+                "This test needs `torchvision` for `torchvision.ops.focal_loss.sigmoid_focal_loss`."
+            )
         else:
             x = torch.randn(FocalLossTest.N_SAMPLES, FocalLossTest.N_CLASSES).cuda()
             with torch.no_grad():
@@ -49,15 +53,20 @@ class FocalLossTest(unittest.TestCase):
                 reduction=FocalLossTest.REDUCTION,
             )
 
-            actual = sum([focal_loss.FocalLoss.apply(
-                x_actual[i:i+1],
-                classes[i:i+1].long(),
-                torch.ones([], device="cuda"),
-                FocalLossTest.N_CLASSES,
-                FocalLossTest.ALPHA,
-                FocalLossTest.GAMMA,
-                0.0,
-            ) for i in range(FocalLossTest.N_SAMPLES)])
+            actual = sum(
+                [
+                    focal_loss.FocalLoss.apply(
+                        x_actual[i : i + 1],
+                        classes[i : i + 1].long(),
+                        torch.ones([], device="cuda"),
+                        FocalLossTest.N_CLASSES,
+                        FocalLossTest.ALPHA,
+                        FocalLossTest.GAMMA,
+                        0.0,
+                    )
+                    for i in range(FocalLossTest.N_SAMPLES)
+                ]
+            )
 
             # forward parity
             torch.testing.assert_close(expected, actual)

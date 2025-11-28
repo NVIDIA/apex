@@ -42,7 +42,9 @@ class FusedSoftmaxTest(unittest.TestCase):
         y_ref = F.softmax(y_ref, dim=-1)
         y_ref = torch._fused_dropout(y_ref, 1.0)
 
-        y_tst = fast_mask_softmax_dropout_func(True, self.heads, self.tst_inputs, self.mask, True, 0.0)
+        y_tst = fast_mask_softmax_dropout_func(
+            True, self.heads, self.tst_inputs, self.mask, True, 0.0
+        )
         y_ref[0].backward(grads)
         y_tst.backward(grads)
 

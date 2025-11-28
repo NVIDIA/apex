@@ -82,7 +82,6 @@ class swa_avg_fn:
 
 @unittest.skipIf(SKIP_TEST, f"Skip testing FusedAdamSWA: {SKIP_TEST}")
 class FusedAdamSWATestCase(unittest.TestCase):
-
     def setUp(self):
         super().setUp()
         self._seed = 19260817
@@ -126,7 +125,8 @@ class FusedAdamSWATestCase(unittest.TestCase):
             compute_dtype if random.uniform(0.0, 1.0) <= 0.5 else state_dtype for _ in range(32)
         ]
         grads = [
-            torch.empty_like(p, dtype=d).uniform_(-5, 5) for d, p in zip(compute_dtypes, state_params)
+            torch.empty_like(p, dtype=d).uniform_(-5, 5)
+            for d, p in zip(compute_dtypes, state_params)
         ]
         moments = [torch.empty_like(p).uniform_(-5, 5) for p in state_params]
         velocities = [torch.empty_like(p).uniform_(0, 10) for p in state_params]
@@ -204,7 +204,7 @@ class FusedAdamSWATestCase(unittest.TestCase):
         # Ensure FusedAdamSWA correctness.
         self.assertEqual(
             swa_model.averaged_model.n_averaged.item(),
-            fused_optimizer.swa_param_groups[0]["n_averaged"]
+            fused_optimizer.swa_param_groups[0]["n_averaged"],
         )
         for i, (p_test, p_gt) in enumerate(
             zip(

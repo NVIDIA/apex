@@ -23,7 +23,7 @@ import torch
 import torch.nn as nn
 
 from apex import transformer
-from apex.transformer.tensor_parallel import(
+from apex.transformer.tensor_parallel import (
     ColumnParallelLinear,
     RowParallelLinear,
     scatter_to_sequence_parallel_region,
@@ -55,9 +55,12 @@ class MyLayer(nn.Module):
 class MyModel(nn.Module):
     def __init__(
         self,
-        hidden_size: int, pre_process: bool = False, post_process: bool = False,
+        hidden_size: int,
+        pre_process: bool = False,
+        post_process: bool = False,
         *,
-        add_encoder: bool = False, add_decoder: bool = False,
+        add_encoder: bool = False,
+        add_decoder: bool = False,
     ) -> None:
         super().__init__()
         self.pre_process = pre_process
@@ -67,9 +70,7 @@ class MyModel(nn.Module):
         )
         self.input_tensor = None
 
-    def set_input_tensor(
-        self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]
-    ) -> None:
+    def set_input_tensor(self, input_tensor: Union[torch.Tensor, List[torch.Tensor]]) -> None:
         if not isinstance(input_tensor, list):
             input_tensor = [input_tensor]
         self.input_tensor = input_tensor[0]
@@ -83,11 +84,14 @@ class MyModel(nn.Module):
 class ToyParallelMLP(nn.Module):
     def __init__(
         self,
-        hidden_size: int, pre_process: bool = False, post_process: bool = False,
+        hidden_size: int,
+        pre_process: bool = False,
+        post_process: bool = False,
         *,
         sequence_parallel_enabled: bool = False,
         # TODO(mkozuki): Support these two?
-        add_encoder: bool = False, add_decoder: bool = False,
+        add_encoder: bool = False,
+        add_decoder: bool = False,
     ) -> None:
         super().__init__()
         self.pre_process = pre_process
@@ -158,8 +162,15 @@ def model_provider_func(
     post_process: bool,
     *,
     add_encoder: bool = False,
-    add_decoder: bool = False) -> MyModel:
-    return MyModel(hidden_size, pre_process, post_process, add_encoder=add_encoder, add_decoder=add_decoder)
+    add_decoder: bool = False,
+) -> MyModel:
+    return MyModel(
+        hidden_size,
+        pre_process,
+        post_process,
+        add_encoder=add_encoder,
+        add_decoder=add_decoder,
+    )
 
 
 def mlp_provider_func(
@@ -205,14 +216,16 @@ def fwd_step_func(batch, model):
 
 @dataclass(frozen=True)
 class ToyParallelMLPFwdBwdStepFunc:
-
     sequence_parallel_enabled: bool
 
     def __call__(
         self,
         batch: Batch,
         model: torch.nn.Module,
-    ) -> Tuple[torch.Tensor, Callable[[torch.Tensor], Tuple[torch.Tensor, Dict[str, torch.Tensor]]]]:
+    ) -> Tuple[
+        torch.Tensor,
+        Callable[[torch.Tensor], Tuple[torch.Tensor, Dict[str, torch.Tensor]]],
+    ]:
         x = batch[0] if isinstance(batch, list) else batch
         if isinstance(x, torch.Tensor):
             x = x.transpose(0, 1).contiguous()
@@ -258,7 +271,9 @@ def initialize_distributed(backend="nccl"):
         raise RuntimeError(f"Currently only nccl & ucc are supported but {backend}")
     if backend == "ucc":
         if not HAS_UCC:
-            raise ImportError("UCC backend requires pytorch source build with UCC installed and enabled")
+            raise ImportError(
+                "UCC backend requires pytorch source build with UCC installed and enabled"
+            )
     args = global_vars.get_args()
     local_rank = args.local_rank
 
@@ -267,8 +282,9 @@ def initialize_distributed(backend="nccl"):
     world_size = int(os.getenv("WORLD_SIZE", "1"))
 
     print(
-        "> initializing torch.distributed with local rank: {}, "
-        "rank: {}, world size: {}".format(local_rank, rank, world_size)
+        "> initializing torch.distributed with local rank: {}, rank: {}, world size: {}".format(
+            local_rank, rank, world_size
+        )
     )
 
     # Set the device id.
@@ -283,7 +299,10 @@ def initialize_distributed(backend="nccl"):
     master_port = os.getenv("MASTER_PORT", "6000")
     init_method += master_ip + ":" + master_port
     torch.distributed.init_process_group(
-        backend=backend, world_size=world_size, rank=rank, init_method=init_method,
+        backend=backend,
+        world_size=world_size,
+        rank=rank,
+        init_method=init_method,
         timeout=datetime.timedelta(seconds=60),
     )
 

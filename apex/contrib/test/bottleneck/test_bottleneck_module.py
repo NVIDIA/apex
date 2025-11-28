@@ -4,6 +4,7 @@ import torch
 from torch.testing._internal import common_utils
 
 from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+
 SKIP_TEST = None
 try:
     from apex.contrib.bottleneck import Bottleneck, SpatialBottleneck
@@ -46,7 +47,9 @@ def has_nan(x):
 
 
 def rel_diff_t(xx1, xx2):
-    return ((xx1 - xx2).norm(p=2, dtype=torch.float32) / (xx1 + xx2).norm(p=2, dtype=torch.float32)).item()
+    return (
+        (xx1 - xx2).norm(p=2, dtype=torch.float32) / (xx1 + xx2).norm(p=2, dtype=torch.float32)
+    ).item()
 
 
 def rel_diff(x1, x2):
@@ -190,7 +193,9 @@ def n_way_spatial(halex, gt_bottleneck, gt, explicit_nhwc, world_size, rank, fp3
         spatial_method,
         use_delay_kernel,
     )
-    spatial_bottleneck = spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, spatial_parallel_args)
+    spatial_bottleneck = spatial_parallel_bottleneck(
+        C, dtype, explicit_nhwc, gt_bottleneck, spatial_parallel_args
+    )
 
     with torch.no_grad():
         Hs = H // spatial_group_size
@@ -278,6 +283,7 @@ def main():
 class TestBottleneck(NcclDistributedTestBase):
     # PyTorch's float16 tolerance values, see https://pytorch.org/docs/stable/testing.html#torch.testing.assert_close
     fp16_tolerance = {"atol": 1e-5, "rtol": 1e-3}
+
     @property
     def world_size(self) -> int:
         return min(torch.cuda.device_count(), 2)
@@ -292,13 +298,17 @@ class TestBottleneck(NcclDistributedTestBase):
         gt_bottleneck = ground_truth_bottleneck(C, dtype, explicit_nhwc)
         gt = ground_truth(N, C, H, W, dtype, 1, gt_bottleneck)
 
-        spatial_bottleneck = spatial_parallel_bottleneck(C, dtype, explicit_nhwc, gt_bottleneck, None)
+        spatial_bottleneck = spatial_parallel_bottleneck(
+            C, dtype, explicit_nhwc, gt_bottleneck, None
+        )
         bt = apply_to_different_bottleneck(gt, spatial_bottleneck)
         self.assertEqual(gt, bt, **self.fp16_tolerance)
 
-    @unittest.skipIf(torch.cuda.device_count() < 2 or not torch.cuda.can_device_access_peer(0,1), "peer memory access not supported")
+    @unittest.skipIf(
+        torch.cuda.device_count() < 2 or not torch.cuda.can_device_access_peer(0, 1),
+        "peer memory access not supported",
+    )
     def test_bottleneck_with_peer_memory(self) -> None:
-
         explicit_nhwc: bool = True
         dtype: torch.dtype = torch.float16
         N, C, H, W = 1, 64, 200, 336
@@ -314,9 +324,17 @@ class TestBottleneck(NcclDistributedTestBase):
 
         spatial_group_size, spatial_communicator = self.world_size, None
         peer_pool = PeerMemoryPool(0, 64 * 1024 * 1024, ranks)
-        halo_exchanger_peer = HaloExchangerPeer(ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=0)
+        halo_exchanger_peer = HaloExchangerPeer(
+            ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=0
+        )
         bt2 = n_way_spatial(
-            halo_exchanger_peer, gt_bottleneck, gt, explicit_nhwc, self.world_size, self.rank, fp32_reduce=True
+            halo_exchanger_peer,
+            gt_bottleneck,
+            gt,
+            explicit_nhwc,
+            self.world_size,
+            self.rank,
+            fp32_reduce=True,
         )
         # TODO(crcrpar): Investigate the implementation to mitigate the numerical errors.
         # NOTE(crcrpar): This assert often fails due to numerical errors.

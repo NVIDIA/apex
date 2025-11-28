@@ -2,6 +2,7 @@ import torch
 import argparse
 import os
 from apex import amp
+
 # FOR DISTRIBUTED: (can also use torch.nn.parallel.DistributedDataParallel instead)
 from apex.parallel import DistributedDataParallel
 
@@ -14,8 +15,8 @@ args = parser.parse_args()
 # FOR DISTRIBUTED:  If we are running under torch.distributed.launch,
 # the 'WORLD_SIZE' environment variable will also be set automatically.
 args.distributed = False
-if 'WORLD_SIZE' in os.environ:
-    args.distributed = int(os.environ['WORLD_SIZE']) > 1
+if "WORLD_SIZE" in os.environ:
+    args.distributed = int(os.environ["WORLD_SIZE"]) > 1
 
 if args.distributed:
     # FOR DISTRIBUTED:  Set the device according to local_rank.
@@ -23,8 +24,7 @@ if args.distributed:
 
     # FOR DISTRIBUTED:  Initialize the backend.  torch.distributed.launch will provide
     # environment variables, and requires that you use init_method=`env://`.
-    torch.distributed.init_process_group(backend='nccl',
-                                         init_method='env://')
+    torch.distributed.init_process_group(backend="nccl", init_method="env://")
 
     torch.manual_seed(torch.distributed.get_rank())
 
@@ -36,8 +36,8 @@ N, D_in, D_out = 64, 1024, 16
 # The "training loop" in each process just uses this fake batch over and over.
 # https://github.com/NVIDIA/apex/tree/master/examples/imagenet provides a more realistic
 # example of distributed data sampling for both training and validation.
-x = torch.randn(N, D_in, device='cuda')
-y = torch.randn(N, D_out, device='cuda')
+x = torch.randn(N, D_in, device="cuda")
+y = torch.randn(N, D_out, device="cuda")
 
 model = torch.nn.Linear(D_in, D_out).cuda()
 optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
@@ -67,4 +67,7 @@ if args.local_rank == 0:
     print("final loss = ", loss)
 
 torch.save(list(model.parameters()), "rank{}model.pth".format(torch.distributed.get_rank()))
-torch.save(list(amp.master_params(optimizer)), "rank{}master.pth".format(torch.distributed.get_rank()))
+torch.save(
+    list(amp.master_params(optimizer)),
+    "rank{}master.pth".format(torch.distributed.get_rank()),
+)

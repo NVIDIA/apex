@@ -18,17 +18,23 @@ logging.getLogger("apex").setLevel(logging.WARNING)
 
 
 def torch_cross_entropy(
-    batch_size: int, seq_length: int, vocab_size: int, logits_scale: float, seed: int, label_smoothing: float = 0.0
+    batch_size: int,
+    seq_length: int,
+    vocab_size: int,
+    logits_scale: float,
+    seed: int,
+    label_smoothing: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     set_random_seed(seed)
-    identity = IdentityLayer(
-        (batch_size, seq_length, vocab_size), scale=logits_scale
-    ).cuda()
+    identity = IdentityLayer((batch_size, seq_length, vocab_size), scale=logits_scale).cuda()
     logits = identity()
     target = torch.cuda.LongTensor(size=(batch_size, seq_length)).random_(0, vocab_size)
     loss = (
         F.cross_entropy(
-            logits.view(-1, logits.size()[-1]), target.view(-1), reduction="none", label_smoothing=label_smoothing
+            logits.view(-1, logits.size()[-1]),
+            target.view(-1),
+            reduction="none",
+            label_smoothing=label_smoothing,
         )
         .view_as(target)
         .mean()
@@ -41,14 +47,14 @@ def tensor_sharded_cross_entropy(
     batch_size, seq_length, vocab_size, logits_scale, seed, label_smoothing=0.0
 ):
     set_random_seed(seed)
-    identity = IdentityLayer(
-        (batch_size, seq_length, vocab_size), scale=logits_scale
-    ).cuda()
+    identity = IdentityLayer((batch_size, seq_length, vocab_size), scale=logits_scale).cuda()
     logits = identity()
     logits_parallel = tensor_parallel.scatter_to_tensor_model_parallel_region(logits)
     target = torch.cuda.LongTensor(size=(batch_size, seq_length)).random_(0, vocab_size)
     logits_parallel_ = logits_parallel.clone().detach()
-    loss = cross_entropy.vocab_parallel_cross_entropy(logits_parallel, target, label_smoothing=label_smoothing).mean()
+    loss = cross_entropy.vocab_parallel_cross_entropy(
+        logits_parallel, target, label_smoothing=label_smoothing
+    ).mean()
     loss.backward()
     # check for mutation
     assert torch.equal(logits_parallel_, logits_parallel)
@@ -78,19 +84,25 @@ class VocabParallelCrossEntropyTestBase:
             )
 
             self.assertEqual(
-                loss_torch, loss_tensor_parallel,
+                loss_torch,
+                loss_tensor_parallel,
                 msg=f"tensor_model_parallel_size: {tensor_model_parallel_world_size}",
             )
             self.assertEqual(
-                grad_torch, grad_tensor_parallel,
+                grad_torch,
+                grad_tensor_parallel,
                 msg=f"tensor_model_parallel_size: {tensor_model_parallel_world_size}",
             )
 
             parallel_state.destroy_model_parallel()
 
 
-class NcclVocabParallelCrossEntropyTest(VocabParallelCrossEntropyTestBase, NcclDistributedTestBase): pass
-class UccVocabParallelCrossEntropyTest(VocabParallelCrossEntropyTestBase, UccDistributedTestBase): pass
+class NcclVocabParallelCrossEntropyTest(VocabParallelCrossEntropyTestBase, NcclDistributedTestBase):
+    pass
+
+
+class UccVocabParallelCrossEntropyTest(VocabParallelCrossEntropyTestBase, UccDistributedTestBase):
+    pass
 
 
 if __name__ == "__main__":

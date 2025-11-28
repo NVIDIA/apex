@@ -14,6 +14,7 @@
 # limitations under the License.
 
 """Utilities for pipeline model parallel."""
+
 from typing import Optional, List, Union, Tuple
 
 import torch
@@ -24,6 +25,7 @@ from apex.transformer import parallel_state
 from apex.transformer.enums import ModelType
 from apex.transformer.microbatches import build_num_microbatches_calculator
 from apex.transformer.pipeline_parallel._timers import _Timers
+
 if multi_tensor_applier.available:
     import amp_C
 
@@ -39,7 +41,9 @@ _GLOBAL_TIMERS = None
 Shape = Union[List[int], torch.Size]
 
 
-def listify_model(model: Union[torch.nn.Module, List[torch.nn.Module]]) -> List[torch.nn.Module]:
+def listify_model(
+    model: Union[torch.nn.Module, List[torch.nn.Module]],
+) -> List[torch.nn.Module]:
     if isinstance(model, list):
         return model
     return [model]
@@ -56,33 +60,38 @@ def _ensure_var_is_not_initialized(var, name):
 
 
 def setup_microbatch_calculator(
-        rank: int,
-        rampup_batch_size: Optional[List[int]],
-        global_batch_size: int,
-        micro_batch_size: int,
-        data_parallel_size: int,
+    rank: int,
+    rampup_batch_size: Optional[List[int]],
+    global_batch_size: int,
+    micro_batch_size: int,
+    data_parallel_size: int,
 ) -> None:
     global _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-    _ensure_var_is_not_initialized(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'num microbatches calculator')
+    _ensure_var_is_not_initialized(
+        _GLOBAL_NUM_MICROBATCHES_CALCULATOR, "num microbatches calculator"
+    )
 
     _GLOBAL_NUM_MICROBATCHES_CALCULATOR = build_num_microbatches_calculator(
-        rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size)
+        rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size
+    )
 
 
 def _reconfigure_microbatch_calculator(
-        rank: int,
-        rampup_batch_size: Optional[List[int]],
-        global_batch_size: int,
-        micro_batch_size: int,
-        data_parallel_size: int,
+    rank: int,
+    rampup_batch_size: Optional[List[int]],
+    global_batch_size: int,
+    micro_batch_size: int,
+    data_parallel_size: int,
 ) -> None:
     if torch.distributed.get_rank() == 0:
         import warnings
+
         warnings.warn("This function is only for unittest")
     global _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
     _GLOBAL_NUM_MICROBATCHES_CALCULATOR = build_num_microbatches_calculator(
-        rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size)
+        rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size
+    )
 
 
 def get_micro_batch_size():
@@ -103,10 +112,10 @@ def update_num_microbatches(consumed_samples, consistency_check=True):
 
 # note (mkozuki): Comment out in favor of `get_kth_microbatch`
 def _split_batch_into_microbatch(
-        batch: List[torch.Tensor],
-        *,
-        _micro_batch_size: Optional[int] = None,
-        _global_batch_size: Optional[int] = None,
+    batch: List[torch.Tensor],
+    *,
+    _micro_batch_size: Optional[int] = None,
+    _global_batch_size: Optional[int] = None,
 ) -> List[List[torch.Tensor]]:
     micro_batch_size = _micro_batch_size
     global_batch_size = _global_batch_size
@@ -115,7 +124,7 @@ def _split_batch_into_microbatch(
     if global_batch_size is None:
         global_batch_size = get_current_global_batch_size()
     for i in range(0, global_batch_size, micro_batch_size):
-        yield [x[i * micro_batch_size:(i + 1) * micro_batch_size] for x in batch]
+        yield [x[i * micro_batch_size : (i + 1) * micro_batch_size] for x in batch]
 
 
 # TODO(mkozuki): Support non-tensor local minibatches?
@@ -198,7 +207,7 @@ def unwrap_model(model, module_instances=(DistributedDataParallel,)):
 
 
 def get_model_type(
-        model: torch.nn.Module,
+    model: torch.nn.Module,
 ) -> ModelType:
     """Get `model_type` of `model`.
 
@@ -211,7 +220,7 @@ def get_model_type(
 
 
 def calc_params_l2_norm(model: torch.nn.Module, bf16: bool):
-    """Calculate l2 norm of parameters """
+    """Calculate l2 norm of parameters"""
     # args = get_args()
     if not isinstance(model, list):
         model = [model]
@@ -229,12 +238,17 @@ def calc_params_l2_norm(model: torch.nn.Module, bf16: bool):
     # Calculate norm
     dummy_overflow_buf = torch.cuda.IntTensor([0])
     norm, _ = multi_tensor_applier(
-        amp_C.multi_tensor_l2norm, dummy_overflow_buf, [params_data], False  # no per-parameter norm
+        amp_C.multi_tensor_l2norm,
+        dummy_overflow_buf,
+        [params_data],
+        False,  # no per-parameter norm
     )
     norm_2 = norm * norm
     # Sum across all model-parallel GPUs.
     torch.distributed.all_reduce(
-        norm_2, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
+        norm_2,
+        op=torch.distributed.ReduceOp.SUM,
+        group=parallel_state.get_model_parallel_group(),
     )
     return norm_2.item() ** 0.5
 
@@ -332,7 +346,6 @@ def get_ltor_masks_and_position_ids(
     if reset_position_ids or reset_attention_mask:
         # Loop through the batches:
         for b in range(micro_batch_size):
-
             # Find indecies where EOD token is.
             eod_index = position_ids[b, data[b] == eod_token]
             # Detach indecies from positions if going to modify positions.

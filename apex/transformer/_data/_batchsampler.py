@@ -2,6 +2,7 @@
 
 Implementations are based on https://github.com/NVIDIA/Megatron-LM/blob/bcd605f8570ebeeb0436c115ebbfafc3c5a40ae5/megatron/data/data_samplers.py.
 """  # NOQA
+
 import abc
 
 import torch
@@ -17,26 +18,21 @@ class _Base:
     """Base class for Megatron style BatchSampler."""
 
     @abc.abstractmethod
-    def __len__(self) -> int:
-        ...
+    def __len__(self) -> int: ...
 
     @abc.abstractmethod
-    def __iter__(self):
-        ...
+    def __iter__(self): ...
 
     @property
     @abc.abstractmethod
-    def local_minibatch_size(self) -> int:
-        ...
+    def local_minibatch_size(self) -> int: ...
 
     @local_minibatch_size.setter
     @abc.abstractclassmethod
-    def local_minibatch_size(self) -> None:
-        ...
+    def local_minibatch_size(self) -> None: ...
 
 
 class MegatronPretrainingSampler(_Base):
-
     def __init__(
         self,
         total_samples: int,
@@ -48,22 +44,34 @@ class MegatronPretrainingSampler(_Base):
     ):
         # Sanity checks.
         if total_samples <= 0:
-            raise RuntimeError('no sample to consume: {}'.format(self.total_samples))
+            raise RuntimeError("no sample to consume: {}".format(self.total_samples))
         if consumed_samples >= total_samples:
-            raise RuntimeError('no samples left to consume: {}, {}'.format(self.consumed_samples, self.total_samples))
+            raise RuntimeError(
+                "no samples left to consume: {}, {}".format(
+                    self.consumed_samples, self.total_samples
+                )
+            )
         if local_minibatch_size <= 0:
-            raise RuntimeError(f"local minibatch size must be greater than 0: {local_minibatch_size}")
+            raise RuntimeError(
+                f"local minibatch size must be greater than 0: {local_minibatch_size}"
+            )
         if data_parallel_size <= 0:
             raise RuntimeError(f"data parallel size must be greater than 0: {data_parallel_size}")
         if data_parallel_rank >= data_parallel_size:
-            raise RuntimeError('data_parallel_rank should be smaller than data size: {}, {}'.format(self.data_parallel_rank, data_parallel_size))
+            raise RuntimeError(
+                "data_parallel_rank should be smaller than data size: {}, {}".format(
+                    self.data_parallel_rank, data_parallel_size
+                )
+            )
         # Keep a copy of input params for later use.
         self.total_samples = total_samples
         self.consumed_samples = consumed_samples
         self._local_minibatch_size = local_minibatch_size
         self.data_parallel_rank = data_parallel_rank
         self.data_parallel_size = data_parallel_size
-        self.local_minibatch_times_data_parallel_size = self._local_minibatch_size * data_parallel_size
+        self.local_minibatch_times_data_parallel_size = (
+            self._local_minibatch_size * data_parallel_size
+        )
         self.drop_last = drop_last
 
     def __len__(self):
@@ -81,7 +89,9 @@ class MegatronPretrainingSampler(_Base):
     @local_minibatch_size.setter
     def local_minibatch_size(self, new_local_minibatch_size) -> None:
         self._local_minibatch_size = new_local_minibatch_size
-        self.local_minibatch_times_data_parallel_size = self._local_minibatch_size * self.data_parallel_size
+        self.local_minibatch_times_data_parallel_size = (
+            self._local_minibatch_size * self.data_parallel_size
+        )
 
     def __iter__(self):
         batch = []
@@ -138,7 +148,9 @@ class MegatronPretrainingRandomSampler(_Base):
         self._local_minibatch_size = local_minibatch_size
         self.data_parallel_rank = data_parallel_rank
         self.data_parallel_size = data_parallel_size
-        self.local_minibatch_times_data_parallel_size = self._local_minibatch_size * self.data_parallel_size
+        self.local_minibatch_times_data_parallel_size = (
+            self._local_minibatch_size * self.data_parallel_size
+        )
         self.last_batch_size = self.total_samples % self.local_minibatch_times_data_parallel_size
 
     def __len__(self) -> int:
@@ -151,7 +163,9 @@ class MegatronPretrainingRandomSampler(_Base):
     @local_minibatch_size.setter
     def local_minibatch_size(self, new_local_minibatch_size) -> None:
         self._local_minibatch_size = new_local_minibatch_size
-        self.local_minibatch_times_data_parallel_size = self._local_minibatch_size * self.data_parallel_size
+        self.local_minibatch_times_data_parallel_size = (
+            self._local_minibatch_size * self.data_parallel_size
+        )
 
     def __iter__(self):
         active_total_samples = self.total_samples - self.last_batch_size
@@ -161,7 +175,9 @@ class MegatronPretrainingRandomSampler(_Base):
         # assert current_epoch_samples % (self.data_parallel_size * apex.transformer.pipeline_parallel.utils.get_micro_batch_size()) == 0
 
         # data sharding and random sampling
-        bucket_size = (self.total_samples // self.local_minibatch_times_data_parallel_size) * self.local_minibatch_size
+        bucket_size = (
+            self.total_samples // self.local_minibatch_times_data_parallel_size
+        ) * self.local_minibatch_size
         bucket_offset = current_epoch_samples // self.data_parallel_size
         start_idx = self.data_parallel_rank * bucket_size
 

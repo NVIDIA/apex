@@ -1,11 +1,11 @@
 import torch
 import numpy as np
-import apex
+
 
 def compare(desc, inp1, inp2, error):
     a = inp1.clone().detach().cpu().numpy()
     b = inp2.clone().detach().cpu().numpy()
-    close = np.allclose(a,b, error, error)
+    close = np.allclose(a, b, error, error)
     if not close:
         print(desc, close)
         z = a - b
@@ -14,6 +14,7 @@ def compare(desc, inp1, inp2, error):
         print("inp1   : ", a[index])
         print("inp2   : ", b[index])
     return close
+
 
 feature_size = 10
 space_size = 16
@@ -73,7 +74,7 @@ sbn_result = True
 sbn_result_c_last = True
 bn_result = True
 
-out_r = weight_r * (inp2_r - m.view(-1, 1, 1)) * torch.rsqrt(b_v.view(-1,1,1) + eps) + bias_r
+out_r = weight_r * (inp2_r - m.view(-1, 1, 1)) * torch.rsqrt(b_v.view(-1, 1, 1) + eps) + bias_r
 
 compare("comparing bn output: ", out_bn, out_r, error)
 
@@ -83,29 +84,59 @@ grad_output_r = ref_tensor(grad.transpose(1, 0, 2, 3).reshape(feature_size, -1))
 grad_output2_r = ref_tensor(grad)
 
 grad_bias_r = grad_output_r.sum(1)
-grad_weight_r = ((inp2_r - m.view(-1, 1, 1)) * torch.rsqrt(b_v.view(-1,1,1) + eps) * grad_output2_r).transpose(1,0).contiguous().view(feature_size, -1).sum(1)
+grad_weight_r = (
+    ((inp2_r - m.view(-1, 1, 1)) * torch.rsqrt(b_v.view(-1, 1, 1) + eps) * grad_output2_r)
+    .transpose(1, 0)
+    .contiguous()
+    .view(feature_size, -1)
+    .sum(1)
+)
 
 mean_dy_r = grad_output_r.mean(1)
-mean_dy_xmu_r = ((inp2_r - m.view(-1, 1, 1)) * grad_output2_r).transpose(1,0).contiguous().view(feature_size, -1).mean(1)
+mean_dy_xmu_r = (
+    ((inp2_r - m.view(-1, 1, 1)) * grad_output2_r)
+    .transpose(1, 0)
+    .contiguous()
+    .view(feature_size, -1)
+    .mean(1)
+)
 
-grad_input_r = (grad_output2_r - mean_dy_r.view(-1, 1, 1) - (inp2_r - m.view(-1, 1, 1)) / (b_v.view(-1,1,1) + eps) * mean_dy_xmu_r.view(-1, 1, 1) ) * torch.rsqrt(b_v.view(-1,1,1) + eps) * weight_r.view(-1,1,1)
+grad_input_r = (
+    (
+        grad_output2_r
+        - mean_dy_r.view(-1, 1, 1)
+        - (inp2_r - m.view(-1, 1, 1)) / (b_v.view(-1, 1, 1) + eps) * mean_dy_xmu_r.view(-1, 1, 1)
+    )
+    * torch.rsqrt(b_v.view(-1, 1, 1) + eps)
+    * weight_r.view(-1, 1, 1)
+)
 
 compare("comparing bn input grad: ", inp_bn.grad, grad_input_r, error)
 sbn_result = compare("comparing sbn input grad: ", inp_sbn.grad, grad_input_r, error) and sbn_result
 
 compare("comparing bn/sbn output: ", out_bn, out_sbn, error)
-sbn_result = compare("comparing running_mean: ", bn.running_mean.data, sbn.running_mean.data, error) and sbn_result
-sbn_result = compare("comparing running_variance: ", bn.running_var.data, sbn.running_var.data, error) and sbn_result
+sbn_result = (
+    compare("comparing running_mean: ", bn.running_mean.data, sbn.running_mean.data, error)
+    and sbn_result
+)
+sbn_result = (
+    compare("comparing running_variance: ", bn.running_var.data, sbn.running_var.data, error)
+    and sbn_result
+)
 compare("comparing grad_input: ", inp_bn.grad, inp_sbn.grad, error)
 compare("comparing grad_bias: ", bn.bias.grad, sbn.bias.grad, error)
 compare("comparing grad_bias bn to ref: ", bn.bias.grad, grad_bias_r, error)
-sbn_result = compare("comparing grad_bias sbn to ref: ", sbn.bias.grad, grad_bias_r, error) and sbn_result
+sbn_result = (
+    compare("comparing grad_bias sbn to ref: ", sbn.bias.grad, grad_bias_r, error) and sbn_result
+)
 compare("comparing grad_weight: ", bn.weight.grad, sbn.weight.grad, error)
 compare("comparing grad_weight bn to ref: ", bn.weight.grad, grad_weight_r, error)
-sbn_result = compare("comparing grad_weight sbn to ref: ", sbn.weight.grad, grad_weight_r, error) and sbn_result
+sbn_result = (
+    compare("comparing grad_weight sbn to ref: ", sbn.weight.grad, grad_weight_r, error)
+    and sbn_result
+)
 
 if sbn_result:
     print("====SBN single gpu passed tests")
 else:
     print("*SBN single gpu failed*")
-

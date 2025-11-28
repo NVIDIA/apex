@@ -28,7 +28,9 @@ schedule_log = torch._logging.getArtifactLogger(__name__, "schedule")
 
 
 @functools.wraps(GraphLowering.codegen)
-def _torchsched_codegen(graph: GraphLowering) -> tuple[ValueWithLineMap, ValueWithLineMap]:
+def _torchsched_codegen(
+    graph: GraphLowering,
+) -> tuple[ValueWithLineMap, ValueWithLineMap]:
     # Move patching logic here as post_grad_graph_id was not available until now.
     cpp_wrapper_cls = get_wrapper_codegen_for_device(patching_device_type, cpp_wrapper=True)
     only_cpu = len(graph.device_types - {"cpu", "meta"}) == 0

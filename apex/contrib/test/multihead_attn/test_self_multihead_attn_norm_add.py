@@ -21,12 +21,21 @@ class SelfMultiheadAttnNormAddTest(unittest.TestCase):
         self.dropout_prob = 0.0
 
         self.ref_layer = SelfMultiheadAttn(
-            self.hidden_dim, self.heads, dropout=self.dropout_prob, bias=False, include_norm_add=True, impl="default"
+            self.hidden_dim,
+            self.heads,
+            dropout=self.dropout_prob,
+            bias=False,
+            include_norm_add=True,
+            impl="default",
         )
         self.ref_layer.cuda().half()
         self.ref_layer.reset_parameters()
         self.ref_inputs = torch.randn(
-            self.seq_length, self.sequences, self.hidden_dim, dtype=torch.float16, device=torch.device("cuda")
+            self.seq_length,
+            self.sequences,
+            self.hidden_dim,
+            dtype=torch.float16,
+            device=torch.device("cuda"),
         ).requires_grad_(True)
 
         # Reset seed so parameters are identical
@@ -34,13 +43,22 @@ class SelfMultiheadAttnNormAddTest(unittest.TestCase):
         torch.cuda.manual_seed_all(seed)
 
         self.tst_layer = SelfMultiheadAttn(
-            self.hidden_dim, self.heads, dropout=self.dropout_prob, bias=False, include_norm_add=True, impl="fast"
+            self.hidden_dim,
+            self.heads,
+            dropout=self.dropout_prob,
+            bias=False,
+            include_norm_add=True,
+            impl="fast",
         )
         self.tst_layer.cuda().half()
         self.tst_layer.reset_parameters()
 
         self.tst_inputs = torch.randn(
-            self.seq_length, self.sequences, self.hidden_dim, dtype=torch.float16, device=torch.device("cuda")
+            self.seq_length,
+            self.sequences,
+            self.hidden_dim,
+            dtype=torch.float16,
+            device=torch.device("cuda"),
         ).requires_grad_(True)
 
     def test_self_multihead_attn_norm_add(self):

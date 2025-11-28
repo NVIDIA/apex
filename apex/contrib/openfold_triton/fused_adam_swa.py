@@ -403,7 +403,10 @@ class FusedAdamSWA(Optimizer):
                 )
             grad_ptr.append(p.grad.data_ptr())
 
-        for (compute_dtype, state_dtype), buffer_group in self.pointer_buffer_groups.items():
+        for (
+            compute_dtype,
+            state_dtype,
+        ), buffer_group in self.pointer_buffer_groups.items():
             device = buffer_group["device"]
             t_idx = buffer_group["tensor_idx"]
             grad_ptr_this_group = [grad_ptr[i] for i in t_idx]

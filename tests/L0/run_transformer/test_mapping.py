@@ -41,17 +41,12 @@ class MappingTestBase:
                 tensor_model_parallel_size_=tensor_model_paralell_world_size
             )
 
-            tensors = [
-                torch.randn(10, 1)
-                for _ in range(tensor_model_paralell_world_size)
-            ]
+            tensors = [torch.randn(10, 1) for _ in range(tensor_model_paralell_world_size)]
             x = torch.cat(tensors, 1)
             out = mappings._split_along_last_dim(x)
             self.assertTrue(
-                torch.equal(
-                    out, tensors[parallel_state.get_tensor_model_parallel_rank()]
-                ),
-                msg=f"tensor_model_paralell_world_size: {tensor_model_paralell_world_size}"
+                torch.equal(out, tensors[parallel_state.get_tensor_model_parallel_rank()]),
+                msg=f"tensor_model_paralell_world_size: {tensor_model_paralell_world_size}",
             )
             parallel_state.destroy_model_parallel()
 
@@ -64,9 +59,7 @@ class MappingTestBase:
             )
             device = f"cuda:{self.rank}"
             gathered = mappings._gather_along_last_dim(
-                torch.tensor(
-                    [parallel_state.get_tensor_model_parallel_rank()], device=device
-                )
+                torch.tensor([parallel_state.get_tensor_model_parallel_rank()], device=device)
             )
             expected = torch.tensor(
                 [rank for rank in range(tensor_model_paralell_world_size)],
@@ -79,8 +72,12 @@ class MappingTestBase:
             parallel_state.destroy_model_parallel()
 
 
-class NcclMappingTest(MappingTestBase, NcclDistributedTestBase): pass
-class UccMappingTest(MappingTestBase, UccDistributedTestBase): pass
+class NcclMappingTest(MappingTestBase, NcclDistributedTestBase):
+    pass
+
+
+class UccMappingTest(MappingTestBase, UccDistributedTestBase):
+    pass
 
 
 if __name__ == "__main__":

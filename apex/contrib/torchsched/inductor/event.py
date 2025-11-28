@@ -53,7 +53,10 @@ class CudaEventSym:
         """Whether the current event is generated before the rhs event."""
         if self.factory is not rhs.factory:
             return NotImplemented
-        return (self.idx, self.originate_stream_idx) < (rhs.idx, rhs.originate_stream_idx)
+        return (self.idx, self.originate_stream_idx) < (
+            rhs.idx,
+            rhs.originate_stream_idx,
+        )
 
     def __eq__(self, rhs: object) -> bool:
         """Whether the current event is identical to the rhs event."""
@@ -122,7 +125,6 @@ class CudaEventSym:
 
 @dataclasses.dataclass
 class _CudaEventRecordLine(WrapperLine):
-
     event: CudaEventSym
     stream: str
     _reuse_cuda_event: bool = torchsched_config.reuse_cuda_event
@@ -137,7 +139,6 @@ class _CudaEventRecordLine(WrapperLine):
 
 @dataclasses.dataclass
 class _CudaEventWaitLine(WrapperLine):
-
     event: CudaEventSym
     stream: str
 

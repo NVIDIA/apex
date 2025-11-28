@@ -81,7 +81,7 @@ def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
     print("\nCompiling cuda extensions with")
     print(raw_output + "from " + cuda_dir + "/bin\n")
 
-    if (bare_metal_version != torch_binary_version):
+    if bare_metal_version != torch_binary_version:
         raise RuntimeError(
             "Cuda extensions are being compiled with a version of Cuda that does "
             "not match the version used to compile Pytorch binaries.  "
@@ -160,7 +160,9 @@ extras = {}
 if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
     if TORCH_MAJOR == 0:
         raise RuntimeError(
-            "--cpp_ext requires Pytorch 1.0 or later, " "found torch.__version__ = {}".format(torch.__version__)
+            "--cpp_ext requires Pytorch 1.0 or later, found torch.__version__ = {}".format(
+                torch.__version__
+            )
         )
 
 if has_flag("--cpp_ext", "APEX_CPP_EXT"):
@@ -334,7 +336,10 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     ext_modules.append(
         CUDAExtension(
             name="scaled_masked_softmax_cuda",
-            sources=["csrc/megatron/scaled_masked_softmax.cpp", "csrc/megatron/scaled_masked_softmax_cuda.cu"],
+            sources=[
+                "csrc/megatron/scaled_masked_softmax.cpp",
+                "csrc/megatron/scaled_masked_softmax_cuda.cu",
+            ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"],
@@ -352,7 +357,10 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     ext_modules.append(
         CUDAExtension(
             name="scaled_softmax_cuda",
-            sources=["csrc/megatron/scaled_softmax.cpp", "csrc/megatron/scaled_softmax_cuda.cu"],
+            sources=[
+                "csrc/megatron/scaled_softmax.cpp",
+                "csrc/megatron/scaled_softmax_cuda.cu",
+            ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"],
@@ -416,15 +424,30 @@ if has_flag("--permutation_search", "APEX_PERMUTATION_SEARCH"):
         sys.argv.remove("--permutation_search")
 
     if CUDA_HOME is None:
-        raise RuntimeError("--permutation_search was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+        raise RuntimeError(
+            "--permutation_search was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc."
+        )
     else:
-        cc_flag = ['-Xcompiler', '-fPIC', '-shared']
+        cc_flag = ["-Xcompiler", "-fPIC", "-shared"]
         ext_modules.append(
-            CUDAExtension(name='permutation_search_cuda',
-                          sources=['apex/contrib/sparsity/permutation_search_kernels/CUDA_kernels/permutation_search_kernels.cu'],
-                          include_dirs=[os.path.join(this_dir, 'apex', 'contrib', 'sparsity', 'permutation_search_kernels', 'CUDA_kernels')],
-                          extra_compile_args={'cxx': ['-O3'],
-                                              'nvcc':['-O3'] + cc_flag}))
+            CUDAExtension(
+                name="permutation_search_cuda",
+                sources=[
+                    "apex/contrib/sparsity/permutation_search_kernels/CUDA_kernels/permutation_search_kernels.cu"
+                ],
+                include_dirs=[
+                    os.path.join(
+                        this_dir,
+                        "apex",
+                        "contrib",
+                        "sparsity",
+                        "permutation_search_kernels",
+                        "CUDA_kernels",
+                    )
+                ],
+                extra_compile_args={"cxx": ["-O3"], "nvcc": ["-O3"] + cc_flag},
+            )
+        )
 
 if has_flag("--bnp", "APEX_BNP"):
     if "--bnp" in sys.argv:
@@ -454,6 +477,7 @@ if has_flag("--bnp", "APEX_BNP"):
 
 if has_flag("--xentropy", "APEX_XENTROPY"):
     from datetime import datetime
+
     if "--xentropy" in sys.argv:
         sys.argv.remove("--xentropy")
     raise_if_cuda_home_none("--xentropy")
@@ -462,7 +486,10 @@ if has_flag("--xentropy", "APEX_XENTROPY"):
     ext_modules.append(
         CUDAExtension(
             name="xentropy_cuda",
-            sources=["apex/contrib/csrc/xentropy/interface.cpp", "apex/contrib/csrc/xentropy/xentropy_kernel.cu"],
+            sources=[
+                "apex/contrib/csrc/xentropy/interface.cpp",
+                "apex/contrib/csrc/xentropy/xentropy_kernel.cu",
+            ],
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"] + [f'-DXENTROPY_VER="{xentropy_ver}"'],
@@ -477,15 +504,15 @@ if has_flag("--focal_loss", "APEX_FOCAL_LOSS"):
     raise_if_cuda_home_none("--focal_loss")
     ext_modules.append(
         CUDAExtension(
-            name='focal_loss_cuda',
+            name="focal_loss_cuda",
             sources=[
-                'apex/contrib/csrc/focal_loss/focal_loss_cuda.cpp',
-                'apex/contrib/csrc/focal_loss/focal_loss_cuda_kernel.cu',
+                "apex/contrib/csrc/focal_loss/focal_loss_cuda.cpp",
+                "apex/contrib/csrc/focal_loss/focal_loss_cuda_kernel.cu",
             ],
-            include_dirs=[os.path.join(this_dir, 'csrc')],
+            include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                'cxx': ['-O3'],
-                'nvcc':['-O3', '--use_fast_math', '--ftz=false'],
+                "cxx": ["-O3"],
+                "nvcc": ["-O3", "--use_fast_math", "--ftz=false"],
             },
         )
     )
@@ -500,12 +527,16 @@ if has_flag("--group_norm", "APEX_GROUP_NORM"):
             name="group_norm_cuda",
             sources=[
                 "apex/contrib/csrc/group_norm/group_norm_nhwc_op.cpp",
-            ] + glob.glob("apex/contrib/csrc/group_norm/*.cu"),
-            include_dirs=[os.path.join(this_dir, 'csrc')],
+            ]
+            + glob.glob("apex/contrib/csrc/group_norm/*.cu"),
+            include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3", "-std=c++17"],
                 "nvcc": [
-                    "-O3", "-std=c++17", "--use_fast_math", "--ftz=false",
+                    "-O3",
+                    "-std=c++17",
+                    "--use_fast_math",
+                    "--ftz=false",
                 ],
             },
         )
@@ -529,16 +560,20 @@ if has_flag("--group_norm", "APEX_GROUP_NORM"):
                     "apex/contrib/csrc/group_norm_v2/gn.cpp",
                     "apex/contrib/csrc/group_norm_v2/gn_cuda.cu",
                     "apex/contrib/csrc/group_norm_v2/gn_utils.cpp",
-                ] + glob.glob("apex/contrib/csrc/group_norm_v2/gn_cuda_inst_*.cu"),
+                ]
+                + glob.glob("apex/contrib/csrc/group_norm_v2/gn_cuda_inst_*.cu"),
                 extra_compile_args={
                     "cxx": ["-O2"],
                     "nvcc": [
-                        "-O2", "--use_fast_math", "--ftz=false",
+                        "-O2",
+                        "--use_fast_math",
+                        "--ftz=false",
                         "-U__CUDA_NO_HALF_CONVERSIONS__",
                         "-U__CUDA_NO_HALF_OPERATORS__",
                         "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
                         "-U__CUDA_NO_BFLOAT16_OPERATORS__",
-                    ] + arch_flags,
+                    ]
+                    + arch_flags,
                 },
             )
         )
@@ -549,15 +584,15 @@ if has_flag("--index_mul_2d", "APEX_INDEX_MUL_2D"):
     raise_if_cuda_home_none("--index_mul_2d")
     ext_modules.append(
         CUDAExtension(
-            name='fused_index_mul_2d',
+            name="fused_index_mul_2d",
             sources=[
-                'apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda.cpp',
-                'apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda_kernel.cu',
+                "apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda.cpp",
+                "apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda_kernel.cu",
             ],
-            include_dirs=[os.path.join(this_dir, 'csrc')],
+            include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                'cxx': ['-O3'],
-                'nvcc':['-O3', '--use_fast_math', '--ftz=false'],
+                "cxx": ["-O3"],
+                "nvcc": ["-O3", "--use_fast_math", "--ftz=false"],
             },
         )
     )
@@ -635,7 +670,8 @@ if has_flag("--fast_layer_norm", "APEX_FAST_LAYER_NORM"):
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
                     "--use_fast_math",
-                ] + generator_flag,
+                ]
+                + generator_flag,
             },
             include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/layer_norm")],
         )
@@ -689,7 +725,9 @@ if has_flag("--fmha", "APEX_FMHA"):
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
                     "--use_fast_math",
-                ] + generator_flag + cc_flag,
+                ]
+                + generator_flag
+                + cc_flag,
             },
             include_dirs=[
                 os.path.join(this_dir, "apex/contrib/csrc"),
@@ -704,7 +742,15 @@ if has_flag("--fast_multihead_attn", "APEX_FAST_MULTIHEAD_ATTN"):
         sys.argv.remove("--fast_multihead_attn")
     raise_if_cuda_home_none("--fast_multihead_attn")
 
-    subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/multihead_attn/cutlass"])
+    subprocess.run(
+        [
+            "git",
+            "submodule",
+            "update",
+            "--init",
+            "apex/contrib/csrc/multihead_attn/cutlass",
+        ]
+    )
     ext_modules.append(
         CUDAExtension(
             name="fast_multihead_attn",
@@ -728,11 +774,15 @@ if has_flag("--fast_multihead_attn", "APEX_FAST_MULTIHEAD_ATTN"):
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
                     "--use_fast_math",
-                ] + generator_flag,
+                ]
+                + generator_flag,
             },
             include_dirs=[
                 os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass/include/"),
-                os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass/tools/util/include")
+                os.path.join(
+                    this_dir,
+                    "apex/contrib/csrc/multihead_attn/cutlass/tools/util/include",
+                ),
             ],
         )
     )
@@ -752,7 +802,10 @@ if has_flag("--transducer", "APEX_TRANSDUCER"):
                 "cxx": ["-O3"] + generator_flag,
                 "nvcc": ["-O3"] + generator_flag,
             },
-            include_dirs=[os.path.join(this_dir, "csrc"), os.path.join(this_dir, "apex/contrib/csrc/multihead_attn")],
+            include_dirs=[
+                os.path.join(this_dir, "csrc"),
+                os.path.join(this_dir, "apex/contrib/csrc/multihead_attn"),
+            ],
         )
     )
     ext_modules.append(
@@ -775,7 +828,15 @@ if has_flag("--cudnn_gbn", "APEX_CUDNN_GBN"):
         sys.argv.remove("--cudnn_gbn")
     raise_if_cuda_home_none("--cudnn_gbn")
     if check_cudnn_version_and_warn("--cudnn_gbn", 8500):
-        subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
+        subprocess.run(
+            [
+                "git",
+                "submodule",
+                "update",
+                "--init",
+                "apex/contrib/csrc/cudnn-frontend/",
+            ]
+        )
         ext_modules.append(
             CUDAExtension(
                 name="cudnn_gbn_lib",
@@ -811,8 +872,10 @@ if has_flag("--nccl_p2p", "APEX_NCCL_P2P"):
     # Check NCCL version.
     _nccl_version_getter = load(
         name="_nccl_version_getter",
-        sources=["apex/contrib/csrc/nccl_p2p/nccl_version.cpp", "apex/contrib/csrc/nccl_p2p/nccl_version_check.cu"],
-
+        sources=[
+            "apex/contrib/csrc/nccl_p2p/nccl_version.cpp",
+            "apex/contrib/csrc/nccl_p2p/nccl_version_check.cu",
+        ],
     )
     _available_nccl_version = _nccl_version_getter.get_nccl_version()
     if _available_nccl_version >= (2, 10):
@@ -837,7 +900,15 @@ if has_flag("--fast_bottleneck", "APEX_FAST_BOTTLENECK"):
         sys.argv.remove("--fast_bottleneck")
     raise_if_cuda_home_none("--fast_bottleneck")
     if check_cudnn_version_and_warn("--fast_bottleneck", 8400):
-        subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
+        subprocess.run(
+            [
+                "git",
+                "submodule",
+                "update",
+                "--init",
+                "apex/contrib/csrc/cudnn-frontend/",
+            ]
+        )
         ext_modules.append(
             CUDAExtension(
                 name="fast_bottleneck",
@@ -853,7 +924,15 @@ if has_flag("--fused_conv_bias_relu", "APEX_FUSED_CONV_BIAS_RELU"):
         sys.argv.remove("--fused_conv_bias_relu")
     raise_if_cuda_home_none("--fused_conv_bias_relu")
     if check_cudnn_version_and_warn("--fused_conv_bias_relu", 8400):
-        subprocess.run(["git", "submodule", "update", "--init", "apex/contrib/csrc/cudnn-frontend/"])
+        subprocess.run(
+            [
+                "git",
+                "submodule",
+                "update",
+                "--init",
+                "apex/contrib/csrc/cudnn-frontend/",
+            ]
+        )
         ext_modules.append(
             CUDAExtension(
                 name="fused_conv_bias_relu",
@@ -870,7 +949,10 @@ if has_flag("--nccl_allocator", "APEX_NCCL_ALLOCATOR"):
     raise_if_cuda_home_none("--nccl_allocator")
     _nccl_version_getter = load(
         name="_nccl_version_getter",
-        sources=["apex/contrib/csrc/nccl_p2p/nccl_version.cpp", "apex/contrib/csrc/nccl_p2p/nccl_version_check.cu"],
+        sources=[
+            "apex/contrib/csrc/nccl_p2p/nccl_version.cpp",
+            "apex/contrib/csrc/nccl_p2p/nccl_version_check.cu",
+        ],
     )
     _available_nccl_version = _nccl_version_getter.get_nccl_version()
     if _available_nccl_version >= (2, 19):
@@ -898,7 +980,10 @@ if has_flag("--gpu_direct_storage", "APEX_GPU_DIRECT_STORAGE"):
     ext_modules.append(
         CUDAExtension(
             name="_apex_gpu_direct_storage",
-            sources=["apex/contrib/csrc/gpu_direct_storage/gds.cpp", "apex/contrib/csrc/gpu_direct_storage/gds_pybind.cpp"],
+            sources=[
+                "apex/contrib/csrc/gpu_direct_storage/gds.cpp",
+                "apex/contrib/csrc/gpu_direct_storage/gds_pybind.cpp",
+            ],
             include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/gpu_direct_storage")],
             libraries=["cufile"],
             extra_compile_args={"cxx": ["-O3"] + generator_flag},
@@ -919,9 +1004,13 @@ else:
     if apex_parallel_build is not None:
         try:
             parallel = int(apex_parallel_build)
-            print(f"[apex] Using parallel build with {parallel} jobs from APEX_PARALLEL_BUILD environment variable")
+            print(
+                f"[apex] Using parallel build with {parallel} jobs from APEX_PARALLEL_BUILD environment variable"
+            )
         except ValueError:
-            print(f"[apex] Warning: APEX_PARALLEL_BUILD environment variable '{apex_parallel_build}' is not a valid integer, ignoring")
+            print(
+                f"[apex] Warning: APEX_PARALLEL_BUILD environment variable '{apex_parallel_build}' is not a valid integer, ignoring"
+            )
 
 
 # Prevent file conflicts when multiple extensions are compiled simultaneously
@@ -940,12 +1029,17 @@ class BuildExtensionSeparateDir(BuildExtension):
                 compile_orig = self.compiler.compile
 
                 def compile_new(*args, **kwargs):
-                    return compile_orig(*args, **{
-                        **kwargs,
-                        "output_dir": os.path.join(
-                            kwargs["output_dir"],
-                            self.thread_ext_name_map[threading.current_thread().ident]),
-                    })
+                    return compile_orig(
+                        *args,
+                        **{
+                            **kwargs,
+                            "output_dir": os.path.join(
+                                kwargs["output_dir"],
+                                self.thread_ext_name_map[threading.current_thread().ident],
+                            ),
+                        },
+                    )
+
                 self.compiler.compile = compile_new
                 self.compiler._compile_separate_output_dir = True
         self.thread_ext_name_map[threading.current_thread().ident] = ext.name
@@ -957,7 +1051,17 @@ setup(
     name="apex",
     version="0.1",
     packages=find_packages(
-        exclude=("build", "csrc", "include", "tests", "dist", "docs", "tests", "examples", "apex.egg-info",)
+        exclude=(
+            "build",
+            "csrc",
+            "include",
+            "tests",
+            "dist",
+            "docs",
+            "tests",
+            "examples",
+            "apex.egg-info",
+        )
     ),
     install_requires=["packaging>20.6"],
     description="PyTorch Extensions written by NVIDIA",

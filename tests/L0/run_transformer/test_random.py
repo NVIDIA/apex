@@ -36,7 +36,8 @@ class TransformerRandomTestBase:
 
             self.assertEqual(rng_state.sub(rng_state_clone).max(), 0, msg=msg)
             self.assertGreater(
-                torch.cuda.get_rng_state().sub(rng_state_clone).max(), 0,
+                torch.cuda.get_rng_state().sub(rng_state_clone).max(),
+                0,
                 msg=msg,
             )
 
@@ -109,8 +110,12 @@ class TransformerRandomTestBase:
             parallel_state.destroy_model_parallel()
 
 
-class NcclTransformerRandomTest(TransformerRandomTestBase, NcclDistributedTestBase): pass
-class UccTransformerRandomTest(TransformerRandomTestBase, UccDistributedTestBase): pass
+class NcclTransformerRandomTest(TransformerRandomTestBase, NcclDistributedTestBase):
+    pass
+
+
+class UccTransformerRandomTest(TransformerRandomTestBase, UccDistributedTestBase):
+    pass
 
 
 if __name__ == "__main__":

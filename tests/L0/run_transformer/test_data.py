@@ -15,9 +15,7 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 
 class BroadcastDataTestBase:
     def test_broadcast_data(self):
-        tensor_model_parallel_world_size: int = self.world_size // (
-            1 + self.world_size > 1
-        )
+        tensor_model_parallel_world_size: int = self.world_size // (1 + self.world_size > 1)
         parallel_state.initialize_model_parallel(
             tensor_model_parallel_size_=tensor_model_parallel_world_size
         )
@@ -56,8 +54,12 @@ class BroadcastDataTestBase:
         parallel_state.destroy_model_parallel()
 
 
-class NcclBroadcastDataTest(BroadcastDataTestBase, NcclDistributedTestBase): pass
-class UccBroadcastDataTest(BroadcastDataTestBase, UccDistributedTestBase): pass
+class NcclBroadcastDataTest(BroadcastDataTestBase, NcclDistributedTestBase):
+    pass
+
+
+class UccBroadcastDataTest(BroadcastDataTestBase, UccDistributedTestBase):
+    pass
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from .fast_self_multihead_attn_func import fast_self_attn_func
 from .fast_self_multihead_attn_norm_add_func import fast_self_attn_norm_add_func
 from apex.normalization.fused_layer_norm import FusedLayerNorm
 
+
 @torch.jit.script
 def jit_dropout_add(x, residual, prob, is_training):
     # type: (Tensor, Tensor, float, bool) -> Tensor
@@ -40,18 +41,20 @@ class SelfMultiheadAttn(nn.Module):
         self.num_heads = num_heads
         self.dropout = dropout
         self.head_dim = embed_dim // num_heads
-        assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
+        assert self.head_dim * num_heads == self.embed_dim, (
+            "embed_dim must be divisible by num_heads"
+        )
         self.bias = bias
         self.include_norm_add = include_norm_add
         self.impl = impl
-        self.scaling = self.head_dim ** -0.5
+        self.scaling = self.head_dim**-0.5
         self.separate_qkv_params = separate_qkv_params
         self.mask_additive = mask_additive
         if mask_additive:
             assert self.include_norm_add == False, "additive mask not supported with layer norm"
-            assert impl == "default" or (
-                impl == "fast" and bias
-            ), "additive mask not supported for fast mode without bias"
+            assert impl == "default" or (impl == "fast" and bias), (
+                "additive mask not supported for fast mode without bias"
+            )
         if separate_qkv_params:
             self.q_weight = Parameter(torch.empty(embed_dim, embed_dim))
             self.k_weight = Parameter(torch.empty(embed_dim, embed_dim))
@@ -135,7 +138,16 @@ class SelfMultiheadAttn(nn.Module):
             else:
                 self.lyr_nrm.reset_parameters()
 
-    def forward(self, query, key, value, key_padding_mask=None, need_weights=False, attn_mask=None, is_training=True):
+    def forward(
+        self,
+        query,
+        key,
+        value,
+        key_padding_mask=None,
+        need_weights=False,
+        attn_mask=None,
+        is_training=True,
+    ):
         """Input shape: Time x Batch x Channel
 
         Self-attention can be implemented by passing in the same arguments for
@@ -178,7 +190,9 @@ class SelfMultiheadAttn(nn.Module):
         else:
             input_bias = None
         if key_padding_mask is not None:
-            assert attn_mask is None, "ERROR attn_mask and key_padding_mask should not be both defined!"
+            assert attn_mask is None, (
+                "ERROR attn_mask and key_padding_mask should not be both defined!"
+            )
             mask = key_padding_mask
         elif attn_mask is not None:
             assert self.mask_additive == False, "additive mask not supported for time mask"

@@ -24,12 +24,13 @@ class TransformerUtilsTest(NcclDistributedTestBase):
             device = "cpu"
             input_tensor = torch.randn((100, 100, 100), device=device)
             splits = utils.split_tensor_along_last_dim(input_tensor, 10)
-            last_dim_shapes = torch.tensor(
-                [int(split.size()[-1]) for split in splits]
-            )
+            last_dim_shapes = torch.tensor([int(split.size()[-1]) for split in splits])
 
             self.assertTrue(
-                torch.equal(last_dim_shapes, torch.full((10,), 10),),
+                torch.equal(
+                    last_dim_shapes,
+                    torch.full((10,), 10),
+                ),
                 msg=f"tensor_model_paralell_world_size: {tensor_model_paralell_world_size}",
             )
 

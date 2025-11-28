@@ -34,7 +34,11 @@ class SelfMultiheadAttnTest(unittest.TestCase):
         self.ref_layer.cuda().half()
         self.ref_layer.reset_parameters()
         self.ref_inputs = torch.randn(
-            self.seq_length, self.sequences, self.hidden_dim, dtype=torch.float16, device=torch.device("cuda")
+            self.seq_length,
+            self.sequences,
+            self.hidden_dim,
+            dtype=torch.float16,
+            device=torch.device("cuda"),
         ).requires_grad_(True)
         # Reset seed so parameters are identical
         torch.manual_seed(seed)
@@ -54,7 +58,11 @@ class SelfMultiheadAttnTest(unittest.TestCase):
         self.tst_layer.reset_parameters()
 
         self.tst_inputs = torch.randn(
-            self.seq_length, self.sequences, self.hidden_dim, dtype=torch.float16, device=torch.device("cuda")
+            self.seq_length,
+            self.sequences,
+            self.hidden_dim,
+            dtype=torch.float16,
+            device=torch.device("cuda"),
         ).requires_grad_(True)
 
     def test_self_multihead_attn_additive_mask(self):

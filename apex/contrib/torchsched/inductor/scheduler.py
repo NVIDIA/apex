@@ -326,7 +326,10 @@ class MultiCudaStreamScheduler(Scheduler):
                         basename=buff_real,
                         indices=node.node.indices,
                     )
-                    self.buffers_requiring_device_check |= {buff_real, node.node.get_name()}
+                    self.buffers_requiring_device_check |= {
+                        buff_real,
+                        node.node.get_name(),
+                    }
                 buffers_from_other_streams.add(buff_real)
 
         # Should only wait for the latest event from each stream.
@@ -472,7 +475,9 @@ class MultiCudaStreamScheduler(Scheduler):
             elif node.is_foreach():
                 node = cast("ForeachKernelSchedulerNode", node)
                 backend_ = self.get_backend(device)
-                from torch._inductor.codegen.cuda_combined_scheduling import CUDACombinedScheduling
+                from torch._inductor.codegen.cuda_combined_scheduling import (
+                    CUDACombinedScheduling,
+                )
                 from torch._inductor.codegen.simd import SIMDScheduling
 
                 if isinstance(backend_, (SIMDScheduling, CUDACombinedScheduling)):

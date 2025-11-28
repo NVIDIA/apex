@@ -40,9 +40,16 @@ class FusedAdagrad(torch.optim.Optimizer):
     .. _Adaptive Subgradient Methods for Online Learning and Stochastic
         Optimization: http://jmlr.org/papers/v12/duchi11a.html
     """
-    def __init__(self, params, lr=1e-2, eps=1e-10,
-                 weight_decay=0., set_grad_none=True, adagrad_w_mode=False):
 
+    def __init__(
+        self,
+        params,
+        lr=1e-2,
+        eps=1e-10,
+        weight_decay=0.0,
+        set_grad_none=True,
+        adagrad_w_mode=False,
+    ):
         defaults = dict(lr=lr, eps=eps, weight_decay=weight_decay)
         super(FusedAdagrad, self).__init__(params, defaults)
         self.adagrad_w_mode = 1 if adagrad_w_mode else 0
@@ -50,16 +57,17 @@ class FusedAdagrad(torch.optim.Optimizer):
 
         if multi_tensor_applier.available:
             import amp_C
+
             # Skip buffer
             self._dummy_overflow_buf = torch.cuda.IntTensor([0])
             self.multi_tensor_adagrad = amp_C.multi_tensor_adagrad
         else:
-            raise RuntimeError('apex.optimizers.FusedAdagrad requires cuda extensions')
+            raise RuntimeError("apex.optimizers.FusedAdagrad requires cuda extensions")
 
     def zero_grad(self):
         if self.set_grad_none:
             for group in self.param_groups:
-                for p in group['params']:
+                for p in group["params"]:
                     p.grad = None
         else:
             super(FusedAdagrad, self).zero_grad()
@@ -80,43 +88,47 @@ class FusedAdagrad(torch.optim.Optimizer):
             g_16, p_16, h_16 = [], [], []
             g_32, p_32, h_32 = [], [], []
 
-            for p in group['params']:
+            for p in group["params"]:
                 if p.grad is None:
                     continue
                 if p.grad.data.is_sparse:
-                    raise RuntimeError('FusedAdagrad does not support sparse gradients')
+                    raise RuntimeError("FusedAdagrad does not support sparse gradients")
 
                 state = self.state[p]
                 # State initialization
                 if len(state) == 0:
                     # Exponential moving average of gradient values
-                    state['sum'] = torch.zeros_like(p.data)
+                    state["sum"] = torch.zeros_like(p.data)
                 if p.dtype == torch.float16:
                     g_16.append(p.grad.data)
                     p_16.append(p.data)
-                    h_16.append(state['sum'])
+                    h_16.append(state["sum"])
                 elif p.dtype == torch.float32:
                     g_32.append(p.grad.data)
                     p_32.append(p.data)
-                    h_32.append(state['sum'])
+                    h_32.append(state["sum"])
                 else:
-                    raise RuntimeError('FusedAdagrad only support fp16 and fp32.')
+                    raise RuntimeError("FusedAdagrad only support fp16 and fp32.")
 
-            if(len(g_16) > 0):
-                multi_tensor_applier(self.multi_tensor_adagrad,
-                                     self._dummy_overflow_buf,
-                                     [g_16, p_16, h_16],
-                                     group['lr'],
-                                     group['eps'],
-                                     self.adagrad_w_mode,
-                                     group['weight_decay'])
-            if(len(g_32) > 0):
-                multi_tensor_applier(self.multi_tensor_adagrad,
-                                     self._dummy_overflow_buf,
-                                     [g_32, p_32, h_32],
-                                     group['lr'],
-                                     group['eps'],
-                                     self.adagrad_w_mode,
-                                     group['weight_decay'])
+            if len(g_16) > 0:
+                multi_tensor_applier(
+                    self.multi_tensor_adagrad,
+                    self._dummy_overflow_buf,
+                    [g_16, p_16, h_16],
+                    group["lr"],
+                    group["eps"],
+                    self.adagrad_w_mode,
+                    group["weight_decay"],
+                )
+            if len(g_32) > 0:
+                multi_tensor_applier(
+                    self.multi_tensor_adagrad,
+                    self._dummy_overflow_buf,
+                    [g_32, p_32, h_32],
+                    group["lr"],
+                    group["eps"],
+                    self.adagrad_w_mode,
+                    group["weight_decay"],
+                )
 
         return loss

@@ -9,10 +9,11 @@ import numpy as np
 
 var_batch = 16
 
-def compare(desc, inp1, inp2, error= 1e-5):
+
+def compare(desc, inp1, inp2, error=1e-5):
     a = inp1.clone().detach().cpu().numpy()
     b = inp2.clone().detach().cpu().numpy()
-    close = np.allclose(a,b, error, error)
+    close = np.allclose(a, b, error, error)
     if not close:
         print(desc, close)
         z = a - b
@@ -22,40 +23,32 @@ def compare(desc, inp1, inp2, error= 1e-5):
         print("inp2   : ", b[index])
     return close
 
+
 parser = argparse.ArgumentParser()
-parser.add_argument('--local_rank', type=int, default=0)
-parser.add_argument('--apex', action='store_true')
+parser.add_argument("--local_rank", type=int, default=0)
+parser.add_argument("--apex", action="store_true")
 args = parser.parse_args()
 
 
 torch.manual_seed(2809)
 # Setup DDP
 torch.cuda.set_device(args.local_rank)
-device = torch.device('cuda:{}'.format(args.local_rank))
+device = torch.device("cuda:{}".format(args.local_rank))
 
 torch.distributed.init_process_group(
-    'nccl',
-    init_method='env://',
+    "nccl",
+    init_method="env://",
     rank=args.local_rank,
 )
 
 # Setup model
 if args.apex:
-    model = nn.Sequential(
-        nn.Conv2d(3, 6, 3, 1, 1),
-        ApexSyncBatchNorm(6)
-    )
+    model = nn.Sequential(nn.Conv2d(3, 6, 3, 1, 1), ApexSyncBatchNorm(6))
 else:
-    model = nn.Sequential(
-        nn.Conv2d(3, 6, 3, 1, 1),
-        nn.SyncBatchNorm(6)
-    )
+    model = nn.Sequential(nn.Conv2d(3, 6, 3, 1, 1), nn.SyncBatchNorm(6))
 
 # Setup reference model
-model_reference = nn.Sequential(
-    nn.Conv2d(3, 6, 3, 1, 1),
-    nn.BatchNorm2d(6)
-)
+model_reference = nn.Sequential(nn.Conv2d(3, 6, 3, 1, 1), nn.BatchNorm2d(6))
 
 with torch.no_grad():
     model_reference[0].weight.copy_(model[0].weight)
@@ -77,7 +70,7 @@ else:
 data.requires_grad_()
 data.retain_grad = True
 
-weighted_gradient = True 
+weighted_gradient = True
 
 # DDP forward/backward
 output = model(data)
@@ -87,10 +80,10 @@ if weighted_gradient:
 else:
     output.backward(grad / output.size(0))
 
-d_list = [torch.randn(8, 3, 8, 8, device=device) for i in range(int(os.environ['WORLD_SIZE']))]
-y_list = [torch.randn(8, 6, 8, 8, device=device) for i in range(int(os.environ['WORLD_SIZE']))]
-dgrad_list = [torch.randn(8, 3, 8, 8, device=device) for i in range(int(os.environ['WORLD_SIZE']))]
-grad_list = [torch.randn(8, 6, 8, 8, device=device) for i in range(int(os.environ['WORLD_SIZE']))]
+d_list = [torch.randn(8, 3, 8, 8, device=device) for i in range(int(os.environ["WORLD_SIZE"]))]
+y_list = [torch.randn(8, 6, 8, 8, device=device) for i in range(int(os.environ["WORLD_SIZE"]))]
+dgrad_list = [torch.randn(8, 3, 8, 8, device=device) for i in range(int(os.environ["WORLD_SIZE"]))]
+grad_list = [torch.randn(8, 6, 8, 8, device=device) for i in range(int(os.environ["WORLD_SIZE"]))]
 if args.local_rank == 0:
     # placeholder, these random data will later be discarded.
     torch.distributed.all_gather(d_list, torch.randn(8, 3, 8, 8, device=device))
@@ -108,7 +101,7 @@ torch.distributed.barrier()
 if args.local_rank == 0:
     ref_tensor = d_list[1:]
     ref_tensor.insert(0, data)
-    assert(ref_tensor[0].equal(data))
+    assert ref_tensor[0].equal(data)
     ref_tensor = torch.cat(ref_tensor, 0)
     ref_tensor = ref_tensor.detach()
     ref_tensor.requires_grad_()
@@ -118,7 +111,7 @@ if args.local_rank == 0:
     output_reference = model_reference(ref_tensor)
     grad_tensor = grad_list[1:]
     grad_tensor.insert(0, grad)
-    assert(grad_tensor[0].equal(grad))
+    assert grad_tensor[0].equal(grad)
     grad_tensor = torch.cat(grad_tensor, 0)
     if weighted_gradient:
         output_reference.backward(grad_tensor / output_reference.size(0))
@@ -133,26 +126,33 @@ if args.local_rank == 0:
     output_tensor.insert(0, output)
     output_tensor = torch.cat(output_tensor, 0)
     passed = True
-    passed = passed and compare("check output",
-          output_tensor,
-          output_reference)
+    passed = passed and compare("check output", output_tensor, output_reference)
     # check stats
-    passed = passed and compare("check running mean failed",
-          model_reference[1].running_mean,
-          model.module[1].running_mean)
-    passed = passed and compare("check running var failed",
-          model_reference[1].running_var,
-          model.module[1].running_var)
-    passed = passed and compare("bn wgrad check failed!",
-          model_reference[1].weight.grad,
-          model.module[1].weight.grad, 1e-6)
-    passed = passed and compare("conv wgrad check failed!",
-          model_reference[0].weight.grad,
-          model.module[0].weight.grad)
+    passed = passed and compare(
+        "check running mean failed",
+        model_reference[1].running_mean,
+        model.module[1].running_mean,
+    )
+    passed = passed and compare(
+        "check running var failed",
+        model_reference[1].running_var,
+        model.module[1].running_var,
+    )
+    passed = passed and compare(
+        "bn wgrad check failed!",
+        model_reference[1].weight.grad,
+        model.module[1].weight.grad,
+        1e-6,
+    )
+    passed = passed and compare(
+        "conv wgrad check failed!",
+        model_reference[0].weight.grad,
+        model.module[0].weight.grad,
+    )
     # can't really compare dgrad directly, as we need to scale it to account for
     # DDP
     # passed = passed and compare("dgrad check failed!", ref_tensor.grad, dgrad_tensor)
     if passed:
-      print("====SBN two gpu with different batches test passed")
+        print("====SBN two gpu with different batches test passed")
     else:
-      assert("*failed two gpu with different batches tests*")
+        assert "*failed two gpu with different batches tests*"

@@ -53,9 +53,9 @@ def get_tensor_shapes(
     # If model is T5 and rank is at the boundary:
     #     send one tensor (post-transpose from encoder).
     # Otherwise, send one tensor (pre-transpose).
-    assert (
-        len(tensor_shape) == 3
-    ), f"`tensor_shape` should be [sequence_length, micro_batch_size, hidden_size] but {tensor_shape}"
+    assert len(tensor_shape) == 3, (
+        f"`tensor_shape` should be [sequence_length, micro_batch_size, hidden_size] but {tensor_shape}"
+    )
 
     sequence_length, micro_batch_size, hidden_size = tensor_shape
 
@@ -67,9 +67,10 @@ def get_tensor_shapes(
         seq_length = sequence_length
 
     if model_type == ModelType.encoder_and_decoder:
-
         if sequence_parallel_enabled:
-            dec_seq_length = decoder_sequence_length // parallel_state.get_tensor_model_parallel_world_size()
+            dec_seq_length = (
+                decoder_sequence_length // parallel_state.get_tensor_model_parallel_world_size()
+            )
         else:
             dec_seq_length = decoder_sequence_length
 
@@ -145,7 +146,7 @@ def send_forward(
 ) -> None:
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
-    for (output_tensor, tensor_shape) in zip(output_tensors, tensor_shapes):
+    for output_tensor, tensor_shape in zip(output_tensors, tensor_shapes):
         if tensor_shape is None:
             continue
         p2p_communication.send_forward(
@@ -169,7 +170,7 @@ def send_backward(
 ) -> None:
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
-    for (input_tensor_grad, tensor_shape) in zip(input_tensor_grads, tensor_shapes):
+    for input_tensor_grad, tensor_shape in zip(input_tensor_grads, tensor_shapes):
         if tensor_shape is None:
             continue
         p2p_communication.send_backward(
@@ -194,7 +195,7 @@ def send_forward_recv_backward(
     if not isinstance(output_tensors, list):
         output_tensors = [output_tensors]
     output_tensor_grads = []
-    for (output_tensor, tensor_shape) in zip(output_tensors, tensor_shapes):
+    for output_tensor, tensor_shape in zip(output_tensors, tensor_shapes):
         if tensor_shape is None:
             output_tensor_grads.append(None)
             continue
@@ -222,7 +223,7 @@ def send_backward_recv_forward(
     if not isinstance(input_tensor_grads, list):
         input_tensor_grads = [input_tensor_grads]
     input_tensors = []
-    for (input_tensor_grad, tensor_shape) in zip(input_tensor_grads, tensor_shapes):
+    for input_tensor_grad, tensor_shape in zip(input_tensor_grads, tensor_shapes):
         if tensor_shape is None:
             input_tensors.append(None)
             continue
@@ -334,24 +335,29 @@ def forward_backward_pipelining_without_interleaving(
     else:
         sync_context_handler = contextlib.nullcontext
     sync_context = None
+
     def disable_grad_sync():
         """Disable asynchronous grad reductions"""
         nonlocal sync_context
         if sync_context is None:
             sync_context = sync_context_handler()
             sync_context.__enter__()
+
     def enable_grad_sync():
         """Enable asynchronous grad reductions"""
         nonlocal sync_context
         if sync_context is not None:
             sync_context.__exit__(None, None, None)
             sync_context = None
+
     disable_grad_sync()
 
     # Compute number of warmup microbatches.
     num_microbatches: int = get_num_microbatches()
     num_warmup_microbatches: int = (
-        parallel_state.get_pipeline_model_parallel_world_size() - parallel_state.get_pipeline_model_parallel_rank() - 1
+        parallel_state.get_pipeline_model_parallel_world_size()
+        - parallel_state.get_pipeline_model_parallel_rank()
+        - 1
     )
     num_warmup_microbatches: int = min(num_warmup_microbatches, num_microbatches)
     num_microbatches_remaining: int = num_microbatches - num_warmup_microbatches
@@ -406,7 +412,8 @@ def forward_backward_pipelining_without_interleaving(
         # Decide to checkpoint all layers' activations of the current micro-batch
         if max_outstanding_backprops is not None:
             checkpoint_activations_micro_batch = (
-                i % max_outstanding_backprops >= num_micro_batches_with_partial_activation_checkpoints
+                i % max_outstanding_backprops
+                >= num_micro_batches_with_partial_activation_checkpoints
             )
         else:
             checkpoint_activations_micro_batch = None
@@ -466,11 +473,13 @@ def forward_backward_pipelining_without_interleaving(
         # Decide to checkpoint all layers' activations of the current micro-batch
         if max_outstanding_backprops is not None:
             checkpoint_activations_micro_batch = (
-                ((i+num_warmup_microbatches) % max_outstanding_backprops) >= num_micro_batches_with_partial_activation_checkpoints
-            )
+                (i + num_warmup_microbatches) % max_outstanding_backprops
+            ) >= num_micro_batches_with_partial_activation_checkpoints
         else:
             checkpoint_activations_micro_batch = None
-        cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(batch, i + num_warmup_microbatches)
+        cur_microbatch: Optional[torch.Tensor] = get_kth_microbatch(
+            batch, i + num_warmup_microbatches
+        )
         output_tensor: Union[torch.Tensor, Sequence[torch.Tensor]] = forward_step(
             forward_step_func,
             cur_microbatch,
@@ -560,7 +569,7 @@ def forward_backward_pipelining_without_interleaving(
         for i in range(num_warmup_microbatches):
             _logger.debug(f"cooldown iter: {i} / {num_warmup_microbatches}")
 
-            if i == num_warmup_microbatches-1 and rank == 0:
+            if i == num_warmup_microbatches - 1 and rank == 0:
                 # Async grad reduction in first pipeline stage, during
                 # last backward pass
                 enable_grad_sync()

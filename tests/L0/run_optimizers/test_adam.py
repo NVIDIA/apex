@@ -1,16 +1,13 @@
 import copy
-import math
-import random
 import unittest
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 from torch.testing._internal.common_device_type import largeTensorTest
 
 try:
     import apex
-except ImportError as e:
+except ImportError:
     HAS_APEX = False
 else:
     HAS_APEX = True
@@ -46,7 +43,7 @@ class Model(torch.nn.Module):
         y = self.relu4(y)
         y = self.fc3(y)
         y = self.relu5(y)
-        return y 
+        return y
 
 
 @unittest.skipIf(not HAS_APEX, "`apex` is not found.")
@@ -66,8 +63,8 @@ class AdamTest(unittest.TestCase):
     def testGradScaler(self):
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
         optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=False)
-        scaler = torch.amp.GradScaler('cuda', enabled=True)
-        scaler_ = torch.amp.GradScaler('cuda', enabled=True)
+        scaler = torch.amp.GradScaler("cuda", enabled=True)
+        scaler_ = torch.amp.GradScaler("cuda", enabled=True)
 
         for i in range(100):
             x = torch.rand([32, 1, 28, 28]).cuda().to(memory_format=torch.channels_last)
@@ -76,16 +73,16 @@ class AdamTest(unittest.TestCase):
             gt_ = gt.clone()
 
             # Reference
-            with torch.amp.autocast('cuda', enabled=True):
+            with torch.amp.autocast("cuda", enabled=True):
                 y = self.model(x)
                 loss = ((gt - y) ** 2).mean()
 
             scaler.scale(loss).backward()
             scaler.step(self.optimizer)
             scaler.update()
-            
+
             # DUT
-            with torch.amp.autocast('cuda', enabled=True):
+            with torch.amp.autocast("cuda", enabled=True):
                 y = self.model_(x)
                 loss_ = ((gt_ - y) ** 2).mean()
 
@@ -97,20 +94,28 @@ class AdamTest(unittest.TestCase):
                 m = module[0]
                 m_ = module[1]
                 if isinstance(m, nn.Conv2d) or isinstance(m_, nn.Linear):
-                    torch.testing.assert_close(m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True)
-                    torch.testing.assert_close(m.weight.grad, m_.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+                    torch.testing.assert_close(
+                        m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True
+                    )
+                    torch.testing.assert_close(
+                        m.weight.grad,
+                        m_.weight.grad,
+                        atol=1e-3,
+                        rtol=1e-3,
+                        equal_nan=True,
+                    )
 
             # Init for next iteration
             self.optimizer.zero_grad()
             optimizer_.zero_grad()
 
             self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
-    
+
     def testGradScalerCapturable(self):
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
         optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=True)
-        scaler = torch.amp.GradScaler('cuda', enabled=True)
-        scaler_ = torch.amp.GradScaler('cuda', enabled=True)
+        scaler = torch.amp.GradScaler("cuda", enabled=True)
+        scaler_ = torch.amp.GradScaler("cuda", enabled=True)
 
         for i in range(100):
             x = torch.rand([32, 1, 28, 28]).cuda().to(memory_format=torch.channels_last)
@@ -119,16 +124,16 @@ class AdamTest(unittest.TestCase):
             gt_ = gt.clone()
 
             # Reference
-            with torch.amp.autocast('cuda', enabled=True):
+            with torch.amp.autocast("cuda", enabled=True):
                 y = self.model(x)
                 loss = ((gt - y) ** 2).mean()
 
             scaler.scale(loss).backward()
             scaler.step(self.optimizer)
             scaler.update()
-            
+
             # DUT
-            with torch.amp.autocast('cuda', enabled=True):
+            with torch.amp.autocast("cuda", enabled=True):
                 y = self.model_(x)
                 loss_ = ((gt_ - y) ** 2).mean()
 
@@ -140,8 +145,16 @@ class AdamTest(unittest.TestCase):
                 m = module[0]
                 m_ = module[1]
                 if isinstance(m, nn.Conv2d) or isinstance(m_, nn.Linear):
-                    torch.testing.assert_close(m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True)
-                    torch.testing.assert_close(m.weight.grad, m_.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+                    torch.testing.assert_close(
+                        m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True
+                    )
+                    torch.testing.assert_close(
+                        m.weight.grad,
+                        m_.weight.grad,
+                        atol=1e-3,
+                        rtol=1e-3,
+                        equal_nan=True,
+                    )
 
             # Init for next iteration
             self.optimizer.zero_grad()
@@ -155,9 +168,11 @@ class AdamTest(unittest.TestCase):
             if m.__class__ in [torch.nn.Conv2d]:
                 m.half()
         params_ = [p for p in self.model_.parameters() if p.requires_grad]
-        optimizer_ = apex.optimizers.FusedAdam(params_, lr=self.lr, capturable=True, master_weights=True)
-        scaler = torch.amp.GradScaler('cuda', enabled=True)
-        scaler_ = torch.amp.GradScaler('cuda', enabled=True)
+        optimizer_ = apex.optimizers.FusedAdam(
+            params_, lr=self.lr, capturable=True, master_weights=True
+        )
+        scaler = torch.amp.GradScaler("cuda", enabled=True)
+        scaler_ = torch.amp.GradScaler("cuda", enabled=True)
 
         for i in range(100):
             x = torch.rand([32, 1, 28, 28]).cuda().to(memory_format=torch.channels_last)
@@ -166,7 +181,7 @@ class AdamTest(unittest.TestCase):
             gt_ = gt.clone()
 
             # Reference
-            with torch.amp.autocast('cuda', enabled=True):
+            with torch.amp.autocast("cuda", enabled=True):
                 y = self.model(x)
                 loss = ((gt - y) ** 2).mean()
 
@@ -175,7 +190,7 @@ class AdamTest(unittest.TestCase):
             scaler.update()
 
             # DUT
-            with torch.amp.autocast('cuda', enabled=True):
+            with torch.amp.autocast("cuda", enabled=True):
                 y = self.model_(x)
                 loss_ = ((gt_ - y) ** 2).mean()
 
@@ -187,8 +202,20 @@ class AdamTest(unittest.TestCase):
                 m = module[0]
                 m_ = module[1]
                 if isinstance(m, nn.Conv2d) or isinstance(m_, nn.Linear):
-                    torch.testing.assert_close(m.weight, m_.weight.float(), atol=1e-3, rtol=1e-3, equal_nan=True)
-                    torch.testing.assert_close(m.weight.grad, m_.weight.grad.float(), atol=1e-3, rtol=1e-3, equal_nan=True)
+                    torch.testing.assert_close(
+                        m.weight,
+                        m_.weight.float(),
+                        atol=1e-3,
+                        rtol=1e-3,
+                        equal_nan=True,
+                    )
+                    torch.testing.assert_close(
+                        m.weight.grad,
+                        m_.weight.grad.float(),
+                        atol=1e-3,
+                        rtol=1e-3,
+                        equal_nan=True,
+                    )
 
             # Init for next iteration
             self.optimizer.zero_grad()
@@ -212,7 +239,7 @@ class AdamTest(unittest.TestCase):
 
             loss.backward()
             self.optimizer.step()
-            
+
             # DUT
             y = self.model_(x)
             loss_ = ((gt_ - y) ** 2).mean()
@@ -224,19 +251,27 @@ class AdamTest(unittest.TestCase):
                 m = module[0]
                 m_ = module[1]
                 if isinstance(m, nn.Conv2d) or isinstance(m_, nn.Linear):
-                    torch.testing.assert_close(m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True)
-                    torch.testing.assert_close(m.weight.grad, m_.weight.grad, atol=1e-3, rtol=1e-3, equal_nan=True)
+                    torch.testing.assert_close(
+                        m.weight, m_.weight, atol=1e-3, rtol=1e-3, equal_nan=True
+                    )
+                    torch.testing.assert_close(
+                        m.weight.grad,
+                        m_.weight.grad,
+                        atol=1e-3,
+                        rtol=1e-3,
+                        equal_nan=True,
+                    )
 
             # Init for next iteration
             self.optimizer.zero_grad()
             optimizer_.zero_grad()
-            
+
             self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
 
-    @largeTensorTest('60GB', 'cuda')
+    @largeTensorTest("60GB", "cuda")
     def testLargeTensor(self):
-        t = torch.zeros(2359332864, dtype=torch.half, device='cuda')
-        t2 = torch.zeros(2359332864, dtype=torch.half, device='cuda')
+        t = torch.zeros(2359332864, dtype=torch.half, device="cuda")
+        t2 = torch.zeros(2359332864, dtype=torch.half, device="cuda")
         grad = torch.randn_like(t)
         t.grad = grad
         t2.grad = grad
@@ -249,6 +284,5 @@ class AdamTest(unittest.TestCase):
         torch.cuda.synchronize()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

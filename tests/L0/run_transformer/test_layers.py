@@ -24,7 +24,6 @@ torch.backends.cuda.matmul.allow_tf32 = False
 
 
 class TensorParallelLayerTestBase:
-
     BATCH_SIZE: int = 8
     SEQUENCE_LENGTH: int = 128
     VOCAB_SIZE: int = 1024
@@ -41,7 +40,9 @@ class TensorParallelLayerTestBase:
     @unittest.skipIf(torch.cuda.device_count() < 2, "Requires >=2 GPUs")
     def test_all_gather_parity(self) -> None:
         if self.DISTRIBUTED_BACKEND == "ucc":
-            self.skipTest("torch_ucc does NOT support `torch.distributed._all_gather_base` as of 2022/06/15")
+            self.skipTest(
+                "torch_ucc does NOT support `torch.distributed._all_gather_base` as of 2022/06/15"
+            )
         from torch.distributed.distributed_c10d import all_gather, _all_gather_base  # NOQA
 
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
@@ -54,7 +55,10 @@ class TensorParallelLayerTestBase:
             cur_tensor_model_device = torch.device(f"cuda:{tensor_model_parallel_rank}")
             with torch.no_grad():
                 tensor = tensor_model_parallel_rank * torch.ones(
-                    self.tensor_shape, dtype=torch.float32, device=cur_tensor_model_device)
+                    self.tensor_shape,
+                    dtype=torch.float32,
+                    device=cur_tensor_model_device,
+                )
             numel = tensor.numel()
             numel_gathered = tensor_model_parallel_world_size * numel
             gathered = torch.empty(
@@ -89,8 +93,13 @@ class TensorParallelLayerTestBase:
     @unittest.skipIf(torch.cuda.device_count() < 2, "Requires >=2 GPUs")
     def test_reduce_scatter_parity(self) -> None:
         if self.DISTRIBUTED_BACKEND == "ucc":
-            self.skipTest("torch_ucc does NOT support `torch.distributed._reduce_scatter_base` as of 2022/06/15")
-        from torch.distributed.distributed_c10d import reduce_scatter, _reduce_scatter_base  # NOQA
+            self.skipTest(
+                "torch_ucc does NOT support `torch.distributed._reduce_scatter_base` as of 2022/06/15"
+            )
+        from torch.distributed.distributed_c10d import (
+            reduce_scatter,
+            _reduce_scatter_base,
+        )  # NOQA
 
         for tensor_model_parallel_world_size in range(2, self.world_size + 1):
             if self.world_size % tensor_model_parallel_world_size:
@@ -101,10 +110,17 @@ class TensorParallelLayerTestBase:
             tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
             cur_tensor_model_device = torch.device(f"cuda:{tensor_model_parallel_rank}")
             with torch.no_grad():
-                input = torch.cat([
-                    i * torch.ones(self.tensor_shape, dtype=torch.float32, device=cur_tensor_model_device)
-                    for i in range(tensor_model_parallel_world_size)
-                ])
+                input = torch.cat(
+                    [
+                        i
+                        * torch.ones(
+                            self.tensor_shape,
+                            dtype=torch.float32,
+                            device=cur_tensor_model_device,
+                        )
+                        for i in range(tensor_model_parallel_world_size)
+                    ]
+                )
                 input_list = [t.clone() for t in input.chunk(tensor_model_parallel_world_size)]
             output = torch.empty(
                 self.tensor_shape,
@@ -113,7 +129,8 @@ class TensorParallelLayerTestBase:
                 requires_grad=False,
             )
             reduce_scatter(
-                output, input_list,
+                output,
+                input_list,
                 group=parallel_state.get_tensor_model_parallel_group(),
             )
 
@@ -180,9 +197,7 @@ class TensorParallelLayerTestBase:
                 use_cpu_initialization=True,
             ).cuda()
             output_vocab_parallel = embedding_vocab_parallel(input_tensor)
-            loss_vocab_parallel = torch.mul(
-                output_vocab_parallel, loss_weight
-            ).sum()
+            loss_vocab_parallel = torch.mul(output_vocab_parallel, loss_weight).sum()
             loss_vocab_parallel.backward()
 
             msg = f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}"
@@ -191,19 +206,18 @@ class TensorParallelLayerTestBase:
 
             splitted_weight_torch = torch.split(
                 embedding_torch.weight.grad,
-                self.VOCAB_SIZE
-                // tensor_model_parallel_world_size,
+                self.VOCAB_SIZE // tensor_model_parallel_world_size,
                 0,
             )[parallel_state.get_tensor_model_parallel_rank()]
             self.assertEqual(
-                splitted_weight_torch, embedding_vocab_parallel.weight.grad, msg=msg,
+                splitted_weight_torch,
+                embedding_vocab_parallel.weight.grad,
+                msg=msg,
             )
 
             parallel_state.destroy_model_parallel()
 
-    def _affine_weight_init_test_impl(
-        self, init_device: str, is_column_parallel: bool
-    ) -> None:
+    def _affine_weight_init_test_impl(self, init_device: str, is_column_parallel: bool) -> None:
         dim = int(not is_column_parallel)
         for tensor_model_parallel_world_size in range(1, self.world_size + 1):
             if self.world_size % tensor_model_parallel_world_size:
@@ -223,9 +237,7 @@ class TensorParallelLayerTestBase:
             set_random_seed(self.SEED)
 
             sharding_dim_size = (
-                self.OUTPUT_SIZE_COEFF
-                if is_column_parallel
-                else self.INPUT_SIZE_COEFF
+                self.OUTPUT_SIZE_COEFF if is_column_parallel else self.INPUT_SIZE_COEFF
             )
 
             if init_device == "cpu":
@@ -239,9 +251,7 @@ class TensorParallelLayerTestBase:
                     params_dtype=torch.float32,
                 )
             else:
-                layers._initialize_affine_weight_gpu(
-                    weight, torch.nn.init.normal_, dim
-                )
+                layers._initialize_affine_weight_gpu(weight, torch.nn.init.normal_, dim)
             # Target
             set_random_seed(self.SEED)
             if init_device == "cpu":
@@ -255,7 +265,10 @@ class TensorParallelLayerTestBase:
                 nn.init.normal_(curr_weight)
 
             self.assertEqual(
-                curr_weight, weight, msg=f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}")
+                curr_weight,
+                weight,
+                msg=f"tensor_model_parallel_world_size: {tensor_model_parallel_world_size}",
+            )
             parallel_state.destroy_model_parallel()
 
     def test_affine_weight_init_column_parallel_cpu(self) -> None:
@@ -493,7 +506,8 @@ class TensorParallelLayerTestBase:
                 orig_loss_weight = orig_loss_weight.half()
             if sequence_parallel_enabled:
                 loss_weight = orig_loss_weight.chunk(
-                    tensor_model_parallel_world_size, dim=2,
+                    tensor_model_parallel_world_size,
+                    dim=2,
                 )[parallel_state.get_tensor_model_parallel_rank()]
             else:
                 loss_weight = orig_loss_weight

@@ -16,17 +16,18 @@ except ImportError as e:
 def label_smoothing_raw(x, target, padding_idx, smoothing):
     logprobs = torch.nn.functional.log_softmax(x, dim=-1, dtype=torch.float32)
 
-    non_pad_mask = (target != padding_idx)
+    non_pad_mask = target != padding_idx
     nll_loss = -logprobs.gather(dim=-1, index=target.unsqueeze(1))
     nll_loss = nll_loss.squeeze(1)[non_pad_mask]
     smooth_loss = -logprobs.mean(dim=-1)[non_pad_mask]
     loss = (1.0 - smoothing) * nll_loss + smoothing * smooth_loss
     return loss
 
+
 def label_smoothing_opt_1(x, target, padding_idx, smoothing):
     logprobs = torch.nn.functional.log_softmax(x, dim=-1, dtype=torch.float32)
 
-    pad_mask = (target == padding_idx)
+    pad_mask = target == padding_idx
     ll_loss = logprobs.gather(dim=-1, index=target.unsqueeze(1)).squeeze(1)
     smooth_loss = logprobs.mean(dim=-1)
     loss = (smoothing - 1.0) * ll_loss - smoothing * smooth_loss
@@ -46,12 +47,11 @@ class LabelSmoothingTest(unittest.TestCase):
         torch.set_printoptions(precision=10)
 
     def gen_test_inputs(self, N, T, H, smoothing, padding_idx, dtype=torch.half):
-        logits = torch.randn((N*T, H), dtype=dtype, device='cuda',
-            requires_grad=True)
-        labels = torch.randint(0, H, [N*T], device='cuda')
-        for i in random.sample(range(N*T), N*T//6):
+        logits = torch.randn((N * T, H), dtype=dtype, device="cuda", requires_grad=True)
+        labels = torch.randint(0, H, [N * T], device="cuda")
+        for i in random.sample(range(N * T), N * T // 6):
             labels[i] = padding_idx
-        half_to_float = (logits.dtype == torch.half)
+        half_to_float = logits.dtype == torch.half
 
         return logits, labels, half_to_float
 
@@ -59,8 +59,11 @@ class LabelSmoothingTest(unittest.TestCase):
         ref, tst = ref.flatten(), tst.flatten()
         diff = (ref - tst).abs().max()
         idx = (ref - tst).abs().argmax()
-        print("Max atol idx: {}, diff: {:.6f}, ref: {:.6f}, tst: {:.6f}".format(
-            idx, diff, ref[idx], tst[idx]))
+        print(
+            "Max atol idx: {}, diff: {:.6f}, ref: {:.6f}, tst: {:.6f}".format(
+                idx, diff, ref[idx], tst[idx]
+            )
+        )
 
     def _test_label_smoothing_function(self, dtype):
         # Set label smoothing configuration
@@ -70,8 +73,7 @@ class LabelSmoothingTest(unittest.TestCase):
         loss_func = label_smoothing.SoftmaxCrossEntropyLoss.apply
 
         for i in range(iters):
-            logits, labels, half_to_float = self.gen_test_inputs(
-                N, T, H, smoothing, padding_idx)
+            logits, labels, half_to_float = self.gen_test_inputs(N, T, H, smoothing, padding_idx)
 
             # Run original softmax cross entropy with label smoothing
             logits.grad = None
@@ -110,8 +112,7 @@ class LabelSmoothingTest(unittest.TestCase):
         loss_func = label_smoothing.SoftmaxCrossEntropyLoss.apply
         print()
 
-        logits, labels, half_to_float = self.gen_test_inputs(
-            N, T, H, smoothing, padding_idx)
+        logits, labels, half_to_float = self.gen_test_inputs(N, T, H, smoothing, padding_idx)
 
         # Run original softmax cross entropy with label smoothing
         torch.cuda.synchronize()
@@ -122,8 +123,11 @@ class LabelSmoothingTest(unittest.TestCase):
             loss = losses.sum() / N
             loss.backward()
         torch.cuda.synchronize()
-        print("Raw time {:.2f} s elapsed for {} iterations, norm {:.4f}".format(
-            time.time() - ts, iters, logits.grad.norm()))
+        print(
+            "Raw time {:.2f} s elapsed for {} iterations, norm {:.4f}".format(
+                time.time() - ts, iters, logits.grad.norm()
+            )
+        )
 
         # Run optimized softmax cross entropy with label smoothing
         torch.cuda.synchronize()
@@ -134,9 +138,12 @@ class LabelSmoothingTest(unittest.TestCase):
             loss = losses.sum() / N
             loss.backward()
         torch.cuda.synchronize()
-        print("Opt time {:.2f} s elapsed for {} iterations, norm {:.4f}".format(
-            time.time() - ts, iters, logits.grad.norm()))
+        print(
+            "Opt time {:.2f} s elapsed for {} iterations, norm {:.4f}".format(
+                time.time() - ts, iters, logits.grad.norm()
+            )
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

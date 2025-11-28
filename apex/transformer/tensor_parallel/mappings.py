@@ -28,6 +28,7 @@ if "all_gather_into_tensor" not in dir(torch.distributed):
 if "reduce_scatter_tensor" not in dir(torch.distributed):
     torch.distributed.reduce_scatter_tensor = torch.distributed._reduce_scatter_base
 
+
 def _reduce(input_: torch.Tensor) -> torch.Tensor:
     """All-reduce the input tensor across model parallel group."""
 
@@ -72,7 +73,7 @@ def _split_along_first_dim(input_: torch.Tensor) -> torch.Tensor:
     assert dim_size % world_size == 0
     local_dim_size = dim_size // world_size
     dim_offset = get_tensor_model_parallel_rank() * local_dim_size
-    output = input_[dim_offset:dim_offset + local_dim_size].contiguous()
+    output = input_[dim_offset : dim_offset + local_dim_size].contiguous()
     return output
 
 
@@ -90,9 +91,7 @@ def _gather_along_last_dim(input_: torch.Tensor) -> torch.Tensor:
 
     tensor_list = [torch.empty_like(input_) for _ in range(world_size)]
     tensor_list[rank] = input_
-    torch.distributed.all_gather(
-        tensor_list, input_, group=get_tensor_model_parallel_group()
-    )
+    torch.distributed.all_gather(tensor_list, input_, group=get_tensor_model_parallel_group())
 
     # Note: torch.cat already creates a contiguous tensor.
     output = torch.cat(tensor_list, dim=last_dim).contiguous()
@@ -112,10 +111,8 @@ def _gather_along_first_dim(input_: torch.Tensor) -> torch.Tensor:
 
     output = torch.empty(shape, dtype=input_.dtype, device=torch.cuda.current_device())
     torch.distributed.all_gather_into_tensor(
-        output,
-        input_.contiguous(),
-        group=get_tensor_model_parallel_group()
-        )
+        output, input_.contiguous(), group=get_tensor_model_parallel_group()
+    )
     return output
 
 
@@ -131,10 +128,8 @@ def _reduce_scatter_along_first_dim(input_: torch.Tensor) -> torch.Tensor:
     shape[0] //= world_size
     output = torch.empty(shape, dtype=input_.dtype, device=torch.cuda.current_device())
     torch.distributed.reduce_scatter_tensor(
-        output,
-        input_.contiguous(),
-        group=get_tensor_model_parallel_group()
-        )
+        output, input_.contiguous(), group=get_tensor_model_parallel_group()
+    )
     return output
 
 
@@ -293,7 +288,9 @@ def scatter_to_sequence_parallel_region(input_: torch.Tensor) -> torch.Tensor:
     return _ScatterToSequenceParallelRegion.apply(input_)
 
 
-def gather_from_sequence_parallel_region(input_: torch.Tensor, to_model_parallel: bool = True) -> torch.Tensor:
+def gather_from_sequence_parallel_region(
+    input_: torch.Tensor, to_model_parallel: bool = True
+) -> torch.Tensor:
     return _GatherFromSequenceParallelRegion.apply(input_, to_model_parallel)
 
 

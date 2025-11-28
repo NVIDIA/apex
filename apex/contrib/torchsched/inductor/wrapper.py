@@ -52,7 +52,9 @@ class EnterDeviceContextManagerWithStreamInfoLine(EnterDeviceContextManagerLine)
             code.writeline(f"{DEFAULT_STREAM} = torch.cuda.current_stream()")
             code.writeline(f"{ENTRANCE_EVENT} = {DEFAULT_STREAM}.record_event()")
 
-            code.writeline("from apex.contrib.torchsched.inductor._utils import get_cuda_stream_pool")
+            code.writeline(
+                "from apex.contrib.torchsched.inductor._utils import get_cuda_stream_pool"
+            )
             code.writeline(
                 f"cuda_stream_pool = get_cuda_stream_pool(device={self.device_idx}, "
                 f"pool_size={config.num_streams})",
@@ -60,8 +62,7 @@ class EnterDeviceContextManagerWithStreamInfoLine(EnterDeviceContextManagerLine)
 
             for i in range(1, config.num_streams):
                 code.writeline(
-                    f"{STREAM_NAME_TEMPLATE.format(stream_idx=i)} "
-                    f"= cuda_stream_pool.acquire()",
+                    f"{STREAM_NAME_TEMPLATE.format(stream_idx=i)} = cuda_stream_pool.acquire()",
                 )
 
 

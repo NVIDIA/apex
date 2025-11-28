@@ -6,6 +6,7 @@ _kernel_import_succeeded = False
 try:
     import amp_C
     from apex.multi_tensor_apply import multi_tensor_applier
+
     _kernel_import_succeeded = True
 except ImportError:
     _kernel_import_succeeded = False
@@ -14,8 +15,11 @@ _tensor_or_tensors = Union[torch.Tensor, Iterable[torch.Tensor]]
 
 
 def clip_grad_norm_(
-        parameters: _tensor_or_tensors, max_norm: float, norm_type: float = 2.0,
-        error_if_nonfinite: bool = False) -> torch.Tensor:
+    parameters: _tensor_or_tensors,
+    max_norm: float,
+    norm_type: float = 2.0,
+    error_if_nonfinite: bool = False,
+) -> torch.Tensor:
     r"""Clips gradient norm of an iterable of parameters.
 
     The norm is computed over all gradients together, as if they were
@@ -47,17 +51,15 @@ def clip_grad_norm_(
 
     # Trivial case
     if len(parameters) == 0:
-        return torch.tensor(0.)
+        return torch.tensor(0.0)
 
     # Fallback implementation
-    if not (_kernel_import_succeeded
-            and norm_type == 2.0
-            and any(p.is_cuda for p in parameters)):
+    if not (_kernel_import_succeeded and norm_type == 2.0 and any(p.is_cuda for p in parameters)):
         return torch.nn.utils.clip_grad_norm_(
             parameters,
             max_norm,
             norm_type=norm_type,
-            error_if_nonfinite = error_if_nonfinite,
+            error_if_nonfinite=error_if_nonfinite,
         )
 
     # Find fp32 and fp16 gradients on GPU
@@ -100,10 +102,11 @@ def clip_grad_norm_(
     # Check for non-finite values
     if error_if_nonfinite and torch.logical_or(total_norm.isnan(), total_norm.isinf()):
         raise RuntimeError(
-            f'The total norm of order {norm_type} for gradients from '
-            '`parameters` is non-finite, so it cannot be clipped. To disable '
-            'this error and scale the gradients by the non-finite norm anyway, '
-            'set `error_if_nonfinite=False`')
+            f"The total norm of order {norm_type} for gradients from "
+            "`parameters` is non-finite, so it cannot be clipped. To disable "
+            "this error and scale the gradients by the non-finite norm anyway, "
+            "set `error_if_nonfinite=False`"
+        )
 
     # Scale gradients
     clip_coef = max_norm / (total_norm + 1e-6)

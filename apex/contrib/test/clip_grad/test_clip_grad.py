@@ -11,12 +11,12 @@ except ImportError as e:
 
 
 def make_params(
-        num_params,
-        sizes=[1,2,3,4,5],
-        num_dims=[1,2,3],
-        dtypes=[torch.float32],
-        devices=['cuda'],
-        make_copy=False,
+    num_params,
+    sizes=[1, 2, 3, 4, 5],
+    num_dims=[1, 2, 3],
+    dtypes=[torch.float32],
+    devices=["cuda"],
+    make_copy=False,
 ):
     """Construct parameters with random configurations"""
 
@@ -44,21 +44,20 @@ def make_params(
 
 @unittest.skipIf(SKIP_TEST, f"{SKIP_TEST}")
 class ClipGradNormTest(unittest.TestCase):
-
     def setUp(self, seed=1234):
         super().setUp()
         random.seed(seed)
         torch.manual_seed(seed)
 
     def test_matches_pytorch(
-            self,
-            num_params=41,
-            dtypes=[torch.float32, torch.float16, torch.float64],
-            devices=['cuda', 'cpu'],
-            max_norm=0.54321,
-            norm_type=2.0,
-            rtol=1e-3,
-            atol=1e-20,
+        self,
+        num_params=41,
+        dtypes=[torch.float32, torch.float16, torch.float64],
+        devices=["cuda", "cpu"],
+        max_norm=0.54321,
+        norm_type=2.0,
+        rtol=1e-3,
+        atol=1e-20,
     ):
         """Make sure PyTorch and Apex gradient clipping produce same results"""
 
@@ -84,19 +83,22 @@ class ClipGradNormTest(unittest.TestCase):
 
         # Make sure PyTorch and Apex get same results
         torch.testing.assert_close(
-            apex_norm, torch_norm,
+            apex_norm,
+            torch_norm,
             rtol=rtol,
             atol=atol,
             check_dtype=False,
         )
         for torch_p, apex_p in zip(torch_params, apex_params):
             torch.testing.assert_close(
-                apex_p, torch_p,
+                apex_p,
+                torch_p,
                 rtol=0,
                 atol=0,
-            ) # Params should be unaffected
+            )  # Params should be unaffected
             torch.testing.assert_close(
-                apex_p.grad, torch_p.grad,
+                apex_p.grad,
+                torch_p.grad,
                 rtol=rtol,
                 atol=atol,
             )
@@ -111,16 +113,15 @@ class ClipGradNormTest(unittest.TestCase):
         self.test_matches_pytorch(dtypes=[torch.float64], rtol=1e-15)
 
     def test_matches_pytorch_cpu(self):
-        self.test_matches_pytorch(devices=['cpu'])
+        self.test_matches_pytorch(devices=["cpu"])
 
     def test_matches_pytorch_infnorm(self):
-        self.test_matches_pytorch(norm_type=float('inf'))
+        self.test_matches_pytorch(norm_type=float("inf"))
 
     def test_matches_pytorch_1norm(self):
         self.test_matches_pytorch(norm_type=1.0)
 
     def test_raises_on_mismatch(self):
-
         # Construct different sets of parameters
         torch_params, apex_params = make_params(7, make_copy=True)
         with torch.no_grad():
@@ -141,7 +142,8 @@ class ClipGradNormTest(unittest.TestCase):
         self.assertRaises(
             AssertionError,
             torch.testing.assert_close,
-            apex_norm, torch_norm,
+            apex_norm,
+            torch_norm,
             rtol=1e-3,
             atol=1e-20,
             check_dtype=False,
@@ -150,22 +152,21 @@ class ClipGradNormTest(unittest.TestCase):
             self.assertRaises(
                 AssertionError,
                 torch.testing.assert_close,
-                apex_p.grad, torch_p.grad,
+                apex_p.grad,
+                torch_p.grad,
                 rtol=1e-3,
                 atol=1e-20,
             )
 
     def test_raises_on_nan(self):
         params = make_params(5, num_dims=[1])
-        params[2].grad[-1] = float('NaN')
-        self.assertRaises(
-            RuntimeError, clip_grad_norm_, params, 1.0, error_if_nonfinite=True)
+        params[2].grad[-1] = float("NaN")
+        self.assertRaises(RuntimeError, clip_grad_norm_, params, 1.0, error_if_nonfinite=True)
 
     def test_raises_on_inf(self):
         params = make_params(5, num_dims=[1])
-        params[2].grad[-1] = float('inf')
-        self.assertRaises(
-            RuntimeError, clip_grad_norm_, params, 1.0, error_if_nonfinite=True)
+        params[2].grad[-1] = float("inf")
+        self.assertRaises(RuntimeError, clip_grad_norm_, params, 1.0, error_if_nonfinite=True)
 
 
 if __name__ == "__main__":

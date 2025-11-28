@@ -1,4 +1,5 @@
 """Tests for c++ MLP"""
+
 from itertools import product
 from time import time
 

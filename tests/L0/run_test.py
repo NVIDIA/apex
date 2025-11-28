@@ -10,6 +10,7 @@ How to run this script?
 3. Run two or more of the tests (e.g. optimizers and fused layer norm):
     `python /path/to/apex/tests/L0/run_test.py --include run_optimizers run_fused_layer_norm`
 """
+
 import argparse
 import os
 import unittest
@@ -66,10 +67,12 @@ def main(args: argparse.Namespace) -> None:
     if (args.xml_report is not None) or (args.xml_dir is not None):
         if args.xml_report is not None:
             import warnings
+
             warnings.warn("The option of `--xml-report` is deprecated", FutureWarning)
 
         import xmlrunner
         from datetime import date  # NOQA
+
         Runner = xmlrunner.XMLTestRunner
         if args.xml_report:
             xml_dir = os.path.abspath(os.path.dirname(__file__))
@@ -103,6 +106,6 @@ def main(args: argparse.Namespace) -> None:
     sys.exit(errcode)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parse_args()
     main(args)

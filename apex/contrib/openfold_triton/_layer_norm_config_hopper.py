@@ -120,9 +120,7 @@ _auto_tuned_config_hopper = {
             ),
         },
         "_layer_norm_backward_dw_db_partial_strided": {
-            (8192, 128): Config(
-                {"N_BLOCK": 32, "M_PARTIAL_REDUCE": 256}, num_warps=8, num_stages=2
-            )
+            (8192, 128): Config({"N_BLOCK": 32, "M_PARTIAL_REDUCE": 256}, num_warps=8, num_stages=2)
         },
         "_layer_norm_backward_dx": {
             (65536, 128): Config({"M_BLOCK": 8}, num_warps=4, num_stages=2),
