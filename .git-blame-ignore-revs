@@ -1,0 +1,7 @@
+# Commits to ignore in git-blame for cleaner history
+# These are typically mass formatting changes, linting fixes, or other commits
+# that don't add meaningful context to the code's history
+
+1f20398756f0eeba37d6887a2d3f65e0687ec94f
+27e0e8951352d9d58c88b2895cd8f2c752bda963
+16fadfe71c0d57312351c2d8b056251a0c8ce1ef
