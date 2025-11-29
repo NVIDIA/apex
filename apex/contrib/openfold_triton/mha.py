@@ -158,7 +158,10 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
         o = torch.empty_like(q)
 
         Z, H, N_CTX, H_DIM = q.shape
-        grid = lambda META: (triton.cdiv(N_CTX, META["BLOCK_M"]), Z * H)
+
+        def grid(META):
+            return (triton.cdiv(N_CTX, META["BLOCK_M"]), Z * H)
+
         l = torch.empty(
             (q.shape[-4], q.shape[-3], q.shape[-2]),
             device=q.device,
@@ -309,7 +312,9 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
         # grid = lambda META: (Z * H, triton.cdiv(N_CTX, META["BLOCK_N"]))
         # grid = lambda META: (triton.cdiv(N_CTX, META["BLOCK_N"]) if META["SEQUENCE_PARALLEL"] else 1,
         #            Z * H)
-        grid = lambda META: (Z * H,)
+        def grid(META):
+            return (Z * H,)
+
         _bwd_kernel[grid](
             q,
             k,
