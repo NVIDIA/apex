@@ -1,0 +1,9 @@
+# Commits to ignore in git-blame
+# These commits are bulk formatting or refactoring changes that should be skipped when viewing blame history
+
+# Add pre-commit and GitHub Actions workflow for it (#1949)
+1f20398756f0eeba37d6887a2d3f65e0687ec94f
+# Remove github actions config of pre-commit in favor of pre-commit ci (#1958)
+27e0e8951352d9d58c88b2895cd8f2c752bda963
+# Enable Ruff pre-commit hooks (#1957)
+16fadfe71c0d57312351c2d8b056251a0c8ce1ef
