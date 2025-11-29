@@ -308,6 +308,7 @@ class FusedAttenionCoreFunc(torch.autograd.Function):
 
         # BLOCK_M, BLOCK_N = 128, 64
         BLOCK_M, BLOCK_N, num_warps, num_stages = schedule_triton_mha(list(q.shape), fwd=False)
+
         # grid = lambda META: (triton.cdiv(N_CTX, META["BLOCK_N"]), Z * H)
         # grid = lambda META: (Z * H, triton.cdiv(N_CTX, META["BLOCK_N"]))
         # grid = lambda META: (triton.cdiv(N_CTX, META["BLOCK_N"]) if META["SEQUENCE_PARALLEL"] else 1,
